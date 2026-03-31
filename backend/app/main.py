@@ -47,9 +47,11 @@ def create_app() -> Sanic:
     # 注册路由蓝图
     from .routes.auth import auth_bp
     from .routes.users import users_bp
+    from .routes.customers import customers_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
+    app.blueprint(customers_bp)
 
     # 注册路由
     @app.get("/health")
