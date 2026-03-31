@@ -1,7 +1,9 @@
 from sanic import Sanic
 from sanic.response import json
 from sanic_cors import CORS
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from .config import settings
+from .middleware.auth import auth_middleware
 
 
 def create_app() -> Sanic:
@@ -17,6 +19,37 @@ def create_app() -> Sanic:
         allow_methods=settings.cors_allow_methods,
         allow_headers=settings.cors_allow_headers,
     )
+
+    # 初始化数据库引擎
+    engine = create_async_engine(
+        settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=settings.database_echo,
+    )
+
+    # 创建会话工厂
+    async_session_maker = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    # 数据库会话中间件
+    @app.middleware("request")
+    async def db_session_middleware(request):
+        request.ctx.db_session = await async_session_maker()
+
+    @app.middleware("response")
+    async def close_db_session(request, response):
+        if hasattr(request.ctx, "db_session"):
+            await request.ctx.db_session.close()
+
+    # 注册认证中间件
+    auth_middleware(app)
+
+    # 注册路由蓝图
+    from .routes.auth import auth_bp
+    from .routes.users import users_bp
+
+    app.blueprint(auth_bp)
+    app.blueprint(users_bp)
 
     # 注册路由
     @app.get("/health")
@@ -47,6 +80,11 @@ def create_app() -> Sanic:
         app.logger.info(
             f"🚀 {settings.app_name} 启动在 {settings.host}:{settings.port}"
         )
+
+    # 应用关闭事件
+    @app.after_server_stop
+    async def on_shutdown(app, loop):
+        await engine.dispose()
 
     return app
 
