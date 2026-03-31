@@ -1,6 +1,6 @@
 """用户与权限模型"""
 
-from sqlalchemy import Column, String, Boolean, ForeignKey, Table
+from sqlalchemy import Column, String, Boolean, ForeignKey, Table, Integer
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 

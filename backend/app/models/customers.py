@@ -9,7 +9,7 @@ from sqlalchemy import (
     Text,
     DECIMAL,
     Date,
-    JSONB,
+    JSON,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship

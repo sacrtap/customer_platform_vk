@@ -2,9 +2,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
 from alembic import context
-
 import sys
 from pathlib import Path
 
@@ -19,18 +17,22 @@ target_metadata = BaseModel.metadata
 
 
 def run_migrations_offline() -> None:
+    """离线模式 - 用于生成 SQL 脚本"""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
-        literal_binds=True,
+        literal_binds=False,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
+    # 生成 SQL 脚本而不执行
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
+    """在线模式 - 执行迁移到数据库"""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

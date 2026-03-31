@@ -9,7 +9,7 @@ from sqlalchemy import (
     Text,
     DECIMAL,
     Date,
-    JSONB,
+    JSON,
 )
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -60,9 +60,9 @@ class PricingRule(BaseModel):
     device_type = Column(String(20), nullable=False)  # X/N/L
     pricing_type = Column(String(20), nullable=False)  # fixed/tier/package
     unit_price = Column(DECIMAL(10, 2))
-    tiers = Column(JSONB)  # 阶梯配置
+    tiers = Column(JSON)  # 阶梯配置
     package_type = Column(String(20))  # A/B/C/D
-    package_limits = Column(JSONB)
+    package_limits = Column(JSON)
     effective_date = Column(Date, nullable=False)
     expiry_date = Column(Date)
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -155,5 +155,5 @@ class AuditLog(BaseModel):
     module = Column(String(50), nullable=False)
     record_id = Column(Integer)
     record_type = Column(String(50))
-    changes = Column(JSONB)  # {"before": {...}, "after": {...}}
+    changes = Column(JSON)  # {"before": {...}, "after": {...}}
     ip_address = Column(String(45))
