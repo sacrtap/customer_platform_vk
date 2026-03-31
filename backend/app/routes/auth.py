@@ -3,7 +3,9 @@
 from sanic import Blueprint
 from sanic.response import json
 from sanic.request import Request
+from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
+from ..services.users import UserService
 from ..middleware.auth import get_current_user
 
 auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
@@ -27,27 +29,44 @@ async def login(request: Request):
     if not username or not password:
         return json({"code": 40001, "message": "用户名和密码不能为空"}, status=400)
 
-    # TODO: 临时硬编码验证，后续替换为数据库查询
-    if username == "admin" and password == "admin123":
-        access_token = AuthService.create_access_token(
-            user_id=1, username=username, roles=["admin"]
-        )
-        refresh_token = AuthService.create_refresh_token(user_id=1)
+    session: AsyncSession = request.ctx.db_session
+    user_service = UserService(session)
 
-        return json(
-            {
-                "code": 0,
-                "message": "登录成功",
-                "data": {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "Bearer",
-                    "user": {"id": 1, "username": username, "roles": ["admin"]},
+    user = await user_service.get_user_by_username(username)
+    if not user:
+        return json({"code": 40101, "message": "用户名或密码错误"}, status=401)
+
+    if not user_service.verify_password(password, user.password_hash):
+        return json({"code": 40101, "message": "用户名或密码错误"}, status=401)
+
+    if not user.is_active:
+        return json({"code": 40102, "message": "账号已被禁用"}, status=401)
+
+    roles = [role.name for role in user.roles]
+
+    access_token = AuthService.create_access_token(
+        user_id=user.id, username=username, roles=roles
+    )
+    refresh_token = AuthService.create_refresh_token(user_id=user.id)
+
+    return json(
+        {
+            "code": 0,
+            "message": "登录成功",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "Bearer",
+                "user": {
+                    "id": user.id,
+                    "username": username,
+                    "email": user.email,
+                    "real_name": user.real_name,
+                    "roles": roles,
                 },
-            }
-        )
-
-    return json({"code": 40101, "message": "用户名或密码错误"}, status=401)
+            },
+        }
+    )
 
 
 @auth_bp.post("/logout")
@@ -84,11 +103,19 @@ async def refresh_token(request: Request):
             {"code": 40101, "message": "Refresh Token 无效或已过期"}, status=401
         )
 
-    # 生成新的 Access Token
+    session: AsyncSession = request.ctx.db_session
+    user_service = UserService(session)
+
+    user = await user_service.get_user_by_id(payload["user_id"])
+    if not user or not user.is_active:
+        return json({"code": 40101, "message": "用户不存在或已被禁用"}, status=401)
+
+    roles = [role.name for role in user.roles]
+
     new_access_token = AuthService.create_access_token(
-        user_id=payload["user_id"],
-        username=payload.get("username", "user"),
-        roles=[],  # TODO: 从数据库获取角色
+        user_id=user.id,
+        username=user.username,
+        roles=roles,
     )
 
     return json(
