@@ -30,6 +30,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/roles/Index.vue'),
         meta: { requiresPermission: 'roles:manage' },
       },
+      {
+        path: 'customers',
+        name: 'Customers',
+        component: () => import('@/views/customers/Index.vue'),
+        meta: { requiresPermission: 'customers:manage' },
+      },
+      {
+        path: 'customers/:id',
+        name: 'CustomerDetail',
+        component: () => import('@/views/customers/Detail.vue'),
+        meta: { requiresPermission: 'customers:manage' },
+      },
     ],
   },
 ]
