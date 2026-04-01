@@ -42,6 +42,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/customers/Detail.vue'),
         meta: { requiresPermission: 'customers:manage' },
       },
+      {
+        path: 'tags',
+        name: 'Tags',
+        component: () => import('@/views/tags/Index.vue'),
+        meta: { requiresPermission: 'tags:manage' },
+      },
     ],
   },
 ]

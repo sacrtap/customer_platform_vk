@@ -17,6 +17,7 @@
           <a-menu :default-selected-keys="['dashboard']" @menu-item-click="handleMenuClick">
             <a-menu-item key="dashboard">首页</a-menu-item>
             <a-menu-item key="customers">客户管理</a-menu-item>
+            <a-menu-item key="tags">标签管理</a-menu-item>
             <a-menu-item key="billing">结算管理</a-menu-item>
             <a-menu-item key="profiles">画像管理</a-menu-item>
             <a-menu-item key="analytics">客户分析</a-menu-item>
