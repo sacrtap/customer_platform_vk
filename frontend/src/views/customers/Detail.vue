@@ -90,6 +90,32 @@
           </a-empty>
         </a-tab-pane>
 
+        <a-tab-pane key="tags" title="客户标签">
+          <a-space direction="vertical" style="width: 100%">
+            <div>
+              <a-button type="primary" size="small" @click="showAddTagModal">
+                <template #icon><icon-plus /></template>
+                添加标签
+              </a-button>
+            </div>
+            <div v-if="customerTags.length > 0">
+              <a-space wrap>
+                <a-tag
+                  v-for="tag in customerTags"
+                  :key="tag.id"
+                  :color="tag.type === 'customer' ? 'blue' : 'purple'"
+                  closable
+                  @close="removeTag(tag.id)"
+                >
+                  {{ tag.name }}
+                  <span v-if="tag.category" style="margin-left: 4px; opacity: 0.7">({{ tag.category }})</span>
+                </a-tag>
+              </a-space>
+            </div>
+            <a-empty v-else description="暂无标签" />
+          </a-space>
+        </a-tab-pane>
+
         <a-tab-pane key="balance" title="账户余额">
           <a-descriptions :column="3" bordered>
             <a-descriptions-item label="总余额">
@@ -120,8 +146,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
+import { IconPlus } from '@arco-design/web-vue/es/icon'
 import * as customerApi from '@/api/customers'
+import * as tagApi from '@/api/tags'
+import TagSelector from '@/components/TagSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -151,6 +180,10 @@ const balance = ref({
   used_bonus: 0,
 })
 
+const customerTags = ref<any[]>([])
+const addTagModalVisible = ref(false)
+const selectedTagIds = ref<number[]>([])
+
 const fetchData = async () => {
   try {
     const res = await customerApi.getCustomer(Number(route.params.id))
@@ -164,9 +197,63 @@ const fetchData = async () => {
       used_real: 0,
       used_bonus: 0,
     }
+    await fetchCustomerTags()
   } catch (err: any) {
     Message.error(err.message || '加载失败')
   }
+}
+
+const fetchCustomerTags = async () => {
+  try {
+    const res = await tagApi.getCustomerTags(Number(route.params.id))
+    customerTags.value = res.data
+  } catch (err: any) {
+    console.error('加载客户标签失败:', err)
+  }
+}
+
+const showAddTagModal = () => {
+  selectedTagIds.value = customerTags.value.map(t => t.id)
+  addTagModalVisible.value = true
+}
+
+const handleAddTag = async () => {
+  const tagsToAdd = selectedTagIds.value.filter(id => !customerTags.value.find(t => t.id === id))
+  
+  if (tagsToAdd.length === 0) {
+    addTagModalVisible.value = false
+    return
+  }
+
+  try {
+    await tagApi.batchAddCustomerTags({
+      customer_ids: [Number(route.params.id)],
+      tag_ids: tagsToAdd,
+    })
+    Message.success('添加成功')
+    addTagModalVisible.value = false
+    await fetchCustomerTags()
+  } catch (err: any) {
+    Message.error(err.message || '添加失败')
+  }
+}
+
+const removeTag = async (tagId: number) => {
+  Modal.warning({
+    title: '确认移除',
+    content: '确定要移除此标签吗？',
+    okText: '确认',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await tagApi.removeCustomerTag(Number(route.params.id), tagId)
+        Message.success('移除成功')
+        await fetchCustomerTags()
+      } catch (err: any) {
+        Message.error(err.message || '移除失败')
+      }
+    },
+  })
 }
 
 const saveProfile = async () => {
