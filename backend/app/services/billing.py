@@ -3,9 +3,17 @@
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import OperationalError
+from tenacity import (
+    AsyncRetrying,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 from ..models.billing import (
     CustomerBalance,
     RechargeRecord,
@@ -97,7 +105,7 @@ class BalanceService:
         invoice_id: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """
-        消费扣款（先赠后实）
+        消费扣款（先赠后实）- 带事务保护和行级锁
 
         Args:
             customer_id: 客户 ID
@@ -106,58 +114,99 @@ class BalanceService:
 
         Returns:
             (success, message)
+
+        Raises:
+            OperationalError: 数据库操作错误（重试后仍失败则抛出）
         """
-        balance = await self.get_balance_by_customer_id(customer_id)
+        import logging
 
-        if not balance:
-            return False, "客户余额账户不存在"
+        logger = logging.getLogger(__name__)
 
-        total_balance = (balance.real_amount or 0) + (balance.bonus_amount or 0)
-        if total_balance < amount:
-            return False, f"余额不足，当前余额：{total_balance:.2f}"
+        # 死锁重试配置
+        # - 3 次尝试：平衡死锁恢复与用户体验
+        # - 0.1s 最小等待：快速恢复瞬时锁
+        # - 1.0s 最大等待：防止过度延迟
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=0.1, max=1.0),
+            retry=retry_if_exception_type(OperationalError),
+            reraise=True,
+        ):
+            with attempt:
+                # 每次重试获得新的事务边界
+                async with self.db.begin():
+                    # 使用行级锁获取余额记录，防止并发修改
+                    # with_for_update() 会锁定选中的行，其他事务必须等待当前事务提交
+                    result = await self.db.execute(
+                        select(CustomerBalance)
+                        .where(
+                            CustomerBalance.customer_id == customer_id,
+                            CustomerBalance.deleted_at.is_(None),
+                        )
+                        .with_for_update()  # SELECT FOR UPDATE - 行级排他锁
+                    )
+                    balance = result.scalar_one_or_none()
 
-        # 先消耗赠金，再消耗实充
-        remaining = amount
-        bonus_used = Decimal(0)
-        real_used = Decimal(0)
+                    if not balance:
+                        return False, "客户余额账户不存在"
 
-        if balance.bonus_amount and balance.bonus_amount > 0:
-            if balance.bonus_amount >= remaining:
-                bonus_used = remaining
-                balance.bonus_amount -= remaining
-                remaining = Decimal(0)
-            else:
-                bonus_used = balance.bonus_amount
-                remaining -= balance.bonus_amount
-                balance.bonus_amount = Decimal(0)
+                    total_balance = (balance.real_amount or 0) + (
+                        balance.bonus_amount or 0
+                    )
+                    if total_balance < amount:
+                        return False, f"余额不足，当前余额：{total_balance:.2f}元"
 
-        if remaining > 0 and balance.real_amount and balance.real_amount > 0:
-            if balance.real_amount >= remaining:
-                real_used = remaining
-                balance.real_amount -= remaining
-            else:
-                real_used = balance.real_amount
-                balance.real_amount = Decimal(0)
+                    # 先消耗赠金，再消耗实充
+                    remaining = amount
+                    bonus_used = Decimal(0)
+                    real_used = Decimal(0)
 
-        # 更新总额
-        balance.used_total = (balance.used_total or 0) + amount
-        balance.used_bonus = (balance.used_bonus or 0) + bonus_used
-        balance.used_real = (balance.used_real or 0) + real_used
+                    if balance.bonus_amount and balance.bonus_amount > 0:
+                        if balance.bonus_amount >= remaining:
+                            bonus_used = remaining
+                            balance.bonus_amount -= remaining
+                            remaining = Decimal(0)
+                        else:
+                            bonus_used = balance.bonus_amount
+                            remaining -= balance.bonus_amount
+                            balance.bonus_amount = Decimal(0)
 
-        # 创建消费记录
-        consumption = ConsumptionRecord(
-            customer_id=customer_id,
-            invoice_id=invoice_id,
-            amount=amount,
-            bonus_used=bonus_used,
-            real_used=real_used,
-            balance_after=(balance.real_amount or 0) + (balance.bonus_amount or 0),
-        )
-        self.db.add(consumption)
+                    if (
+                        remaining > 0
+                        and balance.real_amount
+                        and balance.real_amount > 0
+                    ):
+                        if balance.real_amount >= remaining:
+                            real_used = remaining
+                            balance.real_amount -= remaining
+                        else:
+                            real_used = balance.real_amount
+                            balance.real_amount = Decimal(0)
 
-        await self.db.commit()
+                    # 更新总额
+                    balance.used_total = (balance.used_total or 0) + amount
+                    balance.used_bonus = (balance.used_bonus or 0) + bonus_used
+                    balance.used_real = (balance.used_real or 0) + real_used
 
-        return True, "扣款成功"
+                    # 创建消费记录
+                    consumption = ConsumptionRecord(
+                        customer_id=customer_id,
+                        invoice_id=invoice_id,
+                        amount=amount,
+                        bonus_used=bonus_used,
+                        real_used=real_used,
+                        balance_after=(balance.real_amount or 0)
+                        + (balance.bonus_amount or 0),
+                    )
+                    self.db.add(consumption)
+
+                    # 提交事务
+                    await self.db.commit()
+
+                    return True, "扣款成功"
+
+        # 不应到达此处（reraise=True 会抛出最后一次异常）
+        return False, "扣款失败：数据库操作超时"
 
     async def get_recharge_records(
         self,

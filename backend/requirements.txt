@@ -48,3 +48,6 @@ locust==2.20.0
 
 # CORS
 sanic-cors==2.2.0
+
+# Retry Mechanism
+tenacity==8.2.3
