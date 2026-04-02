@@ -220,6 +220,6 @@ export interface DashboardChartData {
   payment_trend: ChartTrendItem[]
 }
 
-export function getDashboardChartData(params?: { months?: number }) {
+export function getDashboardChartData(params?: { chart_type?: string; months?: number }) {
   return api.get('/analytics/dashboard/chart-data', { params })
 }
