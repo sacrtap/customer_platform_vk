@@ -48,6 +48,36 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/tags/Index.vue'),
         meta: { requiresPermission: 'tags:manage' },
       },
+      {
+        path: 'billing',
+        name: 'Billing',
+        children: [
+          {
+            path: 'balances',
+            name: 'Balance',
+            component: () => import('@/views/billing/Balance.vue'),
+            meta: { requiresPermission: 'billing:manage' },
+          },
+          {
+            path: 'pricing-rules',
+            name: 'PricingRules',
+            component: () => import('@/views/billing/PricingRules.vue'),
+            meta: { requiresPermission: 'billing:manage' },
+          },
+        ],
+      },
+      {
+        path: 'system',
+        name: 'System',
+        children: [
+          {
+            path: 'sync-logs',
+            name: 'SyncLogs',
+            component: () => import('@/views/system/SyncLogs.vue'),
+            meta: { requiresPermission: 'system:view' },
+          },
+        ],
+      },
     ],
   },
 ]

@@ -18,10 +18,13 @@
             <a-menu-item key="dashboard">首页</a-menu-item>
             <a-menu-item key="customers">客户管理</a-menu-item>
             <a-menu-item key="tags">标签管理</a-menu-item>
-            <a-menu-item key="billing">结算管理</a-menu-item>
-            <a-menu-item key="profiles">画像管理</a-menu-item>
-            <a-menu-item key="analytics">客户分析</a-menu-item>
-            <a-menu-item key="settings">系统设置</a-menu-item>
+            <a-sub-menu key="billing" title="结算管理">
+              <a-menu-item key="billing/balances">余额管理</a-menu-item>
+              <a-menu-item key="billing/pricing-rules">定价规则</a-menu-item>
+            </a-sub-menu>
+            <a-sub-menu key="system" title="系统管理">
+              <a-menu-item key="system/sync-logs">同步任务日志</a-menu-item>
+            </a-sub-menu>
           </a-menu>
         </a-layout-sider>
         <a-layout-content class="content">
@@ -40,7 +43,11 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const handleMenuClick = (key: string) => {
-  router.push(`/${key}`)
+  if (key === 'dashboard') {
+    router.push('/')
+  } else {
+    router.push(`/${key}`)
+  }
 }
 
 const handleLogout = () => {

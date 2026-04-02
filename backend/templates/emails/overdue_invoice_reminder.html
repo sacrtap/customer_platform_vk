@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>逾期账单提醒</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 2px solid #ff4d4f;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #ff4d4f;
+            margin: 0;
+            font-size: 24px;
+        }
+        .greeting {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .summary {
+            background-color: #fff2f0;
+            border: 1px solid #ffccc7;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .summary strong {
+            color: #ff4d4f;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th {
+            background-color: #fafafa;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e8e8e8;
+        }
+        td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .status-overdue {
+            color: #ff4d4f;
+            font-weight: 600;
+        }
+        .amount {
+            font-weight: 600;
+            color: #ff4d4f;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e8e8e8;
+            font-size: 14px;
+            color: #666;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #1890ff;
+            color: #ffffff;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .btn:hover {
+            background-color: #40a9ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ 逾期账单提醒</h1>
+        </div>
+
+        <div class="greeting">
+            尊敬的 {{ user_name }}，您好！
+        </div>
+
+        <div class="summary">
+            <p>
+                <strong>您有 {{ invoices|length }} 笔结算单已逾期，</strong>请及时跟进客户确认付款。
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #666;">
+                统计日期：{{ today }}
+            </p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>结算单号</th>
+                    <th>客户名称</th>
+                    <th>账单周期</th>
+                    <th>账单金额</th>
+                    <th>逾期天数</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr>
+                    <td>{{ invoice.invoice_no }}</td>
+                    <td>{{ invoice.customer.company_name }}</td>
+                    <td>
+                        {{ invoice.billing_start.strftime('%m/%d') }} -
+                        {{ invoice.billing_end.strftime('%m/%d') }}
+                    </td>
+                    <td class="amount">¥{{ "%.2f"|format(invoice.final_amount) }}</td>
+                    <td class="status-overdue">
+                        {{ (today - invoice.due_date).days }} 天
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <p style="margin-top: 20px;">
+            请登录系统进行详细查看和处理：
+        </p>
+        <a href="http://localhost:5173/billing/invoices" class="btn">查看结算单列表</a>
+
+        <div class="footer">
+            <p>
+                此邮件由客户运营中台系统自动发送，请勿回复。
+            </p>
+            <p style="margin: 5px 0;">
+                如有问题，请联系系统管理员。
+            </p>
+        </div>
+    </div>
+</body>
+</html>
