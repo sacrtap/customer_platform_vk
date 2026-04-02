@@ -50,6 +50,7 @@ def create_app() -> Sanic:
     from .routes.customers import customers_bp
     from .routes.billing import billing_bp
     from .routes.tags import tags_bp, customer_tags_bp, profile_tags_bp
+    from .routes.analytics import analytics
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
@@ -58,6 +59,7 @@ def create_app() -> Sanic:
     app.blueprint(tags_bp)
     app.blueprint(customer_tags_bp)
     app.blueprint(profile_tags_bp)
+    app.blueprint(analytics)
 
     # 注册路由
     @app.get("/health")
