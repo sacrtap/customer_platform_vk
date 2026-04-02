@@ -134,15 +134,28 @@ class DailyUsage(BaseModel):
     quantity = Column(DECIMAL(10, 2), nullable=False)
 
 
-class SyncLog(BaseModel):
+class SyncTaskLog(BaseModel):
     """同步任务日志表"""
 
-    __tablename__ = "sync_logs"
+    __tablename__ = "sync_task_logs"
 
-    task_name = Column(String(50), nullable=False)
-    status = Column(String(20), nullable=False)
-    records_synced = Column(Integer, default=0)
-    error_message = Column(Text)
+    task_name = Column(String(100), nullable=False, index=True, comment="任务名称")
+    status = Column(
+        String(20), nullable=False, comment="任务状态"
+    )  # success/partial/failed
+
+    # 统计数据
+    total_count = Column(Integer, default=0, comment="总处理数量")
+    success_count = Column(Integer, default=0, comment="成功数量")
+    failed_count = Column(Integer, default=0, comment="失败数量")
+    skipped_count = Column(Integer, default=0, comment="跳过数量")
+
+    # 执行时间
+    executed_at = Column(String(50), comment="执行时间")
+    duration_seconds = Column(Integer, nullable=True, comment="执行耗时 (秒)")
+
+    # 错误信息
+    error_message = Column(Text, nullable=True, comment="错误信息")
 
 
 class AuditLog(BaseModel):

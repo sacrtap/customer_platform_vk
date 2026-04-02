@@ -10,15 +10,13 @@ class Base(DeclarativeBase):
 
 
 # 导入所有模型以便 alembic 自动发现
-from . import users, customers, billing
+from . import users, customers, billing, tags
 
 # 导出所有模型
 __all__ = [
     "Base",
-    "User",
-    "Role",
-    "Permission",
     "users",
-    "user_roles",
-    "role_permissions",
+    "customers",
+    "billing",
+    "tags",
 ]

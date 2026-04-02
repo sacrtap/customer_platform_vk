@@ -1,0 +1,31 @@
+# Prometheus 监控配置
+# 用于监控客户运营中台应用
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 应用监控
+  - job_name: 'customer-platform'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+    
+  # 数据库监控
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['localhost:9187']
+    
+  # Redis 监控
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['localhost:9121']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+
+rule_files:
+  - 'alerts.yml'

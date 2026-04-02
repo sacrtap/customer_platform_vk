@@ -30,6 +30,54 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/roles/Index.vue'),
         meta: { requiresPermission: 'roles:manage' },
       },
+      {
+        path: 'customers',
+        name: 'Customers',
+        component: () => import('@/views/customers/Index.vue'),
+        meta: { requiresPermission: 'customers:manage' },
+      },
+      {
+        path: 'customers/:id',
+        name: 'CustomerDetail',
+        component: () => import('@/views/customers/Detail.vue'),
+        meta: { requiresPermission: 'customers:manage' },
+      },
+      {
+        path: 'tags',
+        name: 'Tags',
+        component: () => import('@/views/tags/Index.vue'),
+        meta: { requiresPermission: 'tags:manage' },
+      },
+      {
+        path: 'billing',
+        name: 'Billing',
+        children: [
+          {
+            path: 'balances',
+            name: 'Balance',
+            component: () => import('@/views/billing/Balance.vue'),
+            meta: { requiresPermission: 'billing:manage' },
+          },
+          {
+            path: 'pricing-rules',
+            name: 'PricingRules',
+            component: () => import('@/views/billing/PricingRules.vue'),
+            meta: { requiresPermission: 'billing:manage' },
+          },
+        ],
+      },
+      {
+        path: 'system',
+        name: 'System',
+        children: [
+          {
+            path: 'sync-logs',
+            name: 'SyncLogs',
+            component: () => import('@/views/system/SyncLogs.vue'),
+            meta: { requiresPermission: 'system:view' },
+          },
+        ],
+      },
     ],
   },
 ]
@@ -39,7 +87,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   userStore.initFromStorage()
 

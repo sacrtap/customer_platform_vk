@@ -47,9 +47,30 @@ def create_app() -> Sanic:
     # 注册路由蓝图
     from .routes.auth import auth_bp
     from .routes.users import users_bp
+    from .routes.customers import customers_bp
+    from .routes.billing import billing_bp
+    from .routes.tags import tags_bp, customer_tags_bp, profile_tags_bp
+    from .routes.analytics import analytics
+    from .routes.files import files_bp
+    from .routes.webhooks import webhooks_bp
+    from .routes.sync_logs import sync_logs_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
+    app.blueprint(customers_bp)
+    app.blueprint(billing_bp)
+    app.blueprint(tags_bp)
+    app.blueprint(customer_tags_bp)
+    app.blueprint(profile_tags_bp)
+    app.blueprint(analytics)
+    app.blueprint(files_bp)
+    app.blueprint(webhooks_bp)
+    app.blueprint(sync_logs_bp)
+
+    # 初始化任务调度器
+    from .tasks.scheduler import init_scheduler
+
+    init_scheduler(app)
 
     # 注册路由
     @app.get("/health")

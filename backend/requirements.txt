@@ -25,6 +25,8 @@ httpx==0.26.0
 # File Handling
 python-multipart==0.0.6
 aiofiles==23.2.1
+pandas==2.1.4
+openpyxl==3.1.2
 
 # Email
 aiosmtplib==3.0.1
@@ -35,11 +37,13 @@ jinja2==3.1.3
 # Logging
 structlog==24.1.0
 
-# Code Quality
+# Code Quality & Testing
 black==24.1.1
 flake8==7.0.0
 pytest==7.4.4
 pytest-asyncio==0.23.4
+pytest-cov==4.1.0
+locust==2.20.0
 
 # CORS
 sanic-cors==2.2.0
