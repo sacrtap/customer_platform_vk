@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Webhook 配置
     webhook_secret: str = "your-webhook-secret"
 
+    # Redis 配置
+    redis_url: str = "redis://localhost:6379/0"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

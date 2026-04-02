@@ -62,45 +62,4 @@ class CustomerProfile(BaseModel):
         return f"<CustomerProfile {self.customer_id}>"
 
 
-class Tag(BaseModel):
-    """标签定义表"""
-
-    __tablename__ = "tags"
-
-    name = Column(String(50), nullable=False)
-    type = Column(String(50), nullable=False)  # customer/profile
-    category = Column(String(50))
-    created_by = Column(Integer, ForeignKey("users.id"))
-
-    __table_args__ = (UniqueConstraint("name", "type", name="uq_tags_name_type"),)
-
-    def __repr__(self):
-        return f"<Tag {self.name}>"
-
-
-class CustomerTag(BaseModel):
-    """客户 - 标签关联表"""
-
-    __tablename__ = "customer_tags"
-
-    customer_id = Column(
-        Integer, ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True
-    )
-    tag_id = Column(
-        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
-    )
-
-
-class ProfileTag(BaseModel):
-    """画像 - 标签关联表"""
-
-    __tablename__ = "profile_tags"
-
-    profile_id = Column(
-        Integer,
-        ForeignKey("customer_profiles.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    tag_id = Column(
-        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
-    )
+class RechargeRecord(BaseModel):
