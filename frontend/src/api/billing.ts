@@ -14,7 +14,7 @@ export interface Balance {
   used_bonus: number
 }
 
-export function getBalances(params?: { customer_id?: number }) {
+export function getBalances(params?: { customer_id?: number; keyword?: string; page?: number; page_size?: number }) {
   return api.get('/billing/balances', { params })
 }
 

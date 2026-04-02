@@ -312,18 +312,13 @@ const formatDate = (dateStr: string) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await billingApi.getBalances()
-    let balances = res.data || []
-    
-    if (filters.keyword) {
-      balances = balances.filter((b: Balance) => 
-        b.customer_name?.includes(filters.keyword) || 
-        String(b.customer_id).includes(filters.keyword)
-      )
-    }
-    
-    data.value = balances
-    pagination.total = balances.length
+    const res = await billingApi.getBalances({
+      keyword: filters.keyword || undefined,
+      page: pagination.current,
+      page_size: pagination.pageSize,
+    })
+    data.value = res.data.list || []
+    pagination.total = res.data.total || 0
   } catch (err: any) {
     Message.error(err.message || '加载失败')
   } finally {

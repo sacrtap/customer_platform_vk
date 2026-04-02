@@ -17,22 +17,59 @@ billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
 @billing_bp.get("/balances")
 async def get_balances(request: Request):
-    """获取余额列表（支持筛选）"""
+    """获取余额列表（支持服务端筛选和分页）"""
     db: AsyncSession = request.ctx.db_session
-    balance_service = BalanceService(db)
 
-    # TODO: 实现分页和筛选
-    # 这里简化返回所有余额记录
     from ..models.billing import CustomerBalance
-    from sqlalchemy import select
+    from sqlalchemy import select, func
     from sqlalchemy.orm import selectinload
     from ..models.customers import Customer
 
-    stmt = (
+    # 分页参数
+    page = request.args.get("page", 1, int)
+    page_size = request.args.get("page_size", 20, int)
+    page_size = min(page_size, 100)
+
+    # 筛选参数
+    keyword = request.args.get("keyword")  # 客户名称模糊搜索
+    customer_id = request.args.get("customer_id", type=int)
+
+    base_stmt = (
         select(CustomerBalance)
-        .options(selectinload(CustomerBalance.customer))
-        .where(CustomerBalance.deleted_at.is_(None))
+        .join(Customer, CustomerBalance.customer_id == Customer.id)
+        .where(
+            CustomerBalance.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        )
     )
+
+    # 服务端过滤
+    if customer_id:
+        base_stmt = base_stmt.where(CustomerBalance.customer_id == customer_id)
+    if keyword:
+        base_stmt = base_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+    # 总数查询
+    count_stmt = (
+        select(func.count(CustomerBalance.id))
+        .join(Customer, CustomerBalance.customer_id == Customer.id)
+        .where(
+            CustomerBalance.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        )
+    )
+    if customer_id:
+        count_stmt = count_stmt.where(CustomerBalance.customer_id == customer_id)
+    if keyword:
+        count_stmt = count_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+    total = (await db.execute(count_stmt)).scalar()
+
+    # 分页查询
+    stmt = base_stmt.options(selectinload(CustomerBalance.customer))
+    stmt = stmt.order_by(CustomerBalance.updated_at.desc())
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
     result = await db.execute(stmt)
     balances = result.scalars().all()
 
@@ -40,20 +77,25 @@ async def get_balances(request: Request):
         {
             "code": 0,
             "message": "success",
-            "data": [
-                {
-                    "id": b.id,
-                    "customer_id": b.customer_id,
-                    "customer_name": b.customer.name if b.customer else None,
-                    "total_amount": float(b.total_amount) if b.total_amount else 0,
-                    "real_amount": float(b.real_amount) if b.real_amount else 0,
-                    "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,
-                    "used_total": float(b.used_total) if b.used_total else 0,
-                    "used_real": float(b.used_real) if b.used_real else 0,
-                    "used_bonus": float(b.used_bonus) if b.used_bonus else 0,
-                }
-                for b in balances
-            ],
+            "data": {
+                "list": [
+                    {
+                        "id": b.id,
+                        "customer_id": b.customer_id,
+                        "customer_name": b.customer.name if b.customer else None,
+                        "total_amount": float(b.total_amount) if b.total_amount else 0,
+                        "real_amount": float(b.real_amount) if b.real_amount else 0,
+                        "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,
+                        "used_total": float(b.used_total) if b.used_total else 0,
+                        "used_real": float(b.used_real) if b.used_real else 0,
+                        "used_bonus": float(b.used_bonus) if b.used_bonus else 0,
+                    }
+                    for b in balances
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
         }
     )
 

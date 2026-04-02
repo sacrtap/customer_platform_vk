@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { getTags } from '@/api/tags'
 
 interface TagOption {
@@ -93,10 +93,6 @@ const handleChange = (value: number[]) => {
 }
 
 watch(() => props.tagType, fetchTags, { immediate: true })
-
-onMounted(() => {
-  fetchTags()
-})
 </script>
 
 <style scoped>

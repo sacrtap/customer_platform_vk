@@ -1,9 +1,9 @@
 """标签管理服务"""
 
 from typing import Optional, List, Tuple
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func, and_, or_
 from ..models.tags import Tag, CustomerTag, ProfileTag
 from ..models.customers import Customer, CustomerProfile
 
@@ -53,7 +53,12 @@ class TagService:
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        # Optimized count query - no subquery needed
+        count_stmt = select(func.count(Tag.id)).where(Tag.deleted_at.is_(None))
+        if tag_type:
+            count_stmt = count_stmt.where(Tag.type == tag_type)
+        if category:
+            count_stmt = count_stmt.where(Tag.category == category)
         total = (await self.db.execute(count_stmt)).scalar()
 
         stmt = stmt.order_by(Tag.created_at.desc())
@@ -101,7 +106,7 @@ class TagService:
         if not tag:
             return False
 
-        tag.deleted_at = func.now()
+        tag.deleted_at = datetime.utcnow()
         await self.db.commit()
 
         return True
@@ -183,7 +188,7 @@ class TagService:
         if not customer_tag:
             return False
 
-        customer_tag.deleted_at = func.now()
+        customer_tag.deleted_at = datetime.utcnow()
         await self.db.commit()
 
         return True
@@ -192,7 +197,7 @@ class TagService:
         self, customer_ids: List[int], tag_ids: List[int]
     ) -> Tuple[int, int]:
         """
-        批量给客户添加标签
+        批量给客户添加标签（优化版：批量查询 + 批量插入）
 
         Args:
             customer_ids: 客户 ID 列表
@@ -204,44 +209,62 @@ class TagService:
         success_count = 0
         error_count = 0
 
-        for customer_id in customer_ids:
-            customer = await self.db.execute(
-                select(Customer).where(
-                    Customer.id == customer_id, Customer.deleted_at.is_(None)
-                )
+        # 1. Bulk fetch valid customers
+        valid_customers_result = await self.db.execute(
+            select(Customer.id).where(
+                Customer.id.in_(customer_ids), Customer.deleted_at.is_(None)
             )
-            if not customer.scalar_one_or_none():
+        )
+        valid_customer_ids = set(valid_customers_result.scalars().all())
+
+        # 2. Bulk fetch valid tags
+        valid_tags_result = await self.db.execute(
+            select(Tag.id).where(Tag.id.in_(tag_ids), Tag.deleted_at.is_(None))
+        )
+        valid_tag_ids = set(valid_tags_result.scalars().all())
+
+        # 3. Bulk fetch existing associations
+        existing_result = await self.db.execute(
+            select(CustomerTag.customer_id, CustomerTag.tag_id).where(
+                CustomerTag.customer_id.in_(valid_customer_ids),
+                CustomerTag.tag_id.in_(valid_tag_ids),
+                CustomerTag.deleted_at.is_(None),
+            )
+        )
+        existing_pairs = set(existing_result.all())
+
+        # 4. Build insert list (only new, valid pairs)
+        now = datetime.utcnow()
+        new_tags = []
+        for cid in customer_ids:
+            if cid not in valid_customer_ids:
                 error_count += 1
                 continue
-
-            for tag_id in tag_ids:
-                tag = await self.get_tag_by_id(tag_id)
-                if not tag:
+            for tid in tag_ids:
+                if tid not in valid_tag_ids:
                     error_count += 1
                     continue
-
-                existing = await self.db.execute(
-                    select(CustomerTag).where(
-                        CustomerTag.customer_id == customer_id,
-                        CustomerTag.tag_id == tag_id,
-                        CustomerTag.deleted_at.is_(None),
+                if (cid, tid) in existing_pairs:
+                    continue  # Already exists, skip silently
+                new_tags.append(
+                    CustomerTag(
+                        customer_id=cid, tag_id=tid, created_at=now, updated_at=now
                     )
                 )
-                if existing.scalar_one_or_none():
-                    continue
-
-                customer_tag = CustomerTag(customer_id=customer_id, tag_id=tag_id)
-                self.db.add(customer_tag)
                 success_count += 1
 
-        await self.db.commit()
+        # 5. Bulk insert
+        if new_tags:
+            self.db.add_all(new_tags)
+            await self.db.commit()
+
         return success_count, error_count
 
     async def batch_remove_customer_tags(
         self, customer_ids: List[int], tag_ids: List[int]
     ) -> int:
         """
-        批量移除客户标签
+        批量移除客户标签（优化版：单条 UPDATE 语句）
 
         Args:
             customer_ids: 客户 ID 列表
@@ -250,24 +273,25 @@ class TagService:
         Returns:
             removed_count
         """
-        removed_count = 0
+        now = datetime.utcnow()
 
-        for customer_id in customer_ids:
-            for tag_id in tag_ids:
-                result = await self.db.execute(
-                    select(CustomerTag).where(
-                        CustomerTag.customer_id == customer_id,
-                        CustomerTag.tag_id == tag_id,
-                        CustomerTag.deleted_at.is_(None),
-                    )
-                )
-                customer_tag = result.scalar_one_or_none()
+        # Single UPDATE with IN clause
+        result = await self.db.execute(
+            select(CustomerTag).where(
+                CustomerTag.customer_id.in_(customer_ids),
+                CustomerTag.tag_id.in_(tag_ids),
+                CustomerTag.deleted_at.is_(None),
+            )
+        )
+        tags_to_remove = result.scalars().all()
+        removed_count = len(tags_to_remove)
 
-                if customer_tag:
-                    customer_tag.deleted_at = func.now()
-                    removed_count += 1
+        for tag in tags_to_remove:
+            tag.deleted_at = now
 
-        await self.db.commit()
+        if tags_to_remove:
+            await self.db.commit()
+
         return removed_count
 
     # ========== 画像标签管理 ==========
@@ -329,7 +353,7 @@ class TagService:
         if not profile_tag:
             return False
 
-        profile_tag.deleted_at = func.now()
+        profile_tag.deleted_at = datetime.utcnow()
         await self.db.commit()
 
         return True
