@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosInstance, AxiosResponse } from 'axios'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
@@ -7,23 +7,6 @@ const service: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   timeout: 15000,
 })
-
-let isRefreshing = false
-let failedQueue: Array<{
-  resolve: (value: unknown) => void
-  reject: (reason?: unknown) => void
-}> = []
-
-const processQueue = (error: Error | null, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error)
-    } else {
-      prom.resolve(token)
-    }
-  })
-  failedQueue = []
-}
 
 // 请求拦截器
 service.interceptors.request.use(

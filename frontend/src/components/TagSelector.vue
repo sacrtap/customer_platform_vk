@@ -1,7 +1,7 @@
 <template>
   <div class="tag-selector">
     <a-select
-      v-model="selectedTagIds"
+      :model-value="selectedTagIds"
       :options="tagOptions"
       multiple
       allow-clear
@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { getTags } from '@/api/tags'
 
 interface TagOption {
@@ -43,13 +43,22 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': (value: number[]) => void
-  change: (value: number[]) => void
+  'update:modelValue': [value: number[]]
+  change: [value: number[]]
 }>()
 
-const selectedTagIds = computed({
-  get: () => props.modelValue || [],
-  set: (value) => emit('update:modelValue', value),
+const selectedTagIds = ref<number[]>(props.modelValue || [])
+
+watch(
+  () => props.modelValue,
+  (val) => {
+    if (val) selectedTagIds.value = val
+  }
+)
+
+watch(selectedTagIds, (val) => {
+  emit('update:modelValue', val)
+  emit('change', val)
 })
 
 const tagOptions = ref<TagOption[]>([])

@@ -132,8 +132,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Message, Modal } from '@arco-design/web-vue'
-import { IconPlus, IconSearch } from '@arco-design/web-vue/es/icon'
+import { Message } from '@arco-design/web-vue'
+import { IconPlus } from '@arco-design/web-vue/es/icon'
 import * as tagApi from '@/api/tags'
 
 interface Tag {

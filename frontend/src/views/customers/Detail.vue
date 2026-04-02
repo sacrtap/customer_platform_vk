@@ -144,13 +144,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
 import * as customerApi from '@/api/customers'
 import * as tagApi from '@/api/tags'
-import TagSelector from '@/components/TagSelector.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -212,31 +211,12 @@ const fetchCustomerTags = async () => {
   }
 }
 
-const showAddTagModal = () => {
+const showAddTagModal = async () => {
   selectedTagIds.value = customerTags.value.map(t => t.id)
   addTagModalVisible.value = true
 }
 
-const handleAddTag = async () => {
-  const tagsToAdd = selectedTagIds.value.filter(id => !customerTags.value.find(t => t.id === id))
-  
-  if (tagsToAdd.length === 0) {
-    addTagModalVisible.value = false
-    return
-  }
-
-  try {
-    await tagApi.batchAddCustomerTags({
-      customer_ids: [Number(route.params.id)],
-      tag_ids: tagsToAdd,
-    })
-    Message.success('添加成功')
-    addTagModalVisible.value = false
-    await fetchCustomerTags()
-  } catch (err: any) {
-    Message.error(err.message || '添加失败')
-  }
-}
+// TODO: implement tag addition flow when modal UI is added
 
 const removeTag = async (tagId: number) => {
   Modal.warning({

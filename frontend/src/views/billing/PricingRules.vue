@@ -228,7 +228,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Message, Modal } from '@arco-design/web-vue'
+import { Message } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
 import * as billingApi from '@/api/billing'
 import { getCustomers } from '@/api/customers'
