@@ -4,8 +4,11 @@ from sanic import Sanic
 from sanic.response import json
 from sanic.request import Request
 from functools import wraps
+from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
 from ..config import settings
+from ..services import get_user_permissions
+from ..cache.permissions import permission_cache
 
 
 def auth_middleware(app: Sanic):
@@ -57,13 +60,20 @@ def require_permission(permission_code: str):
             if not user:
                 return json({"code": 40101, "message": "未认证"}, status=401)
 
-            # TODO: 从数据库获取用户权限列表
-            # user_permissions = await get_user_permissions(user['user_id'])
-            # if permission_code not in user_permissions:
-            #     return json({
-            #         'code': 40301,
-            #         'message': '权限不足'
-            #     }, status=403)
+            # 从缓存或数据库获取用户权限
+            user_id = user["user_id"]
+            user_permissions = await permission_cache.get_permissions(user_id)
+
+            if user_permissions is None:
+                # 缓存未命中，从数据库查询
+                db_session: AsyncSession = request.ctx.db_session
+                user_permissions = await get_user_permissions(db_session, user_id)
+                # 设置缓存
+                await permission_cache.set_permissions(user_id, user_permissions)
+
+            # 校验权限
+            if permission_code not in user_permissions:
+                return json({"code": 40301, "message": "权限不足"}, status=403)
 
             return await f(request, *args, **kwargs)
 

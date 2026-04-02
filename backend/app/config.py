@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from functools import lru_cache
+import os
+import secrets
 
 
 class Settings(BaseSettings):
@@ -7,7 +10,9 @@ class Settings(BaseSettings):
 
     # 应用配置
     app_name: str = "客户运营中台 API"
-    app_env: str = "development"
+    app_env: str = Field(
+        default="development", description="应用环境：development/production"
+    )
     debug: bool = True
     host: str = "0.0.0.0"
     port: int = 8000
@@ -16,8 +21,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://user:password@localhost:5432/customer_platform"
     database_echo: bool = False
 
-    # JWT 配置
-    jwt_secret: str = "your-secret-key-change-in-production"
+    # JWT 配置 - 生产环境必须从环境变量读取
+    jwt_secret: str = Field(
+        default_factory=lambda: os.getenv("JWT_SECRET") or secrets.token_urlsafe(32),
+        description="JWT 签名密钥，生产环境必须设置 JWT_SECRET 环境变量",
+    )
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24  # 24 小时
     jwt_refresh_expire_days: int = 7
@@ -42,8 +50,16 @@ class Settings(BaseSettings):
     external_api_base_url: str = "https://business-api.company.com"
     external_api_token: str = ""
 
-    # Webhook 配置
-    webhook_secret: str = "your-webhook-secret"
+    # Webhook 配置 - 生产环境必须从环境变量读取
+    webhook_secret: str = Field(
+        default_factory=lambda: (
+            os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32)
+        ),
+        description="Webhook 签名密钥，生产环境必须设置 WEBHOOK_SECRET 环境变量",
+    )
+
+    # Redis 配置
+    redis_url: str = "redis://localhost:6379/0"
 
     class Config:
         env_file = ".env"

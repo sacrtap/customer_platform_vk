@@ -5,7 +5,8 @@ from sanic.response import json
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.users import UserService
-from ..middleware.auth import get_current_user
+from ..middleware.auth import get_current_user, require_permission
+from ..cache.permissions import permission_cache
 
 users_bp = Blueprint("users", url_prefix="/api/v1/users")
 
@@ -181,6 +182,7 @@ async def update_user(request: Request, user_id: int):
 
 
 @users_bp.delete("/<user_id:int>")
+@require_permission("user.delete")
 async def delete_user(request: Request, user_id: int):
     """删除用户（软删除）"""
     db_session: AsyncSession = request.ctx.db_session
@@ -195,6 +197,9 @@ async def delete_user(request: Request, user_id: int):
 
     if not success:
         return json({"code": 40401, "message": "用户不存在"}, status=404)
+
+    # 清除被删除用户的权限缓存
+    await permission_cache.delete_permissions(user_id)
 
     return json({"code": 0, "message": "删除成功"})
 

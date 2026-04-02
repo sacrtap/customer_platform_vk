@@ -26,6 +26,7 @@ def init_scheduler(app):
         from .balance_check import check_balance_warning
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
+        from .webhook_cleanup import cleanup_webhook_signatures
 
         # 添加定时任务
         # P6-2: 每日 00:00 同步用量
@@ -70,6 +71,15 @@ def init_scheduler(app):
             trigger=CronTrigger(hour=3, minute=0),
             id="cleanup_temp_files",
             name="临时文件清理",
+            replace_existing=True,
+        )
+
+        # P6-8: 每日 04:00 清理 Webhook 签名（5 天前）
+        scheduler.add_job(
+            cleanup_webhook_signatures,
+            trigger=CronTrigger(hour=4, minute=0),
+            id="cleanup_webhook_signatures",
+            name="Webhook 签名清理",
             replace_existing=True,
         )
 

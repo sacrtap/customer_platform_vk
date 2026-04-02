@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
 from decimal import Decimal
 from ..services.billing import BalanceService, PricingService, InvoiceService
-from ..middleware.auth import get_current_user
+from ..middleware.auth import get_current_user, require_permission
 
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
@@ -145,6 +145,7 @@ async def get_customer_balance(request: Request, customer_id: int):
 
 
 @billing_bp.post("/recharge")
+@require_permission("billing.recharge")
 async def recharge(request: Request):
     """
     客户充值
