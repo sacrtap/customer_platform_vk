@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     """应用配置管理"""
 
     # 应用配置
-    app_name: str = "客户运营中台 API"
+    app_name: str = "customer_platform_api"
+    app_display_name: str = "客户运营中台 API"
     app_env: str = Field(
         default="development", description="应用环境：development/production"
     )

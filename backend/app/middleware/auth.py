@@ -80,3 +80,18 @@ def require_permission(permission_code: str):
         return decorated_function
 
     return decorator
+
+
+def auth_required(f):
+    """认证装饰器（不需要特定权限）"""
+
+    @wraps(f)
+    async def decorated_function(request, *args, **kwargs):
+        user = get_current_user(request)
+
+        if not user:
+            return json({"code": 40101, "message": "未认证"}, status=401)
+
+        return await f(request, *args, **kwargs)
+
+    return decorated_function
