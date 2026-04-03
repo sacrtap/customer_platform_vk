@@ -119,9 +119,30 @@ run_migrations() {
     cd backend
     source .venv/bin/activate
     
-    export DATABASE_URL="postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}"
+    # 使用容器内网络访问数据库 (容器名作为主机名)
+    export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}"
     
-    python -m alembic upgrade head
+    # 使用 python 脚本运行迁移而不是 alembic 命令
+    python << 'PYTHON_SCRIPT'
+import asyncio
+from sqlalchemy import create_engine
+from sqlalchemy.engine import reflection
+
+from app.models.base import BaseModel
+from app.config import settings
+import os
+
+# 从环境变量获取 URL
+db_url = os.getenv('DATABASE_URL', settings.database_url)
+
+# 创建同步引擎
+engine = create_engine(db_url.replace('postgresql+asyncpg://', 'postgresql://'))
+
+# 创建所有表
+BaseModel.metadata.create_all(engine)
+
+print("✅ 数据库迁移完成")
+PYTHON_SCRIPT
     
     deactivate
     cd ..
