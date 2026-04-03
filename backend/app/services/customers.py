@@ -226,7 +226,7 @@ class CustomerService:
         self, customers_data: List[dict]
     ) -> Tuple[int, List[str]]:
         """
-        批量创建客户
+        批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
         Args:
             customers_data: 客户数据列表
@@ -234,23 +234,29 @@ class CustomerService:
         Returns:
             (success_count, errors)
         """
+        # 批量获取已存在的 company_id，避免 N+1 查询
+        existing_stmt = select(Customer.company_id)
+        existing_result = await self.db.execute(existing_stmt)
+        existing_company_ids = {row[0] for row in existing_result.all()}
+
         success_count = 0
         errors = []
 
         for i, data in enumerate(customers_data):
             try:
-                # 检查公司 ID 是否已存在
-                stmt = select(Customer).where(Customer.company_id == data["company_id"])
-                result = await self.db.execute(stmt)
-                existing = result.scalar_one_or_none()
+                company_id = data.get("company_id")
+                if not company_id:
+                    errors.append(f"行{i + 1}: 缺少 company_id")
+                    continue
 
-                if existing:
-                    errors.append(f"行{i + 1}: 公司 ID {data['company_id']} 已存在")
+                # 检查是否已存在
+                if company_id in existing_company_ids:
+                    errors.append(f"行{i + 1}: 公司 ID {company_id} 已存在")
                     continue
 
                 customer = Customer(
-                    company_id=data["company_id"],
-                    name=data["name"],
+                    company_id=company_id,
+                    name=data.get("name"),
                     account_type=data.get("account_type"),
                     business_type=data.get("business_type"),
                     customer_level=data.get("customer_level"),
@@ -262,15 +268,19 @@ class CustomerService:
                     email=data.get("email"),
                 )
                 self.db.add(customer)
-                await self.db.flush()
-
-                # 创建初始余额记录
-                balance = CustomerBalance(customer_id=customer.id)
-                self.db.add(balance)
+                existing_company_ids.add(company_id)  # 防止同批次重复
 
                 success_count += 1
             except Exception as e:
                 errors.append(f"行{i + 1}: {str(e)}")
+
+        # 批量创建余额记录
+        if success_count > 0:
+            # 获取刚创建的客户 ID
+            await self.db.flush()
+            new_customers = [c for c in self.db.new if isinstance(c, Customer)]
+            balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
+            self.db.add_all(balances)
 
         await self.db.commit()
         return success_count, errors

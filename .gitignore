@@ -188,3 +188,6 @@ secrets/
 *.key
 *.crt
 *.p12
+
+# Git worktrees
+.worktrees/

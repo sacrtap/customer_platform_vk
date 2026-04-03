@@ -5,9 +5,11 @@ from sanic.response import json, file as response_file
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.customers import CustomerService
+from ..cache.base import cache_service
 import pandas as pd
 import io
 from datetime import datetime
+import hashlib
 
 customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
@@ -50,6 +52,12 @@ async def list_customers(request: Request):
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
 
+    # 尝试从缓存获取
+    cache_key = f"p{page}_ps{page_size}_{hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()[:8]}"
+    cached = await cache_service.get("customer_list", cache_key)
+    if cached is not None:
+        return json(cached)
+
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
@@ -57,42 +65,48 @@ async def list_customers(request: Request):
         page=page, page_size=page_size, filters=filters
     )
 
-    return json(
-        {
-            "code": 0,
-            "message": "success",
-            "data": {
-                "list": [
-                    {
-                        "id": c.id,
-                        "company_id": c.company_id,
-                        "name": c.name,
-                        "account_type": c.account_type,
-                        "business_type": c.business_type,
-                        "customer_level": c.customer_level,
-                        "price_policy": c.price_policy,
-                        "manager_id": c.manager_id,
-                        "settlement_cycle": c.settlement_cycle,
-                        "settlement_type": c.settlement_type,
-                        "is_key_customer": c.is_key_customer,
-                        "email": c.email,
-                        "created_at": c.created_at.isoformat()
-                        if c.created_at
-                        else None,
-                    }
-                    for c in customers
-                ],
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-            },
-        }
-    )
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "list": [
+                {
+                    "id": c.id,
+                    "company_id": c.company_id,
+                    "name": c.name,
+                    "account_type": c.account_type,
+                    "business_type": c.business_type,
+                    "customer_level": c.customer_level,
+                    "price_policy": c.price_policy,
+                    "manager_id": c.manager_id,
+                    "settlement_cycle": c.settlement_cycle,
+                    "settlement_type": c.settlement_type,
+                    "is_key_customer": c.is_key_customer,
+                    "email": c.email,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                }
+                for c in customers
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        },
+    }
+
+    # 写入缓存
+    await cache_service.set("customer_list", result, cache_key)
+
+    return json(result)
 
 
 @customers_bp.get("/<customer_id:int>")
 async def get_customer(request: Request, customer_id: int):
     """获取客户详情（包含画像和余额）"""
+    # 尝试从缓存获取
+    cached = await cache_service.get("customer_detail", customer_id)
+    if cached is not None:
+        return json(cached)
+
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
@@ -155,7 +169,12 @@ async def get_customer(request: Request, customer_id: int):
     else:
         data["balance"] = None
 
-    return json({"code": 0, "message": "success", "data": data})
+    result = {"code": 0, "message": "success", "data": data}
+
+    # 写入缓存
+    await cache_service.set("customer_detail", result, customer_id)
+
+    return json(result)
 
 
 @customers_bp.post("")
@@ -202,6 +221,9 @@ async def create_customer(request: Request):
         customer = await service.create_customer(data)
     except ValueError as e:
         return json({"code": 40003, "message": str(e)}, status=400)
+
+    # 清除缓存
+    await cache_service.invalidate_customer_cache()
 
     return json(
         {
@@ -255,6 +277,9 @@ async def update_customer(request: Request, customer_id: int):
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
 
+    # 清除缓存
+    await cache_service.invalidate_customer_cache(customer_id)
+
     return json(
         {
             "code": 0,
@@ -278,6 +303,9 @@ async def delete_customer(request: Request, customer_id: int):
 
     if not success:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
+
+    # 清除缓存
+    await cache_service.invalidate_customer_cache(customer_id)
 
     return json({"code": 0, "message": "删除成功"})
 

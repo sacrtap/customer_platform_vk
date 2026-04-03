@@ -77,9 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue'
-import * as echarts from 'echarts'
-import type { ECharts } from 'echarts'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import * as analyticsApi from '@/api/analytics'
 
 const dashboardStats = reactive({
@@ -95,8 +93,17 @@ const todosLoading = ref(false)
 
 const consumptionChartRef = ref<HTMLElement>()
 const customerLevelChartRef = ref<HTMLElement>()
-let consumptionChart: ECharts | null = null
-let customerLevelChart: ECharts | null = null
+let consumptionChart: any = null
+let customerLevelChart: any = null
+
+// 懒加载 ECharts
+let echartsPromise: Promise<any> | null = null
+const loadEcharts = () => {
+  if (!echartsPromise) {
+    echartsPromise = import('echarts').then((echarts) => echarts.default ?? echarts)
+  }
+  return echartsPromise
+}
 
 const loadDashboardStats = async () => {
   try {
@@ -125,6 +132,8 @@ const loadTodos = async () => {
 
 const initCharts = async () => {
   await nextTick()
+
+  const echarts = await loadEcharts()
 
   // 消耗趋势图
   if (consumptionChartRef.value) {
@@ -203,11 +212,19 @@ onMounted(() => {
   loadTodos()
   initCharts()
 
-  window.addEventListener('resize', () => {
-    consumptionChart?.resize()
-    customerLevelChart?.resize()
-  })
+  window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  consumptionChart?.dispose()
+  customerLevelChart?.dispose()
+})
+
+const handleResize = () => {
+  consumptionChart?.resize()
+  customerLevelChart?.resize()
+}
 </script>
 
 <style scoped>
