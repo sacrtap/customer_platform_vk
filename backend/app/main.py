@@ -1,15 +1,32 @@
 from sanic import Sanic
 from sanic.response import json
 from sanic_cors import CORS
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker,
+    AsyncEngine,
+)
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from typing import Union
 from .config import settings
 from .middleware.auth import auth_middleware
 
 
-def create_app() -> Sanic:
-    """创建 Sanic 应用实例"""
+def create_app(
+    app_name: str | None = None,
+    database_engine: Union[AsyncEngine, Engine, None] = None,
+) -> Sanic:
+    """创建 Sanic 应用实例
 
-    app = Sanic(settings.app_name)
+    Args:
+        app_name: 应用名称，默认使用 settings.app_name
+        database_engine: 数据库引擎，默认使用 settings.database_url 创建
+                      可以是异步引擎 (AsyncEngine) 或同步引擎 (Engine)
+    """
+
+    app = Sanic(app_name or settings.app_name)
 
     # 配置 CORS
     CORS(
@@ -21,25 +38,50 @@ def create_app() -> Sanic:
     )
 
     # 初始化数据库引擎
-    engine = create_async_engine(
-        settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
-        echo=settings.database_echo,
-    )
+    is_async = True
+    if database_engine is None:
+        engine = create_async_engine(
+            settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
+            echo=settings.database_echo,
+        )
+    elif isinstance(database_engine, AsyncEngine):
+        engine = database_engine
+    else:
+        # 同步引擎
+        engine = database_engine
+        is_async = False
 
     # 创建会话工厂
-    async_session_maker = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    if is_async:
+        async_session_maker = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+    else:
+        sync_session_maker = sessionmaker(
+            bind=engine, class_=Session, expire_on_commit=False
+        )
 
     # 数据库会话中间件
-    @app.middleware("request")
-    async def db_session_middleware(request):
-        request.ctx.db_session = await async_session_maker()
+    if is_async:
 
-    @app.middleware("response")
-    async def close_db_session(request, response):
-        if hasattr(request.ctx, "db_session"):
-            await request.ctx.db_session.close()
+        @app.middleware("request")
+        async def db_session_middleware(request):
+            request.ctx.db_session = async_session_maker()
+
+        @app.middleware("response")
+        async def close_db_session(request, response):
+            if hasattr(request.ctx, "db_session"):
+                await request.ctx.db_session.close()
+    else:
+
+        @app.middleware("request")
+        def db_session_middleware(request):
+            request.ctx.db_session = sync_session_maker()
+
+        @app.middleware("response")
+        def close_db_session(request, response):
+            if hasattr(request.ctx, "db_session"):
+                request.ctx.db_session.close()
 
     # 注册认证中间件
     auth_middleware(app)
@@ -100,14 +142,18 @@ def create_app() -> Sanic:
     # 应用启动事件
     @app.before_server_start
     async def on_start(app, loop):
-        app.logger.info(
-            f"🚀 {settings.app_name} 启动在 {settings.host}:{settings.port}"
-        )
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"🚀 {settings.app_name} 启动在 {settings.host}:{settings.port}")
 
     # 应用关闭事件
     @app.after_server_stop
     async def on_shutdown(app, loop):
-        await engine.dispose()
+        if is_async:
+            await engine.dispose()
+        else:
+            engine.dispose()
 
     return app
 

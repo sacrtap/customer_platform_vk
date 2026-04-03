@@ -1,7 +1,8 @@
 """客户管理服务"""
 
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, Any, Union
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from ..models.customers import Customer, CustomerProfile
@@ -10,10 +11,14 @@ from ..models.billing import CustomerBalance
 
 
 class CustomerService:
-    """客户服务类"""
+    """客户服务类
 
-    def __init__(self, db_session: AsyncSession):
+    支持同步和异步 Session
+    """
+
+    def __init__(self, db_session: Union[AsyncSession, Session]):
         self.db = db_session
+        self._is_async = isinstance(db_session, AsyncSession)
 
     async def get_customer_by_id(self, customer_id: int) -> Optional[Customer]:
         """根据 ID 获取客户"""
@@ -94,7 +99,10 @@ class CustomerService:
 
         # 获取总数
         count_stmt = select(func.count()).select_from(stmt.subquery())
-        total = (await self.db.execute(count_stmt)).scalar()
+        if self._is_async:
+            total = (await self.db.execute(count_stmt)).scalar()
+        else:
+            total = self.db.execute(count_stmt).scalar()
 
         # 分页排序
         stmt = stmt.order_by(Customer.created_at.desc())
@@ -105,7 +113,10 @@ class CustomerService:
             selectinload(Customer.profile), selectinload(Customer.balance)
         )
 
-        result = await self.db.execute(stmt)
+        if self._is_async:
+            result = await self.db.execute(stmt)
+        else:
+            result = self.db.execute(stmt)
         customers = result.scalars().all()
 
         return list(customers), total

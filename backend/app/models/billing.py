@@ -14,6 +14,18 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from .base import BaseModel
+from enum import Enum
+
+
+class InvoiceStatus(str, Enum):
+    """结算单状态枚举"""
+
+    DRAFT = "draft"
+    PENDING_CUSTOMER = "pending_customer"
+    CUSTOMER_CONFIRMED = "customer_confirmed"
+    PAID = "paid"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class CustomerBalance(BaseModel):

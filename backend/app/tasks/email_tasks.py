@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..models.invoice import Invoice, InvoiceStatus
-from ..models.customer import Customer
-from ..models.user import User
+from ..models.billing import Invoice, InvoiceStatus
+from ..models.customers import Customer
+from ..models.users import User
 
 logger = logging.getLogger(__name__)
 

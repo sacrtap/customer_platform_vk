@@ -11,7 +11,7 @@ from sanic import Blueprint
 from sanic.response import json
 from sqlalchemy import select
 
-from ..models.invoice import Invoice, InvoiceStatus
+from ..models.billing import Invoice, InvoiceStatus
 from ..models.webhooks import WebhookSignature
 from ..config import settings
 

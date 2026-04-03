@@ -9,8 +9,8 @@ from typing import List
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.customer import Customer
-from ..models.balance import CustomerBalance
+from ..models.customers import Customer
+from ..models.billing import CustomerBalance
 
 logger = logging.getLogger(__name__)
 

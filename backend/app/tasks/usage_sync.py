@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.customer import Customer
+from ..models.customers import Customer
 from ..models.billing import DailyUsage, SyncTaskLog
 
 logger = logging.getLogger(__name__)

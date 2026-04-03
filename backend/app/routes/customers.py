@@ -30,8 +30,8 @@ async def list_customers(request: Request):
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
     """
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
     page_size = min(page_size, 100)
 
     # 构建筛选条件
@@ -40,7 +40,9 @@ async def list_customers(request: Request):
         "account_type": request.args.get("account_type"),
         "business_type": request.args.get("business_type"),
         "customer_level": request.args.get("customer_level"),
-        "manager_id": request.args.get("manager_id", type=int),
+        "manager_id": int(request.args.get("manager_id", 0))
+        if request.args.get("manager_id")
+        else None,
         "settlement_type": request.args.get("settlement_type"),
     }
 

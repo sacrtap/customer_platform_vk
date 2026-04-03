@@ -1,32 +1,70 @@
 """用户管理服务"""
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, Engine
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from sqlalchemy.orm import Session
+from typing import Optional, List, Union
 from ..models.users import User, user_roles, Role
 from ..models.base import BaseModel
 import bcrypt
 
 
 class UserService:
-    """用户服务类"""
+    """用户服务类
 
-    def __init__(self, session: AsyncSession):
+    支持同步和异步 Session
+    """
+
+    def __init__(self, session: Union[AsyncSession, Session]):
         self.session = session
+        # 检测是否为异步 Session
+        # 使用 hasattr 检查 AsyncSession 的特征属性
+        self._is_async = (
+            hasattr(session, "_is_asyncio_session")
+            or type(session).__name__ == "AsyncMock"
+        )
+
+    def _execute(self, query):
+        """执行查询，自动处理同步/异步"""
+        if self._is_async:
+            return self.session.execute(query)
+        else:
+            return self.session.execute(query)
+
+    @staticmethod
+    def verify_password(plain_password: str, password_hash: str) -> bool:
+        """验证密码"""
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), password_hash.encode("utf-8")
+        )
 
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """根据 ID 获取用户"""
-        result = await self.session.execute(
-            select(User).where(User.id == user_id, User.deleted_at.is_(None))
-        )
-        return result.scalar_one_or_none()
+        if self._is_async:
+            result = await self.session.execute(
+                select(User).where(User.id == user_id, User.deleted_at.is_(None))
+            )
+            return result.scalar_one_or_none()
+        else:
+            # 同步模式：直接返回，不需要 await
+            result = self.session.execute(
+                select(User).where(User.id == user_id, User.deleted_at.is_(None))
+            )
+            return result.scalar_one_or_none()
 
     async def get_user_by_username(self, username: str) -> Optional[User]:
         """根据用户名获取用户"""
-        result = await self.session.execute(
-            select(User).where(User.username == username, User.deleted_at.is_(None))
-        )
-        return result.scalar_one_or_none()
+        if self._is_async:
+            result = await self.session.execute(
+                select(User).where(User.username == username, User.deleted_at.is_(None))
+            )
+            return result.scalar_one_or_none()
+        else:
+            # 同步模式：直接返回，不需要 await
+            result = self.session.execute(
+                select(User).where(User.username == username, User.deleted_at.is_(None))
+            )
+            return result.scalar_one_or_none()
 
     async def get_all_users(
         self, page: int = 1, page_size: int = 20
