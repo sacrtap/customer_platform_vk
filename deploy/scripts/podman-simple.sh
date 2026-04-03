@@ -18,7 +18,7 @@ podman run -d \
   -e POSTGRES_USER=${DB_USER} \
   -e POSTGRES_PASSWORD=${DB_PASSWORD} \
   -p ${DB_PORT}:5432 \
-  docker.io/library/postgres:14
+  docker.io/library/postgres:18
 
 echo "⏳ 等待数据库启动..."
 sleep 5

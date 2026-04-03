@@ -34,7 +34,7 @@ podman run -d \
   --health-interval=5s \
   --health-timeout=3s \
   --health-retries=3 \
-  docker.io/library/postgres:14
+  docker.io/library/postgres:18
 
 echo "⏳ 等待数据库启动..."
 for i in {1..30}; do
