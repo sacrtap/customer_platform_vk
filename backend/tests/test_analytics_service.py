@@ -1,0 +1,1179 @@
+"""
+客户运营中台 - Analytics Service 单元测试
+
+测试目标：
+1. 消耗分析 - get_consumption_trend, get_top_customers, get_device_type_distribution
+2. 回款分析 - get_payment_analysis, get_invoice_status_stats
+3. 健康度分析 - get_customer_health_stats, get_balance_warning_list, get_inactive_customers
+4. 画像分析 - get_industry_distribution, get_customer_level_stats, get_real_estate_stats
+5. 预测回款 - predict_monthly_payment
+6. 首页仪表盘 - get_dashboard_stats, get_dashboard_chart_data
+"""
+
+import pytest
+from unittest.mock import MagicMock, patch
+from decimal import Decimal
+from datetime import date, datetime, timedelta
+
+# ==================== MockDBSession 工具类 ====================
+
+
+class MockDBSession:
+    """Mock 数据库会话"""
+
+    def __init__(self):
+        self.execute = MagicMock()
+        self._add_calls = []
+        self._add_all_calls = []
+        self.flush = MagicMock()
+        self.commit = MagicMock()
+        self.refresh = MagicMock()
+        self._new = []
+
+    def add(self, obj):
+        """模拟 add 方法，跟踪新对象"""
+        self._add_calls.append(obj)
+        self._new.append(obj)
+
+    def add_all(self, objects):
+        """模拟 add_all 方法"""
+        self._add_all_calls.append(objects)
+        self._new.extend(objects)
+
+    @property
+    def new(self):
+        return self._new
+
+    class _AsyncCM:
+        """异步上下文管理器"""
+
+        def __await__(self):
+            return iter([])
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    def begin(self):
+        """模拟异步事务上下文"""
+        return self._AsyncCM()
+
+
+def make_mock_row(data):
+    """创建具名 mock 行对象（支持属性访问和索引访问）
+
+    Args:
+        data: 字典或元组，如果是元组则按位置映射到预定义字段
+    """
+    row = MagicMock()
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            setattr(row, key, value)
+        return row
+
+    # 元组数据，根据长度和上下文推断字段
+    # 4 元素：(id, name, company_id, total_amount) - Top 客户查询
+    if len(data) == 4:
+        setattr(row, "id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "total_amount", data[3])
+    # 3 元素：(year, month, total_amount) - 消耗趋势
+    elif len(data) == 3:
+        setattr(row, "year", data[0])
+        setattr(row, "month", data[1])
+        setattr(row, "total_amount", data[2])
+    # 2 元素：(device_type, total_quantity) 或 (status, count)
+    elif len(data) == 2:
+        setattr(row, "_0", data[0])
+        setattr(row, "_1", data[1])
+        # 尝试推断字段名
+        if isinstance(data[0], str) and data[0] in [
+            "X",
+            "N",
+            "L",
+            "draft",
+            "paid",
+            "completed",
+        ]:
+            setattr(row, "device_type", data[0])
+            setattr(row, "status", data[0])
+        setattr(row, "total_quantity", data[1])
+        setattr(row, "count", data[1])
+    # 1 元素：标量值
+    elif len(data) == 1:
+        setattr(row, "_0", data[0])
+        setattr(row, "total_amount", data[0])
+        setattr(row, "count", data[0])
+
+    return row
+
+
+def make_mock_execute_result(rows, scalar_value=None):
+    """创建 execute 返回结果
+
+    Args:
+        rows: 返回的行列表（可以是元组或字典）
+        scalar_value: 标量值（用于 .scalar()），默认取 rows[0][0] 如果 rows 是元组列表
+    """
+    # 将元组转换为具名 mock 对象
+    mock_rows = [
+        make_mock_row(row)
+        if not hasattr(row, "__dict__") and not isinstance(row, MagicMock)
+        else row
+        for row in rows
+    ]
+
+    result = MagicMock()
+    result.all = MagicMock(return_value=mock_rows)
+    result.scalar_one_or_none = MagicMock(
+        return_value=mock_rows[0] if mock_rows else None
+    )
+
+    # 处理 .scalar() 调用（用于 count 查询）
+    if scalar_value is not None:
+        result.scalar = MagicMock(return_value=scalar_value)
+    elif rows and isinstance(rows[0], (list, tuple)):
+        result.scalar = MagicMock(return_value=rows[0][0])
+    else:
+        result.scalar = MagicMock(return_value=None)
+
+    # 处理 .first() 调用
+    result.first = MagicMock(return_value=mock_rows[0] if mock_rows else None)
+
+    scalars_result = MagicMock()
+    scalars_result.all = MagicMock(return_value=mock_rows)
+    scalars_result.unique = MagicMock(return_value=scalars_result)
+    result.scalars.return_value = scalars_result
+    return result
+
+
+# ==================== Fixtures ====================
+
+
+@pytest.fixture
+def mock_db():
+    """创建 Mock 数据库会话"""
+    return MockDBSession()
+
+
+@pytest.fixture
+def analytics_service(mock_db):
+    """创建 AnalyticsService 实例"""
+    from app.services.analytics import AnalyticsService
+
+    service = AnalyticsService(mock_db)
+    yield service, mock_db
+
+
+# ==================== 消耗分析测试 ====================
+
+
+class TestGetConsumptionTrend:
+    """get_consumption_trend 测试"""
+
+    def test_get_consumption_trend_success(self, analytics_service):
+        """测试获取消耗趋势成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            {"year": 2026, "month": 1, "total_amount": Decimal("10000.00")},
+            {"year": 2026, "month": 2, "total_amount": Decimal("12000.00")},
+            {"year": 2026, "month": 3, "total_amount": Decimal("15000.00")},
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_consumption_trend(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
+        )
+
+        assert len(result) == 3
+        assert result[0]["year"] == 2026
+        assert result[0]["month"] == 1
+        assert result[0]["period"] == "2026-01"
+        assert result[0]["total_amount"] == 10000.00
+        assert result[1]["total_amount"] == 12000.00
+        assert result[2]["total_amount"] == 15000.00
+
+    def test_get_consumption_trend_with_customer_filter(self, analytics_service):
+        """测试按客户 ID 筛选消耗趋势"""
+        service, mock_db = analytics_service
+
+        mock_rows = [{"year": 2026, "month": 3, "total_amount": Decimal("5000.00")}]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_consumption_trend(
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            customer_id=100,
+        )
+
+        assert len(result) == 1
+        assert result[0]["total_amount"] == 5000.00
+
+    def test_get_consumption_trend_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_consumption_trend(
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+        )
+
+        assert len(result) == 0
+
+    def test_get_consumption_trend_with_null_amount(self, analytics_service):
+        """测试包含 null 金额的情况"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            {"year": 2026, "month": 1, "total_amount": None},
+            {"year": 2026, "month": 2, "total_amount": Decimal("1000.00")},
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_consumption_trend(
+            start_date=date(2026, 1, 1), end_date=date(2026, 2, 28)
+        )
+
+        assert len(result) == 2
+        assert result[0]["total_amount"] == 0.0
+        assert result[1]["total_amount"] == 1000.00
+
+
+class TestGetTopCustomers:
+    """get_top_customers 测试"""
+
+    def test_get_top_customers_success(self, analytics_service):
+        """测试获取 Top 客户成功"""
+        service, mock_db = analytics_service
+
+        from app.models.customers import Customer
+
+        mock_rows = [
+            (1, "客户 A", "COMP001", Decimal("50000.00")),
+            (2, "客户 B", "COMP002", Decimal("30000.00")),
+            (3, "客户 C", "COMP003", Decimal("20000.00")),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_top_customers(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=10
+        )
+
+        assert len(result) == 3
+        assert result[0]["customer_id"] == 1
+        assert result[0]["customer_name"] == "客户 A"
+        assert result[0]["company_id"] == "COMP001"
+        assert result[0]["total_amount"] == 50000.00
+        assert result[1]["total_amount"] == 30000.00
+
+    def test_get_top_customers_limit(self, analytics_service):
+        """测试限制返回数量"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            (1, "客户 A", "COMP001", Decimal("50000.00")),
+            (2, "客户 B", "COMP002", Decimal("30000.00")),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_top_customers(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=2
+        )
+
+        assert len(result) == 2
+
+    def test_get_top_customers_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_top_customers(
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+        )
+
+        assert len(result) == 0
+
+
+class TestGetDeviceTypeDistribution:
+    """get_device_type_distribution 测试"""
+
+    def test_get_device_type_distribution_success(self, analytics_service):
+        """测试获取设备类型分布成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            ("X", Decimal("1000"), Decimal("10000.00")),
+            ("N", Decimal("500"), Decimal("7500.00")),
+            ("L", Decimal("200"), Decimal("4000.00")),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_device_type_distribution(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
+        )
+
+        assert len(result) == 3
+        assert result[0]["device_type"] == "X"
+        assert result[0]["total_quantity"] == 1000.0
+        assert result[0]["total_amount"] == 10000.00
+        assert result[1]["device_type"] == "N"
+        assert result[2]["device_type"] == "L"
+
+    def test_get_device_type_distribution_with_customer_filter(self, analytics_service):
+        """测试按客户 ID 筛选设备类型分布"""
+        service, mock_db = analytics_service
+
+        mock_rows = [("X", Decimal("500"), Decimal("5000.00"))]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_device_type_distribution(
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 31),
+            customer_id=100,
+        )
+
+        assert len(result) == 1
+        assert result[0]["device_type"] == "X"
+
+    def test_get_device_type_distribution_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_device_type_distribution(
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+        )
+
+        assert len(result) == 0
+
+
+# ==================== 回款分析测试 ====================
+
+
+class TestGetInvoiceStatusStats:
+    """get_invoice_status_stats 测试"""
+
+    def test_get_invoice_status_stats_success(self, analytics_service):
+        """测试获取结算单状态统计成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            ("draft", 5, Decimal("5000.00")),
+            ("pending_customer", 3, Decimal("3000.00")),
+            ("paid", 10, Decimal("10000.00")),
+            ("completed", 8, Decimal("8000.00")),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_invoice_status_stats(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
+        )
+
+        assert len(result) == 4
+        assert result[0]["status"] == "draft"
+        assert result[0]["count"] == 5
+        assert result[0]["total_amount"] == 5000.00
+        assert result[1]["status"] == "pending_customer"
+        assert result[2]["status"] == "paid"
+
+    def test_get_invoice_status_stats_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_invoice_status_stats(
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+        )
+
+        assert len(result) == 0
+
+    def test_get_invoice_status_stats_with_null_amount(self, analytics_service):
+        """测试包含 null 金额"""
+        service, mock_db = analytics_service
+
+        mock_rows = [("draft", 0, None)]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_invoice_status_stats(
+            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
+        )
+
+        assert len(result) == 1
+        assert result[0]["count"] == 0
+        assert result[0]["total_amount"] == 0.0
+
+
+# ==================== 健康度分析测试 ====================
+
+
+class TestGetCustomerHealthStats:
+    """get_customer_health_stats 测试"""
+
+    def test_get_customer_health_stats_success(self, analytics_service):
+        """测试获取客户健康度统计成功"""
+        service, mock_db = analytics_service
+
+        # 模拟多个查询的返回
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=50),  # active_count
+            make_mock_execute_result([], scalar_value=100),  # total_count
+            make_mock_execute_result([], scalar_value=10),  # warning_count
+            make_mock_execute_result([(1,), (2,), (3,)]),  # churn_stmt
+            make_mock_execute_result([]),  # recent_stmt - 无最近消耗
+        ]
+
+        result = service.get_customer_health_stats()
+
+        assert result["total_customers"] == 100
+        assert result["active_customers"] == 50
+        assert result["inactive_customers"] == 50
+        assert result["warning_customers"] == 10
+        assert result["active_rate"] == 50.0
+
+    def test_get_customer_health_stats_no_recent_customers(self, analytics_service):
+        """测试无最近消耗客户（全部为流失风险）"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=30),  # active_count
+            make_mock_execute_result([], scalar_value=50),  # total_count
+            make_mock_execute_result([], scalar_value=5),  # warning_count
+            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
+            make_mock_execute_result([]),  # recent_stmt - 空
+        ]
+
+        result = service.get_customer_health_stats()
+
+        assert result["churn_risk_customers"] == 2
+
+    def test_get_customer_health_stats_all_recent(self, analytics_service):
+        """测试所有客户最近都有消耗（无流失风险）"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=30),  # active_count
+            make_mock_execute_result([], scalar_value=50),  # total_count
+            make_mock_execute_result([], scalar_value=5),  # warning_count
+            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
+            make_mock_execute_result([(1,), (2,)]),  # recent_stmt - 全部最近有消耗
+        ]
+
+        result = service.get_customer_health_stats()
+
+        assert result["churn_risk_customers"] == 0
+
+    def test_get_customer_health_stats_zero_total(self, analytics_service):
+        """测试总客户数为 0 的情况"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=0),  # active_count
+            make_mock_execute_result([], scalar_value=0),  # total_count
+            make_mock_execute_result([], scalar_value=0),  # warning_count
+            make_mock_execute_result([]),  # churn_stmt
+            make_mock_execute_result([]),  # recent_stmt
+        ]
+
+        result = service.get_customer_health_stats()
+
+        assert result["total_customers"] == 0
+        assert result["active_rate"] == 0  # 避免除零错误
+
+
+class TestGetBalanceWarningList:
+    """get_balance_warning_list 测试"""
+
+    def test_get_balance_warning_list_success(self, analytics_service):
+        """测试获取余额预警客户列表成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            (
+                1,
+                "客户 A",
+                "COMP001",
+                Decimal("500.00"),
+                Decimal("400.00"),
+                Decimal("100.00"),
+            ),
+            (
+                2,
+                "客户 B",
+                "COMP002",
+                Decimal("800.00"),
+                Decimal("600.00"),
+                Decimal("200.00"),
+            ),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_balance_warning_list(threshold=1000)
+
+        assert len(result) == 2
+        assert result[0]["customer_id"] == 1
+        assert result[0]["customer_name"] == "客户 A"
+        assert result[0]["company_id"] == "COMP001"
+        assert result[0]["total_amount"] == 500.00
+        assert result[0]["real_amount"] == 400.00
+        assert result[0]["bonus_amount"] == 100.00
+        assert result[1]["total_amount"] == 800.00
+
+    def test_get_balance_warning_list_empty(self, analytics_service):
+        """测试空结果（无预警客户）"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_balance_warning_list(threshold=1000)
+
+        assert len(result) == 0
+
+    def test_get_balance_warning_list_custom_threshold(self, analytics_service):
+        """测试自定义阈值"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            (
+                1,
+                "客户 A",
+                "COMP001",
+                Decimal("2000.00"),
+                Decimal("1500.00"),
+                Decimal("500.00"),
+            ),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_balance_warning_list(threshold=5000)
+
+        assert len(result) == 1
+        assert result[0]["total_amount"] == 2000.00
+
+
+class TestGetInactiveCustomers:
+    """get_inactive_customers 测试"""
+
+    def test_get_inactive_customers_success(self, analytics_service):
+        """测试获取长期未消耗客户成功"""
+        service, mock_db = analytics_service
+
+        # 模拟查询
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(1,), (2,), (3,)]),  # has_usage_stmt
+            make_mock_execute_result([(3,)]),  # recent_stmt - 只有客户 3 最近有消耗
+            make_mock_execute_result(
+                [
+                    (1, "客户 A", "COMP001", 1, "经理 A"),
+                    (2, "客户 B", "COMP002", 2, None),  # manager_name 为 None
+                ]
+            ),  # 主查询
+        ]
+
+        result = service.get_inactive_customers(days=90)
+
+        assert len(result) == 2
+        assert result[0]["customer_id"] == 1
+        assert result[0]["customer_name"] == "客户 A"
+        assert result[0]["manager_name"] == "经理 A"
+        assert result[1]["customer_id"] == 2
+        assert result[1]["manager_name"] == "未分配"  # None 转为"未分配"
+
+    def test_get_inactive_customers_all_recent(self, analytics_service):
+        """测试所有客户最近都有消耗"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(1,), (2,)]),  # has_usage_stmt
+            make_mock_execute_result([(1,), (2,)]),  # recent_stmt - 全部最近
+        ]
+
+        result = service.get_inactive_customers(days=90)
+
+        assert len(result) == 0
+
+    def test_get_inactive_customers_empty(self, analytics_service):
+        """测试无任何消耗记录的客户"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),  # has_usage_stmt - 空
+            make_mock_execute_result([]),  # recent_stmt
+        ]
+
+        result = service.get_inactive_customers(days=90)
+
+        assert len(result) == 0
+
+
+# ==================== 画像分析测试 ====================
+
+
+class TestGetIndustryDistribution:
+    """get_industry_distribution 测试"""
+
+    def test_get_industry_distribution_success(self, analytics_service):
+        """测试获取行业分布成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            ("房地产", 30),
+            ("制造业", 25),
+            ("零售业", 20),
+            ("未分类", 5),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_industry_distribution()
+
+        assert len(result) == 4
+        total = 80
+        assert result[0]["industry"] == "房地产"
+        assert result[0]["count"] == 30
+        assert result[0]["percentage"] == round(30 / total * 100, 2)
+        assert result[1]["industry"] == "制造业"
+        assert result[2]["industry"] == "零售业"
+
+    def test_get_industry_distribution_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_industry_distribution()
+
+        assert len(result) == 0
+
+    def test_get_industry_distribution_single(self, analytics_service):
+        """测试只有一个行业"""
+        service, mock_db = analytics_service
+
+        mock_rows = [("房地产", 100)]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_industry_distribution()
+
+        assert len(result) == 1
+        assert result[0]["percentage"] == 100.0
+
+
+class TestGetCustomerLevelStats:
+    """get_customer_level_stats 测试"""
+
+    def test_get_customer_level_stats_success(self, analytics_service):
+        """测试获取客户等级统计成功"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            ("A", 50),
+            ("B", 30),
+            ("C", 15),
+            (None, 5),  # 未分类
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_customer_level_stats()
+
+        assert len(result) == 4
+        assert result[0]["level"] == "A"
+        assert result[0]["count"] == 50
+        assert result[0]["percentage"] == round(50 / 100 * 100, 2)
+        assert result[3]["level"] == "未分类"  # None 转为"未分类"
+
+    def test_get_customer_level_stats_empty(self, analytics_service):
+        """测试空结果"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.get_customer_level_stats()
+
+        assert len(result) == 0
+
+
+class TestGetRealEstateStats:
+    """get_real_estate_stats 测试"""
+
+    def test_get_real_estate_stats_success(self, analytics_service):
+        """测试获取房产客户统计成功"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=100),  # total
+            make_mock_execute_result([], scalar_value=40),  # real_estate
+        ]
+
+        result = service.get_real_estate_stats()
+
+        assert result["total_customers"] == 100
+        assert result["real_estate_customers"] == 40
+        assert result["non_real_estate_customers"] == 60
+        assert result["real_estate_percentage"] == 40.0
+
+    def test_get_real_estate_stats_zero_total(self, analytics_service):
+        """测试总客户数为 0"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=0),  # total
+            make_mock_execute_result([], scalar_value=0),  # real_estate
+        ]
+
+        result = service.get_real_estate_stats()
+
+        assert result["total_customers"] == 0
+        assert result["real_estate_percentage"] == 0  # 避免除零错误
+
+
+# ==================== 预测回款测试 ====================
+
+
+class TestPredictMonthlyPayment:
+    """predict_monthly_payment 测试"""
+
+    def test_predict_monthly_payment_success(self, analytics_service):
+        """测试预测月度回款成功"""
+        service, mock_db = analytics_service
+
+        # 定价规则查询结果
+        pricing_rows = [
+            (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None),
+        ]
+        # 用量查询结果
+        usage_rows = [("X", Decimal("1000"))]
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result(pricing_rows),  # 定价规则
+            make_mock_execute_result(usage_rows),  # 用量
+        ]
+
+        result = service.predict_monthly_payment(year=2026, month=4)
+
+        assert len(result) == 1
+        assert result[0]["customer_id"] == 1
+        assert result[0]["customer_name"] == "客户 A"
+        assert result[0]["device_type"] == "X"
+        assert result[0]["quantity"] == 1000.0
+        assert result[0]["pricing_type"] == "fixed"
+        assert result[0]["predicted_amount"] == 10000.00  # 1000 * 10
+
+    def test_predict_monthly_payment_with_customer_filter(self, analytics_service):
+        """测试按客户 ID 筛选预测"""
+        service, mock_db = analytics_service
+
+        pricing_rows = [
+            (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)
+        ]
+        usage_rows = [("X", Decimal("500"))]
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result(pricing_rows),
+            make_mock_execute_result(usage_rows),
+        ]
+
+        result = service.predict_monthly_payment(year=2026, month=4, customer_id=1)
+
+        assert len(result) == 1
+        assert result[0]["quantity"] == 500.0
+        assert result[0]["predicted_amount"] == 5000.00
+
+    def test_predict_monthly_payment_empty_pricing(self, analytics_service):
+        """测试无定价规则"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = service.predict_monthly_payment(year=2026, month=4)
+
+        assert len(result) == 0
+
+    def test_predict_monthly_payment_tiered_pricing(self, analytics_service):
+        """测试阶梯定价预测"""
+        service, mock_db = analytics_service
+
+        tiers = [
+            {"threshold": 100, "price": 10},
+            {"threshold": 500, "price": 8},
+        ]
+        pricing_rows = [
+            (1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)
+        ]
+        usage_rows = [("X", Decimal("600"))]
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result(pricing_rows),
+            make_mock_execute_result(usage_rows),
+        ]
+
+        result = service.predict_monthly_payment(year=2026, month=4)
+
+        assert len(result) == 1
+        # 100 * 10 + 500 * 8 = 1000 + 4000 = 5000
+        assert result[0]["predicted_amount"] == 5000.00
+
+    def test_predict_monthly_payment_package_pricing(self, analytics_service):
+        """测试套餐定价预测"""
+        service, mock_db = analytics_service
+
+        pricing_rows = [
+            (1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")
+        ]
+        usage_rows = [("L", Decimal("1000"))]
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result(pricing_rows),
+            make_mock_execute_result(usage_rows),
+        ]
+
+        result = service.predict_monthly_payment(year=2026, month=4)
+
+        assert len(result) == 1
+        assert result[0]["predicted_amount"] == 10000.00  # 套餐 A 价格
+
+
+# ==================== 首页仪表盘测试 ====================
+
+
+class TestGetDashboardStats:
+    """get_dashboard_stats 测试"""
+
+    def test_get_dashboard_stats_success(self, analytics_service):
+        """测试获取仪表盘统计数据成功"""
+        service, mock_db = analytics_service
+
+        # 模拟当前时间为 2026-04-03
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([], scalar_value=100),  # total_customers
+                make_mock_execute_result([], scalar_value=20),  # key_customers
+                make_mock_execute_result(
+                    [(Decimal("50000.00"), Decimal("40000.00"), Decimal("10000.00"))]
+                ),  # balance
+                make_mock_execute_result([], scalar_value=15),  # invoice_count
+                make_mock_execute_result([], scalar_value=5),  # pending_count
+                make_mock_execute_result(
+                    [], scalar_value=Decimal("25000.00")
+                ),  # month_consumption
+            ]
+
+            result = service.get_dashboard_stats()
+
+            assert result["total_customers"] == 100
+            assert result["key_customers"] == 20
+            assert result["total_balance"] == 50000.00
+            assert result["real_balance"] == 40000.00
+            assert result["bonus_balance"] == 10000.00
+            assert result["month_invoice_count"] == 15
+            assert result["pending_confirmation"] == 5
+            assert result["month_consumption"] == 25000.00
+
+    def test_get_dashboard_stats_empty(self, analytics_service):
+        """测试空数据"""
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([], scalar_value=0),  # total_customers
+                make_mock_execute_result([], scalar_value=0),  # key_customers
+                make_mock_execute_result([(None, None, None)]),  # balance
+                make_mock_execute_result([], scalar_value=0),  # invoice_count
+                make_mock_execute_result([], scalar_value=0),  # pending_count
+                make_mock_execute_result([], scalar_value=None),  # month_consumption
+            ]
+
+            result = service.get_dashboard_stats()
+
+            assert result["total_customers"] == 0
+            assert result["key_customers"] == 0
+            assert result["total_balance"] == 0.0
+            assert result["month_consumption"] == 0.0
+
+
+class TestGetDashboardChartData:
+    """get_dashboard_chart_data 测试"""
+
+    def test_get_dashboard_chart_data_success(self, analytics_service):
+        """测试获取仪表盘图表数据成功"""
+        service, mock_db = analytics_service
+
+        # Mock 消耗趋势
+        consumption_trend_data = [
+            {"period": "2025-11", "total_amount": 10000.00},
+            {"period": "2025-12", "total_amount": 12000.00},
+            {"period": "2026-01", "total_amount": 15000.00},
+        ]
+
+        # Mock 回款分析数据
+        payment_data = {
+            "total_invoiced": 10000.00,
+            "total_paid": 8000.00,
+            "completion_rate": 80.0,
+        }
+
+        with patch.object(
+            service, "get_consumption_trend", return_value=consumption_trend_data
+        ):
+            with patch.object(
+                service, "get_payment_analysis", return_value=payment_data
+            ):
+                result = service.get_dashboard_chart_data(months=3)
+
+                assert "consumption_trend" in result
+                assert "payment_trend" in result
+                assert len(result["consumption_trend"]) == 3
+                assert len(result["payment_trend"]) == 3
+                assert result["payment_trend"][0]["invoiced"] == 10000.00
+                assert result["payment_trend"][0]["paid"] == 8000.00
+
+
+# ==================== 辅助方法测试 ====================
+
+
+class TestCalculatePredictedAmount:
+    """_calculate_predicted_amount 辅助方法测试"""
+
+    def test_calculate_fixed_pricing(self, analytics_service):
+        """测试固定价格计算"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="fixed",
+            unit_price=10.00,
+            tiers=None,
+            package_type=None,
+            quantity=100,
+        )
+
+        assert result == 1000.00
+
+    def test_calculate_tiered_pricing_single_tier(self, analytics_service):
+        """测试单阶梯定价计算"""
+        service, mock_db = analytics_service
+
+        tiers = [{"threshold": 500, "price": 8}]
+
+        result = service._calculate_predicted_amount(
+            pricing_type="tiered",
+            unit_price=10.00,
+            tiers=tiers,
+            package_type=None,
+            quantity=300,
+        )
+
+        # 300 < 500, 所以 300 * 8 = 2400
+        assert result == 2400.00
+
+    def test_calculate_tiered_pricing_multiple_tiers(self, analytics_service):
+        """测试多阶梯定价计算"""
+        service, mock_db = analytics_service
+
+        tiers = [
+            {"threshold": 100, "price": 10},
+            {"threshold": 500, "price": 8},
+        ]
+
+        result = service._calculate_predicted_amount(
+            pricing_type="tiered",
+            unit_price=5.00,
+            tiers=tiers,
+            package_type=None,
+            quantity=600,
+        )
+
+        # 100 * 10 + 500 * 8 + (600-600) * 5 = 1000 + 4000 = 5000
+        assert result == 5000.00
+
+    def test_calculate_package_pricing_type_a(self, analytics_service):
+        """测试套餐 A 定价"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="package",
+            unit_price=0,
+            tiers=None,
+            package_type="A",
+            quantity=1000,
+        )
+
+        assert result == 10000.00
+
+    def test_calculate_package_pricing_type_b(self, analytics_service):
+        """测试套餐 B 定价"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="package",
+            unit_price=0,
+            tiers=None,
+            package_type="B",
+            quantity=1000,
+        )
+
+        assert result == 20000.00
+
+    def test_calculate_package_pricing_type_c(self, analytics_service):
+        """测试套餐 C 定价"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="package",
+            unit_price=0,
+            tiers=None,
+            package_type="C",
+            quantity=1000,
+        )
+
+        assert result == 30000.00
+
+    def test_calculate_package_pricing_type_d(self, analytics_service):
+        """测试套餐 D 定价"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="package",
+            unit_price=0,
+            tiers=None,
+            package_type="D",
+            quantity=1000,
+        )
+
+        assert result == 50000.00
+
+    def test_calculate_unknown_package_type(self, analytics_service):
+        """测试未知套餐类型"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="package",
+            unit_price=0,
+            tiers=None,
+            package_type="Z",
+            quantity=1000,
+        )
+
+        assert result == 0
+
+    def test_calculate_default_fallback(self, analytics_service):
+        """测试默认回退计算"""
+        service, mock_db = analytics_service
+
+        result = service._calculate_predicted_amount(
+            pricing_type="unknown",
+            unit_price=15.00,
+            tiers=None,
+            package_type=None,
+            quantity=100,
+        )
+
+        assert result == 1500.00
+
+
+# ==================== 边缘情况测试 ====================
+
+
+class TestEdgeCases:
+    """边缘情况测试"""
+
+    def test_get_consumption_trend_single_month(self, analytics_service):
+        """测试单月消耗趋势"""
+        service, mock_db = analytics_service
+
+        mock_rows = [(2026, 3, Decimal("10000.00"))]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_consumption_trend(
+            start_date=date(2026, 3, 1), end_date=date(2026, 3, 31)
+        )
+
+        assert len(result) == 1
+        assert result[0]["period"] == "2026-03"
+        assert result[0]["total_amount"] == 10000.00
+
+    def test_get_top_customers_tie(self, analytics_service):
+        """测试 Top 客户金额相同"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            (1, "客户 A", "COMP001", Decimal("10000.00")),
+            (2, "客户 B", "COMP002", Decimal("10000.00")),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_top_customers(
+            start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=2
+        )
+
+        assert len(result) == 2
+        assert result[0]["total_amount"] == result[1]["total_amount"]
+
+    def test_get_balance_warning_list_boundary(self, analytics_service):
+        """测试余额预警边界值"""
+        service, mock_db = analytics_service
+
+        # 余额正好等于阈值，不应该出现在预警列表中
+        mock_rows = [
+            (
+                1,
+                "客户 A",
+                "COMP001",
+                Decimal("999.99"),
+                Decimal("800.00"),
+                Decimal("199.99"),
+            ),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_balance_warning_list(threshold=1000)
+
+        assert len(result) == 1
+        assert result[0]["total_amount"] == 999.99
+
+    def test_get_customer_health_stats_all_zero(self, analytics_service):
+        """测试所有统计为 0"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([], scalar_value=0),
+            make_mock_execute_result([], scalar_value=0),
+            make_mock_execute_result([], scalar_value=0),
+            make_mock_execute_result([]),
+            make_mock_execute_result([]),
+        ]
+
+        result = service.get_customer_health_stats()
+
+        assert result["total_customers"] == 0
+        assert result["active_customers"] == 0
+        assert result["warning_customers"] == 0
+        assert result["churn_risk_customers"] == 0
+        assert result["active_rate"] == 0
+
+    def test_get_industry_distribution_percentage_sum(self, analytics_service):
+        """测试行业分布百分比总和"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            ("房地产", 50),
+            ("制造业", 30),
+            ("零售业", 20),
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = service.get_industry_distribution()
+
+        total_percentage = sum(item["percentage"] for item in result)
+        assert abs(total_percentage - 100.0) < 0.01  # 允许浮点误差

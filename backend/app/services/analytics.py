@@ -1,10 +1,12 @@
 """客户分析服务"""
 
 from datetime import datetime, date
+from calendar import monthrange
 from decimal import Decimal
 from sqlalchemy import select, func, and_, or_, extract
 from sqlalchemy.orm import Session, joinedload
-from ..models.customers import Customer, CustomerProfile, Tag, CustomerTag, ProfileTag
+from ..models.customers import Customer, CustomerProfile
+from ..models.tags import Tag, CustomerTag, ProfileTag
 from ..models.billing import (
     DailyUsage,
     ConsumptionRecord,
