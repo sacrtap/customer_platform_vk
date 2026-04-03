@@ -10,7 +10,7 @@ class Base(DeclarativeBase):
 
 
 # 导入所有模型以便 alembic 自动发现
-from . import users, customers, billing, tags, webhooks
+from . import users, customers, billing, tags, webhooks, groups
 
 # 导出所有模型
 __all__ = [
@@ -20,4 +20,5 @@ __all__ = [
     "billing",
     "tags",
     "webhooks",
+    "groups",
 ]
