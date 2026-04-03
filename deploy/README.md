@@ -4,7 +4,21 @@
 
 由于 macOS 上 Podman 运行在 VM 中，存在网络隔离问题，**推荐使用本地 PostgreSQL**。
 
-### 快速部署 (5 分钟)
+### 一键部署 (推荐)
+
+```bash
+# 运行一键部署脚本
+./deploy/scripts/local-deploy.sh
+```
+
+这将自动完成:
+1. ✅ 检查/安装 PostgreSQL 18
+2. ✅ 启动 PostgreSQL 服务
+3. ✅ 创建数据库
+4. ✅ 运行数据库迁移
+5. ✅ 创建测试数据
+
+### 手动部署 (5 分钟)
 
 ```bash
 # 1. 安装 PostgreSQL 18
