@@ -97,6 +97,7 @@ def create_app(
     from .routes.webhooks import webhooks_bp
     from .routes.sync_logs import sync_logs_bp
     from .routes.audit_logs import audit_logs_bp
+    from .routes.groups import groups_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
@@ -110,6 +111,7 @@ def create_app(
     app.blueprint(webhooks_bp)
     app.blueprint(sync_logs_bp)
     app.blueprint(audit_logs_bp)
+    app.blueprint(groups_bp)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
