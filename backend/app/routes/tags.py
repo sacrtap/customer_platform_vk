@@ -6,6 +6,7 @@ from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.tags import TagService
 from ..middleware.auth import get_current_user
+from ..cache.base import cache_service
 
 tags_bp = Blueprint("tags", url_prefix="/api/v1/tags")
 
@@ -28,6 +29,12 @@ async def list_tags(request: Request):
     tag_type = request.args.get("type")
     category = request.args.get("category")
 
+    # 尝试从缓存获取
+    cache_key = f"p{page}_ps{page_size}_{tag_type or 'all'}_{category or 'all'}"
+    cached = await cache_service.get("tag_list", cache_key)
+    if cached is not None:
+        return json(cached)
+
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
 
@@ -35,30 +42,33 @@ async def list_tags(request: Request):
         page=page, page_size=page_size, tag_type=tag_type, category=category
     )
 
-    return json(
-        {
-            "code": 0,
-            "message": "success",
-            "data": {
-                "list": [
-                    {
-                        "id": tag.id,
-                        "name": tag.name,
-                        "type": tag.type,
-                        "category": tag.category,
-                        "created_by": tag.created_by,
-                        "created_at": tag.created_at.isoformat()
-                        if tag.created_at
-                        else None,
-                    }
-                    for tag in tags
-                ],
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-            },
-        }
-    )
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "list": [
+                {
+                    "id": tag.id,
+                    "name": tag.name,
+                    "type": tag.type,
+                    "category": tag.category,
+                    "created_by": tag.created_by,
+                    "created_at": tag.created_at.isoformat()
+                    if tag.created_at
+                    else None,
+                }
+                for tag in tags
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        },
+    }
+
+    # 写入缓存
+    await cache_service.set("tag_list", result, cache_key)
+
+    return json(result)
 
 
 @tags_bp.get("/<tag_id:int>")
@@ -122,6 +132,9 @@ async def create_tag(request: Request):
     except Exception as e:
         return json({"code": 40003, "message": f"创建失败：{str(e)}"}, status=400)
 
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
+
     return json(
         {
             "code": 0,
@@ -158,6 +171,9 @@ async def update_tag(request: Request, tag_id: int):
     if not tag:
         return json({"code": 40401, "message": "标签不存在"}, status=404)
 
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
+
     return json(
         {
             "code": 0,
@@ -182,6 +198,9 @@ async def delete_tag(request: Request, tag_id: int):
 
     if not success:
         return json({"code": 40401, "message": "标签不存在"}, status=404)
+
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
 
     return json({"code": 0, "message": "删除成功"})
 
@@ -259,6 +278,9 @@ async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
     if not success:
         return json({"code": 40001, "message": "移除失败，标签可能不存在"}, status=400)
 
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
+
     return json({"code": 0, "message": "移除成功"})
 
 
@@ -289,6 +311,9 @@ async def batch_add_customer_tags(request: Request):
     success_count, error_count = await service.batch_add_customer_tags(
         customer_ids, tag_ids
     )
+
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
 
     return json(
         {
@@ -327,6 +352,9 @@ async def batch_remove_customer_tags(request: Request):
     service = TagService(db_session)
 
     removed_count = await service.batch_remove_customer_tags(customer_ids, tag_ids)
+
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
 
     return json(
         {
@@ -381,6 +409,9 @@ async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
             status=400,
         )
 
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
+
     return json({"code": 0, "message": "添加成功"})
 
 
@@ -394,5 +425,8 @@ async def remove_profile_tag(request: Request, profile_id: int, tag_id: int):
 
     if not success:
         return json({"code": 40001, "message": "移除失败，标签可能不存在"}, status=400)
+
+    # 清除缓存
+    await cache_service.invalidate_tag_cache()
 
     return json({"code": 0, "message": "移除成功"})
