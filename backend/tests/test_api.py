@@ -5,8 +5,7 @@
 import pytest
 import asyncio
 from typing import AsyncGenerator, Generator
-from sanic import Sanic
-from sanic.testing import SanicTestClient
+from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 
