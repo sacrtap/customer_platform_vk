@@ -54,6 +54,7 @@ def create_app() -> Sanic:
     from .routes.files import files_bp
     from .routes.webhooks import webhooks_bp
     from .routes.sync_logs import sync_logs_bp
+    from .routes.audit_logs import audit_logs_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
@@ -66,6 +67,7 @@ def create_app() -> Sanic:
     app.blueprint(files_bp)
     app.blueprint(webhooks_bp)
     app.blueprint(sync_logs_bp)
+    app.blueprint(audit_logs_bp)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler

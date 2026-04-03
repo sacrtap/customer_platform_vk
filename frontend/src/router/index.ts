@@ -76,6 +76,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/system/SyncLogs.vue'),
             meta: { requiresPermission: 'system:view' },
           },
+          {
+            path: 'audit-logs',
+            name: 'AuditLogs',
+            component: () => import('@/views/system/AuditLogs.vue'),
+            meta: { requiresPermission: 'system:view' },
+          },
         ],
       },
     ],
