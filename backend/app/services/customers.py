@@ -4,7 +4,8 @@ from typing import Optional, List, Tuple, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
-from ..models.customers import Customer, CustomerProfile, Tag, CustomerTag
+from ..models.customers import Customer, CustomerProfile
+from ..models.tags import Tag, CustomerTag
 from ..models.billing import CustomerBalance
 
 

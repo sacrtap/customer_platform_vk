@@ -64,6 +64,7 @@ class CustomerProfile(BaseModel):
 
     # 关联
     customer = relationship("Customer", back_populates="profile")
+    tags = relationship("ProfileTag", back_populates="profile", lazy="selectin")
 
     def __repr__(self):
         return f"<CustomerProfile {self.customer_id}>"
