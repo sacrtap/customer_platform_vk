@@ -95,6 +95,11 @@ class Invoice(BaseModel):
     is_auto_generated = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"))
 
+    # 关联
+    items = relationship(
+        "InvoiceItem", back_populates="invoice", cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         Index(
             "idx_invoice_customer_period", "customer_id", "period_start", "period_end"
@@ -117,6 +122,9 @@ class InvoiceItem(BaseModel):
     unit_price = Column(DECIMAL(10, 2), nullable=False)
     # subtotal = quantity * unit_price
     pricing_rule_id = Column(Integer, ForeignKey("pricing_rules.id"))
+
+    # 关联
+    invoice = relationship("Invoice", back_populates="items")
 
 
 class ConsumptionRecord(BaseModel):
