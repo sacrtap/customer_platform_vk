@@ -8,6 +8,12 @@
 - 所有组件在同一线程同一事件循环中运行
 """
 
+# 必须在导入任何应用代码之前设置环境变量
+import os
+
+os.environ["JWT_SECRET"] = "test_jwt_secret_key_for_testing_only_12345678"
+os.environ["WEBHOOK_SECRET"] = "test_webhook_secret_key_for_testing_only_12345678"
+
 import pytest
 import bcrypt
 from unittest.mock import MagicMock, patch
