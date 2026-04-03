@@ -46,8 +46,15 @@ check_brew() {
 # 检查 PostgreSQL
 check_postgres() {
     if command -v psql &> /dev/null; then
-        local version=$(psql --version | grep -oE '[0-9]+' | head -1)
+        local version=$(psql --version | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
+        local major_version=$(psql --version | grep -oE '[0-9]+' | head -1)
         success "PostgreSQL 已安装 (版本：$version)"
+        
+        # 检查是否是 Postgres.app
+        if pg_config --version 2>/dev/null | grep -q "Postgres.app"; then
+            info "检测到 Postgres.app"
+        fi
+        
         return 0
     fi
     return 1
@@ -62,21 +69,43 @@ install_postgres() {
 
 # 启动 PostgreSQL 服务
 start_postgres() {
-    info "启动 PostgreSQL 服务..."
-    brew services start postgresql@${POSTGRES_VERSION}
+    info "检查 PostgreSQL 服务状态..."
+    
+    # 检查是否已经在运行
+    if pg_isready &>/dev/null; then
+        success "PostgreSQL 服务已在运行"
+        return 0
+    fi
+    
+    # 检查是否是 Postgres.app
+    if pg_config --version 2>/dev/null | grep -q "Postgres.app"; then
+        info "Postgres.app 已安装，请确保应用已启动"
+        if pg_isready &>/dev/null; then
+            success "PostgreSQL 服务已启动"
+            return 0
+        else
+            warning "Postgres.app 可能未启动，请打开 Postgres.app 应用"
+            sleep 3
+        fi
+    else
+        # Homebrew 安装
+        info "启动 PostgreSQL 服务..."
+        brew services start postgresql@${POSTGRES_VERSION} 2>/dev/null || \
+        brew services start postgresql 2>/dev/null || \
+        warning "无法通过 brew services 启动，请手动启动 PostgreSQL"
+    fi
     
     # 等待服务启动
-    info "等待服务启动..."
+    info "等待数据库就绪..."
     for i in {1..10}; do
-        if psql -d postgres -c "SELECT 1" &>/dev/null; then
-            success "PostgreSQL 服务已启动"
+        if pg_isready &>/dev/null; then
+            success "PostgreSQL 服务已就绪"
             return 0
         fi
         sleep 1
     done
     
-    error "PostgreSQL 服务启动超时"
-    exit 1
+    warning "数据库可能未就绪，但将继续尝试..."
 }
 
 # 创建数据库

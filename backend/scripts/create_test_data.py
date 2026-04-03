@@ -1,41 +1,43 @@
 #!/usr/bin/env python3
 """
 创建测试数据脚本
-用于 Podman 部署环境
+用于本地部署环境
 """
 
-import asyncio
 import sys
 import os
-
-# 添加项目路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
-
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy import select
 import bcrypt
 
+# 添加项目路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+
 # 从环境变量读取数据库 URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://user:password@localhost:5432/customer_platform",
-)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/customer_platform")
 
 
-async def create_test_data():
+def create_test_data():
     """创建测试数据"""
     print(f"连接到数据库：{DATABASE_URL}")
 
-    engine = create_async_engine(DATABASE_URL)
+    # 使用同步引擎
+    engine = create_engine(
+        DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    )
 
-    async with AsyncSession(engine) as session:
-        # 导入模型 (延迟导入以避免循环依赖)
+    with Session(engine) as session:
+        # 导入模型
         from app.models.users import User
-        from app.models.customers import Customer, CustomerBalance
+        from app.models.customers import Customer
+        from app.models.billing import CustomerBalance
 
         # 检查是否已存在测试用户
-        result = await session.execute(select(User).where(User.username == "admin"))
-        if result.scalar_one_or_none():
+        result = session.execute(select(User).where(User.username == "admin"))
+        admin = result.scalar_one_or_none()
+
+        if admin:
             print("⚠️  测试用户已存在，跳过创建")
         else:
             # 创建管理员用户
@@ -53,10 +55,12 @@ async def create_test_data():
             print("✅ 管理员用户已创建 (admin/admin123)")
 
         # 检查是否已存在测试客户
-        result = await session.execute(
+        result = session.execute(
             select(Customer).where(Customer.company_id == "TEST001")
         )
-        if result.scalar_one_or_none():
+        customer = result.scalar_one_or_none()
+
+        if customer:
             print("⚠️  测试客户已存在，跳过创建")
         else:
             # 创建测试客户
@@ -71,7 +75,7 @@ async def create_test_data():
                 is_key_customer=True,
             )
             session.add(customer)
-            await session.flush()
+            session.flush()
             print("✅ 测试客户已创建")
 
             # 创建客户余额
@@ -85,15 +89,13 @@ async def create_test_data():
             session.add(balance)
             print("✅ 客户余额已创建 (实充：10000, 赠费：1000)")
 
-        await session.commit()
+        session.commit()
         print("\n✅ 测试数据创建成功!")
-
-    await engine.dispose()
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(create_test_data())
+        create_test_data()
     except Exception as e:
         print(f"❌ 错误：{e}")
         sys.exit(1)
