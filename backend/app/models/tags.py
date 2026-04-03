@@ -1,6 +1,6 @@
 """标签管理模型"""
 
-from sqlalchemy import Column, String, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 
@@ -10,12 +10,15 @@ class Tag(BaseModel):
 
     __tablename__ = "tags"
 
-    name = Column(String(50), nullable=False)
-    type = Column(String(50), nullable=False)  # customer/profile
-    category = Column(String(50))
+    name = Column(String(50), nullable=False, index=True)
+    type = Column(String(50), nullable=False, index=True)  # customer/profile
+    category = Column(String(50), index=True)
     created_by = Column(Integer, ForeignKey("users.id"))
 
-    __table_args__ = (UniqueConstraint("name", "type", name="uq_tags_name_type"),)
+    __table_args__ = (
+        UniqueConstraint("name", "type", name="uq_tags_name_type"),
+        Index("idx_tag_type_category", "type", "category"),
+    )
 
     # 关联
     creator = relationship("User", back_populates="created_tags")

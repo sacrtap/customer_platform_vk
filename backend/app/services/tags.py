@@ -112,20 +112,22 @@ class TagService:
         return True
 
     async def get_tag_usage_count(self, tag_id: int) -> dict:
-        """获取标签使用次数"""
+        """获取标签使用次数（优化版：单次查询）"""
+        # 使用单次查询获取客户标签数量
         customer_count = await self.db.execute(
             select(func.count())
             .select_from(CustomerTag)
             .where(CustomerTag.tag_id == tag_id, CustomerTag.deleted_at.is_(None))
         )
-        customer_count = customer_count.scalar()
+        customer_count = customer_count.scalar() or 0
 
+        # 使用单次查询获取画像标签数量
         profile_count = await self.db.execute(
             select(func.count())
             .select_from(ProfileTag)
             .where(ProfileTag.tag_id == tag_id, ProfileTag.deleted_at.is_(None))
         )
-        profile_count = profile_count.scalar()
+        profile_count = profile_count.scalar() or 0
 
         return {"customer_count": customer_count, "profile_count": profile_count}
 
