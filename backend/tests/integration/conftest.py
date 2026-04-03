@@ -9,10 +9,16 @@
 """
 
 # 必须在导入任何应用代码之前设置环境变量
+import sys
 import os
 
-os.environ["JWT_SECRET"] = "test_jwt_secret_key_for_testing_only_12345678"
-os.environ["WEBHOOK_SECRET"] = "test_webhook_secret_key_for_testing_only_12345678"
+# 强制设置固定的 JWT_SECRET，确保测试间一致
+os.environ["JWT_SECRET"] = "integration_test_jwt_secret_key_fixed_12345678"
+os.environ["WEBHOOK_SECRET"] = "integration_test_webhook_secret_key_fixed_12345678"
+
+# 在导入 app 之前清除 settings 缓存（如果有）
+if "app.config" in sys.modules:
+    del sys.modules["app.config"]
 
 import pytest
 import bcrypt

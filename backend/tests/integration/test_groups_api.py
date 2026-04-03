@@ -7,7 +7,7 @@ from sqlalchemy import text
 class TestCreateGroup:
     """测试创建群组"""
 
-    def test_create_dynamic_group(self, client, test_user):
+    def test_create_dynamic_group(self, client, test_user, db_session):
         """测试创建动态群组"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -15,7 +15,9 @@ class TestCreateGroup:
             json={"username": test_user["username"], "password": test_user["password"]},
         )
         assert login_response.status_code == 200
-        token = login_response.json["data"]["access_token"]
+        login_data = login_response.json
+        assert login_data.get("code") == 0, f"Login failed: {login_data}"
+        token = login_data["data"]["access_token"]
 
         request, response = client.post(
             "/api/v1/customer-groups",
@@ -34,7 +36,7 @@ class TestCreateGroup:
         assert data["data"]["name"] == "测试动态群组"
         assert "id" in data["data"]
 
-    def test_create_static_group(self, client, test_user):
+    def test_create_static_group(self, client, test_user, db_session):
         """测试创建静态群组"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -55,7 +57,7 @@ class TestCreateGroup:
         assert data["code"] == 0
         assert data["data"]["name"] == "测试静态群组"
 
-    def test_create_group_missing_name(self, client, test_user):
+    def test_create_group_missing_name(self, client, test_user, db_session):
         """测试创建群组缺少名称"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -79,7 +81,7 @@ class TestCreateGroup:
 class TestListGroups:
     """测试获取群组列表"""
 
-    def test_list_user_groups(self, client, test_user):
+    def test_list_user_groups(self, client, test_user, db_session):
         """测试获取用户的群组列表"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -118,7 +120,7 @@ class TestListGroups:
 class TestGetGroup:
     """测试获取群组详情"""
 
-    def test_get_group_detail(self, client, test_user):
+    def test_get_group_detail(self, client, test_user, db_session):
         """测试获取群组详情"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -147,7 +149,7 @@ class TestGetGroup:
         assert data["code"] == 0
         assert data["data"]["name"] == "测试详情群组"
 
-    def test_get_group_not_found(self, client, test_user):
+    def test_get_group_not_found(self, client, test_user, db_session):
         """测试获取不存在的群组"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -170,7 +172,7 @@ class TestGetGroup:
 class TestDeleteGroup:
     """测试删除群组"""
 
-    def test_delete_group(self, client, test_user):
+    def test_delete_group(self, client, test_user, db_session):
         """测试删除群组"""
         # 先登录获取 token
         login_request, login_response = client.post(
@@ -275,7 +277,7 @@ class TestGroupMembers:
 class TestGroupStats:
     """测试群组统计"""
 
-    def test_get_group_stats(self, client, test_user):
+    def test_get_group_stats(self, client, test_user, db_session):
         """测试获取群组统计信息"""
         # 先登录获取 token
         login_request, login_response = client.post(
