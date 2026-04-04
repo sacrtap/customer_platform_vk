@@ -1,6 +1,10 @@
+# Python 版本要求：>=3.12,<3.13
+# 不兼容 Python 3.14+ (Sanic 生态系统兼容性问题)
+
 # Web Framework
-sanic==23.12.1
-sanic-ext==23.12.0
+sanic==22.12.0
+sanic-ext==22.12.0
+sanic-testing==22.12.0
 
 # Database
 sqlalchemy==2.0.25
@@ -19,8 +23,8 @@ pydantic-settings==2.1.0
 # Task Scheduling
 apscheduler==3.10.4
 
-# HTTP Client
-httpx==0.26.0
+# HTTP Client (downgraded for sanic-testing 22.12.0 compatibility)
+httpx==0.23.3
 
 # File Handling
 python-multipart==0.0.6

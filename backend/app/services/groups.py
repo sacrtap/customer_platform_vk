@@ -2,17 +2,31 @@
 
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, inspect
 from ..models.groups import CustomerGroup, CustomerGroupMember
 from ..models.customers import Customer
+
+
+def _is_async_session(session) -> bool:
+    """检查是否为异步 Session"""
+    # 检查 Session 类型
+    session_class_name = session.__class__.__name__
+    return "AsyncSession" in session_class_name
 
 
 class CustomerGroupService:
     """客户群组服务"""
 
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session):
         self.db = db_session
+        self._is_async = _is_async_session(db_session)
+
+    async def _commit(self):
+        """提交事务（支持同步/异步）"""
+        if self._is_async:
+            await self.db.commit()
+        else:
+            self.db.commit()
 
     async def create_group(
         self,
@@ -42,7 +56,7 @@ class CustomerGroupService:
             created_by=created_by,
         )
         self.db.add(group)
-        await self.db.commit()
+        await self._commit()
         return group
 
     async def get_user_groups(self, user_id: int) -> List[CustomerGroup]:
@@ -107,7 +121,7 @@ class CustomerGroupService:
             if key in updatable_fields and hasattr(group, key):
                 setattr(group, key, value)
 
-        await self.db.commit()
+        await self._commit()
         return group
 
     async def delete_group(self, group_id: int) -> bool:
@@ -124,7 +138,7 @@ class CustomerGroupService:
             return False
 
         group.deleted_at = datetime.utcnow()
-        await self.db.commit()
+        await self._commit()
         return True
 
     async def add_member(self, group_id: int, customer_id: int) -> bool:
@@ -148,7 +162,7 @@ class CustomerGroupService:
 
         member = CustomerGroupMember(group_id=group_id, customer_id=customer_id)
         self.db.add(member)
-        await self.db.commit()
+        await self._commit()
         return True
 
     async def remove_member(self, group_id: int, customer_id: int) -> bool:
@@ -172,7 +186,7 @@ class CustomerGroupService:
             return False
 
         await self.db.delete(member)
-        await self.db.commit()
+        await self._commit()
         return True
 
     async def get_group_members(

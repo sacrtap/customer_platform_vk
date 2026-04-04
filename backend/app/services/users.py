@@ -21,13 +21,14 @@ class UserService:
         # 使用 hasattr 检查 AsyncSession 的特征属性
         self._is_async = (
             hasattr(session, "_is_asyncio_session")
-            or type(session).__name__ == "AsyncMock"
+            or type(session).__name__ in ("AsyncMock", "MagicMock")
+            or "asyncio" in str(type(session))
         )
 
-    def _execute(self, query):
+    async def _execute(self, query):
         """执行查询，自动处理同步/异步"""
         if self._is_async:
-            return self.session.execute(query)
+            return await self.session.execute(query)
         else:
             return self.session.execute(query)
 
@@ -40,31 +41,21 @@ class UserService:
 
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """根据 ID 获取用户"""
-        if self._is_async:
-            result = await self.session.execute(
-                select(User).where(User.id == user_id, User.deleted_at.is_(None))
-            )
-            return result.scalar_one_or_none()
-        else:
-            # 同步模式：直接返回，不需要 await
-            result = self.session.execute(
-                select(User).where(User.id == user_id, User.deleted_at.is_(None))
-            )
-            return result.scalar_one_or_none()
+        result = await self._execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
 
     async def get_user_by_username(self, username: str) -> Optional[User]:
         """根据用户名获取用户"""
-        if self._is_async:
-            result = await self.session.execute(
-                select(User).where(User.username == username, User.deleted_at.is_(None))
-            )
-            return result.scalar_one_or_none()
-        else:
-            # 同步模式：直接返回，不需要 await
-            result = self.session.execute(
-                select(User).where(User.username == username, User.deleted_at.is_(None))
-            )
-            return result.scalar_one_or_none()
+        from sqlalchemy.orm import selectinload
+
+        result = await self._execute(
+            select(User)
+            .where(User.username == username, User.deleted_at.is_(None))
+            .options(selectinload(User.roles))
+        )
+        return result.scalar_one_or_none()
 
     async def get_all_users(
         self, page: int = 1, page_size: int = 20

@@ -82,25 +82,60 @@ def make_mock_row(data):
         setattr(row, "company_id", data[2])
         setattr(row, "total_amount", data[3])
     # 3 元素：(year, month, total_amount) - 消耗趋势
+    # 或 (device_type, total_quantity, total_amount) - 设备类型分布
+    # 或 (status, count, total_amount) - 结算单状态统计
+    # 或 (total_balance, real_balance, bonus_balance) - 仪表盘余额
     elif len(data) == 3:
         setattr(row, "year", data[0])
         setattr(row, "month", data[1])
         setattr(row, "total_amount", data[2])
-    # 2 元素：(device_type, total_quantity) 或 (status, count)
+        # 检查是否是设备类型分布 (device_type, total_quantity, total_amount)
+        if isinstance(data[0], str) and data[0] in ["X", "N", "L"]:
+            setattr(row, "device_type", data[0])
+            setattr(row, "total_quantity", data[1])
+            setattr(row, "total_amount", data[2])
+        # 检查是否是结算单状态统计 (status, count, total_amount)
+        elif isinstance(data[0], str) and data[0] in [
+            "draft",
+            "pending_customer",
+            "paid",
+            "completed",
+            "cancelled",
+        ]:
+            setattr(row, "status", data[0])
+            setattr(row, "count", data[1])
+            setattr(row, "total_amount", data[2])
+        # 检查是否是余额统计 (total_balance, real_balance, bonus_balance)
+        elif isinstance(data[0], Decimal):
+            setattr(row, "total_balance", data[0])
+            setattr(row, "real_balance", data[1])
+            setattr(row, "bonus_balance", data[2])
+    # 2 元素：(device_type, total_quantity) 或 (status, count) 或 (industry, count) 等
     elif len(data) == 2:
         setattr(row, "_0", data[0])
         setattr(row, "_1", data[1])
         # 尝试推断字段名
-        if isinstance(data[0], str) and data[0] in [
-            "X",
-            "N",
-            "L",
-            "draft",
-            "paid",
-            "completed",
-        ]:
-            setattr(row, "device_type", data[0])
-            setattr(row, "status", data[0])
+        if isinstance(data[0], str):
+            # 设备类型
+            if data[0] in ["X", "N", "L"]:
+                setattr(row, "device_type", data[0])
+                setattr(row, "total_quantity", data[1])
+            # 结算单状态
+            elif data[0] in [
+                "draft",
+                "pending_customer",
+                "paid",
+                "completed",
+                "cancelled",
+            ]:
+                setattr(row, "status", data[0])
+                setattr(row, "count", data[1])
+            # 行业分布、客户等级等
+            else:
+                setattr(row, "industry", data[0])
+                setattr(row, "count", data[1])
+                setattr(row, "level", data[0])
+                setattr(row, "health_level", data[0])
         setattr(row, "total_quantity", data[1])
         setattr(row, "count", data[1])
     # 1 元素：标量值
@@ -108,6 +143,57 @@ def make_mock_row(data):
         setattr(row, "_0", data[0])
         setattr(row, "total_amount", data[0])
         setattr(row, "count", data[0])
+    # 6 元素：(id, name, company_id, balance, threshold, amount_due) - 余额预警
+    elif len(data) == 6:
+        setattr(row, "id", data[0])
+        setattr(row, "customer_id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "balance", data[3])
+        setattr(row, "threshold", data[4])
+        setattr(row, "amount_due", data[5])
+    # 5 元素：(id, name, company_id, last_order_date, days_inactive) - 未下单客户
+    # 或 (customer_id, customer_name, company_id, device_type, predicted_amount)
+    elif len(data) == 5:
+        setattr(row, "id", data[0])
+        setattr(row, "customer_id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "customer_name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "last_order_date", data[3])
+        setattr(row, "days_inactive", data[4])
+        setattr(row, "device_type", data[3])
+        setattr(row, "predicted_amount", data[4])
+    # 4 元素：(id, name, company_id, total_amount) - Top 客户/行业分布
+    elif len(data) == 4:
+        setattr(row, "id", data[0])
+        setattr(row, "customer_id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "total_amount", data[3])
+    # 7 元素：(id, name, company_id, device_type, pricing_model, unit_price, min_quantity) - 定价规则
+    elif len(data) == 7:
+        setattr(row, "id", data[0])
+        setattr(row, "customer_id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "customer_name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "device_type", data[3])
+        setattr(row, "pricing_model", data[4])
+        setattr(row, "unit_price", data[5])
+        setattr(row, "min_quantity", data[6])
+    # 8 元素：(id, name, company_id, device_type, pricing_model, unit_price, min_quantity, max_quantity)
+    elif len(data) == 8:
+        setattr(row, "id", data[0])
+        setattr(row, "customer_id", data[0])
+        setattr(row, "name", data[1])
+        setattr(row, "customer_name", data[1])
+        setattr(row, "company_id", data[2])
+        setattr(row, "device_type", data[3])
+        setattr(row, "pricing_model", data[4])
+        setattr(row, "unit_price", data[5])
+        setattr(row, "min_quantity", data[6])
+        setattr(row, "max_quantity", data[7])
 
     return row
 

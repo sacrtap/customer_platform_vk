@@ -17,31 +17,66 @@ def auth_middleware(app: Sanic):
     @app.middleware("request")
     async def authenticate(request: Request):
         """请求认证中间件"""
-        # 跳过不需要认证的路径
-        skip_paths = [
-            "/health",
-            "/",
-            "/api/v1/auth/login",
-            "/api/v1/auth/refresh",
-        ]
+        try:
+            # 诊断：打印所有请求头
+            print(f"[AUTH DEBUG] Path: {request.path}")
+            print(f"[AUTH DEBUG] All headers: {dict(request.headers)}")
 
-        if any(request.path.startswith(path) for path in skip_paths):
-            return
+            # 跳过不需要认证的路径（使用精确匹配或特定前缀）
+            skip_paths = [
+                "/health",
+                "/api/v1/auth/login",
+                "/api/v1/auth/refresh",
+            ]
 
-        # 获取 Authorization Header
-        auth_header = request.headers.get("Authorization")
+            # 精确匹配跳过路径
+            if request.path in skip_paths or request.path == "/":
+                print(f"[AUTH DEBUG] Skipping auth for path: {request.path}")
+                return
 
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return json({"code": 40101, "message": "缺少认证 Token"}, status=401)
+            # 获取 Authorization Header (Sanic 将 headers 转为小写)
+            auth_header = request.headers.get("authorization")
+            print(f"[AUTH DEBUG] Authorization header: {auth_header}")
 
-        token = auth_header.split(" ")[1]
-        payload = AuthService.verify_token(token)
+            if not auth_header or not auth_header.lower().startswith("bearer "):
+                print(f"[AUTH DEBUG] Returning 40101 - auth_header={auth_header}")
+                return json({"code": 40101, "message": "缺少认证 Token"}, status=401)
 
-        if not payload:
-            return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
+            token = auth_header.split(" ")[1]
+            print(f"[AUTH DEBUG] Token extracted: {token[:30]}...")
 
-        # 将用户信息存储到 request 上下文
-        request.ctx.user = payload
+            # 诊断日志
+            from ..config import settings as current_settings
+
+            print(f"[AUTH DEBUG] Path: {request.path}, Token: {token[:30]}...")
+            print(
+                f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}..."
+            )
+
+            try:
+                payload = AuthService.verify_token(token)
+                print(f"[AUTH DEBUG] Token payload: {payload}")
+            except Exception as e:
+                print(f"[AUTH DEBUG] Token verification failed: {e}")
+                return json(
+                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
+                )
+
+            if not payload:
+                print(f"[AUTH DEBUG] Payload is None, returning 40102")
+                return json(
+                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
+                )
+
+            # 将用户信息存储到 request 上下文
+            request.ctx.user = payload
+            print(f"[AUTH DEBUG] User set in request.ctx: {payload}")
+        except Exception as e:
+            print(f"[AUTH DEBUG] Unexpected error in middleware: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return json({"code": 50000, "message": f"中间件错误：{str(e)}"}, status=500)
 
 
 def get_current_user(request: Request) -> dict | None:

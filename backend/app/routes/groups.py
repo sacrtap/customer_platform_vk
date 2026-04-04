@@ -3,7 +3,7 @@
 from sanic import Blueprint
 from sanic.response import json
 from sanic.request import Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
 from ..services.groups import CustomerGroupService
 from ..middleware.auth import auth_required
 
@@ -14,7 +14,7 @@ groups_bp = Blueprint("groups", url_prefix="/api/v1/customer-groups")
 @auth_required
 async def list_groups(request: Request):
     """获取用户的群组列表"""
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     groups = await service.get_user_groups(request.ctx.user["user_id"])
@@ -51,7 +51,7 @@ async def create_group(request: Request):
     if not name:
         return json({"code": 40001, "message": "群组名称不能为空"}, status=400)
 
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     group = await service.create_group(
@@ -76,7 +76,7 @@ async def create_group(request: Request):
 @auth_required
 async def get_group(request: Request, group_id: int):
     """获取群组详情"""
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     group = await service.get_group_detail(group_id)
@@ -108,7 +108,7 @@ async def update_group(request: Request, group_id: int):
     """更新群组"""
     data = request.json
 
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     group = await service.update_group(group_id, data)
@@ -129,7 +129,7 @@ async def update_group(request: Request, group_id: int):
 @auth_required
 async def delete_group(request: Request, group_id: int):
     """删除群组"""
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     success = await service.delete_group(group_id)
@@ -144,10 +144,10 @@ async def delete_group(request: Request, group_id: int):
 @auth_required
 async def get_group_members(request: Request, group_id: int):
     """获取群组成员列表"""
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     members, total = await service.get_group_members(group_id, page, page_size)
@@ -179,7 +179,7 @@ async def add_member(request: Request, group_id: int):
     if not customer_id:
         return json({"code": 40001, "message": "客户 ID 不能为空"}, status=400)
 
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     success = await service.add_member(group_id, customer_id)
@@ -194,7 +194,7 @@ async def add_member(request: Request, group_id: int):
 @auth_required
 async def remove_member(request: Request, group_id: int, customer_id: int):
     """移除成员"""
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     success = await service.remove_member(group_id, customer_id)
@@ -212,7 +212,7 @@ async def apply_group_filter(request: Request, group_id: int):
     page = request.args.get("page", 1, int)
     page_size = request.args.get("page_size", 20, int)
 
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     customers, total = await service.apply_group_filter(group_id, page, page_size)
@@ -238,7 +238,7 @@ async def apply_group_filter(request: Request, group_id: int):
 @auth_required
 async def get_group_stats(request: Request, group_id: int):
     """获取群组统计信息"""
-    db_session: AsyncSession = request.ctx.db_session
+    db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
 
     stats = await service.get_group_stats(group_id)

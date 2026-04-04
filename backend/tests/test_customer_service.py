@@ -10,25 +10,30 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class MockDBSession:
+class MockDBSession(AsyncSession):
     """Mock 数据库会话"""
 
     def __init__(self):
+        super().__init__()
         self.execute = AsyncMock()
         self._add_calls = []
         self._add_all_calls = []
         self.flush = AsyncMock()
         self.commit = AsyncMock()
+        self.refresh = AsyncMock()
         self._new = []
+        self.add = MagicMock(side_effect=self._add_mock)
+        self.add_all = MagicMock(side_effect=self._add_all_mock)
 
-    def add(self, obj):
+    def _add_mock(self, obj):
         """模拟 add 方法，跟踪新对象"""
         self._add_calls.append(obj)
         self._new.append(obj)
 
-    def add_all(self, objects):
+    def _add_all_mock(self, objects):
         """模拟 add_all 方法"""
         self._add_all_calls.append(objects)
         self._new.extend(objects)
@@ -38,11 +43,13 @@ class MockDBSession:
         return self._new
 
 
-def make_mock_execute_result(rows):
+def make_mock_execute_result(rows, scalar_value=None):
     """创建 execute 返回结果"""
     result = MagicMock()
     result.all = MagicMock(return_value=rows)
+    result.scalar = MagicMock(return_value=scalar_value)
     result.scalar_one_or_none = MagicMock(return_value=rows[0] if rows else None)
+    result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
     return result
 
 
@@ -364,3 +371,507 @@ async def test_flush_called_before_balance_creation(customer_service):
 
     assert mock_db.flush.call_count == 1
     assert len(mock_db._add_all_calls) == 1
+
+
+# ==================== get_customer_by_id 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_get_customer_by_id_success(customer_service):
+    """测试成功获取客户"""
+    service, mock_db = customer_service
+
+    mock_customer = MagicMock()
+    mock_customer.id = 1
+    mock_customer.name = "测试客户"
+    mock_customer.company_id = "C001"
+
+    mock_db.execute.return_value = make_mock_execute_result([mock_customer])
+
+    customer = await service.get_customer_by_id(customer_id=1)
+
+    assert customer is not None
+    assert customer.id == 1
+    assert customer.name == "测试客户"
+
+
+@pytest.mark.asyncio
+async def test_get_customer_by_id_not_found(customer_service):
+    """测试获取不存在的客户"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    customer = await service.get_customer_by_id(customer_id=999)
+
+    assert customer is None
+
+
+# ==================== get_all_customers 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_default(customer_service):
+    """测试获取所有客户（默认分页）"""
+    service, mock_db = customer_service
+
+    mock_customer_a = MagicMock()
+    mock_customer_a.id = 1
+    mock_customer_a.name = "客户 A"
+
+    mock_customer_b = MagicMock()
+    mock_customer_b.id = 2
+    mock_customer_b.name = "客户 B"
+
+    mock_customers = [mock_customer_a, mock_customer_b]
+
+    # Mock 计数查询
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=2)
+
+    # Mock 客户列表查询
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=mock_customers)
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    customers, total = await service.get_all_customers()
+
+    assert len(customers) == 2
+    assert total == 2
+    assert customers[0].name == "客户 A"
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_pagination(customer_service):
+    """测试带分页的查询"""
+    service, mock_db = customer_service
+
+    mock_customer = MagicMock()
+    mock_customer.id = 1
+    mock_customer.name = "客户 A"
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=50)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[mock_customer])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    customers, total = await service.get_all_customers(page=2, page_size=10)
+
+    assert total == 50
+    assert len(customers) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_keyword_filter(customer_service):
+    """测试关键词筛选"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=3)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    filters = {"keyword": "科技"}
+    customers, total = await service.get_all_customers(filters=filters)
+
+    assert total == 3
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_multiple_filters(customer_service):
+    """测试多个筛选条件"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=5)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    filters = {
+        "account_type": "企业",
+        "customer_level": "KA",
+        "is_key_customer": True,
+    }
+    customers, total = await service.get_all_customers(filters=filters)
+
+    assert total == 5
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_empty(customer_service):
+    """测试空结果"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=0)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    customers, total = await service.get_all_customers()
+
+    assert len(customers) == 0
+    assert total == 0
+
+
+# ==================== create_customer 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_create_customer_success(customer_service):
+    """测试成功创建客户"""
+    service, mock_db = customer_service
+
+    mock_db.flush = AsyncMock()
+    mock_db.commit = AsyncMock()
+
+    data = {
+        "company_id": "C001",
+        "name": "测试公司",
+        "account_type": "企业",
+        "customer_level": "KA",
+    }
+
+    customer = await service.create_customer(data)
+
+    assert customer.company_id == "C001"
+    assert customer.name == "测试公司"
+    assert mock_db.flush.call_count == 1
+    assert mock_db.commit.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_customer_with_all_fields(customer_service):
+    """测试创建完整字段客户"""
+    service, mock_db = customer_service
+
+    mock_db.flush = AsyncMock()
+    mock_db.commit = AsyncMock()
+
+    data = {
+        "company_id": "C001",
+        "name": "测试公司",
+        "account_type": "企业",
+        "business_type": "互联网",
+        "customer_level": "KA",
+        "price_policy": "VIP",
+        "manager_id": 1,
+        "settlement_cycle": "月结",
+        "settlement_type": "银行转账",
+        "is_key_customer": True,
+        "email": "test@example.com",
+    }
+
+    customer = await service.create_customer(data)
+
+    assert customer.company_id == "C001"
+    assert customer.is_key_customer is True
+    assert customer.email == "test@example.com"
+
+
+# ==================== update_customer 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_update_customer_success(customer_service):
+    """测试成功更新客户"""
+    service, mock_db = customer_service
+
+    mock_customer = MagicMock()
+    mock_customer.id = 1
+    mock_customer.name = "旧名称"
+
+    # get_customer_by_id 返回
+    mock_db.execute.return_value = make_mock_execute_result([mock_customer])
+
+    data = {"name": "新名称", "customer_level": "KA"}
+
+    customer = await service.update_customer(customer_id=1, data=data)
+
+    assert customer is not None
+    assert customer.name == "新名称"
+    assert mock_db.commit.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_update_customer_partial_fields(customer_service):
+    """测试部分字段更新"""
+    service, mock_db = customer_service
+
+    mock_customer = MagicMock()
+    mock_customer.id = 1
+    mock_customer.name = "旧名称"
+    mock_customer.customer_level = "A"
+
+    mock_db.execute.return_value = make_mock_execute_result([mock_customer])
+
+    data = {"name": "新名称"}
+
+    customer = await service.update_customer(customer_id=1, data=data)
+
+    assert customer.name == "新名称"
+    # customer_level 应该保持不变
+
+
+@pytest.mark.asyncio
+async def test_update_customer_not_found(customer_service):
+    """测试更新不存在的客户"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    data = {"name": "新名称"}
+
+    customer = await service.update_customer(customer_id=999, data=data)
+
+    assert customer is None
+
+
+# ==================== delete_customer 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_delete_customer_success(customer_service):
+    """测试成功删除客户（软删除）"""
+    service, mock_db = customer_service
+
+    mock_customer = MagicMock()
+    mock_customer.id = 1
+    mock_customer.deleted_at = None
+
+    mock_db.execute.return_value = make_mock_execute_result([mock_customer])
+
+    result = await service.delete_customer(customer_id=1)
+
+    assert result is True
+    assert mock_db.commit.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_customer_not_found(customer_service):
+    """测试删除不存在的客户"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    result = await service.delete_customer(customer_id=999)
+
+    assert result is False
+
+
+# ==================== get_customer_profile 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_get_customer_profile_success(customer_service):
+    """测试成功获取客户画像"""
+    service, mock_db = customer_service
+
+    mock_profile = MagicMock()
+    mock_profile.id = 1
+    mock_profile.customer_id = 1
+    mock_profile.scale_level = "大"
+
+    mock_db.execute.return_value = make_mock_execute_result([mock_profile])
+
+    profile = await service.get_customer_profile(customer_id=1)
+
+    assert profile is not None
+    assert profile.customer_id == 1
+    assert profile.scale_level == "大"
+
+
+@pytest.mark.asyncio
+async def test_get_customer_profile_not_found(customer_service):
+    """测试获取不存在的客户画像"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    profile = await service.get_customer_profile(customer_id=999)
+
+    assert profile is None
+
+
+# ==================== create_or_update_profile 测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_create_profile(customer_service):
+    """测试创建新画像"""
+    service, mock_db = customer_service
+
+    # get_customer_profile 返回空
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    data = {
+        "scale_level": "大",
+        "consume_level": "高",
+        "industry": "互联网",
+        "is_real_estate": False,
+        "description": "测试描述",
+    }
+
+    profile = await service.create_or_update_profile(customer_id=1, data=data)
+
+    assert profile.customer_id == 1
+    assert profile.scale_level == "大"
+    assert mock_db.add.call_count == 1
+    assert mock_db.commit.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_update_existing_profile(customer_service):
+    """测试更新现有画像"""
+    service, mock_db = customer_service
+
+    mock_profile = MagicMock()
+    mock_profile.id = 1
+    mock_profile.customer_id = 1
+    mock_profile.scale_level = "小"
+
+    # get_customer_profile 返回现有画像
+    mock_db.execute.return_value = make_mock_execute_result([mock_profile])
+
+    data = {"scale_level": "大", "consume_level": "高"}
+
+    profile = await service.create_or_update_profile(customer_id=1, data=data)
+
+    assert profile.scale_level == "大"
+    # 不应该调用 add，因为已存在
+    assert mock_db.commit.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_profile_partial_fields(customer_service):
+    """测试创建画像（部分字段）"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    data = {"scale_level": "中"}
+
+    profile = await service.create_or_update_profile(customer_id=1, data=data)
+
+    assert profile.scale_level == "中"
+    assert profile.consume_level is None  # 未提供字段应为 None
+
+
+# ==================== 边界条件测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_manager_filter(customer_service):
+    """测试按运营经理筛选"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=3)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    filters = {"manager_id": 1}
+    customers, total = await service.get_all_customers(filters=filters)
+
+    assert total == 3
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_settlement_type_filter(customer_service):
+    """测试按结算方式筛选"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=510)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    filters = {"settlement_type": "银行转账"}
+    customers, total = await service.get_all_customers(filters=filters)
+
+    assert total == 510
+
+
+@pytest.mark.asyncio
+async def test_get_all_customers_with_all_filter_types(customer_service):
+    """测试所有筛选条件"""
+    service, mock_db = customer_service
+
+    count_result = MagicMock()
+    count_result.scalar = MagicMock(return_value=1)
+
+    scalars_mock = MagicMock()
+    scalars_mock.all = MagicMock(return_value=[])
+    customers_result = MagicMock()
+    customers_result.scalars = MagicMock(return_value=scalars_mock)
+
+    mock_db.execute.side_effect = [count_result, customers_result]
+
+    filters = {
+        "keyword": "科技",
+        "account_type": "企业",
+        "business_type": "互联网",
+        "customer_level": "KA",
+        "manager_id": 1,
+        "settlement_type": "银行转账",
+        "is_key_customer": True,
+    }
+    customers, total = await service.get_all_customers(filters=filters)
+
+    assert total == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_create_with_exception(customer_service):
+    """测试批量创建时的异常处理"""
+    service, mock_db = customer_service
+
+    mock_db.execute.return_value = make_mock_execute_result([])
+
+    # 使用无效数据触发异常
+    customers_data = [{"company_id": "C001", "name": "正常公司"}]
+
+    # 让 add 方法抛出异常
+    original_add = service.db.add
+    service.db.add = MagicMock(side_effect=Exception("数据库错误"))
+
+    success_count, errors = await service.batch_create_customers(customers_data)
+
+    assert success_count == 0
+    assert len(errors) == 1
+    assert "数据库错误" in errors[0]
+
+    # 恢复原始方法
+    service.db.add = original_add

@@ -1,36 +1,46 @@
 """
-集成测试配置 - 完全同步方法
+集成测试配置 - 使用 Sanic ASGI Client + pytest-asyncio
 
 架构说明：
-- 使用 sanic-testing 提供的 SanicTestClient
-- 同步测试函数，避免事件循环冲突
-- 数据库使用同步引擎 (psycopg2)，避免异步事件循环问题
-- 所有组件在同一线程同一事件循环中运行
+- 使用 Sanic 内置的 ASGI 测试客户端
+- 数据库使用异步引擎 (asyncpg)，与生产环境一致
+- 使用 pytest-asyncio 管理事件循环
+- 所有测试函数使用异步方式 (@pytest.mark.asyncio)
 """
 
-# 必须在导入任何应用代码之前设置环境变量
+# ============================================================
+# 必须在导入 ANY 应用代码之前设置环境变量
+# ============================================================
 import sys
 import os
 
-# 强制设置固定的 JWT_SECRET，确保测试间一致
+# 强制设置固定的 JWT_SECRET 和 WEBHOOK_SECRET
 os.environ["JWT_SECRET"] = "integration_test_jwt_secret_key_fixed_12345678"
 os.environ["WEBHOOK_SECRET"] = "integration_test_webhook_secret_key_fixed_12345678"
 
-# 在导入 app 之前清除 settings 缓存（如果有）
-if "app.config" in sys.modules:
-    del sys.modules["app.config"]
+# 清除所有可能的 settings 缓存
+modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
+for mod in modules_to_clear:
+    del sys.modules[mod]
 
+# 现在才导入应用代码
 import pytest
 import bcrypt
 from unittest.mock import MagicMock, patch
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker,
+    AsyncEngine,
+)
+from sqlalchemy import text
 
 from app.main import create_app
-from app.models.base import Base
+from app.models.base import BaseModel
+from app.models import groups  # 确保 customer_groups 表被创建
 
-# 测试数据库配置 - 使用同步驱动
-TEST_DATABASE_URL = "postgresql://localhost:5432/customer_platform_test"
+# 测试数据库配置 - 使用异步驱动 (asyncpg)
+TEST_DATABASE_URL = "postgresql+asyncpg://localhost:5432/customer_platform_test"
 
 
 @pytest.fixture(scope="function")
@@ -45,37 +55,42 @@ def mock_scheduler():
 
 
 @pytest.fixture(scope="function")
-def test_engine():
-    """创建测试数据库引擎（同步）"""
-    engine = create_engine(
+async def test_engine() -> AsyncEngine:
+    """创建测试数据库引擎（异步）"""
+    engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
         pool_pre_ping=True,
     )
 
     # 创建所有表
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(BaseModel.metadata.drop_all)
+        await conn.run_sync(BaseModel.metadata.create_all)
 
     yield engine
 
     # 清理
-    Base.metadata.drop_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(BaseModel.metadata.drop_all)
+    await engine.dispose()
 
 
 @pytest.fixture(scope="function")
-def db_session(test_engine) -> Session:
-    """创建数据库会话（同步）"""
-    SessionLocal = sessionmaker(bind=test_engine, class_=Session)
+async def db_session(test_engine) -> AsyncSession:
+    """创建数据库会话（异步）"""
+    SessionLocal = async_sessionmaker(
+        bind=test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     session = SessionLocal()
     try:
         yield session
     finally:
-        session.close()
+        await session.close()
 
 
 @pytest.fixture(scope="function")
-def app(test_engine, mock_scheduler):
+async def app(test_engine, mock_scheduler):
     """创建 Sanic 应用实例（使用测试数据库引擎和 mock 调度器）"""
     import uuid
 
@@ -89,18 +104,27 @@ def app(test_engine, mock_scheduler):
 
 
 @pytest.fixture(scope="function")
-def test_user(db_session: Session):
-    """创建测试用户"""
+async def test_user(db_session: AsyncSession):
+    """创建测试用户（异步）"""
     username = "test_user"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     # 清理旧数据并创建新用户
-    db_session.execute(
+    # 先删除该用户创建的群组（外键约束）
+    await db_session.execute(
+        text(
+            "DELETE FROM customer_groups WHERE created_by = (SELECT id FROM users WHERE username = :username)"
+        ),
+        {"username": username},
+    )
+    await db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    db_session.execute(
+    await db_session.commit()
+
+    await db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -112,29 +136,36 @@ def test_user(db_session: Session):
             "is_active": True,
         },
     )
-    db_session.commit()
+    await db_session.commit()
 
     yield {"username": username, "password": password}
 
-    # 清理
-    db_session.execute(
+    # 清理：先删除群组再删除用户
+    await db_session.execute(
+        text(
+            "DELETE FROM customer_groups WHERE created_by = (SELECT id FROM users WHERE username = :username)"
+        ),
+        {"username": username},
+    )
+    await db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    db_session.commit()
+    await db_session.commit()
+
+
+# 使用 pytest-asyncio 管理事件循环
+# 所有测试函数使用 @pytest.mark.asyncio 标记
 
 
 @pytest.fixture(scope="function")
-def client(app):
-    """创建 Sanic 测试客户端
-
-    使用 sanic-testing 的 SanicTestClient
-    同步方式访问，避免事件循环冲突
+async def test_client(app):
     """
-    try:
-        from sanic_testing.testing import SanicTestClient
+    创建 Sanic ASGI 测试客户端（异步方式）
 
-        return SanicTestClient(app)
-    except ImportError:
-        # 如果没有 sanic-testing，使用内置的 test_client
-        return app.test_client
+    使用 Sanic 内置的 asgi_client，与 pytest-asyncio 完全兼容
+    支持异步数据库操作和异步 API 调用
+
+    ASGI 客户端不需要手动启动/关闭服务器，由 Sanic 内部管理
+    """
+    yield app.asgi_client
