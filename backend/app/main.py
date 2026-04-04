@@ -56,10 +56,13 @@ def create_app(
         async_session_maker = async_sessionmaker(
             engine, class_=AsyncSession, expire_on_commit=False
         )
+        # 存储到 app.ctx 供其他模块使用
+        app.ctx.async_session_maker = async_session_maker
     else:
         sync_session_maker = sessionmaker(
             bind=engine, class_=Session, expire_on_commit=False
         )
+        app.ctx.sync_session_maker = sync_session_maker
 
     # 数据库会话中间件
     if is_async:

@@ -143,6 +143,11 @@ lerna-debug.log*
 coverage/
 .nyc_output/
 
+# Playwright E2E Tests
+frontend/playwright-report/
+frontend/tests/e2e/playwright-report/
+frontend/tests/e2e/test-results/
+
 # Production
 /dist
 /build
