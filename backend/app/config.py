@@ -62,6 +62,17 @@ class Settings(BaseSettings):
     # Redis 配置
     redis_url: str = "redis://localhost:6379/0"
 
+    # 缓存 TTL 配置 (秒)
+    cache_ttl_dashboard_stats: int = 300  # 5 分钟
+    cache_ttl_dashboard_chart: int = 900  # 15 分钟
+    cache_ttl_analytics_health: int = 600  # 10 分钟
+    cache_ttl_analytics_profile: int = 3600  # 1 小时
+    cache_ttl_analytics_invoice: int = 300  # 5 分钟
+    cache_ttl_analytics_warning: int = 180  # 3 分钟
+    cache_ttl_analytics_prediction: int = 1800  # 30 分钟
+    cache_ttl_pricing_rules: int = 3600  # 1 小时
+    cache_ttl_analytics_trend: int = 900  # 15 分钟
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

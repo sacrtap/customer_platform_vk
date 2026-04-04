@@ -3,7 +3,7 @@
 from datetime import datetime, date
 from calendar import monthrange
 from decimal import Decimal
-from sqlalchemy import select, func, and_, or_, extract
+from sqlalchemy import select, func, and_, or_, extract, case
 from sqlalchemy.orm import Session, joinedload
 from ..models.customers import Customer, CustomerProfile
 from ..models.tags import Tag, CustomerTag, ProfileTag
@@ -268,47 +268,87 @@ class AnalyticsService:
     # ========== 健康度分析 ==========
 
     def get_customer_health_stats(self) -> Dict[str, Any]:
-        """获取客户健康度统计"""
-        # 活跃客户数（有消耗记录）
-        active_stmt = select(func.count(func.distinct(ConsumptionRecord.customer_id)))
-        active_count = self.db.execute(active_stmt).scalar() or 0
-
-        # 总客户数
-        total_stmt = select(func.count(Customer.id)).where(
-            Customer.deleted_at.is_(None)
-        )
-        total_count = self.db.execute(total_stmt).scalar() or 0
-
-        # 余额预警客户（余额 < 1000）
-        warning_stmt = select(func.count(CustomerBalance.id)).where(
-            CustomerBalance.total_amount < 1000
-        )
-        warning_count = self.db.execute(warning_stmt).scalar() or 0
-
-        # 流失风险客户（90 天无消耗）
+        """获取客户健康度统计（优化：6次查询 → 2次查询）"""
         from datetime import timedelta
 
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-        churn_stmt = (
-            select(func.count(func.distinct(Customer.id)))
-            .join(ConsumptionRecord, Customer.id == ConsumptionRecord.customer_id)
-            .where(
+
+        # 查询 1: 总客户数 + 活跃客户数 + 余额预警数（单次聚合查询）
+        stats_stmt = (
+            select(
+                func.count(func.distinct(Customer.id)).label("total_count"),
+                func.count(
+                    func.distinct(
+                        case(
+                            (
+                                ConsumptionRecord.id.isnot(None),
+                                ConsumptionRecord.customer_id,
+                            )
+                        )
+                    )
+                ).label("active_count"),
+                func.count(
+                    case(
+                        (
+                            and_(
+                                CustomerBalance.id.isnot(None),
+                                CustomerBalance.total_amount < 1000,
+                            ),
+                            1,
+                        )
+                    )
+                ).label("warning_count"),
+            )
+            .select_from(Customer)
+            .outerjoin(
+                ConsumptionRecord,
                 and_(
-                    Customer.deleted_at.is_(None),
-                    ConsumptionRecord.created_at < ninety_days_ago,
+                    Customer.id == ConsumptionRecord.customer_id,
+                    ConsumptionRecord.deleted_at.is_(None),
+                ),
+            )
+            .outerjoin(
+                CustomerBalance,
+                and_(
+                    Customer.id == CustomerBalance.customer_id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .where(Customer.deleted_at.is_(None))
+        )
+
+        stats_result = self.db.execute(stats_stmt).first()
+        if stats_result is None:
+            return {
+                "total_customers": 0,
+                "active_customers": 0,
+                "inactive_customers": 0,
+                "warning_customers": 0,
+                "churn_risk_customers": 0,
+                "active_rate": 0,
+            }
+        total_count = stats_result.total_count or 0
+        active_count = stats_result.active_count or 0
+        warning_count = stats_result.warning_count or 0
+
+        # 查询 2: 流失风险客户（90天无消耗）- 使用 NOT EXISTS 子查询
+        churn_stmt = select(func.count(Customer.id)).where(
+            and_(
+                Customer.deleted_at.is_(None),
+                ~select(ConsumptionRecord.id)
+                .where(
+                    and_(
+                        ConsumptionRecord.customer_id == Customer.id,
+                        ConsumptionRecord.created_at >= ninety_days_ago,
+                    )
                 )
+                .exists(),
+                select(ConsumptionRecord.id)
+                .where(ConsumptionRecord.customer_id == Customer.id)
+                .exists(),  # 曾经有消耗记录
             )
         )
-        # 排除最近 90 天有消耗的客户
-        recent_stmt = select(func.distinct(ConsumptionRecord.customer_id)).where(
-            ConsumptionRecord.created_at >= ninety_days_ago
-        )
-        recent_customers = set(row[0] for row in self.db.execute(recent_stmt).all())
-
-        churn_count = 0
-        for row in self.db.execute(churn_stmt).all():
-            if row[0] not in recent_customers:
-                churn_count += 1
+        churn_count = self.db.execute(churn_stmt).scalar() or 0
 
         return {
             "total_customers": total_count,
@@ -356,30 +396,28 @@ class AnalyticsService:
         ]
 
     def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
-        """获取长期未消耗客户列表"""
+        """获取长期未消耗客户列表（优化：使用子查询替代 Python 集合操作）"""
         from datetime import timedelta
 
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-        # 有消耗记录的客户
-        has_usage_stmt = select(func.distinct(ConsumptionRecord.customer_id))
-        all_customers_with_usage = set(
-            row[0] for row in self.db.execute(has_usage_stmt).all()
+        # 使用子查询一次性完成：有消耗记录但最近无消耗的客户
+        has_usage_subq = (
+            select(func.distinct(ConsumptionRecord.customer_id).label("customer_id"))
+            .where(ConsumptionRecord.deleted_at.is_(None))
+            .subquery()
         )
 
-        # 最近有消耗的客户
-        recent_usage_stmt = select(func.distinct(ConsumptionRecord.customer_id)).where(
-            ConsumptionRecord.created_at >= cutoff_date
+        recent_usage_subq = (
+            select(func.distinct(ConsumptionRecord.customer_id).label("customer_id"))
+            .where(
+                and_(
+                    ConsumptionRecord.created_at >= cutoff_date,
+                    ConsumptionRecord.deleted_at.is_(None),
+                )
+            )
+            .subquery()
         )
-        recent_customers = set(
-            row[0] for row in self.db.execute(recent_usage_stmt).all()
-        )
-
-        # 长期未消耗的客户
-        inactive_customer_ids = all_customers_with_usage - recent_customers
-
-        if not inactive_customer_ids:
-            return []
 
         stmt = (
             select(
@@ -389,13 +427,17 @@ class AnalyticsService:
                 Customer.manager_id,
                 User.real_name.label("manager_name"),
             )
-            .where(
-                and_(
-                    Customer.id.in_(inactive_customer_ids),
-                    Customer.deleted_at.is_(None),
-                )
+            .join(has_usage_subq, Customer.id == has_usage_subq.c.customer_id)
+            .outerjoin(
+                recent_usage_subq, Customer.id == recent_usage_subq.c.customer_id
             )
             .outerjoin(User, Customer.manager_id == User.id)
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    recent_usage_subq.c.customer_id.is_(None),
+                )
+            )
         )
 
         result = self.db.execute(stmt).all()
@@ -673,89 +715,90 @@ class AnalyticsService:
     # ========== 首页仪表盘 ==========
 
     def get_dashboard_stats(self) -> Dict[str, Any]:
-        """获取仪表盘统计数据"""
-        # 客户总数
-        total_customers = (
-            self.db.execute(
-                select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
-            ).scalar()
-            or 0
-        )
-
-        # 重点客户数
-        key_customers = (
-            self.db.execute(
-                select(func.count(Customer.id)).where(
-                    and_(
-                        Customer.deleted_at.is_(None),
-                        Customer.is_key_customer == True,
-                    )
-                )
-            ).scalar()
-            or 0
-        )
-
-        # 总余额
-        balance_result = self.db.execute(
-            select(
-                func.sum(CustomerBalance.total_amount),
-                func.sum(CustomerBalance.real_amount),
-                func.sum(CustomerBalance.bonus_amount),
-            )
-        ).first()
-
-        # 本月结算单数
+        """获取仪表盘统计数据（优化：6次查询 → 2次查询）"""
         today = datetime.utcnow()
         current_month_start = date(today.year, today.month, 1)
         current_month_end = date(
             today.year, today.month, monthrange(today.year, today.month)[1]
         )
 
-        invoice_count = (
-            self.db.execute(
-                select(func.count(Invoice.id)).where(
-                    and_(
-                        Invoice.period_start >= current_month_start,
-                        Invoice.period_end <= current_month_end,
+        # 查询 1: 客户统计 + 余额 + 结算单统计（单次聚合查询）
+        stats_stmt = (
+            select(
+                func.count(
+                    case(
+                        (
+                            and_(
+                                Customer.deleted_at.is_(None),
+                            ),
+                            Customer.id,
+                        )
                     )
-                )
-            ).scalar()
-            or 0
+                ).label("total_customers"),
+                func.count(
+                    case(
+                        (
+                            and_(
+                                Customer.deleted_at.is_(None),
+                                Customer.is_key_customer == True,
+                            ),
+                            Customer.id,
+                        )
+                    )
+                ).label("key_customers"),
+                func.sum(CustomerBalance.total_amount).label("total_balance"),
+                func.sum(CustomerBalance.real_amount).label("real_balance"),
+                func.sum(CustomerBalance.bonus_amount).label("bonus_balance"),
+                func.count(
+                    case(
+                        (
+                            and_(
+                                Invoice.period_start >= current_month_start,
+                                Invoice.period_end <= current_month_end,
+                            ),
+                            Invoice.id,
+                        )
+                    )
+                ).label("month_invoice_count"),
+                func.count(
+                    case((Invoice.status == "pending_customer", Invoice.id))
+                ).label("pending_confirmation"),
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Invoice.period_start >= current_month_start,
+                                Invoice.period_end <= current_month_end,
+                                Invoice.status != "cancelled",
+                            ),
+                            Invoice.total_amount,
+                        )
+                    )
+                ).label("month_consumption"),
+            )
+            .select_from(Customer)
+            .outerjoin(
+                CustomerBalance,
+                and_(
+                    Customer.id == CustomerBalance.customer_id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .outerjoin(Invoice, Customer.id == Invoice.customer_id)
+            .where(Customer.deleted_at.is_(None))
         )
 
-        # 待确认结算单数
-        pending_count = (
-            self.db.execute(
-                select(func.count(Invoice.id)).where(
-                    Invoice.status == "pending_customer"
-                )
-            ).scalar()
-            or 0
-        )
-
-        # 本月消耗总额
-        month_consumption = (
-            self.db.execute(
-                select(func.sum(Invoice.total_amount)).where(
-                    and_(
-                        Invoice.period_start >= current_month_start,
-                        Invoice.period_end <= current_month_end,
-                        Invoice.status != "cancelled",
-                    )
-                )
-            ).scalar()
-            or 0
-        )
+        result = self.db.execute(stats_stmt).first()
 
         return {
-            "total_customers": total_customers,
-            "key_customers": key_customers,
-            "total_balance": float(balance_result[0] or 0),
-            "real_balance": float(balance_result[1] or 0),
-            "bonus_balance": float(balance_result[2] or 0),
-            "month_invoice_count": invoice_count,
-            "pending_confirmation": pending_count,
-            "month_consumption": float(month_consumption),
+            "total_customers": result.total_customers or 0,
+            "key_customers": result.key_customers or 0,
+            "total_balance": float(result.total_balance or 0),
+            "real_balance": float(result.real_balance or 0),
+            "bonus_balance": float(result.bonus_balance or 0),
+            "month_invoice_count": result.month_invoice_count or 0,
+            "pending_confirmation": result.pending_confirmation or 0,
+            "month_consumption": float(result.month_consumption or 0),
         }
 
     def get_dashboard_chart_data(self, months: int = 6) -> Dict[str, Any]:

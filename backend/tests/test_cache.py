@@ -56,6 +56,21 @@ class TestCacheServiceInit:
             "tag_stats": 1800,  # 30 分钟
             "analytics": 900,  # 15 分钟
             "default": 300,  # 5 分钟
+            # 分析数据细分 TTL
+            "analytics_consumption_trend": 900,  # 15 分钟
+            "analytics_top_customers": 900,  # 15 分钟
+            "analytics_device_distribution": 900,  # 15 分钟
+            "analytics_dashboard_stats": 300,  # 5 分钟
+            "analytics_dashboard_chart": 900,  # 15 分钟
+            "analytics_health_stats": 600,  # 10 分钟
+            "analytics_health_warning": 180,  # 3 分钟
+            "analytics_health_inactive": 600,  # 10 分钟
+            "analytics_invoice_status": 300,  # 5 分钟
+            "analytics_payment_analysis": 600,  # 10 分钟
+            "analytics_profile": 3600,  # 1 小时
+            "analytics_prediction": 1800,  # 30 分钟
+            # 结算数据 TTL
+            "billing_pricing_rules": 3600,  # 1 小时
         }
 
     def test_init_redis_none(self, cache_service: CacheService):

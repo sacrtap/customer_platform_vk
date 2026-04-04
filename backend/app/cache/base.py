@@ -26,6 +26,19 @@ class CacheService:
             "tag_list": 3600,  # 1 小时
             "tag_stats": 1800,  # 30 分钟
             "analytics": 900,  # 15 分钟
+            "analytics_dashboard_stats": 300,  # 5 分钟
+            "analytics_dashboard_chart": 900,  # 15 分钟
+            "analytics_health_stats": 600,  # 10 分钟
+            "analytics_health_warning": 180,  # 3 分钟
+            "analytics_health_inactive": 600,  # 10 分钟
+            "analytics_profile": 3600,  # 1 小时
+            "analytics_invoice_status": 300,  # 5 分钟
+            "analytics_consumption_trend": 900,  # 15 分钟
+            "analytics_top_customers": 900,  # 15 分钟
+            "analytics_device_distribution": 900,  # 15 分钟
+            "analytics_payment_analysis": 600,  # 10 分钟
+            "analytics_prediction": 1800,  # 30 分钟
+            "billing_pricing_rules": 3600,  # 1 小时
             "default": 300,  # 5 分钟
         }
 
@@ -157,6 +170,27 @@ class CacheService:
         """清除所有标签相关缓存"""
         await self.invalidate_pattern("cache:tag_list:*")
         await self.invalidate_pattern("cache:tag_stats:*")
+        return True
+
+    async def invalidate_analytics_cache(self, category: Optional[str] = None) -> bool:
+        """
+        清除分析相关缓存
+
+        Args:
+            category: 指定类别，如 "dashboard", "health", "profile", "invoice", "consumption", "prediction"
+                     None 则清除所有分析缓存
+        """
+        if category:
+            await self.invalidate_pattern(f"cache:analytics_{category}_*")
+        else:
+            await self.invalidate_pattern("cache:analytics_*")
+            await self.invalidate_pattern("cache:billing_*")
+        return True
+
+    async def invalidate_billing_cache(self) -> bool:
+        """清除结算相关缓存"""
+        await self.invalidate_pattern("cache:billing_*")
+        await self.invalidate_pattern("cache:analytics_*")
         return True
 
 

@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 from ..services.billing import BalanceService, PricingService, InvoiceService
 from ..middleware.auth import get_current_user, require_permission
+from ..cache.base import cache_service
 
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
@@ -183,6 +184,11 @@ async def recharge(request: Request):
         payment_proof=data.get("payment_proof"),
         remark=data.get("remark"),
     )
+
+    # 充值后清除相关缓存
+    await cache_service.invalidate_analytics_cache("health")
+    await cache_service.invalidate_analytics_cache("dashboard")
+    await cache_service.invalidate_customer_cache(customer_id)
 
     return json(
         {
@@ -378,6 +384,9 @@ async def create_pricing_rule(request: Request):
 
     rule = await pricing_service.create_pricing_rule(data)
 
+    # 定价规则变更后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json(
         {
             "code": 0,
@@ -412,6 +421,9 @@ async def update_pricing_rule(request: Request, rule_id: int):
     if not rule:
         return json({"code": 40401, "message": "规则不存在"}, status=404)
 
+    # 定价规则变更后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json(
         {
             "code": 0,
@@ -435,6 +447,9 @@ async def delete_pricing_rule(request: Request, rule_id: int):
 
     if not success:
         return json({"code": 40401, "message": "规则不存在"}, status=404)
+
+    # 定价规则变更后清除相关缓存
+    await cache_service.invalidate_billing_cache()
 
     return json({"code": 0, "message": "删除成功"})
 
@@ -591,6 +606,9 @@ async def generate_invoice(request: Request):
         created_by=user["user_id"] if user else 1,
     )
 
+    # 结算单生成后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json(
         {
             "code": 0,
@@ -632,6 +650,9 @@ async def apply_discount(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 结算单减免后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json({"code": 0, "message": message})
 
 
@@ -650,6 +671,9 @@ async def submit_invoice(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 结算单提交后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json({"code": 0, "message": message})
 
 
@@ -663,6 +687,9 @@ async def confirm_invoice(request: Request, invoice_id: int):
 
     if not success:
         return json({"code": 40001, "message": message}, status=400)
+
+    # 结算单确认后清除相关缓存
+    await cache_service.invalidate_billing_cache()
 
     return json({"code": 0, "message": message})
 
@@ -682,6 +709,9 @@ async def pay_invoice(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 结算单付款后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json({"code": 0, "message": message})
 
 
@@ -696,6 +726,9 @@ async def complete_invoice(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 结算单完成后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
     return json({"code": 0, "message": message})
 
 
@@ -709,5 +742,8 @@ async def delete_invoice(request: Request, invoice_id: int):
 
     if not success:
         return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 结算单删除后清除相关缓存
+    await cache_service.invalidate_billing_cache()
 
     return json({"code": 0, "message": "删除成功"})

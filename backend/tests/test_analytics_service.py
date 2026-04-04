@@ -553,13 +553,14 @@ class TestGetCustomerHealthStats:
         """测试获取客户健康度统计成功"""
         service, mock_db = analytics_service
 
-        # 模拟多个查询的返回
+        # 模拟 2 次查询：stats 聚合 + churn 计数
+        stats_row = MagicMock()
+        stats_row.total_count = 100
+        stats_row.active_count = 50
+        stats_row.warning_count = 10
         mock_db.execute.side_effect = [
-            make_mock_execute_result([], scalar_value=50),  # active_count
-            make_mock_execute_result([], scalar_value=100),  # total_count
-            make_mock_execute_result([], scalar_value=10),  # warning_count
-            make_mock_execute_result([(1,), (2,), (3,)]),  # churn_stmt
-            make_mock_execute_result([]),  # recent_stmt - 无最近消耗
+            make_mock_execute_result([stats_row]),  # stats 聚合查询
+            make_mock_execute_result([], scalar_value=15),  # churn 计数
         ]
 
         result = service.get_customer_health_stats()
@@ -568,34 +569,39 @@ class TestGetCustomerHealthStats:
         assert result["active_customers"] == 50
         assert result["inactive_customers"] == 50
         assert result["warning_customers"] == 10
+        assert result["churn_risk_customers"] == 15
         assert result["active_rate"] == 50.0
 
     def test_get_customer_health_stats_no_recent_customers(self, analytics_service):
         """测试无最近消耗客户（全部为流失风险）"""
         service, mock_db = analytics_service
 
+        stats_row = MagicMock()
+        stats_row.total_count = 50
+        stats_row.active_count = 30
+        stats_row.warning_count = 5
         mock_db.execute.side_effect = [
-            make_mock_execute_result([], scalar_value=30),  # active_count
-            make_mock_execute_result([], scalar_value=50),  # total_count
-            make_mock_execute_result([], scalar_value=5),  # warning_count
-            make_mock_execute_result([]),  # recent_stmt - 空
-            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
+            make_mock_execute_result([stats_row]),  # stats 聚合查询
+            make_mock_execute_result([], scalar_value=20),  # churn 计数
         ]
 
         result = service.get_customer_health_stats()
 
-        assert result["churn_risk_customers"] == 2
+        assert result["total_customers"] == 50
+        assert result["active_customers"] == 30
+        assert result["churn_risk_customers"] == 20
 
     def test_get_customer_health_stats_all_recent(self, analytics_service):
         """测试所有客户最近都有消耗（无流失风险）"""
         service, mock_db = analytics_service
 
+        stats_row = MagicMock()
+        stats_row.total_count = 50
+        stats_row.active_count = 30
+        stats_row.warning_count = 5
         mock_db.execute.side_effect = [
-            make_mock_execute_result([], scalar_value=30),  # active_count
-            make_mock_execute_result([], scalar_value=50),  # total_count
-            make_mock_execute_result([], scalar_value=5),  # warning_count
-            make_mock_execute_result([(1,), (2,)]),  # recent_stmt - 全部最近有消耗
-            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
+            make_mock_execute_result([stats_row]),  # stats 聚合查询
+            make_mock_execute_result([], scalar_value=0),  # churn 计数
         ]
 
         result = service.get_customer_health_stats()
@@ -606,12 +612,13 @@ class TestGetCustomerHealthStats:
         """测试总客户数为 0 的情况"""
         service, mock_db = analytics_service
 
+        stats_row = MagicMock()
+        stats_row.total_count = 0
+        stats_row.active_count = 0
+        stats_row.warning_count = 0
         mock_db.execute.side_effect = [
-            make_mock_execute_result([], scalar_value=0),  # active_count
-            make_mock_execute_result([], scalar_value=0),  # total_count
-            make_mock_execute_result([], scalar_value=0),  # warning_count
-            make_mock_execute_result([]),  # churn_stmt
-            make_mock_execute_result([]),  # recent_stmt
+            make_mock_execute_result([stats_row]),  # stats 聚合查询
+            make_mock_execute_result([], scalar_value=0),  # churn 计数
         ]
 
         result = service.get_customer_health_stats()
@@ -697,17 +704,12 @@ class TestGetInactiveCustomers:
         """测试获取长期未消耗客户成功"""
         service, mock_db = analytics_service
 
-        # 模拟查询
-        mock_db.execute.side_effect = [
-            make_mock_execute_result([(1,), (2,), (3,)]),  # has_usage_stmt
-            make_mock_execute_result([(3,)]),  # recent_stmt - 只有客户 3 最近有消耗
-            make_mock_execute_result(
-                [
-                    (1, "客户 A", "COMP001", 1, "经理 A"),
-                    (2, "客户 B", "COMP002", 2, None),  # manager_name 为 None
-                ]
-            ),  # 主查询
+        # 优化后：单次查询（使用子查询）
+        mock_rows = [
+            (1, "客户 A", "COMP001", 1, "经理 A"),
+            (2, "客户 B", "COMP002", 2, None),  # manager_name 为 None
         ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
         result = service.get_inactive_customers(days=90)
 
@@ -722,10 +724,8 @@ class TestGetInactiveCustomers:
         """测试所有客户最近都有消耗"""
         service, mock_db = analytics_service
 
-        mock_db.execute.side_effect = [
-            make_mock_execute_result([(1,), (2,)]),  # has_usage_stmt
-            make_mock_execute_result([(1,), (2,)]),  # recent_stmt - 全部最近
-        ]
+        # 优化后：单次查询，返回空结果
+        mock_db.execute.return_value = make_mock_execute_result([])
 
         result = service.get_inactive_customers(days=90)
 
@@ -735,10 +735,8 @@ class TestGetInactiveCustomers:
         """测试无任何消耗记录的客户"""
         service, mock_db = analytics_service
 
-        mock_db.execute.side_effect = [
-            make_mock_execute_result([]),  # has_usage_stmt - 空
-            make_mock_execute_result([]),  # recent_stmt
-        ]
+        # 优化后：单次查询，返回空结果
+        mock_db.execute.return_value = make_mock_execute_result([])
 
         result = service.get_inactive_customers(days=90)
 
@@ -980,23 +978,22 @@ class TestGetDashboardStats:
         """测试获取仪表盘统计数据成功"""
         service, mock_db = analytics_service
 
-        # 模拟当前时间为 2026-04-03
+        # 优化后：单次聚合查询
         with patch("app.services.analytics.datetime") as mock_datetime:
             mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
-            mock_db.execute.side_effect = [
-                make_mock_execute_result([], scalar_value=100),  # total_customers
-                make_mock_execute_result([], scalar_value=20),  # key_customers
-                make_mock_execute_result(
-                    [(Decimal("50000.00"), Decimal("40000.00"), Decimal("10000.00"))]
-                ),  # balance
-                make_mock_execute_result([], scalar_value=15),  # invoice_count
-                make_mock_execute_result([], scalar_value=5),  # pending_count
-                make_mock_execute_result(
-                    [], scalar_value=Decimal("25000.00")
-                ),  # month_consumption
-            ]
+            stats_row = MagicMock()
+            stats_row.total_customers = 100
+            stats_row.key_customers = 20
+            stats_row.total_balance = Decimal("50000.00")
+            stats_row.real_balance = Decimal("40000.00")
+            stats_row.bonus_balance = Decimal("10000.00")
+            stats_row.month_invoice_count = 15
+            stats_row.pending_confirmation = 5
+            stats_row.month_consumption = Decimal("25000.00")
+
+            mock_db.execute.return_value = make_mock_execute_result([stats_row])
 
             result = service.get_dashboard_stats()
 
@@ -1017,14 +1014,17 @@ class TestGetDashboardStats:
             mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
-            mock_db.execute.side_effect = [
-                make_mock_execute_result([], scalar_value=0),  # total_customers
-                make_mock_execute_result([], scalar_value=0),  # key_customers
-                make_mock_execute_result([(None, None, None)]),  # balance
-                make_mock_execute_result([], scalar_value=0),  # invoice_count
-                make_mock_execute_result([], scalar_value=0),  # pending_count
-                make_mock_execute_result([], scalar_value=None),  # month_consumption
-            ]
+            stats_row = MagicMock()
+            stats_row.total_customers = 0
+            stats_row.key_customers = 0
+            stats_row.total_balance = None
+            stats_row.real_balance = None
+            stats_row.bonus_balance = None
+            stats_row.month_invoice_count = 0
+            stats_row.pending_confirmation = 0
+            stats_row.month_consumption = None
+
+            mock_db.execute.return_value = make_mock_execute_result([stats_row])
 
             result = service.get_dashboard_stats()
 
