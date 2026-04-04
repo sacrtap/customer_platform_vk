@@ -116,35 +116,100 @@ customer_platform_vk/
 
 ### 方式一：本地开发环境
 
-#### 1. 后端开发环境
+#### 💡 重要提示：必须使用虚拟环境
+
+**为什么使用虚拟环境？**
+- 避免系统 Python 包污染
+- 项目依赖独立管理
+- 支持多项目不同依赖版本
+- 便于部署和协作
+
+**推荐的虚拟环境工具：**
+
+| 工具 | 适用场景 | 安装命令 |
+|------|----------|----------|
+| **venv** | Python 3.3+ 内置，推荐 | 无需安装 |
+| **virtualenv** | 需要更多功能 | `pip install virtualenv` |
+| **pyenv + venv** | 多 Python 版本管理 | `brew install pyenv` |
+| **poetry** | 依赖管理 + 虚拟环境 | `curl -sSL https://install.python-poetry.org | python3 -` |
+
+#### 1. 后端开发环境 (使用 venv)
 
 ```bash
 # 进入后端目录
 cd backend
 
-# 创建虚拟环境
+# ===== 创建虚拟环境 =====
 python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
 
-# 安装依赖
+# ===== 激活虚拟环境 =====
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Windows (CMD)
+.venv\Scripts\activate.bat
+
+# 验证虚拟环境已激活
+which python  # 应指向 .venv 目录
+
+# ===== 安装依赖 =====
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 复制环境配置
+# ===== 配置环境变量 =====
 cp .env.example .env
 # 编辑 .env 文件，配置数据库等环境变量
 
-# 运行数据库迁移
+# ===== 运行数据库迁移 =====
 python -m alembic upgrade head
 
-# (可选) 创建测试数据
+# ===== (可选) 创建测试数据 =====
 python scripts/create_test_data.py
 
-# 启动开发服务器
+# ===== 启动开发服务器 =====
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 访问 `http://localhost:8000/health` 验证后端运行正常。
+
+#### 虚拟环境管理技巧
+
+```bash
+# 查看已安装的包
+pip list
+
+# 导出依赖
+pip freeze > requirements.txt
+
+# 退出虚拟环境
+deactivate
+
+# 重新激活
+source .venv/bin/activate
+```
+
+#### 使用 Poetry (可选替代方案)
+
+```bash
+# 安装 Poetry
+curl -sSL https://install.python-poetry.org | python3 -
+
+# 初始化项目 (如使用 poetry 管理)
+cd backend
+poetry init  # 按提示配置
+
+# 安装依赖
+poetry install
+
+# 激活虚拟环境
+poetry shell
+
+# 运行命令
+poetry run python -m uvicorn app.main:app --reload
+```
 
 #### 2. 前端开发环境
 
@@ -233,8 +298,13 @@ docker-compose -f docker-compose.yml logs -f app
 
 ### 后端测试
 
+⚠️ **注意**: 运行测试前请确保已激活虚拟环境
+
 ```bash
 cd backend
+
+# 激活虚拟环境 (如未激活)
+source .venv/bin/activate
 
 # 运行所有测试
 python -m pytest
@@ -278,10 +348,16 @@ npx playwright show-report
 
 ## 📝 常用命令
 
+⚠️ **注意**: 以下后端命令需在激活虚拟环境后执行
+
 ### 后端命令
 
 ```bash
 cd backend
+
+# 激活虚拟环境
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
 
 # 代码格式化
 black app/ tests/
@@ -424,11 +500,33 @@ REDIS_URL=redis://localhost:6379/0
 
 ### 常见问题
 
+#### 0. 虚拟环境相关问题
+
+```bash
+# 问题：找不到 python 命令或包
+# 解决：确保已激活虚拟环境
+source .venv/bin/activate
+
+# 验证虚拟环境已激活
+which python  # 应显示 .venv 目录路径
+pip list     # 应显示已安装的包
+
+# 问题：虚拟环境损坏
+# 解决：删除并重建
+rm -rf .venv
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 #### 1. 后端启动失败
 
 ```bash
 # 检查 Python 版本
 python --version  # 必须是 3.12
+
+# ⚠️ 确保已激活虚拟环境
+source .venv/bin/activate
 
 # 检查依赖安装
 pip install -r requirements.txt
