@@ -25,13 +25,33 @@ groups:
       
       # 数据库连接告警
       - alert: DatabaseConnectionPoolExhausted
-        expr: pg_stat_activity_count >= pg_settings_max_connections
+        expr: pg_stat_activity_count >= pg_settings_max_connections * 0.9
         for: 2m
         labels:
           severity: critical
         annotations:
           summary: "数据库连接池耗尽"
-          description: "PostgreSQL 连接数达到上限"
+          description: "PostgreSQL 连接数达到上限的 90%"
+      
+      # 数据库慢查询告警
+      - alert: DatabaseSlowQueries
+        expr: rate(pg_stat_statements_seconds_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库慢查询增多"
+          description: "PostgreSQL 慢查询速率异常"
+      
+      # Redis 内存使用告警
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用过高"
+          description: "Redis 内存使用超过 90%"
       
       # 磁盘空间告警
       - alert: LowDiskSpace
@@ -52,3 +72,23 @@ groups:
         annotations:
           summary: "应用宕机"
           description: "客户运营中台应用不可用"
+      
+      # 数据库宕机告警
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "数据库宕机"
+          description: "PostgreSQL 数据库不可用"
+      
+      # Redis 宕机告警
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 宕机"
+          description: "Redis 缓存服务不可用"

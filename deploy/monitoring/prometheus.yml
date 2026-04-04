@@ -9,23 +9,28 @@ scrape_configs:
   # 应用监控
   - job_name: 'customer-platform'
     static_configs:
-      - targets: ['localhost:8000']
+      - targets: ['app:8000']
     metrics_path: '/metrics'
     
-  # 数据库监控
+  # 数据库监控 (需要 postgres_exporter)
   - job_name: 'postgres'
     static_configs:
-      - targets: ['localhost:9187']
+      - targets: ['postgres-exporter:9187']
     
-  # Redis 监控
+  # Redis 监控 (需要 redis_exporter)
   - job_name: 'redis'
     static_configs:
-      - targets: ['localhost:9121']
+      - targets: ['redis-exporter:9121']
+
+  # Node 导出器 (主机监控)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
 
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['localhost:9093']
+        - targets: ['alertmanager:9093']
 
 rule_files:
   - 'alerts.yml'

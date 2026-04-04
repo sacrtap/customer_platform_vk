@@ -137,25 +137,14 @@ verify_connection() {
 
 # 运行数据库迁移
 run_migrations() {
-    info "运行数据库迁移..."
+    info "运行数据库迁移 (Alembic)..."
     
     cd backend
     source .venv/bin/activate
     
     export DATABASE_URL="postgresql://localhost/${DB_NAME}"
     
-    python << 'PYTHON_SCRIPT'
-import os
-from sqlalchemy import create_engine
-from app.models.base import BaseModel
-
-db_url = os.getenv('DATABASE_URL')
-print(f"连接数据库：{db_url}")
-
-engine = create_engine(db_url)
-BaseModel.metadata.create_all(engine)
-print("✅ 数据库表已创建")
-PYTHON_SCRIPT
+    python -m alembic upgrade head
     
     deactivate
     cd ..

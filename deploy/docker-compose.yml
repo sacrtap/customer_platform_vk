@@ -1,0 +1,118 @@
+# 客户运营中台 - Docker Compose 配置
+# 用于本地开发和测试环境
+
+services:
+  # PostgreSQL 数据库
+  db:
+    image: postgres:18-alpine
+    container_name: customer-platform-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: customer_platform
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d customer_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - customer-platform-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: customer-platform-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - customer-platform-network
+
+  # 应用服务
+  app:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker/Containerfile
+    container_name: customer-platform-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-secret-change-in-production}
+      SMTP_HOST: ${SMTP_HOST:-smtp.company.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-noreply@company.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EXTERNAL_API_BASE_URL: ${EXTERNAL_API_BASE_URL:-}
+      EXTERNAL_API_TOKEN: ${EXTERNAL_API_TOKEN:-}
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: ${DEBUG:-true}
+    volumes:
+      - app_uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - customer-platform-network
+    command: >
+      sh -c "python -m alembic upgrade head &&
+             python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  # 数据库迁移服务 (一次性运行)
+  migrate:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker/Containerfile
+    container_name: customer-platform-migrate
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - customer-platform-network
+    command: python -m alembic upgrade head
+
+  # 创建测试数据服务 (一次性运行)
+  seed:
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/docker/Containerfile
+    container_name: customer-platform-seed
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - customer-platform-network
+    command: python scripts/create_test_data.py
+
+networks:
+  customer-platform-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_uploads:
+    driver: local

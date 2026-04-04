@@ -1,33 +1,43 @@
 # AGENTS.md - 客户运营中台项目开发指南
 
-## Documentation Guidelines
+## 🤖 Agent 工作指南
 
-- 思考过程用中文表述；回答用中文回复。
-- 所有生成的文档使用中文，保存到 `docs/` 并合理规划目录结构。
-- code/API 文档问题优先使用 Context7。
+### 语言与沟通
+- **思考过程**: 使用中文表述
+- **回答语言**: 中文回复
+- **文档语言**: 所有生成文档使用中文，保存到 `docs/` 目录下的合理位置
+- **API/代码文档**: 优先使用 Context7 查询
+
+### Context-Mode 强制规则 ⚠️
+本项目使用 context-mode MCP 工具，**必须遵守**以下规则：
+
+| 禁止操作 | 替代方案 |
+|---------|---------|
+| `curl` / `wget` 命令 | `context-mode_ctx_fetch_and_index(url, source)` |
+| Shell 中 HTTP 请求 | `context-mode_ctx_execute(language, code)` |
+| 大输出 Shell 命令 | `context-mode_ctx_batch_execute(commands, queries)` |
+| 分析性文件读取 | `context-mode_ctx_execute_file(path, language, code)` |
+
+**工具优先级**: GATHER → FOLLOW-UP → PROCESSING → WEB → INDEX
+
+---
 
 ## 📁 项目结构
 
 ```
 customer_platform_vk/
 ├── backend/              # Python 后端 (Sanic + SQLAlchemy)
-│   ├── app/              # 应用代码
-│   │   ├── models/       # SQLAlchemy 模型
-│   │   ├── routes/       # API 路由
-│   │   ├── services/     # 业务逻辑
-│   │   ├── middleware/   # 中间件
-│   │   └── tasks/        # 定时任务
-│   ├── tests/            # 测试代码
-│   ├── migrations/       # Alembic 数据库迁移
+│   ├── app/              # 应用代码 (models, routes, services, middleware, tasks)
+│   ├── tests/            # 测试代码 (unit, integration, performance)
+│   ├── alembic/          # 数据库迁移
 │   └── scripts/          # 工具脚本
-├── frontend/             # Vue3 前端
-│   └── src/
-│       ├── views/        # 页面组件
-│       ├── components/   # 通用组件
-│       ├── api/          # API 调用
-│       └── stores/       # Pinia 状态管理
-└── deploy/               # 部署配置
+├── frontend/             # Vue3 + TypeScript 前端
+│   └── src/              # views, components, api, stores
+├── deploy/               # 部署配置 (Docker, scripts, monitoring)
+└── docs/                 # 项目文档
 ```
+
+---
 
 ## 🛠️ 构建/测试/运行命令
 
@@ -39,31 +49,28 @@ cd backend
 # 安装依赖
 pip install -r requirements.txt
 
-# 运行所有测试
-python -m pytest
+# ===== 测试命令 =====
+# 运行单个测试函数 (最常用)
+python -m pytest tests/unit/test_auth_service.py::TestAuthService::test_login_success -v
 
 # 运行单个测试文件
-python -m pytest tests/test_api.py -v
+python -m pytest tests/integration/test_api.py -v
 
-# 运行单个测试函数
-python -m pytest tests/test_api.py::TestAuth::test_login_success -v
+# 运行所有测试
+python -m pytest
 
 # 运行测试并生成覆盖率报告
 python -m pytest --cov=app --cov-report=html
 
-# 代码格式化
-black app/ tests/
+# ===== 代码质量 =====
+black app/ tests/              # 格式化
+flake8 app/ tests/             # 代码检查
 
-# 代码检查
-flake8 app/ tests/
+# ===== 数据库 =====
+python -m alembic upgrade head                    # 运行迁移
+python -m alembic revision --autogenerate -m "desc"  # 创建迁移
 
-# 运行数据库迁移
-python -m alembic upgrade head
-
-# 创建新迁移
-python -m alembic revision --autogenerate -m "description"
-
-# 启动开发服务器
+# ===== 开发服务器 =====
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -84,49 +91,50 @@ npm run build
 # 类型检查
 npx vue-tsc --noEmit
 
-# 代码检查
+# 代码检查与格式化
 npm run lint
-
-# 代码格式化
 npm run format
 ```
 
-### 部署
+### 部署 (Deploy)
 
 ```bash
-# 生产环境部署
+# Docker Compose 部署 (推荐)
 ./deploy/scripts/deploy.sh
+./deploy/scripts/deploy.sh --test-data      # 创建测试数据
+./deploy/scripts/deploy.sh --skip-build     # 跳过构建
+
+# 本地 PostgreSQL 部署 (macOS)
+./deploy/scripts/local-deploy.sh
+
+# 验证部署
+./deploy/scripts/verify-deployment.sh
 
 # 数据库备份
 ./deploy/scripts/backup.sh
 ```
 
+---
+
 ## 📝 代码风格指南
 
 ### Python 后端
 
-#### 导入规范
+**导入规范**: 标准库 → 第三方库 → 本地模块
 ```python
-# 顺序：标准库 → 第三方库 → 本地模块
 import os
 from sqlalchemy import select
 from ..models.users import User
 ```
 
-#### 类型注解
-- 所有函数参数和返回值必须使用类型注解
-- 使用 `Optional[T]` 表示可为空，使用 `Dict`, `List` 等泛型
-
+**类型注解**: 所有函数必须使用类型注解
 ```python
-async def get_user_by_id(user_id: int) -> Optional[User]: ...
+async def get_user_by_id(user_id: int) -> Optional[User]:
 ```
 
-#### 命名约定
-- **类**: PascalCase (`UserService`)
-- **函数/方法**: snake_case (`get_user_by_id`)
-- **常量**: UPPER_CASE (`MAX_FILE_SIZE`)
+**命名约定**: 类 PascalCase | 函数 snake_case | 常量 UPPER_CASE
 
-#### 错误处理
+**错误处理**: 记录日志后重新抛出
 ```python
 try:
     result = await db.execute(query)
@@ -135,113 +143,45 @@ except OperationalError as e:
     raise
 ```
 
-### TypeScript/JavaScript 前端
+### TypeScript 前端
 
-#### 导入规范
+**导入规范**:
 ```typescript
 import { ref } from 'vue'
 import CustomerList from '@/components/CustomerList.vue'
-import * as customerApi from '@/api/customers'
 ```
 
-#### 类型注解
-- 使用 TypeScript 严格模式，避免使用 `any`
-- Props 和 emits 必须定义类型
-
+**类型定义**: 避免 `any`, Props/Emits 必须定义类型
 ```typescript
 interface Customer { id: number; name: string }
 const props = defineProps<{ customerId: number }>()
 ```
 
-#### 命名约定
-- **组件**: PascalCase (`CustomerList.vue`)
-- **变量/函数**: camelCase (`fetchData`)
-- **常量**: UPPER_CASE (`MAX_PAGE_SIZE`)
-
-#### 错误处理
-```typescript
-try {
-  const res = await customerApi.getCustomers(params)
-} catch (err: any) {
-  Message.error(err.message || '加载失败')
-}
-```
-
-## ⚠️ 重要注意事项
-
-1. **数据库操作**: 所有修改必须在事务中执行
-2. **并发安全**: 余额扣款等关键操作必须使用行级锁
-3. **安全验证**: Webhook 必须验证时间戳窗口和签名去重
-4. **权限校验**: 所有 API 端点必须添加 `@auth_required` 装饰器
-5. **日志记录**: 关键操作必须记录审计日志
-
-## 📚 相关文档
-
-- 设计文档：`docs/superpowers/specs/2026-04-01-customer-platform-design.md`
-- 实现计划：`docs/superpowers/specs/2026-04-01-customer-platform-implementation-plan.md`
-- 用户手册：`docs/user-manual.md`
-- 项目总结：`docs/PROJECT_SUMMARY.md`
+**命名约定**: 组件 PascalCase | 变量 camelCase | 常量 UPPER_CASE
 
 ---
 
-**最后更新**: 2026-04-03  
-**项目状态**: Phase 0-7 完成，Critical Issues 已修复
+## ⚠️ 关键安全要求
 
-# context-mode — MANDATORY routing rules
+1. **数据库事务**: 所有修改操作必须在事务中执行
+2. **并发安全**: 余额扣款使用行级锁 (`FOR UPDATE`)
+3. **Webhook 验证**: 验证时间戳窗口 + 签名去重
+4. **权限校验**: 所有 API 端点必须添加 `@auth_required` 装饰器
+5. **审计日志**: 关键操作必须记录到 `audit_logs` 表
 
-You have context-mode MCP tools available. These rules are NOT optional — they protect your context window from flooding. A single unrouted command can dump 56 KB into context and waste the entire session.
+---
 
-## BLOCKED commands — do NOT attempt these
+## 📚 核心文档
 
-### curl / wget — BLOCKED
-Any shell command containing `curl` or `wget` will be intercepted and blocked by the context-mode plugin. Do NOT retry.
-Instead use:
-- `context-mode_ctx_fetch_and_index(url, source)` to fetch and index web pages
-- `context-mode_ctx_execute(language: "javascript", code: "const r = await fetch(...)")` to run HTTP calls in sandbox
+| 文档 | 路径 |
+|------|------|
+| 设计文档 | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
+| 部署指南 | `deploy/README.md` |
+| 部署一致性报告 | `docs/DEPLOY_CONSISTENCY_REPORT.md` |
+| 测试数据库配置 | `docs/testing/test-database-setup.md` |
 
-### Inline HTTP — BLOCKED
-Any shell command containing `fetch('http`, `requests.get(`, `requests.post(`, `http.get(`, or `http.request(` will be intercepted and blocked. Do NOT retry with shell.
-Instead use:
-- `context-mode_ctx_execute(language, code)` to run HTTP calls in sandbox — only stdout enters context
+---
 
-### Direct web fetching — BLOCKED
-Do NOT use any direct URL fetching tool. Use the sandbox equivalent.
-Instead use:
-- `context-mode_ctx_fetch_and_index(url, source)` then `context-mode_ctx_search(queries)` to query the indexed content
-
-## REDIRECTED tools — use sandbox equivalents
-
-### Shell (>20 lines output)
-Shell is ONLY for: `git`, `mkdir`, `rm`, `mv`, `cd`, `ls`, `npm install`, `pip install`, and other short-output commands.
-For everything else, use:
-- `context-mode_ctx_batch_execute(commands, queries)` — run multiple commands + search in ONE call
-- `context-mode_ctx_execute(language: "shell", code: "...")` — run in sandbox, only stdout enters context
-
-### File reading (for analysis)
-If you are reading a file to **edit** it → reading is correct (edit needs content in context).
-If you are reading to **analyze, explore, or summarize** → use `context-mode_ctx_execute_file(path, language, code)` instead. Only your printed summary enters context.
-
-### grep / search (large results)
-Search results can flood context. Use `context-mode_ctx_execute(language: "shell", code: "grep ...")` to run searches in sandbox. Only your printed summary enters context.
-
-## Tool selection hierarchy
-
-1. **GATHER**: `context-mode_ctx_batch_execute(commands, queries)` — Primary tool. Runs all commands, auto-indexes output, returns search results. ONE call replaces 30+ individual calls.
-2. **FOLLOW-UP**: `context-mode_ctx_search(queries: ["q1", "q2", ...])` — Query indexed content. Pass ALL questions as array in ONE call.
-3. **PROCESSING**: `context-mode_ctx_execute(language, code)` | `context-mode_ctx_execute_file(path, language, code)` — Sandbox execution. Only stdout enters context.
-4. **WEB**: `context-mode_ctx_fetch_and_index(url, source)` then `context-mode_ctx_search(queries)` — Fetch, chunk, index, query. Raw HTML never enters context.
-5. **INDEX**: `context-mode_ctx_index(content, source)` — Store content in FTS5 knowledge base for later search.
-
-## Output constraints
-
-- Keep responses under 500 words.
-- Write artifacts (code, configs, PRDs) to FILES — never return them as inline text. Return only: file path + 1-line description.
-- When indexing content, use descriptive source labels so others can `search(source: "label")` later.
-
-## ctx commands
-
-| Command | Action |
-|---------|--------|
-| `ctx stats` | Call the `stats` MCP tool and display the full output verbatim |
-| `ctx doctor` | Call the `doctor` MCP tool, run the returned shell command, display as checklist |
-| `ctx upgrade` | Call the `upgrade` MCP tool, run the returned shell command, display as checklist |
+**最后更新**: 2026-04-04  
+**项目状态**: Phase 0-7 完成，Docker 部署配置已完善  
+**Python 版本**: 3.12 (Sanic 兼容) | **PostgreSQL**: 18

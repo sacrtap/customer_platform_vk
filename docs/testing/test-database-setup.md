@@ -8,7 +8,7 @@
 
 ## 前置要求
 
-- PostgreSQL 14+ 已安装
+- PostgreSQL 18+ 已安装
 - 具有创建数据库权限的用户
 - 网络连接正常
 
@@ -21,8 +21,8 @@
 brew services list | grep postgresql
 
 # 如果没有安装，使用 Homebrew 安装
-brew install postgresql@14
-brew services start postgresql@14
+brew install postgresql@18
+brew services start postgresql@18
 ```
 
 ---
@@ -82,14 +82,17 @@ python -m alembic upgrade head
 psql -U user -d customer_platform_test -c "\dt"
 ```
 
-预期输出应包含:
+预期输出应包含以下 22 张表:
+
 ```
-                  List of relations
+              List of relations
  Schema |          Name           | Type  |  Owner   
 --------+-------------------------+-------+----------
  public | users                   | table | user
  public | roles                   | table | user
  public | permissions             | table | user
+ public | user_roles              | table | user
+ public | role_permissions        | table | user
  public | customers               | table | user
  public | customer_profiles       | table | user
  public | customer_balances       | table | user
@@ -102,97 +105,49 @@ psql -U user -d customer_platform_test -c "\dt"
  public | recharge_records        | table | user
  public | consumption_records     | table | user
  public | daily_usage             | table | user
- public | audit_logs              | table | user
  public | sync_task_logs          | table | user
+ public | audit_logs              | table | user
+ public | webhook_signatures      | table | user
+ public | customer_groups         | table | user
+ public | customer_group_members  | table | user
 ```
 
 ---
 
 ## 步骤 6: 创建测试数据
 
+使用已有的测试数据创建脚本:
+
 ```bash
-# 创建测试脚本
-cat > scripts/create_test_data.py << 'EOF'
-"""创建测试数据"""
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy import select
-from app.models.users import User
-from app.models.customers import Customer, CustomerBalance
-import bcrypt
+cd backend
+source .venv/bin/activate
 
-async def create_test_data():
-    engine = create_async_engine(
-        "postgresql+asyncpg://user:password@localhost:5432/customer_platform_test"
-    )
-    
-    async with AsyncSession(engine) as session:
-        # 检查是否已存在测试用户
-        result = await session.execute(select(User).where(User.username == "admin"))
-        if result.scalar_one_or_none():
-            print("测试用户已存在")
-            return
-        
-        # 创建管理员用户
-        hashed = bcrypt.hashpw(b"admin123", bcrypt.gensalt())
-        admin = User(
-            username="admin",
-            password_hash=hashed.decode(),
-            email="admin@example.com",
-            real_name="管理员",
-            is_active=True,
-            is_system=True,
-        )
-        session.add(admin)
-        
-        # 创建测试客户
-        customer = Customer(
-            company_id="TEST001",
-            name="测试客户公司",
-            account_type="formal",
-            business_type="A",
-            customer_level="KA",
-            email="test@customer.com",
-            is_key_customer=True,
-        )
-        session.add(customer)
-        await session.flush()
-        
-        # 创建客户余额
-        balance = CustomerBalance(
-            customer_id=customer.id,
-            real_amount=10000.00,
-            bonus_amount=1000.00,
-            total_amount=11000.00,
-        )
-        session.add(balance)
-        
-        await session.commit()
-        print("✅ 测试数据创建成功")
-    
-    await engine.dispose()
-
-if __name__ == "__main__":
-    asyncio.run(create_test_data())
-EOF
-
-# 运行脚本
+export DATABASE_URL="postgresql://user:password@localhost:5432/customer_platform_test"
 python scripts/create_test_data.py
 ```
+
+自动创建以下测试数据:
+
+### 管理员账户
+- **用户名**: admin
+- **密码**: admin123
+
+### 测试客户
+- **公司 ID**: TEST001
+- **名称**: 测试客户公司
+- **余额**: 实充 10000 + 赠费 1000 = 11000
 
 ---
 
 ## 步骤 7: 配置测试设置
 
-修改 `backend/tests/test_api.py` 中的测试数据库 URL:
+测试配置通过环境变量传递，参考 `backend/tests/conftest.py` 和 `backend/.env.example`:
 
-```python
-# 使用环境变量或默认值
-import os
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://user:password@localhost:5432/customer_platform_test"
-)
+```bash
+# 测试环境变量
+export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/customer_platform"
+export TEST_DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/customer_platform_test"
+export JWT_SECRET=test-secret-key-for-testing-only
 ```
 
 ---
@@ -203,14 +158,17 @@ TEST_DATABASE_URL = os.getenv(
 cd backend
 source .venv/bin/activate
 
-# 运行所有 API 测试
+# 运行所有测试
+python -m pytest tests/ -v
+
+# 运行集成测试
 python -m pytest tests/integration/ -v
 
-# 运行特定测试
-python -m pytest tests/integration/test_auth_api.py -v
+# 运行单元测试
+python -m pytest tests/unit/ -v
 
 # 运行并生成覆盖率
-python -m pytest tests/integration/ --cov=app --cov-report=html
+python -m pytest tests/ --cov=app --cov-report=html
 ```
 
 ---
@@ -256,7 +214,7 @@ dropdb -U postgres customer_platform_test
 brew services list
 
 # 重启 PostgreSQL
-brew services restart postgresql@14
+brew services restart postgresql@18
 
 # 检查端口
 lsof -i :5432
@@ -299,13 +257,14 @@ docker run -d \
   -e POSTGRES_PASSWORD=password \
   -e POSTGRES_DB=customer_platform_test \
   -p 5432:5432 \
-  postgres:14
+  postgres:18
 
 # 等待数据库就绪
 sleep 5
 
 # 运行迁移
 cd backend && source .venv/bin/activate
+export DATABASE_URL="postgresql://user:password@localhost:5432/customer_platform_test"
 python -m alembic upgrade head
 
 # 运行测试
@@ -326,8 +285,8 @@ docker rm customer-platform-test-db
 cd backend
 source .venv/bin/activate
 
-# 运行单个 API 测试验证
-python -m pytest tests/integration/test_auth_api.py::TestAuthAPI_Login::test_login_success -v
+# 运行单个测试验证
+python -m pytest tests/integration/test_api.py -v -k login
 
 # 预期输出: PASSED
 ```

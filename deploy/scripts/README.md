@@ -1,133 +1,83 @@
-# Podman 一键部署指南
+# 部署脚本指南
 
 ## 概述
 
-使用 Podman 一键部署客户运营中台应用和测试数据库。
+本目录包含客户运营中台的部署脚本。
 
 ---
 
-## 前置要求
+## 可用脚本
 
-### macOS
+### 1. local-deploy.sh (推荐 - macOS 本地部署)
+
+一键部署到本地 PostgreSQL 数据库。
 
 ```bash
-# 安装 Podman
-brew install podman
+# 完整部署
+./deploy/scripts/local-deploy.sh
 
-# 初始化 Podman 机器 (首次使用)
-podman machine init
+# 清理后重新部署
+./deploy/scripts/local-deploy.sh --clean
 
-# 启动 Podman 机器
-podman machine start
+# 只安装数据库 (跳过迁移)
+./deploy/scripts/local-deploy.sh --skip-migrate
+
+# 显示帮助
+./deploy/scripts/local-deploy.sh --help
 ```
 
-### Linux
+### 2. deploy.sh (生产环境 Docker 部署)
+
+生产环境部署脚本，使用 Podman/Docker 容器化部署。
 
 ```bash
-# Fedora/RHEL
-sudo dnf install podman
+# 部署最新版本
+./deploy/scripts/deploy.sh
 
-# Ubuntu/Debian
-sudo apt install podman
+# 部署指定版本
+./deploy/scripts/deploy.sh v1.0.0
 ```
 
----
+### 3. backup.sh (数据库备份)
 
-## 快速部署
-
-### 一键部署 (推荐)
+备份 PostgreSQL 数据库。
 
 ```bash
-# 运行部署脚本
-./deploy/scripts/podman-deploy.sh
-```
-
-这将自动完成:
-1. ✅ 部署 PostgreSQL 数据库
-2. ✅ 创建测试数据库
-3. ✅ 运行数据库迁移
-4. ✅ 创建测试数据
-5. ✅ 运行测试套件
-6. ✅ 生成测试报告
-
----
-
-## 分步部署
-
-### 1. 只部署数据库
-
-```bash
-./deploy/scripts/podman-deploy.sh db
-```
-
-### 2. 只部署应用
-
-```bash
-./deploy/scripts/podman-deploy.sh app
-```
-
-### 3. 只运行测试
-
-```bash
-./deploy/scripts/podman-deploy.sh test
+# 执行备份
+./deploy/scripts/backup.sh
 ```
 
 ---
 
 ## 服务管理
 
-### 查看状态
+### 本地 PostgreSQL
 
 ```bash
-./deploy/scripts/podman-deploy.sh status
+# 查看状态
+brew services list | grep postgresql
+
+# 重启服务
+brew services restart postgresql@18
+
+# 停止服务
+brew services stop postgresql@18
+
+# 启动服务
+brew services start postgresql@18
 ```
 
-### 停止服务
+### Docker 容器
 
 ```bash
-./deploy/scripts/podman-deploy.sh stop
-```
+# 查看状态
+docker ps | grep customer-platform
 
-### 清理容器
+# 停止服务
+docker-compose -f deploy/docker-compose.yml down
 
-```bash
-./deploy/scripts/podman-deploy.sh clean
-```
-
----
-
-## 手动命令
-
-### 数据库操作
-
-```bash
-# 启动数据库
-podman start customer-platform-db
-
-# 停止数据库
-podman stop customer-platform-db
-
-# 查看日志
-podman logs customer-platform-db
-
-# 进入数据库 shell
-podman exec -it customer-platform-db psql -U user -d customer_platform
-```
-
-### 应用操作
-
-```bash
-# 启动应用
-podman start customer-platform-app
-
-# 停止应用
-podman stop customer-platform-app
-
-# 查看日志
-podman logs customer-platform-app
-
-# 进入容器 shell
-podman exec -it customer-platform-app bash
+# 启动服务
+docker-compose -f deploy/docker-compose.yml up -d
 ```
 
 ---
@@ -139,6 +89,7 @@ podman exec -it customer-platform-app bash
 | API    | http://localhost:8000     | 应用 API   |
 | 健康   | http://localhost:8000/health | 健康检查   |
 | 数据库 | localhost:5432            | PostgreSQL |
+| 前端   | http://localhost:5173     | Vue3 前端  |
 
 ---
 
@@ -153,7 +104,7 @@ podman exec -it customer-platform-app bash
 ### 测试客户
 - **公司 ID**: TEST001
 - **名称**: 测试客户公司
-- **余额**: 实充 10000 + 赠费 1000
+- **余额**: 实充 10000 + 赠费 1000 = 11000
 
 ---
 
@@ -165,13 +116,13 @@ podman exec -it customer-platform-app bash
 cd backend
 source .venv/bin/activate
 
-export DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/customer_platform"
-export TEST_DATABASE_URL="postgresql+asyncpg://user:password@localhost:5432/customer_platform_test"
+export DATABASE_URL="postgresql://localhost/customer_platform"
+export TEST_DATABASE_URL="postgresql://localhost/customer_platform_test"
 
 python -m pytest tests/unit/ -v
 ```
 
-### API 集成测试
+### 集成测试
 
 ```bash
 python -m pytest tests/integration/ -v
@@ -180,7 +131,7 @@ python -m pytest tests/integration/ -v
 ### 生成覆盖率报告
 
 ```bash
-python -m pytest tests/unit/ \
+python -m pytest tests/ \
     --cov=app \
     --cov-report=html:../docs/testing/coverage-reports/html
 ```
@@ -188,19 +139,6 @@ python -m pytest tests/unit/ \
 ---
 
 ## 故障排查
-
-### Podman 机器无法启动
-
-```bash
-# macOS: 重启 Podman 机器
-podman machine stop
-podman machine start
-
-# 或重置
-podman machine rm
-podman machine init
-podman machine start
-```
 
 ### 端口被占用
 
@@ -216,24 +154,14 @@ kill -9 <PID>
 ### 数据库连接失败
 
 ```bash
-# 检查数据库容器状态
-podman ps --filter "name=customer-platform-db"
+# 检查数据库服务状态
+brew services list | grep postgresql
 
 # 查看数据库日志
-podman logs customer-platform-db
+brew services restart postgresql@18
 
 # 测试数据库连接
-podman exec customer-platform-db pg_isready -U user
-```
-
-### 权限问题 (Linux)
-
-```bash
-# 使用 rootless 模式
-podman login docker.io
-
-# 或添加用户到 podman 组
-sudo usermod -aG podman $USER
+pg_isready
 ```
 
 ---
@@ -243,58 +171,33 @@ sudo usermod -aG podman $USER
 可以通过环境变量自定义配置:
 
 ```bash
-# 自定义端口
-export DB_PORT=5433
-export APP_PORT=8001
+# 本地部署
+export DATABASE_URL="postgresql://localhost/customer_platform"
+export TEST_DATABASE_URL="postgresql://localhost/customer_platform_test"
 
-# 自定义数据库配置
-export DB_NAME=mydb
-export DB_USER=myuser
-export DB_PASSWORD=mypassword
-
-# 运行部署
-./deploy/scripts/podman-deploy.sh
+# 生产部署
+export JWT_SECRET=your-secret-key
+export SMTP_PASSWORD=your-smtp-password
 ```
 
 ---
 
 ## 生产部署
 
-生产环境部署请参考:
+生产环境部署注意事项:
 
 1. 使用持久化存储卷
-2. 配置环境变量密钥
+2. 配置环境变量密钥 (不要硬编码密码)
 3. 设置容器重启策略
 4. 配置反向代理 (Nginx/Traefik)
 5. 启用 HTTPS
 6. 配置日志收集
 7. 设置监控告警
 
-示例生产部署配置:
-
-```bash
-podman run -d \
-  --name customer-platform-db \
-  -e POSTGRES_DB=customer_platform \
-  -e POSTGRES_USER=${DB_USER} \
-  -e POSTGRES_PASSWORD=${DB_PASSWORD} \
-  -v db-data:/var/lib/postgresql/data \
-  --restart=always \
-  postgres:14
-
-podman run -d \
-  --name customer-platform-app \
-  -p 8000:8000 \
-  -e DATABASE_URL=${DATABASE_URL} \
-  -e JWT_SECRET=${JWT_SECRET} \
-  --restart=always \
-  customer-platform-app:latest
-```
-
 ---
 
 ## 参考文档
 
-- [Podman 官方文档](https://podman.io/docs)
-- [PostgreSQL 镜像](https://hub.docker.com/_/postgres)
-- [测试数据库配置](./test-database-setup.md)
+- [部署指南](../README.md) - 完整部署指南
+- [Podman 部署](../PODMAN_MACOS.md) - Podman 详细说明
+- [测试数据库配置](../../docs/testing/test-database-setup.md) - 测试环境配置

@@ -15,7 +15,7 @@
 1. ✅ 检查/安装 PostgreSQL 18
 2. ✅ 启动 PostgreSQL 服务
 3. ✅ 创建数据库
-4. ✅ 运行数据库迁移
+4. ✅ 运行数据库迁移 (Alembic)
 5. ✅ 创建测试数据
 
 ### 手动部署 (5 分钟)
@@ -32,19 +32,12 @@ createdb customer_platform_test
 # 3. 验证连接
 psql -d customer_platform -c "SELECT version();"
 
-# 4. 运行迁移
+# 4. 运行迁移 (使用 Alembic)
 cd backend
 source .venv/bin/activate
 
 export DATABASE_URL="postgresql://localhost/customer_platform"
-
-python -c "
-from sqlalchemy import create_engine
-from app.models.base import BaseModel
-engine = create_engine('${DATABASE_URL}')
-BaseModel.metadata.create_all(engine)
-print('✅ 数据库表已创建')
-"
+python -m alembic upgrade head
 
 # 5. 创建测试数据
 python scripts/create_test_data.py
@@ -79,19 +72,12 @@ docker run -d --name customer-platform-db \
 # 3. 等待数据库就绪
 sleep 5
 
-# 4. 运行迁移
+# 4. 运行迁移 (使用 Alembic)
 cd backend
 source .venv/bin/activate
 
 export DATABASE_URL="postgresql://user:password@localhost:5432/customer_platform"
-
-python -c "
-from sqlalchemy import create_engine
-from app.models.base import BaseModel
-engine = create_engine('${DATABASE_URL}')
-BaseModel.metadata.create_all(engine)
-print('✅ 数据库表已创建')
-"
+python -m alembic upgrade head
 
 # 5. 创建测试数据
 python scripts/create_test_data.py
@@ -191,4 +177,3 @@ createdb customer_platform_test
 
 - [PODMAN_MACOS.md](./PODMAN_MACOS.md) - Podman 部署指南
 - [test-database-setup.md](../docs/testing/test-database-setup.md) - 测试数据库配置
-- [test-summary.md](../docs/testing/test-summary.md) - 测试总结报告
