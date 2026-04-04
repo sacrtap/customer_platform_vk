@@ -1,0 +1,184 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # 快速检查 - 代码格式 + Lint (无数据库依赖)
+  # ============================================================
+  quick-checks:
+    name: Quick Checks (Lint + Format)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Python linting (flake8)
+        run: |
+          flake8 backend/app/ backend/tests/ --max-line-length=120 --extend-ignore=E203
+
+      - name: Python formatting (black)
+        run: |
+          black backend/app/ backend/tests/ --check --diff
+
+      - name: Frontend linting
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Frontend type check
+        run: |
+          cd frontend
+          npx vue-tsc --noEmit
+
+  # ============================================================
+  # 后端测试 (需要数据库)
+  # ============================================================
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run all tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+        run: |
+          cd backend
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=50
+
+  # ============================================================
+  # 前端构建
+  # ============================================================
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build
+        run: |
+          cd frontend
+          npm run build
+
+  # ============================================================
+  # PR 质量门禁
+  # ============================================================
+  pr-quality-gate:
+    name: PR Quality Gate
+    runs-on: ubuntu-latest
+    needs: [quick-checks, backend-tests, frontend-build]
+    if: always()
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          echo "========================================="
+          echo "PR Quality Gate Results"
+          echo "========================================="
+          echo "Quick Checks:    ${{ needs.quick-checks.result }}"
+          echo "Backend Tests:   ${{ needs.backend-tests.result }}"
+          echo "Frontend Build:  ${{ needs.frontend-build.result }}"
+          echo "========================================="
+
+          if [ "${{ needs.quick-checks.result }}" != "success" ] || \
+             [ "${{ needs.backend-tests.result }}" != "success" ] || \
+             [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "❌ PR quality gate failed"
+            exit 1
+          fi
+
+          echo "✅ All PR quality checks passed"
