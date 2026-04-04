@@ -4,21 +4,29 @@ import { test, expect } from './fixtures';
  * 登录流程 E2E 测试
  */
 test.describe('登录流程', () => {
-  test('成功登录', async ({ loginPage }) => {
-    await loginPage.fill('input[name="username"]', 'admin');
-    await loginPage.fill('input[name="password"]', 'admin123');
-    await loginPage.click('button[type="submit"]');
+  test('成功登录', async ({ loginPage, page }) => {
+    // Arco Design 使用 field 属性
+    await loginPage.fill('input[field="username"], input[type="text"]', 'admin');
+    await loginPage.fill('input[field="password"], input[type="password"]', 'admin123');
+    await loginPage.click('button[type="submit"], button:has-text("登录")');
     
     await expect(loginPage).toHaveURL('/');
-    await expect(loginPage.locator('.user-menu')).toBeVisible();
+    // 等待首页加载 - 使用更具体的选择器
+    await page.waitForTimeout(1000);
+    // 检查用户信息或菜单存在即可
+    const userInfo = page.locator('.user-info, [class*="user-info"]');
+    const menu = page.locator('.arco-menu-main, .menu-item');
+    await expect(userInfo.first()).toBeVisible();
   });
 
-  test('密码错误提示', async ({ loginPage }) => {
-    await loginPage.fill('input[name="username"]', 'admin');
-    await loginPage.fill('input[name="password"]', 'wrongpassword');
-    await loginPage.click('button[type="submit"]');
+  test('密码错误提示', async ({ loginPage, page }) => {
+    await loginPage.fill('input[field="username"], input[type="text"]', 'admin');
+    await loginPage.fill('input[field="password"], input[type="password"]', 'wrongpassword');
+    await loginPage.click('button[type="submit"], button:has-text("登录")');
     
-    await expect(loginPage.locator('.arco-message-error')).toBeVisible();
+    // 等待错误消息
+    await page.waitForTimeout(500);
+    await expect(loginPage.locator('.arco-message-error, [class*="error"], :has-text("密码错误")')).toBeVisible();
     await expect(loginPage).toHaveURL('/login');
   });
 

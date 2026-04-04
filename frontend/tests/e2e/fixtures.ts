@@ -14,15 +14,20 @@ export const test = base.extend<{
   loginPage: async ({ page }, use) => {
     // 导航到登录页
     await page.goto('/login');
+    // 等待登录表单加载
+    await page.waitForSelector('input[field="username"], input[type="text"]');
     await use(page);
   },
   
   authenticatedPage: async ({ page }, use) => {
     // 登录
     await page.goto('/login');
-    await page.fill('input[name="username"]', 'admin');
-    await page.fill('input[name="password"]', 'admin123');
-    await page.click('button[type="submit"]');
+    // 等待登录表单加载
+    await page.waitForSelector('input[field="username"], input[type="text"]');
+    // Arco Design 输入框使用 field 属性而不是 name
+    await page.fill('input[field="username"], input[type="text"]', 'admin');
+    await page.fill('input[field="password"], input[type="password"]', 'admin123');
+    await page.click('button[type="submit"], button:has-text("登录")');
     await page.waitForURL('/');
     await use(page);
   },
