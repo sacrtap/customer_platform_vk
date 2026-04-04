@@ -69,6 +69,13 @@ def make_mock_row(data):
     """
     row = MagicMock()
 
+    # 支持索引访问 (row[0], row[1], ...)
+    if isinstance(data, (list, tuple)):
+        for i, value in enumerate(data):
+            setattr(row, f"_{i}", value)
+        # 只设置一次 __getitem__
+        row.__getitem__ = MagicMock(side_effect=lambda i, d=data: d[i])
+
     if isinstance(data, dict):
         for key, value in data.items():
             setattr(row, key, value)
@@ -110,12 +117,17 @@ def make_mock_row(data):
             setattr(row, "total_balance", data[0])
             setattr(row, "real_balance", data[1])
             setattr(row, "bonus_balance", data[2])
-    # 2 元素：(device_type, total_quantity) 或 (status, count) 或 (industry, count) 等
+    # 2 元素：(device_type, total_quantity) 或 (status, count) 或 (industry, count) 或 (None, count) 等
     elif len(data) == 2:
         setattr(row, "_0", data[0])
         setattr(row, "_1", data[1])
         # 尝试推断字段名
-        if isinstance(data[0], str):
+        # None 表示未分类
+        if data[0] is None:
+            setattr(row, "level", "未分类")
+            setattr(row, "customer_level", "未分类")
+            setattr(row, "count", data[1])
+        elif isinstance(data[0], str):
             # 设备类型
             if data[0] in ["X", "N", "L"]:
                 setattr(row, "device_type", data[0])
@@ -130,11 +142,20 @@ def make_mock_row(data):
             ]:
                 setattr(row, "status", data[0])
                 setattr(row, "count", data[1])
-            # 行业分布、客户等级等
+            # 客户等级 (A, B, C, etc.) 或 None (未分类)
+            elif data[0] in ["A", "B", "C", "D", "E"]:
+                setattr(row, "level", data[0])
+                setattr(row, "customer_level", data[0])
+                setattr(row, "count", data[1])
+            # None 表示未分类
+            elif data[0] is None:
+                setattr(row, "level", "未分类")
+                setattr(row, "customer_level", "未分类")
+                setattr(row, "count", data[1])
+            # 行业分布、健康等级等
             else:
                 setattr(row, "industry", data[0])
                 setattr(row, "count", data[1])
-                setattr(row, "level", data[0])
                 setattr(row, "health_level", data[0])
         setattr(row, "total_quantity", data[1])
         setattr(row, "count", data[1])
@@ -143,17 +164,26 @@ def make_mock_row(data):
         setattr(row, "_0", data[0])
         setattr(row, "total_amount", data[0])
         setattr(row, "count", data[0])
-    # 6 元素：(id, name, company_id, balance, threshold, amount_due) - 余额预警
+    # 6 元素：(id, name, company_id, total_amount, real_amount, bonus_amount) - 余额预警
+    # 或 (id, name, company_id, balance, threshold, amount_due) - 旧格式
     elif len(data) == 6:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
         setattr(row, "name", data[1])
+        setattr(row, "customer_name", data[1])
         setattr(row, "company_id", data[2])
-        setattr(row, "balance", data[3])
-        setattr(row, "threshold", data[4])
-        setattr(row, "amount_due", data[5])
+        # 检查是否是 Decimal 类型（余额预警）
+        if isinstance(data[3], Decimal):
+            setattr(row, "total_amount", data[3])
+            setattr(row, "real_amount", data[4])
+            setattr(row, "bonus_amount", data[5])
+        else:
+            setattr(row, "balance", data[3])
+            setattr(row, "threshold", data[4])
+            setattr(row, "amount_due", data[5])
     # 5 元素：(id, name, company_id, last_order_date, days_inactive) - 未下单客户
     # 或 (customer_id, customer_name, company_id, device_type, predicted_amount)
+    # 或 (id, name, company_id, manager_id, manager_name) - 长期未消耗客户
     elif len(data) == 5:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
@@ -164,6 +194,14 @@ def make_mock_row(data):
         setattr(row, "days_inactive", data[4])
         setattr(row, "device_type", data[3])
         setattr(row, "predicted_amount", data[4])
+        # 检查是否是长期未消耗客户查询
+        if isinstance(data[3], int):
+            setattr(row, "manager_id", data[3])
+            # None 转换为 "未分配"
+            if data[4] is None:
+                setattr(row, "manager_name", "未分配")
+            else:
+                setattr(row, "manager_name", data[4])
     # 4 元素：(id, name, company_id, total_amount) - Top 客户/行业分布
     elif len(data) == 4:
         setattr(row, "id", data[0])
@@ -171,7 +209,8 @@ def make_mock_row(data):
         setattr(row, "name", data[1])
         setattr(row, "company_id", data[2])
         setattr(row, "total_amount", data[3])
-    # 7 元素：(id, name, company_id, device_type, pricing_model, unit_price, min_quantity) - 定价规则
+    # 7 元素：(id, name, company_id, device_type, pricing_type, unit_price, tiers) - 定价规则
+    # 或 (id, name, company_id, device_type, pricing_model, unit_price, min_quantity)
     elif len(data) == 7:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
@@ -179,10 +218,13 @@ def make_mock_row(data):
         setattr(row, "customer_name", data[1])
         setattr(row, "company_id", data[2])
         setattr(row, "device_type", data[3])
+        setattr(row, "pricing_type", data[4])
         setattr(row, "pricing_model", data[4])
         setattr(row, "unit_price", data[5])
         setattr(row, "min_quantity", data[6])
-    # 8 元素：(id, name, company_id, device_type, pricing_model, unit_price, min_quantity, max_quantity)
+        setattr(row, "tiers", data[6])
+    # 8 元素：(id, name, company_id, device_type, pricing_type, unit_price, tiers, package_type) - 定价规则
+    # 或 (id, name, company_id, device_type, pricing_model, unit_price, min_quantity, max_quantity)
     elif len(data) == 8:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
@@ -190,10 +232,13 @@ def make_mock_row(data):
         setattr(row, "customer_name", data[1])
         setattr(row, "company_id", data[2])
         setattr(row, "device_type", data[3])
+        setattr(row, "pricing_type", data[4])
         setattr(row, "pricing_model", data[4])
         setattr(row, "unit_price", data[5])
         setattr(row, "min_quantity", data[6])
         setattr(row, "max_quantity", data[7])
+        setattr(row, "tiers", data[6])
+        setattr(row, "package_type", data[7])
 
     return row
 
@@ -533,8 +578,8 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=30),  # active_count
             make_mock_execute_result([], scalar_value=50),  # total_count
             make_mock_execute_result([], scalar_value=5),  # warning_count
-            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
             make_mock_execute_result([]),  # recent_stmt - 空
+            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
         ]
 
         result = service.get_customer_health_stats()
@@ -549,8 +594,8 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=30),  # active_count
             make_mock_execute_result([], scalar_value=50),  # total_count
             make_mock_execute_result([], scalar_value=5),  # warning_count
-            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
             make_mock_execute_result([(1,), (2,)]),  # recent_stmt - 全部最近有消耗
+            make_mock_execute_result([(1,), (2,)]),  # churn_stmt
         ]
 
         result = service.get_customer_health_stats()

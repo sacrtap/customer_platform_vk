@@ -387,7 +387,7 @@ class AnalyticsService:
                 Customer.name,
                 Customer.company_id,
                 Customer.manager_id,
-                User.name.label("manager_name"),
+                User.real_name.label("manager_name"),
             )
             .where(
                 and_(
