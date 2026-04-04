@@ -34,9 +34,7 @@ async def sync_daily_usage(session: AsyncSession):
 
         # 获取所有活跃客户
         result = await session.execute(
-            select(Customer).where(
-                Customer.deleted_at.is_(None), Customer.status == "active"
-            )
+            select(Customer).where(Customer.deleted_at.is_(None))
         )
         customers = result.scalars().all()
 

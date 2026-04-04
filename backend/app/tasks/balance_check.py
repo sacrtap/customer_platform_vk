@@ -33,7 +33,7 @@ async def check_balance_warning(session: AsyncSession):
         result = await session.execute(
             select(Customer, CustomerBalance)
             .join(CustomerBalance, Customer.id == CustomerBalance.customer_id)
-            .where(Customer.deleted_at.is_(None), Customer.status == "active")
+            .where(Customer.deleted_at.is_(None))
         )
         rows = result.all()
 

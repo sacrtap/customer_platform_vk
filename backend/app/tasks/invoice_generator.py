@@ -41,7 +41,6 @@ async def generate_monthly_invoices(session: AsyncSession):
         result = await session.execute(
             select(Customer).where(
                 Customer.deleted_at.is_(None),
-                Customer.status == "active",
                 Customer.is_key_customer == False,  # 非重点客户
             )
         )
@@ -55,7 +54,7 @@ async def generate_monthly_invoices(session: AsyncSession):
         failed_count = 0
 
         # 从服务导入
-        from ..services.invoice import InvoiceService
+        from ..services.billing import InvoiceService
 
         invoice_service = InvoiceService(session)
 
