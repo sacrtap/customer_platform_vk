@@ -188,7 +188,6 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { Message } from '@arco-design/web-vue'
 
 const stats = reactive({
   totalCustomers: 2847,
