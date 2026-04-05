@@ -5,14 +5,11 @@ P6-7: 逾期提醒邮件任务
 
 import logging
 from datetime import datetime, date
-from typing import List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..models.billing import Invoice, InvoiceStatus
-from ..models.customers import Customer
-from ..models.users import User
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +122,8 @@ async def send_overdue_emails(session: AsyncSession):
                 executed_at=datetime.utcnow(),
                 error_message=str(e),
             )
-        except:
-            pass
+        except Exception as log_err:
+            logger.error(f"记录任务日志失败: {log_err}")
         await session.rollback()
         raise
 

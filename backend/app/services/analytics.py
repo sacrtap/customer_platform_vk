@@ -4,9 +4,8 @@ from datetime import datetime, date
 from calendar import monthrange
 from decimal import Decimal
 from sqlalchemy import select, func, and_, or_, extract, case
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from ..models.customers import Customer, CustomerProfile
-from ..models.tags import Tag, CustomerTag, ProfileTag
 from ..models.billing import (
     DailyUsage,
     ConsumptionRecord,
@@ -14,10 +13,10 @@ from ..models.billing import (
     InvoiceItem,
     CustomerBalance,
     PricingRule,
+    RechargeRecord,
 )
 from ..models.users import User
 from typing import Dict, List, Any, Optional
-from collections import defaultdict
 
 
 class AnalyticsService:
@@ -566,7 +565,7 @@ class AnalyticsService:
             .where(
                 and_(
                     Customer.deleted_at.is_(None),
-                    CustomerProfile.is_real_estate == True,
+                    CustomerProfile.is_real_estate,
                 )
             )
         )
@@ -661,9 +660,11 @@ class AnalyticsService:
                         "company_id": row.company_id,
                         "customer_name": row.name,
                         "device_type": usage_row.device_type,
-                        "quantity": float(usage_row.total_quantity)
-                        if usage_row.total_quantity
-                        else 0,
+                        "quantity": (
+                            float(usage_row.total_quantity)
+                            if usage_row.total_quantity
+                            else 0
+                        ),
                         "pricing_type": row.pricing_type,
                         "predicted_amount": predicted_amount,
                     }
@@ -740,7 +741,7 @@ class AnalyticsService:
                         (
                             and_(
                                 Customer.deleted_at.is_(None),
-                                Customer.is_key_customer == True,
+                                Customer.is_key_customer,
                             ),
                             Customer.id,
                         )

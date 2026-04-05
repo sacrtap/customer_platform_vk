@@ -44,9 +44,7 @@ async def login(request: Request):
 
     roles = [role.name for role in user.roles]
 
-    access_token = AuthService.create_access_token(
-        user_id=user.id, username=username, roles=roles
-    )
+    access_token = AuthService.create_access_token(user_id=user.id, username=username, roles=roles)
     refresh_token = AuthService.create_refresh_token(user_id=user.id)
 
     return json(
@@ -99,9 +97,7 @@ async def refresh_token(request: Request):
     payload = AuthService.decode_refresh_token(refresh_token)
 
     if not payload:
-        return json(
-            {"code": 40101, "message": "Refresh Token 无效或已过期"}, status=401
-        )
+        return json({"code": 40101, "message": "Refresh Token 无效或已过期"}, status=401)
 
     session: AsyncSession = request.ctx.db_session
     user_service = UserService(session)

@@ -53,9 +53,7 @@ async def list_tags(request: Request):
                     "type": tag.type,
                     "category": tag.category,
                     "created_by": tag.created_by,
-                    "created_at": tag.created_at.isoformat()
-                    if tag.created_at
-                    else None,
+                    "created_at": tag.created_at.isoformat() if tag.created_at else None,
                 }
                 for tag in tags
             ],
@@ -301,16 +299,12 @@ async def batch_add_customer_tags(request: Request):
     tag_ids = data.get("tag_ids", [])
 
     if not customer_ids or not tag_ids:
-        return json(
-            {"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400
-        )
+        return json({"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400)
 
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
 
-    success_count, error_count = await service.batch_add_customer_tags(
-        customer_ids, tag_ids
-    )
+    success_count, error_count = await service.batch_add_customer_tags(customer_ids, tag_ids)
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
@@ -344,9 +338,7 @@ async def batch_remove_customer_tags(request: Request):
     tag_ids = data.get("tag_ids", [])
 
     if not customer_ids or not tag_ids:
-        return json(
-            {"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400
-        )
+        return json({"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400)
 
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)

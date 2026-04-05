@@ -1,7 +1,6 @@
 """Webhook 相关模型"""
 
 from sqlalchemy import Column, String, DateTime, Boolean, Index
-from sqlalchemy.sql import func
 from .base import BaseModel
 
 
@@ -10,9 +9,7 @@ class WebhookSignature(BaseModel):
 
     __tablename__ = "webhook_signatures"
 
-    signature = Column(
-        String(64), unique=True, nullable=False, index=True, comment="请求签名"
-    )
+    signature = Column(String(64), unique=True, nullable=False, index=True, comment="请求签名")
     timestamp = Column(DateTime, nullable=False, index=True, comment="请求时间戳")
     endpoint = Column(String(100), nullable=False, comment="Webhook 端点")
     is_consumed = Column(Boolean, default=False, comment="是否已使用")

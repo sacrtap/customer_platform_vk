@@ -40,7 +40,7 @@
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="结算周期">
-              {{ getSettlementCycleText(customer.settlement_cycle) }}
+              {{ getSettlementCycleText(customer.settlement_cycle ?? undefined) }}
             </a-descriptions-item>
             <a-descriptions-item label="邮箱">{{ customer.email || '-' }}</a-descriptions-item>
             <a-descriptions-item label="创建时间">
@@ -76,7 +76,7 @@
               </a-col>
             </a-row>
             <a-form-item label="描述">
-              <a-textarea v-model="profile.description" :rows="4" placeholder="请输入描述" />
+              <a-textarea v-model="profile.description!" :rows="4" placeholder="请输入描述" />
             </a-form-item>
             <a-form-item>
               <a-button type="primary" :loading="profileLoading" @click="saveProfile">保存画像</a-button>
@@ -154,21 +154,26 @@ import * as tagApi from '@/api/tags'
 const route = useRoute()
 const router = useRouter()
 
-const customer = ref<any>({
+import type { Customer, CustomerProfile } from '@/types'
+
+const customer = ref<Customer>({
   id: 0,
   company_id: '',
   name: '',
-  account_type: '',
-  business_type: '',
-  customer_level: '',
-  settlement_cycle: '',
-  settlement_type: '',
+  account_type: null,
+  business_type: null,
+  customer_level: null,
+  price_policy: null,
+  manager_id: null,
+  settlement_cycle: null,
+  settlement_type: null,
   is_key_customer: false,
-  email: '',
+  email: null,
   created_at: '',
+  updated_at: '',
 })
 
-const profile = ref<any>(null)
+const profile = ref<CustomerProfile | null>(null)
 const profileLoading = ref(false)
 const balance = ref({
   total_amount: 0,
@@ -179,7 +184,7 @@ const balance = ref({
   used_bonus: 0,
 })
 
-const customerTags = ref<any[]>([])
+const customerTags = ref<{ id: number; name: string; type: string; category?: string }[]>([])
 const addTagModalVisible = ref(false)
 const selectedTagIds = ref<number[]>([])
 
@@ -197,8 +202,8 @@ const fetchData = async () => {
       used_bonus: 0,
     }
     await fetchCustomerTags()
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   }
 }
 
@@ -206,7 +211,7 @@ const fetchCustomerTags = async () => {
   try {
     const res = await tagApi.getCustomerTags(Number(route.params.id))
     customerTags.value = res.data
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载客户标签失败:', err)
   }
 }
@@ -229,8 +234,8 @@ const removeTag = async (tagId: number) => {
         await tagApi.removeCustomerTag(Number(route.params.id), tagId)
         Message.success('移除成功')
         await fetchCustomerTags()
-      } catch (err: any) {
-        Message.error(err.message || '移除失败')
+      } catch (err: unknown) {
+        Message.error(((err as Error)?.message) || '移除失败')
       }
     },
   })
@@ -240,15 +245,15 @@ const saveProfile = async () => {
   profileLoading.value = true
   try {
     await customerApi.updateProfile(Number(route.params.id), {
-      scale_level: profile.value?.scale_level,
-      consume_level: profile.value?.consume_level,
-      industry: profile.value?.industry,
+      scale_level: profile.value?.scale_level ?? undefined,
+      consume_level: profile.value?.consume_level ?? undefined,
+      industry: profile.value?.industry ?? undefined,
       is_real_estate: profile.value?.is_real_estate,
-      description: profile.value?.description,
+      description: profile.value?.description ?? undefined,
     })
     Message.success('保存成功')
-  } catch (err: any) {
-    Message.error(err.message || '保存失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '保存失败')
   } finally {
     profileLoading.value = false
   }
@@ -256,11 +261,15 @@ const saveProfile = async () => {
 
 const initProfile = async () => {
   profile.value = {
-    scale_level: '',
-    consume_level: '',
-    industry: '',
+    id: 0,
+    customer_id: Number(route.params.id),
+    scale_level: null,
+    consume_level: null,
+    industry: null,
     is_real_estate: false,
-    description: '',
+    description: null,
+    created_at: '',
+    updated_at: '',
   }
 }
 
@@ -271,8 +280,8 @@ const toggleKeyCustomer = async () => {
     })
     customer.value.is_key_customer = !customer.value.is_key_customer
     Message.success('更新成功')
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   }
 }
 

@@ -3,7 +3,6 @@
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
-import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
@@ -22,7 +21,6 @@ from ..models.billing import (
     InvoiceItem,
     ConsumptionRecord,
 )
-from ..models.customers import Customer
 import uuid
 
 
@@ -118,10 +116,6 @@ class BalanceService:
         Raises:
             OperationalError: 数据库操作错误（重试后仍失败则抛出）
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         # 死锁重试配置
         # - 3 次尝试：平衡死锁恢复与用户体验
         # - 0.1s 最小等待：快速恢复瞬时锁

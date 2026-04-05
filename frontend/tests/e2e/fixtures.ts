@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 
 /**
  * Playwright 测试夹具
@@ -8,8 +8,8 @@ import { test as base, expect } from '@playwright/test';
 
 // 扩展测试夹具
 export const test = base.extend<{
-  loginPage: any;
-  authenticatedPage: any;
+  loginPage: Page;
+  authenticatedPage: Page;
 }>({
   loginPage: async ({ page }, use) => {
     // 导航到登录页

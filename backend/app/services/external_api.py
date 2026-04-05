@@ -4,8 +4,8 @@
 
 import httpx
 import logging
-from typing import Optional, Dict, Any, List
-from datetime import datetime, date
+from typing import Optional, Dict, Any
+from datetime import date
 
 from ..config import settings
 
@@ -51,9 +51,7 @@ class ExternalAPIClient:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    url, params=params, headers=await self._get_headers()
-                )
+                response = await client.get(url, params=params, headers=await self._get_headers())
                 response.raise_for_status()
                 data = response.json()
                 return data.get("data")
@@ -136,9 +134,7 @@ class ExternalAPIClient:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    url, params=params, headers=await self._get_headers()
-                )
+                response = await client.get(url, params=params, headers=await self._get_headers())
                 response.raise_for_status()
                 data = response.json()
                 return data.get("data")

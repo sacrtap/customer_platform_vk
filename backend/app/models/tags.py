@@ -32,12 +32,8 @@ class CustomerTag(BaseModel):
 
     __tablename__ = "customer_tags"
 
-    customer_id = Column(
-        Integer, ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True
-    )
-    tag_id = Column(
-        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
-    )
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
 
     # 关联
     customer = relationship("Customer", back_populates="tags")
@@ -54,9 +50,7 @@ class ProfileTag(BaseModel):
         ForeignKey("customer_profiles.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    tag_id = Column(
-        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
-    )
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
 
     # 关联
     profile = relationship("CustomerProfile", back_populates="tags")

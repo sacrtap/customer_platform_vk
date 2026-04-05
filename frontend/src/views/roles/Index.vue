@@ -23,14 +23,14 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="showEditModal(record)" :disabled="record.is_system">编辑</a-button>
+            <a-button type="text" size="small" :disabled="record.is_system" @click="showEditModal(record)">编辑</a-button>
             <a-button type="text" size="small" @click="showPermissionModal(record)">权限</a-button>
             <a-button
               type="text"
               size="small"
               status="danger"
-              @click="handleDelete(record)"
               :disabled="record.is_system"
+              @click="handleDelete(record)"
             >
               删除
             </a-button>
@@ -122,8 +122,8 @@ const fetchData = async () => {
   try {
     const res = await api.get('/roles')
     data.value = res.data
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -133,8 +133,8 @@ const fetchPermissions = async () => {
   try {
     const res = await api.get('/permissions')
     permissions.value = res.data
-  } catch (err: any) {
-    Message.error(err.message || '加载权限失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载权限失败')
   }
 }
 
@@ -174,8 +174,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -196,8 +196,8 @@ const handlePermissionSubmit = async () => {
     Message.success('权限分配成功')
     permissionModalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '分配失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '分配失败')
   } finally {
     permissionLoading.value = false
   }
@@ -214,8 +214,8 @@ const handleDelete = (record: Role) => {
         await api.delete(`/roles/${record.id}`)
         Message.success('删除成功')
         fetchData()
-      } catch (err: any) {
-        Message.error(err.message || '删除失败')
+      } catch (err: unknown) {
+        Message.error(((err as Error)?.message) || '删除失败')
       }
     },
   })

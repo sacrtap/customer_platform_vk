@@ -153,7 +153,7 @@ async def get_sync_stats(request):
         total_row = total_result.one()
         total_tasks = total_row[0] or 0
         success_tasks = total_row[1] or 0
-        failed_tasks = total_row[2] or 0
+        failed_tasks = total_row[2] or 0  # noqa: F841
 
         # 24 小时统计
         last_24h_result = await session.execute(

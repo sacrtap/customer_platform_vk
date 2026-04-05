@@ -3,7 +3,7 @@
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
-from datetime import datetime, date
+from datetime import datetime
 from ..middleware.auth import auth_required
 from ..services.analytics import AnalyticsService
 from ..cache.base import cache_service

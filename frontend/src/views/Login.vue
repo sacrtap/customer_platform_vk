@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-box">
       <h1 class="login-title">客户运营中台</h1>
-      <a-form :model="form" @submit="handleSubmit" style="max-width: 300px">
+      <a-form :model="form" style="max-width: 300px" @submit="handleSubmit">
         <a-form-item
           field="username"
           label="用户名"
@@ -61,8 +61,8 @@ const handleSubmit = async () => {
     userStore.setUserInfo(res.data.user)
     Message.success('登录成功')
     router.push('/')
-  } catch (err: any) {
-    Message.error(err.message || '登录失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '登录失败')
   } finally {
     loading.value = false
   }

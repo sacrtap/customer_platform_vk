@@ -8,8 +8,8 @@
       allow-create
       placeholder="请选择或输入标签"
       :loading="loading"
-      @change="handleChange"
       style="width: 100%"
+      @change="handleChange"
     >
       <template #label="{ data }">
         <a-tag :color="getTagColor(data.type)">{{ data.label }}</a-tag>
@@ -71,13 +71,13 @@ const fetchTags = async () => {
       type: props.tagType,
       page_size: 100,
     })
-    tagOptions.value = res.data.list.map((tag: any) => ({
+    tagOptions.value = res.data.list.map((tag: Record<string, unknown>) => ({
       value: tag.id,
       label: tag.name,
       type: tag.type,
       category: tag.category,
     }))
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载标签失败:', err)
   } finally {
     loading.value = false

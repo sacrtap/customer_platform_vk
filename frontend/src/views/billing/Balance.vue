@@ -265,7 +265,9 @@ const customers = ref<{ id: number; name: string; is_key_customer?: boolean }[]>
 const customersLoading = ref(false)
 
 const rechargeRecordsModalVisible = ref(false)
-const rechargeRecords = ref<any[]>([])
+import type { RechargeRecord } from '@/types'
+
+const rechargeRecords = ref<RechargeRecord[]>([])
 const rechargeRecordsLoading = ref(false)
 const rechargeRecordPagination = reactive({
   current: 1,
@@ -284,7 +286,18 @@ const rechargeRecordColumns = [
 ]
 
 const consumptionRecordsModalVisible = ref(false)
-const consumptionRecords = ref<any[]>([])
+interface ConsumptionRecord {
+  id: number
+  customer_id: number
+  invoice_id: number | null
+  amount: number
+  bonus_used: number
+  real_used: number
+  balance_after: number | null
+  consumed_at: string
+}
+
+const consumptionRecords = ref<ConsumptionRecord[]>([])
 const consumptionRecordsLoading = ref(false)
 const consumptionRecordPagination = reactive({
   current: 1,
@@ -319,8 +332,8 @@ const fetchData = async () => {
     })
     data.value = res.data.list || []
     pagination.total = res.data.total || 0
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -331,7 +344,7 @@ const loadCustomers = async () => {
   try {
     const res = await getCustomers({ page_size: 1000 })
     customers.value = res.data.list || []
-  } catch (err: any) {
+  } catch (err: unknown) {
     Message.error('加载客户列表失败')
   } finally {
     customersLoading.value = false
@@ -386,8 +399,8 @@ const handleRecharge = async () => {
     Message.success('充值成功')
     rechargeModalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '充值失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '充值失败')
   } finally {
     rechargeLoading.value = false
   }
@@ -405,8 +418,8 @@ const viewRechargeRecords = async (record: Balance) => {
     })
     rechargeRecords.value = res.data.list || []
     rechargeRecordPagination.total = res.data.total || 0
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     rechargeRecordsLoading.value = false
   }
@@ -439,8 +452,8 @@ const viewConsumptionRecords = async (record: Balance) => {
     })
     consumptionRecords.value = res.data.list || []
     consumptionRecordPagination.total = res.data.total || 0
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     consumptionRecordsLoading.value = false
   }

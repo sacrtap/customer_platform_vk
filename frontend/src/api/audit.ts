@@ -1,4 +1,4 @@
-import request from './request'
+import request from './index'
 
 /**
  * 获取审计日志列表

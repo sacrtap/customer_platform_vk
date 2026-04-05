@@ -152,9 +152,7 @@ class CacheService:
             logger.warning(f"缓存模式清除失败 {pattern}: {e}")
             return False
 
-    async def invalidate_customer_cache(
-        self, customer_id: Optional[int] = None
-    ) -> bool:
+    async def invalidate_customer_cache(self, customer_id: Optional[int] = None) -> bool:
         """
         清除客户相关缓存
 

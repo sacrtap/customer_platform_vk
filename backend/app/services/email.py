@@ -14,9 +14,7 @@ import os
 from ..config import settings
 
 # 初始化 Jinja2 模板引擎
-template_dir = os.path.join(
-    os.path.dirname(__file__), "..", "..", "templates", "emails"
-)
+template_dir = os.path.join(os.path.dirname(__file__), "..", "..", "templates", "emails")
 email_env = Environment(
     loader=FileSystemLoader(template_dir, encoding="utf-8"),
     autoescape=select_autoescape(["html", "txt"]),

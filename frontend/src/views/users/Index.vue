@@ -136,8 +136,8 @@ const fetchData = async () => {
     const res = await api.get('/users')
     data.value = res.data
     pagination.total = res.data.length
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -148,8 +148,8 @@ const fetchRoles = async () => {
   try {
     const res = await api.get('/roles')
     roles.value = res.data
-  } catch (err: any) {
-    Message.error(err.message || '加载角色失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载角色失败')
   } finally {
     rolesLoading.value = false
   }
@@ -207,8 +207,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -225,8 +225,8 @@ const handleDelete = (record: User) => {
         await api.delete(`/users/${record.id}`)
         Message.success('删除成功')
         fetchData()
-      } catch (err: any) {
-        Message.error(err.message || '删除失败')
+      } catch (err: unknown) {
+        Message.error(((err as Error)?.message) || '删除失败')
       }
     },
   })

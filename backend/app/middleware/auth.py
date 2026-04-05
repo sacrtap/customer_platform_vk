@@ -6,7 +6,6 @@ from sanic.request import Request
 from functools import wraps
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
-from ..config import settings
 from ..services import get_user_permissions
 from ..cache.permissions import permission_cache
 
@@ -49,24 +48,18 @@ def auth_middleware(app: Sanic):
             from ..config import settings as current_settings
 
             print(f"[AUTH DEBUG] Path: {request.path}, Token: {token[:30]}...")
-            print(
-                f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}..."
-            )
+            print(f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}...")
 
             try:
                 payload = AuthService.verify_token(token)
                 print(f"[AUTH DEBUG] Token payload: {payload}")
             except Exception as e:
                 print(f"[AUTH DEBUG] Token verification failed: {e}")
-                return json(
-                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
-                )
+                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
 
             if not payload:
-                print(f"[AUTH DEBUG] Payload is None, returning 40102")
-                return json(
-                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
-                )
+                print("[AUTH DEBUG] Payload is None, returning 40102")
+                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
 
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload

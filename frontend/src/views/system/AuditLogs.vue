@@ -62,9 +62,9 @@
         :data="logs"
         :loading="loading"
         :pagination="pagination"
+        row-key="id"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
-        row-key="id"
       >
         <template #action="{ record }">
           <a-tag color="blue">{{ formatAction(record.action) }}</a-tag>
@@ -120,7 +120,7 @@ interface AuditLog {
   module: string
   record_id: number | null
   record_type: string | null
-  changes: { before?: any; after?: any } | null
+  changes: { before?: Record<string, unknown>; after?: Record<string, unknown> } | null
   ip_address: string | null
   created_at: string | null
 }
@@ -134,7 +134,7 @@ const filters = reactive({
   user_id: '',
   action: '',
   module: '',
-  dateRange: [],
+  dateRange: [] as Date[],
 })
 
 const pagination = reactive({
@@ -159,7 +159,7 @@ const columns = [
 const fetchLogs = async () => {
   loading.value = true
   try {
-    const params: any = {
+    const params: Record<string, unknown> = {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
@@ -176,8 +176,8 @@ const fetchLogs = async () => {
     const res = await auditApi.getAuditLogs(params)
     logs.value = res.data.list
     pagination.total = res.data.total
-  } catch (err: any) {
-    Message.error(err.message || '加载审计日志失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载审计日志失败')
   } finally {
     loading.value = false
   }
@@ -187,7 +187,7 @@ const fetchActions = async () => {
   try {
     const res = await auditApi.getAuditActions()
     actions.value = res.data
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载操作类型失败:', err)
   }
 }
@@ -196,7 +196,7 @@ const fetchModules = async () => {
   try {
     const res = await auditApi.getAuditModules()
     modules.value = res.data
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载模块失败:', err)
   }
 }

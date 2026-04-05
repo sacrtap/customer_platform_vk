@@ -9,12 +9,8 @@ from .base import BaseModel
 user_roles = Table(
     "user_roles",
     BaseModel.metadata,
-    Column(
-        "user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    ),
-    Column(
-        "role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    ),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -22,9 +18,7 @@ user_roles = Table(
 role_permissions = Table(
     "role_permissions",
     BaseModel.metadata,
-    Column(
-        "role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
-    ),
+    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
     Column(
         "permission_id",
         Integer,
@@ -66,9 +60,7 @@ class Role(BaseModel):
 
     # 关联
     users = relationship("User", secondary=user_roles, back_populates="roles")
-    permissions = relationship(
-        "Permission", secondary=role_permissions, back_populates="roles"
-    )
+    permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
 
     def __repr__(self):
         return f"<Role {self.name}>"
@@ -85,9 +77,7 @@ class Permission(BaseModel):
     module = Column(String(50), nullable=False)
 
     # 关联
-    roles = relationship(
-        "Role", secondary=role_permissions, back_populates="permissions"
-    )
+    roles = relationship("Role", secondary=role_permissions, back_populates="permissions")
 
     def __repr__(self):
         return f"<Permission {self.code}>"

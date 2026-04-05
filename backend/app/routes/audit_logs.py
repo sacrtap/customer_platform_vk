@@ -5,7 +5,6 @@ from sanic.response import json
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from sqlalchemy.orm import selectinload
 from ..models.billing import AuditLog
 from ..models.users import User
 from datetime import datetime
@@ -87,9 +86,7 @@ async def list_audit_logs(request: Request):
             "record_type": row.AuditLog.record_type,
             "changes": row.AuditLog.changes,
             "ip_address": row.AuditLog.ip_address,
-            "created_at": row.AuditLog.created_at.isoformat()
-            if row.AuditLog.created_at
-            else None,
+            "created_at": row.AuditLog.created_at.isoformat() if row.AuditLog.created_at else None,
         }
         for row in rows
     ]

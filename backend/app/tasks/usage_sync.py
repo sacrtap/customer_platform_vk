@@ -5,8 +5,7 @@ P6-2: 每日用量同步任务
 
 import logging
 from datetime import datetime, date, timedelta
-from typing import List, Dict, Any
-from sqlalchemy import select, insert
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.customers import Customer
@@ -27,8 +26,6 @@ async def sync_daily_usage(session: AsyncSession):
     try:
         # 计算昨日日期范围
         yesterday = date.today() - timedelta(days=1)
-        start_of_day = datetime.combine(yesterday, datetime.min.time())
-        end_of_day = datetime.combine(yesterday, datetime.max.time())
 
         logger.info(f"📊 同步日期范围：{yesterday}")
 
@@ -142,8 +139,8 @@ async def sync_daily_usage(session: AsyncSession):
                 executed_at=datetime.utcnow(),
                 error_message=str(e),
             )
-        except:
-            pass
+        except Exception as log_err:
+            logger.error(f"记录任务日志失败: {log_err}")
         await session.rollback()
         raise
 

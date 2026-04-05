@@ -6,7 +6,7 @@ P6-8: 客户确认 Webhook 接口
 import hmac
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from sanic import Blueprint
 from sanic.response import json
 from sqlalchemy import select
@@ -202,6 +202,9 @@ async def invoice_confirmation(request):
                 {"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401
             )
 
+        # 获取数据库会话
+        db_session = request.ctx.db_session
+
         # 1. 验证时间戳窗口（防止旧请求重放）
         if not verify_timestamp_window(timestamp):
             return json(
@@ -226,7 +229,7 @@ async def invoice_confirmation(request):
         data = request.json
         invoice_no = data.get("invoice_no")
         customer_id = data.get("customer_id")
-        confirmed_at = data.get("confirmed_at")
+        confirmed_at = data.get("confirmed_at")  # noqa: F841
         confirmation_method = data.get("confirmation_method", "system")
         remarks = data.get("remarks", "")
 
@@ -364,7 +367,6 @@ async def payment_notify(request):
         invoice_no = data.get("invoice_no")
         payment_amount = data.get("payment_amount")
         payment_method = data.get("payment_method")
-        payment_time = data.get("payment_time")
         transaction_id = data.get("transaction_id")
 
         if not invoice_no or not payment_amount:

@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
-from sqlalchemy import select, func, and_, inspect
+from sqlalchemy import select, func, and_
 from ..models.groups import CustomerGroup, CustomerGroupMember
 from ..models.customers import Customer
 
@@ -249,9 +249,7 @@ class CustomerGroupService:
             return await self.get_group_members(group_id, page, page_size)
         else:
             # 动态群组：应用筛选条件
-            return await self._apply_dynamic_filter(
-                group.filter_conditions, page, page_size
-            )
+            return await self._apply_dynamic_filter(group.filter_conditions, page, page_size)
 
     async def _apply_dynamic_filter(
         self, conditions: Optional[Dict[str, Any]], page: int, page_size: int
@@ -269,9 +267,7 @@ class CustomerGroupService:
         if not conditions:
             # 无条件：返回所有客户
             count_stmt = (
-                select(func.count())
-                .select_from(Customer)
-                .where(Customer.deleted_at.is_(None))
+                select(func.count()).select_from(Customer).where(Customer.deleted_at.is_(None))
             )
             total = (await self.db.execute(count_stmt)).scalar() or 0
 
@@ -303,9 +299,7 @@ class CustomerGroupService:
             else:
                 # 条件无效时返回所有客户
                 count_stmt = (
-                    select(func.count())
-                    .select_from(Customer)
-                    .where(Customer.deleted_at.is_(None))
+                    select(func.count()).select_from(Customer).where(Customer.deleted_at.is_(None))
                 )
                 stmt = (
                     select(Customer)

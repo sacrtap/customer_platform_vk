@@ -11,9 +11,7 @@ class Settings(BaseSettings):
     # 应用配置
     app_name: str = "customer_platform_api"
     app_display_name: str = "客户运营中台 API"
-    app_env: str = Field(
-        default="development", description="应用环境：development/production"
-    )
+    app_env: str = Field(default="development", description="应用环境：development/production")
     debug: bool = True
     host: str = "0.0.0.0"
     port: int = 8000
@@ -53,9 +51,7 @@ class Settings(BaseSettings):
 
     # Webhook 配置 - 生产环境必须从环境变量读取
     webhook_secret: str = Field(
-        default_factory=lambda: (
-            os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32)
-        ),
+        default_factory=lambda: (os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32)),
         description="Webhook 签名密钥，生产环境必须设置 WEBHOOK_SECRET 环境变量",
     )
 

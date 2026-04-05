@@ -15,7 +15,6 @@ test.describe('登录流程', () => {
     await page.waitForTimeout(1000);
     // 检查用户信息或菜单存在即可
     const userInfo = page.locator('.user-info, [class*="user-info"]');
-    const menu = page.locator('.arco-menu-main, .menu-item');
     await expect(userInfo.first()).toBeVisible();
   });
 

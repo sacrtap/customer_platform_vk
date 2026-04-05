@@ -33,9 +33,7 @@ class CustomerBalance(BaseModel):
 
     __tablename__ = "customer_balances"
 
-    customer_id = Column(
-        Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True
-    )
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True)
     total_amount = Column(DECIMAL(12, 2), default=0)
     real_amount = Column(DECIMAL(12, 2), default=0)
     bonus_amount = Column(DECIMAL(12, 2), default=0)
@@ -108,14 +106,10 @@ class Invoice(BaseModel):
     created_by = Column(Integer, ForeignKey("users.id"))
 
     # 关联
-    items = relationship(
-        "InvoiceItem", back_populates="invoice", cascade="all, delete-orphan"
-    )
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
 
     __table_args__ = (
-        Index(
-            "idx_invoice_customer_period", "customer_id", "period_start", "period_end"
-        ),
+        Index("idx_invoice_customer_period", "customer_id", "period_start", "period_end"),
         Index("idx_invoice_status_period", "status", "period_start"),
     )
 
@@ -125,9 +119,7 @@ class InvoiceItem(BaseModel):
 
     __tablename__ = "invoice_items"
 
-    invoice_id = Column(
-        Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True
-    )
+    invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
     device_type = Column(String(20), nullable=False)
     layer_type = Column(String(20))  # single/multi
     quantity = Column(DECIMAL(10, 2), nullable=False)
@@ -175,9 +167,7 @@ class SyncTaskLog(BaseModel):
     __tablename__ = "sync_task_logs"
 
     task_name = Column(String(100), nullable=False, index=True, comment="任务名称")
-    status = Column(
-        String(20), nullable=False, comment="任务状态"
-    )  # success/partial/failed
+    status = Column(String(20), nullable=False, comment="任务状态")  # success/partial/failed
 
     # 统计数据
     total_count = Column(Integer, default=0, comment="总处理数量")

@@ -5,7 +5,6 @@ P6-4: 余额预警检查任务
 
 import logging
 from datetime import datetime
-from typing import List
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,8 +137,8 @@ async def check_balance_warning(session: AsyncSession):
                 executed_at=datetime.utcnow(),
                 error_message=str(e),
             )
-        except:
-            pass
+        except Exception as log_err:
+            logger.error(f"记录任务日志失败: {log_err}")
         await session.rollback()
         raise
 

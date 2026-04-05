@@ -283,7 +283,20 @@ const pagination = reactive({
   showPageSize: true,
 })
 
-const filters = reactive({
+interface CustomerFilters {
+  keyword?: string
+  company_id?: string
+  name?: string
+  account_type?: string
+  business_type?: string
+  customer_level?: string
+  settlement_type?: string
+  is_key_customer?: boolean
+  manager_id?: number
+  [key: string]: string | number | boolean | undefined
+}
+
+const filters = reactive<CustomerFilters>({
   keyword: '',
   account_type: undefined as string | undefined,
   business_type: undefined as string | undefined,
@@ -322,12 +335,12 @@ const importResult = ref<{
 const fetchData = async () => {
   loading.value = true
   try {
-    const params: any = {
+    const params: Record<string, unknown> = {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
     Object.keys(filters).forEach((key) => {
-      const value = (filters as any)[key]
+      const value = filters[key]
       if (value !== undefined && value !== '') {
         params[key] = value
       }
@@ -335,8 +348,8 @@ const fetchData = async () => {
     const res = await customerApi.getCustomers(params)
     data.value = res.data.list
     pagination.total = res.data.total
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -349,7 +362,7 @@ const handleSearch = () => {
 
 const handleReset = () => {
   Object.keys(filters).forEach((key) => {
-    ;(filters as any)[key] = undefined
+    ;(filters as Record<string, unknown>)[key] = undefined
   })
   pagination.current = 1
   fetchData()
@@ -433,8 +446,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -451,8 +464,8 @@ const handleDelete = (record: Customer) => {
         await customerApi.deleteCustomer(record.id)
         Message.success('删除成功')
         fetchData()
-      } catch (err: any) {
-        Message.error(err.message || '删除失败')
+      } catch (err: unknown) {
+        Message.error(((err as Error)?.message) || '删除失败')
       }
     },
   })
@@ -491,8 +504,8 @@ const handleImport = async () => {
       importModalVisible.value = false
       fetchData()
     }
-  } catch (err: any) {
-    Message.error(err.message || '导入失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '导入失败')
   } finally {
     importLoading.value = false
   }
@@ -500,9 +513,9 @@ const handleImport = async () => {
 
 const handleExport = async () => {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     Object.keys(filters).forEach((key) => {
-      const value = (filters as any)[key]
+      const value = filters[key]
       if (value !== undefined && value !== '') {
         params[key] = value
       }
@@ -519,8 +532,8 @@ const handleExport = async () => {
     link.click()
     window.URL.revokeObjectURL(url)
     Message.success('导出成功')
-  } catch (err: any) {
-    Message.error(err.message || '导出失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '导出失败')
   }
 }
 

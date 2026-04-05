@@ -8,7 +8,6 @@ P6-9: 文件上传 API（安全增强版）
 - 随机文件名存储
 """
 
-import os
 import uuid
 import logging
 import magic
@@ -147,17 +146,13 @@ async def upload_file(request):
     try:
         # ========== 步骤 1: 检查文件是否存在 ==========
         if not request.files or "file" not in request.files:
-            return json(
-                {"code": 400, "message": "未找到上传文件", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "未找到上传文件", "data": None}, status=400)
 
         file: File = request.files["file"]
 
         # ========== 步骤 2: 检查文件名 ==========
         if not file.name:
-            return json(
-                {"code": 400, "message": "文件名不能为空", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "文件名不能为空", "data": None}, status=400)
 
         # ========== 步骤 3: 扩展名白名单验证 ==========
         if not allowed_extension(file.name):
@@ -196,9 +191,7 @@ async def upload_file(request):
             )
 
         # ========== 步骤 5: MIME 类型验证（python-magic）==========
-        is_valid_mime, detected_mime, mime_error = validate_mime_type(
-            file.body, file.name
-        )
+        is_valid_mime, detected_mime, mime_error = validate_mime_type(file.body, file.name)
         if not is_valid_mime:
             logger.warning(
                 f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{request.get('auth_user', 'unknown')}"
@@ -248,9 +241,7 @@ async def upload_file(request):
             f"大小：{file_size} 字节，MIME: {detected_mime}"
         )
 
-        return json(
-            {"code": 0, "message": "success", "data": response_data}, status=201
-        )
+        return json({"code": 0, "message": "success", "data": response_data}, status=201)
 
     except Exception as e:
         logger.error(f"❌ 文件上传失败：{str(e)}")

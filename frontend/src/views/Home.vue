@@ -88,28 +88,33 @@ const dashboardStats = reactive({
   warning_customers: 0,
 })
 
-const todos = ref<any[]>([])
+interface TodoItem {
+  id: number
+  type: string
+  content: string
+  date: string
+  description?: string
+  priority?: string
+  status?: string
+  due_date?: string | null
+}
+
+const todos = ref<TodoItem[]>([])
 const todosLoading = ref(false)
+
+import * as echarts from 'echarts'
+import type { ECharts } from 'echarts'
 
 const consumptionChartRef = ref<HTMLElement>()
 const customerLevelChartRef = ref<HTMLElement>()
-let consumptionChart: any = null
-let customerLevelChart: any = null
-
-// 懒加载 ECharts
-let echartsPromise: Promise<any> | null = null
-const loadEcharts = () => {
-  if (!echartsPromise) {
-    echartsPromise = import('echarts').then((echarts) => echarts.default ?? echarts)
-  }
-  return echartsPromise
-}
+let consumptionChart: ECharts | null = null
+let customerLevelChart: ECharts | null = null
 
 const loadDashboardStats = async () => {
   try {
     const res = await analyticsApi.getDashboardStats()
     Object.assign(dashboardStats, res.data)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载仪表盘数据失败:', err)
   }
 }
@@ -123,7 +128,7 @@ const loadTodos = async () => {
       { id: 2, type: 'warning', content: 'XX 公司余额不足 (剩余 ¥1,200)', date: '今天' },
       { id: 3, type: 'invoice', content: '2 月结算单待客户确认 (3 笔)', date: '昨天' },
     ]
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('加载待办事项失败:', err)
   } finally {
     todosLoading.value = false
@@ -132,8 +137,6 @@ const loadTodos = async () => {
 
 const initCharts = async () => {
   await nextTick()
-
-  const echarts = await loadEcharts()
 
   // 消耗趋势图
   if (consumptionChartRef.value) {
@@ -165,7 +168,7 @@ const initCharts = async () => {
           },
         ],
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('加载消耗趋势图失败:', err)
     }
   }
@@ -201,7 +204,7 @@ const initCharts = async () => {
           },
         ],
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('加载客户分级图失败:', err)
     }
   }

@@ -1,12 +1,11 @@
 """客户管理服务"""
 
-from typing import Optional, List, Tuple, Any, Union
+from typing import Optional, List, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from ..models.customers import Customer, CustomerProfile
-from ..models.tags import Tag, CustomerTag
 from ..models.billing import CustomerBalance
 
 
@@ -109,9 +108,7 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(
-            selectinload(Customer.profile), selectinload(Customer.balance)
-        )
+        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -199,9 +196,7 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(
-        self, customer_id: int, data: dict
-    ) -> CustomerProfile:
+    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -234,9 +229,7 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(
-        self, customers_data: List[dict]
-    ) -> Tuple[int, List[str]]:
+    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 

@@ -7,10 +7,6 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     Text,
-    DECIMAL,
-    Date,
-    JSON,
-    UniqueConstraint,
     Index,
 )
 from sqlalchemy.orm import relationship
@@ -54,9 +50,7 @@ class CustomerProfile(BaseModel):
 
     __tablename__ = "customer_profiles"
 
-    customer_id = Column(
-        Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True
-    )
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True)
     scale_level = Column(String(50))  # 客户规模等级
     consume_level = Column(String(50))  # 客户消费等级
     industry = Column(String(100))

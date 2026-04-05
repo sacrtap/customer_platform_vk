@@ -130,13 +130,9 @@ async def get_customer_balance(request: Request, customer_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "total_amount": float(balance.total_amount)
-                if balance.total_amount
-                else 0,
+                "total_amount": float(balance.total_amount) if balance.total_amount else 0,
                 "real_amount": float(balance.real_amount) if balance.real_amount else 0,
-                "bonus_amount": float(balance.bonus_amount)
-                if balance.bonus_amount
-                else 0,
+                "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,
                 "used_total": float(balance.used_total) if balance.used_total else 0,
                 "used_real": float(balance.used_real) if balance.used_real else 0,
                 "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,
@@ -237,9 +233,7 @@ async def get_recharge_records(request: Request):
                         "operator_id": r.operator_id,
                         "payment_proof": r.payment_proof,
                         "remark": r.remark,
-                        "created_at": r.created_at.isoformat()
-                        if r.created_at
-                        else None,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
                     }
                     for r in records
                 ],
@@ -293,12 +287,8 @@ async def get_consumption_records(request: Request):
                         "amount": float(r.amount),
                         "bonus_used": float(r.bonus_used) if r.bonus_used else 0,
                         "real_used": float(r.real_used) if r.real_used else 0,
-                        "balance_after": float(r.balance_after)
-                        if r.balance_after
-                        else 0,
-                        "consumed_at": r.consumed_at.isoformat()
-                        if r.consumed_at
-                        else None,
+                        "balance_after": float(r.balance_after) if r.balance_after else 0,
+                        "consumed_at": r.consumed_at.isoformat() if r.consumed_at else None,
                     }
                     for r in records
                 ],
@@ -343,9 +333,7 @@ async def get_pricing_rules(request: Request):
                     "tiers": r.tiers,
                     "package_type": r.package_type,
                     "package_limits": r.package_limits,
-                    "effective_date": r.effective_date.isoformat()
-                    if r.effective_date
-                    else None,
+                    "effective_date": r.effective_date.isoformat() if r.effective_date else None,
                     "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
                 }
                 for r in rules
@@ -485,24 +473,14 @@ async def get_invoices(request: Request):
                         "id": i.id,
                         "invoice_no": i.invoice_no,
                         "customer_id": i.customer_id,
-                        "period_start": i.period_start.isoformat()
-                        if i.period_start
-                        else None,
-                        "period_end": i.period_end.isoformat()
-                        if i.period_end
-                        else None,
+                        "period_start": i.period_start.isoformat() if i.period_start else None,
+                        "period_end": i.period_end.isoformat() if i.period_end else None,
                         "total_amount": float(i.total_amount),
-                        "discount_amount": float(i.discount_amount)
-                        if i.discount_amount
-                        else 0,
-                        "final_amount": float(
-                            i.total_amount - (i.discount_amount or 0)
-                        ),
+                        "discount_amount": float(i.discount_amount) if i.discount_amount else 0,
+                        "final_amount": float(i.total_amount - (i.discount_amount or 0)),
                         "status": i.status,
                         "is_auto_generated": i.is_auto_generated,
-                        "created_at": i.created_at.isoformat()
-                        if i.created_at
-                        else None,
+                        "created_at": i.created_at.isoformat() if i.created_at else None,
                     }
                     for i in invoices
                 ],
@@ -533,20 +511,12 @@ async def get_invoice(request: Request, invoice_id: int):
                 "id": invoice.id,
                 "invoice_no": invoice.invoice_no,
                 "customer_id": invoice.customer_id,
-                "period_start": invoice.period_start.isoformat()
-                if invoice.period_start
-                else None,
-                "period_end": invoice.period_end.isoformat()
-                if invoice.period_end
-                else None,
+                "period_start": invoice.period_start.isoformat() if invoice.period_start else None,
+                "period_end": invoice.period_end.isoformat() if invoice.period_end else None,
                 "total_amount": float(invoice.total_amount),
-                "discount_amount": float(invoice.discount_amount)
-                if invoice.discount_amount
-                else 0,
+                "discount_amount": float(invoice.discount_amount) if invoice.discount_amount else 0,
                 "discount_reason": invoice.discount_reason,
-                "final_amount": float(
-                    invoice.total_amount - (invoice.discount_amount or 0)
-                ),
+                "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),
                 "status": invoice.status,
                 "items": [
                     {

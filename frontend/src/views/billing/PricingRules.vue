@@ -307,7 +307,7 @@ const loadCustomers = async () => {
   try {
     const res = await getCustomers({ page_size: 1000 })
     customers.value = res.data.list || []
-  } catch (err: any) {
+  } catch (err: unknown) {
     Message.error('加载客户列表失败')
   } finally {
     customersLoading.value = false
@@ -317,7 +317,7 @@ const loadCustomers = async () => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (filters.customer_id) params.customer_id = filters.customer_id
     if (filters.device_type) params.device_type = filters.device_type
     if (filters.pricing_type) params.pricing_type = filters.pricing_type
@@ -325,8 +325,8 @@ const fetchData = async () => {
     const res = await billingApi.getPricingRules(params)
     data.value = res.data || []
     pagination.total = data.value.length
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -406,7 +406,7 @@ const handleSubmit = async () => {
 
   modalLoading.value = true
   try {
-    const data: any = {
+    const data: Partial<PricingRule> = {
       customer_id: formData.customer_id,
       device_type: formData.device_type,
       pricing_type: formData.pricing_type,
@@ -439,8 +439,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -451,8 +451,8 @@ const handleDelete = async (record: PricingRule) => {
     await billingApi.deletePricingRule(record.id)
     Message.success('删除成功')
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '删除失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '删除失败')
   }
 }
 

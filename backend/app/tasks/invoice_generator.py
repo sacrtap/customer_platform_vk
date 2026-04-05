@@ -6,12 +6,11 @@ P6-3: 月度结算单自动生成任务
 import logging
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
-from typing import List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.customers import Customer
-from ..models.billing import Invoice, InvoiceStatus, CustomerBalance
+from ..models.billing import Invoice
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ async def generate_monthly_invoices(session: AsyncSession):
         result = await session.execute(
             select(Customer).where(
                 Customer.deleted_at.is_(None),
-                Customer.is_key_customer == False,  # 非重点客户
+                Customer.is_key_customer.is_(False),  # 非重点客户
             )
         )
         customers = result.scalars().all()
@@ -132,8 +131,8 @@ async def generate_monthly_invoices(session: AsyncSession):
                 executed_at=datetime.utcnow(),
                 error_message=str(e),
             )
-        except:
-            pass
+        except Exception as log_err:
+            logger.error(f"记录任务日志失败: {log_err}")
         await session.rollback()
         raise
 

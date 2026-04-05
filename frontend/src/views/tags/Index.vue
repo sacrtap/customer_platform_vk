@@ -191,7 +191,7 @@ const usageData = ref<{ customer_count: number; profile_count: number } | null>(
 const fetchData = async () => {
   loading.value = true
   try {
-    const params: any = {
+    const params: Record<string, unknown> = {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
@@ -201,8 +201,8 @@ const fetchData = async () => {
     const res = await tagApi.getTags(params)
     data.value = res.data.list
     pagination.total = res.data.total
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   } finally {
     loading.value = false
   }
@@ -279,8 +279,8 @@ const handleSubmit = async () => {
     }
     modalVisible.value = false
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '操作失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -291,8 +291,8 @@ const handleDelete = async (record: Tag) => {
     await tagApi.deleteTag(record.id)
     Message.success('删除成功')
     fetchData()
-  } catch (err: any) {
-    Message.error(err.message || '删除失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '删除失败')
   }
 }
 
@@ -302,8 +302,8 @@ const viewUsage = async (record: Tag) => {
     const res = await tagApi.getTagUsage(record.id)
     usageData.value = res.data
     usageModalVisible.value = true
-  } catch (err: any) {
-    Message.error(err.message || '加载失败')
+  } catch (err: unknown) {
+    Message.error(((err as Error)?.message) || '加载失败')
   }
 }
 

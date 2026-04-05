@@ -98,7 +98,7 @@ export function getPricingRules(params?: {
   return api.get('/billing/pricing-rules', { params })
 }
 
-export function createPricingRule(data: PricingRule) {
+export function createPricingRule(data: Partial<PricingRule>) {
   return api.post('/billing/pricing-rules', data)
 }
 

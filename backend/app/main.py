@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncEngine,
 )
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from typing import Union
 from .config import settings
@@ -59,9 +59,7 @@ def create_app(
         # 存储到 app.ctx 供其他模块使用
         app.ctx.async_session_maker = async_session_maker
     else:
-        sync_session_maker = sessionmaker(
-            bind=engine, class_=Session, expire_on_commit=False
-        )
+        sync_session_maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
         app.ctx.sync_session_maker = sync_session_maker
 
     # 数据库会话中间件
@@ -75,6 +73,7 @@ def create_app(
         async def close_db_session(request, response):
             if hasattr(request.ctx, "db_session"):
                 await request.ctx.db_session.close()
+
     else:
 
         @app.middleware("request")

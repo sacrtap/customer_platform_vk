@@ -44,9 +44,7 @@ async def list_users(request: Request):
                         "real_name": user.real_name,
                         "is_active": user.is_active,
                         "is_system": user.is_system,
-                        "created_at": user.created_at.isoformat()
-                        if user.created_at
-                        else None,
+                        "created_at": user.created_at.isoformat() if user.created_at else None,
                     }
                     for user in users
                 ],
@@ -273,9 +271,6 @@ async def get_user_roles(request: Request, user_id: int):
         {
             "code": 0,
             "message": "success",
-            "data": [
-                {"id": r.id, "name": r.name, "description": r.description}
-                for r in roles
-            ],
+            "data": [{"id": r.id, "name": r.name, "description": r.description} for r in roles],
         }
     )
