@@ -95,8 +95,8 @@ else
 fi
 
 # 启动后端
-echo "  启动 Sanic 服务器 (端口 8000)..."
-python -m sanic app.main:app --host=0.0.0.0 --port=8000 > "$BACKEND_LOG" 2>&1 &
+echo "  启动 Uvicorn 服务器 (端口 8000)..."
+python -m uvicorn app.main:app --host=0.0.0.0 --port=8000 > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 # 等待后端启动

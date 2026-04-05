@@ -20,8 +20,8 @@ async def list_users(request: Request):
     - page: 页码 (默认 1)
     - page_size: 每页数量 (默认 20)
     """
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
     # 限制 page_size 范围
     page_size = min(page_size, 100)
@@ -44,7 +44,9 @@ async def list_users(request: Request):
                         "real_name": user.real_name,
                         "is_active": user.is_active,
                         "is_system": user.is_system,
-                        "created_at": user.created_at.isoformat() if user.created_at else None,
+                        "created_at": user.created_at.isoformat()
+                        if user.created_at
+                        else None,
                     }
                     for user in users
                 ],
@@ -271,6 +273,9 @@ async def get_user_roles(request: Request, user_id: int):
         {
             "code": 0,
             "message": "success",
-            "data": [{"id": r.id, "name": r.name, "description": r.description} for r in roles],
+            "data": [
+                {"id": r.id, "name": r.name, "description": r.description}
+                for r in roles
+            ],
         }
     )

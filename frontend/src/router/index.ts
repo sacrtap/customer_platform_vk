@@ -97,13 +97,27 @@ router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
   userStore.initFromStorage()
 
+  // 登录态检查
   if (to.meta.requiresAuth && !userStore.token) {
     next('/login')
-  } else if (to.path === '/login' && userStore.token) {
-    next('/')
-  } else {
-    next()
+    return
   }
+  if (to.path === '/login' && userStore.token) {
+    next('/')
+    return
+  }
+
+  // 权限检查
+  const requiredPermission = to.meta.requiresPermission as string | undefined
+  if (requiredPermission && userStore.token) {
+    if (!userStore.hasPermission(requiredPermission)) {
+      // 无权限，跳转到首页
+      next('/')
+      return
+    }
+  }
+
+  next()
 })
 
 export default router

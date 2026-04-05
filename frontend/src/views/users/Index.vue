@@ -134,8 +134,8 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await api.get('/users')
-    data.value = res.data
-    pagination.total = res.data.length
+    data.value = res.data.list
+    pagination.total = res.data.total
   } catch (err: unknown) {
     Message.error(((err as Error)?.message) || '加载失败')
   } finally {

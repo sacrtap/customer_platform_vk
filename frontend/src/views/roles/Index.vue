@@ -121,7 +121,7 @@ const fetchData = async () => {
   loading.value = true
   try {
     const res = await api.get('/roles')
-    data.value = res.data
+    data.value = res.data.list
   } catch (err: unknown) {
     Message.error(((err as Error)?.message) || '加载失败')
   } finally {

@@ -30,7 +30,9 @@ async def list_groups(request: Request):
                         "name": g.name,
                         "description": g.description,
                         "group_type": g.group_type,
-                        "created_at": g.created_at.isoformat() if g.created_at else None,
+                        "created_at": g.created_at.isoformat()
+                        if g.created_at
+                        else None,
                     }
                     for g in groups
                 ]
@@ -92,7 +94,9 @@ async def get_group(request: Request, group_id: int):
                 "description": group.description,
                 "group_type": group.group_type,
                 "filter_conditions": group.filter_conditions,
-                "created_at": group.created_at.isoformat() if group.created_at else None,
+                "created_at": group.created_at.isoformat()
+                if group.created_at
+                else None,
             },
         }
     )
@@ -153,7 +157,10 @@ async def get_group_members(request: Request, group_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "list": [{"id": m.id, "name": m.name, "company_id": m.company_id} for m in members],
+                "list": [
+                    {"id": m.id, "name": m.name, "company_id": m.company_id}
+                    for m in members
+                ],
                 "total": total,
                 "page": page,
                 "page_size": page_size,
@@ -202,8 +209,8 @@ async def remove_member(request: Request, group_id: int, customer_id: int):
 @auth_required
 async def apply_group_filter(request: Request, group_id: int):
     """应用群组筛选"""
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
     db_session: Any = request.ctx.db_session
     service = CustomerGroupService(db_session)
@@ -216,7 +223,8 @@ async def apply_group_filter(request: Request, group_id: int):
             "message": "success",
             "data": {
                 "list": [
-                    {"id": c.id, "name": c.name, "company_id": c.company_id} for c in customers
+                    {"id": c.id, "name": c.name, "company_id": c.company_id}
+                    for c in customers
                 ],
                 "total": total,
                 "page": page,

@@ -6,7 +6,9 @@ from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
 from ..services.users import UserService
+from ..services.permissions import get_user_permissions
 from ..middleware.auth import get_current_user
+from ..cache.permissions import permission_cache
 
 auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
 
@@ -44,8 +46,14 @@ async def login(request: Request):
 
     roles = [role.name for role in user.roles]
 
-    access_token = AuthService.create_access_token(user_id=user.id, username=username, roles=roles)
+    access_token = AuthService.create_access_token(
+        user_id=user.id, username=username, roles=roles
+    )
     refresh_token = AuthService.create_refresh_token(user_id=user.id)
+
+    # 获取用户权限
+    user_permissions = await get_user_permissions(session, user.id)
+    await permission_cache.set_permissions(user.id, user_permissions)
 
     return json(
         {
@@ -62,6 +70,7 @@ async def login(request: Request):
                     "real_name": user.real_name,
                     "roles": roles,
                 },
+                "permissions": list(user_permissions),
             },
         }
     )
@@ -97,7 +106,9 @@ async def refresh_token(request: Request):
     payload = AuthService.decode_refresh_token(refresh_token)
 
     if not payload:
-        return json({"code": 40101, "message": "Refresh Token 无效或已过期"}, status=401)
+        return json(
+            {"code": 40101, "message": "Refresh Token 无效或已过期"}, status=401
+        )
 
     session: AsyncSession = request.ctx.db_session
     user_service = UserService(session)

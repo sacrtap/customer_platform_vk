@@ -1,6 +1,5 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosResponse } from 'axios'
-import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
 const service: AxiosInstance = axios.create({
@@ -11,9 +10,10 @@ const service: AxiosInstance = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config) => {
-    const userStore = useUserStore()
-    if (userStore.token) {
-      config.headers.Authorization = `Bearer ${userStore.token}`
+    // 直接从 localStorage 读取 token，避免在拦截器中使用 useUserStore() 的问题
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -28,8 +28,10 @@ service.interceptors.response.use(
     const res = response.data
     if (res.code !== 0) {
       if (res.code === 40101 || res.code === 40102) {
-        const userStore = useUserStore()
-        userStore.logout()
+        // 清除 localStorage 中的 token
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user_permissions')
         router.push('/login')
       }
       return Promise.reject(new Error(res.message || 'Error'))
@@ -38,8 +40,10 @@ service.interceptors.response.use(
   },
   (error) => {
     if (error.response && error.response.status === 401) {
-      const userStore = useUserStore()
-      userStore.logout()
+      // 清除 localStorage 中的 token
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user_permissions')
       router.push('/login')
     }
     return Promise.reject(error)

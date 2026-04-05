@@ -59,6 +59,7 @@ const handleSubmit = async () => {
     const res = await api.post('/auth/login', form)
     userStore.setToken(res.data.access_token, res.data.refresh_token)
     userStore.setUserInfo(res.data.user)
+    userStore.setPermissions(res.data.permissions || [])
     Message.success('登录成功')
     router.push('/')
   } catch (err: unknown) {

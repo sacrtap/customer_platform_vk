@@ -140,7 +140,8 @@ customer_platform_vk/
 cd backend
 
 # ===== 创建虚拟环境 =====
-python -m venv .venv
+# ⚠️ 必须使用 python3，macOS 系统默认 python 指向 Python 2.7
+python3 -m venv .venv
 
 # ===== 激活虚拟环境 =====
 # macOS/Linux
@@ -154,23 +155,52 @@ source .venv/bin/activate
 
 # 验证虚拟环境已激活
 which python  # 应指向 .venv 目录
+python --version  # 应显示 Python 3.12.x
 
 # ===== 安装依赖 =====
+# ⚠️ 激活虚拟环境后，python 命令自动指向 Python 3.12
 pip install --upgrade pip
 pip install -r requirements.txt
 
 # ===== 配置环境变量 =====
 cp .env.example .env
 # 编辑 .env 文件，配置数据库等环境变量
+# 至少需要配置 DATABASE_URL 数据库连接字符串
+
+# ===== 创建数据库 =====
+# ⚠️ 运行迁移前必须先创建数据库
+# 方法 1: 使用 createdb 命令
+createdb -U postgres customer_platform
+
+# 方法 2: 使用 psql
+psql -U postgres -c "CREATE DATABASE customer_platform;"
+
+# 方法 3: Docker 方式创建
+# docker run -d --name customer-platform-db \
+#   -e POSTGRES_PASSWORD=postgres \
+#   -e POSTGRES_DB=customer_platform \
+#   -p 5432:5432 postgres:18
 
 # ===== 运行数据库迁移 =====
+# ⚠️ 确保 PostgreSQL 数据库已创建且可访问
 python -m alembic upgrade head
+
+# ===== (可选但推荐) 初始化种子数据 =====
+# 创建 admin 超级管理员账号、权限定义、角色配置
+# 执行后可以使用 admin 账号登录系统
+python scripts/seed.py
+
+# 首次启动推荐执行上述种子数据初始化命令
+# 默认管理员账号：admin / admin123
 
 # ===== (可选) 创建测试数据 =====
 python scripts/create_test_data.py
 
 # ===== 启动开发服务器 =====
+# ⚠️ 以下命令需在激活虚拟环境后执行
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 或使用默认配置启动：
+# python app/main.py
 ```
 
 访问 `http://localhost:8000/health` 验证后端运行正常。
@@ -226,13 +256,29 @@ npm run dev
 # 访问 http://localhost:5173
 ```
 
-#### 3. 本地测试账号
+#### 3. 初始化种子数据（首次启动必需）
+
+```bash
+# 创建管理员账号和权限配置
+python scripts/seed.py
+
+# 执行后会创建：
+# - admin 超级管理员账号（拥有所有权限）
+# - 12 个系统权限定义
+# - "超级管理员"角色
+```
+
+#### 4. 本地测试账号
 
 ```
-管理员：admin / admin123
-运营经理：operator / operator123
-销售：sales / sales123
+管理员：admin / admin123        # 种子数据创建后使用
+运营经理：operator / operator123  # 测试数据创建后使用
+销售：sales / sales123          # 测试数据创建后使用
 ```
+
+**说明**：
+- `seed.py` - 创建 admin 管理员账号和系统权限（首次启动必需）
+- `create_test_data.py` - 创建测试用户和测试客户数据（可选）
 
 ### 方式二：Docker Compose 部署 (推荐)
 
@@ -514,7 +560,7 @@ pip list     # 应显示已安装的包
 # 问题：虚拟环境损坏
 # 解决：删除并重建
 rm -rf .venv
-python -m venv .venv
+python3 -m venv .venv  # ⚠️ 使用 python3 而非 python
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -522,8 +568,8 @@ pip install -r requirements.txt
 #### 1. 后端启动失败
 
 ```bash
-# 检查 Python 版本
-python --version  # 必须是 3.12
+# 检查 Python 版本（使用 python3 而非 python）
+python3 --version  # 必须是 3.12.x
 
 # ⚠️ 确保已激活虚拟环境
 source .venv/bin/activate

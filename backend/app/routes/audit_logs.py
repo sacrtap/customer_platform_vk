@@ -26,14 +26,16 @@ async def list_audit_logs(request: Request):
     - start_date: 开始日期 (ISO 格式)
     - end_date: 结束日期 (ISO 格式)
     """
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
     page_size = min(page_size, 100)
 
     # 构建筛选条件
     conditions = [AuditLog.deleted_at.is_(None)]
 
-    if user_id := request.args.get("user_id", type=int):
+    if user_id := (
+        int(request.args.get("user_id")) if request.args.get("user_id") else None
+    ):
         conditions.append(AuditLog.user_id == user_id)
 
     if action := request.args.get("action"):
@@ -86,7 +88,9 @@ async def list_audit_logs(request: Request):
             "record_type": row.AuditLog.record_type,
             "changes": row.AuditLog.changes,
             "ip_address": row.AuditLog.ip_address,
-            "created_at": row.AuditLog.created_at.isoformat() if row.AuditLog.created_at else None,
+            "created_at": row.AuditLog.created_at.isoformat()
+            if row.AuditLog.created_at
+            else None,
         }
         for row in rows
     ]

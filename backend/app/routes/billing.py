@@ -27,13 +27,17 @@ async def get_balances(request: Request):
     from ..models.customers import Customer
 
     # 分页参数
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
     page_size = min(page_size, 100)
 
     # 筛选参数
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
-    customer_id = request.args.get("customer_id", type=int)
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
 
     base_stmt = (
         select(CustomerBalance)
@@ -130,9 +134,13 @@ async def get_customer_balance(request: Request, customer_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "total_amount": float(balance.total_amount) if balance.total_amount else 0,
+                "total_amount": float(balance.total_amount)
+                if balance.total_amount
+                else 0,
                 "real_amount": float(balance.real_amount) if balance.real_amount else 0,
-                "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,
+                "bonus_amount": float(balance.bonus_amount)
+                if balance.bonus_amount
+                else 0,
                 "used_total": float(balance.used_total) if balance.used_total else 0,
                 "used_real": float(balance.used_real) if balance.used_real else 0,
                 "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,
@@ -208,9 +216,13 @@ async def get_recharge_records(request: Request):
     db: AsyncSession = request.ctx.db_session
     balance_service = BalanceService(db)
 
-    customer_id = request.args.get("customer_id", type=int)
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
     records, total = await balance_service.get_recharge_records(
         customer_id=customer_id,
@@ -233,7 +245,9 @@ async def get_recharge_records(request: Request):
                         "operator_id": r.operator_id,
                         "payment_proof": r.payment_proof,
                         "remark": r.remark,
-                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "created_at": r.created_at.isoformat()
+                        if r.created_at
+                        else None,
                     }
                     for r in records
                 ],
@@ -252,9 +266,13 @@ async def get_consumption_records(request: Request):
     from ..models.billing import ConsumptionRecord
     from sqlalchemy import select
 
-    customer_id = request.args.get("customer_id", type=int)
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
     stmt = select(ConsumptionRecord).where(ConsumptionRecord.deleted_at.is_(None))
 
@@ -268,7 +286,7 @@ async def get_consumption_records(request: Request):
     total = (await db.execute(count_stmt)).scalar()
 
     # 分页
-    stmt = stmt.order_by(ConsumptionRecord.consumed_at.desc())
+    stmt = stmt.order_by(ConsumptionRecord.created_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
@@ -287,8 +305,12 @@ async def get_consumption_records(request: Request):
                         "amount": float(r.amount),
                         "bonus_used": float(r.bonus_used) if r.bonus_used else 0,
                         "real_used": float(r.real_used) if r.real_used else 0,
-                        "balance_after": float(r.balance_after) if r.balance_after else 0,
-                        "consumed_at": r.consumed_at.isoformat() if r.consumed_at else None,
+                        "balance_after": float(r.balance_after)
+                        if r.balance_after
+                        else 0,
+                        "consumed_at": r.created_at.isoformat()
+                        if r.created_at
+                        else None,
                     }
                     for r in records
                 ],
@@ -309,7 +331,11 @@ async def get_pricing_rules(request: Request):
     db: AsyncSession = request.ctx.db_session
     pricing_service = PricingService(db)
 
-    customer_id = request.args.get("customer_id", type=int)
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
     device_type = request.args.get("device_type")
     pricing_type = request.args.get("pricing_type")
 
@@ -333,7 +359,9 @@ async def get_pricing_rules(request: Request):
                     "tiers": r.tiers,
                     "package_type": r.package_type,
                     "package_limits": r.package_limits,
-                    "effective_date": r.effective_date.isoformat() if r.effective_date else None,
+                    "effective_date": r.effective_date.isoformat()
+                    if r.effective_date
+                    else None,
                     "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
                 }
                 for r in rules
@@ -451,10 +479,14 @@ async def get_invoices(request: Request):
     db: AsyncSession = request.ctx.db_session
     invoice_service = InvoiceService(db)
 
-    customer_id = request.args.get("customer_id", type=int)
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
     status = request.args.get("status")
-    page = request.args.get("page", 1, int)
-    page_size = request.args.get("page_size", 20, int)
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
 
     invoices, total = await invoice_service.get_invoices(
         customer_id=customer_id,
@@ -473,14 +505,24 @@ async def get_invoices(request: Request):
                         "id": i.id,
                         "invoice_no": i.invoice_no,
                         "customer_id": i.customer_id,
-                        "period_start": i.period_start.isoformat() if i.period_start else None,
-                        "period_end": i.period_end.isoformat() if i.period_end else None,
+                        "period_start": i.period_start.isoformat()
+                        if i.period_start
+                        else None,
+                        "period_end": i.period_end.isoformat()
+                        if i.period_end
+                        else None,
                         "total_amount": float(i.total_amount),
-                        "discount_amount": float(i.discount_amount) if i.discount_amount else 0,
-                        "final_amount": float(i.total_amount - (i.discount_amount or 0)),
+                        "discount_amount": float(i.discount_amount)
+                        if i.discount_amount
+                        else 0,
+                        "final_amount": float(
+                            i.total_amount - (i.discount_amount or 0)
+                        ),
                         "status": i.status,
                         "is_auto_generated": i.is_auto_generated,
-                        "created_at": i.created_at.isoformat() if i.created_at else None,
+                        "created_at": i.created_at.isoformat()
+                        if i.created_at
+                        else None,
                     }
                     for i in invoices
                 ],
@@ -511,12 +553,20 @@ async def get_invoice(request: Request, invoice_id: int):
                 "id": invoice.id,
                 "invoice_no": invoice.invoice_no,
                 "customer_id": invoice.customer_id,
-                "period_start": invoice.period_start.isoformat() if invoice.period_start else None,
-                "period_end": invoice.period_end.isoformat() if invoice.period_end else None,
+                "period_start": invoice.period_start.isoformat()
+                if invoice.period_start
+                else None,
+                "period_end": invoice.period_end.isoformat()
+                if invoice.period_end
+                else None,
                 "total_amount": float(invoice.total_amount),
-                "discount_amount": float(invoice.discount_amount) if invoice.discount_amount else 0,
+                "discount_amount": float(invoice.discount_amount)
+                if invoice.discount_amount
+                else 0,
                 "discount_reason": invoice.discount_reason,
-                "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),
+                "final_amount": float(
+                    invoice.total_amount - (invoice.discount_amount or 0)
+                ),
                 "status": invoice.status,
                 "items": [
                     {

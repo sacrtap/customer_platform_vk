@@ -12,19 +12,19 @@ export function getAuditLogs(params: {
   start_date?: string
   end_date?: string
 }) {
-  return request.get('/api/v1/audit-logs', { params })
+  return request.get('/audit-logs', { params })
 }
 
 /**
  * 获取所有操作类型
  */
 export function getAuditActions() {
-  return request.get('/api/v1/audit-logs/actions')
+  return request.get('/audit-logs/actions')
 }
 
 /**
  * 获取所有模块
  */
 export function getAuditModules() {
-  return request.get('/api/v1/audit-logs/modules')
+  return request.get('/audit-logs/modules')
 }
