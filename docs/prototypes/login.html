@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 客户运营中台</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Enterprise Color Palette */
+            --primary-1: #e8f3ff;
+            --primary-2: #bce0fd;
+            --primary-3: #8ec9fc;
+            --primary-4: #60b1fa;
+            --primary-5: #3296f7;
+            --primary-6: #0369A1;
+            --primary-7: #035a8a;
+            
+            --neutral-1: #f7f8fa;
+            --neutral-2: #eef0f3;
+            --neutral-3: #e0e2e7;
+            --neutral-4: #c9cdd4;
+            --neutral-5: #8f959e;
+            --neutral-6: #646a73;
+            --neutral-7: #4c5360;
+            --neutral-8: #3b4252;
+            --neutral-9: #2f3645;
+            --neutral-10: #1d2330;
+            
+            --bg-deep: #0F172A;
+            --bg-surface: rgba(255, 255, 255, 0.98);
+            
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+            --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.16);
+            
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg-deep) 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Animated Background */
+        .bg-gradient-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.3;
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        .bg-gradient-orb-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(3, 105, 161, 0.4) 0%, transparent 70%);
+            top: -200px;
+            right: -200px;
+        }
+        
+        .bg-gradient-orb-2 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+            bottom: -150px;
+            left: -150px;
+            animation-delay: -7s;
+        }
+        
+        .bg-gradient-orb-3 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -14s;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -30px) scale(1.05); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(20px, 30px) scale(1.02); }
+        }
+        
+        .bg-grid-pattern {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+        
+        /* Login Container */
+        .login-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            max-width: 1100px;
+            width: 90%;
+            background: var(--bg-surface);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: var(--shadow-xl);
+            position: relative;
+            z-index: 10;
+            animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Left Panel - Branding */
+        .login-brand {
+            background: linear-gradient(135deg, var(--bg-deep) 0%, #1e293b 100%);
+            padding: 64px 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-brand::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+        
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .brand-logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(3, 105, 161, 0.4);
+        }
+        
+        .brand-logo-icon svg {
+            width: 28px;
+            height: 28px;
+            color: white;
+        }
+        
+        .brand-logo-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.5px;
+        }
+        
+        .brand-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .brand-title {
+            font-size: 36px;
+            font-weight: 700;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+        
+        .brand-subtitle {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        
+        .brand-features {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .brand-feature {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+        }
+        
+        .brand-feature-icon {
+            width: 20px;
+            height: 20px;
+            background: rgba(3, 105, 161, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .brand-feature-icon svg {
+            width: 12px;
+            height: 12px;
+            color: var(--primary-3);
+        }
+        
+        .brand-footer {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .brand-stats {
+            display: flex;
+            gap: 32px;
+        }
+        
+        .brand-stat {
+            text-align: left;
+        }
+        
+        .brand-stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+            display: block;
+        }
+        
+        .brand-stat-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 4px;
+            display: block;
+        }
+        
+        /* Right Panel - Form */
+        .login-form-panel {
+            padding: 64px 56px;
+            background: white;
+        }
+        
+        .login-header {
+            margin-bottom: 40px;
+        }
+        
+        .login-welcome {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--neutral-10);
+            margin-bottom: 8px;
+        }
+        
+        .login-subtitle {
+            font-size: 15px;
+            color: var(--neutral-6);
+        }
+        
+        /* Form Styles */
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--neutral-9);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .form-label svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .input-icon {
+            position: absolute;
+            left: 16px;
+            color: var(--neutral-5);
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+        }
+        
+        .input-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .form-input {
+            width: 100%;
+            height: 48px;
+            padding: 12px 16px 12px 48px;
+            border: 1.5px solid var(--neutral-3);
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--neutral-10);
+            transition: all var(--transition-base);
+            outline: none;
+        }
+        
+        .form-input::placeholder {
+            color: var(--neutral-5);
+        }
+        
+        .form-input:hover {
+            border-color: var(--primary-4);
+        }
+        
+        .form-input:focus {
+            border-color: var(--primary-6);
+            box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.1);
+        }
+        
+        .login-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+        
+        /* Custom Checkbox */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .checkbox-wrapper input[type="checkbox"] {
+            display: none;
+        }
+        
+        .checkbox-custom {
+            width: 16px;
+            height: 16px;
+            border: 1.5px solid var(--neutral-4);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        
+        .checkbox-custom svg {
+            width: 12px;
+            height: 12px;
+            color: white;
+            opacity: 0;
+            transform: scale(0);
+            transition: all var(--transition-fast);
+        }
+        
+        .checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom {
+            background-color: var(--primary-6);
+            border-color: var(--primary-6);
+        }
+        
+        .checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .checkbox-wrapper:hover .checkbox-custom {
+            border-color: var(--primary-5);
+        }
+        
+        .checkbox-label {
+            font-size: 14px;
+            color: var(--neutral-7);
+            cursor: pointer;
+        }
+        
+        .forgot-password {
+            font-size: 14px;
+            color: var(--primary-6);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color var(--transition-fast);
+        }
+        
+        .forgot-password:hover {
+            color: var(--primary-7);
+        }
+        
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+            font-family: inherit;
+        }
+        
+        .submit-btn:hover {
+            background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+            box-shadow: 0 6px 20px rgba(3, 105, 161, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Footer */
+        .login-footer {
+            margin-top: 32px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--neutral-6);
+        }
+        
+        .login-footer a {
+            color: var(--primary-6);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .login-container {
+                grid-template-columns: 1fr;
+                max-width: 500px;
+            }
+            
+            .login-brand {
+                display: none;
+            }
+            
+            .login-form-panel {
+                padding: 48px 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Effects -->
+    <div class="bg-gradient-orb bg-gradient-orb-1"></div>
+    <div class="bg-gradient-orb bg-gradient-orb-2"></div>
+    <div class="bg-gradient-orb bg-gradient-orb-3"></div>
+    <div class="bg-grid-pattern"></div>
+    
+    <!-- Login Container -->
+    <div class="login-container">
+        <!-- Left Panel - Branding -->
+        <div class="login-brand">
+            <div class="brand-logo">
+                <div class="brand-logo-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                </div>
+                <span class="brand-logo-text">Customer Platform VK</span>
+            </div>
+            
+            <div class="brand-content">
+                <h1 class="brand-title">客户运营中台</h1>
+                <p class="brand-subtitle">
+                    统一管理客户信息、结算、画像，实现高效运营分析与决策支持
+                </p>
+                
+                <div class="brand-features">
+                    <div class="brand-feature">
+                        <div class="brand-feature-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span>RBAC 权限模型 + 自定义角色</span>
+                    </div>
+                    <div class="brand-feature">
+                        <div class="brand-feature-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span>客户信息与画像统一管理</span>
+                    </div>
+                    <div class="brand-feature">
+                        <div class="brand-feature-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span>多维度数据分析与洞察</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="brand-footer">
+                <div class="brand-stats">
+                    <div class="brand-stat">
+                        <span class="brand-stat-value">99.9%</span>
+                        <span class="brand-stat-label">系统可用性</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="brand-stat-value">500+</span>
+                        <span class="brand-stat-label">企业客户</span>
+                    </div>
+                    <div class="brand-stat">
+                        <span class="brand-stat-value">24/7</span>
+                        <span class="brand-stat-label">技术支持</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Login Form -->
+        <div class="login-form-panel">
+            <div class="login-header">
+                <h2 class="login-welcome">欢迎回来</h2>
+                <p class="login-subtitle">请输入您的账号信息登录系统</p>
+            </div>
+            
+            <form class="login-form" action="#" method="POST">
+                <div class="form-group">
+                    <label class="form-label">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z"/>
+                        </svg>
+                        账号
+                    </label>
+                    <div class="input-wrapper">
+                        <div class="input-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z"/>
+                            </svg>
+                        </div>
+                        <input type="text" class="form-input" placeholder="请输入用户名/邮箱" autocomplete="username">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2Zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM5 8v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8H5Z"/>
+                        </svg>
+                        密码
+                    </label>
+                    <div class="input-wrapper">
+                        <div class="input-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2Zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM5 8v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8H5Z"/>
+                            </svg>
+                        </div>
+                        <input type="password" class="form-input" placeholder="请输入密码" autocomplete="current-password">
+                    </div>
+                </div>
+                
+                <div class="login-options">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" name="remember">
+                        <div class="checkbox-custom">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span class="checkbox-label">记住我</span>
+                    </label>
+                    <a href="#" class="forgot-password">忘记密码？</a>
+                </div>
+                
+                <button type="submit" class="submit-btn">登 录</button>
+            </form>
+            
+            <div class="login-footer">
+                还没有账号？<a href="#">联系管理员</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
