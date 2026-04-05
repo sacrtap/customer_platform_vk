@@ -124,10 +124,10 @@
       <div class="sidebar-user">
         <div class="sidebar-user-info">
           <div class="user-avatar">{{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}</div>
-          <div class="user-info">
-            <div class="user-name">{{ userStore.userInfo?.username || '用户' }}</div>
-            <div class="user-role">{{ userStore.userInfo?.role || '运营经理' }}</div>
-          </div>
+            <div class="user-info">
+              <div class="user-name">{{ userStore.userInfo?.username || '用户' }}</div>
+              <div class="user-role">{{ userStore.userInfo?.roles?.[0] || '运营经理' }}</div>
+            </div>
         </div>
         <div class="sidebar-toggle" @click="toggleSidebar">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
