@@ -144,7 +144,7 @@ class UserService:
             return False
 
         user.deleted_at = func.now()
-        await self.session.flush()
+        await self.session.commit()
         return True
 
     async def reset_password(self, user_id: int, new_password: str) -> bool:

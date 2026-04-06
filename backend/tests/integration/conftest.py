@@ -105,16 +105,21 @@ async def app(test_engine, mock_scheduler):
 
 @pytest.fixture(scope="function")
 async def test_user(db_session: AsyncSession):
-    """创建测试用户（异步）"""
+    """创建测试用户（异步），并分配超级管理员角色"""
     username = "test_user"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     # 清理旧数据并创建新用户
-    # 先删除该用户创建的群组（外键约束）
     await db_session.execute(
         text(
             "DELETE FROM customer_groups WHERE created_by = (SELECT id FROM users WHERE username = :username)"
+        ),
+        {"username": username},
+    )
+    await db_session.execute(
+        text(
+            "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
@@ -124,6 +129,47 @@ async def test_user(db_session: AsyncSession):
     )
     await db_session.commit()
 
+    # 确保超级管理员角色存在
+    await db_session.execute(
+        text("""
+        INSERT INTO roles (name, description, is_system, created_at)
+        VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
+        ON CONFLICT (name) DO NOTHING
+        """)
+    )
+
+    # 确保 users:manage 权限存在
+    await db_session.execute(
+        text("""
+        INSERT INTO permissions (code, name, description, module, created_at)
+        VALUES ('users:manage', '平台账号管理', '管理平台用户账号的增删改查', 'users', NOW())
+        ON CONFLICT (code) DO NOTHING
+        """)
+    )
+
+    # 获取角色 ID 和权限 ID
+    result = await db_session.execute(
+        text("SELECT id FROM roles WHERE name = '超级管理员'")
+    )
+    role_id = result.scalar_one()
+    result = await db_session.execute(
+        text("SELECT id FROM permissions WHERE code = 'users:manage'")
+    )
+    perm_id = result.scalar_one()
+
+    # 将权限关联到角色
+    await db_session.execute(
+        text("""
+        INSERT INTO role_permissions (role_id, permission_id)
+        VALUES (:role_id, :perm_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING
+        """),
+        {"role_id": role_id, "perm_id": perm_id},
+    )
+
+    await db_session.commit()
+
+    # 创建测试用户
     await db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
@@ -138,12 +184,35 @@ async def test_user(db_session: AsyncSession):
     )
     await db_session.commit()
 
+    # 获取用户 ID 并分配角色
+    result = await db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username},
+    )
+    user_id = result.scalar_one()
+
+    await db_session.execute(
+        text("""
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES (:user_id, :role_id)
+        ON CONFLICT (user_id, role_id) DO NOTHING
+        """),
+        {"user_id": user_id, "role_id": role_id},
+    )
+    await db_session.commit()
+
     yield {"username": username, "password": password}
 
-    # 清理：先删除群组再删除用户
+    # 清理
     await db_session.execute(
         text(
             "DELETE FROM customer_groups WHERE created_by = (SELECT id FROM users WHERE username = :username)"
+        ),
+        {"username": username},
+    )
+    await db_session.execute(
+        text(
+            "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
