@@ -1,0 +1,667 @@
+"""
+Customers API 集成测试
+
+测试覆盖：
+1. GET /api/v1/customers - 客户列表（带筛选）
+2. GET /api/v1/customers/:id - 客户详情
+3. POST /api/v1/customers - 创建客户
+4. PUT /api/v1/customers/:id - 更新客户
+5. DELETE /api/v1/customers/:id - 删除客户
+6. POST /api/v1/customers/import - Excel 导入
+7. GET /api/v1/customers/export - Excel 导出
+8. GET /api/v1/customers/:id/profile - 获取客户画像
+9. PUT /api/v1/customers/:id/profile - 更新客户画像
+10. GET /api/v1/customers/import-template - 下载导入模板
+"""
+
+import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+import io
+
+
+@pytest.fixture
+async def auth_token(test_client, test_user):
+    """获取认证 Token"""
+    login_request, login_response = await test_client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user["username"], "password": test_user["password"]},
+    )
+    assert login_response.status == 200
+    return login_response.json["data"]["access_token"]
+
+
+@pytest.fixture
+async def auth_headers(auth_token):
+    """获取认证请求头"""
+    return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest.fixture
+async def customer_data(db_session: AsyncSession):
+    """创建测试客户数据"""
+    await db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'")
+    )
+    await db_session.commit()
+
+    customers = [
+        {
+            "company_id": "TEST001",
+            "name": "测试公司 1",
+            "account_type": "正式账号",
+            "business_type": "A",
+            "customer_level": "KA",
+            "settlement_type": "prepaid",
+            "is_key_customer": True,
+            "email": "test1@example.com",
+        },
+        {
+            "company_id": "TEST002",
+            "name": "测试公司 2",
+            "account_type": "试用账号",
+            "business_type": "B",
+            "customer_level": "SMB",
+            "settlement_type": "postpaid",
+            "is_key_customer": False,
+            "email": "test2@example.com",
+        },
+        {
+            "company_id": "TEST003",
+            "name": "测试公司 3",
+            "account_type": "正式账号",
+            "business_type": "A",
+            "customer_level": "KA",
+            "settlement_type": "prepaid",
+            "is_key_customer": True,
+            "email": "test3@example.com",
+        },
+    ]
+
+    for cust in customers:
+        await db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type, business_type, customer_level, settlement_type, is_key_customer, email, created_at)
+            VALUES (:company_id, :name, :account_type, :business_type, :customer_level, :settlement_type, :is_key_customer, :email, NOW())
+            """),
+            cust,
+        )
+
+    await db_session.commit()
+
+    result = await db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 'TEST001'")
+    )
+    customer_id = result.scalar_one()
+
+    yield {"customers": customers, "customer_id": customer_id}
+
+    await db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'")
+    )
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_list_customers_success(test_client, auth_headers, customer_data):
+    """测试获取客户列表 - 成功场景"""
+    request, response = await test_client.get(
+        "/api/v1/customers",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "success"
+    assert "list" in data["data"]
+    assert "total" in data["data"]
+    assert len(data["data"]["list"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_list_customers_with_filters(test_client, auth_headers, customer_data):
+    """测试获取客户列表 - 带筛选条件"""
+    request, response = await test_client.get(
+        "/api/v1/customers?customer_level=KA&is_key_customer=true",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert len(data["data"]["list"]) >= 2
+
+    for item in data["data"]["list"]:
+        assert item["customer_level"] == "KA"
+        assert item["is_key_customer"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_customers_pagination(test_client, auth_headers, customer_data):
+    """测试获取客户列表 - 分页"""
+    request, response = await test_client.get(
+        "/api/v1/customers?page=1&page_size=2",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["page"] == 1
+    assert data["data"]["page_size"] == 2
+    assert len(data["data"]["list"]) <= 2
+
+
+@pytest.mark.asyncio
+async def test_get_customer_success(test_client, auth_headers, customer_data):
+    """测试获取客户详情 - 成功场景"""
+    customer_id = customer_data["customer_id"]
+
+    request, response = await test_client.get(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["company_id"] == "TEST001"
+    assert data["data"]["name"] == "测试公司 1"
+
+
+@pytest.mark.asyncio
+async def test_get_customer_not_found(test_client, auth_headers):
+    """测试获取客户详情 - 客户不存在"""
+    request, response = await test_client.get(
+        "/api/v1/customers/999999",
+        headers=auth_headers,
+    )
+
+    assert response.status == 404
+    data = response.json
+    assert data["code"] == 40401
+    assert data["message"] == "客户不存在"
+
+
+@pytest.mark.asyncio
+async def test_create_customer_success(test_client, auth_headers, db_session):
+    """测试创建客户 - 成功场景"""
+    new_customer = {
+        "company_id": "TEST_CREATE_001",
+        "name": "新创建测试公司",
+        "account_type": "正式账号",
+        "business_type": "A",
+        "customer_level": "KA",
+        "settlement_type": "prepaid",
+        "is_key_customer": True,
+        "email": "create_test@example.com",
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers",
+        headers=auth_headers,
+        json=new_customer,
+    )
+
+    assert response.status == 201
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "创建成功"
+    assert data["data"]["company_id"] == "TEST_CREATE_001"
+    assert data["data"]["name"] == "新创建测试公司"
+
+    await db_session.execute(
+        text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'")
+    )
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_customer_missing_required_fields(test_client, auth_headers):
+    """测试创建客户 - 缺少必填字段"""
+    new_customer = {
+        "name": "缺少公司 ID",
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers",
+        headers=auth_headers,
+        json=new_customer,
+    )
+
+    assert response.status == 400
+    data = response.json
+    assert data["code"] == 40001
+    assert "公司 ID 和客户名称不能为空" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_create_customer_invalid_email(test_client, auth_headers):
+    """测试创建客户 - 邮箱格式不正确"""
+    new_customer = {
+        "company_id": "TEST_INVALID_EMAIL",
+        "name": "无效邮箱测试",
+        "email": "invalid-email",
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers",
+        headers=auth_headers,
+        json=new_customer,
+    )
+
+    assert response.status == 400
+    data = response.json
+    assert data["code"] == 40002
+    assert "邮箱格式不正确" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_update_customer_success(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试更新客户 - 成功场景"""
+    customer_id = customer_data["customer_id"]
+
+    update_data = {
+        "name": "更新后的公司名称",
+        "customer_level": "SMB",
+        "is_key_customer": False,
+    }
+
+    request, response = await test_client.put(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+        json=update_data,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "更新成功"
+
+    result = await db_session.execute(
+        text(
+            "SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"
+        ),
+        {"id": customer_id},
+    )
+    updated = result.fetchone()
+    assert updated[0] == "更新后的公司名称"
+    assert updated[1] == "SMB"
+    assert updated[2] is False
+
+
+@pytest.mark.asyncio
+async def test_update_customer_not_found(test_client, auth_headers):
+    """测试更新客户 - 客户不存在"""
+    update_data = {"name": "不存在的客户"}
+
+    request, response = await test_client.put(
+        "/api/v1/customers/999999",
+        headers=auth_headers,
+        json=update_data,
+    )
+
+    assert response.status == 404
+    data = response.json
+    assert data["code"] == 40401
+    assert data["message"] == "客户不存在"
+
+
+@pytest.mark.asyncio
+async def test_delete_customer_success(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试删除客户 - 成功场景"""
+    customer_id = customer_data["customer_id"]
+
+    request, response = await test_client.delete(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "删除成功"
+
+    result = await db_session.execute(
+        text("SELECT deleted_at FROM customers WHERE id = :id"),
+        {"id": customer_id},
+    )
+    deleted_at = result.scalar_one()
+    assert deleted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_customer_not_found(test_client, auth_headers):
+    """测试删除客户 - 客户不存在"""
+    request, response = await test_client.delete(
+        "/api/v1/customers/999999",
+        headers=auth_headers,
+    )
+
+    assert response.status == 404
+    data = response.json
+    assert data["code"] == 40401
+    assert data["message"] == "客户不存在"
+
+
+@pytest.mark.asyncio
+async def test_get_customer_profile_success(test_client, auth_headers, customer_data):
+    """测试获取客户画像 - 成功场景"""
+    customer_id = customer_data["customer_id"]
+
+    request, response = await test_client.get(
+        f"/api/v1/customers/{customer_id}/profile",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_customer_profile_not_found(test_client, auth_headers):
+    """测试获取客户画像 - 客户不存在"""
+    request, response = await test_client.get(
+        "/api/v1/customers/999999/profile",
+        headers=auth_headers,
+    )
+
+    assert response.status == 404
+    data = response.json
+    assert data["code"] == 40401
+    assert data["message"] == "客户不存在"
+
+
+@pytest.mark.asyncio
+async def test_update_customer_profile_success(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试更新客户画像 - 成功场景"""
+    customer_id = customer_data["customer_id"]
+
+    profile_data = {
+        "scale_level": "large",
+        "consume_level": "high",
+        "industry": "互联网",
+        "is_real_estate": False,
+        "description": "测试描述",
+    }
+
+    request, response = await test_client.put(
+        f"/api/v1/customers/{customer_id}/profile",
+        headers=auth_headers,
+        json=profile_data,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "更新成功"
+    assert data["data"]["scale_level"] == "large"
+    assert data["data"]["industry"] == "互联网"
+
+
+@pytest.mark.asyncio
+async def test_update_customer_profile_not_found(test_client, auth_headers):
+    """测试更新客户画像 - 客户不存在"""
+    profile_data = {"scale_level": "large"}
+
+    request, response = await test_client.put(
+        "/api/v1/customers/999999/profile",
+        headers=auth_headers,
+        json=profile_data,
+    )
+
+    assert response.status == 404
+    data = response.json
+    assert data["code"] == 40401
+    assert data["message"] == "客户不存在"
+
+
+@pytest.mark.asyncio
+async def test_download_import_template(test_client, auth_headers):
+    """测试下载 Excel 导入模板"""
+    request, response = await test_client.get(
+        "/api/v1/customers/import-template",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    assert (
+        response.headers.get("Content-Type")
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "客户导入模板.xlsx" in response.headers.get("Content-Disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_import_customers_success(test_client, auth_headers, db_session):
+    """测试 Excel 导入客户 - 成功场景"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "company_id",
+            "name",
+            "account_type",
+            "business_type",
+            "customer_level",
+            "settlement_type",
+            "is_key_customer",
+            "email",
+        ]
+    )
+    ws.append(
+        [
+            "TEST_IMPORT_001",
+            "导入测试公司 1",
+            "正式账号",
+            "A",
+            "KA",
+            "prepaid",
+            "false",
+            "import1@example.com",
+        ]
+    )
+    ws.append(
+        [
+            "TEST_IMPORT_002",
+            "导入测试公司 2",
+            "试用账号",
+            "B",
+            "SMB",
+            "postpaid",
+            "true",
+            "import2@example.com",
+        ]
+    )
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_import.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "导入完成"
+    assert data["data"]["success_count"] == 2
+
+    await db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'")
+    )
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_missing_file(test_client, auth_headers):
+    """测试 Excel 导入客户 - 缺少文件"""
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+    )
+
+    assert response.status == 400
+    data = response.json
+    assert data["code"] == 40001
+    assert data["message"] == "请上传 Excel 文件"
+
+
+@pytest.mark.asyncio
+async def test_import_customers_wrong_format(test_client, auth_headers):
+    """测试 Excel 导入客户 - 文件格式错误"""
+    files = {"file": ("test.txt", b"not an excel file", "text/plain")}
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 400
+    data = response.json
+    assert data["code"] == 40002
+    assert data["message"] == "请上传 .xlsx 格式的文件"
+
+
+@pytest.mark.asyncio
+async def test_import_customers_missing_columns(test_client, auth_headers):
+    """测试 Excel 导入客户 - 缺少必填列"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id"])
+    ws.append(["TEST_MISSING_NAME"])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_missing.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 400
+    data = response.json
+    assert data["code"] == 40003
+    assert "缺少必填列" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_export_customers_success(test_client, auth_headers, customer_data):
+    """测试 Excel 导出客户 - 成功场景"""
+    request, response = await test_client.get(
+        "/api/v1/customers/export",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    assert (
+        response.headers.get("Content-Type")
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "customers_" in response.headers.get("Content-Disposition", "")
+    assert ".xlsx" in response.headers.get("Content-Disposition", "")
+
+
+@pytest.mark.asyncio
+async def test_export_customers_with_filters(test_client, auth_headers, customer_data):
+    """测试 Excel 导出客户 - 带筛选条件"""
+    request, response = await test_client.get(
+        "/api/v1/customers/export?customer_level=KA",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    assert (
+        response.headers.get("Content-Type")
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+@pytest.mark.asyncio
+async def test_customers_unauthorized(test_client):
+    """测试未认证访问"""
+    request, response = await test_client.get("/api/v1/customers")
+
+    assert response.status in [401, 403]
+
+
+@pytest.mark.asyncio
+async def test_customers_missing_permission(test_client, db_session: AsyncSession):
+    """测试缺少权限访问"""
+    username = "no_perm_user"
+    password = "test123456"
+    import bcrypt
+
+    await db_session.execute(
+        text("DELETE FROM users WHERE username = :username"),
+        {"username": username},
+    )
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    await db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username,
+            "password_hash": password_hash,
+            "email": "noperm@example.com",
+            "is_active": True,
+        },
+    )
+    await db_session.commit()
+
+    try:
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert login_response.status == 200
+        token = login_response.json["data"]["access_token"]
+
+        request, response = await test_client.get(
+            "/api/v1/customers",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status == 403
+    finally:
+        await db_session.execute(
+            text("DELETE FROM users WHERE username = :username"),
+            {"username": username},
+        )
+        await db_session.commit()
