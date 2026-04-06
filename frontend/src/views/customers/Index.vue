@@ -79,7 +79,7 @@
     <!-- 表格 -->
     <div class="table-section">
       <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination" @page-change="handlePageChange">
-        <template #action="{ record }">
+        <template #action>
           <a-space>
             <a-button type="text" size="small" @click="$message.info('查看开发中')">查看</a-button>
             <a-button type="text" size="small" @click="$message.info('编辑开发中')">编辑</a-button>
