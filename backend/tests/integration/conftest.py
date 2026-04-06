@@ -138,11 +138,25 @@ async def test_user(db_session: AsyncSession):
         """)
     )
 
-    # 确保 users:manage 权限存在
+    # 确保需要的权限存在
     await db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('users:manage', '平台账号管理', '管理平台用户账号的增删改查', 'users', NOW())
+        ON CONFLICT (code) DO NOTHING
+        """)
+    )
+    await db_session.execute(
+        text("""
+        INSERT INTO permissions (code, name, description, module, created_at)
+        VALUES ('customers:read', '客户管理读取', '读取客户信息的权限', 'customers', NOW())
+        ON CONFLICT (code) DO NOTHING
+        """)
+    )
+    await db_session.execute(
+        text("""
+        INSERT INTO permissions (code, name, description, module, created_at)
+        VALUES ('customers:manage', '客户管理', '管理客户信息的权限', 'customers', NOW())
         ON CONFLICT (code) DO NOTHING
         """)
     )
@@ -152,20 +166,25 @@ async def test_user(db_session: AsyncSession):
         text("SELECT id FROM roles WHERE name = '超级管理员'")
     )
     role_id = result.scalar_one()
+
+    # 获取所有权限 ID
     result = await db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'users:manage'")
+        text(
+            "SELECT id FROM permissions WHERE code IN ('users:manage', 'customers:read', 'customers:manage')"
+        )
     )
-    perm_id = result.scalar_one()
+    perm_ids = result.scalars().all()
 
     # 将权限关联到角色
-    await db_session.execute(
-        text("""
-        INSERT INTO role_permissions (role_id, permission_id)
-        VALUES (:role_id, :perm_id)
-        ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
-        {"role_id": role_id, "perm_id": perm_id},
-    )
+    for perm_id in perm_ids:
+        await db_session.execute(
+            text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (:role_id, :perm_id)
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+            """),
+            {"role_id": role_id, "perm_id": perm_id},
+        )
 
     await db_session.commit()
 
@@ -228,7 +247,50 @@ async def test_user(db_session: AsyncSession):
 
 
 @pytest.fixture(scope="function")
-async def test_client(app):
+async def mock_cache():
+    """Mock 缓存服务，避免依赖 Redis 和 distutils"""
+    from unittest.mock import AsyncMock, MagicMock
+    from app.cache import base, permissions
+
+    # Mock 缓存服务
+    mock_cache = MagicMock()
+    mock_cache.get = AsyncMock(return_value=None)
+    mock_cache.set = AsyncMock(return_value=True)
+    mock_cache.delete = AsyncMock(return_value=True)
+    mock_cache.invalidate_pattern = AsyncMock(return_value=True)
+    mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_tag_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_analytics_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
+
+    # Mock 权限缓存 - 返回超级管理员的所有权限
+    mock_perm_cache = MagicMock()
+    mock_perm_cache.get_permissions = AsyncMock(
+        return_value={
+            "users:manage",
+            "customers:read",
+            "customers:manage",
+        }
+    )
+    mock_perm_cache.set_permissions = AsyncMock(return_value=True)
+    mock_perm_cache.invalidate = AsyncMock(return_value=True)
+
+    # 替换全局实例
+    original_cache = base.cache_service
+    original_perm_cache = permissions.permission_cache
+
+    base.cache_service = mock_cache
+    permissions.permission_cache = mock_perm_cache
+
+    yield mock_cache
+
+    # 恢复原始实例
+    base.cache_service = original_cache
+    permissions.permission_cache = original_perm_cache
+
+
+@pytest.fixture(scope="function")
+async def test_client(app, mock_cache):
     """
     创建 Sanic ASGI 测试客户端（异步方式）
 

@@ -58,4 +58,5 @@ sanic-cors==2.2.0
 tenacity==8.2.3
 
 # Redis Cache
-aioredis==2.0.1
+redis==5.0.1
+hiredis==2.3.2
