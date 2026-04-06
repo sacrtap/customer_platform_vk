@@ -19,7 +19,7 @@
     
     <div class="table-section">
       <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination">
-        <template #balance="{ record }">
+        <template #balance>
           <div class="balance-info">
             <div>总额：¥{{ record.total_amount.toLocaleString() }}</div>
             <div class="balance-detail">
@@ -28,7 +28,7 @@
             </div>
           </div>
         </template>
-        <template #action="{ record }">
+        <template #action>
           <a-space>
             <a-button type="text" size="small" @click="$message.info('充值记录开发中')">充值记录</a-button>
             <a-button type="text" size="small" @click="$message.info('调整开发中')">调整</a-button>
