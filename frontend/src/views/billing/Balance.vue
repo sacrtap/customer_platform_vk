@@ -21,10 +21,10 @@
       <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination">
         <template #balance>
           <div class="balance-info">
-            <div>总额：¥{{ record.total_amount.toLocaleString() }}</div>
+            <div>总额：¥500,000</div>
             <div class="balance-detail">
-              <span class="real">实充：¥{{ record.real_amount.toLocaleString() }}</span>
-              <span class="bonus">赠送：¥{{ record.bonus_amount.toLocaleString() }}</span>
+              <span class="real">实充：¥400,000</span>
+              <span class="bonus">赠送：¥100,000</span>
             </div>
           </div>
         </template>
