@@ -1,41 +1,51 @@
 <template>
-  <div class="customer-list">
-    <a-card>
-      <template #title>
-        <a-space>
-          <span>客户管理</span>
-          <a-button type="primary" @click="showCreateModal">
-            <template #icon><icon-plus /></template>
-            新建客户
-          </a-button>
-          <a-button @click="showImportModal">
-            <template #icon><icon-upload /></template>
-            导入客户
-          </a-button>
-          <a-button @click="handleExport">
-            <template #icon><icon-download /></template>
-            导出
-          </a-button>
-        </a-space>
-      </template>
-
-      <!-- 筛选区域 -->
-      <a-form :model="filters" layout="inline" class="filter-form">
+  <div class="customer-list-page">
+    <div class="page-header">
+      <div class="header-title">
+        <h1>客户管理</h1>
+        <p class="header-subtitle">统一客户基础信息与画像数据管理</p>
+      </div>
+      <div class="header-actions">
+        <a-button type="primary" @click="$message.info('新建客户开发中')">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+          </template>
+          新建客户
+        </a-button>
+        <a-button @click="$message.info('导入功能开发中')">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+            </svg>
+          </template>
+          导入
+        </a-button>
+        <a-button @click="$message.info('导出功能开发中')">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+              <path d="M7.646 4.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V14.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3z"/>
+            </svg>
+          </template>
+          导出
+        </a-button>
+      </div>
+    </div>
+    
+    <!-- 筛选区域 -->
+    <div class="filter-section">
+      <a-form layout="inline" :model="filters">
         <a-form-item label="关键词">
-          <a-input
-            v-model="filters.keyword"
-            placeholder="公司名称/公司 ID"
-            style="width: 200px"
-            @press-enter="handleSearch"
-          >
-            <template #prefix><icon-search /></template>
+          <a-input v-model="filters.keyword" placeholder="公司名称/公司 ID" style="width: 200px">
+            <template #prefix>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+            </template>
           </a-input>
-        </a-form-item>
-        <a-form-item label="账号类型">
-          <a-select v-model="filters.account_type" placeholder="请选择" style="width: 150px" allow-clear>
-            <a-option value="test">测试账号</a-option>
-            <a-option value="formal">正式账号</a-option>
-          </a-select>
         </a-form-item>
         <a-form-item label="业务类型">
           <a-select v-model="filters.business_type" placeholder="请选择" style="width: 150px" allow-clear>
@@ -51,12 +61,6 @@
             <a-option value="普通">普通</a-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="结算方式">
-          <a-select v-model="filters.settlement_type" placeholder="请选择" style="width: 120px" allow-clear>
-            <a-option value="prepaid">预付费</a-option>
-            <a-option value="postpaid">后付费</a-option>
-          </a-select>
-        </a-form-item>
         <a-form-item label="重点客户">
           <a-select v-model="filters.is_key_customer" placeholder="请选择" style="width: 120px" allow-clear>
             <a-option :value="true">是</a-option>
@@ -70,484 +74,154 @@
           </a-space>
         </a-form-item>
       </a-form>
-
-      <!-- 表格 -->
-      <a-table
-        :columns="columns"
-        :data="data"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="onPageChange"
-        @page-size-change="onPageSizeChange"
-      >
-        <template #name="{ record }">
-          <a-space>
-            <a-avatar v-if="record.is_key_customer" :size="24" style="background-color: rgb(var(--primary-6))">
-              <icon-star />
-            </a-avatar>
-            <a-avatar v-else :size="24">{{ record.name.charAt(0) }}</a-avatar>
-            <span>{{ record.name }}</span>
-          </a-space>
-        </template>
-        <template #is_key_customer="{ record }">
-          <a-tag :color="record.is_key_customer ? 'orangered' : 'gray'">
-            {{ record.is_key_customer ? '重点' : '普通' }}
-          </a-tag>
-        </template>
-        <template #settlement_type="{ record }">
-          <a-tag :color="record.settlement_type === 'prepaid' ? 'green' : 'arcoblue'">
-            {{ record.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
-          </a-tag>
-        </template>
+    </div>
+    
+    <!-- 表格 -->
+    <div class="table-section">
+      <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination" @page-change="handlePageChange">
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="viewDetail(record)">详情</a-button>
-            <a-button type="text" size="small" @click="showEditModal(record)">编辑</a-button>
-            <a-button type="text" size="small" status="danger" @click="handleDelete(record)">删除</a-button>
+            <a-button type="text" size="small" @click="$message.info('查看开发中')">查看</a-button>
+            <a-button type="text" size="small" @click="$message.info('编辑开发中')">编辑</a-button>
+            <a-button type="text" size="small" @click="$message.info('画像开发中')">画像</a-button>
+            <a-popconfirm content="确认删除？" @ok="$message.info('删除开发中')">
+              <a-button type="text" size="small" status="danger">删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </a-table>
-    </a-card>
-
-    <!-- 创建/编辑客户弹窗 -->
-    <a-modal
-      v-model:visible="modalVisible"
-      :title="modalTitle"
-      :confirm-loading="modalLoading"
-      width="600px"
-      @ok="handleSubmit"
-    >
-      <a-form :model="formData" layout="vertical">
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item
-              label="公司 ID"
-              :rules="[{ required: true, message: '请输入公司 ID' }]"
-            >
-              <a-input
-                v-model="formData.company_id"
-                :disabled="isEdit"
-                placeholder="请输入公司 ID"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item
-              label="客户名称"
-              :rules="[{ required: true, message: '请输入客户名称' }]"
-            >
-              <a-input v-model="formData.name" placeholder="请输入客户名称" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="账号类型">
-              <a-select v-model="formData.account_type" placeholder="请选择">
-                <a-option value="test">测试账号</a-option>
-                <a-option value="formal">正式账号</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="业务类型">
-              <a-select v-model="formData.business_type" placeholder="请选择">
-                <a-option value="A">A 类业务</a-option>
-                <a-option value="B">B 类业务</a-option>
-                <a-option value="C">C 类业务</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="客户等级">
-              <a-select v-model="formData.customer_level" placeholder="请选择">
-                <a-option value="KA">KA</a-option>
-                <a-option value="SKA">SKA</a-option>
-                <a-option value="普通">普通</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="结算方式">
-              <a-select v-model="formData.settlement_type" placeholder="请选择">
-                <a-option value="prepaid">预付费</a-option>
-                <a-option value="postpaid">后付费</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="结算周期">
-              <a-select v-model="formData.settlement_cycle" placeholder="请选择">
-                <a-option value="monthly">月度</a-option>
-                <a-option value="quarterly">季度</a-option>
-                <a-option value="yearly">年度</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="重点客户">
-              <a-switch v-model="formData.is_key_customer" checked-children="是" unchecked-children="否" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item label="邮箱">
-          <a-input v-model="formData.email" placeholder="请输入邮箱" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <!-- 导入弹窗 -->
-    <a-modal v-model:visible="importModalVisible" title="导入客户" :confirm-loading="importLoading" @ok="handleImport">
-      <a-upload :auto-upload="false" :show-file-list="false" :before-upload="handleBeforeUpload">
-        <template #upload-area>
-          <a-upload-dragger :multiple="false">
-            <a-space direction="vertical" style="padding: 20px">
-              <icon-upload style="font-size: 48px; color: var(--color-text-4)" />
-              <a-typography-paragraph style="margin: 0">
-                点击或拖拽文件到此处上传
-              </a-typography-paragraph>
-              <a-typography-text type="secondary" style="font-size: 12px">
-                仅支持 .xlsx 格式文件
-              </a-typography-text>
-            </a-space>
-          </a-upload-dragger>
-        </template>
-      </a-upload>
-      <a-alert v-if="importResult" :type="importResult.error_count > 0 ? 'warning' : 'success'" style="margin-top: 16px">
-        导入完成：成功 {{ importResult.success_count }} 条
-        <span v-if="importResult.error_count > 0">
-          ，失败 {{ importResult.error_count }} 条
-          <a-divider direction="vertical" />
-          <a-typography-text type="secondary">
-            {{ importResult.errors?.slice(0, 3).join('; ') }}
-          </a-typography-text>
-        </span>
-      </a-alert>
-    </a-modal>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { Message, Modal } from '@arco-design/web-vue'
-import {
-  IconPlus,
-  IconUpload,
-  IconDownload,
-  IconSearch,
-  IconStar,
-} from '@arco-design/web-vue/es/icon'
-import * as customerApi from '@/api/customers'
-import { useRouter } from 'vue-router'
+import { reactive, ref } from 'vue'
 
-const router = useRouter()
+const filters = reactive({
+  keyword: '',
+  business_type: '',
+  customer_level: '',
+  is_key_customer: null as boolean | null,
+})
 
-interface Customer {
-  id: number
-  company_id: string
-  name: string
-  account_type?: string
-  business_type?: string
-  customer_level?: string
-  price_policy?: string
-  settlement_cycle?: string
-  settlement_type?: string
-  is_key_customer: boolean
-  email?: string
-}
-
-const columns = [
-  { title: '客户名称', dataIndex: 'name', slotName: 'name', width: 200 },
-  { title: '公司 ID', dataIndex: 'company_id', width: 120 },
-  { title: '账号类型', dataIndex: 'account_type', width: 100 },
-  { title: '业务类型', dataIndex: 'business_type', width: 100 },
-  { title: '客户等级', dataIndex: 'customer_level', width: 100 },
-  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlement_type', width: 100 },
-  { title: '重点客户', dataIndex: 'is_key_customer', slotName: 'is_key_customer', width: 90 },
-  { title: '邮箱', dataIndex: 'email', width: 180 },
-  { title: '操作', slotName: 'action', width: 200, fixed: 'right' },
-]
-
-const data = ref<Customer[]>([])
 const loading = ref(false)
+
 const pagination = reactive({
   current: 1,
   pageSize: 20,
-  total: 0,
+  total: 100,
   showTotal: true,
   showPageSize: true,
 })
 
-interface CustomerFilters {
-  keyword?: string
-  company_id?: string
-  name?: string
-  account_type?: string
-  business_type?: string
-  customer_level?: string
-  settlement_type?: string
-  is_key_customer?: boolean
-  manager_id?: number
-  [key: string]: string | number | boolean | undefined
-}
+const columns = [
+  { title: '公司 ID', dataIndex: 'company_id', width: 120 },
+  { title: '客户名称', dataIndex: 'name', width: 200 },
+  { title: '业务类型', dataIndex: 'business_type', width: 100 },
+  { title: '客户等级', dataIndex: 'customer_level', width: 100 },
+  { title: '结算方式', dataIndex: 'settlement_type', width: 100 },
+  { title: '运营经理', dataIndex: 'manager', width: 120 },
+  { title: '重点客户', dataIndex: 'is_key_customer', width: 80 },
+  { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
+]
 
-const filters = reactive<CustomerFilters>({
-  keyword: '',
-  account_type: undefined as string | undefined,
-  business_type: undefined as string | undefined,
-  customer_level: undefined as string | undefined,
-  settlement_type: undefined as string | undefined,
-  is_key_customer: undefined as boolean | undefined,
-})
-
-const modalVisible = ref(false)
-const modalTitle = ref('新建客户')
-const modalLoading = ref(false)
-const isEdit = ref(false)
-
-const formData = reactive({
-  id: null as number | null,
-  company_id: '',
-  name: '',
-  account_type: undefined as string | undefined,
-  business_type: undefined as string | undefined,
-  customer_level: undefined as string | undefined,
-  settlement_cycle: undefined as string | undefined,
-  settlement_type: undefined as string | undefined,
-  is_key_customer: false,
-  email: '',
-})
-
-const importModalVisible = ref(false)
-const importLoading = ref(false)
-const importFile = ref<File | null>(null)
-const importResult = ref<{
-  success_count: number
-  error_count: number
-  errors?: string[]
-} | null>(null)
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const params: Record<string, unknown> = {
-      page: pagination.current,
-      page_size: pagination.pageSize,
-    }
-    Object.keys(filters).forEach((key) => {
-      const value = filters[key]
-      if (value !== undefined && value !== '') {
-        params[key] = value
-      }
-    })
-    const res = await customerApi.getCustomers(params)
-    data.value = res.data.list
-    pagination.total = res.data.total
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载失败')
-  } finally {
-    loading.value = false
-  }
-}
+const data = ref([
+  { id: 1, company_id: 'COMP001', name: 'XX 科技有限公司', business_type: 'A', customer_level: 'KA', settlement_type: '预付费', manager: '张三', is_key_customer: true },
+  { id: 2, company_id: 'COMP002', name: 'YY 集团有限公司', business_type: 'B', customer_level: 'SKA', settlement_type: '后付费', manager: '李四', is_key_customer: true },
+  { id: 3, company_id: 'COMP003', name: 'ZZ 创新股份', business_type: 'A', customer_level: '普通', settlement_type: '预付费', manager: '王五', is_key_customer: false },
+  { id: 4, company_id: 'COMP004', name: 'AA 数字科技', business_type: 'C', customer_level: '普通', settlement_type: '预付费', manager: '赵六', is_key_customer: false },
+])
 
 const handleSearch = () => {
-  pagination.current = 1
-  fetchData()
+  loading.value = true
+  setTimeout(() => {
+    loading.value = false
+  }, 500)
 }
 
 const handleReset = () => {
-  Object.keys(filters).forEach((key) => {
-    ;(filters as Record<string, unknown>)[key] = undefined
-  })
-  pagination.current = 1
-  fetchData()
+  filters.keyword = ''
+  filters.business_type = ''
+  filters.customer_level = ''
+  filters.is_key_customer = null
 }
 
-const onPageChange = (page: number) => {
+const handlePageChange = (page: number) => {
   pagination.current = page
-  fetchData()
 }
-
-const onPageSizeChange = (pageSize: number) => {
-  pagination.pageSize = pageSize
-  pagination.current = 1
-  fetchData()
-}
-
-const showCreateModal = () => {
-  isEdit.value = false
-  modalTitle.value = '新建客户'
-  Object.assign(formData, {
-    id: null,
-    company_id: '',
-    name: '',
-    account_type: undefined,
-    business_type: undefined,
-    customer_level: undefined,
-    settlement_cycle: undefined,
-    settlement_type: undefined,
-    is_key_customer: false,
-    email: '',
-  })
-  modalVisible.value = true
-}
-
-const showEditModal = (record: Customer) => {
-  isEdit.value = true
-  modalTitle.value = '编辑客户'
-  Object.assign(formData, {
-    id: record.id,
-    company_id: record.company_id,
-    name: record.name,
-    account_type: record.account_type,
-    business_type: record.business_type,
-    customer_level: record.customer_level,
-    settlement_cycle: record.settlement_cycle,
-    settlement_type: record.settlement_type,
-    is_key_customer: record.is_key_customer,
-    email: record.email,
-  })
-  modalVisible.value = true
-}
-
-const handleSubmit = async () => {
-  modalLoading.value = true
-  try {
-    if (isEdit.value && formData.id) {
-      await customerApi.updateCustomer(formData.id, {
-        name: formData.name,
-        account_type: formData.account_type,
-        business_type: formData.business_type,
-        customer_level: formData.customer_level,
-        settlement_cycle: formData.settlement_cycle,
-        settlement_type: formData.settlement_type,
-        is_key_customer: formData.is_key_customer,
-        email: formData.email,
-      })
-      Message.success('更新成功')
-    } else {
-      await customerApi.createCustomer({
-        company_id: formData.company_id,
-        name: formData.name,
-        account_type: formData.account_type,
-        business_type: formData.business_type,
-        customer_level: formData.customer_level,
-        settlement_cycle: formData.settlement_cycle,
-        settlement_type: formData.settlement_type,
-        is_key_customer: formData.is_key_customer,
-        email: formData.email,
-      })
-      Message.success('创建成功')
-    }
-    modalVisible.value = false
-    fetchData()
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '操作失败')
-  } finally {
-    modalLoading.value = false
-  }
-}
-
-const handleDelete = (record: Customer) => {
-  Modal.warning({
-    title: '确认删除',
-    content: `确定要删除客户 ${record.name} 吗？`,
-    okText: '确认',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await customerApi.deleteCustomer(record.id)
-        Message.success('删除成功')
-        fetchData()
-      } catch (err: unknown) {
-        Message.error(((err as Error)?.message) || '删除失败')
-      }
-    },
-  })
-}
-
-const viewDetail = (record: Customer) => {
-  router.push(`/customers/${record.id}`)
-}
-
-const showImportModal = () => {
-  importModalVisible.value = true
-  importResult.value = null
-  importFile.value = null
-}
-
-const handleBeforeUpload = (file: File) => {
-  if (!file.name.endsWith('.xlsx')) {
-    Message.error('仅支持 .xlsx 格式文件')
-    return false
-  }
-  importFile.value = file
-  return true
-}
-
-const handleImport = async () => {
-  if (!importFile.value) {
-    Message.warning('请选择文件')
-    return
-  }
-  importLoading.value = true
-  try {
-    const res = await customerApi.importCustomers(importFile.value)
-    importResult.value = res.data
-    if (res.data.error_count === 0) {
-      Message.success('导入成功')
-      importModalVisible.value = false
-      fetchData()
-    }
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '导入失败')
-  } finally {
-    importLoading.value = false
-  }
-}
-
-const handleExport = async () => {
-  try {
-    const params: Record<string, unknown> = {}
-    Object.keys(filters).forEach((key) => {
-      const value = filters[key]
-      if (value !== undefined && value !== '') {
-        params[key] = value
-      }
-    })
-    const res = await customerApi.exportCustomers(params)
-    const blob = new Blob([res.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    const timestamp = new Date().toISOString().replace(/[:-]/g, '').slice(0, 14)
-    link.download = `customers_${timestamp}.xlsx`
-    link.click()
-    window.URL.revokeObjectURL(url)
-    Message.success('导出成功')
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '导出失败')
-  }
-}
-
-onMounted(() => {
-  fetchData()
-})
 </script>
 
 <style scoped>
-.customer-list {
-  padding: 20px;
+.customer-list-page {
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-3: #e0e2e7;
+  --neutral-5: #8f959e;
+  --neutral-6: #646a73;
+  --neutral-7: #4c5360;
+  --neutral-9: #2f3645;
+  --neutral-10: #1d2330;
+  --primary-6: #0369A1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.filter-form {
-  margin-bottom: 16px;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin-bottom: 8px;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: var(--neutral-6);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.filter-section {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.table-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+:deep(.arco-table) {
+  font-size: 14px;
+}
+
+:deep(.arco-table th) {
+  background: var(--neutral-1);
+  color: var(--neutral-6);
+  font-weight: 600;
+}
+
+:deep(.arco-table td) {
+  color: var(--neutral-7);
+}
+
+:deep(.arco-table tr:hover td) {
+  background: var(--neutral-1);
 }
 </style>
