@@ -1,323 +1,109 @@
 <template>
-  <div class="tag-list">
-    <a-card>
-      <template #title>
-        <a-space>
-          <span>标签管理</span>
-          <a-button type="primary" @click="showCreateModal">
-            <template #icon><icon-plus /></template>
-            新建标签
-          </a-button>
-        </a-space>
-      </template>
-
-      <!-- 筛选区域 -->
-      <a-form :model="filters" layout="inline" class="filter-form">
-        <a-form-item label="标签类型">
-          <a-select v-model="filters.type" placeholder="请选择" style="width: 150px" allow-clear>
-            <a-option value="customer">客户标签</a-option>
-            <a-option value="profile">画像标签</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="标签分类">
-          <a-input v-model="filters.category" placeholder="请输入分类" style="width: 150px" allow-clear />
-        </a-form-item>
-        <a-form-item>
-          <a-space>
-            <a-button type="primary" @click="handleSearch">查询</a-button>
-            <a-button @click="handleReset">重置</a-button>
-          </a-space>
-        </a-form-item>
-      </a-form>
-
-      <!-- 表格 -->
-      <a-table
-        :columns="columns"
-        :data="data"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="onPageChange"
-        @page-size-change="onPageSizeChange"
-      >
-        <template #name="{ record }">
-          <a-tag :color="record.type === 'customer' ? 'blue' : 'purple'">
-            {{ record.name }}
-          </a-tag>
-        </template>
-        <template #type="{ record }">
-          <a-tag :color="record.type === 'customer' ? 'blue' : 'purple'">
-            {{ record.type === 'customer' ? '客户标签' : '画像标签' }}
-          </a-tag>
-        </template>
-        <template #category="{ record }">
-          <a-tag v-if="record.category" color="gray">{{ record.category }}</a-tag>
-          <span v-else>-</span>
-        </template>
-        <template #usage="{ record }">
-          <a-space v-if="record.usage_count">
-            <a-tag color="blue" size="small">客户：{{ record.usage_count.customer_count }}</a-tag>
-            <a-tag color="purple" size="small">画像：{{ record.usage_count.profile_count }}</a-tag>
-          </a-space>
-          <span v-else>-</span>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button type="text" size="small" @click="viewUsage(record)">使用统计</a-button>
-            <a-button type="text" size="small" @click="showEditModal(record)">编辑</a-button>
-            <a-popconfirm
-              content="确定要删除此标签吗？删除后已关联的客户将失去此标签。"
-              @ok="handleDelete(record)"
-            >
-              <a-button type="text" size="small" status="danger">删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </a-table>
-    </a-card>
-
-    <!-- 创建/编辑标签弹窗 -->
-    <a-modal
-      v-model:visible="modalVisible"
-      :title="modalTitle"
-      :confirm-loading="modalLoading"
-      width="500px"
-      @ok="handleSubmit"
-    >
-      <a-form :model="formData" layout="vertical">
-        <a-form-item
-          label="标签名称"
-          :rules="[{ required: true, message: '请输入标签名称' }]"
-        >
-          <a-input v-model="formData.name" placeholder="请输入标签名称" />
-        </a-form-item>
-        <a-form-item
-          label="标签类型"
-          :rules="[{ required: true, message: '请选择标签类型' }]"
-        >
-          <a-select v-model="formData.type" placeholder="请选择标签类型" :disabled="isEdit">
-            <a-option value="customer">客户标签</a-option>
-            <a-option value="profile">画像标签</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="标签分类">
-          <a-input v-model="formData.category" placeholder="请输入标签分类（可选）" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <!-- 使用统计弹窗 -->
-    <a-modal v-model:visible="usageModalVisible" title="标签使用统计" :footer="false">
-      <a-descriptions :column="1" bordered>
-        <a-descriptions-item label="标签名称">{{ selectedTag?.name }}</a-descriptions-item>
-        <a-descriptions-item label="标签类型">
-          <a-tag :color="selectedTag?.type === 'customer' ? 'blue' : 'purple'">
-            {{ selectedTag?.type === 'customer' ? '客户标签' : '画像标签' }}
-          </a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item label="关联客户数">
-          <a-typography-text :type="usageData?.customer_count ? 'success' : 'secondary'">
-            {{ usageData?.customer_count || 0 }}
-          </a-typography-text>
-        </a-descriptions-item>
-        <a-descriptions-item label="关联画像数">
-          <a-typography-text :type="usageData?.profile_count ? 'success' : 'secondary'">
-            {{ usageData?.profile_count || 0 }}
-          </a-typography-text>
-        </a-descriptions-item>
-      </a-descriptions>
-    </a-modal>
+  <div class="tag-management-page">
+    <div class="page-header">
+      <div class="header-title">
+        <h1>标签管理</h1>
+        <p class="header-subtitle">自定义标签分类与管理</p>
+      </div>
+      <div class="header-actions">
+        <a-button type="primary" @click="$message.info('新建标签开发中')">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+          </template>
+          新建标签
+        </a-button>
+      </div>
+    </div>
+    
+    <div class="tabs-section">
+      <a-tabs v-model="activeTab">
+        <a-tab-pane key="customer" title="客户标签">
+          <div class="tag-list">
+            <a-tag v-for="tag in customerTags" :key="tag.id" closable @close="$message.info('删除开发中')">
+              {{ tag.name }} ({{ tag.count }})
+            </a-tag>
+          </div>
+        </a-tab-pane>
+        <a-tab-pane key="profile" title="画像标签">
+          <div class="tag-list">
+            <a-tag v-for="tag in profileTags" :key="tag.id" closable @close="$message.info('删除开发中')">
+              {{ tag.name }} ({{ tag.count }})
+            </a-tag>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
-import { IconPlus } from '@arco-design/web-vue/es/icon'
-import * as tagApi from '@/api/tags'
+import { ref } from 'vue'
 
-interface Tag {
-  id: number
-  name: string
-  type: 'customer' | 'profile'
-  category?: string
-  created_by?: number
-  created_at?: string
-  usage_count?: {
-    customer_count: number
-    profile_count: number
-  }
-}
+const activeTab = ref('customer')
 
-const columns = [
-  { title: '标签名称', dataIndex: 'name', slotName: 'name', width: 200 },
-  { title: '标签类型', dataIndex: 'type', slotName: 'type', width: 120 },
-  { title: '标签分类', dataIndex: 'category', slotName: 'category', width: 120 },
-  { title: '使用统计', slotName: 'usage', width: 200 },
-  { title: '操作', slotName: 'action', width: 200, fixed: 'right' },
-]
+const customerTags = ref([
+  { id: 1, name: '重点客户', count: 28 },
+  { id: 2, name: '潜力客户', count: 56 },
+  { id: 3, name: '一般客户', count: 120 },
+  { id: 4, name: '沉睡客户', count: 35 },
+])
 
-const data = ref<Tag[]>([])
-const loading = ref(false)
-const pagination = reactive({
-  current: 1,
-  pageSize: 20,
-  total: 0,
-  showTotal: true,
-  showPageSize: true,
-})
-
-const filters = reactive({
-  type: undefined as 'customer' | 'profile' | undefined,
-  category: '',
-})
-
-const modalVisible = ref(false)
-const modalTitle = ref('新建标签')
-const modalLoading = ref(false)
-const isEdit = ref(false)
-
-const formData = reactive({
-  id: null as number | null,
-  name: '',
-  type: undefined as 'customer' | 'profile' | undefined,
-  category: '',
-})
-
-const usageModalVisible = ref(false)
-const selectedTag = ref<Tag | null>(null)
-const usageData = ref<{ customer_count: number; profile_count: number } | null>(null)
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const params: Record<string, unknown> = {
-      page: pagination.current,
-      page_size: pagination.pageSize,
-    }
-    if (filters.type) params.type = filters.type
-    if (filters.category) params.category = filters.category
-
-    const res = await tagApi.getTags(params)
-    data.value = res.data.list
-    pagination.total = res.data.total
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleSearch = () => {
-  pagination.current = 1
-  fetchData()
-}
-
-const handleReset = () => {
-  filters.type = undefined
-  filters.category = ''
-  pagination.current = 1
-  fetchData()
-}
-
-const onPageChange = (page: number) => {
-  pagination.current = page
-  fetchData()
-}
-
-const onPageSizeChange = (pageSize: number) => {
-  pagination.pageSize = pageSize
-  pagination.current = 1
-  fetchData()
-}
-
-const showCreateModal = () => {
-  isEdit.value = false
-  modalTitle.value = '新建标签'
-  Object.assign(formData, {
-    id: null,
-    name: '',
-    type: undefined,
-    category: '',
-  })
-  modalVisible.value = true
-}
-
-const showEditModal = (record: Tag) => {
-  isEdit.value = true
-  modalTitle.value = '编辑标签'
-  Object.assign(formData, {
-    id: record.id,
-    name: record.name,
-    type: record.type,
-    category: record.category || '',
-  })
-  modalVisible.value = true
-}
-
-const handleSubmit = async () => {
-  if (!formData.name || !formData.type) {
-    Message.warning('请填写必填项')
-    return
-  }
-
-  modalLoading.value = true
-  try {
-    if (isEdit.value && formData.id) {
-      await tagApi.updateTag(formData.id, {
-        name: formData.name,
-        category: formData.category || undefined,
-      })
-      Message.success('更新成功')
-    } else {
-      await tagApi.createTag({
-        name: formData.name,
-        type: formData.type as 'customer' | 'profile',
-        category: formData.category || undefined,
-      })
-      Message.success('创建成功')
-    }
-    modalVisible.value = false
-    fetchData()
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '操作失败')
-  } finally {
-    modalLoading.value = false
-  }
-}
-
-const handleDelete = async (record: Tag) => {
-  try {
-    await tagApi.deleteTag(record.id)
-    Message.success('删除成功')
-    fetchData()
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '删除失败')
-  }
-}
-
-const viewUsage = async (record: Tag) => {
-  selectedTag.value = record
-  try {
-    const res = await tagApi.getTagUsage(record.id)
-    usageData.value = res.data
-    usageModalVisible.value = true
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载失败')
-  }
-}
-
-onMounted(() => {
-  fetchData()
-})
+const profileTags = ref([
+  { id: 1, name: '大型企业', count: 45 },
+  { id: 2, name: '中型企业', count: 89 },
+  { id: 3, name: '小型企业', count: 156 },
+  { id: 4, name: '互联网行业', count: 78 },
+  { id: 5, name: '金融行业', count: 42 },
+])
 </script>
 
 <style scoped>
-.tag-list {
-  padding: 20px;
+.tag-management-page {
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-6: #646a73;
+  --neutral-10: #1d2330;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.filter-form {
-  margin-bottom: 16px;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin-bottom: 8px;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: var(--neutral-6);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.tabs-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
 }
 </style>

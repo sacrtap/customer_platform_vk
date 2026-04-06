@@ -1,234 +1,110 @@
 <template>
-  <div class="role-list">
-    <a-card>
-      <template #title>
-        <a-space>
-          <span>角色管理</span>
-          <a-button type="primary" @click="showCreateModal">
-            <template #icon><icon-plus /></template>
-            新建角色
-          </a-button>
-        </a-space>
-      </template>
-
-      <a-table :columns="columns" :data="data" :loading="loading" row-key="id">
-        <template #name="{ record }">
-          <a-space>
-            <span>{{ record.name }}</span>
-            <a-tag v-if="record.is_system" color="red">系统</a-tag>
-          </a-space>
-        </template>
-        <template #permissions="{ record }">
-          <a-tag v-for="perm in record.permissions" :key="perm.id" color="arcoblue">{{ perm.name }}</a-tag>
+  <div class="role-management-page">
+    <div class="page-header">
+      <div class="header-title">
+        <h1>角色权限</h1>
+        <p class="header-subtitle">角色管理与权限配置</p>
+      </div>
+      <div class="header-actions">
+        <a-button type="primary" @click="$message.info('新建角色开发中')">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+          </template>
+          新建角色
+        </a-button>
+      </div>
+    </div>
+    
+    <div class="table-section">
+      <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination">
+        <template #is_system="{ record }">
+          <a-tag v-if="record.is_system" color="blue">系统角色</a-tag>
+          <a-tag v-else color="gray">自定义</a-tag>
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" :disabled="record.is_system" @click="showEditModal(record)">编辑</a-button>
-            <a-button type="text" size="small" @click="showPermissionModal(record)">权限</a-button>
-            <a-button
-              type="text"
-              size="small"
-              status="danger"
-              :disabled="record.is_system"
-              @click="handleDelete(record)"
-            >
-              删除
-            </a-button>
+            <a-button type="text" size="small" @click="$message.info('权限配置开发中')">权限配置</a-button>
+            <a-button type="text" size="small" @click="$message.info('编辑开发中')" :disabled="record.is_system">编辑</a-button>
+            <a-popconfirm content="确认删除？" @ok="$message.info('删除开发中')">
+              <a-button type="text" size="small" status="danger" :disabled="record.is_system">删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </a-table>
-    </a-card>
-
-    <!-- 创建/编辑角色弹窗 -->
-    <a-modal v-model:visible="modalVisible" :title="modalTitle" :confirm-loading="modalLoading" @ok="handleSubmit">
-      <a-form :model="formData" layout="vertical">
-        <a-form-item label="角色名称" :rules="[{ required: true, message: '请输入角色名称' }]">
-          <a-input v-model="formData.name" :disabled="isEdit" placeholder="请输入角色名称" />
-        </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model="formData.description" placeholder="请输入角色描述" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <!-- 权限分配弹窗 -->
-    <a-modal v-model:visible="permissionModalVisible" title="分配权限" :confirm-loading="permissionLoading" @ok="handlePermissionSubmit">
-      <a-transfer
-        v-model="selectedPermissionIds"
-        :data="permissionOptions"
-        title-text="可选权限"
-        :selected-keys="selectedPermissionIds"
-      />
-    </a-modal>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
-import { Message, Modal } from '@arco-design/web-vue'
-import { IconPlus } from '@arco-design/web-vue/es/icon'
-import api from '@/api'
+import { ref } from 'vue'
 
-interface Role {
-  id: number
-  name: string
-  description: string
-  is_system: boolean
-  permissions: { id: number; name: string }[]
-}
+const loading = ref(false)
 
-interface Permission {
-  id: number
-  code: string
-  name: string
+const pagination = {
+  current: 1,
+  pageSize: 20,
+  total: 30,
+  showTotal: true,
+  showPageSize: true,
 }
 
 const columns = [
-  { title: '角色名称', dataIndex: 'name', slotName: 'name' },
-  { title: '描述', dataIndex: 'description' },
-  { title: '权限', slotName: 'permissions' },
-  { title: '操作', slotName: 'action', width: 200 },
+  { title: '角色名称', dataIndex: 'name', width: 150 },
+  { title: '描述', dataIndex: 'description', width: 300 },
+  { title: '类型', slotName: 'is_system', width: 120 },
+  { title: '创建时间', dataIndex: 'created_at', width: 180 },
+  { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
 ]
 
-const data = ref<Role[]>([])
-const loading = ref(false)
-const permissions = ref<Permission[]>([])
-
-const modalVisible = ref(false)
-const modalTitle = ref('新建角色')
-const modalLoading = ref(false)
-const isEdit = ref(false)
-
-const permissionModalVisible = ref(false)
-const permissionLoading = ref(false)
-const currentRoleId = ref<number | null>(null)
-const selectedPermissionIds = ref<number[]>([])
-
-const permissionOptions = computed(() =>
-  permissions.value.map((p) => ({
-    value: p.id,
-    label: `${p.name} (${p.code})`,
-  }))
-)
-
-const formData = reactive({
-  id: null as number | null,
-  name: '',
-  description: '',
-})
-
-const fetchData = async () => {
-  loading.value = true
-  try {
-    const res = await api.get('/roles')
-    data.value = res.data.list
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const fetchPermissions = async () => {
-  try {
-    const res = await api.get('/permissions')
-    permissions.value = res.data
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载权限失败')
-  }
-}
-
-const showCreateModal = () => {
-  isEdit.value = false
-  modalTitle.value = '新建角色'
-  Object.assign(formData, { id: null, name: '', description: '' })
-  modalVisible.value = true
-}
-
-const showEditModal = (record: Role) => {
-  isEdit.value = true
-  modalTitle.value = '编辑角色'
-  Object.assign(formData, {
-    id: record.id,
-    name: record.name,
-    description: record.description,
-  })
-  modalVisible.value = true
-}
-
-const handleSubmit = async () => {
-  modalLoading.value = true
-  try {
-    if (isEdit.value) {
-      await api.put(`/roles/${formData.id}`, {
-        name: formData.name,
-        description: formData.description,
-      })
-      Message.success('更新成功')
-    } else {
-      await api.post('/roles', {
-        name: formData.name,
-        description: formData.description,
-      })
-      Message.success('创建成功')
-    }
-    modalVisible.value = false
-    fetchData()
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '操作失败')
-  } finally {
-    modalLoading.value = false
-  }
-}
-
-const showPermissionModal = (record: Role) => {
-  currentRoleId.value = record.id
-  selectedPermissionIds.value = record.permissions.map((p) => p.id)
-  permissionModalVisible.value = true
-}
-
-const handlePermissionSubmit = async () => {
-  permissionLoading.value = true
-  try {
-    await api.post(`/roles/${currentRoleId.value}/permissions`, {
-      permission_ids: selectedPermissionIds.value,
-    })
-    Message.success('权限分配成功')
-    permissionModalVisible.value = false
-    fetchData()
-  } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '分配失败')
-  } finally {
-    permissionLoading.value = false
-  }
-}
-
-const handleDelete = (record: Role) => {
-  Modal.warning({
-    title: '确认删除',
-    content: `确定要删除角色 ${record.name} 吗？`,
-    okText: '确认',
-    cancelText: '取消',
-    onOk: async () => {
-      try {
-        await api.delete(`/roles/${record.id}`)
-        Message.success('删除成功')
-        fetchData()
-      } catch (err: unknown) {
-        Message.error(((err as Error)?.message) || '删除失败')
-      }
-    },
-  })
-}
-
-onMounted(() => {
-  fetchData()
-  fetchPermissions()
-})
+const data = ref([
+  { id: 1, name: '系统管理员', description: '系统最高权限，可管理所有功能', is_system: true, created_at: '2026-01-01' },
+  { id: 2, name: '运营经理', description: '负责客户管理、结算配置、数据分析', is_system: true, created_at: '2026-01-01' },
+  { id: 3, name: '销售', description: '客户跟进、业务管理', is_system: true, created_at: '2026-01-01' },
+  { id: 4, name: '数据分析师', description: '查看数据分析报表', is_system: true, created_at: '2026-01-01' },
+  { id: 5, name: '高层管理者', description: '全局数据查看、决策支持', is_system: true, created_at: '2026-01-01' },
+])
 </script>
 
 <style scoped>
-.role-list {
-  padding: 20px;
+.role-management-page {
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-6: #646a73;
+  --neutral-10: #1d2330;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.header-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin-bottom: 8px;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: var(--neutral-6);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.table-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 </style>
