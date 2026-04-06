@@ -8,11 +8,14 @@ from sqlalchemy import select, func, and_
 from ..models.billing import AuditLog
 from ..models.users import User
 from datetime import datetime
+from ..middleware.auth import auth_required, require_permission
 
 audit_logs_bp = Blueprint("audit_logs", url_prefix="/api/v1/audit-logs")
 
 
 @audit_logs_bp.get("")
+@auth_required
+@require_permission("system:audit_read")
 async def list_audit_logs(request: Request):
     """
     获取审计日志列表（支持筛选和分页）
@@ -110,6 +113,8 @@ async def list_audit_logs(request: Request):
 
 
 @audit_logs_bp.get("/actions")
+@auth_required
+@require_permission("system:audit_read")
 async def get_audit_actions(request: Request):
     """获取所有操作类型（用于筛选下拉框）"""
     db_session: AsyncSession = request.ctx.db_session
@@ -127,6 +132,8 @@ async def get_audit_actions(request: Request):
 
 
 @audit_logs_bp.get("/modules")
+@auth_required
+@require_permission("system:audit_read")
 async def get_audit_modules(request: Request):
     """获取所有模块（用于筛选下拉框）"""
     db_session: AsyncSession = request.ctx.db_session

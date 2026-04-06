@@ -322,14 +322,18 @@ const loadCustomers = async () => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, unknown> = {
+      page: pagination.current,
+      page_size: pagination.pageSize,
+    }
     if (filters.customer_id) params.customer_id = filters.customer_id
     if (filters.device_type) params.device_type = filters.device_type
     if (filters.pricing_type) params.pricing_type = filters.pricing_type
 
     const res = await billingApi.getPricingRules(params)
-    data.value = res.data || []
-    pagination.total = data.value.length
+    data.value = res.data.list || []
+    pagination.total = res.data.total || data.value.length
+    pagination.pageSize = res.data.page_size || pagination.pageSize
   } catch (err: unknown) {
     Message.error((err as Error)?.message || '加载失败')
   } finally {
@@ -338,6 +342,7 @@ const fetchData = async () => {
 }
 
 const handleSearch = () => {
+  pagination.current = 1
   fetchData()
 }
 
@@ -345,16 +350,19 @@ const handleReset = () => {
   filters.customer_id = undefined
   filters.device_type = undefined
   filters.pricing_type = undefined
+  pagination.current = 1
   fetchData()
 }
 
 const onPageChange = (page: number) => {
   pagination.current = page
+  fetchData()
 }
 
 const onPageSizeChange = (pageSize: number) => {
   pagination.pageSize = pageSize
   pagination.current = 1
+  fetchData()
 }
 
 const showCreateModal = () => {
@@ -468,7 +476,7 @@ onMounted(() => {
 
 <style scoped>
 .pricing-rules {
-  padding: 20px;
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
 }
 
 .filter-form {

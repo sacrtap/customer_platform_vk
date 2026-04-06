@@ -91,6 +91,13 @@ export function importCustomers(file: File) {
   })
 }
 
+// 下载导入模板
+export function downloadImportTemplate() {
+  return api.get('/customers/import-template', {
+    responseType: 'blob',
+  })
+}
+
 // Excel 导出
 export function exportCustomers(params?: {
   keyword?: string

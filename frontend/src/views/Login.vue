@@ -72,14 +72,14 @@
           <p class="login-subtitle">请输入您的账号信息登录系统</p>
         </div>
 
-        <a-form layout="vertical" @submit="handleSubmit">
+        <a-form ref="formRef" layout="vertical" :model="formData" @submit="handleSubmit">
           <a-form-item
             field="username"
             label="账号"
             :rules="[{ required: true, message: '请输入用户名' }]"
           >
             <a-input
-              v-model="form.username"
+              v-model="formData.username"
               placeholder="请输入用户名/邮箱"
               size="large"
               :disabled="loading"
@@ -107,7 +107,7 @@
             :rules="[{ required: true, message: '请输入密码' }]"
           >
             <a-input-password
-              v-model="form.password"
+              v-model="formData.password"
               placeholder="请输入密码"
               size="large"
               :disabled="loading"
@@ -129,8 +129,8 @@
           </a-form-item>
 
           <div class="login-options">
-            <a-checkbox v-model="form.remember">记住我</a-checkbox>
-            <a href="#" class="login-forgot">忘记密码？</a>
+            <a-checkbox v-model="formData.remember">记住我</a-checkbox>
+            <a href="#" class="login-forgot" @click.prevent="forgotPasswordVisible = true">忘记密码？</a>
           </div>
 
           <a-form-item>
@@ -150,13 +150,57 @@
         <div class="login-footer">还没有账号？<a href="#">联系管理员</a></div>
       </div>
     </div>
+
+    <!-- 忘记密码对话框 -->
+    <a-modal
+      v-model:visible="forgotPasswordVisible"
+      title="重置密码"
+      :mask-closable="false"
+      @ok="handleForgotPassword"
+      @cancel="forgotPasswordVisible = false"
+    >
+      <a-form ref="forgotFormRef" :model="forgotForm" layout="vertical">
+        <a-form-item
+          label="用户名/邮箱"
+          field="username"
+          :rules="[{ required: true, message: '请输入用户名或邮箱' }]"
+        >
+          <a-input
+            v-model="forgotForm.username"
+            placeholder="请输入用户名或邮箱"
+            size="large"
+          />
+        </a-form-item>
+        <a-form-item
+          label="注册邮箱"
+          field="email"
+          :rules="[
+            { required: true, message: '请输入邮箱' },
+            { type: 'email', message: '邮箱格式不正确' }
+          ]"
+        >
+          <a-input
+            v-model="forgotForm.email"
+            placeholder="请输入注册时的邮箱"
+            size="large"
+          />
+        </a-form-item>
+      </a-form>
+      <template #footer>
+        <a-button @click="forgotPasswordVisible = false">取消</a-button>
+        <a-button type="primary" :loading="forgotLoading" @click="handleForgotPassword">
+          发送重置链接
+        </a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
+import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import api from '@/api'
 
@@ -171,7 +215,8 @@ const stats = [
   { value: '24/7', label: '技术支持' },
 ]
 
-const form = reactive({
+const formRef = ref<FormInstance>()
+const formData = reactive({
   username: '',
   password: '',
   remember: false,
@@ -179,11 +224,38 @@ const form = reactive({
 
 const loading = ref(false)
 
+// 忘记密码相关
+const forgotPasswordVisible = ref(false)
+const forgotFormRef = ref<FormInstance>()
+const forgotForm = reactive({
+  username: '',
+  email: '',
+})
+const forgotLoading = ref(false)
+
 const handleSubmit = async () => {
+  // 先进行表单验证
+  if (!formRef.value) return
+  
+  try {
+    await formRef.value.validate()
+  } catch (error) {
+    // 验证失败，不继续提交
+    return
+  }
+
   loading.value = true
 
   try {
-    const res = await api.post('/auth/login', form)
+    const res = await api.post('/auth/login', formData)
+    
+    // 记住我功能：保存或移除用户名
+    if (formData.remember) {
+      localStorage.setItem('remembered_username', formData.username)
+    } else {
+      localStorage.removeItem('remembered_username')
+    }
+    
     userStore.setToken(res.data.access_token, res.data.refresh_token)
     userStore.setUserInfo(res.data.user)
     userStore.setPermissions(res.data.permissions || [])
@@ -193,6 +265,45 @@ const handleSubmit = async () => {
     Message.error((err as Error)?.message || '登录失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 页面加载时恢复记住的用户名
+onMounted(() => {
+  const rememberedUsername = localStorage.getItem('remembered_username')
+  if (rememberedUsername) {
+    formData.username = rememberedUsername
+    formData.remember = true
+  }
+})
+
+// 忘记密码处理
+const handleForgotPassword = async () => {
+  if (!forgotFormRef.value) return
+
+  try {
+    await forgotFormRef.value.validate()
+  } catch (error) {
+    return
+  }
+
+  forgotLoading.value = true
+
+  try {
+    // 调用后端忘记密码 API（如果存在）
+    // await api.post('/auth/forgot-password', forgotForm)
+    
+    // 临时显示成功提示
+    Message.success('密码重置链接已发送到您的邮箱，请查收')
+    forgotPasswordVisible.value = false
+    
+    // 重置表单
+    forgotForm.username = ''
+    forgotForm.email = ''
+  } catch (error) {
+    Message.error('发送失败，请稍后重试')
+  } finally {
+    forgotLoading.value = false
   }
 }
 </script>

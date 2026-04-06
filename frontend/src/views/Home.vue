@@ -1,5 +1,33 @@
 <template>
   <div class="home-page">
+    <!-- 顶部操作栏 -->
+    <div class="header-actions">
+      <h1 class="page-title">仪表盘</h1>
+      <div class="actions-right">
+        <a-button type="primary" :loading="loading" @click="refreshData">
+          <template #icon>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              :style="{ transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform 0.5s linear' }"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </template>
+          刷新数据
+        </a-button>
+      </div>
+    </div>
+
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
@@ -35,13 +63,13 @@
               d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
             />
           </svg>
-          +{{ stats.customerGrowth }}% 较上月
+          关键客户 {{ stats.keyCustomers }} 家
         </div>
       </div>
 
       <div class="stat-card success">
         <div class="stat-header">
-          <span class="stat-title">本月回款</span>
+          <span class="stat-title">本月消耗</span>
           <div class="stat-icon success">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +86,7 @@
             </svg>
           </div>
         </div>
-        <div class="stat-value">¥{{ (stats.monthlyRevenue / 10000).toFixed(1) }}万</div>
+        <div class="stat-value">¥{{ (stats.monthConsumption / 10000).toFixed(1) }}万</div>
         <div class="stat-change positive">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -72,7 +100,7 @@
               d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
             />
           </svg>
-          +{{ stats.revenueGrowth }}% 较上月
+          结算单 {{ stats.monthInvoiceCount }} 份
         </div>
       </div>
 
@@ -95,7 +123,7 @@
             </svg>
           </div>
         </div>
-        <div class="stat-value">{{ stats.pendingInvoices }}</div>
+        <div class="stat-value">{{ stats.pendingConfirmation }}</div>
         <div class="stat-change negative">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -109,13 +137,13 @@
               d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
             />
           </svg>
-          +{{ stats.pendingGrowth }} 待处理
+          待处理
         </div>
       </div>
 
       <div class="stat-card danger">
         <div class="stat-header">
-          <span class="stat-title">余额预警</span>
+          <span class="stat-title">总余额</span>
           <div class="stat-icon danger">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -132,31 +160,19 @@
             </svg>
           </div>
         </div>
-        <div class="stat-value">{{ stats.warningCustomers }}</div>
+        <div class="stat-value">¥{{ (stats.totalBalance / 10000).toFixed(1) }}万</div>
         <div class="stat-change negative">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            viewBox="0 0 16 16"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
-            />
-          </svg>
-          需跟进
+          <span style="font-size: 12px;">实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span>
         </div>
       </div>
     </div>
 
     <!-- 内容网格 -->
     <div class="dashboard-grid">
-      <!-- 月度回款趋势 -->
+      <!-- 月度消耗趋势 -->
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">月度回款趋势</h3>
+          <h3 class="card-title">月度消耗趋势</h3>
           <div class="card-actions">
             <a-button size="small" @click="$message.info('导出功能开发中')">导出</a-button>
             <a-button type="primary" size="small" @click="$message.info('详情功能开发中')"
@@ -165,26 +181,7 @@
           </div>
         </div>
         <div class="card-body">
-          <div class="chart-placeholder">
-            <div style="text-align: center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="48"
-                height="48"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                style="margin-bottom: 12px; opacity: 0.5; color: var(--primary-6)"
-              >
-                <path
-                  d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"
-                />
-              </svg>
-              <div>ECharts 图表区域</div>
-              <div style="color: var(--neutral-5); font-size: 12px; margin-top: 4px">
-                显示 12 个月回款趋势折线图
-              </div>
-            </div>
-          </div>
+          <div ref="chartRef" class="chart-container"></div>
         </div>
       </div>
 
@@ -267,7 +264,6 @@
               <thead>
                 <tr>
                   <th>结算单号</th>
-                  <th>客户名称</th>
                   <th>周期</th>
                   <th>金额</th>
                   <th>状态</th>
@@ -278,18 +274,17 @@
               <tbody>
                 <tr v-for="invoice in invoices" :key="invoice.id">
                   <td>
-                    <strong>{{ invoice.no }}</strong>
+                    <strong>{{ invoice.invoice_no }}</strong>
                   </td>
-                  <td>{{ invoice.customer }}</td>
-                  <td>{{ invoice.period }}</td>
-                  <td>¥{{ invoice.amount.toLocaleString() }}</td>
+                  <td>{{ invoice.period_start }} 至 {{ invoice.period_end }}</td>
+                  <td>¥{{ invoice.total_amount.toLocaleString() }}</td>
                   <td>
-                    <span :class="['status-badge', invoice.status]">
+                    <span :class="['status-badge', getStatusClass(invoice.status)]">
                       <span class="status-dot"></span>
-                      {{ invoice.statusText }}
+                      {{ getStatusText(invoice.status) }}
                     </span>
                   </td>
-                  <td>{{ invoice.createdAt }}</td>
+                  <td>{{ formatDate(invoice.created_at) }}</td>
                   <td>
                     <a-button type="text" size="small" @click="$message.info('查看开发中')"
                       >查看</a-button
@@ -306,85 +301,235 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { Message } from '@arco-design/web-vue'
+import * as echarts from 'echarts'
+import {
+  getDashboardStats,
+  getDashboardChartData,
+  getPendingTasks,
+} from '@/api/analytics'
+import { getRecentInvoices, type Invoice } from '@/api/billing'
 
+const loading = ref(false)
+const chartRef = ref<HTMLElement>()
+let chartInstance: echarts.ECharts | null = null
+
+// 统计数据
 const stats = reactive({
-  totalCustomers: 2847,
-  customerGrowth: 12.5,
-  monthlyRevenue: 1284500,
-  revenueGrowth: 8.2,
-  pendingInvoices: 23,
-  pendingGrowth: 3,
-  warningCustomers: 8,
+  totalCustomers: 0,
+  keyCustomers: 0,
+  totalBalance: 0,
+  realBalance: 0,
+  bonusBalance: 0,
+  monthInvoiceCount: 0,
+  pendingConfirmation: 0,
+  monthConsumption: 0,
 })
 
-const todos = ref([
-  {
-    title: '确认 XX 科技账单',
-    priority: 'high',
-    priorityText: '高',
-    due: '今天 18:00 截止',
-    checked: false,
-  },
-  {
-    title: '跟进余额不足客户',
-    priority: 'high',
-    priorityText: '高',
-    due: '3 个客户',
-    checked: false,
-  },
-  {
-    title: '审核减免申请 - YY 公司',
-    priority: 'medium',
-    priorityText: '中',
-    due: '明天截止',
-    checked: false,
-  },
-  { title: '导出月度分析报告', priority: 'low', priorityText: '低', due: '本周五', checked: false },
-])
+// 待办事项
+const todos = ref<
+  Array<{
+    id: number
+    title: string
+    priority: 'high' | 'medium' | 'low'
+    priorityText: string
+    due: string
+    checked: boolean
+  }>
+>([])
 
-const invoices = ref([
-  {
-    id: 1,
-    no: 'INV-2026-0089',
-    customer: 'XX 科技有限公司',
-    period: '2026-03',
-    amount: 128500,
-    status: 'warning',
-    statusText: '待确认',
-    createdAt: '2026-04-01',
-  },
-  {
-    id: 2,
-    no: 'INV-2026-0088',
-    customer: 'YY 集团有限公司',
-    period: '2026-03',
-    amount: 85200,
-    status: 'info',
-    statusText: '待付款',
-    createdAt: '2026-04-01',
-  },
-  {
-    id: 3,
-    no: 'INV-2026-0087',
-    customer: 'ZZ 创新股份',
-    period: '2026-03',
-    amount: 256800,
-    status: 'success',
-    statusText: '已完成',
-    createdAt: '2026-03-31',
-  },
-  {
-    id: 4,
-    no: 'INV-2026-0086',
-    customer: 'AA 数字科技',
-    period: '2026-03',
-    amount: 42300,
-    status: 'success',
-    statusText: '已完成',
-    createdAt: '2026-03-30',
-  },
-])
+// 结算单
+const invoices = ref<Invoice[]>([])
+
+// 加载统计数据
+const loadStats = async () => {
+  try {
+    const res = await getDashboardStats()
+    stats.totalCustomers = res.data.total_customers
+    stats.keyCustomers = res.data.key_customers
+    stats.totalBalance = res.data.total_balance
+    stats.realBalance = res.data.real_balance
+    stats.bonusBalance = res.data.bonus_balance
+    stats.monthInvoiceCount = res.data.month_invoice_count
+    stats.pendingConfirmation = res.data.pending_confirmation
+    stats.monthConsumption = res.data.month_consumption
+  } catch (error) {
+    Message.error('加载统计数据失败')
+  }
+}
+
+// 加载图表数据
+const loadChartData = async () => {
+  try {
+    const res: any = await getDashboardChartData({ months: 12 })
+    await nextTick()
+    initChart(res.data.consumption_trend)
+  } catch (error) {
+    console.error('加载图表数据失败:', error)
+    Message.error('加载图表数据失败')
+  }
+}
+
+// 初始化图表
+const initChart = (data: Array<{ period: string; total_amount: number }>) => {
+  if (!chartRef.value) return
+  
+  if (chartInstance) {
+    chartInstance.dispose()
+  }
+  
+  chartInstance = echarts.init(chartRef.value)
+  
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#e0e2e7',
+      textStyle: { color: '#2f3645' },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: '10%',
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: data.map((item) => item.period),
+      axisLine: { lineStyle: { color: '#e0e2e7' } },
+      axisLabel: { color: '#646a73' },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: '#eef0f3' } },
+      axisLabel: { 
+        color: '#646a73',
+        formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
+      },
+    },
+    series: [
+      {
+        name: '消耗金额',
+        type: 'line',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: {
+          color: '#0369a1',
+          width: 3,
+        },
+        itemStyle: {
+          color: '#0369a1',
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(3, 105, 161, 0.2)' },
+              { offset: 1, color: 'rgba(3, 105, 161, 0.02)' },
+            ],
+          },
+        },
+        data: data.map((item) => item.total_amount),
+      },
+    ],
+  }
+  
+  chartInstance.setOption(option)
+}
+
+// 加载待办事项
+const loadTodos = async () => {
+  try {
+    const res = await getPendingTasks()
+    // Mock 数据返回的是 items
+    todos.value = res.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      priority: item.priority,
+      priorityText: item.priority_text,
+      due: item.due_date,
+      checked: false,
+    }))
+  } catch (error) {
+    Message.error('加载待办事项失败')
+  }
+}
+
+// 加载最近结算单
+const loadRecentInvoices = async () => {
+  try {
+    const res = await getRecentInvoices(10)
+    invoices.value = res.data.list
+  } catch (error) {
+    Message.error('加载结算单失败')
+  }
+}
+
+// 刷新数据
+const refreshData = async () => {
+  loading.value = true
+  try {
+    await Promise.all([loadStats(), loadChartData(), loadTodos(), loadRecentInvoices()])
+    Message.success('数据已刷新')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 状态映射
+const getStatusClass = (status: string) => {
+  const map: Record<string, string> = {
+    draft: 'info',
+    submitted: 'warning',
+    confirmed: 'warning',
+    paid: 'info',
+    completed: 'success',
+  }
+  return map[status] || 'info'
+}
+
+const getStatusText = (status: string) => {
+  const map: Record<string, string> = {
+    draft: '草稿',
+    submitted: '待审核',
+    confirmed: '待确认',
+    paid: '待付款',
+    completed: '已完成',
+  }
+  return map[status] || status
+}
+
+const formatDate = (dateStr: string) => {
+  return dateStr.split('T')[0]
+}
+
+// 窗口大小变化处理
+const handleResize = () => {
+  chartInstance?.resize()
+}
+
+onMounted(() => {
+  loadStats()
+  loadChartData()
+  loadTodos()
+  loadRecentInvoices()
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  chartInstance?.dispose()
+})
 </script>
 
 <style scoped>
@@ -414,6 +559,32 @@ const invoices = ref([
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 顶部操作栏 */
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin: 0;
+}
+
+.actions-right {
+  display: flex;
+  gap: 12px;
+}
+
+/* 图表容器 */
+.chart-container {
+  height: 300px;
+  width: 100%;
 }
 
 /* 统计卡片 */

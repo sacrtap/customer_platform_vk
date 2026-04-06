@@ -256,7 +256,7 @@ onMounted(() => {
 
 <style scoped>
 .audit-logs-page {
-  padding: 20px;
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
 }
 
 .filter-card {

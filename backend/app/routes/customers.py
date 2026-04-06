@@ -6,6 +6,7 @@ from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.customers import CustomerService
 from ..cache.base import cache_service
+from ..middleware.auth import auth_required, require_permission
 import pandas as pd
 import io
 from datetime import datetime
@@ -15,6 +16,8 @@ customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
 
 @customers_bp.get("")
+@auth_required
+@require_permission("customers:read")
 async def list_customers(request: Request):
     """
     获取客户列表（支持筛选）
@@ -104,6 +107,8 @@ async def list_customers(request: Request):
 
 
 @customers_bp.get("/<customer_id:int>")
+@auth_required
+@require_permission("customers:read")
 async def get_customer(request: Request, customer_id: int):
     """获取客户详情（包含画像和余额）"""
     # 尝试从缓存获取
@@ -188,6 +193,8 @@ async def get_customer(request: Request, customer_id: int):
 
 
 @customers_bp.post("")
+@auth_required
+@require_permission("customers:write")
 async def create_customer(request: Request):
     """
     创建客户
@@ -250,6 +257,8 @@ async def create_customer(request: Request):
 
 
 @customers_bp.put("/<customer_id:int>")
+@auth_required
+@require_permission("customers:write")
 async def update_customer(request: Request, customer_id: int):
     """
     更新客户信息
@@ -304,6 +313,8 @@ async def update_customer(request: Request, customer_id: int):
 
 
 @customers_bp.delete("/<customer_id:int>")
+@auth_required
+@require_permission("customers:delete")
 async def delete_customer(request: Request, customer_id: int):
     """删除客户（软删除）"""
     db_session: AsyncSession = request.ctx.db_session
@@ -321,6 +332,8 @@ async def delete_customer(request: Request, customer_id: int):
 
 
 @customers_bp.get("/<customer_id:int>/profile")
+@auth_required
+@require_permission("customers:read")
 async def get_profile(request: Request, customer_id: int):
     """获取客户画像"""
     db_session: AsyncSession = request.ctx.db_session
@@ -353,6 +366,8 @@ async def get_profile(request: Request, customer_id: int):
 
 
 @customers_bp.put("/<customer_id:int>/profile")
+@auth_required
+@require_permission("customers:write")
 async def update_profile(request: Request, customer_id: int):
     """
     创建或更新客户画像
@@ -393,6 +408,8 @@ async def update_profile(request: Request, customer_id: int):
 
 
 @customers_bp.post("/import")
+@auth_required
+@require_permission("customers:write")
 async def import_customers(request: Request):
     """
     Excel 批量导入客户
@@ -471,7 +488,66 @@ async def import_customers(request: Request):
         return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
 
 
+@customers_bp.get("/import-template")
+@auth_required
+@require_permission("customers:write")
+async def download_import_template(request: Request):
+    """下载 Excel 导入模板"""
+    import io
+    from openpyxl import Workbook
+
+    # 创建 Excel 工作簿
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "客户导入模板"
+
+    # 设置表头
+    headers = [
+        "company_id(必填)",
+        "name(必填)",
+        "account_type(可选)",
+        "business_type(可选)",
+        "customer_level(可选)",
+        "settlement_cycle(可选)",
+        "settlement_type(可选)",
+        "is_key_customer(可选)",
+        "email(可选)",
+    ]
+    ws.append(headers)
+
+    # 设置列宽
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = 18
+
+    # 添加示例数据
+    example_data = [
+        "COMP001",
+        "示例公司 1",
+        "正式账号",
+        "A",
+        "KA",
+        "月结",
+        "prepaid",
+        "false",
+        "example@company.com",
+    ]
+    ws.append(example_data)
+
+    # 生成文件
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return await response_file(
+        output,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="客户导入模板.xlsx"'},
+    )
+
+
 @customers_bp.get("/export")
+@auth_required
+@require_permission("customers:read")
 async def export_customers(request: Request):
     """
     Excel 导出客户列表

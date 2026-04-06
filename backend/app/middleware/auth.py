@@ -48,18 +48,24 @@ def auth_middleware(app: Sanic):
             from ..config import settings as current_settings
 
             print(f"[AUTH DEBUG] Path: {request.path}, Token: {token[:30]}...")
-            print(f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}...")
+            print(
+                f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}..."
+            )
 
             try:
                 payload = AuthService.verify_token(token)
                 print(f"[AUTH DEBUG] Token payload: {payload}")
             except Exception as e:
                 print(f"[AUTH DEBUG] Token verification failed: {e}")
-                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
+                return json(
+                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
+                )
 
             if not payload:
                 print("[AUTH DEBUG] Payload is None, returning 40102")
-                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
+                return json(
+                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
+                )
 
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload
@@ -78,7 +84,12 @@ def get_current_user(request: Request) -> dict | None:
 
 
 def require_permission(permission_code: str):
-    """权限校验装饰器"""
+    """权限校验装饰器
+
+    支持权限通配符匹配：
+    - 用户有 'customers:manage' 权限时，自动拥有 'customers:read'、'customers:write'、'customers:delete'
+    - 用户有 'system:view' 权限时，自动拥有 'system:audit_read'
+    """
 
     def decorator(f):
         @wraps(f)
@@ -99,8 +110,8 @@ def require_permission(permission_code: str):
                 # 设置缓存
                 await permission_cache.set_permissions(user_id, user_permissions)
 
-            # 校验权限
-            if permission_code not in user_permissions:
+            # 校验权限（支持通配符匹配）
+            if not _check_permission(user_permissions, permission_code):
                 return json({"code": 40301, "message": "权限不足"}, status=403)
 
             return await f(request, *args, **kwargs)
@@ -108,6 +119,54 @@ def require_permission(permission_code: str):
         return decorated_function
 
     return decorator
+
+
+def _check_permission(user_permissions: set, required_permission: str) -> bool:
+    """检查用户是否有指定权限（支持通配符匹配）
+
+    Args:
+        user_permissions: 用户权限集合
+        required_permission: 需要的权限
+
+    Returns:
+        是否有权限
+    """
+    if not user_permissions:
+        return False
+
+    # 直接匹配
+    if required_permission in user_permissions:
+        return True
+
+    # 解析权限模块和操作
+    if ":" not in required_permission:
+        return False
+
+    module, action = required_permission.split(":", 1)
+
+    # 检查是否有 manage 权限（manage 包含 read/write/delete）
+    manage_permission = f"{module}:manage"
+    if manage_permission in user_permissions:
+        # manage 权限包含所有操作，除了特定的子权限
+        if action in ["read", "write", "delete", "create", "update"]:
+            return True
+
+    # 特殊映射：system:view 包含 system:audit_read
+    if module == "system" and action == "audit_read":
+        if "system:view" in user_permissions:
+            return True
+
+    # 特殊映射：billing.recharge 是 billing:manage 的子权限
+    if module == "billing" and action == "recharge":
+        if "billing:manage" in user_permissions:
+            return True
+
+    # 特殊映射：user.delete 是 users:manage 的子权限
+    if module == "user" and action == "delete":
+        if "users:manage" in user_permissions:
+            return True
+
+    return False
 
 
 def auth_required(f):

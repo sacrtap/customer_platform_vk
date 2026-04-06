@@ -67,6 +67,42 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: 'analytics',
+        name: 'Analytics',
+        children: [
+          {
+            path: 'consumption',
+            name: 'ConsumptionAnalysis',
+            component: () => import('@/views/analytics/Consumption.vue'),
+            meta: { requiresPermission: 'analytics:read' },
+          },
+          {
+            path: 'payment',
+            name: 'PaymentAnalysis',
+            component: () => import('@/views/analytics/Payment.vue'),
+            meta: { requiresPermission: 'analytics:read' },
+          },
+          {
+            path: 'health',
+            name: 'HealthAnalysis',
+            component: () => import('@/views/analytics/Health.vue'),
+            meta: { requiresPermission: 'analytics:read' },
+          },
+          {
+            path: 'profile',
+            name: 'ProfileAnalysis',
+            component: () => import('@/views/analytics/Profile.vue'),
+            meta: { requiresPermission: 'analytics:read' },
+          },
+          {
+            path: 'forecast',
+            name: 'ForecastAnalysis',
+            component: () => import('@/views/analytics/Forecast.vue'),
+            meta: { requiresPermission: 'analytics:read' },
+          },
+        ],
+      },
+      {
         path: 'system',
         name: 'System',
         children: [

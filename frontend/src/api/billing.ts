@@ -99,6 +99,8 @@ export function getPricingRules(params?: {
   customer_id?: number
   device_type?: string
   pricing_type?: string
+  page?: number
+  page_size?: number
 }) {
   return api.get('/billing/pricing-rules', { params })
 }
@@ -199,4 +201,9 @@ export function completeInvoice(invoiceId: number) {
 
 export function deleteInvoice(id: number) {
   return api.delete(`/billing/invoices/${id}`)
+}
+
+// 获取最近结算单（简化接口）
+export function getRecentInvoices(limit: number = 10) {
+  return getInvoices({ page: 1, page_size: limit })
 }

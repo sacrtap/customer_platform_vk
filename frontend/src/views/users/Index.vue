@@ -6,7 +6,15 @@
         <p class="header-subtitle">系统账号与权限管理</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="$message.info('新建用户开发中')">
+        <a-input-search
+          v-model="searchKeyword"
+          placeholder="搜索用户名或邮箱"
+          style="width: 300px"
+          allow-clear
+          @search="handleSearch"
+          @clear="handleSearch"
+        />
+        <a-button type="primary" @click="handleCreate">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -28,10 +36,12 @@
     <div class="table-section">
       <a-table
         :columns="columns"
-        :data="data"
+        :data="users"
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
       >
         <template #status="{ record }">
           <span :class="['status-badge', record.is_active ? 'success' : 'danger']">
@@ -39,87 +49,412 @@
             {{ record.is_active ? '启用' : '禁用' }}
           </span>
         </template>
-        <template #action>
+        <template #roles="{ record }">
+          <a-tag v-for="role in record.roles" :key="role" size="small" style="margin-right: 4px">
+            {{ role }}
+          </a-tag>
+        </template>
+        <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="$message.info('编辑开发中')">编辑</a-button>
-            <a-button type="text" size="small" @click="$message.info('重置密码开发中')"
-              >重置密码</a-button
+            <a-button type="text" size="small" @click="handleEdit(record)">编辑</a-button>
+            <a-button type="text" size="small" @click="handleResetPassword(record)">
+              重置密码
+            </a-button>
+            <a-popconfirm
+              content="确认删除该用户？删除后无法恢复。"
+              @ok="handleDelete(record.id)"
             >
-            <a-popconfirm content="确认删除？" @ok="$message.info('删除开发中')">
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
           </a-space>
         </template>
       </a-table>
     </div>
+
+    <!-- 用户编辑对话框 -->
+    <a-modal
+      v-model:visible="userModalVisible"
+      :title="isEditMode ? '编辑用户' : '新建用户'"
+      :confirm-loading="submitting"
+      width="500px"
+      @ok="handleUserSubmit"
+      @cancel="handleUserModalCancel"
+    >
+      <a-form
+        ref="userFormRef"
+        :model="userForm"
+        :rules="userFormRules"
+        layout="vertical"
+      >
+        <a-form-item field="username" label="用户名">
+          <a-input
+            v-model="userForm.username"
+            placeholder="请输入用户名"
+            :disabled="isEditMode"
+          />
+        </a-form-item>
+        <a-form-item v-if="!isEditMode" field="password" label="密码">
+          <a-input-password
+            v-model="userForm.password"
+            placeholder="请输入密码"
+          />
+        </a-form-item>
+        <a-form-item field="email" label="邮箱">
+          <a-input
+            v-model="userForm.email"
+            placeholder="请输入邮箱"
+          />
+        </a-form-item>
+        <a-form-item field="real_name" label="真实姓名">
+          <a-input
+            v-model="userForm.real_name"
+            placeholder="请输入真实姓名"
+          />
+        </a-form-item>
+        <a-form-item v-if="isEditMode" field="is_active" label="状态">
+          <a-switch v-model="userForm.is_active" />
+        </a-form-item>
+        <a-form-item field="role_ids" label="角色">
+          <a-select
+            v-model="userForm.role_ids"
+            placeholder="请选择角色"
+            multiple
+            style="width: 100%"
+          >
+            <a-option
+              v-for="role in availableRoles"
+              :key="role.id"
+              :value="role.id"
+            >
+              {{ role.name }}
+            </a-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 重置密码对话框 -->
+    <a-modal
+      v-model:visible="passwordModalVisible"
+      title="重置密码"
+      :confirm-loading="resettingPassword"
+      width="400px"
+      @ok="handlePasswordSubmit"
+      @cancel="handlePasswordModalCancel"
+    >
+      <a-form
+        ref="passwordFormRef"
+        :model="passwordForm"
+        :rules="passwordFormRules"
+        layout="vertical"
+      >
+        <a-form-item field="newPassword" label="新密码">
+          <a-input-password
+            v-model="passwordForm.newPassword"
+            placeholder="请输入新密码"
+          />
+        </a-form-item>
+        <a-form-item field="confirmPassword" label="确认密码">
+          <a-input-password
+            v-model="passwordForm.confirmPassword"
+            placeholder="请再次输入新密码"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { Message } from '@arco-design/web-vue'
+import type { FormInstance } from '@arco-design/web-vue'
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  resetPassword,
+  assignUserRoles,
+  type User as ApiUser,
+} from '@/api/users'
+import { getRoles } from '@/api/roles'
 
-const loading = ref(false)
-
-const pagination = {
-  current: 1,
-  pageSize: 20,
-  total: 50,
-  showTotal: true,
-  showPageSize: true,
+// ========== 类型定义 ==========
+interface User {
+  id: number
+  username: string
+  email: string | null
+  real_name: string | null
+  is_active: boolean
+  is_system: boolean
+  roles: string[]
+  created_at: string
 }
 
+interface Role {
+  id: number
+  name: string
+  description?: string
+}
+
+// ========== 状态管理 ==========
+const loading = ref(false)
+const users = ref<User[]>([])
+const searchKeyword = ref('')
+const availableRoles = ref<Role[]>([])
+
+// 分页
+const pagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showTotal: true,
+  showPageSize: true,
+})
+
+// 表格列定义
 const columns = [
   { title: '用户名', dataIndex: 'username', width: 150 },
   { title: '邮箱', dataIndex: 'email', width: 200 },
   { title: '真实姓名', dataIndex: 'real_name', width: 120 },
-  { title: '角色', dataIndex: 'roles', width: 150 },
+  { title: '角色', slotName: 'roles', width: 200 },
   { title: '状态', slotName: 'status', width: 100 },
   { title: '创建时间', dataIndex: 'created_at', width: 180 },
   { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
 ]
 
-const data = ref([
-  {
-    id: 1,
-    username: 'admin',
-    email: 'admin@example.com',
-    real_name: '管理员',
-    roles: ['系统管理员'],
+// ========== 用户表单 ==========
+const userModalVisible = ref(false)
+const isEditMode = ref(false)
+const submitting = ref(false)
+const userFormRef = ref<FormInstance>()
+const editingUserId = ref<number | null>(null)
+
+const userForm = reactive({
+  username: '',
+  password: '',
+  email: '',
+  real_name: '',
+  is_active: true,
+  role_ids: [] as number[],
+})
+
+const userFormRules = {
+  username: [
+    { required: true, message: '请输入用户名' },
+    { minLength: 3, message: '用户名至少 3 个字符' },
+  ],
+  password: [
+    { required: true, message: '请输入密码' },
+    { minLength: 6, message: '密码至少 6 个字符' },
+  ],
+  email: [
+    { type: 'email' as const, message: '请输入有效的邮箱地址' },
+  ],
+}
+
+// ========== 密码重置表单 ==========
+const passwordModalVisible = ref(false)
+const resettingPassword = ref(false)
+const passwordFormRef = ref<FormInstance>()
+const resettingUserId = ref<number | null>(null)
+
+const passwordForm = reactive({
+  newPassword: '',
+  confirmPassword: '',
+})
+
+const passwordFormRules = {
+  newPassword: [
+    { required: true, message: '请输入新密码' },
+    { minLength: 6, message: '密码至少 6 个字符' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码' },
+    {
+      validator: (value: string, callback: (error?: Error) => void) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+    },
+  ],
+}
+
+// ========== 数据加载 ==========
+const loadUsers = async () => {
+  loading.value = true
+  try {
+    const res = await getUsers({
+      page: pagination.current,
+      page_size: pagination.pageSize,
+      keyword: searchKeyword.value || undefined,
+    })
+    users.value = (res.data as any).list.map((item: ApiUser) => ({
+      ...item,
+      roles: item.roles?.map(r => r.name) || [],
+    }))
+    pagination.total = (res.data as any).total || 0
+  } catch (error: any) {
+    Message.error(error.message || '加载用户列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadRoles = async () => {
+  try {
+    const res = await getRoles({ page: 1, page_size: 100 })
+    availableRoles.value = (res.data as any).list || []
+  } catch (error: any) {
+    Message.error(error.message || '加载角色列表失败')
+  }
+}
+
+// ========== 事件处理 ==========
+const handleSearch = () => {
+  pagination.current = 1
+  loadUsers()
+}
+
+const handlePageChange = (page: number) => {
+  pagination.current = page
+  loadUsers()
+}
+
+const handlePageSizeChange = (pageSize: number) => {
+  pagination.pageSize = pageSize
+  pagination.current = 1
+  loadUsers()
+}
+
+const handleCreate = () => {
+  isEditMode.value = false
+  editingUserId.value = null
+  Object.assign(userForm, {
+    username: '',
+    password: '',
+    email: '',
+    real_name: '',
     is_active: true,
-    created_at: '2026-01-01',
-  },
-  {
-    id: 2,
-    username: 'liming',
-    email: 'liming@example.com',
-    real_name: '李明',
-    roles: ['运营经理'],
-    is_active: true,
-    created_at: '2026-02-15',
-  },
-  {
-    id: 3,
-    username: 'wangwu',
-    email: 'wangwu@example.com',
-    real_name: '王五',
-    roles: ['销售'],
-    is_active: true,
-    created_at: '2026-03-01',
-  },
-  {
-    id: 4,
-    username: 'zhaoliu',
-    email: 'zhaoliu@example.com',
-    real_name: '赵六',
-    roles: ['数据分析师'],
-    is_active: false,
-    created_at: '2026-03-10',
-  },
-])
+    role_ids: [],
+  })
+  userModalVisible.value = true
+}
+
+const handleEdit = (record: User) => {
+  isEditMode.value = true
+  editingUserId.value = record.id
+  Object.assign(userForm, {
+    username: record.username,
+    password: '',
+    email: record.email || '',
+    real_name: record.real_name || '',
+    is_active: record.is_active,
+    role_ids: [],
+  })
+  userModalVisible.value = true
+}
+
+const handleUserModalCancel = () => {
+  userModalVisible.value = false
+  userFormRef.value?.resetFields()
+}
+
+const handleUserSubmit = async () => {
+  try {
+    await userFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  try {
+    if (isEditMode.value && editingUserId.value) {
+      await updateUser(editingUserId.value, {
+        email: userForm.email || undefined,
+        real_name: userForm.real_name || undefined,
+        is_active: userForm.is_active,
+      })
+      if (userForm.role_ids.length > 0) {
+        await assignUserRoles(editingUserId.value, userForm.role_ids)
+      }
+      Message.success('用户更新成功')
+    } else {
+      await createUser({
+        username: userForm.username,
+        password: userForm.password,
+        email: userForm.email || undefined,
+        real_name: userForm.real_name || undefined,
+      })
+      Message.success('用户创建成功')
+    }
+    userModalVisible.value = false
+    loadUsers()
+  } catch (error: any) {
+    Message.error(error.message || '操作失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const handleDelete = async (id: number) => {
+  try {
+    await deleteUser(id)
+    Message.success('删除成功')
+    loadUsers()
+  } catch (error: any) {
+    Message.error(error.message || '删除失败')
+  }
+}
+
+const handleResetPassword = (record: User) => {
+  resettingUserId.value = record.id
+  Object.assign(passwordForm, {
+    newPassword: '',
+    confirmPassword: '',
+  })
+  passwordModalVisible.value = true
+}
+
+const handlePasswordModalCancel = () => {
+  passwordModalVisible.value = false
+  passwordFormRef.value?.resetFields()
+}
+
+const handlePasswordSubmit = async () => {
+  try {
+    await passwordFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  if (!resettingUserId.value) return
+
+  resettingPassword.value = true
+  try {
+    await resetPassword(resettingUserId.value, passwordForm.newPassword)
+    Message.success('密码重置成功')
+    passwordModalVisible.value = false
+  } catch (error: any) {
+    Message.error(error.message || '密码重置失败')
+  } finally {
+    resettingPassword.value = false
+  }
+}
+
+onMounted(() => {
+  loadUsers()
+  loadRoles()
+})
 </script>
 
 <style scoped>
 .user-management-page {
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
   --neutral-1: #f7f8fa;
   --neutral-2: #eef0f3;
   --neutral-6: #646a73;

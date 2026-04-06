@@ -290,7 +290,7 @@ onMounted(() => {
 
 <style scoped lang="less">
 .sync-logs-page {
-  padding: 20px;
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
 
   .stats-card {
     margin-bottom: 16px;

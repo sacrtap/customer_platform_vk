@@ -6,7 +6,15 @@
         <p class="header-subtitle">角色管理与权限配置</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="$message.info('新建角色开发中')">
+        <a-input-search
+          v-model="searchKeyword"
+          placeholder="搜索角色名或描述"
+          style="width: 300px"
+          allow-clear
+          @search="handleSearch"
+          @clear="handleSearch"
+        />
+        <a-button type="primary" @click="handleCreate">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -28,101 +36,390 @@
     <div class="table-section">
       <a-table
         :columns="columns"
-        :data="data"
+        :data="roles"
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
       >
         <template #is_system="{ record }">
-          <a-tag v-if="record.is_system" color="blue">系统角色</a-tag>
+          <a-tag v-if="record.isSystem" color="blue">系统角色</a-tag>
           <a-tag v-else color="gray">自定义</a-tag>
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="$message.info('权限配置开发中')"
-              >权限配置</a-button
-            >
+            <a-button type="text" size="small" @click="handlePermissionConfig(record)">
+              权限配置
+            </a-button>
             <a-button
               type="text"
               size="small"
-              :disabled="record.is_system"
-              @click="$message.info('编辑开发中')"
-              >编辑</a-button
+              :disabled="record.isSystem"
+              @click="handleEdit(record)"
             >
-            <a-popconfirm content="确认删除？" @ok="$message.info('删除开发中')">
-              <a-button type="text" size="small" status="danger" :disabled="record.is_system"
-                >删除</a-button
+              编辑
+            </a-button>
+            <a-popconfirm
+              content="确认删除该角色？删除后无法恢复。"
+              :disabled="record.isSystem"
+              @ok="handleDelete(record.id)"
+            >
+              <a-button
+                type="text"
+                size="small"
+                status="danger"
+                :disabled="record.isSystem"
               >
+                删除
+              </a-button>
             </a-popconfirm>
           </a-space>
         </template>
       </a-table>
     </div>
+
+    <!-- 角色编辑对话框 -->
+    <a-modal
+      v-model:visible="roleModalVisible"
+      :title="isEditMode ? '编辑角色' : '新建角色'"
+      :confirm-loading="submitting"
+      width="500px"
+      @ok="handleRoleSubmit"
+      @cancel="handleRoleModalCancel"
+    >
+      <a-form
+        ref="roleFormRef"
+        :model="roleForm"
+        :rules="roleFormRules"
+        layout="vertical"
+      >
+        <a-form-item field="name" label="角色名称">
+          <a-input
+            v-model="roleForm.name"
+            placeholder="请输入角色名称"
+          />
+        </a-form-item>
+        <a-form-item field="description" label="描述">
+          <a-textarea
+            v-model="roleForm.description"
+            placeholder="请输入角色描述"
+            :max-length="200"
+            show-word-limit
+            :auto-size="{ minRows: 3, maxRows: 6 }"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 权限配置对话框 -->
+    <a-modal
+      v-model:visible="permissionModalVisible"
+      :title="`${currentRole?.name || ''} - 权限配置`"
+      :confirm-loading="savingPermissions"
+      width="700px"
+      @ok="handlePermissionSubmit"
+      @cancel="handlePermissionModalCancel"
+    >
+      <div class="permission-config">
+        <div class="permission-header">
+          <span class="permission-count">
+            已选择 {{ selectedPermissionIds.length }} 项权限
+          </span>
+          <a-button size="small" @click="toggleAllPermissions">
+            {{ isAllPermissionsSelected ? '取消全选' : '全选' }}
+          </a-button>
+        </div>
+        <a-tree
+          v-if="permissionsTree.length > 0"
+          v-model:checked-keys="selectedPermissionIds"
+          :data="permissionsTree"
+          checkable
+          :field-names="{ key: 'id', title: 'name', children: 'children' }"
+        />
+        <a-empty v-else description="暂无可用权限" />
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { Message } from '@arco-design/web-vue'
+import type { FormInstance } from '@arco-design/web-vue'
+import {
+  getRoles,
+  getRole,
+  createRole,
+  updateRole,
+  deleteRole,
+  getPermissions,
+  updateRolePermissions,
+  type Role as ApiRole,
+} from '@/api/roles'
 
-const loading = ref(false)
-
-const pagination = {
-  current: 1,
-  pageSize: 20,
-  total: 30,
-  showTotal: true,
-  showPageSize: true,
+// ========== 类型定义 ==========
+interface Role {
+  id: number
+  name: string
+  description?: string
+  isSystem: boolean
+  createdAt?: string
 }
 
+interface Permission {
+  id: number
+  code: string
+  name: string
+  description?: string
+  module?: string
+}
+
+// ========== 状态管理 ==========
+const loading = ref(false)
+const roles = ref<Role[]>([])
+const searchKeyword = ref('')
+const allPermissions = ref<Permission[]>([])
+
+// 分页
+const pagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showTotal: true,
+  showPageSize: true,
+})
+
+// 表格列定义
 const columns = [
   { title: '角色名称', dataIndex: 'name', width: 150 },
   { title: '描述', dataIndex: 'description', width: 300 },
   { title: '类型', slotName: 'is_system', width: 120 },
-  { title: '创建时间', dataIndex: 'created_at', width: 180 },
+  { title: '创建时间', dataIndex: 'createdAt', width: 180 },
   { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
 ]
 
-const data = ref([
-  {
-    id: 1,
-    name: '系统管理员',
-    description: '系统最高权限，可管理所有功能',
-    is_system: true,
-    created_at: '2026-01-01',
-  },
-  {
-    id: 2,
-    name: '运营经理',
-    description: '负责客户管理、结算配置、数据分析',
-    is_system: true,
-    created_at: '2026-01-01',
-  },
-  {
-    id: 3,
-    name: '销售',
-    description: '客户跟进、业务管理',
-    is_system: true,
-    created_at: '2026-01-01',
-  },
-  {
-    id: 4,
-    name: '数据分析师',
-    description: '查看数据分析报表',
-    is_system: true,
-    created_at: '2026-01-01',
-  },
-  {
-    id: 5,
-    name: '高层管理者',
-    description: '全局数据查看、决策支持',
-    is_system: true,
-    created_at: '2026-01-01',
-  },
-])
+// ========== 角色表单 ==========
+const roleModalVisible = ref(false)
+const isEditMode = ref(false)
+const submitting = ref(false)
+const roleFormRef = ref<FormInstance>()
+const editingRoleId = ref<number | null>(null)
+
+const roleForm = reactive({
+  name: '',
+  description: '',
+})
+
+const roleFormRules = {
+  name: [{ required: true, message: '请输入角色名称' }],
+}
+
+// ========== 权限配置 ==========
+const permissionModalVisible = ref(false)
+const savingPermissions = ref(false)
+const currentRole = ref<Role | null>(null)
+const selectedPermissionIds = ref<number[]>([])
+
+const permissionsTree = computed(() => {
+  const tree: any[] = []
+  const moduleMap = new Map<string, any>()
+
+  allPermissions.value.forEach((perm) => {
+    const module = perm.module || '其他'
+    if (!moduleMap.has(module)) {
+      const moduleNode = {
+        id: `module-${module}`,
+        name: module,
+        title: module,
+        children: [],
+      }
+      moduleMap.set(module, moduleNode)
+      tree.push(moduleNode)
+    }
+    const moduleNode = moduleMap.get(module)!
+    moduleNode.children!.push({
+      id: perm.id,
+      name: perm.name,
+      title: perm.name,
+    })
+  })
+
+  return tree
+})
+
+const isAllPermissionsSelected = computed(() => {
+  const allPermIds = allPermissions.value.map((p) => p.id)
+  return allPermIds.length > 0 && allPermIds.every((id) => selectedPermissionIds.value.includes(id))
+})
+
+// ========== 数据加载 ==========
+const loadRoles = async () => {
+  loading.value = true
+  try {
+    const res = await getRoles({
+      page: pagination.current,
+      page_size: pagination.pageSize,
+    })
+    const data = res.data as any
+    roles.value = (data.list || []).map((item: ApiRole) => ({
+      ...item,
+      isSystem: item.isSystem || false,
+    }))
+    pagination.total = data.total || 0
+  } catch (error: any) {
+    Message.error(error.message || '加载角色列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const loadPermissions = async () => {
+  try {
+    const res = await getPermissions()
+    allPermissions.value = res.data || []
+  } catch (error: any) {
+    Message.error(error.message || '加载权限列表失败')
+  }
+}
+
+// ========== 事件处理 ==========
+const handleSearch = () => {
+  pagination.current = 1
+  loadRoles()
+}
+
+const handlePageChange = (page: number) => {
+  pagination.current = page
+  loadRoles()
+}
+
+const handlePageSizeChange = (pageSize: number) => {
+  pagination.pageSize = pageSize
+  pagination.current = 1
+  loadRoles()
+}
+
+const handleCreate = () => {
+  isEditMode.value = false
+  editingRoleId.value = null
+  Object.assign(roleForm, {
+    name: '',
+    description: '',
+  })
+  roleModalVisible.value = true
+}
+
+const handleEdit = (record: Role) => {
+  isEditMode.value = true
+  editingRoleId.value = record.id
+  Object.assign(roleForm, {
+    name: record.name,
+    description: record.description || '',
+  })
+  roleModalVisible.value = true
+}
+
+const handleRoleModalCancel = () => {
+  roleModalVisible.value = false
+  roleFormRef.value?.resetFields()
+}
+
+const handleRoleSubmit = async () => {
+  try {
+    await roleFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  try {
+    if (isEditMode.value && editingRoleId.value) {
+      await updateRole(editingRoleId.value, {
+        name: roleForm.name,
+        description: roleForm.description || undefined,
+      })
+      Message.success('角色更新成功')
+    } else {
+      await createRole({
+        name: roleForm.name,
+        description: roleForm.description || undefined,
+      })
+      Message.success('角色创建成功')
+    }
+    roleModalVisible.value = false
+    loadRoles()
+  } catch (error: any) {
+    Message.error(error.message || '操作失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const handleDelete = async (id: number) => {
+  try {
+    await deleteRole(id)
+    Message.success('删除成功')
+    loadRoles()
+  } catch (error: any) {
+    Message.error(error.message || '删除失败')
+  }
+}
+
+const handlePermissionConfig = async (record: Role) => {
+  currentRole.value = record
+  selectedPermissionIds.value = []
+
+  try {
+    const res = await getRole(record.id)
+    const roleData = res.data as ApiRole
+    selectedPermissionIds.value = roleData.permissions?.map((p) => p.id) || []
+  } catch (error: any) {
+    Message.error(error.message || '加载角色权限失败')
+  }
+
+  permissionModalVisible.value = true
+}
+
+const handlePermissionModalCancel = () => {
+  permissionModalVisible.value = false
+  currentRole.value = null
+  selectedPermissionIds.value = []
+}
+
+const handlePermissionSubmit = async () => {
+  if (!currentRole.value) return
+
+  savingPermissions.value = true
+  try {
+    await updateRolePermissions(currentRole.value.id, selectedPermissionIds.value)
+    Message.success('权限配置成功')
+    permissionModalVisible.value = false
+    loadRoles()
+  } catch (error: any) {
+    Message.error(error.message || '权限配置失败')
+  } finally {
+    savingPermissions.value = false
+  }
+}
+
+const toggleAllPermissions = () => {
+  if (isAllPermissionsSelected.value) {
+    selectedPermissionIds.value = []
+  } else {
+    selectedPermissionIds.value = allPermissions.value.map((p) => p.id)
+  }
+}
+
+onMounted(() => {
+  loadRoles()
+  loadPermissions()
+})
 </script>
 
 <style scoped>
 .role-management-page {
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
   --neutral-1: #f7f8fa;
   --neutral-2: #eef0f3;
   --neutral-6: #646a73;
@@ -160,5 +457,24 @@ const data = ref([
   border: 1px solid var(--neutral-2);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+.permission-config {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.permission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--neutral-2);
+}
+
+.permission-count {
+  font-size: 14px;
+  color: var(--neutral-6);
 }
 </style>

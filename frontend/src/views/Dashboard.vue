@@ -70,9 +70,14 @@
           </a>
 
           <div
-            class="nav-item"
-            :class="{ expanded: expandedSubmenu === 'billing' }"
+            class="nav-item nav-item-wrapper"
+            :class="{ 
+              expanded: expandedSubmenu === 'billing',
+              'parent-active': isParentMenuActive('billing')
+            }"
             @click="toggleSubmenu('billing')"
+            @mouseenter="handleSubmenuHover('billing')"
+            @mouseleave="handleSubmenuHover(null)"
           >
             <div class="nav-item-icon">
               <svg
@@ -105,8 +110,24 @@
                 d="M9 5l7 7-7 7"
               />
             </svg>
+            
+            <!-- 收起模式下的子菜单悬浮预览 -->
+            <div v-if="sidebarCollapsed" class="submenu-popup">
+              <a
+                class="nav-subitem"
+                :class="{ active: $route.name === 'Balance' }"
+                @click="$router.push('/billing/balances')"
+                >余额管理</a
+              >
+              <a
+                class="nav-subitem"
+                :class="{ active: $route.name === 'PricingRules' }"
+                @click="$router.push('/billing/pricing-rules')"
+                >计费规则</a
+              >
+            </div>
           </div>
-          <div v-show="expandedSubmenu === 'billing'" class="nav-submenu">
+          <div v-show="expandedSubmenu === 'billing' && !sidebarCollapsed" class="nav-submenu">
             <a
               class="nav-subitem"
               :class="{ active: $route.name === 'Balance' }"
@@ -145,11 +166,15 @@
             <span class="nav-item-label">画像管理</span>
           </a>
 
-          <a
-            v-if="can('analytics:read')"
-            class="nav-item"
-            :class="{ active: $route.path.startsWith('/analytics') }"
-            @click="$router.push('/analytics')"
+          <div
+            class="nav-item nav-item-wrapper"
+            :class="{ 
+              expanded: expandedSubmenu === 'analytics',
+              'parent-active': isParentMenuActive('analytics')
+            }"
+            @click="toggleSubmenu('analytics')"
+            @mouseenter="handleSubmenuHover('analytics')"
+            @mouseleave="handleSubmenuHover(null)"
           >
             <div class="nav-item-icon">
               <svg
@@ -167,7 +192,58 @@
               </svg>
             </div>
             <span class="nav-item-label">客户分析</span>
-          </a>
+            <svg
+              class="nav-item-arrow"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </div>
+          <div v-if="expandedSubmenu === 'analytics' || isParentMenuActive('analytics')" class="nav-submenu">
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.path === '/analytics/consumption' }"
+              @click="$router.push('/analytics/consumption')"
+            >
+              消耗分析
+            </a>
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.path === '/analytics/payment' }"
+              @click="$router.push('/analytics/payment')"
+            >
+              回款分析
+            </a>
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.path === '/analytics/health' }"
+              @click="$router.push('/analytics/health')"
+            >
+              健康度分析
+            </a>
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.path === '/analytics/profile' }"
+              @click="$router.push('/analytics/profile')"
+            >
+              画像分析
+            </a>
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.path === '/analytics/forecast' }"
+              @click="$router.push('/analytics/forecast')"
+            >
+              预测回款
+            </a>
+          </div>
         </div>
 
         <!-- 系统管理 -->
@@ -247,9 +323,14 @@
           </a>
 
           <div
-            class="nav-item"
-            :class="{ expanded: expandedSubmenu === 'system' }"
+            class="nav-item nav-item-wrapper"
+            :class="{ 
+              expanded: expandedSubmenu === 'system',
+              'parent-active': isParentMenuActive('system')
+            }"
             @click="toggleSubmenu('system')"
+            @mouseenter="handleSubmenuHover('system')"
+            @mouseleave="handleSubmenuHover(null)"
           >
             <div class="nav-item-icon">
               <svg
@@ -287,8 +368,26 @@
                 d="M9 5l7 7-7 7"
               />
             </svg>
+            
+            <!-- 收起模式下的子菜单悬浮预览 -->
+            <div v-if="sidebarCollapsed" class="submenu-popup">
+              <a
+                v-if="can('system:view')"
+                class="nav-subitem"
+                :class="{ active: $route.name === 'SyncLogs' }"
+                @click="$router.push('/system/sync-logs')"
+                >同步日志</a
+              >
+              <a
+                v-if="can('system:view')"
+                class="nav-subitem"
+                :class="{ active: $route.name === 'AuditLogs' }"
+                @click="$router.push('/system/audit-logs')"
+                >审计日志</a
+              >
+            </div>
           </div>
-          <div v-show="expandedSubmenu === 'system'" class="nav-submenu">
+          <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
             <a
               v-if="can('system:view')"
               class="nav-subitem"
@@ -436,7 +535,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -447,6 +546,66 @@ const userStore = useUserStore()
 
 const sidebarCollapsed = ref(false)
 const expandedSubmenu = ref<string | null>(null)
+const hoveredSubmenu = ref<string | null>(null) // 收起时 hover 显示子菜单
+
+// 判断当前路由是否属于某个父菜单
+const isSubmenuActive = (submenu: string): boolean => {
+  const currentPath = route.path
+  if (submenu === 'billing') {
+    return currentPath.startsWith('/billing')
+  }
+  if (submenu === 'system') {
+    return currentPath.startsWith('/system')
+  }
+  return false
+}
+
+// 判断父菜单是否应该高亮（自身选中或子菜单选中）
+const isParentMenuActive = (menu: string): boolean => {
+  if (menu === 'billing' && isSubmenuActive('billing')) return true
+  if (menu === 'system' && isSubmenuActive('system')) return true
+  return false
+}
+
+// 监听路由变化，自动展开包含当前路由的父菜单
+watch(
+  () => route.path,
+  (newPath) => {
+    if (newPath.startsWith('/billing')) {
+      expandedSubmenu.value = 'billing'
+    } else if (newPath.startsWith('/system')) {
+      expandedSubmenu.value = 'system'
+    }
+  },
+  { immediate: true }
+)
+
+// 监听侧边栏收起状态，收起时自动折叠子菜单
+watch(sidebarCollapsed, (collapsed) => {
+  if (collapsed) {
+    expandedSubmenu.value = null
+  }
+})
+
+// 监听侧边栏状态，同步更新 main-content 的类
+watch(
+  sidebarCollapsed,
+  (collapsed) => {
+    const mainContent = document.querySelector('.main-content')
+    if (mainContent) {
+      mainContent.classList.toggle('sidebar-collapsed', collapsed)
+    }
+  },
+  { immediate: true }
+)
+
+// 初始化时从 localStorage 读取侧边栏状态
+onMounted(() => {
+  const saved = localStorage.getItem('sidebar_collapsed')
+  if (saved !== null) {
+    sidebarCollapsed.value = saved === 'true'
+  }
+})
 
 const pageTitle = computed(() => {
   const routeMap: Record<string, string> = {
@@ -468,10 +627,18 @@ const can = (permission: string) => userStore.hasPermission(permission)
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem('sidebar_collapsed', String(sidebarCollapsed.value))
 }
 
 const toggleSubmenu = (menu: string) => {
+  if (sidebarCollapsed.value) return // 收起时不允许点击展开
   expandedSubmenu.value = expandedSubmenu.value === menu ? null : menu
+}
+
+const handleSubmenuHover = (menu: string | null) => {
+  if (sidebarCollapsed.value) {
+    hoveredSubmenu.value = menu
+  }
 }
 
 const handleLogout = () => {
@@ -485,7 +652,7 @@ const handleLogout = () => {
 /* CSS 变量 */
 .dashboard-layout {
   --sidebar-width: 260px;
-  --sidebar-collapsed-width: 64px;
+  --sidebar-collapsed-width: 68px;
   --header-height: 64px;
   --primary-1: #e8f3ff;
   --primary-5: #3296f7;
@@ -528,11 +695,35 @@ const handleLogout = () => {
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base);
-  overflow: hidden;
+  overflow: hidden; /* 移除滚动，由 sidebar-nav 处理 */
 }
 
+/* 确保收起时宽度精确为 64px */
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
+}
+
+/* 侧边栏滚动条美化 - 默认隐藏，hover 时显示 */
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-nav:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .sidebar-logo {
@@ -593,6 +784,9 @@ const handleLogout = () => {
 
 .sidebar.collapsed .sidebar-nav {
   padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .nav-section {
@@ -600,7 +794,7 @@ const handleLogout = () => {
 }
 
 .sidebar.collapsed .nav-section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .nav-section-title {
@@ -636,9 +830,27 @@ const handleLogout = () => {
   white-space: nowrap;
 }
 
+.sidebar.collapsed .nav-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 有子菜单的父项需要 relative 定位 */
+.nav-item-wrapper {
+  position: relative;
+}
+
 .sidebar.collapsed .nav-item {
-  padding: 12px;
+  padding: 0;
   justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  display: flex;
 }
 
 .nav-item:hover {
@@ -652,18 +864,43 @@ const handleLogout = () => {
   box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
 }
 
+/* 收起模式下的选中图标状态 - 更明显的视觉效果 */
+.sidebar.collapsed .nav-item.active {
+  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+  box-shadow: 0 6px 20px rgba(3, 105, 161, 0.4);
+  transform: scale(1.02);
+}
+
+.sidebar.collapsed .nav-item.active .nav-item-icon {
+  color: white;
+  transform: scale(1.1);
+}
+
 .nav-item-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: transform var(--transition-fast);
 }
 
 .nav-item-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+}
+
+/* 收起模式下确保图标完美居中 */
+.sidebar.collapsed .nav-item-icon {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+
+.sidebar.collapsed .nav-item-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .nav-item-label {
@@ -674,12 +911,16 @@ const handleLogout = () => {
 
 .sidebar.collapsed .nav-item-label,
 .sidebar.collapsed .nav-item-badge,
-.sidebar.collapsed .nav-item-arrow {
+.sidebar.collapsed .nav-item-arrow,
+.sidebar.collapsed .nav-section-title {
   display: none;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .sidebar.collapsed .nav-item-icon {
-  margin: 0 auto;
+  margin: 0;
 }
 
 .nav-item-badge {
@@ -725,6 +966,8 @@ const handleLogout = () => {
   font-size: 13px;
   transition: all var(--transition-fast);
   margin-bottom: 2px;
+  position: relative;
+  cursor: pointer;
 }
 
 .nav-subitem::before {
@@ -737,13 +980,66 @@ const handleLogout = () => {
 }
 
 .nav-subitem:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: white;
 }
 
+/* 二级菜单选中效果优化 */
 .nav-subitem.active {
-  color: var(--primary-3);
-  background: rgba(3, 105, 161, 0.2);
+  color: #ffffff;
+  background: linear-gradient(90deg, rgba(3, 105, 161, 0.5), rgba(3, 105, 161, 0.15));
+  font-weight: 600;
+}
+
+.nav-subitem.active::before {
+  background: #0369a1;
+}
+
+/* 父级菜单联动高亮 - 当子菜单选中时 */
+.nav-item.parent-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+/* 收起模式下的子菜单悬浮预览 */
+.submenu-popup {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 4px;
+  min-width: 160px;
+  background: var(--neutral-10);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 1002;
+  display: none;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity var(--transition-base), transform var(--transition-base);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar.collapsed .nav-item-wrapper:hover .submenu-popup {
+  display: block;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 子菜单项 popup 中的样式 */
+.sidebar.collapsed .submenu-popup .nav-subitem {
+  padding: 10px 12px;
+  margin-bottom: 2px;
+  cursor: pointer;
+}
+
+.sidebar.collapsed .submenu-popup .nav-subitem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar.collapsed .submenu-popup .nav-subitem.active {
+  background: linear-gradient(90deg, rgba(3, 105, 161, 0.5), rgba(3, 105, 161, 0.15));
+  color: #ffffff;
+  font-weight: 600;
 }
 
 /* 用户信息 */
@@ -755,13 +1051,15 @@ const handleLogout = () => {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  min-height: 72px;
   position: relative;
-  overflow: visible;
 }
 
 .sidebar.collapsed .sidebar-user {
-  padding: 12px 8px;
+  padding: 16px 12px;
+  flex-direction: column;
   justify-content: center;
+  gap: 12px;
 }
 
 .sidebar-user-info {
@@ -809,6 +1107,7 @@ const handleLogout = () => {
   white-space: nowrap;
 }
 
+/* 侧边栏切换按钮 */
 .sidebar-toggle {
   width: 32px;
   height: 32px;
@@ -824,30 +1123,51 @@ const handleLogout = () => {
 }
 
 .sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
+/* 侧边栏收起时的切换按钮定位 - 优化为内联 */
 .sidebar.collapsed .sidebar-toggle {
-  position: absolute;
-  right: -14px;
-  top: 50%;
-  transform: translateY(-50%) rotate(180deg);
-  z-index: 10;
+  position: relative;
+  right: auto;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  z-index: 1001;
+  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(3, 105, 161, 0.4);
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
 }
 
 .sidebar.collapsed .sidebar-toggle:hover {
-  transform: translateY(-50%) rotate(180deg) scale(1.05);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(3, 105, 161, 0.5);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .sidebar-toggle svg {
   width: 16px;
   height: 16px;
-  color: rgba(255, 255, 255, 0.6);
-  transition: transform var(--transition-fast);
+  color: rgba(255, 255, 255, 0.8);
+  transition: transform var(--transition-fast), color var(--transition-fast);
 }
 
 .sidebar-toggle:hover svg {
+  color: white;
+}
+
+/* 展开时箭头朝右，收起时箭头朝左 */
+.sidebar:not(.collapsed) .sidebar-toggle svg {
+  transform: rotate(0deg);
+}
+
+.sidebar.collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
   color: white;
 }
 
@@ -856,10 +1176,22 @@ const handleLogout = () => {
   margin-left: var(--sidebar-width);
   min-height: 100vh;
   transition: margin-left var(--transition-base);
+  width: calc(100% - var(--sidebar-width));
+  overflow-x: hidden; /* 防止横向滚动条 */
 }
 
-.sidebar.collapsed ~ .main-content {
+/* 侧边栏收起时的主内容区 - 使用类名而不是:has() 提高兼容性 */
+.main-content.sidebar-collapsed {
   margin-left: var(--sidebar-collapsed-width);
+  width: calc(100% - var(--sidebar-collapsed-width));
+}
+
+/* 页面内容区域 - 统一布局 */
+.page-content {
+  padding: 24px 32px;
+  max-width: 100%;
+  overflow-x: hidden; /* 防止内容溢出 */
+  box-sizing: border-box;
 }
 
 /* 顶部栏 */
@@ -875,6 +1207,7 @@ const handleLogout = () => {
   top: 0;
   z-index: 50;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  flex: 1;
 }
 
 .header-left {
@@ -1013,6 +1346,12 @@ const handleLogout = () => {
 
   .main-content {
     margin-left: 0;
+    width: 100%;
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+    width: 100%;
   }
 }
 </style>

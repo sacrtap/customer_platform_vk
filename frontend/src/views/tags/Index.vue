@@ -6,7 +6,7 @@
         <p class="header-subtitle">自定义标签分类与管理</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="$message.info('新建标签开发中')">
+        <a-button type="primary" @click="handleCreate">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -26,59 +26,267 @@
     </div>
 
     <div class="tabs-section">
-      <a-tabs v-model="activeTab">
+      <a-tabs v-model="activeTab" @change="handleTabChange">
         <a-tab-pane key="customer" title="客户标签">
-          <div class="tag-list">
+          <div v-loading="loading" class="tag-list">
             <a-tag
               v-for="tag in customerTags"
               :key="tag.id"
+              color="arcoblue"
+              size="large"
               closable
-              @close="$message.info('删除开发中')"
+              style="cursor: pointer"
+              @close="handleDelete(tag.id)"
+              @click="openEditModal(tag)"
             >
-              {{ tag.name }} ({{ tag.count }})
+              {{ tag.name }}
             </a-tag>
+            <a-empty v-if="!loading && customerTags.length === 0" description="暂无标签" />
           </div>
         </a-tab-pane>
         <a-tab-pane key="profile" title="画像标签">
-          <div class="tag-list">
+          <div v-loading="loading" class="tag-list">
             <a-tag
               v-for="tag in profileTags"
               :key="tag.id"
+              color="green"
+              size="large"
               closable
-              @close="$message.info('删除开发中')"
+              style="cursor: pointer"
+              @close="handleDelete(tag.id)"
+              @click="openEditModal(tag)"
             >
-              {{ tag.name }} ({{ tag.count }})
+              {{ tag.name }}
             </a-tag>
+            <a-empty v-if="!loading && profileTags.length === 0" description="暂无标签" />
           </div>
         </a-tab-pane>
       </a-tabs>
+
+      <div v-if="pagination.total > 0" class="pagination-section">
+        <a-pagination
+          :current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          :show-total="true"
+          :show-page-size="true"
+          @page-change="handlePageChange"
+          @page-size-change="handlePageSizeChange"
+        />
+      </div>
     </div>
+
+    <!-- 标签编辑对话框 -->
+    <a-modal
+      v-model:visible="tagModalVisible"
+      :title="isEditMode ? '编辑标签' : '新建标签'"
+      :confirm-loading="submitting"
+      width="500px"
+      @ok="handleTagSubmit"
+      @cancel="handleTagModalCancel"
+    >
+      <a-form
+        ref="tagFormRef"
+        :model="tagForm"
+        :rules="tagFormRules"
+        layout="vertical"
+      >
+        <a-form-item field="name" label="标签名称">
+          <a-input
+            v-model="tagForm.name"
+            placeholder="请输入标签名称"
+          />
+        </a-form-item>
+        <a-form-item v-if="!isEditMode" field="type" label="标签类型">
+          <a-radio-group v-model="tagForm.type">
+            <a-radio value="customer">客户标签</a-radio>
+            <a-radio value="profile">画像标签</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item field="category" label="标签分类（可选）">
+          <a-input
+            v-model="tagForm.category"
+            placeholder="请输入标签分类"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { Message } from '@arco-design/web-vue'
+import type { FormInstance } from '@arco-design/web-vue'
+import {
+  getTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  type Tag as ApiTag,
+} from '@/api/tags'
 
-const activeTab = ref('customer')
+// ========== 类型定义 ==========
+interface Tag extends ApiTag {
+  usage_count?: number
+}
 
-const customerTags = ref([
-  { id: 1, name: '重点客户', count: 28 },
-  { id: 2, name: '潜力客户', count: 56 },
-  { id: 3, name: '一般客户', count: 120 },
-  { id: 4, name: '沉睡客户', count: 35 },
-])
+// ========== 状态管理 ==========
+const loading = ref(false)
+const activeTab = ref<'customer' | 'profile'>('customer')
+const allTags = ref<Tag[]>([])
 
-const profileTags = ref([
-  { id: 1, name: '大型企业', count: 45 },
-  { id: 2, name: '中型企业', count: 89 },
-  { id: 3, name: '小型企业', count: 156 },
-  { id: 4, name: '互联网行业', count: 78 },
-  { id: 5, name: '金融行业', count: 42 },
-])
+// 分页
+const pagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showTotal: true,
+  showPageSize: true,
+})
+
+// 计算属性：根据 activeTab 过滤标签
+const customerTags = computed(() => allTags.value.filter(tag => tag.type === 'customer'))
+const profileTags = computed(() => allTags.value.filter(tag => tag.type === 'profile'))
+
+// ========== 标签表单 ==========
+const tagModalVisible = ref(false)
+const isEditMode = ref(false)
+const submitting = ref(false)
+const tagFormRef = ref<FormInstance>()
+const editingTagId = ref<number | null>(null)
+
+const tagForm = reactive({
+  name: '',
+  type: 'customer' as 'customer' | 'profile',
+  category: '',
+})
+
+const tagFormRules = {
+  name: [
+    { required: true, message: '请输入标签名称' },
+    { minLength: 1, maxLength: 50, message: '标签名称长度 1-50 个字符' },
+  ],
+  type: [
+    { required: true, message: '请选择标签类型' },
+  ],
+}
+
+// ========== 数据加载 ==========
+const loadTags = async () => {
+  loading.value = true
+  try {
+    const res = await getTags({
+      page: pagination.current,
+      page_size: pagination.pageSize,
+      type: activeTab.value,
+    })
+    
+    const tagsList = (res.data as any).list || []
+    pagination.total = (res.data as any).total || 0
+    allTags.value = tagsList
+  } catch (error: any) {
+    Message.error(error.message || '加载标签列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// ========== 事件处理 ==========
+const handleTabChange = () => {
+  pagination.current = 1
+  loadTags()
+}
+
+const handlePageChange = (page: number) => {
+  pagination.current = page
+  loadTags()
+}
+
+const handlePageSizeChange = (pageSize: number) => {
+  pagination.pageSize = pageSize
+  pagination.current = 1
+  loadTags()
+}
+
+const handleCreate = () => {
+  isEditMode.value = false
+  editingTagId.value = null
+  Object.assign(tagForm, {
+    name: '',
+    type: activeTab.value,
+    category: '',
+  })
+  tagModalVisible.value = true
+}
+
+// 打开编辑对话框
+const openEditModal = (tag: Tag) => {
+  isEditMode.value = true
+  editingTagId.value = tag.id
+  Object.assign(tagForm, {
+    name: tag.name,
+    type: tag.type,
+    category: tag.category || '',
+  })
+  tagModalVisible.value = true
+}
+
+const handleTagModalCancel = () => {
+  tagModalVisible.value = false
+  tagFormRef.value?.resetFields()
+}
+
+const handleTagSubmit = async () => {
+  try {
+    await tagFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  submitting.value = true
+  try {
+    if (isEditMode.value && editingTagId.value) {
+      await updateTag(editingTagId.value, {
+        name: tagForm.name,
+        category: tagForm.category || undefined,
+      })
+      Message.success('标签更新成功')
+    } else {
+      await createTag({
+        name: tagForm.name,
+        type: tagForm.type,
+        category: tagForm.category || undefined,
+      })
+      Message.success('标签创建成功')
+    }
+    tagModalVisible.value = false
+    loadTags()
+  } catch (error: any) {
+    Message.error(error.message || '操作失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const handleDelete = async (id: number) => {
+  try {
+    await deleteTag(id)
+    Message.success('删除成功')
+    loadTags()
+  } catch (error: any) {
+    Message.error(error.message || '删除失败')
+  }
+}
+
+onMounted(() => {
+  loadTags()
+})
 </script>
 
 <style scoped>
 .tag-management-page {
+  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
   --neutral-1: #f7f8fa;
   --neutral-2: #eef0f3;
   --neutral-6: #646a73;
@@ -123,5 +331,14 @@ const profileTags = ref([
   flex-wrap: wrap;
   gap: 12px;
   padding: 16px 0;
+  min-height: 60px;
+}
+
+.pagination-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--neutral-2);
+  display: flex;
+  justify-content: center;
 }
 </style>

@@ -1,13 +1,17 @@
 """结算管理路由"""
 
 from sanic import Blueprint
-from sanic.response import json
+from sanic.response import json, file as response_file
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
 from ..services.billing import BalanceService, PricingService, InvoiceService
-from ..middleware.auth import get_current_user, require_permission
+from ..middleware.auth import get_current_user, require_permission, auth_required
 from ..cache.base import cache_service
 
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
@@ -17,6 +21,8 @@ billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
 
 @billing_bp.get("/balances")
+@auth_required
+@require_permission("billing:read")
 async def get_balances(request: Request):
     """获取余额列表（支持服务端筛选和分页）"""
     db: AsyncSession = request.ctx.db_session
@@ -106,6 +112,8 @@ async def get_balances(request: Request):
 
 
 @billing_bp.get("/customers/<customer_id:int>/balance")
+@auth_required
+@require_permission("billing:read")
 async def get_customer_balance(request: Request, customer_id: int):
     """获取客户余额"""
     db: AsyncSession = request.ctx.db_session
@@ -150,7 +158,8 @@ async def get_customer_balance(request: Request, customer_id: int):
 
 
 @billing_bp.post("/recharge")
-@require_permission("billing.recharge")
+@auth_required
+@require_permission("billing:write")
 async def recharge(request: Request):
     """
     客户充值
@@ -211,6 +220,8 @@ async def recharge(request: Request):
 
 
 @billing_bp.get("/recharge-records")
+@auth_required
+@require_permission("billing:read")
 async def get_recharge_records(request: Request):
     """获取充值记录列表"""
     db: AsyncSession = request.ctx.db_session
@@ -260,6 +271,8 @@ async def get_recharge_records(request: Request):
 
 
 @billing_bp.get("/consumption-records")
+@auth_required
+@require_permission("billing:read")
 async def get_consumption_records(request: Request):
     """获取消费记录列表"""
     db: AsyncSession = request.ctx.db_session
@@ -326,6 +339,8 @@ async def get_consumption_records(request: Request):
 
 
 @billing_bp.get("/pricing-rules")
+@auth_required
+@require_permission("billing:read")
 async def get_pricing_rules(request: Request):
     """获取定价规则列表"""
     db: AsyncSession = request.ctx.db_session
@@ -371,6 +386,8 @@ async def get_pricing_rules(request: Request):
 
 
 @billing_bp.post("/pricing-rules")
+@auth_required
+@require_permission("billing:write")
 async def create_pricing_rule(request: Request):
     """
     创建定价规则
@@ -419,6 +436,8 @@ async def create_pricing_rule(request: Request):
 
 
 @billing_bp.put("/pricing-rules/<rule_id:int>")
+@auth_required
+@require_permission("billing:write")
 async def update_pricing_rule(request: Request, rule_id: int):
     """更新定价规则"""
     db: AsyncSession = request.ctx.db_session
@@ -454,6 +473,8 @@ async def update_pricing_rule(request: Request, rule_id: int):
 
 
 @billing_bp.delete("/pricing-rules/<rule_id:int>")
+@auth_required
+@require_permission("billing:delete")
 async def delete_pricing_rule(request: Request, rule_id: int):
     """删除定价规则"""
     db: AsyncSession = request.ctx.db_session
@@ -474,6 +495,8 @@ async def delete_pricing_rule(request: Request, rule_id: int):
 
 
 @billing_bp.get("/invoices")
+@auth_required
+@require_permission("billing:read")
 async def get_invoices(request: Request):
     """获取结算单列表"""
     db: AsyncSession = request.ctx.db_session
@@ -535,6 +558,8 @@ async def get_invoices(request: Request):
 
 
 @billing_bp.get("/invoices/<invoice_id:int>")
+@auth_required
+@require_permission("billing:read")
 async def get_invoice(request: Request, invoice_id: int):
     """获取结算单详情"""
     db: AsyncSession = request.ctx.db_session
@@ -590,6 +615,8 @@ async def get_invoice(request: Request, invoice_id: int):
 
 
 @billing_bp.post("/invoices/generate")
+@auth_required
+@require_permission("billing:write")
 async def generate_invoice(request: Request):
     """
     生成结算单
@@ -644,6 +671,8 @@ async def generate_invoice(request: Request):
 
 
 @billing_bp.put("/invoices/<invoice_id:int>/discount")
+@auth_required
+@require_permission("billing:write")
 async def apply_discount(request: Request, invoice_id: int):
     """
     应用减免
@@ -677,6 +706,8 @@ async def apply_discount(request: Request, invoice_id: int):
 
 
 @billing_bp.post("/invoices/<invoice_id:int>/submit")
+@auth_required
+@require_permission("billing:write")
 async def submit_invoice(request: Request, invoice_id: int):
     """提交结算单（商务确认）"""
     db: AsyncSession = request.ctx.db_session
@@ -698,6 +729,8 @@ async def submit_invoice(request: Request, invoice_id: int):
 
 
 @billing_bp.post("/invoices/<invoice_id:int>/confirm")
+@auth_required
+@require_permission("billing:write")
 async def confirm_invoice(request: Request, invoice_id: int):
     """客户确认结算单"""
     db: AsyncSession = request.ctx.db_session
@@ -715,6 +748,8 @@ async def confirm_invoice(request: Request, invoice_id: int):
 
 
 @billing_bp.post("/invoices/<invoice_id:int>/pay")
+@auth_required
+@require_permission("billing:write")
 async def pay_invoice(request: Request, invoice_id: int):
     """确认付款"""
     db: AsyncSession = request.ctx.db_session
@@ -736,6 +771,8 @@ async def pay_invoice(request: Request, invoice_id: int):
 
 
 @billing_bp.post("/invoices/<invoice_id:int>/complete")
+@auth_required
+@require_permission("billing:write")
 async def complete_invoice(request: Request, invoice_id: int):
     """完成结算（扣款）"""
     db: AsyncSession = request.ctx.db_session
@@ -753,6 +790,8 @@ async def complete_invoice(request: Request, invoice_id: int):
 
 
 @billing_bp.delete("/invoices/<invoice_id:int>")
+@auth_required
+@require_permission("billing:delete")
 async def delete_invoice(request: Request, invoice_id: int):
     """删除结算单"""
     db: AsyncSession = request.ctx.db_session
@@ -767,3 +806,211 @@ async def delete_invoice(request: Request, invoice_id: int):
     await cache_service.invalidate_billing_cache()
 
     return json({"code": 0, "message": "删除成功"})
+
+
+@billing_bp.get("/invoices/export")
+@auth_required
+@require_permission("billing:read")
+async def export_invoices(request: Request):
+    """
+    导出结算单为 Excel 文件
+
+    查询参数:
+    - customer_id: 客户 ID（可选）
+    - status: 结算单状态（可选）
+    - start_date: 开始日期（可选，格式：YYYY-MM-DD）
+    - end_date: 结束日期（可选，格式：YYYY-MM-DD）
+
+    响应:
+    - Excel 文件下载
+    """
+    from ..models.billing import Invoice, InvoiceStatus
+    from ..models.customers import Customer
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import selectinload
+
+    # 获取数据库会话
+    db: AsyncSession = request.ctx.db_session
+
+    # 获取查询参数
+    customer_id = (
+        int(request.args.get("customer_id"))
+        if request.args.get("customer_id")
+        else None
+    )
+    status = request.args.get("status")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    # 构建基础查询
+    base_stmt = (
+        select(Invoice)
+        .join(Customer, Invoice.customer_id == Customer.id)
+        .options(selectinload(Invoice.customer))
+        .where(
+            Invoice.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        )
+    )
+
+    # 应用筛选条件
+    if customer_id:
+        base_stmt = base_stmt.where(Invoice.customer_id == customer_id)
+
+    if status:
+        # 验证状态值
+        valid_statuses = [s.value for s in InvoiceStatus]
+        if status not in valid_statuses:
+            return json(
+                {
+                    "code": 40001,
+                    "message": f"无效的状态值，有效值：{', '.join(valid_statuses)}",
+                },
+                status=400,
+            )
+        base_stmt = base_stmt.where(Invoice.status == status)
+
+    if start_date:
+        try:
+            start = date.fromisoformat(start_date)
+            base_stmt = base_stmt.where(Invoice.period_start >= start)
+        except ValueError:
+            return json(
+                {"code": 40001, "message": "开始日期格式错误，应为 YYYY-MM-DD"},
+                status=400,
+            )
+
+    if end_date:
+        try:
+            end = date.fromisoformat(end_date)
+            base_stmt = base_stmt.where(Invoice.period_end <= end)
+        except ValueError:
+            return json(
+                {"code": 40001, "message": "结束日期格式错误，应为 YYYY-MM-DD"},
+                status=400,
+            )
+
+    # 执行查询
+    result = await db.execute(base_stmt.order_by(Invoice.created_at.desc()))
+    invoices = result.scalars().all()
+
+    if not invoices:
+        return json(
+            {"code": 40002, "message": "没有找到符合条件的结算单"},
+            status=400,
+        )
+
+    # 创建 Excel 工作簿
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "结算单导出"
+
+    # 定义样式
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(
+        start_color="1F2937", end_color="1F2937", fill_type="solid"
+    )
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    cell_alignment = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    # 表头
+    headers = [
+        "结算单号",
+        "客户名称",
+        "周期开始",
+        "周期结束",
+        "总金额",
+        "折扣金额",
+        "最终金额",
+        "状态",
+        "创建时间",
+    ]
+
+    # 写入表头
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    # 设置列宽
+    column_widths = [20, 30, 12, 12, 12, 12, 12, 18, 20]
+    for col_num, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = width
+
+    # 写入数据
+    status_map = {
+        "draft": "草稿",
+        "pending_customer": "待客户确认",
+        "customer_confirmed": "客户已确认",
+        "paid": "已付款",
+        "completed": "已完成",
+        "cancelled": "已取消",
+    }
+
+    for row_num, invoice in enumerate(invoices, 2):
+        # 获取客户名称（通过关联或查询）
+        customer_name = (
+            invoice.customer.name
+            if hasattr(invoice, "customer") and invoice.customer
+            else "未知"
+        )
+
+        row_data = [
+            invoice.invoice_no,
+            customer_name,
+            invoice.period_start.isoformat() if invoice.period_start else "",
+            invoice.period_end.isoformat() if invoice.period_end else "",
+            float(invoice.total_amount),
+            float(invoice.discount_amount) if invoice.discount_amount else 0,
+            float(invoice.total_amount - (invoice.discount_amount or 0)),
+            status_map.get(invoice.status, invoice.status),
+            invoice.created_at.isoformat() if invoice.created_at else "",
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.alignment = cell_alignment
+            cell.border = thin_border
+
+    # 添加统计信息行
+    total_row = len(invoices) + 2
+    ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")
+    ws.cell(
+        row=total_row,
+        column=5,
+        value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",
+    )
+    ws.cell(
+        row=total_row,
+        column=7,
+        value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",
+    )
+
+    # 保存到内存
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    # 生成文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"结算单导出_{timestamp}.xlsx"
+
+    # 返回文件
+    return await response_file(
+        output,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
