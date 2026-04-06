@@ -25,7 +25,7 @@
             {{ record.is_active ? '启用' : '禁用' }}
           </span>
         </template>
-        <template #action="{ record }">
+        <template #action>
           <a-space>
             <a-button type="text" size="small" @click="$message.info('编辑开发中')">编辑</a-button>
             <a-button type="text" size="small" @click="$message.info('重置密码开发中')">重置密码</a-button>
