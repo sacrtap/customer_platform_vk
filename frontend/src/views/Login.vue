@@ -538,12 +538,22 @@ const handleSubmit = async () => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
+  background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+  color: white;
+  border: none;
+  cursor: pointer;
   box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+  transition: all var(--transition-base);
 }
 
 .login-submit-btn:hover {
+  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
   box-shadow: 0 6px 20px rgba(3, 105, 161, 0.4);
   transform: translateY(-1px);
+}
+
+.login-submit-btn:active {
+  transform: translateY(0);
 }
 
 .login-footer {
