@@ -8,27 +8,45 @@
       <div class="header-actions">
         <a-button type="primary" @click="$message.info('新建标签开发中')">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+              />
             </svg>
           </template>
           新建标签
         </a-button>
       </div>
     </div>
-    
+
     <div class="tabs-section">
       <a-tabs v-model="activeTab">
         <a-tab-pane key="customer" title="客户标签">
           <div class="tag-list">
-            <a-tag v-for="tag in customerTags" :key="tag.id" closable @close="$message.info('删除开发中')">
+            <a-tag
+              v-for="tag in customerTags"
+              :key="tag.id"
+              closable
+              @close="$message.info('删除开发中')"
+            >
               {{ tag.name }} ({{ tag.count }})
             </a-tag>
           </div>
         </a-tab-pane>
         <a-tab-pane key="profile" title="画像标签">
           <div class="tag-list">
-            <a-tag v-for="tag in profileTags" :key="tag.id" closable @close="$message.info('删除开发中')">
+            <a-tag
+              v-for="tag in profileTags"
+              :key="tag.id"
+              closable
+              @close="$message.info('删除开发中')"
+            >
               {{ tag.name }} ({{ tag.count }})
             </a-tag>
           </div>

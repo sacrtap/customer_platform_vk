@@ -8,61 +8,112 @@
       <div class="header-actions">
         <a-button type="primary" @click="$message.info('新建客户开发中')">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+              />
             </svg>
           </template>
           新建客户
         </a-button>
         <a-button @click="$message.info('导入功能开发中')">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
+              />
+              <path
+                d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"
+              />
             </svg>
           </template>
           导入
         </a-button>
         <a-button @click="$message.info('导出功能开发中')">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-              <path d="M7.646 4.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V14.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
+              />
+              <path
+                d="M7.646 4.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707V14.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3z"
+              />
             </svg>
           </template>
           导出
         </a-button>
       </div>
     </div>
-    
+
     <!-- 筛选区域 -->
     <div class="filter-section">
       <a-form layout="inline" :model="filters">
         <a-form-item label="关键词">
           <a-input v-model="filters.keyword" placeholder="公司名称/公司 ID" style="width: 200px">
             <template #prefix>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"
+                />
               </svg>
             </template>
           </a-input>
         </a-form-item>
         <a-form-item label="业务类型">
-          <a-select v-model="filters.business_type" placeholder="请选择" style="width: 150px" allow-clear>
+          <a-select
+            v-model="filters.business_type"
+            placeholder="请选择"
+            style="width: 150px"
+            allow-clear
+          >
             <a-option value="A">A 类业务</a-option>
             <a-option value="B">B 类业务</a-option>
             <a-option value="C">C 类业务</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="客户等级">
-          <a-select v-model="filters.customer_level" placeholder="请选择" style="width: 150px" allow-clear>
+          <a-select
+            v-model="filters.customer_level"
+            placeholder="请选择"
+            style="width: 150px"
+            allow-clear
+          >
             <a-option value="KA">KA</a-option>
             <a-option value="SKA">SKA</a-option>
             <a-option value="普通">普通</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="重点客户">
-          <a-select v-model="filters.is_key_customer" placeholder="请选择" style="width: 120px" allow-clear>
+          <a-select
+            v-model="filters.is_key_customer"
+            placeholder="请选择"
+            style="width: 120px"
+            allow-clear
+          >
             <a-option :value="true">是</a-option>
             <a-option :value="false">否</a-option>
           </a-select>
@@ -75,10 +126,17 @@
         </a-form-item>
       </a-form>
     </div>
-    
+
     <!-- 表格 -->
     <div class="table-section">
-      <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination" @page-change="handlePageChange">
+      <a-table
+        :columns="columns"
+        :data="data"
+        :loading="loading"
+        row-key="id"
+        :pagination="pagination"
+        @page-change="handlePageChange"
+      >
         <template #action>
           <a-space>
             <a-button type="text" size="small" @click="$message.info('查看开发中')">查看</a-button>
@@ -126,10 +184,46 @@ const columns = [
 ]
 
 const data = ref([
-  { id: 1, company_id: 'COMP001', name: 'XX 科技有限公司', business_type: 'A', customer_level: 'KA', settlement_type: '预付费', manager: '张三', is_key_customer: true },
-  { id: 2, company_id: 'COMP002', name: 'YY 集团有限公司', business_type: 'B', customer_level: 'SKA', settlement_type: '后付费', manager: '李四', is_key_customer: true },
-  { id: 3, company_id: 'COMP003', name: 'ZZ 创新股份', business_type: 'A', customer_level: '普通', settlement_type: '预付费', manager: '王五', is_key_customer: false },
-  { id: 4, company_id: 'COMP004', name: 'AA 数字科技', business_type: 'C', customer_level: '普通', settlement_type: '预付费', manager: '赵六', is_key_customer: false },
+  {
+    id: 1,
+    company_id: 'COMP001',
+    name: 'XX 科技有限公司',
+    business_type: 'A',
+    customer_level: 'KA',
+    settlement_type: '预付费',
+    manager: '张三',
+    is_key_customer: true,
+  },
+  {
+    id: 2,
+    company_id: 'COMP002',
+    name: 'YY 集团有限公司',
+    business_type: 'B',
+    customer_level: 'SKA',
+    settlement_type: '后付费',
+    manager: '李四',
+    is_key_customer: true,
+  },
+  {
+    id: 3,
+    company_id: 'COMP003',
+    name: 'ZZ 创新股份',
+    business_type: 'A',
+    customer_level: '普通',
+    settlement_type: '预付费',
+    manager: '王五',
+    is_key_customer: false,
+  },
+  {
+    id: 4,
+    company_id: 'COMP004',
+    name: 'AA 数字科技',
+    business_type: 'C',
+    customer_level: '普通',
+    settlement_type: '预付费',
+    manager: '赵六',
+    is_key_customer: false,
+  },
 ])
 
 const handleSearch = () => {
@@ -161,7 +255,7 @@ const handlePageChange = (page: number) => {
   --neutral-7: #4c5360;
   --neutral-9: #2f3645;
   --neutral-10: #1d2330;
-  --primary-6: #0369A1;
+  --primary-6: #0369a1;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
 }

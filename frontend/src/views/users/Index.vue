@@ -8,17 +8,31 @@
       <div class="header-actions">
         <a-button type="primary" @click="$message.info('新建用户开发中')">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+              />
             </svg>
           </template>
           新建用户
         </a-button>
       </div>
     </div>
-    
+
     <div class="table-section">
-      <a-table :columns="columns" :data="data" :loading="loading" row-key="id" :pagination="pagination">
+      <a-table
+        :columns="columns"
+        :data="data"
+        :loading="loading"
+        row-key="id"
+        :pagination="pagination"
+      >
         <template #status="{ record }">
           <span :class="['status-badge', record.is_active ? 'success' : 'danger']">
             <span class="status-dot"></span>
@@ -28,7 +42,9 @@
         <template #action>
           <a-space>
             <a-button type="text" size="small" @click="$message.info('编辑开发中')">编辑</a-button>
-            <a-button type="text" size="small" @click="$message.info('重置密码开发中')">重置密码</a-button>
+            <a-button type="text" size="small" @click="$message.info('重置密码开发中')"
+              >重置密码</a-button
+            >
             <a-popconfirm content="确认删除？" @ok="$message.info('删除开发中')">
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
@@ -63,10 +79,42 @@ const columns = [
 ]
 
 const data = ref([
-  { id: 1, username: 'admin', email: 'admin@example.com', real_name: '管理员', roles: ['系统管理员'], is_active: true, created_at: '2026-01-01' },
-  { id: 2, username: 'liming', email: 'liming@example.com', real_name: '李明', roles: ['运营经理'], is_active: true, created_at: '2026-02-15' },
-  { id: 3, username: 'wangwu', email: 'wangwu@example.com', real_name: '王五', roles: ['销售'], is_active: true, created_at: '2026-03-01' },
-  { id: 4, username: 'zhaoliu', email: 'zhaoliu@example.com', real_name: '赵六', roles: ['数据分析师'], is_active: false, created_at: '2026-03-10' },
+  {
+    id: 1,
+    username: 'admin',
+    email: 'admin@example.com',
+    real_name: '管理员',
+    roles: ['系统管理员'],
+    is_active: true,
+    created_at: '2026-01-01',
+  },
+  {
+    id: 2,
+    username: 'liming',
+    email: 'liming@example.com',
+    real_name: '李明',
+    roles: ['运营经理'],
+    is_active: true,
+    created_at: '2026-02-15',
+  },
+  {
+    id: 3,
+    username: 'wangwu',
+    email: 'wangwu@example.com',
+    real_name: '王五',
+    roles: ['销售'],
+    is_active: true,
+    created_at: '2026-03-01',
+  },
+  {
+    id: 4,
+    username: 'zhaoliu',
+    email: 'zhaoliu@example.com',
+    real_name: '赵六',
+    roles: ['数据分析师'],
+    is_active: false,
+    created_at: '2026-03-10',
+  },
 ])
 </script>
 

@@ -71,10 +71,7 @@ export interface InvoiceStatusStats {
   total_amount: number
 }
 
-export function getInvoiceStatusStats(params?: {
-  start_date?: string
-  end_date?: string
-}) {
+export function getInvoiceStatusStats(params?: { start_date?: string; end_date?: string }) {
   return api.get('/analytics/payment/invoice-status', { params })
 }
 

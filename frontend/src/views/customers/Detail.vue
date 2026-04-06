@@ -3,8 +3,17 @@
     <div class="page-header">
       <div class="header-title">
         <a-button type="text" @click="$router.back()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"
+            />
           </svg>
         </a-button>
         <h1>客户详情</h1>
@@ -16,7 +25,7 @@
         </a-button>
       </div>
     </div>
-    
+
     <div class="tabs-section">
       <a-tabs v-model="activeTab">
         <a-tab-pane key="basic" title="基础信息">
@@ -67,7 +76,7 @@
             </div>
           </div>
         </a-tab-pane>
-        
+
         <a-tab-pane key="profile" title="画像信息">
           <div class="info-grid">
             <div class="info-item">
@@ -90,7 +99,7 @@
             </div>
           </div>
         </a-tab-pane>
-        
+
         <a-tab-pane key="balance" title="余额信息">
           <div class="balance-cards">
             <div class="balance-card">
@@ -111,7 +120,7 @@
             </div>
           </div>
         </a-tab-pane>
-        
+
         <a-tab-pane key="invoices" title="结算单">
           <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
             <template #status="{ record }">
@@ -121,7 +130,9 @@
               </span>
             </template>
             <template #action>
-              <a-button type="text" size="small" @click="$message.info('查看开发中')">查看</a-button>
+              <a-button type="text" size="small" @click="$message.info('查看开发中')"
+                >查看</a-button
+              >
             </template>
           </a-table>
         </a-tab-pane>
@@ -165,34 +176,143 @@ const invoiceColumns = [
 ]
 
 const invoices = ref([
-  { id: 1, no: 'INV-2026-0089', period: '2026-03', amount: 128500, status: 'warning', statusText: '待确认', created_at: '2026-04-01' },
-  { id: 2, no: 'INV-2026-0078', period: '2026-02', amount: 115200, status: 'success', statusText: '已完成', created_at: '2026-03-01' },
-  { id: 3, no: 'INV-2026-0065', period: '2026-01', amount: 98600, status: 'success', statusText: '已完成', created_at: '2026-02-01' },
+  {
+    id: 1,
+    no: 'INV-2026-0089',
+    period: '2026-03',
+    amount: 128500,
+    status: 'warning',
+    statusText: '待确认',
+    created_at: '2026-04-01',
+  },
+  {
+    id: 2,
+    no: 'INV-2026-0078',
+    period: '2026-02',
+    amount: 115200,
+    status: 'success',
+    statusText: '已完成',
+    created_at: '2026-03-01',
+  },
+  {
+    id: 3,
+    no: 'INV-2026-0065',
+    period: '2026-01',
+    amount: 98600,
+    status: 'success',
+    statusText: '已完成',
+    created_at: '2026-02-01',
+  },
 ])
 </script>
 
 <style scoped>
 .customer-detail-page {
-  --neutral-1: #f7f8fa; --neutral-2: #eef0f3; --neutral-6: #646a73; --neutral-10: #1d2330;
-  --primary-1: #e8f3ff; --primary-6: #0369A1; --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-6: #646a73;
+  --neutral-10: #1d2330;
+  --primary-1: #e8f3ff;
+  --primary-6: #0369a1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title { display: flex; align-items: center; gap: 12px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: var(--neutral-10); margin: 0; }
-.header-actions { display: flex; gap: 12px; }
-.tabs-section { background: white; border-radius: 16px; border: 1px solid var(--neutral-2); box-shadow: var(--shadow-sm); padding: 24px; }
-.info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 16px 0; }
-.info-item { display: flex; flex-direction: column; gap: 8px; }
-.info-item label { font-size: 13px; color: var(--neutral-6); font-weight: 500; }
-.info-item span { font-size: 14px; color: var(--neutral-10); }
-.balance-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; padding: 24px 0; }
-.balance-card { background: var(--neutral-1); padding: 24px; border-radius: 12px; text-align: center; }
-.balance-label { font-size: 13px; color: var(--neutral-6); margin-bottom: 8px; }
-.balance-value { font-size: 28px; font-weight: 700; color: var(--neutral-10); }
-.balance-value.real { color: var(--primary-6); }
-.balance-value.bonus { color: #22c55e; }
-.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-.status-badge.success { background: #e8ffea; color: #22c55e; }
-.status-badge.warning { background: #fff7e8; color: #f59e0b; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin: 0;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.tabs-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+}
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  padding: 16px 0;
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info-item label {
+  font-size: 13px;
+  color: var(--neutral-6);
+  font-weight: 500;
+}
+.info-item span {
+  font-size: 14px;
+  color: var(--neutral-10);
+}
+.balance-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  padding: 24px 0;
+}
+.balance-card {
+  background: var(--neutral-1);
+  padding: 24px;
+  border-radius: 12px;
+  text-align: center;
+}
+.balance-label {
+  font-size: 13px;
+  color: var(--neutral-6);
+  margin-bottom: 8px;
+}
+.balance-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--neutral-10);
+}
+.balance-value.real {
+  color: var(--primary-6);
+}
+.balance-value.bonus {
+  color: #22c55e;
+}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-badge.success {
+  background: #e8ffea;
+  color: #22c55e;
+}
+.status-badge.warning {
+  background: #fff7e8;
+  color: #f59e0b;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
 </style>

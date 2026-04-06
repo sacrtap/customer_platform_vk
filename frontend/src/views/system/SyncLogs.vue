@@ -14,7 +14,11 @@
           <a-statistic title="24 小时执行" :value="stats.last_24h.total" />
         </a-col>
         <a-col :span="6">
-          <a-statistic title="24 小时失败" :value="stats.last_24h.failed" :value-style="{ color: '#ff4d4f' }" />
+          <a-statistic
+            title="24 小时失败"
+            :value="stats.last_24h.failed"
+            :value-style="{ color: '#ff4d4f' }"
+          />
         </a-col>
       </a-row>
     </a-card>

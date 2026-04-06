@@ -30,14 +30,24 @@
           </a-select>
         </a-form-item>
         <a-form-item label="设备类型">
-          <a-select v-model="filters.device_type" placeholder="请选择" style="width: 150px" allow-clear>
+          <a-select
+            v-model="filters.device_type"
+            placeholder="请选择"
+            style="width: 150px"
+            allow-clear
+          >
             <a-option value="X">X 系列</a-option>
             <a-option value="N">N 系列</a-option>
             <a-option value="L">L 系列</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="计费类型">
-          <a-select v-model="filters.pricing_type" placeholder="请选择" style="width: 150px" allow-clear>
+          <a-select
+            v-model="filters.pricing_type"
+            placeholder="请选择"
+            style="width: 150px"
+            allow-clear
+          >
             <a-option value="fixed">定价结算</a-option>
             <a-option value="tiered">阶梯结算</a-option>
             <a-option value="package">包年结算</a-option>
@@ -65,12 +75,28 @@
           <span>{{ record.customer_name || `客户${record.customer_id}` }}</span>
         </template>
         <template #device_type="{ record }">
-          <a-tag :color="record.device_type === 'X' ? 'arcoblue' : record.device_type === 'N' ? 'green' : 'orange'">
+          <a-tag
+            :color="
+              record.device_type === 'X'
+                ? 'arcoblue'
+                : record.device_type === 'N'
+                  ? 'green'
+                  : 'orange'
+            "
+          >
             {{ record.device_type }}系列
           </a-tag>
         </template>
         <template #pricing_type="{ record }">
-          <a-tag :color="record.pricing_type === 'fixed' ? 'blue' : record.pricing_type === 'tiered' ? 'green' : 'orange'">
+          <a-tag
+            :color="
+              record.pricing_type === 'fixed'
+                ? 'blue'
+                : record.pricing_type === 'tiered'
+                  ? 'green'
+                  : 'orange'
+            "
+          >
             {{ getPricingTypeText(record.pricing_type) }}
           </a-tag>
         </template>
@@ -82,18 +108,13 @@
           <span v-if="record.effective_date && record.expiry_date">
             {{ record.effective_date }} 至 {{ record.expiry_date }}
           </span>
-          <span v-else-if="record.effective_date">
-            {{ record.effective_date }} 起
-          </span>
+          <span v-else-if="record.effective_date"> {{ record.effective_date }} 起 </span>
           <span v-else>-</span>
         </template>
         <template #action="{ record }">
           <a-space>
             <a-button type="text" size="small" @click="showEditModal(record)">编辑</a-button>
-            <a-popconfirm
-              content="确定要删除此定价规则吗？"
-              @ok="handleDelete(record)"
-            >
+            <a-popconfirm content="确定要删除此定价规则吗？" @ok="handleDelete(record)">
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
           </a-space>
@@ -110,10 +131,7 @@
       @ok="handleSubmit"
     >
       <a-form :model="formData" layout="vertical">
-        <a-form-item
-          label="客户"
-          :rules="[{ required: true, message: '请选择客户' }]"
-        >
+        <a-form-item label="客户" :rules="[{ required: true, message: '请选择客户' }]">
           <a-select
             v-model="formData.customer_id"
             placeholder="请选择客户"
@@ -129,10 +147,7 @@
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item
-              label="设备类型"
-              :rules="[{ required: true, message: '请选择设备类型' }]"
-            >
+            <a-form-item label="设备类型" :rules="[{ required: true, message: '请选择设备类型' }]">
               <a-select v-model="formData.device_type" placeholder="请选择">
                 <a-option value="X">X 系列</a-option>
                 <a-option value="N">N 系列</a-option>
@@ -141,11 +156,12 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item
-              label="计费类型"
-              :rules="[{ required: true, message: '请选择计费类型' }]"
-            >
-              <a-select v-model="formData.pricing_type" placeholder="请选择" @change="onPricingTypeChange">
+            <a-form-item label="计费类型" :rules="[{ required: true, message: '请选择计费类型' }]">
+              <a-select
+                v-model="formData.pricing_type"
+                placeholder="请选择"
+                @change="onPricingTypeChange"
+              >
                 <a-option value="fixed">定价结算</a-option>
                 <a-option value="tiered">阶梯结算</a-option>
                 <a-option value="package">包年结算</a-option>
@@ -172,12 +188,10 @@
         </a-form-item>
 
         <!-- 阶梯结算 -->
-        <a-form-item
-          v-if="formData.pricing_type === 'tiered'"
-          label="阶梯配置"
-        >
+        <a-form-item v-if="formData.pricing_type === 'tiered'" label="阶梯配置">
           <a-alert type="info" style="margin-bottom: 12px">
-            阶梯配置需要通过 JSON 格式输入，例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]
+            阶梯配置需要通过 JSON
+            格式输入，例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]
           </a-alert>
           <a-textarea
             v-model="formData.tiersJson"
@@ -202,22 +216,13 @@
 
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item
-              label="生效日期"
-              :rules="[{ required: true, message: '请选择生效日期' }]"
-            >
-              <a-date-picker
-                v-model="formData.effective_date"
-                style="width: 100%"
-              />
+            <a-form-item label="生效日期" :rules="[{ required: true, message: '请选择生效日期' }]">
+              <a-date-picker v-model="formData.effective_date" style="width: 100%" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="失效日期">
-              <a-date-picker
-                v-model="formData.expiry_date"
-                style="width: 100%"
-              />
+              <a-date-picker v-model="formData.expiry_date" style="width: 100%" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -326,7 +331,7 @@ const fetchData = async () => {
     data.value = res.data || []
     pagination.total = data.value.length
   } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载失败')
+    Message.error((err as Error)?.message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -440,7 +445,7 @@ const handleSubmit = async () => {
     modalVisible.value = false
     fetchData()
   } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '操作失败')
+    Message.error((err as Error)?.message || '操作失败')
   } finally {
     modalLoading.value = false
   }
@@ -452,7 +457,7 @@ const handleDelete = async (record: PricingRule) => {
     Message.success('删除成功')
     fetchData()
   } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '删除失败')
+    Message.error((err as Error)?.message || '删除失败')
   }
 }
 

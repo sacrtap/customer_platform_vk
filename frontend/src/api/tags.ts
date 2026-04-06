@@ -27,11 +27,7 @@ export function getTag(id: number) {
 }
 
 // 创建标签
-export function createTag(data: {
-  name: string
-  type: 'customer' | 'profile'
-  category?: string
-}) {
+export function createTag(data: { name: string; type: 'customer' | 'profile'; category?: string }) {
   return api.post('/tags', data)
 }
 
@@ -74,18 +70,12 @@ export function removeCustomerTag(customerId: number, tagId: number) {
 }
 
 // 批量给客户添加标签
-export function batchAddCustomerTags(data: {
-  customer_ids: number[]
-  tag_ids: number[]
-}) {
+export function batchAddCustomerTags(data: { customer_ids: number[]; tag_ids: number[] }) {
   return api.post('/customers/tags/batch-add', data)
 }
 
 // 批量移除客户标签
-export function batchRemoveCustomerTags(data: {
-  customer_ids: number[]
-  tag_ids: number[]
-}) {
+export function batchRemoveCustomerTags(data: { customer_ids: number[]; tag_ids: number[] }) {
   return api.post('/customers/tags/batch-remove', data)
 }
 

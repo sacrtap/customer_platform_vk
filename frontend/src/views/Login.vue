@@ -5,55 +5,73 @@
     <div class="bg-gradient-orb bg-gradient-orb-2"></div>
     <div class="bg-gradient-orb bg-gradient-orb-3"></div>
     <div class="bg-grid-pattern"></div>
-    
+
     <!-- 登录框 -->
     <div class="login-box">
       <!-- 左侧品牌区域 -->
       <div class="login-brand">
         <div class="brand-logo">
           <div class="brand-logo-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
             </svg>
           </div>
           <span class="brand-logo-text">Customer Platform VK</span>
         </div>
-        
+
         <div class="brand-content">
           <h1 class="brand-title">客户运营中台</h1>
-          <p class="brand-subtitle">
-            统一管理客户信息、结算、画像，实现高效运营分析与决策支持
-          </p>
-          
+          <p class="brand-subtitle">统一管理客户信息、结算、画像，实现高效运营分析与决策支持</p>
+
           <div class="brand-features">
-            <div class="brand-feature" v-for="(feature, index) in features" :key="index">
+            <div v-for="(feature, index) in features" :key="index" class="brand-feature">
               <div class="brand-feature-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2.5"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
               <span>{{ feature }}</span>
             </div>
           </div>
         </div>
-        
+
         <div class="brand-footer">
           <div class="brand-stats">
-            <div class="brand-stat" v-for="(stat, index) in stats" :key="index">
+            <div v-for="(stat, index) in stats" :key="index" class="brand-stat">
               <span class="brand-stat-value">{{ stat.value }}</span>
               <span class="brand-stat-label">{{ stat.label }}</span>
             </div>
           </div>
         </div>
       </div>
-      
+
       <!-- 右侧登录表单 -->
       <div class="login-form-panel">
         <div class="login-header">
           <h2 class="login-welcome">欢迎回来</h2>
           <p class="login-subtitle">请输入您的账号信息登录系统</p>
         </div>
-        
+
         <a-form layout="vertical" @submit="handleSubmit">
           <a-form-item
             field="username"
@@ -68,13 +86,21 @@
               allow-clear
             >
               <template #prefix>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z"/>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                >
+                  <path
+                    d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z"
+                  />
                 </svg>
               </template>
             </a-input>
           </a-form-item>
-          
+
           <a-form-item
             field="password"
             label="密码"
@@ -87,24 +113,32 @@
               :disabled="loading"
             >
               <template #prefix>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2Zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM5 8v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8H5Z"/>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                >
+                  <path
+                    d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2Zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM5 8v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8H5Z"
+                  />
                 </svg>
               </template>
             </a-input-password>
           </a-form-item>
-          
+
           <div class="login-options">
             <a-checkbox v-model="form.remember">记住我</a-checkbox>
             <a href="#" class="login-forgot">忘记密码？</a>
           </div>
-          
+
           <a-form-item>
-            <a-button 
-              type="primary" 
-              html-type="submit" 
-              size="large" 
-              long 
+            <a-button
+              type="primary"
+              html-type="submit"
+              size="large"
+              long
               :loading="loading"
               class="login-submit-btn"
             >
@@ -112,10 +146,8 @@
             </a-button>
           </a-form-item>
         </a-form>
-        
-        <div class="login-footer">
-          还没有账号？<a href="#">联系管理员</a>
-        </div>
+
+        <div class="login-footer">还没有账号？<a href="#">联系管理员</a></div>
       </div>
     </div>
   </div>
@@ -131,16 +163,12 @@ import api from '@/api'
 const router = useRouter()
 const userStore = useUserStore()
 
-const features = [
-  'RBAC 权限模型 + 自定义角色',
-  '客户信息与画像统一管理',
-  '多维度数据分析与洞察'
-]
+const features = ['RBAC 权限模型 + 自定义角色', '客户信息与画像统一管理', '多维度数据分析与洞察']
 
 const stats = [
   { value: '99.9%', label: '系统可用性' },
   { value: '500+', label: '企业客户' },
-  { value: '24/7', label: '技术支持' }
+  { value: '24/7', label: '技术支持' },
 ]
 
 const form = reactive({
@@ -153,7 +181,7 @@ const loading = ref(false)
 
 const handleSubmit = async () => {
   loading.value = true
-  
+
   try {
     const res = await api.post('/auth/login', form)
     userStore.setToken(res.data.access_token, res.data.refresh_token)
@@ -174,7 +202,7 @@ const handleSubmit = async () => {
 .login-container {
   --primary-1: #e8f3ff;
   --primary-5: #3296f7;
-  --primary-6: #0369A1;
+  --primary-6: #0369a1;
   --primary-7: #035a8a;
   --neutral-1: #f7f8fa;
   --neutral-3: #e0e2e7;
@@ -183,7 +211,7 @@ const handleSubmit = async () => {
   --neutral-7: #4c5360;
   --neutral-9: #2f3645;
   --neutral-10: #1d2330;
-  --bg-deep: #0F172A;
+  --bg-deep: #0f172a;
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -235,16 +263,25 @@ const handleSubmit = async () => {
 }
 
 @keyframes float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -30px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(20px, 30px) scale(1.02); }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -30px) scale(1.05);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+  75% {
+    transform: translate(20px, 30px) scale(1.02);
+  }
 }
 
 .bg-grid-pattern {
   position: absolute;
   inset: 0;
-  background-image: 
+  background-image:
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 60px 60px;
@@ -532,11 +569,11 @@ const handleSubmit = async () => {
     grid-template-columns: 1fr;
     max-width: 500px;
   }
-  
+
   .login-brand {
     display: none;
   }
-  
+
   .login-form-panel {
     padding: 48px 32px;
   }

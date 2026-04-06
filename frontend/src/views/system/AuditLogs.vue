@@ -177,7 +177,7 @@ const fetchLogs = async () => {
     logs.value = res.data.list
     pagination.total = res.data.total
   } catch (err: unknown) {
-    Message.error(((err as Error)?.message) || '加载审计日志失败')
+    Message.error((err as Error)?.message || '加载审计日志失败')
   } finally {
     loading.value = false
   }

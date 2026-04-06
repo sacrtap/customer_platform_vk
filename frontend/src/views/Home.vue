@@ -6,75 +6,151 @@
         <div class="stat-header">
           <span class="stat-title">客户总数</span>
           <div class="stat-icon primary">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
             </svg>
           </div>
         </div>
         <div class="stat-value">{{ stats.totalCustomers.toLocaleString() }}</div>
         <div class="stat-change positive">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
+            />
           </svg>
           +{{ stats.customerGrowth }}% 较上月
         </div>
       </div>
-      
+
       <div class="stat-card success">
         <div class="stat-header">
           <span class="stat-title">本月回款</span>
           <div class="stat-icon success">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
         </div>
         <div class="stat-value">¥{{ (stats.monthlyRevenue / 10000).toFixed(1) }}万</div>
         <div class="stat-change positive">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
+            />
           </svg>
           +{{ stats.revenueGrowth }}% 较上月
         </div>
       </div>
-      
+
       <div class="stat-card warning">
         <div class="stat-header">
           <span class="stat-title">待确认账单</span>
           <div class="stat-icon warning">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
           </div>
         </div>
         <div class="stat-value">{{ stats.pendingInvoices }}</div>
         <div class="stat-change negative">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
+            />
           </svg>
           +{{ stats.pendingGrowth }} 待处理
         </div>
       </div>
-      
+
       <div class="stat-card danger">
         <div class="stat-header">
           <span class="stat-title">余额预警</span>
           <div class="stat-icon danger">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
             </svg>
           </div>
         </div>
         <div class="stat-value">{{ stats.warningCustomers }}</div>
         <div class="stat-change negative">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path fill-rule="evenodd" d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
+            />
           </svg>
           需跟进
         </div>
       </div>
     </div>
-    
+
     <!-- 内容网格 -->
     <div class="dashboard-grid">
       <!-- 月度回款趋势 -->
@@ -83,24 +159,35 @@
           <h3 class="card-title">月度回款趋势</h3>
           <div class="card-actions">
             <a-button size="small" @click="$message.info('导出功能开发中')">导出</a-button>
-            <a-button type="primary" size="small" @click="$message.info('详情功能开发中')">查看详情</a-button>
+            <a-button type="primary" size="small" @click="$message.info('详情功能开发中')"
+              >查看详情</a-button
+            >
           </div>
         </div>
         <div class="card-body">
           <div class="chart-placeholder">
-            <div style="text-align: center;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16" style="margin-bottom: 12px; opacity: 0.5; color: var(--primary-6);">
-                <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
+            <div style="text-align: center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                style="margin-bottom: 12px; opacity: 0.5; color: var(--primary-6)"
+              >
+                <path
+                  d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"
+                />
               </svg>
               <div>ECharts 图表区域</div>
-              <div style="color: var(--neutral-5); font-size: 12px; margin-top: 4px;">
+              <div style="color: var(--neutral-5); font-size: 12px; margin-top: 4px">
                 显示 12 个月回款趋势折线图
               </div>
             </div>
           </div>
         </div>
       </div>
-      
+
       <!-- 待办事项 -->
       <div class="card">
         <div class="card-header">
@@ -109,12 +196,22 @@
         </div>
         <div class="card-body">
           <div class="todo-list">
-            <div class="todo-item" v-for="(todo, index) in todos" :key="index">
+            <div v-for="(todo, index) in todos" :key="index" class="todo-item">
               <label class="todo-checkbox-wrapper">
-                <input type="checkbox" v-model="todo.checked">
+                <input v-model="todo.checked" type="checkbox" />
                 <div class="todo-checkbox">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="3"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
               </label>
@@ -122,14 +219,30 @@
                 <div class="todo-title">{{ todo.title }}</div>
                 <div class="todo-meta">
                   <span :class="['todo-priority', todo.priority]">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"
+                      />
                     </svg>
                     {{ todo.priorityText }}
                   </span>
                   <span class="todo-due">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+                      />
                     </svg>
                     {{ todo.due }}
                   </span>
@@ -139,14 +252,16 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 最近结算单 -->
       <div class="card full-width">
         <div class="card-header">
           <h3 class="card-title">最近结算单</h3>
-          <a-button type="primary" size="small" @click="$message.info('查看全部开发中')">查看全部</a-button>
+          <a-button type="primary" size="small" @click="$message.info('查看全部开发中')"
+            >查看全部</a-button
+          >
         </div>
-        <div class="card-body" style="padding: 0;">
+        <div class="card-body" style="padding: 0">
           <div class="table-container">
             <table>
               <thead>
@@ -162,7 +277,9 @@
               </thead>
               <tbody>
                 <tr v-for="invoice in invoices" :key="invoice.id">
-                  <td><strong>{{ invoice.no }}</strong></td>
+                  <td>
+                    <strong>{{ invoice.no }}</strong>
+                  </td>
                   <td>{{ invoice.customer }}</td>
                   <td>{{ invoice.period }}</td>
                   <td>¥{{ invoice.amount.toLocaleString() }}</td>
@@ -174,7 +291,9 @@
                   </td>
                   <td>{{ invoice.createdAt }}</td>
                   <td>
-                    <a-button type="text" size="small" @click="$message.info('查看开发中')">查看</a-button>
+                    <a-button type="text" size="small" @click="$message.info('查看开发中')"
+                      >查看</a-button
+                    >
                   </td>
                 </tr>
               </tbody>
@@ -200,17 +319,71 @@ const stats = reactive({
 })
 
 const todos = ref([
-  { title: '确认 XX 科技账单', priority: 'high', priorityText: '高', due: '今天 18:00 截止', checked: false },
-  { title: '跟进余额不足客户', priority: 'high', priorityText: '高', due: '3 个客户', checked: false },
-  { title: '审核减免申请 - YY 公司', priority: 'medium', priorityText: '中', due: '明天截止', checked: false },
+  {
+    title: '确认 XX 科技账单',
+    priority: 'high',
+    priorityText: '高',
+    due: '今天 18:00 截止',
+    checked: false,
+  },
+  {
+    title: '跟进余额不足客户',
+    priority: 'high',
+    priorityText: '高',
+    due: '3 个客户',
+    checked: false,
+  },
+  {
+    title: '审核减免申请 - YY 公司',
+    priority: 'medium',
+    priorityText: '中',
+    due: '明天截止',
+    checked: false,
+  },
   { title: '导出月度分析报告', priority: 'low', priorityText: '低', due: '本周五', checked: false },
 ])
 
 const invoices = ref([
-  { id: 1, no: 'INV-2026-0089', customer: 'XX 科技有限公司', period: '2026-03', amount: 128500, status: 'warning', statusText: '待确认', createdAt: '2026-04-01' },
-  { id: 2, no: 'INV-2026-0088', customer: 'YY 集团有限公司', period: '2026-03', amount: 85200, status: 'info', statusText: '待付款', createdAt: '2026-04-01' },
-  { id: 3, no: 'INV-2026-0087', customer: 'ZZ 创新股份', period: '2026-03', amount: 256800, status: 'success', statusText: '已完成', createdAt: '2026-03-31' },
-  { id: 4, no: 'INV-2026-0086', customer: 'AA 数字科技', period: '2026-03', amount: 42300, status: 'success', statusText: '已完成', createdAt: '2026-03-30' },
+  {
+    id: 1,
+    no: 'INV-2026-0089',
+    customer: 'XX 科技有限公司',
+    period: '2026-03',
+    amount: 128500,
+    status: 'warning',
+    statusText: '待确认',
+    createdAt: '2026-04-01',
+  },
+  {
+    id: 2,
+    no: 'INV-2026-0088',
+    customer: 'YY 集团有限公司',
+    period: '2026-03',
+    amount: 85200,
+    status: 'info',
+    statusText: '待付款',
+    createdAt: '2026-04-01',
+  },
+  {
+    id: 3,
+    no: 'INV-2026-0087',
+    customer: 'ZZ 创新股份',
+    period: '2026-03',
+    amount: 256800,
+    status: 'success',
+    statusText: '已完成',
+    createdAt: '2026-03-31',
+  },
+  {
+    id: 4,
+    no: 'INV-2026-0086',
+    customer: 'AA 数字科技',
+    period: '2026-03',
+    amount: 42300,
+    status: 'success',
+    statusText: '已完成',
+    createdAt: '2026-03-30',
+  },
 ])
 </script>
 
@@ -218,7 +391,7 @@ const invoices = ref([
 .home-page {
   --primary-1: #e8f3ff;
   --primary-5: #3296f7;
-  --primary-6: #0369A1;
+  --primary-6: #0369a1;
   --primary-7: #035a8a;
   --success-1: #e8ffea;
   --success-5: #4ade80;
@@ -441,7 +614,7 @@ const invoices = ref([
   flex-shrink: 0;
 }
 
-.todo-checkbox-wrapper input[type="checkbox"] {
+.todo-checkbox-wrapper input[type='checkbox'] {
   display: none;
 }
 
@@ -467,12 +640,12 @@ const invoices = ref([
   transition: all var(--transition-fast);
 }
 
-.todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox {
+.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox {
   background: var(--primary-6);
   border-color: var(--primary-6);
 }
 
-.todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox svg {
+.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox svg {
   opacity: 1;
   transform: scale(1);
 }
@@ -628,7 +801,7 @@ tr:hover td {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
