@@ -266,3 +266,119 @@ class TestUserService_GetUserById:
 
         # 验证结果
         assert result is None
+
+
+# ==================== Test Update User ====================
+
+
+class TestUserService_UpdateUser:
+    """更新用户信息测试"""
+
+    @pytest.mark.asyncio
+    async def test_update_user_success(self, user_service, mock_db_session):
+        """测试更新用户信息成功"""
+        user_id = 1
+        new_email = "newemail@example.com"
+        new_real_name = "新用户名"
+        new_is_active = False
+
+        mock_user = User(
+            id=user_id,
+            username="testuser",
+            email="old@example.com",
+            real_name="旧用户名",
+            is_active=True,
+        )
+
+        call_count = {"count": 0}
+
+        async def mock_execute_side_effect(query):
+            call_count["count"] += 1
+            mock_result = MagicMock()
+            if call_count["count"] == 1:
+                mock_result.scalar_one_or_none.return_value = mock_user
+            return mock_result
+
+        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
+        mock_db_session.flush = AsyncMock()
+        mock_db_session.refresh = AsyncMock()
+
+        result = await user_service.update_user(
+            user_id=user_id,
+            email=new_email,
+            real_name=new_real_name,
+            is_active=new_is_active,
+        )
+
+        assert result is not None
+        assert isinstance(result, User)
+        assert result.email == new_email
+        assert result.real_name == new_real_name
+        assert result.is_active == new_is_active
+        mock_db_session.flush.assert_called()
+        mock_db_session.refresh.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_update_user_not_found(self, user_service, mock_db_session):
+        """测试更新不存在的用户"""
+        user_id = 999
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await user_service.update_user(
+            user_id=user_id,
+            email="test@example.com",
+        )
+
+        assert result is None
+        mock_db_session.flush.assert_not_called()
+
+
+# ==================== Test Get User Roles ====================
+
+
+class TestUserService_GetUserRoles:
+    """获取用户角色测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_user_roles_success(self, user_service, mock_db_session):
+        """测试获取用户角色成功"""
+        user_id = 1
+
+        mock_role1 = Role(id=1, name="admin", description="管理员")
+        mock_role2 = Role(id=2, name="user", description="普通用户")
+
+        mock_user = User(
+            id=user_id,
+            username="testuser",
+            roles=[mock_role1, mock_role2],
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_user
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await user_service.get_user_roles(user_id)
+
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0].id == 1
+        assert result[0].name == "admin"
+        assert result[1].id == 2
+        assert result[1].name == "user"
+
+    @pytest.mark.asyncio
+    async def test_get_user_roles_not_found(self, user_service, mock_db_session):
+        """测试获取不存在用户的角色"""
+        user_id = 999
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await user_service.get_user_roles(user_id)
+
+        assert result == []
