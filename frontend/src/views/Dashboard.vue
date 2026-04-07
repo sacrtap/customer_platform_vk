@@ -429,6 +429,7 @@
         </div>
         <div class="sidebar-toggle" @click="toggleSidebar">
           <svg
+            aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -963,7 +964,7 @@ const handleLogout = () => {
   color: rgba(255, 255, 255, 0.5);
   text-decoration: none;
   font-size: 13px;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   margin-bottom: 2px;
   position: relative;
   cursor: pointer;
