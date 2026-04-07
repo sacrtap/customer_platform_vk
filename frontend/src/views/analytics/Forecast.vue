@@ -63,11 +63,11 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">预测回款总额</div>
-        <div class="stat-value">¥{{ formatNumber(totalPredicted) }}</div>
+        <div class="stat-value">{{ formatCurrency(totalPredicted) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">已确认回款</div>
-        <div class="stat-value success">¥{{ formatNumber(confirmedAmount) }}</div>
+        <div class="stat-value success">{{ formatCurrency(confirmedAmount) }}</div>
         <div class="stat-trend">
           <span class="trend-label">完成率</span>
           <span class="trend-value">{{ completionRate }}%</span>
@@ -75,7 +75,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">待确认回款</div>
-        <div class="stat-value warning">¥{{ formatNumber(pendingAmount) }}</div>
+        <div class="stat-value warning">{{ formatCurrency(pendingAmount) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">预测客户数</div>
@@ -116,7 +116,7 @@
         @page-change="handlePageChange"
       >
         <template #amount="{ record }">
-          <span class="predicted-amount">¥{{ formatNumber(record.predicted_amount) }}</span>
+          <span class="predicted-amount">{{ formatCurrency(record.predicted_amount) }}</span>
         </template>
         <template #action="{ record }">
           <a-button type="text" size="small" @click="viewCustomer(record.customer_id)">查看</a-button>
@@ -136,6 +136,7 @@ import {
   getMonthlyPrediction,
   type PaymentPrediction,
 } from '@/api/analytics'
+import { formatCurrency } from '@/utils/formatters'
 
 const router = useRouter()
 
@@ -184,10 +185,7 @@ const columns = [
   { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
 ]
 
-// 格式化数字
-const formatNumber = (num: number) => {
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 // 重置
 const handleReset = () => {

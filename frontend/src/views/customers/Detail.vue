@@ -73,7 +73,7 @@
             </div>
             <div class="info-item">
               <label>创建时间</label>
-              <span>{{ customer.created_at }}</span>
+              <span>{{ formatDateTime(customer.created_at) }}</span>
             </div>
             <div class="info-item-full">
               <label>客户标签</label>
@@ -132,24 +132,24 @@
         </a-tab-pane>
 
         <a-tab-pane key="balance" title="余额信息">
-          <div class="balance-cards">
-            <div class="balance-card">
-              <div class="balance-label">总余额</div>
-              <div class="balance-value">¥{{ formatNumber(balance.total_amount) }}</div>
-            </div>
-            <div class="balance-card">
-              <div class="balance-label">实充余额</div>
-              <div class="balance-value real">¥{{ formatNumber(balance.real_amount) }}</div>
-            </div>
-            <div class="balance-card">
-              <div class="balance-label">赠送余额</div>
-              <div class="balance-value bonus">¥{{ formatNumber(balance.bonus_amount) }}</div>
-            </div>
-            <div class="balance-card">
-              <div class="balance-label">已消耗</div>
-              <div class="balance-value">¥{{ formatNumber(balance.used_total) }}</div>
-            </div>
-          </div>
+           <div class="balance-cards">
+             <div class="balance-card">
+               <div class="balance-label">总余额</div>
+               <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
+             </div>
+             <div class="balance-card">
+               <div class="balance-label">实充余额</div>
+               <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
+             </div>
+             <div class="balance-card">
+               <div class="balance-label">赠送余额</div>
+               <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
+             </div>
+             <div class="balance-card">
+               <div class="balance-label">已消耗</div>
+               <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
+             </div>
+           </div>
         </a-tab-pane>
 
         <a-tab-pane key="invoices" title="结算单">
@@ -161,7 +161,7 @@
               </span>
             </template>
             <template #amount="{ record }">
-              ¥{{ formatNumber(record.final_amount || record.total_amount) }}
+              {{ formatCurrency(record.final_amount || record.total_amount) }}
             </template>
             <template #action="{ record }">
               <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
@@ -175,7 +175,7 @@
               <a-tag>{{ record.device_type }}</a-tag>
             </template>
             <template #quantity="{ record }">
-              {{ record.quantity?.toLocaleString() }}
+              {{ formatNumber(record.quantity || 0) }}
             </template>
           </a-table>
         </a-tab-pane>
@@ -277,6 +277,7 @@ import { getCustomerBalance, getInvoices, type Invoice } from '@/api/billing'
 import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
 import { getDailyUsage } from '@/api/usage'
 import type { Customer, CustomerProfile, Balance } from '@/types'
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from '@/utils/formatters'
 
 const route = useRoute()
 const router = useRouter()
@@ -421,10 +422,7 @@ const loadCustomerData = async () => {
   }
 }
 
-// 格式化数字
-const formatNumber = (num: number) => {
-  return (num || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 // 获取状态样式类
 const getStatusClass = (status: string) => {

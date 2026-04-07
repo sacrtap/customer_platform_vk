@@ -32,7 +32,7 @@
     <div class="stats-grid">
       <StatCard 
         title="客户总数" 
-        :value="stats.totalCustomers.toLocaleString()" 
+        :value="formatNumber(stats.totalCustomers)" 
         variant="primary" 
         :icon="true"
       >
@@ -72,7 +72,7 @@
 
       <StatCard 
         title="本月消耗" 
-        :value="'¥' + (stats.monthConsumption / 10000).toFixed(1) + '万'" 
+        :value="formatCurrencyWan(stats.monthConsumption)" 
         variant="success" 
         :icon="true"
       >
@@ -152,7 +152,7 @@
 
       <StatCard 
         title="总余额" 
-        :value="'¥' + (stats.totalBalance / 10000).toFixed(1) + '万'" 
+        :value="formatCurrencyWan(stats.totalBalance)" 
         variant="danger" 
         :icon="true"
       >
@@ -287,7 +287,7 @@
                     <strong>{{ invoice.invoice_no }}</strong>
                   </td>
                   <td>{{ invoice.period_start }} 至 {{ invoice.period_end }}</td>
-                  <td>¥{{ invoice.total_amount.toLocaleString() }}</td>
+                  <td>{{ formatCurrency(invoice.total_amount) }}</td>
                   <td>
                     <span :class="['status-badge', getStatusClass(invoice.status)]">
                       <span class="status-dot"></span>
@@ -321,6 +321,7 @@ import {
   getPendingTasks,
 } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
+import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 
 const loading = ref(false)
 const chartRef = ref<HTMLElement>()
@@ -520,9 +521,7 @@ const getStatusText = (status: string) => {
   return map[status] || status
 }
 
-const formatDate = (dateStr: string) => {
-  return dateStr.split('T')[0]
-}
+
 
 // 窗口大小变化处理
 const handleResize = () => {

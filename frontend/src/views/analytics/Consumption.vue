@@ -54,7 +54,7 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">总消耗金额</div>
-        <div class="stat-value">¥{{ formatNumber(totalConsumption) }}</div>
+        <div class="stat-value">{{ formatCurrency(totalConsumption) }}</div>
         <div class="stat-trend">
           <span class="trend-label">环比</span>
           <span :class="['trend-value', trend >= 0 ? 'trend-up' : 'trend-down']">
@@ -64,7 +64,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">活跃客户数</div>
-        <div class="stat-value">{{ activeCustomers }}</div>
+        <div class="stat-value">{{ formatNumber(activeCustomers) }}</div>
         <div class="stat-trend">
           <span class="trend-label">占比</span>
           <span class="trend-value">{{ activeRate }}%</span>
@@ -72,7 +72,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">日均消耗</div>
-        <div class="stat-value">¥{{ formatNumber(dailyAverage) }}</div>
+        <div class="stat-value">{{ formatCurrency(dailyAverage) }}</div>
         <div class="stat-trend">
           <span class="trend-label">较上月</span>
           <span :class="['trend-value', avgTrend >= 0 ? 'trend-up' : 'trend-down']">
@@ -85,7 +85,7 @@
         <div class="stat-value">{{ topCustomer?.customer_name || '-' }}</div>
         <div class="stat-trend">
           <span class="trend-label">消耗</span>
-          <span class="trend-value">¥{{ formatNumber(topCustomer?.total_amount || 0) }}</span>
+          <span class="trend-value">{{ formatCurrency(topCustomer?.total_amount || 0) }}</span>
         </div>
       </div>
     </div>
@@ -126,7 +126,7 @@
               <div class="customer-name">{{ customer.customer_name }}</div>
               <div class="customer-id">{{ customer.company_id }}</div>
             </div>
-            <div class="customer-amount">¥{{ formatNumber(customer.total_amount) }}</div>
+            <div class="customer-amount">{{ formatCurrency(customer.total_amount) }}</div>
           </div>
           <a-empty v-if="topCustomers.length === 0" description="暂无数据" />
         </div>
@@ -148,6 +148,7 @@ import {
   type TopCustomer,
   type DeviceDistributionItem,
 } from '@/api/analytics'
+import { formatCurrency, formatNumber } from '@/utils/formatters'
 
 const filters = reactive({
   start_date: '',
@@ -179,10 +180,7 @@ const consumptionTrend = ref<ConsumptionTrendItem[]>([])
 const topCustomers = ref<TopCustomer[]>([])
 const deviceDistribution = ref<DeviceDistributionItem[]>([])
 
-// 格式化数字
-const formatNumber = (num: number) => {
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 // 时间范围变化
 const handleTimeRangeChange = () => {

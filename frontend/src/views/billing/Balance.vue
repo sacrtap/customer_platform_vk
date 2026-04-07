@@ -68,19 +68,19 @@
       >
         <template #balance="{ record }">
           <div class="balance-info">
-            <div>总额：¥{{ formatMoney(record.total_amount) }}</div>
+            <div>总额：{{ formatCurrency(record.total_amount) }}</div>
             <div class="balance-detail">
-              <span class="real">实充：¥{{ formatMoney(record.real_amount) }}</span>
-              <span class="bonus">赠送：¥{{ formatMoney(record.bonus_amount) }}</span>
+              <span class="real">实充：{{ formatCurrency(record.real_amount) }}</span>
+              <span class="bonus">赠送：{{ formatCurrency(record.bonus_amount) }}</span>
             </div>
           </div>
         </template>
         <template #used="{ record }">
           <div>
-            ¥{{ formatMoney(record.used_total) }}
+            {{ formatCurrency(record.used_total) }}
             <div class="used-detail">
-              <span class="used-real">实：¥{{ formatMoney(record.used_real) }}</span>
-              <span class="used-bonus">赠：¥{{ formatMoney(record.used_bonus) }}</span>
+              <span class="used-real">实：{{ formatCurrency(record.used_real) }}</span>
+              <span class="used-bonus">赠：{{ formatCurrency(record.used_bonus) }}</span>
             </div>
           </div>
         </template>
@@ -181,10 +181,10 @@
       >
         <template #amount="{ record }">
           <div>
-            ¥{{ formatMoney(record.total_amount) }}
+            {{ formatCurrency(record.total_amount) }}
             <div class="amount-detail">
-              <span class="real">实：¥{{ formatMoney(record.real_amount) }}</span>
-              <span class="bonus">赠：¥{{ formatMoney(record.bonus_amount) }}</span>
+              <span class="real">实：{{ formatCurrency(record.real_amount) }}</span>
+              <span class="bonus">赠：{{ formatCurrency(record.bonus_amount) }}</span>
             </div>
           </div>
         </template>
@@ -206,6 +206,7 @@ import {
 } from '@/api/billing'
 import { getCustomers } from '@/api/customers'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatCurrency } from '@/utils/formatters'
 
 // 筛选条件
 const filters = reactive({
@@ -268,10 +269,7 @@ const recordColumns = [
   { title: '备注', dataIndex: 'remark', width: 200 },
 ]
 
-// 格式化金额
-const formatMoney = (amount: number) => {
-  return amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 // 加载余额列表
 const loadBalances = async () => {

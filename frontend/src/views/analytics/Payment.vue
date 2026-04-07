@@ -54,15 +54,15 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">应收总额</div>
-        <div class="stat-value">¥{{ formatNumber(totalInvoiced) }}</div>
+        <div class="stat-value">{{ formatCurrency(totalInvoiced) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">减免总额</div>
-        <div class="stat-value warning">¥{{ formatNumber(totalDiscount) }}</div>
+        <div class="stat-value warning">{{ formatCurrency(totalDiscount) }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">已回款</div>
-        <div class="stat-value success">¥{{ formatNumber(totalPaid) }}</div>
+        <div class="stat-value success">{{ formatCurrency(totalPaid) }}</div>
         <div class="stat-trend">
           <span class="trend-label">回款率</span>
           <span class="trend-value">{{ completionRate }}%</span>
@@ -70,7 +70,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">待回款</div>
-        <div class="stat-value danger">¥{{ formatNumber(difference) }}</div>
+        <div class="stat-value danger">{{ formatCurrency(difference) }}</div>
       </div>
     </div>
 
@@ -112,6 +112,7 @@ import {
   getPaymentAnalysis,
   getInvoiceStatusStats,
 } from '@/api/analytics'
+import { formatCurrency } from '@/utils/formatters'
 
 const filters = reactive({
   start_date: '',
@@ -140,10 +141,7 @@ const difference = ref(0)
 // 状态统计
 const statusStats = ref<any[]>([])
 
-// 格式化数字
-const formatNumber = (num: number) => {
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+
 
 // 时间范围变化
 const handleTimeRangeChange = () => {
