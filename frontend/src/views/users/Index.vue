@@ -179,6 +179,7 @@ interface User {
   is_active: boolean
   is_system: boolean
   roles: string[]
+  role_ids: number[]
   created_at: string
 }
 
@@ -285,6 +286,7 @@ const loadUsers = async () => {
     users.value = (res.data as any).list.map((item: ApiUser) => ({
       ...item,
       roles: item.roles?.map((r) => r.name) || [],
+      role_ids: item.roles?.map((r) => r.id) || [],
     }))
     pagination.total = (res.data as any).total || 0
   } catch (error: any) {
@@ -343,7 +345,7 @@ const handleEdit = (record: User) => {
     email: record.email || '',
     real_name: record.real_name || '',
     is_active: record.is_active,
-    role_ids: [],
+    role_ids: record.role_ids || [],
   })
   userModalVisible.value = true
 }
