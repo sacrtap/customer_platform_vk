@@ -108,10 +108,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import {
-  getPaymentAnalysis,
-  getInvoiceStatusStats,
-} from '@/api/analytics'
+import { getPaymentAnalysis, getInvoiceStatusStats } from '@/api/analytics'
 import { formatCurrency } from '@/utils/formatters'
 
 const filters = reactive({
@@ -140,8 +137,6 @@ const difference = ref(0)
 
 // 状态统计
 const statusStats = ref<any[]>([])
-
-
 
 // 时间范围变化
 const handleTimeRangeChange = () => {
@@ -209,7 +204,7 @@ const loadPaymentData = async () => {
   totalPaid.value = data.total_paid || 0
   completionRate.value = data.completion_rate || 0
   difference.value = data.difference || 0
-  
+
   initComparisonChart()
 }
 
@@ -232,20 +227,20 @@ const calculateStats = () => {
 // 初始化对比图表
 const initComparisonChart = () => {
   if (!comparisonChartRef.value) return
-  
+
   if (comparisonChart) {
     comparisonChart.dispose()
   }
-  
+
   comparisonChart = echarts.init(comparisonChartRef.value)
-  
+
   // 生成模拟月度数据
   const months = 6
   const now = new Date()
   const periodLabels: string[] = []
   const invoicedData: number[] = []
   const paidData: number[] = []
-  
+
   for (let i = months - 1; i >= 0; i--) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     periodLabels.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
@@ -253,7 +248,7 @@ const initComparisonChart = () => {
     invoicedData.push(Math.round(baseAmount * (0.8 + Math.random() * 0.4)))
     paidData.push(Math.round(baseAmount * (0.6 + Math.random() * 0.3)))
   }
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -324,20 +319,20 @@ const initComparisonChart = () => {
       },
     ],
   }
-  
+
   comparisonChart.setOption(option)
 }
 
 // 初始化状态饼图
 const initStatusChart = () => {
   if (!statusChartRef.value) return
-  
+
   if (statusChart) {
     statusChart.dispose()
   }
-  
+
   statusChart = echarts.init(statusChartRef.value)
-  
+
   const statusColors: Record<string, string> = {
     draft: '#6b7280',
     pending_customer: '#f59e0b',
@@ -346,7 +341,7 @@ const initStatusChart = () => {
     completed: '#10b981',
     cancelled: '#ef4444',
   }
-  
+
   const statusNames: Record<string, string> = {
     draft: '草稿',
     pending_customer: '待确认',
@@ -355,7 +350,7 @@ const initStatusChart = () => {
     completed: '已完成',
     cancelled: '已取消',
   }
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -396,7 +391,7 @@ const initStatusChart = () => {
         labelLine: {
           show: false,
         },
-        data: statusStats.value.map(item => ({
+        data: statusStats.value.map((item) => ({
           name: statusNames[item.status] || item.status,
           value: item.count,
           itemStyle: {
@@ -406,31 +401,31 @@ const initStatusChart = () => {
       },
     ],
   }
-  
+
   statusChart.setOption(option)
 }
 
 // 初始化趋势图表
 const initTrendChart = () => {
   if (!trendChartRef.value) return
-  
+
   if (trendChart) {
     trendChart.dispose()
   }
-  
+
   trendChart = echarts.init(trendChartRef.value)
-  
+
   const months = 6
   const now = new Date()
   const periodLabels: string[] = []
   const paidData: number[] = []
-  
+
   for (let i = months - 1; i >= 0; i--) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     periodLabels.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`)
     paidData.push(Math.round((totalPaid.value / months) * (0.7 + Math.random() * 0.6)))
   }
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -485,7 +480,7 @@ const initTrendChart = () => {
       },
     ],
   }
-  
+
   trendChart.setOption(option)
 }
 
@@ -642,7 +637,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .charts-section {
     grid-template-columns: 1fr;
   }

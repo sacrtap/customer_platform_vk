@@ -7,22 +7,22 @@
         <slot name="icon" />
       </div>
     </div>
-    
+
     <div v-if="layout === 'compact'" class="stat-header-compact">
       <div v-if="icon" class="stat-icon" :class="variant">
         <slot name="icon" />
       </div>
       <span class="stat-title">{{ title }}</span>
     </div>
-    
+
     <div class="stat-value" :class="valueClass">{{ value }}</div>
-    
+
     <div v-if="$slots.subtitle || subtitle" class="stat-subtitle">
       <slot name="subtitle">
         {{ subtitle }}
       </slot>
     </div>
-    
+
     <div v-if="$slots.extra" class="stat-extra">
       <slot name="extra" />
     </div>
@@ -48,8 +48,9 @@ defineProps<{
   padding: 24px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   border: 1px solid #eef0f3;
-  transition: box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1), 
-              transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
   --primary-1: #e8f3ff;

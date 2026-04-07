@@ -130,7 +130,9 @@
 
           <div class="login-options">
             <a-checkbox v-model="formData.remember">记住我</a-checkbox>
-            <a href="#" class="login-forgot" @click.prevent="forgotPasswordVisible = true">忘记密码？</a>
+            <a href="#" class="login-forgot" @click.prevent="forgotPasswordVisible = true"
+              >忘记密码？</a
+            >
           </div>
 
           <a-form-item>
@@ -165,25 +167,17 @@
           field="username"
           :rules="[{ required: true, message: '请输入用户名或邮箱' }]"
         >
-          <a-input
-            v-model="forgotForm.username"
-            placeholder="请输入用户名或邮箱"
-            size="large"
-          />
+          <a-input v-model="forgotForm.username" placeholder="请输入用户名或邮箱" size="large" />
         </a-form-item>
         <a-form-item
           label="注册邮箱"
           field="email"
           :rules="[
             { required: true, message: '请输入邮箱' },
-            { type: 'email', message: '邮箱格式不正确' }
+            { type: 'email', message: '邮箱格式不正确' },
           ]"
         >
-          <a-input
-            v-model="forgotForm.email"
-            placeholder="请输入注册时的邮箱"
-            size="large"
-          />
+          <a-input v-model="forgotForm.email" placeholder="请输入注册时的邮箱" size="large" />
         </a-form-item>
       </a-form>
       <template #footer>
@@ -236,7 +230,7 @@ const forgotLoading = ref(false)
 const handleSubmit = async () => {
   // 先进行表单验证
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
   } catch (error) {
@@ -248,14 +242,14 @@ const handleSubmit = async () => {
 
   try {
     const res = await api.post('/auth/login', formData)
-    
+
     // 记住我功能：保存或移除用户名
     if (formData.remember) {
       localStorage.setItem('remembered_username', formData.username)
     } else {
       localStorage.removeItem('remembered_username')
     }
-    
+
     userStore.setToken(res.data.access_token, res.data.refresh_token)
     userStore.setUserInfo(res.data.user)
     userStore.setPermissions(res.data.permissions || [])
@@ -292,11 +286,11 @@ const handleForgotPassword = async () => {
   try {
     // 调用后端忘记密码 API（如果存在）
     // await api.post('/auth/forgot-password', forgotForm)
-    
+
     // 临时显示成功提示
     Message.success('密码重置链接已发送到您的邮箱，请查收')
     forgotPasswordVisible.value = false
-    
+
     // 重置表单
     forgotForm.username = ''
     forgotForm.email = ''

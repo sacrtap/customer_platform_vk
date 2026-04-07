@@ -27,243 +27,246 @@
         </div>
       </div>
 
-    <div class="tabs-section">
-      <a-tabs v-model="activeTab">
-        <a-tab-pane key="basic" title="基础信息">
-          <div class="info-grid">
-            <div class="info-item">
-              <label>客户名称</label>
-              <span>{{ customer.name }}</span>
-            </div>
-            <div class="info-item">
-              <label>公司 ID</label>
-              <span>{{ customer.company_id }}</span>
-            </div>
-            <div class="info-item">
-              <label>账号类型</label>
-              <a-tag>{{ customer.account_type || '-' }}</a-tag>
-            </div>
-            <div class="info-item">
-              <label>业务类型</label>
-              <a-tag>{{ customer.business_type || '-' }}</a-tag>
-            </div>
-            <div class="info-item">
-              <label>客户等级</label>
-              <a-tag>{{ customer.customer_level || '-' }}</a-tag>
-            </div>
-            <div class="info-item">
-              <label>重点客户</label>
-              <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
-                {{ customer.is_key_customer ? '是' : '否' }}
-              </a-tag>
-            </div>
-            <div class="info-item">
-              <label>结算方式</label>
-              <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
-                {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
-              </a-tag>
-            </div>
-            <div class="info-item">
-              <label>结算周期</label>
-              <span>{{ customer.settlement_cycle || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <label>邮箱</label>
-              <span>{{ customer.email || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <label>创建时间</label>
-              <span>{{ formatDateTime(customer.created_at) }}</span>
-            </div>
-            <div class="info-item-full">
-              <label>客户标签</label>
-              <div class="tags-container">
-                <a-tag
-                  v-for="tag in customerTags"
-                  :key="tag.id"
-                  color="arcoblue"
-                  closable
-                  @close="removeTag(tag.id)"
-                >
-                  {{ tag.name }}
+      <div class="tabs-section">
+        <a-tabs v-model="activeTab">
+          <a-tab-pane key="basic" title="基础信息">
+            <div class="info-grid">
+              <div class="info-item">
+                <label>客户名称</label>
+                <span>{{ customer.name }}</span>
+              </div>
+              <div class="info-item">
+                <label>公司 ID</label>
+                <span>{{ customer.company_id }}</span>
+              </div>
+              <div class="info-item">
+                <label>账号类型</label>
+                <a-tag>{{ customer.account_type || '-' }}</a-tag>
+              </div>
+              <div class="info-item">
+                <label>业务类型</label>
+                <a-tag>{{ customer.business_type || '-' }}</a-tag>
+              </div>
+              <div class="info-item">
+                <label>客户等级</label>
+                <a-tag>{{ customer.customer_level || '-' }}</a-tag>
+              </div>
+              <div class="info-item">
+                <label>重点客户</label>
+                <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
+                  {{ customer.is_key_customer ? '是' : '否' }}
                 </a-tag>
-                <a-button type="text" size="small" @click="openTagSelector">
-                  <template #icon>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      fill="currentColor"
-                      viewBox="0 0 16 16"
-                    >
-                      <path
-                        d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-                      />
-                    </svg>
-                  </template>
-                  添加标签
-                </a-button>
+              </div>
+              <div class="info-item">
+                <label>结算方式</label>
+                <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
+                  {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
+                </a-tag>
+              </div>
+              <div class="info-item">
+                <label>结算周期</label>
+                <span>{{ customer.settlement_cycle || '-' }}</span>
+              </div>
+              <div class="info-item">
+                <label>邮箱</label>
+                <span>{{ customer.email || '-' }}</span>
+              </div>
+              <div class="info-item">
+                <label>创建时间</label>
+                <span>{{ formatDateTime(customer.created_at) }}</span>
+              </div>
+              <div class="info-item-full">
+                <label>客户标签</label>
+                <div class="tags-container">
+                  <a-tag
+                    v-for="tag in customerTags"
+                    :key="tag.id"
+                    color="arcoblue"
+                    closable
+                    @close="removeTag(tag.id)"
+                  >
+                    {{ tag.name }}
+                  </a-tag>
+                  <a-button type="text" size="small" @click="openTagSelector">
+                    <template #icon>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        fill="currentColor"
+                        viewBox="0 0 16 16"
+                      >
+                        <path
+                          d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                        />
+                      </svg>
+                    </template>
+                    添加标签
+                  </a-button>
+                </div>
               </div>
             </div>
-          </div>
-        </a-tab-pane>
+          </a-tab-pane>
 
-        <a-tab-pane key="profile" title="画像信息">
-          <div class="info-grid">
-            <div class="info-item">
-              <label>规模等级</label>
-              <a-tag color="blue">{{ profile.scale_level || '-' }}</a-tag>
+          <a-tab-pane key="profile" title="画像信息">
+            <div class="info-grid">
+              <div class="info-item">
+                <label>规模等级</label>
+                <a-tag color="blue">{{ profile.scale_level || '-' }}</a-tag>
+              </div>
+              <div class="info-item">
+                <label>消费等级</label>
+                <a-tag color="green">{{ profile.consume_level || '-' }}</a-tag>
+              </div>
+              <div class="info-item">
+                <label>所属行业</label>
+                <span>{{ profile.industry || '-' }}</span>
+              </div>
+              <div class="info-item">
+                <label>房地产行业</label>
+                <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'">
+                  {{ profile.is_real_estate ? '是' : '否' }}
+                </a-tag>
+              </div>
             </div>
-            <div class="info-item">
-              <label>消费等级</label>
-              <a-tag color="green">{{ profile.consume_level || '-' }}</a-tag>
+          </a-tab-pane>
+
+          <a-tab-pane key="balance" title="余额信息">
+            <div class="balance-cards">
+              <div class="balance-card">
+                <div class="balance-label">总余额</div>
+                <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
+              </div>
+              <div class="balance-card">
+                <div class="balance-label">实充余额</div>
+                <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
+              </div>
+              <div class="balance-card">
+                <div class="balance-label">赠送余额</div>
+                <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
+              </div>
+              <div class="balance-card">
+                <div class="balance-label">已消耗</div>
+                <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
+              </div>
             </div>
-            <div class="info-item">
-              <label>所属行业</label>
-              <span>{{ profile.industry || '-' }}</span>
-            </div>
-            <div class="info-item">
-              <label>房地产行业</label>
-              <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'">
-                {{ profile.is_real_estate ? '是' : '否' }}
-              </a-tag>
-            </div>
-          </div>
-        </a-tab-pane>
+          </a-tab-pane>
 
-        <a-tab-pane key="balance" title="余额信息">
-           <div class="balance-cards">
-             <div class="balance-card">
-               <div class="balance-label">总余额</div>
-               <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
-             </div>
-             <div class="balance-card">
-               <div class="balance-label">实充余额</div>
-               <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
-             </div>
-             <div class="balance-card">
-               <div class="balance-label">赠送余额</div>
-               <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
-             </div>
-             <div class="balance-card">
-               <div class="balance-label">已消耗</div>
-               <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
-             </div>
-           </div>
-        </a-tab-pane>
+          <a-tab-pane key="invoices" title="结算单">
+            <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
+              <template #status="{ record }">
+                <span :class="['status-badge', getStatusClass(record.status)]">
+                  <span class="status-dot"></span>
+                  {{ getStatusText(record.status) }}
+                </span>
+              </template>
+              <template #amount="{ record }">
+                {{ formatCurrency(record.final_amount || record.total_amount) }}
+              </template>
+              <template #action="{ record }">
+                <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
+              </template>
+            </a-table>
+          </a-tab-pane>
 
-        <a-tab-pane key="invoices" title="结算单">
-          <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
-            <template #status="{ record }">
-              <span :class="['status-badge', getStatusClass(record.status)]">
-                <span class="status-dot"></span>
-                {{ getStatusText(record.status) }}
-              </span>
-            </template>
-            <template #amount="{ record }">
-              {{ formatCurrency(record.final_amount || record.total_amount) }}
-            </template>
-            <template #action="{ record }">
-              <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
-            </template>
-          </a-table>
-        </a-tab-pane>
-
-        <a-tab-pane key="usage" title="用量数据">
-          <a-table :columns="usageColumns" :data="usageData" :loading="usageLoading" :pagination="usagePagination" row-key="id" @page-change="handleUsagePageChange">
-            <template #deviceType="{ record }">
-              <a-tag>{{ record.device_type }}</a-tag>
-            </template>
-            <template #quantity="{ record }">
-              {{ formatNumber(record.quantity || 0) }}
-            </template>
-          </a-table>
-        </a-tab-pane>
-      </a-tabs>
-    </div>
-
-    <!-- 编辑客户对话框 -->
-    <a-modal
-      v-model:visible="editModalVisible"
-      title="编辑客户"
-      :confirm-loading="editLoading"
-      @ok="handleEditSubmit"
-      @cancel="editModalVisible = false"
-    >
-      <a-form :model="editForm" layout="vertical">
-        <a-form-item field="name" label="客户名称">
-          <a-input v-model="editForm.name" placeholder="请输入客户名称" />
-        </a-form-item>
-        <a-form-item field="email" label="邮箱">
-          <a-input v-model="editForm.email" placeholder="请输入邮箱" />
-        </a-form-item>
-        <a-form-item field="account_type" label="账号类型">
-          <a-select v-model="editForm.account_type" placeholder="请选择账号类型" allow-clear>
-            <a-option value="正式账号">正式账号</a-option>
-            <a-option value="测试账号">测试账号</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item field="business_type" label="业务类型">
-          <a-select v-model="editForm.business_type" placeholder="请选择业务类型" allow-clear>
-            <a-option value="A">A 类</a-option>
-            <a-option value="B">B 类</a-option>
-            <a-option value="C">C 类</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item field="customer_level" label="客户等级">
-          <a-select v-model="editForm.customer_level" placeholder="请选择客户等级" allow-clear>
-            <a-option value="KA">KA</a-option>
-            <a-option value="A">A</a-option>
-            <a-option value="B">B</a-option>
-            <a-option value="C">C</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item field="settlement_type" label="结算方式">
-          <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
-            <a-option value="prepaid">预付费</a-option>
-            <a-option value="postpaid">后付费</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item field="settlement_cycle" label="结算周期">
-          <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
-            <a-option value="日结">日结</a-option>
-            <a-option value="周结">周结</a-option>
-            <a-option value="月结">月结</a-option>
-            <a-option value="季结">季结</a-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <!-- 标签选择器对话框 -->
-    <a-modal
-      v-model:visible="tagSelectorVisible"
-      title="添加标签"
-      :confirm-loading="tagSelectorLoading"
-      width="500px"
-      @ok="handleAddTag"
-      @cancel="tagSelectorVisible = false"
-    >
-      <a-form layout="vertical">
-        <a-form-item label="选择标签" required>
-          <a-select
-            v-model="selectedTagIds"
-            placeholder="请选择标签"
-            multiple
-            allow-clear
-            :loading="allTagsLoading"
-          >
-            <a-option
-              v-for="tag in availableTags"
-              :key="tag.id"
-              :value="tag.id"
+          <a-tab-pane key="usage" title="用量数据">
+            <a-table
+              :columns="usageColumns"
+              :data="usageData"
+              :loading="usageLoading"
+              :pagination="usagePagination"
+              row-key="id"
+              @page-change="handleUsagePageChange"
             >
-              {{ tag.name }}
-            </a-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
+              <template #deviceType="{ record }">
+                <a-tag>{{ record.device_type }}</a-tag>
+              </template>
+              <template #quantity="{ record }">
+                {{ formatNumber(record.quantity || 0) }}
+              </template>
+            </a-table>
+          </a-tab-pane>
+        </a-tabs>
+      </div>
+
+      <!-- 编辑客户对话框 -->
+      <a-modal
+        v-model:visible="editModalVisible"
+        title="编辑客户"
+        :confirm-loading="editLoading"
+        @ok="handleEditSubmit"
+        @cancel="editModalVisible = false"
+      >
+        <a-form :model="editForm" layout="vertical">
+          <a-form-item field="name" label="客户名称">
+            <a-input v-model="editForm.name" placeholder="请输入客户名称" />
+          </a-form-item>
+          <a-form-item field="email" label="邮箱">
+            <a-input v-model="editForm.email" placeholder="请输入邮箱" />
+          </a-form-item>
+          <a-form-item field="account_type" label="账号类型">
+            <a-select v-model="editForm.account_type" placeholder="请选择账号类型" allow-clear>
+              <a-option value="正式账号">正式账号</a-option>
+              <a-option value="测试账号">测试账号</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="business_type" label="业务类型">
+            <a-select v-model="editForm.business_type" placeholder="请选择业务类型" allow-clear>
+              <a-option value="A">A 类</a-option>
+              <a-option value="B">B 类</a-option>
+              <a-option value="C">C 类</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="customer_level" label="客户等级">
+            <a-select v-model="editForm.customer_level" placeholder="请选择客户等级" allow-clear>
+              <a-option value="KA">KA</a-option>
+              <a-option value="A">A</a-option>
+              <a-option value="B">B</a-option>
+              <a-option value="C">C</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="settlement_type" label="结算方式">
+            <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
+              <a-option value="prepaid">预付费</a-option>
+              <a-option value="postpaid">后付费</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="settlement_cycle" label="结算周期">
+            <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
+              <a-option value="日结">日结</a-option>
+              <a-option value="周结">周结</a-option>
+              <a-option value="月结">月结</a-option>
+              <a-option value="季结">季结</a-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
+      </a-modal>
+
+      <!-- 标签选择器对话框 -->
+      <a-modal
+        v-model:visible="tagSelectorVisible"
+        title="添加标签"
+        :confirm-loading="tagSelectorLoading"
+        width="500px"
+        @ok="handleAddTag"
+        @cancel="tagSelectorVisible = false"
+      >
+        <a-form layout="vertical">
+          <a-form-item label="选择标签" required>
+            <a-select
+              v-model="selectedTagIds"
+              placeholder="请选择标签"
+              multiple
+              allow-clear
+              :loading="allTagsLoading"
+            >
+              <a-option v-for="tag in availableTags" :key="tag.id" :value="tag.id">
+                {{ tag.name }}
+              </a-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
+      </a-modal>
     </a-spin>
   </div>
 </template>
@@ -422,8 +425,6 @@ const loadCustomerData = async () => {
   }
 }
 
-
-
 // 获取状态样式类
 const getStatusClass = (status: string) => {
   const statusMap: Record<string, string> = {
@@ -535,8 +536,8 @@ const loadAllTags = async () => {
 
 // 计算可用标签（已添加的标签不显示）
 const availableTags = computed(() => {
-  const addedIds = new Set(customerTags.value.map(t => t.id))
-  return allTags.value.filter(t => !addedIds.has(t.id))
+  const addedIds = new Set(customerTags.value.map((t) => t.id))
+  return allTags.value.filter((t) => !addedIds.has(t.id))
 })
 
 // 打开标签选择器

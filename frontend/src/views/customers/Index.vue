@@ -142,7 +142,10 @@
                   height="16"
                   fill="currentColor"
                   viewBox="0 0 16 16"
-                  :style="{ transform: showAdvancedFilter ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }"
+                  :style="{
+                    transform: showAdvancedFilter ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s',
+                  }"
                 >
                   <path
                     fill-rule="evenodd"
@@ -166,11 +169,7 @@
             allow-clear
             :loading="managersLoading"
           >
-            <a-option
-              v-for="manager in managers"
-              :key="manager.id"
-              :value="manager.id"
-            >
+            <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
               {{ manager.real_name || manager.username }}
             </a-option>
           </a-select>
@@ -184,11 +183,7 @@
             allow-clear
             :loading="tagsLoading"
           >
-            <a-option
-              v-for="tag in customerTags"
-              :key="tag.id"
-              :value="tag.id"
-            >
+            <a-option v-for="tag in customerTags" :key="tag.id" :value="tag.id">
               {{ tag.name }}
             </a-option>
           </a-select>
@@ -220,10 +215,7 @@
           </a-space>
         </template>
         <template #empty>
-          <EmptyState 
-            title="暂无客户数据" 
-            description="点击「新建客户」添加第一个客户"
-          >
+          <EmptyState title="暂无客户数据" description="点击「新建客户」添加第一个客户">
             <template #action>
               <a-button type="primary" @click="openCreateModal">新建客户</a-button>
             </template>
@@ -271,7 +263,11 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item field="account_type" label="账号类型">
-              <a-select v-model="customerForm.account_type" placeholder="请选择账号类型" allow-clear>
+              <a-select
+                v-model="customerForm.account_type"
+                placeholder="请选择账号类型"
+                allow-clear
+              >
                 <a-option value="正式账号">正式账号</a-option>
                 <a-option value="测试账号">测试账号</a-option>
               </a-select>
@@ -279,7 +275,11 @@
           </a-col>
           <a-col :span="12">
             <a-form-item field="business_type" label="业务类型">
-              <a-select v-model="customerForm.business_type" placeholder="请选择业务类型" allow-clear>
+              <a-select
+                v-model="customerForm.business_type"
+                placeholder="请选择业务类型"
+                allow-clear
+              >
                 <a-option value="A">A 类业务</a-option>
                 <a-option value="B">B 类业务</a-option>
                 <a-option value="C">C 类业务</a-option>
@@ -291,7 +291,11 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item field="customer_level" label="客户等级">
-              <a-select v-model="customerForm.customer_level" placeholder="请选择客户等级" allow-clear>
+              <a-select
+                v-model="customerForm.customer_level"
+                placeholder="请选择客户等级"
+                allow-clear
+              >
                 <a-option value="KA">KA</a-option>
                 <a-option value="SKA">SKA</a-option>
                 <a-option value="普通">普通</a-option>
@@ -300,7 +304,11 @@
           </a-col>
           <a-col :span="12">
             <a-form-item field="settlement_type" label="结算方式">
-              <a-select v-model="customerForm.settlement_type" placeholder="请选择结算方式" allow-clear>
+              <a-select
+                v-model="customerForm.settlement_type"
+                placeholder="请选择结算方式"
+                allow-clear
+              >
                 <a-option value="prepaid">预付费</a-option>
                 <a-option value="postpaid">后付费</a-option>
               </a-select>
@@ -311,7 +319,11 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item field="settlement_cycle" label="结算周期">
-              <a-select v-model="customerForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
+              <a-select
+                v-model="customerForm.settlement_cycle"
+                placeholder="请选择结算周期"
+                allow-clear
+              >
                 <a-option value="日结">日结</a-option>
                 <a-option value="周结">周结</a-option>
                 <a-option value="月结">月结</a-option>
@@ -556,9 +568,11 @@ const handleExport = async () => {
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
 
     const res = await exportCustomers(params)
-    
+
     // 处理文件下载
-    const blob = new Blob([res as unknown as Blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const blob = new Blob([res as unknown as Blob], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -567,7 +581,7 @@ const handleExport = async () => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    
+
     Message.success('导出成功')
   } catch (error: any) {
     Message.error(error.message || '导出失败')
@@ -707,7 +721,9 @@ const handleImportFileChange = (file: any) => {
 const downloadTemplate = async () => {
   try {
     const res = await downloadImportTemplate()
-    const blob = new Blob([res as unknown as Blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const blob = new Blob([res as unknown as Blob], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url

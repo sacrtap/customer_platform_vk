@@ -13,7 +13,10 @@
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
-              :style="{ transform: loading ? 'rotate(360deg)' : 'none', transition: 'transform 0.5s linear' }"
+              :style="{
+                transform: loading ? 'rotate(360deg)' : 'none',
+                transition: 'transform 0.5s linear',
+              }"
             >
               <path
                 stroke-linecap="round"
@@ -30,10 +33,10 @@
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <StatCard 
-        title="客户总数" 
-        :value="formatNumber(stats.totalCustomers)" 
-        variant="primary" 
+      <StatCard
+        title="客户总数"
+        :value="formatNumber(stats.totalCustomers)"
+        variant="primary"
         :icon="true"
       >
         <template #icon>
@@ -52,7 +55,16 @@
           </svg>
         </template>
         <template #subtitle>
-          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #22c55e;">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 13px;
+              font-weight: 500;
+              color: #22c55e;
+            "
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -70,10 +82,10 @@
         </template>
       </StatCard>
 
-      <StatCard 
-        title="本月消耗" 
-        :value="formatCurrencyWan(stats.monthConsumption)" 
-        variant="success" 
+      <StatCard
+        title="本月消耗"
+        :value="formatCurrencyWan(stats.monthConsumption)"
+        variant="success"
         :icon="true"
       >
         <template #icon>
@@ -92,7 +104,16 @@
           </svg>
         </template>
         <template #subtitle>
-          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #22c55e;">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 13px;
+              font-weight: 500;
+              color: #22c55e;
+            "
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -110,10 +131,10 @@
         </template>
       </StatCard>
 
-      <StatCard 
-        title="待确认账单" 
-        :value="stats.pendingConfirmation" 
-        variant="warning" 
+      <StatCard
+        title="待确认账单"
+        :value="stats.pendingConfirmation"
+        variant="warning"
         :icon="true"
       >
         <template #icon>
@@ -132,7 +153,16 @@
           </svg>
         </template>
         <template #subtitle>
-          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #ef4444;">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 13px;
+              font-weight: 500;
+              color: #ef4444;
+            "
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -150,10 +180,10 @@
         </template>
       </StatCard>
 
-      <StatCard 
-        title="总余额" 
-        :value="formatCurrencyWan(stats.totalBalance)" 
-        variant="danger" 
+      <StatCard
+        title="总余额"
+        :value="formatCurrencyWan(stats.totalBalance)"
+        variant="danger"
         :icon="true"
       >
         <template #icon>
@@ -172,7 +202,9 @@
           </svg>
         </template>
         <template #subtitle>
-          <span style="font-size: 13px; color: #ef4444;">实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span>
+          <span style="font-size: 13px; color: #ef4444"
+            >实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span
+          >
         </template>
       </StatCard>
     </div>
@@ -315,11 +347,7 @@ import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import StatCard from '@/components/StatCard.vue'
-import {
-  getDashboardStats,
-  getDashboardChartData,
-  getPendingTasks,
-} from '@/api/analytics'
+import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 
@@ -386,13 +414,13 @@ const loadChartData = async () => {
 // 初始化图表
 const initChart = (data: Array<{ period: string; total_amount: number }>) => {
   if (!chartRef.value) return
-  
+
   if (chartInstance) {
     chartInstance.dispose()
   }
-  
+
   chartInstance = echarts.init(chartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -419,7 +447,7 @@ const initChart = (data: Array<{ period: string; total_amount: number }>) => {
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: '#eef0f3' } },
-      axisLabel: { 
+      axisLabel: {
         color: '#646a73',
         formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
       },
@@ -455,7 +483,7 @@ const initChart = (data: Array<{ period: string; total_amount: number }>) => {
       },
     ],
   }
-  
+
   chartInstance.setOption(option)
 }
 
@@ -520,8 +548,6 @@ const getStatusText = (status: string) => {
   }
   return map[status] || status
 }
-
-
 
 // 窗口大小变化处理
 const handleResize = () => {

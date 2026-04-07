@@ -38,11 +38,7 @@
             :remote="true"
             @search="handleCustomerSearch"
           >
-            <a-option
-              v-for="customer in customerOptions"
-              :key="customer.id"
-              :value="customer.id"
-            >
+            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
               {{ customer.name }}
             </a-option>
           </a-select>
@@ -91,10 +87,7 @@
           </a-space>
         </template>
         <template #empty>
-          <EmptyState 
-            title="暂无余额数据" 
-            description="点击「新建充值」为客户充值"
-          >
+          <EmptyState title="暂无余额数据" description="点击「新建充值」为客户充值">
             <template #action>
               <a-button type="primary" @click="openRechargeModal()">新建充值</a-button>
             </template>
@@ -122,11 +115,7 @@
             :disabled="!!selectedBalance"
             @search="handleCustomerSearch"
           >
-            <a-option
-              v-for="customer in customerOptions"
-              :key="customer.id"
-              :value="customer.id"
-            >
+            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
               {{ customer.name }}
             </a-option>
           </a-select>
@@ -269,8 +258,6 @@ const recordColumns = [
   { title: '备注', dataIndex: 'remark', width: 200 },
 ]
 
-
-
 // 加载余额列表
 const loadBalances = async () => {
   loading.value = true
@@ -383,7 +370,6 @@ const viewRechargeRecords = async (record: Balance) => {
     recordLoading.value = false
   }
 }
-
 
 // 加载充值记录
 const loadRechargeRecords = async () => {

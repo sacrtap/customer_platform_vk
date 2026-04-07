@@ -60,19 +60,13 @@
             <a-button type="text" size="small" @click="handleResetPassword(record)">
               重置密码
             </a-button>
-            <a-popconfirm
-              content="确认删除该用户？删除后无法恢复。"
-              @ok="handleDelete(record.id)"
-            >
+            <a-popconfirm content="确认删除该用户？删除后无法恢复。" @ok="handleDelete(record.id)">
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
           </a-space>
         </template>
         <template #empty>
-          <EmptyState 
-            title="暂无用户数据" 
-            description="点击「新建用户」添加第一个用户"
-          >
+          <EmptyState title="暂无用户数据" description="点击「新建用户」添加第一个用户">
             <template #action>
               <a-button type="primary" @click="handleCreate">新建用户</a-button>
             </template>
@@ -90,36 +84,18 @@
       @ok="handleUserSubmit"
       @cancel="handleUserModalCancel"
     >
-      <a-form
-        ref="userFormRef"
-        :model="userForm"
-        :rules="userFormRules"
-        layout="vertical"
-      >
+      <a-form ref="userFormRef" :model="userForm" :rules="userFormRules" layout="vertical">
         <a-form-item field="username" label="用户名">
-          <a-input
-            v-model="userForm.username"
-            placeholder="请输入用户名"
-            :disabled="isEditMode"
-          />
+          <a-input v-model="userForm.username" placeholder="请输入用户名" :disabled="isEditMode" />
         </a-form-item>
         <a-form-item v-if="!isEditMode" field="password" label="密码">
-          <a-input-password
-            v-model="userForm.password"
-            placeholder="请输入密码"
-          />
+          <a-input-password v-model="userForm.password" placeholder="请输入密码" />
         </a-form-item>
         <a-form-item field="email" label="邮箱">
-          <a-input
-            v-model="userForm.email"
-            placeholder="请输入邮箱"
-          />
+          <a-input v-model="userForm.email" placeholder="请输入邮箱" />
         </a-form-item>
         <a-form-item field="real_name" label="真实姓名">
-          <a-input
-            v-model="userForm.real_name"
-            placeholder="请输入真实姓名"
-          />
+          <a-input v-model="userForm.real_name" placeholder="请输入真实姓名" />
         </a-form-item>
         <a-form-item v-if="isEditMode" field="is_active" label="状态">
           <a-switch v-model="userForm.is_active" />
@@ -131,11 +107,7 @@
             multiple
             style="width: 100%"
           >
-            <a-option
-              v-for="role in availableRoles"
-              :key="role.id"
-              :value="role.id"
-            >
+            <a-option v-for="role in availableRoles" :key="role.id" :value="role.id">
               {{ role.name }}
             </a-option>
           </a-select>
@@ -159,16 +131,10 @@
         layout="vertical"
       >
         <a-form-item field="newPassword" label="新密码">
-          <a-input-password
-            v-model="passwordForm.newPassword"
-            placeholder="请输入新密码"
-          />
+          <a-input-password v-model="passwordForm.newPassword" placeholder="请输入新密码" />
         </a-form-item>
         <a-form-item field="confirmPassword" label="确认密码">
-          <a-input-password
-            v-model="passwordForm.confirmPassword"
-            placeholder="请再次输入新密码"
-          />
+          <a-input-password v-model="passwordForm.confirmPassword" placeholder="请再次输入新密码" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -260,9 +226,7 @@ const userFormRules = {
     { required: true, message: '请输入密码' },
     { minLength: 6, message: '密码至少 6 个字符' },
   ],
-  email: [
-    { type: 'email' as const, message: '请输入有效的邮箱地址' },
-  ],
+  email: [{ type: 'email' as const, message: '请输入有效的邮箱地址' }],
 }
 
 // ========== 密码重置表单 ==========
@@ -306,7 +270,7 @@ const loadUsers = async () => {
     })
     users.value = (res.data as any).list.map((item: ApiUser) => ({
       ...item,
-      roles: item.roles?.map(r => r.name) || [],
+      roles: item.roles?.map((r) => r.name) || [],
     }))
     pagination.total = (res.data as any).total || 0
   } catch (error: any) {

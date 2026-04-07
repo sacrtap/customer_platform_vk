@@ -1,10 +1,5 @@
 <template>
-  <button
-    class="header-action"
-    :aria-label="label"
-    :title="label"
-    @click="$emit('click')"
-  >
+  <button class="header-action" :aria-label="label" :title="label" @click="$emit('click')">
     <slot />
     <span v-if="badge" class="action-badge">{{ badge }}</span>
     <span class="tooltip">{{ label }}</span>
@@ -32,7 +27,9 @@ defineEmits<{
   justify-content: center;
   color: var(--neutral-6);
   cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
   position: relative;
   border: none;
   background: transparent;
@@ -75,7 +72,10 @@ defineEmits<{
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);
-  transition: opacity var(--transition-fast), transform var(--transition-fast), visibility var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast),
+    visibility var(--transition-fast);
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }

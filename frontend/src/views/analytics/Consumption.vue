@@ -180,8 +180,6 @@ const consumptionTrend = ref<ConsumptionTrendItem[]>([])
 const topCustomers = ref<TopCustomer[]>([])
 const deviceDistribution = ref<DeviceDistributionItem[]>([])
 
-
-
 // 时间范围变化
 const handleTimeRangeChange = () => {
   if (timeRange.value !== 'custom') {
@@ -280,11 +278,11 @@ const calculateStats = () => {
       (sum, item) => sum + item.total_amount,
       0
     )
-    
+
     // 计算日均消耗
     const days = consumptionTrend.value.length
     dailyAverage.value = totalConsumption.value / days
-    
+
     // 计算环比（简单估算）
     if (consumptionTrend.value.length >= 2) {
       const last = consumptionTrend.value[consumptionTrend.value.length - 1].total_amount
@@ -292,22 +290,22 @@ const calculateStats = () => {
       trend.value = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0
     }
   }
-  
-  activeCustomers.value = new Set(topCustomers.value.map(c => c.customer_id)).size
+
+  activeCustomers.value = new Set(topCustomers.value.map((c) => c.customer_id)).size
   activeRate.value = activeCustomers.value > 0 ? Math.round((activeCustomers.value / 100) * 100) : 0
-  avgTrend.value = Math.round(Math.random() * 20 - 10) // 模拟数据
+  avgTrend.value = 0 // TODO: 替换为真实 API 数据
 }
 
 // 初始化趋势图表
 const initTrendChart = () => {
   if (!trendChartRef.value) return
-  
+
   if (trendChart) {
     trendChart.dispose()
   }
-  
+
   trendChart = echarts.init(trendChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -322,7 +320,7 @@ const initTrendChart = () => {
     },
     xAxis: {
       type: 'category',
-      data: consumptionTrend.value.map(item => item.period),
+      data: consumptionTrend.value.map((item) => item.period),
       axisLine: {
         lineStyle: {
           color: '#e0e2e7',
@@ -349,7 +347,7 @@ const initTrendChart = () => {
         name: '消耗金额',
         type: 'line',
         smooth: true,
-        data: consumptionTrend.value.map(item => item.total_amount),
+        data: consumptionTrend.value.map((item) => item.total_amount),
         itemStyle: {
           color: '#0369A1',
         },
@@ -362,20 +360,20 @@ const initTrendChart = () => {
       },
     ],
   }
-  
+
   trendChart.setOption(option)
 }
 
 // 初始化设备分布图表
 const initDeviceChart = () => {
   if (!deviceChartRef.value) return
-  
+
   if (deviceChart) {
     deviceChart.dispose()
   }
-  
+
   deviceChart = echarts.init(deviceChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -416,14 +414,14 @@ const initDeviceChart = () => {
         labelLine: {
           show: false,
         },
-        data: deviceDistribution.value.map(item => ({
+        data: deviceDistribution.value.map((item) => ({
           name: item.device_type,
           value: item.total_amount,
         })),
       },
     ],
   }
-  
+
   deviceChart.setOption(option)
 }
 
@@ -652,7 +650,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .charts-section {
     grid-template-columns: 1fr;
   }

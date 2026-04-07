@@ -1,9 +1,14 @@
 <template>
   <div class="audit-logs-page">
-    <a-page-header title="审计日志" subtitle="查看系统操作记录" />
+    <div class="page-header">
+      <div class="header-title">
+        <h1>审计日志</h1>
+        <p class="header-subtitle">查看系统操作记录</p>
+      </div>
+    </div>
 
     <!-- 筛选区域 -->
-    <a-card class="filter-card">
+    <div class="filter-section">
       <a-form layout="inline" :model="filters">
         <a-form-item label="用户">
           <a-input
@@ -47,16 +52,32 @@
             <a-button type="primary" @click="handleSearch">查询</a-button>
             <a-button @click="handleReset">重置</a-button>
             <a-button @click="fetchLogs">
-              <template #icon><icon-refresh /></template>
+              <template #icon>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                >
+                  <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
+                  <path
+                    d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"
+                  />
+                </svg>
+              </template>
               刷新
             </a-button>
           </a-space>
         </a-form-item>
       </a-form>
-    </a-card>
+    </div>
 
     <!-- 表格 -->
-    <a-card class="table-card">
+    <div class="table-section">
+      <div class="table-header">
+        <h3>操作记录</h3>
+      </div>
       <a-table
         :columns="columns"
         :data="logs"
@@ -103,7 +124,7 @@
           {{ formatDate(record.created_at) }}
         </template>
       </a-table>
-    </a-card>
+    </div>
   </div>
 </template>
 
@@ -256,19 +277,68 @@ onMounted(() => {
 
 <style scoped>
 .audit-logs-page {
-  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
+  padding: 0;
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-3: #e0e2e7;
+  --neutral-5: #8f959e;
+  --neutral-6: #646a73;
+  --neutral-7: #4c5360;
+  --neutral-10: #1d2330;
+  --primary-6: #0369a1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.filter-card {
-  margin-bottom: 16px;
+.page-header {
+  margin-bottom: 24px;
 }
 
-.table-card {
-  margin-bottom: 16px;
+.header-title h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin-bottom: 8px;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  color: var(--neutral-6);
+}
+
+.filter-section {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.table-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--neutral-2);
+}
+
+.table-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--neutral-10);
 }
 
 .text-gray {
-  color: #999;
+  color: var(--neutral-5);
 }
 
 .changes-content {
@@ -282,7 +352,7 @@ onMounted(() => {
 }
 
 .change-section pre {
-  background: #f5f5f5;
+  background: var(--neutral-1);
   padding: 8px;
   border-radius: 4px;
   font-size: 12px;

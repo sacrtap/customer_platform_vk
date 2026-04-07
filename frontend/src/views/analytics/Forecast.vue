@@ -11,11 +11,7 @@
     <div class="filter-section">
       <a-form layout="inline" :model="filters">
         <a-form-item label="年份">
-          <a-year-picker
-            v-model="selectedYear"
-            style="width: 150px"
-            @change="loadData"
-          />
+          <a-year-picker v-model="selectedYear" style="width: 150px" @change="loadData" />
         </a-form-item>
         <a-form-item label="月份">
           <a-select
@@ -99,9 +95,17 @@
         <h3>预测明细</h3>
         <a-button type="text" size="small" @click="loadData">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/>
-              <path d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
+              <path
+                d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"
+              />
             </svg>
           </template>
           刷新
@@ -119,7 +123,9 @@
           <span class="predicted-amount">{{ formatCurrency(record.predicted_amount) }}</span>
         </template>
         <template #action="{ record }">
-          <a-button type="text" size="small" @click="viewCustomer(record.customer_id)">查看</a-button>
+          <a-button type="text" size="small" @click="viewCustomer(record.customer_id)"
+            >查看</a-button
+          >
         </template>
       </a-table>
     </div>
@@ -132,10 +138,7 @@ import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import {
-  getMonthlyPrediction,
-  type PaymentPrediction,
-} from '@/api/analytics'
+import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
 import { formatCurrency } from '@/utils/formatters'
 
 const router = useRouter()
@@ -185,8 +188,6 @@ const columns = [
   { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
 ]
 
-
-
 // 重置
 const handleReset = () => {
   selectedYear.value = new Date()
@@ -205,7 +206,7 @@ const loadData = async () => {
     filters.year = selectedYear.value?.getFullYear() || new Date().getFullYear()
     filters.month = selectedMonth.value
     filters.customer_id = customerId.value
-    
+
     await loadPredictionData()
   } catch (error: any) {
     Message.error(error.message || '加载失败')
@@ -221,49 +222,52 @@ const loadPredictionData = async () => {
     month: filters.month,
     customer_id: filters.customer_id,
   })
-  
+
   predictionList.value = res.data || []
   pagination.total = predictionList.value.length
-  
+
   // 计算统计数据
-  totalPredicted.value = predictionList.value.reduce(
-    (sum, item) => sum + item.predicted_amount,
-    0
-  )
-  predictedCustomers.value = new Set(predictionList.value.map(c => c.customer_id)).size
+  totalPredicted.value = predictionList.value.reduce((sum, item) => sum + item.predicted_amount, 0)
+  predictedCustomers.value = new Set(predictionList.value.map((c) => c.customer_id)).size
   confirmedAmount.value = Math.round(totalPredicted.value * 0.6)
   pendingAmount.value = totalPredicted.value - confirmedAmount.value
   completionRate.value = Math.round((confirmedAmount.value / totalPredicted.value) * 100) || 0
-  
+
   initForecastChart()
 }
 
 // 初始化预测图表
 const initForecastChart = () => {
   if (!forecastChartRef.value) return
-  
+
   if (forecastChart) {
     forecastChart.dispose()
   }
-  
+
   forecastChart = echarts.init(forecastChartRef.value)
-  
-  // 生成月度预测数据
-  const months = ['1 月', '2 月', '3 月', '4 月', '5 月', '6 月', '7 月', '8 月', '9 月', '10 月', '11 月', '12 月']
+
+  // TODO: 替换为真实 API 数据
+  // 生成月度预测数据（临时使用 0 或占位数据）
+  const months = [
+    '1 月',
+    '2 月',
+    '3 月',
+    '4 月',
+    '5 月',
+    '6 月',
+    '7 月',
+    '8 月',
+    '9 月',
+    '10 月',
+    '11 月',
+    '12 月',
+  ]
   const currentMonth = new Date().getMonth()
-  
-  const predictedData = months.map(() => {
-    const baseAmount = totalPredicted.value / 12
-    return Math.round(baseAmount * (0.7 + Math.random() * 0.6))
-  })
-  
-  const actualData = months.map((_, i) => {
-    if (i <= currentMonth) {
-      return Math.round(predictedData[i] * (0.8 + Math.random() * 0.3))
-    }
-    return 0
-  })
-  
+
+  // 移除 Math.random() 模拟数据，使用 0 作为临时值
+  const predictedData = months.map(() => 0)
+  const actualData = months.map(() => 0)
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -338,7 +342,7 @@ const initForecastChart = () => {
       },
     ],
   }
-  
+
   forecastChart.setOption(option)
 }
 

@@ -65,22 +65,14 @@
               :disabled="record.isSystem"
               @ok="handleDelete(record.id)"
             >
-              <a-button
-                type="text"
-                size="small"
-                status="danger"
-                :disabled="record.isSystem"
-              >
+              <a-button type="text" size="small" status="danger" :disabled="record.isSystem">
                 删除
               </a-button>
             </a-popconfirm>
           </a-space>
         </template>
         <template #empty>
-          <EmptyState 
-            title="暂无角色数据" 
-            description="点击「新建角色」创建第一个角色"
-          >
+          <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
             <template #action>
               <a-button type="primary" @click="handleCreate">新建角色</a-button>
             </template>
@@ -98,17 +90,9 @@
       @ok="handleRoleSubmit"
       @cancel="handleRoleModalCancel"
     >
-      <a-form
-        ref="roleFormRef"
-        :model="roleForm"
-        :rules="roleFormRules"
-        layout="vertical"
-      >
+      <a-form ref="roleFormRef" :model="roleForm" :rules="roleFormRules" layout="vertical">
         <a-form-item field="name" label="角色名称">
-          <a-input
-            v-model="roleForm.name"
-            placeholder="请输入角色名称"
-          />
+          <a-input v-model="roleForm.name" placeholder="请输入角色名称" />
         </a-form-item>
         <a-form-item field="description" label="描述">
           <a-textarea
@@ -133,9 +117,7 @@
     >
       <div class="permission-config">
         <div class="permission-header">
-          <span class="permission-count">
-            已选择 {{ selectedPermissionIds.length }} 项权限
-          </span>
+          <span class="permission-count"> 已选择 {{ selectedPermissionIds.length }} 项权限 </span>
           <a-button size="small" @click="toggleAllPermissions">
             {{ isAllPermissionsSelected ? '取消全选' : '全选' }}
           </a-button>

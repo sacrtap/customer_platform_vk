@@ -85,17 +85,9 @@
       @ok="handleTagSubmit"
       @cancel="handleTagModalCancel"
     >
-      <a-form
-        ref="tagFormRef"
-        :model="tagForm"
-        :rules="tagFormRules"
-        layout="vertical"
-      >
+      <a-form ref="tagFormRef" :model="tagForm" :rules="tagFormRules" layout="vertical">
         <a-form-item field="name" label="标签名称">
-          <a-input
-            v-model="tagForm.name"
-            placeholder="请输入标签名称"
-          />
+          <a-input v-model="tagForm.name" placeholder="请输入标签名称" />
         </a-form-item>
         <a-form-item v-if="!isEditMode" field="type" label="标签类型">
           <a-radio-group v-model="tagForm.type">
@@ -104,10 +96,7 @@
           </a-radio-group>
         </a-form-item>
         <a-form-item field="category" label="标签分类（可选）">
-          <a-input
-            v-model="tagForm.category"
-            placeholder="请输入标签分类"
-          />
+          <a-input v-model="tagForm.category" placeholder="请输入标签分类" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -118,13 +107,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
-import {
-  getTags,
-  createTag,
-  updateTag,
-  deleteTag,
-  type Tag as ApiTag,
-} from '@/api/tags'
+import { getTags, createTag, updateTag, deleteTag, type Tag as ApiTag } from '@/api/tags'
 
 // ========== 类型定义 ==========
 interface Tag extends ApiTag {
@@ -146,8 +129,8 @@ const pagination = reactive({
 })
 
 // 计算属性：根据 activeTab 过滤标签
-const customerTags = computed(() => allTags.value.filter(tag => tag.type === 'customer'))
-const profileTags = computed(() => allTags.value.filter(tag => tag.type === 'profile'))
+const customerTags = computed(() => allTags.value.filter((tag) => tag.type === 'customer'))
+const profileTags = computed(() => allTags.value.filter((tag) => tag.type === 'profile'))
 
 // ========== 标签表单 ==========
 const tagModalVisible = ref(false)
@@ -167,9 +150,7 @@ const tagFormRules = {
     { required: true, message: '请输入标签名称' },
     { minLength: 1, maxLength: 50, message: '标签名称长度 1-50 个字符' },
   ],
-  type: [
-    { required: true, message: '请选择标签类型' },
-  ],
+  type: [{ required: true, message: '请选择标签类型' }],
 }
 
 // ========== 数据加载 ==========
@@ -181,7 +162,7 @@ const loadTags = async () => {
       page_size: pagination.pageSize,
       type: activeTab.value,
     })
-    
+
     const tagsList = (res.data as any).list || []
     pagination.total = (res.data as any).total || 0
     allTags.value = tagsList

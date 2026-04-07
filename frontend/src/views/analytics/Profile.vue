@@ -179,22 +179,34 @@ const loadRealEstateData = async () => {
   nonRealEstateCustomers.value = data.non_real_estate_customers || 0
   realEstateRate.value = data.real_estate_percentage || 0
   nonRealEstateRate.value = 100 - realEstateRate.value
-  dataCompleteRate.value = Math.round(((totalCustomers.value > 0 ? realEstateCustomers.value : 0) / totalCustomers.value) * 100) || 85
+  dataCompleteRate.value =
+    Math.round(
+      ((totalCustomers.value > 0 ? realEstateCustomers.value : 0) / totalCustomers.value) * 100
+    ) || 85
   initRealEstateChart(data)
 }
 
 // 初始化行业分布图表
 const initIndustryChart = (data: any[]) => {
   if (!industryChartRef.value) return
-  
+
   if (industryChart) {
     industryChart.dispose()
   }
-  
+
   industryChart = echarts.init(industryChartRef.value)
-  
-  const colors = ['#0369A1', '#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#0284c7', '#0369A1', '#075985']
-  
+
+  const colors = [
+    '#0369A1',
+    '#0ea5e9',
+    '#38bdf8',
+    '#7dd3fc',
+    '#bae6fd',
+    '#0284c7',
+    '#0369A1',
+    '#075985',
+  ]
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -245,20 +257,20 @@ const initIndustryChart = (data: any[]) => {
       },
     ],
   }
-  
+
   industryChart.setOption(option)
 }
 
 // 初始化客户等级图表
 const initLevelChart = (data: any[]) => {
   if (!levelChartRef.value) return
-  
+
   if (levelChart) {
     levelChart.dispose()
   }
-  
+
   levelChart = echarts.init(levelChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -306,20 +318,20 @@ const initLevelChart = (data: any[]) => {
       },
     ],
   }
-  
+
   levelChart.setOption(option)
 }
 
 // 初始化规模等级图表
 const initScaleChart = (data: any[]) => {
   if (!scaleChartRef.value) return
-  
+
   if (scaleChart) {
     scaleChart.dispose()
   }
-  
+
   scaleChart = echarts.init(scaleChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -367,20 +379,20 @@ const initScaleChart = (data: any[]) => {
       },
     ],
   }
-  
+
   scaleChart.setOption(option)
 }
 
 // 初始化消费等级图表
 const initConsumeLevelChart = (data: any[]) => {
   if (!consumeLevelChartRef.value) return
-  
+
   if (consumeLevelChart) {
     consumeLevelChart.dispose()
   }
-  
+
   consumeLevelChart = echarts.init(consumeLevelChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -428,20 +440,20 @@ const initConsumeLevelChart = (data: any[]) => {
       },
     ],
   }
-  
+
   consumeLevelChart.setOption(option)
 }
 
 // 初始化房产客户图表
 const initRealEstateChart = (data: any) => {
   if (!realEstateChartRef.value) return
-  
+
   if (realEstateChart) {
     realEstateChart.dispose()
   }
-  
+
   realEstateChart = echarts.init(realEstateChartRef.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -479,7 +491,7 @@ const initRealEstateChart = (data: any) => {
       },
     ],
   }
-  
+
   realEstateChart.setOption(option)
 }
 
@@ -670,7 +682,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .charts-grid {
     grid-template-columns: 1fr;
   }
@@ -680,12 +692,12 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .real-estate-content {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .real-estate-chart {
     width: 100%;
     height: 250px;
