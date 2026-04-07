@@ -115,9 +115,10 @@ def auth_token(test_client, db_session: Session, app):
     try:
         # 直接生成 JWT token
         import os
+
         jwt_secret = os.environ.get("JWT_SECRET", "test-secret")
         jwt_algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
-        
+
         now = datetime.now(timezone.utc)
         payload = {
             "user_id": user_id,
@@ -128,7 +129,7 @@ def auth_token(test_client, db_session: Session, app):
             "type": "access",
         }
         token = jwt.encode(payload, jwt_secret, algorithm=jwt_algorithm)
-        
+
         yield {"Authorization": f"Bearer {token}"}
     finally:
         # 清理

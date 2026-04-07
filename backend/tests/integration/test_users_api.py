@@ -11,21 +11,20 @@ Users API 集成测试
 import pytest
 import bcrypt
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_list_users_success(test_client, db_session: AsyncSession, test_user):
+async def test_list_users_success(test_client, db_session, test_user):
     """测试获取用户列表 API - 成功场景"""
     username = "list_users_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username LIKE :username"),
         {"username": f"{username}%"},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -38,7 +37,7 @@ async def test_list_users_success(test_client, db_session: AsyncSession, test_us
             "is_active": True,
         },
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -51,7 +50,7 @@ async def test_list_users_success(test_client, db_session: AsyncSession, test_us
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -77,25 +76,25 @@ async def test_list_users_success(test_client, db_session: AsyncSession, test_us
         assert data["data"]["page"] == 1
         assert data["data"]["page_size"] == 20
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username LIKE :username"),
             {"username": f"{username}%"},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_list_users_with_filter(test_client, db_session: AsyncSession, test_user):
+async def test_list_users_with_filter(test_client, db_session, test_user):
     """测试获取用户列表 API - 筛选用户"""
     username = "filter_users_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username LIKE :username"),
         {"username": f"{username}%"},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -108,7 +107,7 @@ async def test_list_users_with_filter(test_client, db_session: AsyncSession, tes
             "is_active": True,
         },
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -121,7 +120,7 @@ async def test_list_users_with_filter(test_client, db_session: AsyncSession, tes
             "is_active": False,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -143,25 +142,25 @@ async def test_list_users_with_filter(test_client, db_session: AsyncSession, tes
         assert data["code"] == 0
         assert data["data"]["total"] >= 2
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username LIKE :username"),
             {"username": f"{username}%"},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_create_user_success(test_client, db_session: AsyncSession, test_user):
+async def test_create_user_success(test_client, db_session, test_user):
     """测试创建用户 API - 成功场景"""
     username = "create_user_success_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -192,25 +191,25 @@ async def test_create_user_success(test_client, db_session: AsyncSession, test_u
         assert data["data"]["real_name"] == "创建成功测试用户"
         assert "id" in data["data"]
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_create_user_duplicate(test_client, db_session: AsyncSession, test_user):
+async def test_create_user_duplicate(test_client, db_session, test_user):
     """测试创建用户 API - 创建重复用户"""
     username = "create_user_duplicate_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -222,7 +221,7 @@ async def test_create_user_duplicate(test_client, db_session: AsyncSession, test
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -249,25 +248,25 @@ async def test_create_user_duplicate(test_client, db_session: AsyncSession, test
         assert data["code"] == 40003
         assert "已存在" in data["message"]
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_update_user_success(test_client, db_session: AsyncSession, test_user):
+async def test_update_user_success(test_client, db_session, test_user):
     """测试更新用户信息 API - 成功场景"""
     username = "update_user_success_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -280,7 +279,7 @@ async def test_update_user_success(test_client, db_session: AsyncSession, test_u
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -290,7 +289,7 @@ async def test_update_user_success(test_client, db_session: AsyncSession, test_u
         assert login_response.status == 200
         token = login_response.json["data"]["access_token"]
 
-        user_result = await db_session.execute(
+        user_result = db_session.execute(
             text("SELECT id FROM users WHERE username = :username"),
             {"username": username},
         )
@@ -315,15 +314,15 @@ async def test_update_user_success(test_client, db_session: AsyncSession, test_u
         assert data["data"]["real_name"] == "新名字"
         assert data["data"]["is_active"] is False
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_update_user_not_found(test_client, db_session: AsyncSession, test_user):
+async def test_update_user_not_found(test_client, db_session, test_user):
     """测试更新用户信息 API - 用户不存在"""
     login_request, login_response = await test_client.post(
         "/api/v1/auth/login",
@@ -349,17 +348,17 @@ async def test_update_user_not_found(test_client, db_session: AsyncSession, test
 
 
 @pytest.mark.asyncio
-async def test_delete_user_success(test_client, db_session: AsyncSession, test_user):
+async def test_delete_user_success(test_client, db_session, test_user):
     """测试删除用户 API - 成功场景"""
     username = "delete_user_success_test"
     password = "test123456"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
@@ -372,7 +371,7 @@ async def test_delete_user_success(test_client, db_session: AsyncSession, test_u
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -382,7 +381,7 @@ async def test_delete_user_success(test_client, db_session: AsyncSession, test_u
         assert login_response.status == 200
         token = login_response.json["data"]["access_token"]
 
-        user_result = await db_session.execute(
+        user_result = db_session.execute(
             text("SELECT id FROM users WHERE username = :username"),
             {"username": username},
         )
@@ -399,15 +398,15 @@ async def test_delete_user_success(test_client, db_session: AsyncSession, test_u
         assert data["code"] == 0
         assert data["message"] == "删除成功"
 
-        deleted_user_result = await db_session.execute(
+        deleted_user_result = db_session.execute(
             text("SELECT deleted_at FROM users WHERE id = :user_id"),
             {"user_id": user_id},
         )
         deleted_at = deleted_user_result.scalar()
         assert deleted_at is not None
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()

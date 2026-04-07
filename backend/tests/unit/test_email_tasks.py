@@ -5,6 +5,12 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime, date
 from decimal import Decimal
 
+# Mock aiosmtplib 导入 (避免网络依赖问题)
+import sys
+from unittest.mock import MagicMock
+
+sys.modules["aiosmtplib"] = MagicMock()
+
 from app.tasks.email_tasks import send_overdue_emails, _log_email_task
 from app.models.billing import SyncTaskLog
 

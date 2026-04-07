@@ -42,13 +42,4 @@ if backend_dir not in sys.path:
 
 
 # pytest-asyncio 配置
-pytest_plugins = ("pytest_asyncio",)
-pytestmark = pytest.mark.asyncio(scope="function")
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """创建会话级事件循环"""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+# 注意：事件循环由 pytest-asyncio 自动管理（通过 pytest.ini 中的 asyncio_default_fixture_loop_scope）

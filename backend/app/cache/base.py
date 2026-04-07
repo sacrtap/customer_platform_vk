@@ -45,9 +45,9 @@ class CacheService:
     async def _get_redis(self):
         """懒加载 Redis 连接"""
         if self._redis is None:
-            import aioredis
+            import redis.asyncio as redis
 
-            self._redis = await aioredis.from_url(
+            self._redis = redis.from_url(
                 settings.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
@@ -152,7 +152,9 @@ class CacheService:
             logger.warning(f"缓存模式清除失败 {pattern}: {e}")
             return False
 
-    async def invalidate_customer_cache(self, customer_id: Optional[int] = None) -> bool:
+    async def invalidate_customer_cache(
+        self, customer_id: Optional[int] = None
+    ) -> bool:
         """
         清除客户相关缓存
 

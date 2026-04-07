@@ -16,7 +16,6 @@ Customers API 集成测试
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 import io
 
 
@@ -38,12 +37,10 @@ async def auth_headers(auth_token):
 
 
 @pytest.fixture
-async def customer_data(db_session: AsyncSession):
+def customer_data(db_session):
     """创建测试客户数据"""
-    await db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'")
-    )
-    await db_session.commit()
+    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'"))
+    db_session.commit()
 
     customers = [
         {
@@ -79,7 +76,7 @@ async def customer_data(db_session: AsyncSession):
     ]
 
     for cust in customers:
-        await db_session.execute(
+        db_session.execute(
             text("""
             INSERT INTO customers (company_id, name, account_type, business_type, customer_level, settlement_type, is_key_customer, email, created_at)
             VALUES (:company_id, :name, :account_type, :business_type, :customer_level, :settlement_type, :is_key_customer, :email, NOW())
@@ -87,19 +84,17 @@ async def customer_data(db_session: AsyncSession):
             cust,
         )
 
-    await db_session.commit()
+    db_session.commit()
 
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM customers WHERE company_id = 'TEST001'")
     )
     customer_id = result.scalar_one()
 
     yield {"customers": customers, "customer_id": customer_id}
 
-    await db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'")
-    )
-    await db_session.commit()
+    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'"))
+    db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -211,10 +206,10 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
     assert data["data"]["company_id"] == "TEST_CREATE_001"
     assert data["data"]["name"] == "新创建测试公司"
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'")
     )
-    await db_session.commit()
+    db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -281,7 +276,7 @@ async def test_update_customer_success(
     assert data["code"] == 0
     assert data["message"] == "更新成功"
 
-    result = await db_session.execute(
+    result = db_session.execute(
         text(
             "SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"
         ),
@@ -327,7 +322,7 @@ async def test_delete_customer_success(
     assert data["code"] == 0
     assert data["message"] == "删除成功"
 
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT deleted_at FROM customers WHERE id = :id"),
         {"id": customer_id},
     )
@@ -508,10 +503,10 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     assert data["message"] == "导入完成"
     assert data["data"]["success_count"] == 2
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'")
     )
-    await db_session.commit()
+    db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -620,18 +615,18 @@ async def test_customers_unauthorized(test_client):
 
 
 @pytest.mark.asyncio
-async def test_customers_missing_permission(test_client, db_session: AsyncSession):
+async def test_customers_missing_permission(test_client, db_session):
     """测试缺少权限访问"""
     username = "no_perm_user"
     password = "test123456"
     import bcrypt
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -643,7 +638,7 @@ async def test_customers_missing_permission(test_client, db_session: AsyncSessio
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -660,8 +655,8 @@ async def test_customers_missing_permission(test_client, db_session: AsyncSessio
 
         assert response.status == 403
     finally:
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
