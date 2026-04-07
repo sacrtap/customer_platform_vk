@@ -17,6 +17,7 @@ from . import billing  # noqa: E402
 from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
 from . import groups  # noqa: E402
+from . import files  # noqa: E402
 # isort: on
 
 # 导出所有模型
@@ -28,4 +29,5 @@ __all__ = [
     "tags",
     "webhooks",
     "groups",
+    "files",
 ]

@@ -30,6 +30,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
+# Mock aiosmtplib 导入 (避免网络依赖问题)
+sys.modules["aiosmtplib"] = MagicMock()
+
 from app.main import create_app
 from app.models.base import BaseModel
 from app.models import (
@@ -39,11 +42,16 @@ from app.models import (
     webhooks,
     customers,
     users,
+    files,
 )  # 确保所有表被创建
 
 # 测试数据库配置
-TEST_DATABASE_SYNC_URL = "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
-TEST_DATABASE_ASYNC_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
+TEST_DATABASE_SYNC_URL = (
+    "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
+)
+TEST_DATABASE_ASYNC_URL = (
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
+)
 
 
 @pytest.fixture(scope="function")
@@ -82,8 +90,8 @@ def sync_test_engine():
 
 
 @pytest.fixture(scope="function")
-def db_session(sync_test_engine) -> Session:
-    """创建数据库会话（同步）"""
+async def db_session(sync_test_engine):
+    """创建同步数据库会话（用于测试清理）"""
     SessionLocal = sessionmaker(
         bind=sync_test_engine, class_=Session, expire_on_commit=False
     )
@@ -95,13 +103,124 @@ def db_session(sync_test_engine) -> Session:
 
 
 @pytest.fixture(scope="function")
-def app(sync_test_engine, mock_scheduler):
-    """创建 Sanic 应用实例（使用同步数据库引擎，但提供异步 session 工厂以满足 scheduler 需求）"""
+def test_user(sync_test_engine, db_session):
+    """提供测试用户信息并创建用户记录"""
+    import bcrypt
+    from sqlalchemy import text
+
+    username = "admin"
+    password = "admin123"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    # 清理旧数据
+    db_session.execute(
+        text(
+            "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
+        ),
+        {"username": username},
+    )
+    db_session.execute(
+        text("DELETE FROM users WHERE username = :username"), {"username": username}
+    )
+    db_session.execute(text("DELETE FROM roles WHERE name = :name"), {"name": "admin"})
+    db_session.execute(
+        text("DELETE FROM permissions WHERE name LIKE :name"), {"name": "users:%"}
+    )
+    db_session.commit()
+
+    # 创建管理员角色
+    db_session.execute(
+        text("""
+        INSERT INTO roles (name, description, created_at)
+        VALUES (:name, :description, NOW())
+        """),
+        {"name": "admin", "description": "系统管理员"},
+    )
+
+    # 创建权限
+    permissions = [
+        ("users:manage", "用户管理", "users"),
+        ("users:read", "用户查看", "users"),
+        ("customers:manage", "客户管理", "customers"),
+        ("customers:read", "客户查看", "customers"),
+    ]
+    for perm_code, desc, module in permissions:
+        db_session.execute(
+            text("""
+            INSERT INTO permissions (code, name, description, module, created_at)
+            VALUES (:code, :name, :description, :module, NOW())
+            """),
+            {"code": perm_code, "name": desc, "description": desc, "module": module},
+        )
+
+    # 获取角色 ID
+    result = db_session.execute(
+        text("SELECT id FROM roles WHERE name = :name"), {"name": "admin"}
+    ).fetchone()
+    role_id = result[0]
+
+    # 获取权限 ID 列表
+    result = db_session.execute(
+        text("SELECT id FROM permissions WHERE name IN :names"),
+        {"names": tuple(p[0] for p in permissions)},
+    ).fetchall()
+    perm_ids = [r[0] for r in result]
+
+    # 创建角色权限关联
+    for perm_id in perm_ids:
+        db_session.execute(
+            text("""
+            INSERT INTO role_permissions (role_id, permission_id, created_at)
+            VALUES (:role_id, :permission_id, NOW())
+            """),
+            {"role_id": role_id, "permission_id": perm_id},
+        )
+
+    # 创建用户
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
+        """),
+        {
+            "username": username,
+            "password_hash": password_hash,
+            "email": "admin@example.com",
+            "real_name": "管理员",
+            "is_active": True,
+        },
+    )
+
+    # 获取用户 ID 并关联角色
+    result = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"), {"username": username}
+    ).fetchone()
+    user_id = result[0]
+
+    db_session.execute(
+        text("""
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES (:user_id, :role_id)
+        """),
+        {"user_id": user_id, "role_id": role_id},
+    )
+
+    db_session.commit()
+
+    return {
+        "username": username,
+        "password": password,
+    }
+
+
+@pytest.fixture(scope="function")
+async def app(sync_test_engine, mock_scheduler, mock_cache):
+    """创建 Sanic 应用实例（使用异步数据库引擎）"""
     import uuid
 
     unique_app_name = f"test_app_{uuid.uuid4().hex[:8]}"
 
-    # 创建异步引擎用于 scheduler（虽然不会被真正使用）
+    # 创建异步引擎
     async_engine = create_async_engine(
         TEST_DATABASE_ASYNC_URL,
         echo=False,
@@ -113,17 +232,19 @@ def app(sync_test_engine, mock_scheduler):
 
     app_instance = create_app(
         app_name=unique_app_name,
-        database_engine=sync_test_engine,
+        database_engine=async_engine,
     )
-    
-    # 手动设置 async_session_maker 以满足 scheduler 需求
-    app_instance.ctx.async_session_maker = async_session_maker
-    
+
     yield app_instance
-    
+
     # 清理异步引擎
     import asyncio
-    asyncio.get_event_loop().run_until_complete(async_engine.dispose())
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(async_engine.dispose())
+    except RuntimeError:
+        asyncio.run(async_engine.dispose())
 
 
 @pytest.fixture(scope="function")
