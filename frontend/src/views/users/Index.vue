@@ -410,12 +410,17 @@ const handleUserSubmit = async () => {
       }
       Message.success('用户更新成功')
     } else {
-      await createUser({
+      const createUserRes = await createUser({
         username: userForm.username,
         password: userForm.password,
         email: userForm.email || undefined,
         real_name: userForm.real_name || undefined,
       })
+      // 为新用户分配角色
+      const newUserId = createUserRes.data?.id
+      if (newUserId && userForm.role_ids.length > 0) {
+        await assignUserRoles(newUserId, userForm.role_ids)
+      }
       Message.success('用户创建成功')
     }
     userModalVisible.value = false
