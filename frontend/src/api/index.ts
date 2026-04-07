@@ -46,6 +46,10 @@ service.interceptors.response.use(
       localStorage.removeItem('user_permissions')
       router.push('/login')
     }
+    // 提取后端返回的错误信息
+    if (error.response && error.response.data && error.response.data.message) {
+      return Promise.reject(new Error(error.response.data.message))
+    }
     return Promise.reject(error)
   }
 )
