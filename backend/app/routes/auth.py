@@ -143,6 +143,17 @@ async def refresh_token(request: Request):
     if not user or not user.is_active:
         return json({"code": 40101, "message": "用户不存在或已被禁用"}, status=401)
 
+    # 将旧 Refresh Token 加入黑名单
+    jti = payload.get("jti")
+    exp_timestamp = payload.get("exp")
+    if jti and exp_timestamp:
+        blacklist_service = TokenBlacklistService(request.ctx.db_session)
+        await blacklist_service.add_to_blacklist(
+            jti=jti,
+            token_type="refresh",
+            expires_at=datetime.fromtimestamp(exp_timestamp),
+        )
+
     roles = [role.name for role in user.roles]
 
     new_access_token = AuthService.create_access_token(
@@ -150,12 +161,17 @@ async def refresh_token(request: Request):
         username=user.username,
         roles=roles,
     )
+    new_refresh_token = AuthService.create_refresh_token(user_id=user.id)
 
     return json(
         {
             "code": 0,
             "message": "Token 刷新成功",
-            "data": {"access_token": new_access_token, "token_type": "Bearer"},
+            "data": {
+                "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "Bearer",
+            },
         }
     )
 

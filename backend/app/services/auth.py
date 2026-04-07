@@ -22,9 +22,7 @@ class AuthService:
             "type": "access",
             "jti": str(uuid.uuid4()),  # JWT ID，用于黑名单
         }
-        return jwt.encode(
-            payload, settings.jwt_secret, algorithm=settings.jwt_algorithm
-        )
+        return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
@@ -34,18 +32,15 @@ class AuthService:
             "exp": datetime.utcnow() + timedelta(days=settings.jwt_refresh_expire_days),
             "iat": datetime.utcnow(),
             "type": "refresh",
+            "jti": str(uuid.uuid4()),  # JWT ID，用于黑名单
         }
-        return jwt.encode(
-            payload, settings.jwt_secret, algorithm=settings.jwt_algorithm
-        )
+        return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
     @staticmethod
     def verify_token(token: str) -> Optional[Dict[str, Any]]:
         """验证 Token"""
         try:
-            payload = jwt.decode(
-                token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
-            )
+            payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
             return payload
         except jwt.ExpiredSignatureError:
             return None
@@ -56,9 +51,7 @@ class AuthService:
     def decode_refresh_token(token: str) -> Optional[Dict[str, Any]]:
         """验证 Refresh Token"""
         try:
-            payload = jwt.decode(
-                token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
-            )
+            payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
             if payload.get("type") != "refresh":
                 return None
             return payload

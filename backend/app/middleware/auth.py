@@ -18,10 +18,6 @@ def auth_middleware(app: Sanic):
     async def authenticate(request: Request):
         """请求认证中间件"""
         try:
-            # 诊断：打印所有请求头
-            print(f"[AUTH DEBUG] Path: {request.path}")
-            print(f"[AUTH DEBUG] All headers: {dict(request.headers)}")
-
             # 跳过不需要认证的路径（使用精确匹配或特定前缀）
             skip_paths = [
                 "/health",
@@ -31,42 +27,24 @@ def auth_middleware(app: Sanic):
 
             # 精确匹配跳过路径
             if request.path in skip_paths or request.path == "/":
-                print(f"[AUTH DEBUG] Skipping auth for path: {request.path}")
                 return
 
             # 获取 Authorization Header (Sanic 将 headers 转为小写)
             auth_header = request.headers.get("authorization")
-            print(f"[AUTH DEBUG] Authorization header: {auth_header}")
 
             if not auth_header or not auth_header.lower().startswith("bearer "):
-                print(f"[AUTH DEBUG] Returning 40101 - auth_header={auth_header}")
                 return json({"code": 40101, "message": "缺少认证 Token"}, status=401)
 
             token = auth_header.split(" ")[1]
-            print(f"[AUTH DEBUG] Token extracted: {token[:30]}...")
-
-            # 诊断日志
-            from ..config import settings as current_settings
-
-            print(f"[AUTH DEBUG] Path: {request.path}, Token: {token[:30]}...")
-            print(
-                f"[AUTH DEBUG] Settings JWT_SECRET: {current_settings.jwt_secret[:20]}..."
-            )
 
             try:
                 payload = AuthService.verify_token(token)
-                print(f"[AUTH DEBUG] Token payload: {payload}")
             except Exception as e:
-                print(f"[AUTH DEBUG] Token verification failed: {e}")
-                return json(
-                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
-                )
+                app.logger.warning(f"Token verification failed: {e}")
+                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
 
             if not payload:
-                print("[AUTH DEBUG] Payload is None, returning 40102")
-                return json(
-                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
-                )
+                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
 
             # 检查 Token 是否在黑名单中
             jti = payload.get("jti")
@@ -74,7 +52,7 @@ def auth_middleware(app: Sanic):
                 blacklist_service = TokenBlacklistService(request.ctx.db_session)
                 is_blacklisted = await blacklist_service.is_blacklisted(jti)
                 if is_blacklisted:
-                    print(f"[AUTH DEBUG] Token is blacklisted: {jti}")
+                    app.logger.info(f"Blacklisted token used: {jti}")
                     return json({"code": 40103, "message": "Token 已失效"}, status=401)
 
             # 将用户信息存储到 request 上下文
