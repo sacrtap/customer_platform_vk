@@ -1,8 +1,15 @@
 <template>
-  <button class="header-action" :aria-label="label" :title="label" @click="$emit('click')">
+  <button
+    class="header-action"
+    :aria-label="label"
+    :title="label"
+    @click="$emit('click')"
+    @keydown.enter="$emit('click')"
+    @keydown.space.prevent="$emit('click')"
+  >
     <slot />
-    <span v-if="badge" class="action-badge">{{ badge }}</span>
-    <span class="tooltip">{{ label }}</span>
+    <span v-if="badge != null && badge !== ''" class="action-badge">{{ badge }}</span>
+    <span class="tooltip" aria-hidden="true" role="tooltip">{{ label }}</span>
   </button>
 </template>
 

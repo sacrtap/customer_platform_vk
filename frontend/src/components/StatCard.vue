@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   title: string
   value: string | number
   subtitle?: string
@@ -38,39 +38,24 @@ defineProps<{
   layout?: 'default' | 'compact'
   icon?: boolean
   valueClass?: string
-}>()
+}>(), {
+  variant: 'default',
+  layout: 'default'
+})
 </script>
 
 <style scoped>
 .stat-card {
   background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  border: 1px solid #eef0f3;
+  border-radius: var(--radius-lg, 16px);
+  padding: var(--spacing-xl, 24px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--neutral-2, #eef0f3);
   transition:
-    box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow var(--transition-base, 250ms cubic-bezier(0.4, 0, 0.2, 1)),
+    transform var(--transition-base, 250ms cubic-bezier(0.4, 0, 0.2, 1));
   position: relative;
   overflow: hidden;
-  --primary-1: #e8f3ff;
-  --primary-5: #3296f7;
-  --primary-6: #0369a1;
-  --success-1: #e8ffea;
-  --success-5: #4ade80;
-  --success-6: #22c55e;
-  --warning-1: #fff7e8;
-  --warning-5: #fbbf24;
-  --warning-6: #f59e0b;
-  --danger-1: #ffe8e8;
-  --danger-5: #f87171;
-  --danger-6: #ef4444;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
 }
 
 .stat-card::before {

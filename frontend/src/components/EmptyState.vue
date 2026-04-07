@@ -1,5 +1,5 @@
 <template>
-  <div class="empty-state">
+  <div class="empty-state" role="status" aria-live="polite">
     <svg
       class="empty-state-icon"
       xmlns="http://www.w3.org/2000/svg"
