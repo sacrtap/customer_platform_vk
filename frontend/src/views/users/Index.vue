@@ -206,7 +206,7 @@ const columns = [
   { title: '邮箱', dataIndex: 'email', width: 200, ellipsis: true, tooltip: true },
   { title: '真实姓名', dataIndex: 'real_name', width: 90, ellipsis: true, tooltip: true },
   { title: '角色', slotName: 'roles', width: 150 },
-  { title: '状态', slotName: 'status', width: 70, align: 'center' as const },
+  { title: '状态', slotName: 'status', width: 90, align: 'center' as const },
   { title: '创建时间', slotName: 'created_at', width: 150 },
   { title: '操作', slotName: 'action', width: 190, fixed: 'right' as const },
 ]
