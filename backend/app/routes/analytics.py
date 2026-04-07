@@ -38,7 +38,7 @@ async def get_consumption_trend(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    trend = service.get_consumption_trend(
+    trend = await service.get_consumption_trend(
         start_date, end_date, int(customer_id) if customer_id else None
     )
 
@@ -72,7 +72,7 @@ async def get_top_customers(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    top_customers = service.get_top_customers(start_date, end_date, limit)
+    top_customers = await service.get_top_customers(start_date, end_date, limit)
 
     result = {"code": 0, "message": "success", "data": top_customers}
     await cache_service.set("analytics_top_customers", result, cache_key)
@@ -105,7 +105,7 @@ async def get_device_distribution(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    distribution = service.get_device_type_distribution(
+    distribution = await service.get_device_type_distribution(
         start_date, end_date, int(customer_id) if customer_id else None
     )
 
@@ -140,7 +140,7 @@ async def get_payment_analysis(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    analysis = service.get_payment_analysis(
+    analysis = await service.get_payment_analysis(
         start_date, end_date, int(customer_id) if customer_id else None
     )
 
@@ -173,7 +173,7 @@ async def get_invoice_status(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_invoice_status_stats(start_date, end_date)
+    stats = await service.get_invoice_status_stats(start_date, end_date)
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_invoice_status", result, cache_key)
@@ -191,7 +191,7 @@ async def get_health_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_customer_health_stats()
+    stats = await service.get_customer_health_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_health_stats", result)
@@ -212,7 +212,7 @@ async def get_warning_list(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    warning_list = service.get_balance_warning_list(threshold)
+    warning_list = await service.get_balance_warning_list(threshold)
 
     result = {"code": 0, "message": "success", "data": warning_list}
     await cache_service.set("analytics_health_warning", result, cache_key)
@@ -233,7 +233,7 @@ async def get_inactive_list(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    inactive_list = service.get_inactive_customers(days)
+    inactive_list = await service.get_inactive_customers(days)
 
     result = {"code": 0, "message": "success", "data": inactive_list}
     await cache_service.set("analytics_health_inactive", result, cache_key)
@@ -251,7 +251,7 @@ async def get_industry_distribution(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    distribution = service.get_industry_distribution()
+    distribution = await service.get_industry_distribution()
 
     result = {"code": 0, "message": "success", "data": distribution}
     await cache_service.set("analytics_profile", result, "industry")
@@ -269,7 +269,7 @@ async def get_level_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_customer_level_stats()
+    stats = await service.get_customer_level_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_profile", result, "level")
@@ -287,7 +287,7 @@ async def get_scale_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_scale_level_stats()
+    stats = await service.get_scale_level_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_profile", result, "scale")
@@ -305,7 +305,7 @@ async def get_consume_level_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_consume_level_stats()
+    stats = await service.get_consume_level_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_profile", result, "consume_level")
@@ -323,7 +323,7 @@ async def get_real_estate_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_real_estate_stats()
+    stats = await service.get_real_estate_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_profile", result, "real_estate")
@@ -347,7 +347,7 @@ async def predict_monthly_payment(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    predictions = service.predict_monthly_payment(
+    predictions = await service.predict_monthly_payment(
         year, month, int(customer_id) if customer_id else None
     )
 
@@ -367,7 +367,7 @@ async def get_dashboard_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = service.get_dashboard_stats()
+    stats = await service.get_dashboard_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
     await cache_service.set("analytics_dashboard_stats", result)
@@ -388,7 +388,7 @@ async def get_dashboard_chart_data(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    chart_data = service.get_dashboard_chart_data(months)
+    chart_data = await service.get_dashboard_chart_data(months)
 
     result = {"code": 0, "message": "success", "data": chart_data}
     await cache_service.set("analytics_dashboard_chart", result, cache_key)

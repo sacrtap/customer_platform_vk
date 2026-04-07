@@ -4,7 +4,7 @@ from datetime import datetime, date
 from calendar import monthrange
 from decimal import Decimal
 from sqlalchemy import select, func, and_, or_, extract, case
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.customers import Customer, CustomerProfile
 from ..models.billing import (
     DailyUsage,
@@ -22,12 +22,12 @@ from typing import Dict, List, Any, Optional
 class AnalyticsService:
     """客户分析服务"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
     # ========== 消耗分析 ==========
 
-    def get_consumption_trend(
+    async def get_consumption_trend(
         self, start_date: date, end_date: date, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取消耗趋势（月度）"""
@@ -55,7 +55,7 @@ class AnalyticsService:
             extract("month", Invoice.period_start),
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "year": int(row.year),
@@ -66,7 +66,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_top_customers(
+    async def get_top_customers(
         self, start_date: date, end_date: date, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """获取 Top 消耗客户"""
@@ -91,7 +91,7 @@ class AnalyticsService:
             .limit(limit)
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "customer_id": row.id,
@@ -102,7 +102,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_device_type_distribution(
+    async def get_device_type_distribution(
         self, start_date: date, end_date: date, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取设备类型分布"""
@@ -129,7 +129,7 @@ class AnalyticsService:
 
         stmt = stmt.group_by(InvoiceItem.device_type)
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "device_type": row.device_type,
@@ -141,7 +141,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_daily_usage_trend(
+    async def get_daily_usage_trend(
         self, start_date: date, end_date: date, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取每日用量趋势"""
@@ -163,7 +163,7 @@ class AnalyticsService:
             DailyUsage.usage_date
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "usage_date": row.usage_date.isoformat(),
@@ -177,7 +177,7 @@ class AnalyticsService:
 
     # ========== 回款分析 ==========
 
-    def get_payment_analysis(
+    async def get_payment_analysis(
         self, start_date: date, end_date: date, customer_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """获取回款分析数据"""
@@ -199,7 +199,7 @@ class AnalyticsService:
         if customer_id:
             invoice_stmt = invoice_stmt.where(Invoice.customer_id == customer_id)
 
-        invoice_result = self.db.execute(invoice_stmt).first()
+        invoice_result = (await self.db.execute(invoice_stmt)).first()
 
         # 已回款金额
         payment_stmt = select(
@@ -216,7 +216,7 @@ class AnalyticsService:
         if customer_id:
             payment_stmt = payment_stmt.where(RechargeRecord.customer_id == customer_id)
 
-        payment_result = self.db.execute(payment_stmt).first()
+        payment_result = (await self.db.execute(payment_stmt)).first()
 
         total_invoiced = float(invoice_result.total_invoiced or 0)
         total_final = float(invoice_result.total_final or 0)
@@ -233,7 +233,7 @@ class AnalyticsService:
             "difference": total_final - total_paid,
         }
 
-    def get_invoice_status_stats(
+    async def get_invoice_status_stats(
         self, start_date: date, end_date: date
     ) -> List[Dict[str, Any]]:
         """获取结算单状态统计"""
@@ -254,7 +254,7 @@ class AnalyticsService:
             .group_by(Invoice.status)
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "status": row.status,
@@ -266,7 +266,7 @@ class AnalyticsService:
 
     # ========== 健康度分析 ==========
 
-    def get_customer_health_stats(self) -> Dict[str, Any]:
+    async def get_customer_health_stats(self) -> Dict[str, Any]:
         """获取客户健康度统计（优化：6次查询 → 2次查询）"""
         from datetime import timedelta
 
@@ -316,7 +316,7 @@ class AnalyticsService:
             .where(Customer.deleted_at.is_(None))
         )
 
-        stats_result = self.db.execute(stats_stmt).first()
+        stats_result = (await self.db.execute(stats_stmt)).first()
         if stats_result is None:
             return {
                 "total_customers": 0,
@@ -347,7 +347,7 @@ class AnalyticsService:
                 .exists(),  # 曾经有消耗记录
             )
         )
-        churn_count = self.db.execute(churn_stmt).scalar() or 0
+        churn_count = (await self.db.execute(churn_stmt)).scalar() or 0
 
         return {
             "total_customers": total_count,
@@ -360,7 +360,9 @@ class AnalyticsService:
             else 0,
         }
 
-    def get_balance_warning_list(self, threshold: float = 1000) -> List[Dict[str, Any]]:
+    async def get_balance_warning_list(
+        self, threshold: float = 1000
+    ) -> List[Dict[str, Any]]:
         """获取余额预警客户列表"""
         stmt = (
             select(
@@ -381,7 +383,7 @@ class AnalyticsService:
             .order_by(CustomerBalance.total_amount.asc())
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "customer_id": row.id,
@@ -394,7 +396,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
+    async def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
         """获取长期未消耗客户列表（优化：使用子查询替代 Python 集合操作）"""
         from datetime import timedelta
 
@@ -439,7 +441,7 @@ class AnalyticsService:
             )
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         return [
             {
                 "customer_id": row.id,
@@ -453,7 +455,7 @@ class AnalyticsService:
 
     # ========== 画像分析 ==========
 
-    def get_industry_distribution(self) -> List[Dict[str, Any]]:
+    async def get_industry_distribution(self) -> List[Dict[str, Any]]:
         """获取行业分布"""
         stmt = (
             select(
@@ -466,7 +468,7 @@ class AnalyticsService:
             .order_by(func.count(CustomerProfile.id).desc())
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)
 
         return [
@@ -478,7 +480,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_customer_level_stats(self) -> List[Dict[str, Any]]:
+    async def get_customer_level_stats(self) -> List[Dict[str, Any]]:
         """获取客户等级统计"""
         stmt = (
             select(
@@ -490,7 +492,7 @@ class AnalyticsService:
             .order_by(func.count(Customer.id).desc())
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)
 
         return [
@@ -502,7 +504,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_scale_level_stats(self) -> List[Dict[str, Any]]:
+    async def get_scale_level_stats(self) -> List[Dict[str, Any]]:
         """获取客户规模等级统计"""
         stmt = (
             select(
@@ -515,7 +517,7 @@ class AnalyticsService:
             .order_by(func.count(CustomerProfile.id).desc())
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)
 
         return [
@@ -527,7 +529,7 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_consume_level_stats(self) -> List[Dict[str, Any]]:
+    async def get_consume_level_stats(self) -> List[Dict[str, Any]]:
         """获取客户消费等级统计"""
         stmt = (
             select(
@@ -540,7 +542,7 @@ class AnalyticsService:
             .order_by(func.count(CustomerProfile.id).desc())
         )
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)
 
         return [
@@ -552,12 +554,12 @@ class AnalyticsService:
             for row in result
         ]
 
-    def get_real_estate_stats(self) -> Dict[str, Any]:
+    async def get_real_estate_stats(self) -> Dict[str, Any]:
         """获取房产客户统计"""
         total_stmt = select(func.count(Customer.id)).where(
             Customer.deleted_at.is_(None)
         )
-        total = self.db.execute(total_stmt).scalar() or 0
+        total = (await self.db.execute(total_stmt)).scalar() or 0
 
         real_estate_stmt = (
             select(func.count(Customer.id))
@@ -569,7 +571,7 @@ class AnalyticsService:
                 )
             )
         )
-        real_estate = self.db.execute(real_estate_stmt).scalar() or 0
+        real_estate = (await self.db.execute(real_estate_stmt)).scalar() or 0
 
         return {
             "total_customers": total,
@@ -582,7 +584,7 @@ class AnalyticsService:
 
     # ========== 预测回款 ==========
 
-    def predict_monthly_payment(
+    async def predict_monthly_payment(
         self, year: int, month: int, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """预测月度回款"""
@@ -618,7 +620,7 @@ class AnalyticsService:
         if customer_id:
             stmt = stmt.where(Customer.id == customer_id)
 
-        result = self.db.execute(stmt).all()
+        result = (await self.db.execute(stmt)).all()
 
         predictions = []
         for row in result:
@@ -639,7 +641,7 @@ class AnalyticsService:
                 .group_by(DailyUsage.device_type)
             )
 
-            usage_result = self.db.execute(usage_stmt).all()
+            usage_result = (await self.db.execute(usage_stmt)).all()
 
             for usage_row in usage_result:
                 predicted_amount = self._calculate_predicted_amount(
@@ -672,7 +674,7 @@ class AnalyticsService:
 
         return predictions
 
-    def _calculate_predicted_amount(
+    async def _calculate_predicted_amount(
         self,
         pricing_type: str,
         unit_price: float,
@@ -715,7 +717,7 @@ class AnalyticsService:
 
     # ========== 首页仪表盘 ==========
 
-    def get_dashboard_stats(self) -> Dict[str, Any]:
+    async def get_dashboard_stats(self) -> Dict[str, Any]:
         """获取仪表盘统计数据（优化：6次查询 → 2次查询）"""
         today = datetime.utcnow()
         current_month_start = date(today.year, today.month, 1)
@@ -789,7 +791,7 @@ class AnalyticsService:
             .where(Customer.deleted_at.is_(None))
         )
 
-        result = self.db.execute(stats_stmt).first()
+        result = (await self.db.execute(stats_stmt)).first()
 
         return {
             "total_customers": result.total_customers or 0,
@@ -802,7 +804,7 @@ class AnalyticsService:
             "month_consumption": float(result.month_consumption or 0),
         }
 
-    def get_dashboard_chart_data(self, months: int = 6) -> Dict[str, Any]:
+    async def get_dashboard_chart_data(self, months: int = 6) -> Dict[str, Any]:
         """获取仪表盘图表数据"""
         from dateutil.relativedelta import relativedelta
 
@@ -811,7 +813,7 @@ class AnalyticsService:
         start_date = end_date - relativedelta(months=months)
 
         # 消耗趋势
-        consumption_trend = self.get_consumption_trend(start_date, end_date)
+        consumption_trend = await self.get_consumption_trend(start_date, end_date)
 
         # 回款趋势
         payment_trend = []
@@ -824,7 +826,7 @@ class AnalyticsService:
                 monthrange(month_date.year, month_date.month)[1],
             )
 
-            payment_data = self.get_payment_analysis(month_start, month_end)
+            payment_data = await self.get_payment_analysis(month_start, month_end)
             payment_trend.append(
                 {
                     "period": f"{month_date.year}-{month_date.month:02d}",
