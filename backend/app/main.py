@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from typing import Union
 from .config import settings
 from .middleware.auth import auth_middleware
+from .middleware.audit import audit_middleware
 
 
 def create_app(
@@ -89,6 +90,9 @@ def create_app(
 
     # 注册认证中间件
     auth_middleware(app)
+
+    # 注册审计日志中间件
+    audit_middleware(app)
 
     # 注册路由蓝图
     from .routes.auth import auth_bp

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
 from ..services import get_user_permissions
 from ..cache.permissions import permission_cache
+from ..services.token_blacklist import TokenBlacklistService
 
 
 def auth_middleware(app: Sanic):
@@ -66,6 +67,15 @@ def auth_middleware(app: Sanic):
                 return json(
                     {"code": 40102, "message": "Token 无效或已过期"}, status=401
                 )
+
+            # 检查 Token 是否在黑名单中
+            jti = payload.get("jti")
+            if jti:
+                blacklist_service = TokenBlacklistService(request.ctx.db_session)
+                is_blacklisted = await blacklist_service.is_blacklisted(jti)
+                if is_blacklisted:
+                    print(f"[AUTH DEBUG] Token is blacklisted: {jti}")
+                    return json({"code": 40103, "message": "Token 已失效"}, status=401)
 
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload

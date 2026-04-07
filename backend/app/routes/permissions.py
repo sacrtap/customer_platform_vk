@@ -96,3 +96,78 @@ async def create_permission(request: Request):
         },
         status=201,
     )
+
+
+@permissions_bp.put("/<perm_id:int>")
+@require_permission("permissions.update")
+async def update_permission(request: Request, perm_id: int):
+    """
+    更新权限信息
+
+    Body:
+    {
+        "name": "string (optional)",
+        "description": "string (optional)",
+        "module": "string (optional)"
+    }
+    """
+    data = request.json
+
+    db_session: AsyncSession = request.ctx.db_session
+
+    # 检查权限是否存在
+    query = select(Permission).where(Permission.id == perm_id)
+    result = await db_session.execute(query)
+    permission = result.scalar_one_or_none()
+
+    if not permission:
+        return json({"code": 40401, "message": "权限不存在"}, status=404)
+
+    # 更新字段
+    if data.get("name"):
+        permission.name = data["name"]
+    if data.get("description") is not None:
+        permission.description = data["description"]
+    if data.get("module"):
+        permission.module = data["module"]
+
+    await db_session.commit()
+    await db_session.refresh(permission)
+
+    return json(
+        {
+            "code": 0,
+            "message": "更新成功",
+            "data": {
+                "id": permission.id,
+                "code": permission.code,
+                "name": permission.name,
+                "description": permission.description,
+                "module": permission.module,
+            },
+        }
+    )
+
+
+@permissions_bp.delete("/<perm_id:int>")
+@require_permission("permissions.delete")
+async def delete_permission(request: Request, perm_id: int):
+    """删除权限"""
+    db_session: AsyncSession = request.ctx.db_session
+
+    # 检查权限是否存在
+    query = select(Permission).where(Permission.id == perm_id)
+    result = await db_session.execute(query)
+    permission = result.scalar_one_or_none()
+
+    if not permission:
+        return json({"code": 40401, "message": "权限不存在"}, status=404)
+
+    # 检查是否是系统权限（如果有 is_system 字段）
+    if hasattr(permission, "is_system") and permission.is_system:
+        return json({"code": 40001, "message": "系统权限不能删除"}, status=400)
+
+    await db_session.delete(permission)
+    await db_session.commit()
+
+    return json({"code": 0, "message": "删除成功"})

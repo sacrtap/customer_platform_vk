@@ -6,12 +6,13 @@ from sanic.response import json
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.roles import RoleService
-from ..middleware.auth import require_permission
+from ..middleware.auth import require_permission, auth_required
 
 roles_bp = Blueprint("roles", url_prefix="/api/v1/roles")
 
 
 @roles_bp.get("")
+@auth_required
 async def list_roles(request: Request):
     """
     获取角色列表
@@ -42,9 +43,7 @@ async def list_roles(request: Request):
                         "name": role.name,
                         "description": role.description,
                         "is_system": role.is_system,
-                        "created_at": role.created_at.isoformat()
-                        if role.created_at
-                        else None,
+                        "created_at": role.created_at.isoformat() if role.created_at else None,
                     }
                     for role in roles
                 ],
@@ -57,6 +56,7 @@ async def list_roles(request: Request):
 
 
 @roles_bp.get("/<role_id:int>")
+@auth_required
 async def get_role(request: Request, role_id: int):
     """获取角色详情"""
     db_session: AsyncSession = request.ctx.db_session
@@ -77,8 +77,7 @@ async def get_role(request: Request, role_id: int):
                 "description": role.description,
                 "is_system": role.is_system,
                 "permissions": [
-                    {"id": p.id, "code": p.code, "name": p.name}
-                    for p in role.permissions
+                    {"id": p.id, "code": p.code, "name": p.name} for p in role.permissions
                 ],
                 "created_at": role.created_at.isoformat() if role.created_at else None,
             },

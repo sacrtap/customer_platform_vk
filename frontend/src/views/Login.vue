@@ -284,10 +284,8 @@ const handleForgotPassword = async () => {
   forgotLoading.value = true
 
   try {
-    // 调用后端忘记密码 API（如果存在）
-    // await api.post('/auth/forgot-password', forgotForm)
+    await api.post('/auth/forgot-password', forgotForm)
 
-    // 临时显示成功提示
     Message.success('密码重置链接已发送到您的邮箱，请查收')
     forgotPasswordVisible.value = false
 
@@ -295,7 +293,7 @@ const handleForgotPassword = async () => {
     forgotForm.username = ''
     forgotForm.email = ''
   } catch (error) {
-    Message.error('发送失败，请稍后重试')
+    Message.error((error as Error).message || '发送失败，请稍后重试')
   } finally {
     forgotLoading.value = false
   }
