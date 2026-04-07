@@ -20,8 +20,8 @@ class UserService:
         # 使用 hasattr 检查 AsyncSession 的特征属性
         self._is_async = (
             hasattr(session, "_is_asyncio_session")
-            or type(session).__name__ in ("AsyncMock", "MagicMock")
-            or "asyncio" in str(type(session))
+            or type(session).__name__ in ("AsyncSession", "AsyncMock", "MagicMock")
+            or "AsyncSession" in str(type(session))
         )
 
     async def _execute(self, query):
