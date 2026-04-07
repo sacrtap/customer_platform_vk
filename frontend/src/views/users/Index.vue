@@ -241,7 +241,25 @@ const userFormRules = {
     { required: true, message: '请输入密码' },
     { minLength: 6, message: '密码至少 6 个字符' },
   ],
-  email: [{ type: 'email' as const, message: '请输入有效的邮箱地址' }],
+  email: [
+    { required: true, message: '请输入邮箱' },
+    { type: 'email', message: '请输入有效的邮箱地址' },
+  ],
+  real_name: [
+    { required: true, message: '请输入真实姓名' },
+  ],
+  role_ids: [
+    { required: true, message: '请选择角色' },
+    {
+      validator: (value: number[], callback: (error?: Error) => void) => {
+        if (!value || value.length === 0) {
+          callback(new Error('请至少选择一个角色'))
+        } else {
+          callback()
+        }
+      },
+    },
+  ],
 }
 
 // ========== 密码重置表单 ==========
@@ -358,7 +376,10 @@ const handleUserModalCancel = () => {
 const handleUserSubmit = async () => {
   try {
     await userFormRef.value?.validate()
-  } catch {
+  } catch (error: any) {
+    if (error?.message) {
+      Message.error(error.message)
+    }
     return
   }
 
