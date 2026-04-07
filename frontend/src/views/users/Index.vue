@@ -489,12 +489,14 @@ onMounted(() => {
   font-size: 10px;
 }
 
-:deep(.arco-table-th) {
+:deep(.arco-table th) {
+  font-size: 10px;
   font-weight: 600;
   color: var(--neutral-7);
 }
 
-:deep(.arco-table-td) {
+:deep(.arco-table td) {
+  font-size: 10px;
   color: var(--neutral-7);
 }
 
