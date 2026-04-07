@@ -1,0 +1,114 @@
+/* frontend/src/styles/global.css */
+
+/* CSS Variables - Design System */
+:root {
+  /* Primary Colors */
+  --primary-1: #e8f3ff;
+  --primary-5: #3296f7;
+  --primary-6: #0369a1;
+  --primary-7: #035a8a;
+
+  /* Status Colors */
+  --success-1: #e8ffea;
+  --success-5: #4ade80;
+  --success-6: #22c55e;
+  --warning-1: #fff7e8;
+  --warning-5: #fbbf24;
+  --warning-6: #f59e0b;
+  --danger-1: #ffe8e8;
+  --danger-5: #f87171;
+  --danger-6: #ef4444;
+
+  /* Neutral Colors */
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-3: #e0e2e7;
+  --neutral-5: #8f959e;
+  --neutral-6: #646a73;
+  --neutral-7: #4c5360;
+  --neutral-9: #2f3645;
+  --neutral-10: #1d2330;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+/* Accessibility: Focus States */
+*:focus-visible {
+  outline: 2px solid var(--primary-6);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary-6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Base Styles */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility: Tabular Numbers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Utility: Text Truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Utility: Visually Hidden (for screen readers) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
