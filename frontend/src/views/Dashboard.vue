@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-layout">
     <!-- 侧边栏 -->
-    <aside :class="['sidebar', { collapsed: sidebarCollapsed }]">
+    <aside :class="['sidebar', { collapsed: sidebarCollapsed, 'mobile-open': mobileMenuOpen }]">
       <div class="sidebar-logo">
         <div class="logo-icon">
           <svg
@@ -446,11 +446,19 @@
       </div>
     </aside>
 
+    <!-- 移动端遮罩层 -->
+    <div v-if="mobileMenuOpen" class="mobile-overlay" @click="mobileMenuOpen = false" />
+
     <!-- 主内容区 -->
     <main :class="['main-content', { 'sidebar-collapsed': sidebarCollapsed }]">
       <!-- 顶部栏 -->
       <header class="header">
         <div class="header-left">
+          <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="打开菜单">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           <h1 class="header-title">{{ pageTitle }}</h1>
           <div class="header-breadcrumb">
             <a @click="$router.push('/')">首页</a>
@@ -558,6 +566,11 @@ const userStore = useUserStore()
 const sidebarCollapsed = ref(false)
 const expandedSubmenu = ref<string | null>(null)
 const hoveredSubmenu = ref<string | null>(null) // 收起时 hover 显示子菜单
+const mobileMenuOpen = ref(false)
+
+const toggleMobileMenu = () => {
+  mobileMenuOpen.value = !mobileMenuOpen.value
+}
 
 // 判断当前路由是否属于某个父菜单
 const isSubmenuActive = (submenu: string): boolean => {
@@ -578,7 +591,7 @@ const isParentMenuActive = (menu: string): boolean => {
   return false
 }
 
-// 监听路由变化，自动展开包含当前路由的父菜单
+// 监听路由变化，自动展开包含当前路由的父菜单，并关闭移动端菜单
 watch(
   () => route.path,
   (newPath) => {
@@ -587,6 +600,7 @@ watch(
     } else if (newPath.startsWith('/system')) {
       expandedSubmenu.value = 'system'
     }
+    mobileMenuOpen.value = false
   },
   { immediate: true }
 )
@@ -1263,10 +1277,53 @@ const handleLogout = () => {
   padding: 32px;
 }
 
+/* 移动端菜单按钮样式 */
+.mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--neutral-6);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  border: none;
+  background: transparent;
+}
+
+.mobile-menu-btn:hover {
+  background: var(--neutral-1);
+  color: var(--neutral-9);
+}
+
+.mobile-menu-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* 移动端遮罩层 */
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+}
+
 /* 响应式 */
 @media (max-width: 1200px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-overlay {
+    display: block;
+  }
+
   .sidebar {
     transform: translateX(-100%);
+    z-index: 100;
   }
 
   .sidebar.mobile-open {
