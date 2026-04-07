@@ -44,8 +44,9 @@
         @page-size-change="handlePageSizeChange"
       >
         <template #is_system="{ record }">
-          <a-tag v-if="record.isSystem" color="blue">系统角色</a-tag>
-          <a-tag v-else color="gray">自定义</a-tag>
+          <a-tag :color="record.isSystem ? 'blue' : 'gray'" size="small">
+            {{ record.isSystem ? '系统角色' : '自定义角色' }}
+          </a-tag>
         </template>
         <template #action="{ record }">
           <a-space>
@@ -70,11 +71,6 @@
               </a-button>
             </a-popconfirm>
           </a-space>
-        </template>
-        <template #is_system="{ record }">
-          <a-tag :color="record.is_system ? 'red' : 'blue'" size="small">
-            {{ record.is_system ? '系统角色' : '自定义角色' }}
-          </a-tag>
         </template>
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}

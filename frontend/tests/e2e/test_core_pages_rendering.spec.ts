@@ -86,7 +86,7 @@ test.describe('核心页面渲染', () => {
     await page.goto('/roles');
     
     // 检查页面标题
-    await expect(page.getByRole('heading', { level: 1 }).first()).toContainText('角色');
+    await expect(page.getByRole('heading', { level: 1 }).first()).toContainText('角色权限');
     
     // 检查表格存在
     const table = page.locator('table, [class*="table"]');
