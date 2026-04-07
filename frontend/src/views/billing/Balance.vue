@@ -86,12 +86,8 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="viewRechargeRecords(record)"
-              >充值记录</a-button
-            >
-            <a-button type="text" size="small" @click="openRechargeModal(record)"
-              >充值</a-button
-            >
+            <a-button type="primary" size="small" @click="openRechargeModal(record)">充值</a-button>
+            <a-button type="text" size="small" @click="viewRechargeRecords(record)">记录</a-button>
           </a-space>
         </template>
         <template #empty>

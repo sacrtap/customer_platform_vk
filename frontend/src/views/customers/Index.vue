@@ -211,7 +211,7 @@
       >
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="viewCustomer(record.id)">查看</a-button>
+            <a-button type="primary" size="small" @click="viewCustomer(record.id)">查看</a-button>
             <a-button type="text" size="small" @click="openEditModal(record)">编辑</a-button>
             <a-button type="text" size="small" @click="viewProfile(record.id)">画像</a-button>
             <a-popconfirm content="确认删除？" @ok="() => handleDelete(record.id)">

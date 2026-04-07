@@ -164,7 +164,7 @@
               ¥{{ formatNumber(record.final_amount || record.total_amount) }}
             </template>
             <template #action="{ record }">
-              <a-button type="text" size="small" @click="viewInvoice(record)">查看</a-button>
+              <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
             </template>
           </a-table>
         </a-tab-pane>

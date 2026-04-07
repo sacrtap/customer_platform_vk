@@ -286,9 +286,9 @@
                   </td>
                   <td>{{ formatDate(invoice.created_at) }}</td>
                   <td>
-                    <a-button type="text" size="small" @click="$message.info('查看开发中')"
-                      >查看</a-button
-                    >
+                    <a-button type="primary" size="small" @click="$message.info('查看开发中')">
+                      查看
+                    </a-button>
                   </td>
                 </tr>
               </tbody>
