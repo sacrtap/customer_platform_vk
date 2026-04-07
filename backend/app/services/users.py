@@ -1,6 +1,7 @@
 """用户管理服务"""
 
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from typing import Optional, List, Union
@@ -96,7 +97,7 @@ class UserService:
         real_name: Optional[str] = None,
     ) -> User:
         """创建用户"""
-        # 检查用户名是否已存在
+        # 检查用户名是否已存在（包括软删除的用户）
         existing = await self.get_user_by_username(username)
         if existing:
             raise ValueError(f"用户名 {username} 已存在")
@@ -113,9 +114,14 @@ class UserService:
             real_name=real_name,
         )
         self.session.add(user)
-        await self.session.flush()
-        await self.session.refresh(user)
-        return user
+
+        try:
+            await self.session.flush()
+            await self.session.refresh(user)
+            return user
+        except IntegrityError as e:
+            await self.session.rollback()
+            raise ValueError(f"用户名 {username} 已存在") from e
 
     async def update_user(
         self,
