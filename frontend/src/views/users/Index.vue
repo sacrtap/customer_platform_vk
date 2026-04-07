@@ -317,7 +317,7 @@ const loadUsers = async () => {
     })
     users.value = (res.data as any).list.map((item: ApiUser) => ({
       ...item,
-      roles: item.roles?.map((r) => r.name) || [],
+      roles: item.roles || [],
       role_ids: item.roles?.map((r) => r.id) || [],
     }))
     pagination.total = (res.data as any).total || 0
