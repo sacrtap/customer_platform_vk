@@ -243,7 +243,21 @@ const userFormRules = {
   ],
   email: [
     { required: true, message: '请输入邮箱' },
-    { type: 'email', message: '请输入有效的邮箱地址' },
+    {
+      validator: (value: string, callback: (error?: Error) => void) => {
+        if (!value) {
+          callback()
+          return
+        }
+        // 严格的邮箱正则校验
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        if (!emailRegex.test(value)) {
+          callback(new Error('请输入有效的邮箱地址'))
+        } else {
+          callback()
+        }
+      },
+    },
   ],
   real_name: [
     { required: true, message: '请输入真实姓名' },
