@@ -131,6 +131,7 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
+  // 确保从 storage 初始化用户状态
   userStore.initFromStorage()
 
   // 登录态检查
@@ -138,8 +139,10 @@ router.beforeEach((to, _from, next) => {
     next('/login')
     return
   }
+  
+  // 已登录访问登录页，重定向到首页
   if (to.path === '/login' && userStore.token) {
-    next('/')
+    next({ path: '/', replace: true, force: true })
     return
   }
 
@@ -148,7 +151,7 @@ router.beforeEach((to, _from, next) => {
   if (requiredPermission && userStore.token) {
     if (!userStore.hasPermission(requiredPermission)) {
       // 无权限，跳转到首页
-      next('/')
+      next({ path: '/', replace: true })
       return
     }
   }

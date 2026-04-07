@@ -54,11 +54,9 @@ test.describe('数据分析', () => {
     await page.goto('/analytics/consumption');
     await page.waitForTimeout(2000);
     
-    // 检查是否有图表元素
-    const charts = page.locator('.echart, [class*="chart"], canvas');
-    if (await charts.isVisible()) {
-      await expect(charts.first()).toBeVisible();
-    }
+    // 检查消耗趋势图表容器
+    const chartContainer = page.locator('.chart-container').first();
+    await expect(chartContainer).toBeVisible();
   });
 
   test('分析数据筛选', async ({ page }) => {
