@@ -76,15 +76,17 @@ def sync_test_engine():
 
     # 创建所有表
     with engine.begin() as conn:
-        BaseModel.metadata.drop_all(conn)
+        # 使用 CASCADE 删除所有表（包括外键依赖）
+        BaseModel.metadata.drop_all(conn, checkfirst=True)
         BaseModel.metadata.create_all(conn)
 
     yield engine
 
-    # 清理
+    # 清理：关闭所有连接然后删除表
+    engine.dispose()
     try:
         with engine.begin() as conn:
-            BaseModel.metadata.drop_all(conn)
+            BaseModel.metadata.drop_all(conn, checkfirst=True)
     except Exception:
         pass
 
@@ -103,7 +105,7 @@ async def db_session(sync_test_engine):
 
 
 @pytest.fixture(scope="function")
-def test_user(sync_test_engine, db_session):
+def test_user(db_session):
     """提供测试用户信息并创建用户记录"""
     import bcrypt
     from sqlalchemy import text
@@ -112,19 +114,9 @@ def test_user(sync_test_engine, db_session):
     password = "admin123"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    # 清理旧数据
+    # 清理旧数据（使用 CASCADE 避免死锁）
     db_session.execute(
-        text(
-            "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
-        ),
-        {"username": username},
-    )
-    db_session.execute(
-        text("DELETE FROM users WHERE username = :username"), {"username": username}
-    )
-    db_session.execute(text("DELETE FROM roles WHERE name = :name"), {"name": "admin"})
-    db_session.execute(
-        text("DELETE FROM permissions WHERE name LIKE :name"), {"name": "users:%"}
+        text("TRUNCATE user_roles, roles, permissions, role_permissions, users CASCADE")
     )
     db_session.commit()
 
@@ -137,12 +129,20 @@ def test_user(sync_test_engine, db_session):
         {"name": "admin", "description": "系统管理员"},
     )
 
-    # 创建权限
+    # 创建权限（包含 billing 和 files 权限）
     permissions = [
         ("users:manage", "用户管理", "users"),
         ("users:read", "用户查看", "users"),
         ("customers:manage", "客户管理", "customers"),
         ("customers:read", "客户查看", "customers"),
+        ("billing:manage", "结算管理", "billing"),
+        ("billing:read", "结算查看", "billing"),
+        ("billing:write", "结算操作", "billing"),
+        ("billing:delete", "结算删除", "billing"),
+        ("files:manage", "文件管理", "files"),
+        ("files:read", "文件查看", "files"),
+        ("files:write", "文件上传", "files"),
+        ("files:delete", "文件删除", "files"),
     ]
     for perm_code, desc, module in permissions:
         db_session.execute(
@@ -217,15 +217,17 @@ def test_user(sync_test_engine, db_session):
 async def app(sync_test_engine, mock_scheduler, mock_cache):
     """创建 Sanic 应用实例（使用异步数据库引擎）"""
     import uuid
+    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     unique_app_name = f"test_app_{uuid.uuid4().hex[:8]}"
 
-    # 创建异步引擎
+    # 创建异步引擎（表已由 sync_test_engine 创建）
     async_engine = create_async_engine(
         TEST_DATABASE_ASYNC_URL,
         echo=False,
         pool_pre_ping=True,
     )
+
     async_session_maker = async_sessionmaker(
         async_engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -253,18 +255,27 @@ async def mock_cache():
     from unittest.mock import AsyncMock, MagicMock
     from app.cache import base, permissions
 
-    # Mock 缓存服务
+    # Mock 缓存服务（所有方法都使用 AsyncMock）
     mock_cache = MagicMock()
     mock_cache.get = AsyncMock(return_value=None)
     mock_cache.set = AsyncMock(return_value=True)
     mock_cache.delete = AsyncMock(return_value=True)
     mock_cache.invalidate_pattern = AsyncMock(return_value=True)
     mock_cache.invalidate_analytics_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
 
     # Mock 权限缓存
     mock_perm_cache = MagicMock()
     mock_perm_cache.get_permissions = AsyncMock(
-        return_value={"users:manage", "customers:read", "customers:manage"}
+        return_value={
+            "users:manage",
+            "customers:read",
+            "customers:manage",
+            "billing:manage",
+            "billing:read",
+            "billing:write",
+        }
     )
     mock_perm_cache.set_permissions = AsyncMock(return_value=True)
     mock_perm_cache.invalidate = AsyncMock(return_value=True)

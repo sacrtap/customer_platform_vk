@@ -12,7 +12,6 @@ Files API 集成测试
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
