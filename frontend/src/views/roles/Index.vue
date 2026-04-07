@@ -71,6 +71,14 @@
             </a-popconfirm>
           </a-space>
         </template>
+        <template #is_system="{ record }">
+          <a-tag :color="record.is_system ? 'red' : 'blue'" size="small">
+            {{ record.is_system ? '系统角色' : '自定义角色' }}
+          </a-tag>
+        </template>
+        <template #created_at="{ record }">
+          {{ formatDateTime(record.created_at) }}
+        </template>
         <template #empty>
           <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
             <template #action>
@@ -150,6 +158,7 @@ import {
   type Role as ApiRole,
 } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatDateTime } from '@/utils/formatters'
 
 // ========== 类型定义 ==========
 interface Role {
@@ -185,11 +194,12 @@ const pagination = reactive({
 
 // 表格列定义
 const columns = [
-  { title: '角色名称', dataIndex: 'name', width: 150 },
-  { title: '描述', dataIndex: 'description', width: 300, ellipsis: true, tooltip: true },
-  { title: '类型', slotName: 'is_system', width: 120 },
-  { title: '创建时间', dataIndex: 'createdAt', width: 180 },
-  { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
+  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
+  { title: '角色名称', dataIndex: 'name', width: 140 },
+  { title: '描述', dataIndex: 'description', width: 280, ellipsis: true, tooltip: true },
+  { title: '类型', slotName: 'is_system', width: 100, align: 'center' as const },
+  { title: '创建时间', slotName: 'created_at', width: 160 },
+  { title: '操作', slotName: 'action', width: 220, fixed: 'right' as const },
 ]
 
 // ========== 角色表单 ==========
@@ -428,7 +438,7 @@ onMounted(() => {
 }
 
 .header-title h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--neutral-10);
   margin-bottom: 8px;

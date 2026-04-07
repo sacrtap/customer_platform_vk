@@ -8,7 +8,7 @@
       <div class="header-actions">
         <a-input-search
           v-model="searchKeyword"
-          placeholder="搜索用户名或邮箱"
+          placeholder="搜索用户名、姓名或邮箱"
           style="width: 300px"
           allow-clear
           @search="handleSearch"
@@ -54,6 +54,9 @@
             {{ role }}
           </a-tag>
         </template>
+        <template #created_at="{ record }">
+          {{ formatDateTime(record.created_at) }}
+        </template>
         <template #action="{ record }">
           <a-space>
             <a-button type="text" size="small" @click="handleEdit(record)">编辑</a-button>
@@ -61,7 +64,7 @@
               重置密码
             </a-button>
             <a-popconfirm content="确认删除该用户？删除后无法恢复。" @ok="handleDelete(record.id)">
-              <a-button type="text" size="small" status="danger">删除</a-button>
+              <a-button type="text" size="small" status="danger" class="delete-btn">删除</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -156,6 +159,7 @@ import {
 } from '@/api/users'
 import { getRoles } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatDateTime } from '@/utils/formatters'
 
 // ========== 类型定义 ==========
 interface User {
@@ -192,13 +196,14 @@ const pagination = reactive({
 
 // 表格列定义
 const columns = [
-  { title: '用户名', dataIndex: 'username', width: 150 },
-  { title: '邮箱', dataIndex: 'email', width: 220, ellipsis: true, tooltip: true },
-  { title: '真实姓名', dataIndex: 'real_name', width: 120 },
-  { title: '角色', slotName: 'roles', width: 200 },
-  { title: '状态', slotName: 'status', width: 100 },
-  { title: '创建时间', dataIndex: 'created_at', width: 180 },
-  { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
+  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
+  { title: '用户名', dataIndex: 'username', width: 140, ellipsis: true, tooltip: true },
+  { title: '邮箱', dataIndex: 'email', width: 240, ellipsis: true, tooltip: true },
+  { title: '真实姓名', dataIndex: 'real_name', width: 100 },
+  { title: '角色', slotName: 'roles', width: 180 },
+  { title: '状态', slotName: 'status', width: 90, align: 'center' as const },
+  { title: '创建时间', slotName: 'created_at', width: 160 },
+  { title: '操作', slotName: 'action', width: 220, fixed: 'right' as const },
 ]
 
 // ========== 用户表单 ==========
@@ -450,7 +455,7 @@ onMounted(() => {
 }
 
 .header-title h1 {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--neutral-10);
   margin-bottom: 8px;
