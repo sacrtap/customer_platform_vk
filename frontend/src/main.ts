@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import ArcoVue from '@arco-design/web-vue'
 import '@arco-design/web-vue/dist/arco.css'
 import './styles/global.css'
+import './styles/arco-theme.css'
 import App from './App.vue'
 import router from './router'
 

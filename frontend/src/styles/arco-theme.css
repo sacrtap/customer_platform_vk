@@ -1,0 +1,149 @@
+/* Arco Design 主题覆盖 - 统一使用设计系统颜色 */
+
+/* ==========================================
+   主色覆盖 (Design System Primary: #0F172A)
+   ========================================== */
+
+/* Primary Button */
+.arco-btn-primary {
+  background-color: #0f172a !important;
+  border-color: #0f172a !important;
+  color: white !important;
+}
+
+.arco-btn-primary:hover {
+  background-color: #1e293b !important;
+  border-color: #1e293b !important;
+  color: white !important;
+}
+
+.arco-btn-primary:active {
+  background-color: #020617 !important;
+  border-color: #020617 !important;
+  color: white !important;
+}
+
+/* Primary Button - Loading State */
+.arco-btn-primary.arco-btn-loading .arco-icon-loading,
+.arco-btn-primary.arco-btn-loading .arco-icon {
+  color: white !important;
+}
+
+/* Primary Button - Disabled State */
+.arco-btn-primary.arco-btn-disabled,
+.arco-btn-primary[disabled] {
+  background-color: #64748b !important;
+  border-color: #64748b !important;
+  color: white !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* ==========================================
+   其他组件主色覆盖
+   ========================================== */
+
+/* Progress Bar */
+.arco-progress-bar .arco-progress-bar-bg {
+  background-color: #0f172a !important;
+}
+
+/* Radio & Checkbox */
+.arco-radio-checked .arco-radio-icon {
+  border-color: #0f172a !important;
+  background-color: #0f172a !important;
+}
+
+.arco-checkbox-checked .arco-checkbox-icon {
+  border-color: #0f172a !important;
+  background-color: #0f172a !important;
+}
+
+/* Switch */
+.arco-switch-checked .arco-switch-button {
+  background-color: #0f172a !important;
+}
+
+/* Input Focus */
+.arco-input-focus .arco-input-wrapper,
+.arco-input-wrapper:hover,
+.arco-textarea:focus,
+.arco-textarea:hover {
+  border-color: #0f172a !important;
+}
+
+/* Select & Cascader */
+.arco-select-focused .arco-select-view,
+.arco-cascader-focused .arco-cascader-view {
+  border-color: #0f172a !important;
+}
+
+/* Pagination */
+.arco-pagination-item-active {
+  background-color: #0f172a !important;
+  border-color: #0f172a !important;
+  color: white !important;
+}
+
+/* Tag Primary */
+.arco-tag-primary {
+  background-color: #e8f3ff !important;
+  border-color: #0f172a !important;
+  color: #0f172a !important;
+}
+
+/* Alert Info */
+.arco-alert-info {
+  background-color: #e8f3ff !important;
+  border-color: #0f172a !important;
+  color: #0f172a !important;
+}
+
+/* Modal Header */
+.arco-modal-header {
+  border-bottom-color: #eef0f3 !important;
+}
+
+/* Badge */
+.arco-badge-status-dot.arco-badge-status-primary {
+  background-color: #0f172a !important;
+}
+
+/* Tooltip */
+.arco-tooltip-content {
+  background-color: #0f172a !important;
+}
+
+/* ==========================================
+   强调色/CTA 色 (#0369A1) 用于特殊场景
+   ========================================== */
+
+/* 保留 Arco 的 blue-6 作为强调色，用于链接、次要操作等 */
+/* 排除侧边栏子菜单，保持白色 */
+.arco-link,
+a:not(.nav-subitem) {
+  color: #0369a1 !important;
+}
+
+.arco-link:hover,
+a:not(.nav-subitem):hover {
+  color: #0284c7 !important;
+}
+
+/* 确保侧边栏子菜单文字为白色（覆盖全局 a 标签样式） */
+.sidebar .nav-subitem,
+.sidebar .nav-subitem * {
+  color: #ffffff !important;
+}
+
+/* Secondary Button (Outline) 使用强调色 */
+.arco-btn-secondary {
+  border-color: #0369a1 !important;
+  color: #0369a1 !important;
+}
+
+.arco-btn-secondary:hover {
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+  background-color: #e8f3ff !important;
+}

@@ -668,9 +668,9 @@ const handleLogout = () => {
   --sidebar-collapsed-width: 68px;
   --header-height: 64px;
   --primary-1: #e8f3ff;
-  --primary-5: #3296f7;
-  --primary-6: #0369a1;
-  --primary-7: #035a8a;
+  --primary-5: #0369a1;
+  --primary-6: #0f172a;
+  --primary-7: #020617;
   --success-1: #e8ffea;
   --success-6: #22c55e;
   --warning-1: #fff7e8;
@@ -703,7 +703,7 @@ const handleLogout = () => {
   top: 0;
   bottom: 0;
   width: var(--sidebar-width);
-  background: linear-gradient(180deg, var(--neutral-10) 0%, var(--neutral-9) 100%);
+  background: linear-gradient(180deg, #1d2330 0%, #0f172a 100%);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -757,7 +757,7 @@ const handleLogout = () => {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -813,7 +813,7 @@ const handleLogout = () => {
 .nav-section-title {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 0 12px;
@@ -834,7 +834,7 @@ const handleLogout = () => {
   gap: 12px;
   padding: 12px;
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #ffffff;
   text-decoration: none;
   transition: background-color var(--transition-fast), color var(--transition-fast);
   cursor: pointer;
@@ -867,21 +867,21 @@ const handleLogout = () => {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(3, 105, 161, 0.15);
   color: white;
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
   transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 /* 收起模式下的选中图标状态 - 更明显的视觉效果 */
 .sidebar.collapsed .nav-item.active {
-  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
-  box-shadow: 0 6px 20px rgba(3, 105, 161, 0.4);
+  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  box-shadow: 0 6px 20px rgba(3, 105, 161, 0.5);
   transform: scale(1.02);
 }
 
@@ -897,6 +897,7 @@ const handleLogout = () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: #ffffff;
   transition: transform var(--transition-fast);
 }
 
@@ -920,6 +921,7 @@ const handleLogout = () => {
 .nav-item-label {
   font-size: 14px;
   font-weight: 500;
+  color: #ffffff;
   transition: opacity var(--transition-fast), width var(--transition-fast);
 }
 
@@ -975,7 +977,7 @@ const handleLogout = () => {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
   text-decoration: none;
   font-size: 13px;
   transition: background-color var(--transition-fast), color var(--transition-fast);
@@ -1001,17 +1003,17 @@ const handleLogout = () => {
 /* 二级菜单选中效果优化 */
 .nav-subitem.active {
   color: #ffffff;
-  background: linear-gradient(90deg, rgba(3, 105, 161, 0.5), rgba(3, 105, 161, 0.15));
+  background: linear-gradient(90deg, rgba(3, 105, 161, 0.6), rgba(3, 105, 161, 0.2));
   font-weight: 600;
 }
 
 .nav-subitem.active::before {
-  background: #0369a1;
+  background: #ffffff;
 }
 
 /* 父级菜单联动高亮 - 当子菜单选中时 */
 .nav-item.parent-active {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(3, 105, 161, 0.2);
   color: white;
 }
 
@@ -1047,11 +1049,11 @@ const handleLogout = () => {
 }
 
 .sidebar.collapsed .submenu-popup .nav-subitem:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(3, 105, 161, 0.15);
 }
 
 .sidebar.collapsed .submenu-popup .nav-subitem.active {
-  background: linear-gradient(90deg, rgba(3, 105, 161, 0.5), rgba(3, 105, 161, 0.15));
+  background: linear-gradient(90deg, rgba(3, 105, 161, 0.6), rgba(3, 105, 161, 0.2));
   color: #ffffff;
   font-weight: 600;
 }
@@ -1092,7 +1094,7 @@ const handleLogout = () => {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1150,7 +1152,7 @@ const handleLogout = () => {
   bottom: auto;
   transform: none;
   z-index: 1001;
-  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 16px rgba(3, 105, 161, 0.4);
   width: 40px;
