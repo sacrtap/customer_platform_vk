@@ -272,7 +272,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { getCustomer, updateCustomer, getProfile } from '@/api/customers'
@@ -280,7 +280,7 @@ import { getCustomerBalance, getInvoices, type Invoice } from '@/api/billing'
 import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
 import { getDailyUsage } from '@/api/usage'
 import type { Customer, CustomerProfile, Balance } from '@/types'
-import { formatCurrency, formatDate, formatDateTime, formatNumber } from '@/utils/formatters'
+import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 
 const route = useRoute()
 const router = useRouter()

@@ -487,7 +487,7 @@
           </ActionButton>
 
           <!-- 通知 -->
-          <ActionButton label="消息通知" badge @click="$message.info('通知功能开发中')">
+          <ActionButton label="消息通知" :badge="3" @click="$message.info('通知功能开发中')">
             <svg
               aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
