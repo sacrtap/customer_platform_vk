@@ -219,6 +219,16 @@
             </a-popconfirm>
           </a-space>
         </template>
+        <template #empty>
+          <EmptyState 
+            title="暂无客户数据" 
+            description="点击「新建客户」添加第一个客户"
+          >
+            <template #action>
+              <a-button type="primary" @click="openCreateModal">新建客户</a-button>
+            </template>
+          </EmptyState>
+        </template>
       </a-table>
     </div>
 
@@ -388,6 +398,7 @@ import {
 } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
+import EmptyState from '@/components/EmptyState.vue'
 
 const router = useRouter()
 
@@ -422,15 +433,15 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 100 },
-  { title: '客户名称', dataIndex: 'name', width: 180 },
-  { title: '业务类型', dataIndex: 'business_type', width: 90 },
-  { title: '客户等级', dataIndex: 'customer_level', width: 90 },
-  { title: '结算方式', dataIndex: 'settlement_type', width: 90 },
-  { title: '运营经理', dataIndex: 'manager', width: 100 },
-  { title: '重点客户', dataIndex: 'is_key_customer', width: 70 },
-  { title: '创建时间', dataIndex: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 260, fixed: 'right' as const },
+  { title: '公司 ID', dataIndex: 'company_id', width: 120, ellipsis: true, tooltip: true },
+  { title: '客户名称', dataIndex: 'name', width: 200, ellipsis: true, tooltip: true },
+  { title: '业务类型', dataIndex: 'business_type', width: 100 },
+  { title: '客户等级', dataIndex: 'customer_level', width: 100 },
+  { title: '结算方式', dataIndex: 'settlement_type', width: 100 },
+  { title: '运营经理', dataIndex: 'manager', width: 120, ellipsis: true, tooltip: true },
+  { title: '重点客户', dataIndex: 'is_key_customer', width: 90 },
+  { title: '创建时间', dataIndex: 'created_at', width: 180 },
+  { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
 ]
 
 // 加载客户列表

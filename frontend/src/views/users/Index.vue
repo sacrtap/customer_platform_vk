@@ -68,6 +68,16 @@
             </a-popconfirm>
           </a-space>
         </template>
+        <template #empty>
+          <EmptyState 
+            title="暂无用户数据" 
+            description="点击「新建用户」添加第一个用户"
+          >
+            <template #action>
+              <a-button type="primary" @click="handleCreate">新建用户</a-button>
+            </template>
+          </EmptyState>
+        </template>
       </a-table>
     </div>
 
@@ -179,6 +189,7 @@ import {
   type User as ApiUser,
 } from '@/api/users'
 import { getRoles } from '@/api/roles'
+import EmptyState from '@/components/EmptyState.vue'
 
 // ========== 类型定义 ==========
 interface User {
@@ -216,7 +227,7 @@ const pagination = reactive({
 // 表格列定义
 const columns = [
   { title: '用户名', dataIndex: 'username', width: 150 },
-  { title: '邮箱', dataIndex: 'email', width: 200 },
+  { title: '邮箱', dataIndex: 'email', width: 220, ellipsis: true, tooltip: true },
   { title: '真实姓名', dataIndex: 'real_name', width: 120 },
   { title: '角色', slotName: 'roles', width: 200 },
   { title: '状态', slotName: 'status', width: 100 },

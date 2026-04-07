@@ -94,6 +94,16 @@
             >
           </a-space>
         </template>
+        <template #empty>
+          <EmptyState 
+            title="暂无余额数据" 
+            description="点击「新建充值」为客户充值"
+          >
+            <template #action>
+              <a-button type="primary" @click="openRechargeModal()">新建充值</a-button>
+            </template>
+          </EmptyState>
+        </template>
       </a-table>
     </div>
 
@@ -199,6 +209,7 @@ import {
   type RechargeRecord,
 } from '@/api/billing'
 import { getCustomers } from '@/api/customers'
+import EmptyState from '@/components/EmptyState.vue'
 
 // 筛选条件
 const filters = reactive({
@@ -223,10 +234,10 @@ const customerOptions = ref<any[]>([])
 
 // 表格列定义
 const columns = [
-  { title: '客户名称', dataIndex: 'customer_name', width: 200 },
-  { title: '余额', slotName: 'balance', width: 250 },
-  { title: '已消耗', slotName: 'used', width: 180 },
-  { title: '操作', slotName: 'action', width: 180, fixed: 'right' as const },
+  { title: '客户名称', dataIndex: 'customer_name', width: 200, ellipsis: true, tooltip: true },
+  { title: '余额', slotName: 'balance', width: 280 },
+  { title: '已消耗', slotName: 'used', width: 200 },
+  { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
 // 充值对话框相关
