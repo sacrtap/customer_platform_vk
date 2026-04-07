@@ -51,13 +51,13 @@
           </span>
         </template>
         <template #roles="{ record }">
-          <a-tooltip :content="record.roles.join(', ')" v-if="record.roles.length > 1">
+          <a-tooltip :content="record.roles?.join(', ')" v-if="record.roles && record.roles.length > 1">
             <a-tag v-for="(role, index) in record.roles" :key="role" size="small" style="margin-right: 4px" v-show="index === 0">
               {{ role }}
               <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8">+{{ record.roles.length - 1 }}</span>
             </a-tag>
           </a-tooltip>
-          <a-tag v-else size="small">{{ record.roles[0] || '-' }}</a-tag>
+          <a-tag v-else size="small">{{ (record.roles && record.roles[0]) || '-' }}</a-tag>
         </template>
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
@@ -207,7 +207,7 @@ const columns = [
   { title: '真实姓名', dataIndex: 'real_name', width: 90, ellipsis: true, tooltip: true },
   { title: '角色', slotName: 'roles', width: 150 },
   { title: '状态', slotName: 'status', width: 90, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 150 },
+  { title: '创建时间', slotName: 'created_at', width: 170 },
   { title: '操作', slotName: 'action', width: 190, fixed: 'right' as const },
 ]
 
@@ -486,7 +486,7 @@ onMounted(() => {
 }
 
 :deep(.arco-table) {
-  font-size: 13px;
+  font-size: 12px;
 }
 
 :deep(.arco-table-th) {
