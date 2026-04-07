@@ -40,6 +40,7 @@
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        :scroll="{ x: 'max-content' }"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
@@ -50,9 +51,13 @@
           </span>
         </template>
         <template #roles="{ record }">
-          <a-tag v-for="role in record.roles" :key="role" size="small" style="margin-right: 4px">
-            {{ role }}
-          </a-tag>
+          <a-tooltip :content="record.roles.join(', ')" v-if="record.roles.length > 1">
+            <a-tag v-for="(role, index) in record.roles" :key="role" size="small" style="margin-right: 4px" v-show="index === 0">
+              {{ role }}
+              <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8">+{{ record.roles.length - 1 }}</span>
+            </a-tag>
+          </a-tooltip>
+          <a-tag v-else size="small">{{ record.roles[0] || '-' }}</a-tag>
         </template>
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
@@ -196,14 +201,14 @@ const pagination = reactive({
 
 // 表格列定义
 const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '用户名', dataIndex: 'username', width: 140, ellipsis: true, tooltip: true },
-  { title: '邮箱', dataIndex: 'email', width: 240, ellipsis: true, tooltip: true },
-  { title: '真实姓名', dataIndex: 'real_name', width: 100 },
-  { title: '角色', slotName: 'roles', width: 180 },
-  { title: '状态', slotName: 'status', width: 90, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 220, fixed: 'right' as const },
+  { title: 'ID', dataIndex: 'id', width: 60, align: 'right' as const },
+  { title: '用户名', dataIndex: 'username', width: 100, ellipsis: true, tooltip: true },
+  { title: '邮箱', dataIndex: 'email', width: 200, ellipsis: true, tooltip: true },
+  { title: '真实姓名', dataIndex: 'real_name', width: 90, ellipsis: true, tooltip: true },
+  { title: '角色', slotName: 'roles', width: 150 },
+  { title: '状态', slotName: 'status', width: 70, align: 'center' as const },
+  { title: '创建时间', slotName: 'created_at', width: 150 },
+  { title: '操作', slotName: 'action', width: 190, fixed: 'right' as const },
 ]
 
 // ========== 用户表单 ==========
@@ -455,14 +460,14 @@ onMounted(() => {
 }
 
 .header-title h1 {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--neutral-10);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .header-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--neutral-6);
 }
 
@@ -472,6 +477,7 @@ onMounted(() => {
 }
 
 .table-section {
+  width: 100%;
   background: white;
   border-radius: 16px;
   border: 1px solid var(--neutral-2);
@@ -479,13 +485,26 @@ onMounted(() => {
   overflow: hidden;
 }
 
+:deep(.arco-table) {
+  font-size: 13px;
+}
+
+:deep(.arco-table-th) {
+  font-weight: 600;
+  color: var(--neutral-7);
+}
+
+:deep(.arco-table-td) {
+  color: var(--neutral-7);
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -500,8 +519,8 @@ onMounted(() => {
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
