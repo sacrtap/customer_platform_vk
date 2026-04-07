@@ -64,6 +64,8 @@ class UserService:
         self, page: int = 1, page_size: int = 20
     ) -> tuple[List[User], int]:
         """获取用户列表（分页）"""
+        from sqlalchemy.orm import selectinload
+
         offset = (page - 1) * page_size
 
         # 获取总数
@@ -73,10 +75,11 @@ class UserService:
         total_result = await self.session.execute(count_query)
         total = total_result.scalar()
 
-        # 获取数据
+        # 获取数据（预加载 roles 关系）
         query = (
             select(User)
             .where(User.deleted_at.is_(None))
+            .options(selectinload(User.roles))
             .offset(offset)
             .limit(page_size)
         )
