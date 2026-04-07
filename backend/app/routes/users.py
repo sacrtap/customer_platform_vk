@@ -51,6 +51,7 @@ async def list_users(request: Request):
                         "real_name": user.real_name,
                         "is_active": user.is_active,
                         "is_system": user.is_system,
+                        "roles": [{"id": r.id, "name": r.name} for r in user.roles],
                         "created_at": user.created_at.isoformat()
                         if user.created_at
                         else None,
