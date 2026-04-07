@@ -30,141 +30,151 @@
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="stat-title">客户总数</span>
-          <div class="stat-icon primary">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              />
-            </svg>
-          </div>
-        </div>
-        <div class="stat-value">{{ stats.totalCustomers.toLocaleString() }}</div>
-        <div class="stat-change positive">
+      <StatCard 
+        title="客户总数" 
+        :value="stats.totalCustomers.toLocaleString()" 
+        variant="primary" 
+        :icon="true"
+      >
+        <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            viewBox="0 0 16 16"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-              fill-rule="evenodd"
-              d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             />
           </svg>
-          关键客户 {{ stats.keyCustomers }} 家
-        </div>
-      </div>
-
-      <div class="stat-card success">
-        <div class="stat-header">
-          <span class="stat-title">本月消耗</span>
-          <div class="stat-icon success">
+        </template>
+        <template #subtitle>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #22c55e;">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
             >
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                fill-rule="evenodd"
+                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
               />
             </svg>
+            关键客户 {{ stats.keyCustomers }} 家
           </div>
-        </div>
-        <div class="stat-value">¥{{ (stats.monthConsumption / 10000).toFixed(1) }}万</div>
-        <div class="stat-change positive">
+        </template>
+      </StatCard>
+
+      <StatCard 
+        title="本月消耗" 
+        :value="'¥' + (stats.monthConsumption / 10000).toFixed(1) + '万'" 
+        variant="success" 
+        :icon="true"
+      >
+        <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            viewBox="0 0 16 16"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-              fill-rule="evenodd"
-              d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          结算单 {{ stats.monthInvoiceCount }} 份
-        </div>
-      </div>
-
-      <div class="stat-card warning">
-        <div class="stat-header">
-          <span class="stat-title">待确认账单</span>
-          <div class="stat-icon warning">
+        </template>
+        <template #subtitle>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #22c55e;">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
             >
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                fill-rule="evenodd"
+                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
               />
             </svg>
+            结算单 {{ stats.monthInvoiceCount }} 份
           </div>
-        </div>
-        <div class="stat-value">{{ stats.pendingConfirmation }}</div>
-        <div class="stat-change negative">
+        </template>
+      </StatCard>
+
+      <StatCard 
+        title="待确认账单" 
+        :value="stats.pendingConfirmation" 
+        variant="warning" 
+        :icon="true"
+      >
+        <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            fill="currentColor"
-            viewBox="0 0 16 16"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
             <path
-              fill-rule="evenodd"
-              d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          待处理
-        </div>
-      </div>
-
-      <div class="stat-card danger">
-        <div class="stat-header">
-          <span class="stat-title">总余额</span>
-          <div class="stat-icon danger">
+        </template>
+        <template #subtitle>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #ef4444;">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
             >
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                fill-rule="evenodd"
+                d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
               />
             </svg>
+            待处理
           </div>
-        </div>
-        <div class="stat-value">¥{{ (stats.totalBalance / 10000).toFixed(1) }}万</div>
-        <div class="stat-change negative">
-          <span style="font-size: 12px;">实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span>
-        </div>
-      </div>
+        </template>
+      </StatCard>
+
+      <StatCard 
+        title="总余额" 
+        :value="'¥' + (stats.totalBalance / 10000).toFixed(1) + '万'" 
+        variant="danger" 
+        :icon="true"
+      >
+        <template #icon>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+        </template>
+        <template #subtitle>
+          <span style="font-size: 13px; color: #ef4444;">实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span>
+        </template>
+      </StatCard>
     </div>
 
     <!-- 内容网格 -->
@@ -304,6 +314,7 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
+import StatCard from '@/components/StatCard.vue'
 import {
   getDashboardStats,
   getDashboardChartData,
@@ -587,120 +598,12 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* 统计卡片 */
+/* 统计卡片网格 */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 24px;
   margin-bottom: 32px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--neutral-2);
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
-}
-
-.stat-card.success::before {
-  background: linear-gradient(90deg, var(--success-5) 0%, var(--success-6) 100%);
-}
-
-.stat-card.warning::before {
-  background: linear-gradient(90deg, var(--warning-5) 0%, var(--warning-6) 100%);
-}
-
-.stat-card.danger::before {
-  background: linear-gradient(90deg, var(--danger-5) 0%, var(--danger-6) 100%);
-}
-
-.stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.stat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.stat-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--neutral-6);
-}
-
-.stat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stat-icon.primary {
-  background: var(--primary-1);
-  color: var(--primary-6);
-}
-
-.stat-icon.success {
-  background: var(--success-1);
-  color: var(--success-6);
-}
-
-.stat-icon.warning {
-  background: var(--warning-1);
-  color: var(--warning-6);
-}
-
-.stat-icon.danger {
-  background: var(--danger-1);
-  color: var(--danger-6);
-}
-
-.stat-icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-.stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
-}
-
-.stat-change {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.stat-change.positive {
-  color: var(--success-6);
-}
-
-.stat-change.negative {
-  color: var(--danger-6);
 }
 
 /* 内容网格 */
