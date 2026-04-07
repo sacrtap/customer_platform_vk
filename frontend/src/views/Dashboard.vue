@@ -5,6 +5,7 @@
       <div class="sidebar-logo">
         <div class="logo-icon">
           <svg
+            aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -26,9 +27,10 @@
         <div class="nav-section">
           <div class="nav-section-title">核心功能</div>
 
-          <a class="nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
+           <a class="nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -53,6 +55,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -81,6 +84,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -150,6 +154,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -178,6 +183,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -258,6 +264,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -282,6 +289,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -306,6 +314,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -334,6 +343,7 @@
           >
             <div class="nav-item-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -436,7 +446,7 @@
     </aside>
 
     <!-- 主内容区 -->
-    <main class="main-content">
+    <main :class="['main-content', { 'sidebar-collapsed': sidebarCollapsed }]">
       <!-- 顶部栏 -->
       <header class="header">
         <div class="header-left">
@@ -450,8 +460,9 @@
 
         <div class="header-right">
           <!-- 搜索 -->
-          <div class="header-action" @click="$message.info('搜索功能开发中')">
+          <ActionButton label="搜索" @click="$message.info('搜索功能开发中')">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -464,12 +475,12 @@
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-            <span class="tooltip">搜索</span>
-          </div>
+          </ActionButton>
 
           <!-- 通知 -->
-          <div class="header-action" @click="$message.info('通知功能开发中')">
+          <ActionButton label="消息通知" badge @click="$message.info('通知功能开发中')">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -482,13 +493,12 @@
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
               />
             </svg>
-            <span class="action-badge"></span>
-            <span class="tooltip">消息通知</span>
-          </div>
+          </ActionButton>
 
           <!-- 设置 -->
-          <div class="header-action" @click="$message.info('设置功能开发中')">
+          <ActionButton label="系统设置" @click="$message.info('设置功能开发中')">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -501,14 +511,14 @@
                 d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
               />
             </svg>
-            <span class="tooltip">系统设置</span>
-          </div>
+          </ActionButton>
 
           <div class="header-divider"></div>
 
           <!-- 退出 -->
-          <div class="header-action" @click="handleLogout">
+          <ActionButton label="退出登录" @click="handleLogout">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -521,8 +531,7 @@
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
               />
             </svg>
-            <span class="tooltip">退出登录</span>
-          </div>
+          </ActionButton>
         </div>
       </header>
 
@@ -539,6 +548,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import ActionButton from '@/components/ActionButton.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -586,18 +596,6 @@ watch(sidebarCollapsed, (collapsed) => {
     expandedSubmenu.value = null
   }
 })
-
-// 监听侧边栏状态，同步更新 main-content 的类
-watch(
-  sidebarCollapsed,
-  (collapsed) => {
-    const mainContent = document.querySelector('.main-content')
-    if (mainContent) {
-      mainContent.classList.toggle('sidebar-collapsed', collapsed)
-    }
-  },
-  { immediate: true }
-)
 
 // 初始化时从 localStorage 读取侧边栏状态
 onMounted(() => {
@@ -823,7 +821,7 @@ const handleLogout = () => {
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
   cursor: pointer;
   margin-bottom: 4px;
   position: relative;
@@ -862,6 +860,7 @@ const handleLogout = () => {
   background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 /* 收起模式下的选中图标状态 - 更明显的视觉效果 */
@@ -906,7 +905,7 @@ const handleLogout = () => {
 .nav-item-label {
   font-size: 14px;
   font-weight: 500;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), width var(--transition-fast);
 }
 
 .sidebar.collapsed .nav-item-label,
@@ -952,7 +951,7 @@ const handleLogout = () => {
   margin-top: 4px;
   padding-left: 32px;
   overflow: hidden;
-  transition: all var(--transition-fast);
+  transition: opacity var(--transition-base), transform var(--transition-base);
 }
 
 .nav-subitem {
@@ -1249,77 +1248,6 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.header-action {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--neutral-6);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-.header-action:hover {
-  background: var(--neutral-1);
-  color: var(--neutral-9);
-}
-
-.header-action svg {
-  width: 20px;
-  height: 20px;
-}
-
-.action-badge {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 8px;
-  height: 8px;
-  background: var(--danger-5);
-  border-radius: 50%;
-  border: 2px solid white;
-}
-
-.tooltip {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
-  padding: 6px 12px;
-  background: var(--neutral-10);
-  color: white;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 8px;
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition: all var(--transition-fast);
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-}
-
-.tooltip::before {
-  content: '';
-  position: absolute;
-  top: -4px;
-  right: 12px;
-  width: 8px;
-  height: 8px;
-  background: var(--neutral-10);
-  transform: rotate(45deg);
-}
-
-.header-action:hover .tooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
 }
 
 .header-divider {
