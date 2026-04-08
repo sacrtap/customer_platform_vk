@@ -198,3 +198,6 @@ secrets/
 # Git worktrees
 .worktrees/
 .worktrees/
+
+# Graphify knowledge graph cache
+graphify-out/cache/
