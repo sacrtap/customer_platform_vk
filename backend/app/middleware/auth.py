@@ -41,10 +41,14 @@ def auth_middleware(app: Sanic):
                 payload = AuthService.verify_token(token)
             except Exception as e:
                 app.logger.warning(f"Token verification failed: {e}")
-                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
+                return json(
+                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
+                )
 
             if not payload:
-                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
+                return json(
+                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
+                )
 
             # 检查 Token 是否在黑名单中
             jti = payload.get("jti")
@@ -126,11 +130,15 @@ def _check_permission(user_permissions: set, required_permission: str) -> bool:
     if required_permission in user_permissions:
         return True
 
-    # 解析权限模块和操作
-    if ":" not in required_permission:
+    # 解析权限模块和操作（支持 : 和 . 两种分隔符）
+    if ":" not in required_permission and "." not in required_permission:
         return False
 
-    module, action = required_permission.split(":", 1)
+    # 支持 : 和 . 两种分隔符
+    if ":" in required_permission:
+        module, action = required_permission.split(":", 1)
+    else:
+        module, action = required_permission.split(".", 1)
 
     # 检查是否有 manage 权限（manage 包含 read/write/delete）
     manage_permission = f"{module}:manage"

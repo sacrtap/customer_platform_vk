@@ -129,20 +129,31 @@ def test_user(db_session):
         {"name": "admin", "description": "系统管理员"},
     )
 
-    # 创建权限（包含 billing 和 files 权限）
+    # 创建权限（包含 billing、files 和 roles 权限）
+    # 注意：权限代码使用 . 分隔符（如 roles.create），与路由中的 require_permission 一致
     permissions = [
-        ("users:manage", "用户管理", "users"),
-        ("users:read", "用户查看", "users"),
-        ("customers:manage", "客户管理", "customers"),
-        ("customers:read", "客户查看", "customers"),
-        ("billing:manage", "结算管理", "billing"),
-        ("billing:read", "结算查看", "billing"),
-        ("billing:write", "结算操作", "billing"),
-        ("billing:delete", "结算删除", "billing"),
-        ("files:manage", "文件管理", "files"),
-        ("files:read", "文件查看", "files"),
-        ("files:write", "文件上传", "files"),
-        ("files:delete", "文件删除", "files"),
+        ("users.manage", "用户管理", "users"),
+        ("users.read", "用户查看", "users"),
+        ("customers.manage", "客户管理", "customers"),
+        ("customers.read", "客户查看", "customers"),
+        ("billing.manage", "结算管理", "billing"),
+        ("billing.read", "结算查看", "billing"),
+        ("billing.write", "结算操作", "billing"),
+        ("billing.delete", "结算删除", "billing"),
+        ("files.manage", "文件管理", "files"),
+        ("files.read", "文件查看", "files"),
+        ("files.write", "文件上传", "files"),
+        ("files.delete", "文件删除", "files"),
+        ("roles.manage", "角色管理", "roles"),
+        ("roles.create", "创建角色", "roles"),
+        ("roles.update", "更新角色", "roles"),
+        ("roles.delete", "删除角色", "roles"),
+        ("roles.view", "查看角色", "roles"),
+        ("permissions.manage", "权限管理", "permissions"),
+        ("permissions.create", "创建权限", "permissions"),
+        ("permissions.update", "更新权限", "permissions"),
+        ("permissions.delete", "删除权限", "permissions"),
+        ("permissions.view", "查看权限", "permissions"),
     ]
     for perm_code, desc, module in permissions:
         db_session.execute(
