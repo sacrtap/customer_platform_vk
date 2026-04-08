@@ -147,6 +147,7 @@ coverage/
 frontend/playwright-report/
 frontend/tests/e2e/playwright-report/
 frontend/tests/e2e/test-results/
+.playwright-mcp/
 
 # Production
 /dist
