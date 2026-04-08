@@ -1,7 +1,7 @@
 # 设计快速参考卡片
 
 > 客户运营中台 - 开发速查手册  
-> 更新日期：2026-04-06
+> 更新日期：2026-04-08
 
 ---
 
@@ -50,6 +50,25 @@ font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 | 标题 | 24-28px | 700 |
 | 正文 | 14-16px | 400/500 |
 | 辅助 | 12-13px | 400 |
+
+### 📊 表格字体规范（重要）
+
+| 元素 | 字号 | 字重 | 行高 | 用途 |
+|------|------|------|------|------|
+| 表头 (th) | **14px** | 600 | 1.5 | 列标题 |
+| 表格内容 (td) | **14px** | 400 | 1.5 | 数据单元格 |
+| 操作按钮 | **14px** | 500 | 1.5 | 编辑、删除等 |
+| 状态徽章 | **12px** | 500 | 1.4 | 状态标签 |
+| 分页文字 | **14px** | 400 | 1.5 | 分页器文字 |
+
+**⚠️ 禁止字号**: 10px、11px、13px
+
+**✅ 实施检查点**:
+- 表格基础字号: 14px
+- 表头字重 600, 内容字重 400
+- 操作按钮 14px/500
+- 状态徽章 12px/500
+- 分页文字 14px/400
 
 ---
 
@@ -138,6 +157,149 @@ font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 .status-badge.warning { background: #fff7e8; color: #f59e0b; }
 .status-badge.danger  { background: #ffe8e8; color: #ef4444; }
 .status-badge.info    { background: #e8f3ff; color: #0369A1; }
+```
+
+---
+
+## 📊 表格样式规范
+
+### 表格字体大小标准（重要）
+
+| 元素 | 字号 | 字重 | 说明 |
+|------|------|------|------|
+| 表头 (th) | **14px** | 600 | 列标题 |
+| 表格内容 (td) | **14px** | 400 | 数据单元格 |
+| 操作按钮 | **14px** | 500 | 编辑、删除等 |
+| 状态徽章 | **12px** | 500 | 状态标签 |
+| 分页文字 | **14px** | 400 | 分页器文字 |
+
+**⚠️ 禁止字号**: 10px、11px、13px
+
+### 表格基础样式
+
+```css
+/* 表格容器 */
+.table-container {
+  overflow-x: auto;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E8F3FF;
+}
+
+/* 表头 */
+th {
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4C5360;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E8F3FF;
+}
+
+/* 表体单元格 */
+td {
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #4C5360;
+  border-bottom: 1px solid #E8F3FF;
+  vertical-align: middle;
+}
+
+/* 行悬停 */
+tr:hover td {
+  background: #F8FAFC;
+}
+```
+
+### 操作按钮样式
+
+```css
+/* 操作列 */
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 文字按钮 */
+.table-actions .btn-text {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 12px;
+  color: #0369A1;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.table-actions .btn-text:hover {
+  background: #E8F3FF;
+}
+
+/* 危险按钮 */
+.table-actions .btn-text-danger {
+  color: #ef4444;
+}
+
+.table-actions .btn-text-danger:hover {
+  background: #ffe8e8;
+  color: #dc2626;
+}
+```
+
+### 分页组件样式
+
+```css
+/* 分页容器 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  font-size: 14px;
+}
+
+/* 分页信息 */
+.pagination-info {
+  font-size: 14px;
+  color: #646A73;
+  margin-right: 16px;
+}
+
+/* 分页按钮 */
+.pagination .btn-page {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4C5360;
+  background: white;
+  border: 1px solid #E0E2E7;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.pagination .btn-page:hover {
+  border-color: #0369A1;
+  color: #0369A1;
+}
+
+.pagination .btn-page.active {
+  background: #0369A1;
+  color: white;
+  border-color: #0369A1;
+}
+
+.pagination .btn-page:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 ```
 
 ---

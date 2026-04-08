@@ -230,7 +230,7 @@
       :title="isEditMode ? '编辑客户' : '新建客户'"
       :confirm-loading="customerModalLoading"
       width="600px"
-      @ok="handleCustomerSubmit"
+      @before-ok="handleCustomerSubmit"
       @cancel="handleCustomerModalCancel"
     >
       <a-form
@@ -350,7 +350,7 @@
       title="导入客户"
       :confirm-loading="importLoading"
       width="500px"
-      @ok="handleImportSubmit"
+      @before-ok="handleImportSubmit"
       @cancel="importModalVisible = false"
     >
       <a-alert type="info" style="margin-bottom: 16px">
@@ -661,7 +661,7 @@ const handleCustomerSubmit = async () => {
   try {
     await customerFormRef.value?.validate()
   } catch {
-    return
+    return false
   }
 
   customerModalLoading.value = true
@@ -686,10 +686,11 @@ const handleCustomerSubmit = async () => {
       await createCustomer(data)
       Message.success('创建成功')
     }
-    customerModalVisible.value = false
     loadCustomers()
+    return true
   } catch (error: any) {
     Message.error(error.message || '操作失败')
+    return false
   } finally {
     customerModalLoading.value = false
   }
@@ -741,7 +742,7 @@ const downloadTemplate = async () => {
 const handleImportSubmit = async () => {
   if (importFileList.value.length === 0) {
     Message.error('请选择要导入的文件')
-    return
+    return false
   }
 
   importLoading.value = true
@@ -749,10 +750,11 @@ const handleImportSubmit = async () => {
     const file = importFileList.value[0].originFile
     await importCustomers(file)
     Message.success('导入成功')
-    importModalVisible.value = false
     loadCustomers()
+    return true
   } catch (error: any) {
     Message.error(error.message || '导入失败')
+    return false
   } finally {
     importLoading.value = false
   }

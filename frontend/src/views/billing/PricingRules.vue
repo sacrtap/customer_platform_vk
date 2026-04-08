@@ -128,7 +128,7 @@
       :title="modalTitle"
       :confirm-loading="modalLoading"
       width="600px"
-      @ok="handleSubmit"
+      @before-ok="handleSubmit"
     >
       <a-form :model="formData" layout="vertical">
         <a-form-item label="客户" :rules="[{ required: true, message: '请选择客户' }]">
@@ -410,11 +410,11 @@ const onPricingTypeChange = () => {
 const handleSubmit = async () => {
   if (!formData.customer_id) {
     Message.warning('请选择客户')
-    return
+    return false
   }
   if (!formData.effective_date) {
     Message.warning('请选择生效日期')
-    return
+    return false
   }
 
   modalLoading.value = true
@@ -436,7 +436,7 @@ const handleSubmit = async () => {
         } catch (e) {
           Message.error('阶梯配置 JSON 格式不正确')
           modalLoading.value = false
-          return
+          return false
         }
       }
     } else if (formData.pricing_type === 'package' && formData.package_type) {
@@ -450,10 +450,11 @@ const handleSubmit = async () => {
       await billingApi.createPricingRule(data)
       Message.success('创建成功')
     }
-    modalVisible.value = false
     fetchData()
+    return true
   } catch (err: unknown) {
     Message.error((err as Error)?.message || '操作失败')
+    return false
   } finally {
     modalLoading.value = false
   }

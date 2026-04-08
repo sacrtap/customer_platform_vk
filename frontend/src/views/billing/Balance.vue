@@ -101,7 +101,7 @@
       v-model:visible="rechargeModalVisible"
       title="客户充值"
       :confirm-loading="rechargeLoading"
-      @ok="handleRecharge"
+      @before-ok="handleRecharge"
       @cancel="rechargeModalVisible = false"
     >
       <a-form ref="rechargeFormRef" :model="rechargeForm" layout="vertical">
@@ -326,11 +326,11 @@ const openRechargeModal = (balance?: Balance) => {
 const handleRecharge = async () => {
   if (!rechargeForm.customer_id) {
     Message.error('请选择客户')
-    return
+    return false
   }
   if (!rechargeForm.real_amount || rechargeForm.real_amount <= 0) {
     Message.error('请输入有效的充值金额')
-    return
+    return false
   }
 
   rechargeLoading.value = true
@@ -342,10 +342,11 @@ const handleRecharge = async () => {
       remark: rechargeForm.remark || undefined,
     })
     Message.success('充值成功')
-    rechargeModalVisible.value = false
     loadBalances()
+    return true
   } catch (error: any) {
     Message.error(error.message || '充值失败')
+    return false
   } finally {
     rechargeLoading.value = false
   }

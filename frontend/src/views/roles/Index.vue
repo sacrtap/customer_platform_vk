@@ -13,6 +13,7 @@
           allow-clear
           @search="handleSearch"
           @clear="handleSearch"
+          @press-enter="handleSearch"
         />
         <a-button type="primary" @click="handleCreate">
           <template #icon>
@@ -91,7 +92,7 @@
       :title="isEditMode ? '编辑角色' : '新建角色'"
       :confirm-loading="submitting"
       width="500px"
-      @ok="handleRoleSubmit"
+      @before-ok="handleRoleSubmit"
       @cancel="handleRoleModalCancel"
     >
       <a-form ref="roleFormRef" :model="roleForm" :rules="roleFormRules" layout="vertical">
@@ -116,7 +117,7 @@
       :title="`${currentRole?.name || ''} - 权限配置`"
       :confirm-loading="savingPermissions"
       width="700px"
-      @ok="handlePermissionSubmit"
+      @before-ok="handlePermissionSubmit"
       @cancel="handlePermissionModalCancel"
     >
       <div class="permission-config">
@@ -259,6 +260,7 @@ const loadRoles = async () => {
     const res = await getRoles({
       page: pagination.current,
       page_size: pagination.pageSize,
+      keyword: searchKeyword.value || undefined,
     })
     const data = res.data as any
     roles.value = (data.list || []).map((item: ApiRole) => ({
@@ -328,7 +330,7 @@ const handleRoleSubmit = async () => {
   try {
     await roleFormRef.value?.validate()
   } catch {
-    return
+    return false
   }
 
   submitting.value = true
@@ -346,10 +348,11 @@ const handleRoleSubmit = async () => {
       })
       Message.success('角色创建成功')
     }
-    roleModalVisible.value = false
     loadRoles()
+    return true
   } catch (error: any) {
     Message.error(error.message || '操作失败')
+    return false
   } finally {
     submitting.value = false
   }
@@ -387,16 +390,17 @@ const handlePermissionModalCancel = () => {
 }
 
 const handlePermissionSubmit = async () => {
-  if (!currentRole.value) return
+  if (!currentRole.value) return false
 
   savingPermissions.value = true
   try {
     await updateRolePermissions(currentRole.value.id, selectedPermissionIds.value)
     Message.success('权限配置成功')
-    permissionModalVisible.value = false
     loadRoles()
+    return true
   } catch (error: any) {
     Message.error(error.message || '权限配置失败')
+    return false
   } finally {
     savingPermissions.value = false
   }

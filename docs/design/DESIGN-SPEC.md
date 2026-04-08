@@ -1,8 +1,8 @@
 # 客户运营中台 - UI 设计规范文档
 
-> **版本**: 1.0  
+> **版本**: 1.1  
 > **创建日期**: 2026-04-06  
-> **最后更新**: 2026-04-06  
+> **最后更新**: 2026-04-08  
 > **适用项目**: Customer Platform VK
 
 ---
@@ -424,39 +424,161 @@ font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 
 ### 表格
 
+#### 表格字体大小规范（重要）
+
+为确保表格视觉一致性，所有表格元素必须遵循以下字号规范：
+
+| 元素 | 字号 | 字重 | 行高 | 用途 |
+|------|------|------|------|------|
+| 表头 (th) | **14px** | 600 | 1.5 | 列标题 |
+| 表格内容 (td) | **14px** | 400 | 1.5 | 数据单元格 |
+| 操作按钮 | **14px** | 500 | 1.5 | 编辑、删除等操作 |
+| 状态徽章 | **12px** | 500 | 1.4 | 状态标签 |
+| 分页文字 | **14px** | 400 | 1.5 | 分页器文字 |
+
+**⚠️ 禁止使用的字号**：10px、11px、13px（会造成视觉不一致）
+
+**✅ 实施检查清单：**
+- [ ] 表格基础字号设置为 14px (`font-size: 14px`)
+- [ ] 表头字重 600，内容字重 400
+- [ ] 所有操作按钮字号统一为 14px
+- [ ] 状态徽章可适当缩小至 12px
+- [ ] 分页组件文字统一为 14px
+- [ ] 禁止出现 10px、11px、13px 等不一致字号
+
+#### 表格样式代码
+
 ```css
+/* 表格容器 */
 .table-container {
   overflow-x: auto;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E8F3FF;
 }
 
+/* 基础表格 */
 table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 14px; /* 统一基础字号 */
 }
 
+/* 表头样式 */
 th {
   text-align: left;
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: 14px 16px;
+  font-size: 14px; /* 统一为14px */
   font-weight: 600;
-  color: #646A73;
+  color: #4C5360;
   background: #F8FAFC;
   border-bottom: 1px solid #E8F3FF;
+  white-space: nowrap;
 }
 
+/* 表体单元格 */
 td {
-  padding: 16px;
-  font-size: 14px;
+  padding: 14px 16px;
+  font-size: 14px; /* 统一为14px */
+  font-weight: 400;
   color: #4C5360;
   border-bottom: 1px solid #E8F3FF;
+  vertical-align: middle;
 }
 
+/* 最后一行无边框 */
 tr:last-child td {
   border-bottom: none;
 }
 
+/* 行悬停效果 */
 tr:hover td {
   background: #F8FAFC;
+}
+
+/* 操作列按钮 */
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.table-actions .btn-text {
+  font-size: 14px; /* 统一为14px */
+  font-weight: 500;
+  padding: 6px 12px;
+  color: #0369A1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.table-actions .btn-text:hover {
+  background: #E8F3FF;
+  color: #035a8a;
+}
+
+.table-actions .btn-text-danger {
+  color: #ef4444;
+}
+
+.table-actions .btn-text-danger:hover {
+  background: #ffe8e8;
+  color: #dc2626;
+}
+```
+
+#### 分页组件样式
+
+```css
+/* 分页容器 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  font-size: 14px; /* 统一为14px */
+  color: #4C5360;
+}
+
+/* 分页文字 */
+.pagination-info {
+  font-size: 14px;
+  color: #646A73;
+  margin-right: 16px;
+}
+
+/* 分页按钮 */
+.pagination .btn-page {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 14px; /* 统一为14px */
+  font-weight: 500;
+  color: #4C5360;
+  background: white;
+  border: 1px solid #E0E2E7;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.pagination .btn-page:hover {
+  border-color: #0369A1;
+  color: #0369A1;
+}
+
+.pagination .btn-page.active {
+  background: #0369A1;
+  color: white;
+  border-color: #0369A1;
+}
+
+.pagination .btn-page:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 ```
 
@@ -788,6 +910,17 @@ tr:hover td {
 - [ ] 悬停状态提供清晰的视觉反馈
 - [ ] 过渡动画流畅 (150-300ms)
 - [ ] 焦点状态对键盘导航可见
+
+### 表格样式检查（重要）
+
+- [ ] 表头 (th) 字号为 **14px**，字重 600
+- [ ] 表格内容 (td) 字号为 **14px**，字重 400
+- [ ] 操作按钮字号为 **14px**，字重 500
+- [ ] 状态徽章字号为 **12px**，字重 500
+- [ ] 分页文字字号为 **14px**，字重 400
+- [ ] **未使用** 10px、11px、13px 等不一致字号
+- [ ] 所有表格元素垂直居中对齐 (`vertical-align: middle`)
+- [ ] 表格行悬停时有明显的背景色变化
 
 ### 对比度与可访问性
 

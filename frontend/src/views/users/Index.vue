@@ -13,6 +13,7 @@
           allow-clear
           @search="handleSearch"
           @clear="handleSearch"
+          @press-enter="handleSearch"
         />
         <a-button type="primary" @click="handleCreate">
           <template #icon>
@@ -51,9 +52,9 @@
           </span>
         </template>
         <template #roles="{ record }">
-          <a-tooltip :content="record.roles?.map((r: any) => r.name).join(', ') || '-'" v-if="record.roles && record.roles.length > 0">
+          <a-tooltip v-if="record.roles && record.roles.length > 0" :content="record.roles?.map((r: any) => r.name).join(', ') || '-'">
             <span>
-              <a-tag v-for="(role, index) in record.roles" :key="role.id" size="small" style="margin-right: 4px" v-show="index === 0">
+              <a-tag v-for="(role, index) in record.roles" v-show="index === 0" :key="role.id" size="small" style="margin-right: 4px">
                 {{ role.name }}
                 <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8">+{{ record.roles.length - 1 }}</span>
               </a-tag>
@@ -133,7 +134,7 @@
       title="重置密码"
       :confirm-loading="resettingPassword"
       width="400px"
-      @ok="handlePasswordSubmit"
+      @before-ok="handlePasswordSubmit"
       @cancel="handlePasswordModalCancel"
     >
       <a-form
@@ -295,7 +296,11 @@ const passwordFormRules = {
   confirmPassword: [
     { required: true, message: '请确认新密码' },
     {
-      validator: (value: string, callback: (error?: Error) => void) => {
+      validator: (value: any, callback: (error?: Error) => void) => {
+        if (!value) {
+          callback()
+          return
+        }
         if (value !== passwordForm.newPassword) {
           callback(new Error('两次输入的密码不一致'))
         } else {
@@ -457,21 +462,31 @@ const handlePasswordModalCancel = () => {
 }
 
 const handlePasswordSubmit = async () => {
-  try {
-    await passwordFormRef.value?.validate()
-  } catch {
-    return
+  // 二次校验:确保两次密码一致
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    Message.error('两次输入的密码不一致')
+    return false // 阻止模态框关闭
   }
 
-  if (!resettingUserId.value) return
+  try {
+    await passwordFormRef.value?.validate()
+  } catch (error: any) {
+    if (error?.message) {
+      Message.error(error.message)
+    }
+    return false // 阻止模态框关闭
+  }
+
+  if (!resettingUserId.value) return false
 
   resettingPassword.value = true
   try {
     await resetPassword(resettingUserId.value, passwordForm.newPassword)
     Message.success('密码重置成功')
-    passwordModalVisible.value = false
+    return true // 允许模态框关闭
   } catch (error: any) {
     Message.error(error.message || '密码重置失败')
+    return false // 阻止模态框关闭
   } finally {
     resettingPassword.value = false
   }
@@ -532,18 +547,21 @@ onMounted(() => {
 }
 
 :deep(.arco-table) {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 :deep(.arco-table th) {
-  font-size: 12px;
+  background: var(--neutral-1);
+  color: var(--neutral-6);
   font-weight: 600;
-  color: var(--neutral-7);
 }
 
 :deep(.arco-table td) {
-  font-size: 12px;
   color: var(--neutral-7);
+}
+
+:deep(.arco-table tr:hover td) {
+  background: var(--neutral-1);
 }
 
 .status-badge {

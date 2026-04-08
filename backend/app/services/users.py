@@ -35,9 +35,7 @@ class UserService:
     @staticmethod
     def verify_password(plain_password: str, password_hash: str) -> bool:
         """验证密码"""
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"), password_hash.encode("utf-8")
-        )
+        return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
 
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         """根据 ID 获取用户"""
@@ -62,24 +60,34 @@ class UserService:
         return result.scalar_one_or_none()
 
     async def get_all_users(
-        self, page: int = 1, page_size: int = 20
+        self, page: int = 1, page_size: int = 20, keyword: Optional[str] = None
     ) -> tuple[List[User], int]:
-        """获取用户列表（分页）"""
+        """获取用户列表(分页)"""
         from sqlalchemy.orm import selectinload
 
         offset = (page - 1) * page_size
 
+        # 构建基础查询条件
+        base_conditions = [User.deleted_at.is_(None)]
+
+        # 添加 keyword 搜索条件
+        if keyword:
+            search_pattern = f"%{keyword}%"
+            base_conditions.append(
+                (User.username.like(search_pattern))
+                | (User.real_name.like(search_pattern))
+                | (User.email.like(search_pattern))
+            )
+
         # 获取总数
-        count_query = (
-            select(func.count()).select_from(User).where(User.deleted_at.is_(None))
-        )
+        count_query = select(func.count()).select_from(User).where(*base_conditions)
         total_result = await self.session.execute(count_query)
         total = total_result.scalar()
 
-        # 获取数据（预加载 roles 关系）
+        # 获取数据(预加载 roles 关系)
         query = (
             select(User)
-            .where(User.deleted_at.is_(None))
+            .where(*base_conditions)
             .options(selectinload(User.roles))
             .offset(offset)
             .limit(page_size)
@@ -103,9 +111,7 @@ class UserService:
             raise ValueError(f"用户名 {username} 已存在")
 
         # 密码加密
-        password_hash = bcrypt.hashpw(
-            password.encode("utf-8"), bcrypt.gensalt()
-        ).decode("utf-8")
+        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
         user = User(
             username=username,
@@ -162,9 +168,9 @@ class UserService:
         if not user:
             return False
 
-        user.password_hash = bcrypt.hashpw(
-            new_password.encode("utf-8"), bcrypt.gensalt()
-        ).decode("utf-8")
+        user.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
+            "utf-8"
+        )
         await self.session.flush()
         return True
 
