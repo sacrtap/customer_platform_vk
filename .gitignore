@@ -197,3 +197,4 @@ secrets/
 
 # Git worktrees
 .worktrees/
+.worktrees/
