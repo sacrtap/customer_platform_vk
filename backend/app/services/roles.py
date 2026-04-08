@@ -3,6 +3,7 @@
 from typing import List, Optional, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from ..models.users import Role, Permission, role_permissions
 from sqlalchemy import delete
 
@@ -34,6 +35,7 @@ class RoleService:
     async def get_role_by_id(self, role_id: int) -> Optional[Role]:
         """根据 ID 获取角色"""
         query = select(Role).where(Role.id == role_id)
+        query = query.options(selectinload(Role.permissions))
         result = await self.db_session.execute(query)
         return result.scalar_one_or_none()
 
