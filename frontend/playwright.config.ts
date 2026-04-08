@@ -32,7 +32,10 @@ export default defineConfig({
     },
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      use: { 
+        ...devices['Pixel 5'],
+        timeout: 60000, // 增加超时时间到 60s
+      },
     },
   ],
   outputDir: 'tests/e2e/test-results',

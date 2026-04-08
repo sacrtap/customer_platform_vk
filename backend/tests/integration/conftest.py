@@ -276,16 +276,38 @@ async def mock_cache():
     mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
 
-    # Mock 权限缓存
+    # Mock 权限缓存 - 返回所有必要的权限（包含 . 和 : 两种格式）
+    # 注意：数据库中的权限代码是 roles.create 格式，但 _check_permission 会同时支持两种分隔符
+    # 这里返回的权限需要匹配数据库中的权限代码
     mock_perm_cache = MagicMock()
     mock_perm_cache.get_permissions = AsyncMock(
         return_value={
             "users:manage",
-            "customers:read",
+            "users:read",
+            "users:write",
+            "users:delete",
             "customers:manage",
+            "customers:read",
+            "customers:write",
+            "customers:delete",
             "billing:manage",
             "billing:read",
             "billing:write",
+            "billing:delete",
+            "files:manage",
+            "files:read",
+            "files:write",
+            "files:delete",
+            "roles:manage",
+            "roles:create",
+            "roles:update",
+            "roles:delete",
+            "roles:view",
+            "permissions:manage",
+            "permissions:create",
+            "permissions:update",
+            "permissions:delete",
+            "permissions:view",
         }
     )
     mock_perm_cache.set_permissions = AsyncMock(return_value=True)

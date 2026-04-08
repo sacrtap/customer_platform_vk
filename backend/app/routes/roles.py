@@ -43,7 +43,9 @@ async def list_roles(request: Request):
                         "name": role.name,
                         "description": role.description,
                         "is_system": role.is_system,
-                        "created_at": role.created_at.isoformat() if role.created_at else None,
+                        "created_at": role.created_at.isoformat()
+                        if role.created_at
+                        else None,
                     }
                     for role in roles
                 ],
@@ -77,7 +79,8 @@ async def get_role(request: Request, role_id: int):
                 "description": role.description,
                 "is_system": role.is_system,
                 "permissions": [
-                    {"id": p.id, "code": p.code, "name": p.name} for p in role.permissions
+                    {"id": p.id, "code": p.code, "name": p.name}
+                    for p in role.permissions
                 ],
                 "created_at": role.created_at.isoformat() if role.created_at else None,
             },
@@ -86,7 +89,7 @@ async def get_role(request: Request, role_id: int):
 
 
 @roles_bp.post("")
-@require_permission("roles.create")
+@require_permission("roles:create")
 async def create_role(request: Request):
     """
     创建角色
@@ -132,7 +135,7 @@ async def create_role(request: Request):
 
 
 @roles_bp.put("/<role_id:int>")
-@require_permission("roles.update")
+@require_permission("roles:update")
 async def update_role(request: Request, role_id: int):
     """
     更新角色信息
@@ -149,12 +152,15 @@ async def update_role(request: Request, role_id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = RoleService(db_session)
 
-    role = await service.update_role(
-        role_id=role_id,
-        name=data.get("name"),
-        description=data.get("description"),
-        permission_ids=data.get("permission_ids"),
-    )
+    try:
+        role = await service.update_role(
+            role_id=role_id,
+            name=data.get("name"),
+            description=data.get("description"),
+            permission_ids=data.get("permission_ids"),
+        )
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
 
     if not role:
         return json({"code": 40401, "message": "角色不存在"}, status=404)
@@ -173,7 +179,7 @@ async def update_role(request: Request, role_id: int):
 
 
 @roles_bp.delete("/<role_id:int>")
-@require_permission("roles.delete")
+@require_permission("roles:delete")
 async def delete_role(request: Request, role_id: int):
     """删除角色（软删除）"""
     db_session: AsyncSession = request.ctx.db_session
@@ -193,7 +199,7 @@ async def delete_role(request: Request, role_id: int):
 
 
 @roles_bp.post("/<role_id:int>/permissions")
-@require_permission("roles.update")
+@require_permission("roles:update")
 async def assign_permissions(request: Request, role_id: int):
     """
     为角色分配权限
