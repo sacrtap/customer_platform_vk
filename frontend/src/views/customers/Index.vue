@@ -250,6 +250,7 @@
         :model="customerForm"
         :rules="customerFormRules"
         layout="vertical"
+        validate-trigger="['blur', 'change']"
       >
         <a-row :gutter="16">
           <a-col :span="12">
@@ -630,9 +631,15 @@ const customerForm = reactive({
 })
 
 const customerFormRules = {
-  company_id: [{ required: true, message: '请输入公司 ID' }],
-  name: [{ required: true, message: '请输入客户名称' }],
-  email: [{ type: 'email', message: '请输入有效的邮箱地址' }],
+  company_id: [
+    { required: true, message: '请输入公司 ID', trigger: ['blur', 'change'] }
+  ],
+  name: [
+    { required: true, message: '请输入客户名称', trigger: ['blur', 'change'] }
+  ],
+  email: [
+    { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] }
+  ],
 }
 
 // 打开新建对话框
@@ -885,5 +892,11 @@ onMounted(() => {
 
 :deep(.arco-table tr:hover td) {
   background: var(--neutral-1);
+}
+
+:deep(.arco-form-item-required) .arco-form-item-label::before {
+  content: '*';
+  color: #ff4d4f;
+  margin-right: 4px;
 }
 </style>
