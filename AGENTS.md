@@ -10,10 +10,11 @@
 - **语言**: 中文思考、中文回答、中文文档（保存到 `docs/`）
 - **Context-Mode**: 禁止 `curl`/`wget`/直接 HTTP 请求，使用 `context-mode_ctx_*` 工具系列
 
+## graphify
+
 This project has a graphify knowledge graph at graphify-out/.
 
 Rules:
-- graphify: Knowledge graph exists. Read graphify-out/GRAPH_REPORT.md for god nodes and community structure before searching raw files
 - Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
 - If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
 - After modifying code files in this session, run `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
