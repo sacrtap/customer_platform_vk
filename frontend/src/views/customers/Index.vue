@@ -631,15 +631,9 @@ const customerForm = reactive({
 })
 
 const customerFormRules = {
-  company_id: [
-    { required: true, message: '请输入公司 ID', trigger: ['blur', 'change'] }
-  ],
-  name: [
-    { required: true, message: '请输入客户名称', trigger: ['blur', 'change'] }
-  ],
-  email: [
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] }
-  ],
+  company_id: [{ required: true, message: '请输入公司 ID', trigger: ['blur', 'change'] }],
+  name: [{ required: true, message: '请输入客户名称', trigger: ['blur', 'change'] }],
+  email: [{ type: 'email', message: '请输入有效的邮箱地址', trigger: ['blur', 'change'] }],
 }
 
 // 打开新建对话框

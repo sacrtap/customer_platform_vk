@@ -1,0 +1,248 @@
+{
+  "nodes": [
+    {
+      "id": "prepayment_model",
+      "label": "Prepayment Model",
+      "file_type": "code",
+      "source_file": "backend/app/models/prepayment.py"
+    },
+    {
+      "id": "contract_model",
+      "label": "Contract Model",
+      "file_type": "code",
+      "source_file": "backend/app/models/contract.py"
+    },
+    {
+      "id": "email_service",
+      "label": "Email Service",
+      "file_type": "code",
+      "source_file": "backend/app/services/email_service.py"
+    },
+    {
+      "id": "report_service",
+      "label": "Report Service",
+      "file_type": "code",
+      "source_file": "backend/app/services/report_service.py"
+    },
+    {
+      "id": "permission_service",
+      "label": "Permission Service",
+      "file_type": "code",
+      "source_file": "backend/app/services/permission_service.py"
+    },
+    {
+      "id": "role_service",
+      "label": "Role Service",
+      "file_type": "code",
+      "source_file": "backend/app/services/role_service.py"
+    },
+    {
+      "id": "cache_utils",
+      "label": "Cache Utilities",
+      "file_type": "code",
+      "source_file": "backend/app/utils/cache.py"
+    },
+    {
+      "id": "pagination_utils",
+      "label": "Pagination Utilities",
+      "file_type": "code",
+      "source_file": "backend/app/utils/pagination.py"
+    },
+    {
+      "id": "security_check",
+      "label": "Security Check",
+      "file_type": "code",
+      "source_file": "backend/app/utils/security_check.py"
+    },
+    {
+      "id": "encryption_utils",
+      "label": "Encryption Utilities",
+      "file_type": "code",
+      "source_file": "backend/app/utils/encryption.py"
+    },
+    {
+      "id": "app_config",
+      "label": "Application Configuration",
+      "file_type": "code",
+      "source_file": "backend/app/config.py"
+    },
+    {
+      "id": "seed_script",
+      "label": "Database Seeding Script",
+      "file_type": "code",
+      "source_file": "backend/scripts/seed.py"
+    },
+    {
+      "id": "test_data_script",
+      "label": "Test Data Creation Script",
+      "file_type": "code",
+      "source_file": "backend/scripts/create_test_data.py"
+    },
+    {
+      "id": "generate_secrets_script",
+      "label": "Secrets Generation Script",
+      "file_type": "code",
+      "source_file": "backend/scripts/generate_secrets.py"
+    },
+    {
+      "id": "migration_001",
+      "label": "Initial Migration",
+      "file_type": "code",
+      "source_file": "backend/alembic/versions/001_initial_migration.py"
+    },
+    {
+      "id": "migration_002",
+      "label": "Consumption Tables Migration",
+      "file_type": "code",
+      "source_file": "backend/alembic/versions/002_add_consumption_tables.py"
+    },
+    {
+      "id": "migration_003",
+      "label": "Email Whitelist Migration",
+      "file_type": "code",
+      "source_file": "backend/alembic/versions/003_add_email_whitelist.py"
+    },
+    {
+      "id": "migration_004",
+      "label": "Trade Mark and Customer Level Migration",
+      "file_type": "code",
+      "source_file": "backend/alembic/versions/004_add_trade_mark_and_customer_level.py"
+    },
+    {
+      "id": "alembic_env",
+      "label": "Alembic Environment Configuration",
+      "file_type": "code",
+      "source_file": "backend/alembic/env.py"
+    },
+    {
+      "id": "customer_level_concept",
+      "label": "Customer Level Classification",
+      "file_type": "concept"
+    },
+    {
+      "id": "trade_mark_concept",
+      "label": "Trademark/Brand Identity",
+      "file_type": "concept"
+    },
+    {
+      "id": "prepayment_concept",
+      "label": "Prepayment Business Logic",
+      "file_type": "concept"
+    },
+    {
+      "id": "contract_concept",
+      "label": "Contract Management",
+      "file_type": "concept"
+    }
+  ],
+  "edges": [
+    {
+      "source": "prepayment_model",
+      "target": "prepayment_concept",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "contract_model",
+      "target": "contract_concept",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "migration_004",
+      "target": "customer_level_concept",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "migration_004",
+      "target": "trade_mark_concept",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "migration_002",
+      "target": "prepayment_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8
+    },
+    {
+      "source": "alembic_env",
+      "target": "migration_001",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "alembic_env",
+      "target": "migration_002",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "alembic_env",
+      "target": "migration_003",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "alembic_env",
+      "target": "migration_004",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "seed_script",
+      "target": "app_config",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9
+    },
+    {
+      "source": "test_data_script",
+      "target": "app_config",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9
+    },
+    {
+      "source": "generate_secrets_script",
+      "target": "app_config",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7
+    },
+    {
+      "source": "security_check",
+      "target": "app_config",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9
+    },
+    {
+      "source": "encryption_utils",
+      "target": "app_config",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9
+    },
+    {
+      "source": "cache_utils",
+      "target": "app_config",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

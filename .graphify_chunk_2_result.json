@@ -1,0 +1,789 @@
+{
+  "nodes": [
+    {
+      "id": "customers_model",
+      "label": "Customer \u5ba2\u6237\u57fa\u7840\u4fe1\u606f\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/customers.py"
+    },
+    {
+      "id": "customer_profile_model",
+      "label": "CustomerProfile \u5ba2\u6237\u753b\u50cf\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/customers.py"
+    },
+    {
+      "id": "users_model",
+      "label": "User \u7528\u6237\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/users.py"
+    },
+    {
+      "id": "role_model",
+      "label": "Role \u89d2\u8272\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/users.py"
+    },
+    {
+      "id": "permission_model",
+      "label": "Permission \u6743\u9650\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/users.py"
+    },
+    {
+      "id": "billing_model",
+      "label": "Billing \u7ed3\u7b97\u4e0e\u4f59\u989d\u6a21\u578b\u96c6\u5408",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "customer_balance_model",
+      "label": "CustomerBalance \u5ba2\u6237\u4f59\u989d\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "invoice_model",
+      "label": "Invoice \u7ed3\u7b97\u5355\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "invoice_item_model",
+      "label": "InvoiceItem \u7ed3\u7b97\u5355\u660e\u7ec6\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "pricing_rule_model",
+      "label": "PricingRule \u8ba1\u8d39\u89c4\u5219\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "consumption_record_model",
+      "label": "ConsumptionRecord \u6d88\u8d39\u6d41\u6c34\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "daily_usage_model",
+      "label": "DailyUsage \u6bcf\u65e5\u7528\u91cf\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "audit_log_model",
+      "label": "AuditLog \u5ba1\u8ba1\u65e5\u5fd7\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/billing.py"
+    },
+    {
+      "id": "tags_model",
+      "label": "Tag \u6807\u7b7e\u5b9a\u4e49\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/tags.py"
+    },
+    {
+      "id": "customer_tag_model",
+      "label": "CustomerTag \u5ba2\u6237 - \u6807\u7b7e\u5173\u8054\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/tags.py"
+    },
+    {
+      "id": "profile_tag_model",
+      "label": "ProfileTag \u753b\u50cf - \u6807\u7b7e\u5173\u8054\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/tags.py"
+    },
+    {
+      "id": "groups_model",
+      "label": "CustomerGroup \u5ba2\u6237\u7fa4\u7ec4\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/groups.py"
+    },
+    {
+      "id": "files_model",
+      "label": "File \u6587\u4ef6\u7ba1\u7406\u6a21\u578b",
+      "file_type": "source",
+      "source_file": "backend/app/models/files.py"
+    },
+    {
+      "id": "token_blacklist_model",
+      "label": "TokenBlacklist Token \u9ed1\u540d\u5355\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/token_blacklist.py"
+    },
+    {
+      "id": "webhooks_model",
+      "label": "WebhookSignature Webhook \u7b7e\u540d\u8bb0\u5f55\u8868",
+      "file_type": "source",
+      "source_file": "backend/app/models/webhooks.py"
+    },
+    {
+      "id": "base_model",
+      "label": "BaseModel \u57fa\u7840\u6a21\u578b\u7c7b",
+      "file_type": "source",
+      "source_file": "backend/app/models/base.py"
+    },
+    {
+      "id": "customers_service",
+      "label": "CustomerService \u5ba2\u6237\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/customers.py"
+    },
+    {
+      "id": "billing_service",
+      "label": "BillingService \u7ed3\u7b97\u7ba1\u7406\u670d\u52a1\u96c6\u5408",
+      "file_type": "source",
+      "source_file": "backend/app/services/billing.py"
+    },
+    {
+      "id": "balance_service",
+      "label": "BalanceService \u4f59\u989d\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/billing.py"
+    },
+    {
+      "id": "invoice_service",
+      "label": "InvoiceService \u7ed3\u7b97\u5355\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/billing.py"
+    },
+    {
+      "id": "pricing_service",
+      "label": "PricingService \u5b9a\u4ef7\u89c4\u5219\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/billing.py"
+    },
+    {
+      "id": "auth_service",
+      "label": "AuthService JWT \u8ba4\u8bc1\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/auth.py"
+    },
+    {
+      "id": "user_service",
+      "label": "UserService \u7528\u6237\u7ba1\u7406\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/users.py"
+    },
+    {
+      "id": "tag_service",
+      "label": "TagService \u6807\u7b7e\u7ba1\u7406\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/tags.py"
+    },
+    {
+      "id": "group_service",
+      "label": "CustomerGroupService \u5ba2\u6237\u7fa4\u7ec4\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/groups.py"
+    },
+    {
+      "id": "analytics_service",
+      "label": "AnalyticsService \u5ba2\u6237\u5206\u6790\u670d\u52a1",
+      "file_type": "source",
+      "source_file": "backend/app/services/analytics.py"
+    },
+    {
+      "id": "permissions_service",
+      "label": "get_user_permissions \u6743\u9650\u67e5\u8be2\u51fd\u6570",
+      "file_type": "source",
+      "source_file": "backend/app/services/permissions.py"
+    },
+    {
+      "id": "customers_route",
+      "label": "customers_bp \u5ba2\u6237\u7ba1\u7406\u8def\u7531\u84dd\u56fe",
+      "file_type": "source",
+      "source_file": "backend/app/routes/customers.py"
+    },
+    {
+      "id": "billing_route",
+      "label": "billing_bp \u7ed3\u7b97\u7ba1\u7406\u8def\u7531\u84dd\u56fe",
+      "file_type": "source",
+      "source_file": "backend/app/routes/billing.py"
+    },
+    {
+      "id": "auth_route",
+      "label": "auth_bp \u8ba4\u8bc1\u8def\u7531\u84dd\u56fe",
+      "file_type": "source",
+      "source_file": "backend/app/routes/auth.py"
+    },
+    {
+      "id": "users_route",
+      "label": "users_bp \u7528\u6237\u7ba1\u7406\u8def\u7531\u84dd\u56fe",
+      "file_type": "source",
+      "source_file": "backend/app/routes/users.py"
+    },
+    {
+      "id": "main_app",
+      "label": "Sanic \u4e3b\u5e94\u7528\u5165\u53e3",
+      "file_type": "source",
+      "source_file": "backend/app/main.py"
+    },
+    {
+      "id": "models_init",
+      "label": "SQLAlchemy \u6a21\u578b\u5165\u53e3",
+      "file_type": "source",
+      "source_file": "backend/app/models/__init__.py"
+    },
+    {
+      "id": "design_doc",
+      "label": "\u5ba2\u6237\u8fd0\u8425\u4e2d\u53f0\u7cfb\u7edf\u8bbe\u8ba1\u6587\u6863",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md"
+    },
+    {
+      "id": "rbac_concept",
+      "label": "RBAC \u6743\u9650\u6a21\u578b",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 1.2"
+    },
+    {
+      "id": "settlement_flow",
+      "label": "\u7ed3\u7b97\u5355\u72b6\u6001\u673a",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.1"
+    },
+    {
+      "id": "balance_consumption",
+      "label": "\u4f59\u989d\u6d88\u8017\u987a\u5e8f (\u5148\u8d60\u540e\u5b9e)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.2"
+    },
+    {
+      "id": "pricing_types",
+      "label": "\u4e09\u79cd\u8ba1\u8d39\u6a21\u5f0f",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.3"
+    },
+    {
+      "id": "soft_delete",
+      "label": "\u8f6f\u5220\u9664\u8bbe\u8ba1",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 2.3"
+    },
+    {
+      "id": "audit_logging",
+      "label": "\u5ba1\u8ba1\u65e5\u5fd7\u8bbe\u8ba1",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 2.3"
+    }
+  ],
+  "edges": [
+    {
+      "source": "customers_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 13"
+    },
+    {
+      "source": "customer_profile_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 13"
+    },
+    {
+      "source": "users_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/users.py",
+      "source_location": "line 5"
+    },
+    {
+      "source": "role_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/users.py",
+      "source_location": "line 5"
+    },
+    {
+      "source": "permission_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/users.py",
+      "source_location": "line 5"
+    },
+    {
+      "source": "billing_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 15"
+    },
+    {
+      "source": "tags_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/tags.py",
+      "source_location": "line 5"
+    },
+    {
+      "source": "groups_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/groups.py",
+      "source_location": "line 11"
+    },
+    {
+      "source": "files_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/files.py",
+      "source_location": "line 5"
+    },
+    {
+      "source": "token_blacklist_model",
+      "target": "base_model",
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/token_blacklist.py",
+      "source_location": "line 6"
+    },
+    {
+      "source": "customers_model",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 28"
+    },
+    {
+      "source": "customers_model",
+      "target": "customer_profile_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 39"
+    },
+    {
+      "source": "customers_model",
+      "target": "customer_balance_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 40"
+    },
+    {
+      "source": "customers_model",
+      "target": "customer_tag_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 41"
+    },
+    {
+      "source": "customer_profile_model",
+      "target": "profile_tag_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/customers.py",
+      "source_location": "line 61"
+    },
+    {
+      "source": "users_model",
+      "target": "role_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/users.py",
+      "source_location": "line 44"
+    },
+    {
+      "source": "role_model",
+      "target": "permission_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/users.py",
+      "source_location": "line 63"
+    },
+    {
+      "source": "invoice_model",
+      "target": "customer_balance_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 114"
+    },
+    {
+      "source": "invoice_model",
+      "target": "invoice_item_model",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 110"
+    },
+    {
+      "source": "invoice_item_model",
+      "target": "pricing_rule_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 136"
+    },
+    {
+      "source": "consumption_record_model",
+      "target": "invoice_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 148"
+    },
+    {
+      "source": "audit_log_model",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/billing.py",
+      "source_location": "line 200"
+    },
+    {
+      "source": "tags_model",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/tags.py",
+      "source_location": "line 16"
+    },
+    {
+      "source": "groups_model",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/groups.py",
+      "source_location": "line 28"
+    },
+    {
+      "source": "customers_service",
+      "target": "customers_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/customers.py",
+      "source_location": "line 8"
+    },
+    {
+      "source": "customers_service",
+      "target": "billing_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/customers.py",
+      "source_location": "line 9"
+    },
+    {
+      "source": "billing_service",
+      "target": "billing_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/billing.py",
+      "source_location": "line 16"
+    },
+    {
+      "source": "auth_service",
+      "target": "auth_route",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/auth.py",
+      "source_location": "line 10"
+    },
+    {
+      "source": "user_service",
+      "target": "users_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/users.py",
+      "source_location": "line 8"
+    },
+    {
+      "source": "tag_service",
+      "target": "tags_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/tags.py",
+      "source_location": "line 7"
+    },
+    {
+      "source": "tag_service",
+      "target": "customers_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/tags.py",
+      "source_location": "line 8"
+    },
+    {
+      "source": "group_service",
+      "target": "groups_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/groups.py",
+      "source_location": "line 6"
+    },
+    {
+      "source": "group_service",
+      "target": "customers_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/groups.py",
+      "source_location": "line 7"
+    },
+    {
+      "source": "analytics_service",
+      "target": "customers_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/analytics.py",
+      "source_location": "line 8"
+    },
+    {
+      "source": "analytics_service",
+      "target": "billing_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/analytics.py",
+      "source_location": "line 9"
+    },
+    {
+      "source": "analytics_service",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/analytics.py",
+      "source_location": "line 18"
+    },
+    {
+      "source": "permissions_service",
+      "target": "users_model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/permissions.py",
+      "source_location": "line 6"
+    },
+    {
+      "source": "customers_route",
+      "target": "customers_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/customers.py",
+      "source_location": "line 7"
+    },
+    {
+      "source": "billing_route",
+      "target": "billing_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/billing.py",
+      "source_location": "line 13"
+    },
+    {
+      "source": "auth_route",
+      "target": "auth_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/auth.py",
+      "source_location": "line 10"
+    },
+    {
+      "source": "auth_route",
+      "target": "user_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/auth.py",
+      "source_location": "line 11"
+    },
+    {
+      "source": "users_route",
+      "target": "user_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/users.py",
+      "source_location": "line 7"
+    },
+    {
+      "source": "main_app",
+      "target": "customers_route",
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/main.py",
+      "source_location": "line 98"
+    },
+    {
+      "source": "main_app",
+      "target": "billing_route",
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/main.py",
+      "source_location": "line 99"
+    },
+    {
+      "source": "main_app",
+      "target": "auth_route",
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/main.py",
+      "source_location": "line 97"
+    },
+    {
+      "source": "main_app",
+      "target": "users_route",
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/main.py",
+      "source_location": "line 98"
+    },
+    {
+      "source": "models_init",
+      "target": "base_model",
+      "relation": "exports",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/models/__init__.py",
+      "source_location": "line 6"
+    },
+    {
+      "source": "rbac_concept",
+      "target": "users_model",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 3.1"
+    },
+    {
+      "source": "settlement_flow",
+      "target": "invoice_model",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.1"
+    },
+    {
+      "source": "balance_consumption",
+      "target": "balance_service",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.2"
+    },
+    {
+      "source": "pricing_types",
+      "target": "pricing_rule_model",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 8.3"
+    },
+    {
+      "source": "soft_delete",
+      "target": "base_model",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 2.3"
+    },
+    {
+      "source": "audit_logging",
+      "target": "audit_log_model",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-04-01-customer-platform-design.md",
+      "source_location": "section 2.3"
+    },
+    {
+      "source": "balance_service",
+      "target": "invoice_service",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/services/billing.py",
+      "source_location": "line 557"
+    },
+    {
+      "source": "customers_route",
+      "target": "customers_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/customers.py",
+      "source_location": "line 18"
+    },
+    {
+      "source": "billing_route",
+      "target": "invoice_model",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/app/routes/billing.py",
+      "source_location": "line 496"
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

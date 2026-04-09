@@ -144,7 +144,7 @@ router.beforeEach((to, _from, next) => {
     next('/login')
     return
   }
-  
+
   // 已登录访问登录页，重定向到首页
   if (to.path === '/login' && userStore.token) {
     next({ path: '/', replace: true, force: true })

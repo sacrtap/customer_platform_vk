@@ -52,11 +52,22 @@
           </span>
         </template>
         <template #roles="{ record }">
-          <a-tooltip v-if="record.roles && record.roles.length > 0" :content="record.roles?.map((r: any) => r.name).join(', ') || '-'">
+          <a-tooltip
+            v-if="record.roles && record.roles.length > 0"
+            :content="record.roles?.map((r: any) => r.name).join(', ') || '-'"
+          >
             <span>
-              <a-tag v-for="(role, index) in record.roles" v-show="index === 0" :key="role.id" size="small" style="margin-right: 4px">
+              <a-tag
+                v-for="(role, index) in record.roles"
+                v-show="index === 0"
+                :key="role.id"
+                size="small"
+                style="margin-right: 4px"
+              >
                 {{ role.name }}
-                <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8">+{{ record.roles.length - 1 }}</span>
+                <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8"
+                  >+{{ record.roles.length - 1 }}</span
+                >
               </a-tag>
             </span>
           </a-tooltip>
@@ -260,9 +271,7 @@ const userFormRules = {
       },
     },
   ],
-  real_name: [
-    { required: true, message: '请输入真实姓名' },
-  ],
+  real_name: [{ required: true, message: '请输入真实姓名' }],
   role_ids: [
     { required: true, message: '请选择角色' },
     {

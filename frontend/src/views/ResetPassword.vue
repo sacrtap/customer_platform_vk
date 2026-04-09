@@ -132,7 +132,7 @@ const handleSubmit = async () => {
     })
 
     Message.success('密码重置成功，即将跳转到登录页')
-    
+
     // 2 秒后跳转到登录页
     setTimeout(() => {
       router.push('/login')
@@ -226,7 +226,8 @@ const handleSubmit = async () => {
 .bg-grid-pattern {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;

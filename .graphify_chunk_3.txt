@@ -1,0 +1,8 @@
+frontend/tests/e2e/test-results/test_invoice_workflow-结算单工作流-生成结算单-chromium/test-failed-1.png
+frontend/tests/e2e/test-results/test_customer_management-客户管理-分页功能-chromium/test-failed-1.png
+backend/htmlcov/favicon_32_cb_c827f16f.png
+backend/htmlcov/keybd_closed_cb_900cfef5.png
+docs/testing/coverage-reports/html/favicon_32_cb_c827f16f.png
+docs/testing/coverage-reports/html/keybd_closed_cb_900cfef5.png
+docs/testing/coverage-reports/html-final/favicon_32_cb_c827f16f.png
+docs/testing/coverage-reports/html-final/keybd_closed_cb_900cfef5.png

@@ -30,18 +30,21 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
-  title: string
-  value: string | number
-  subtitle?: string
-  variant?: 'primary' | 'success' | 'warning' | 'danger' | 'default'
-  layout?: 'default' | 'compact'
-  icon?: boolean
-  valueClass?: string
-}>(), {
-  variant: 'default',
-  layout: 'default'
-})
+withDefaults(
+  defineProps<{
+    title: string
+    value: string | number
+    subtitle?: string
+    variant?: 'primary' | 'success' | 'warning' | 'danger' | 'default'
+    layout?: 'default' | 'compact'
+    icon?: boolean
+    valueClass?: string
+  }>(),
+  {
+    variant: 'default',
+    layout: 'default',
+  }
+)
 </script>
 
 <style scoped>

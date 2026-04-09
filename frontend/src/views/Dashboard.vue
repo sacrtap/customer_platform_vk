@@ -27,7 +27,7 @@
         <div class="nav-section">
           <div class="nav-section-title">核心功能</div>
 
-           <a class="nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
+          <a class="nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
             <div class="nav-item-icon">
               <svg
                 aria-hidden="true"
@@ -74,9 +74,9 @@
 
           <div
             class="nav-item nav-item-wrapper"
-            :class="{ 
+            :class="{
               expanded: expandedSubmenu === 'billing',
-              'parent-active': isParentMenuActive('billing')
+              'parent-active': isParentMenuActive('billing'),
             }"
             @click="toggleSubmenu('billing')"
             @mouseenter="handleSubmenuHover('billing')"
@@ -114,7 +114,7 @@
                 d="M9 5l7 7-7 7"
               />
             </svg>
-            
+
             <!-- 收起模式下的子菜单悬浮预览 -->
             <div v-if="sidebarCollapsed" class="submenu-popup">
               <a
@@ -173,9 +173,9 @@
 
           <div
             class="nav-item nav-item-wrapper"
-            :class="{ 
+            :class="{
               expanded: expandedSubmenu === 'analytics',
-              'parent-active': isParentMenuActive('analytics')
+              'parent-active': isParentMenuActive('analytics'),
             }"
             @click="toggleSubmenu('analytics')"
             @mouseenter="handleSubmenuHover('analytics')"
@@ -213,7 +213,10 @@
               />
             </svg>
           </div>
-          <div v-if="expandedSubmenu === 'analytics' || isParentMenuActive('analytics')" class="nav-submenu">
+          <div
+            v-if="expandedSubmenu === 'analytics' || isParentMenuActive('analytics')"
+            class="nav-submenu"
+          >
             <a
               class="nav-subitem"
               :class="{ active: $route.path === '/analytics/consumption' }"
@@ -333,9 +336,9 @@
 
           <div
             class="nav-item nav-item-wrapper"
-            :class="{ 
+            :class="{
               expanded: expandedSubmenu === 'system',
-              'parent-active': isParentMenuActive('system')
+              'parent-active': isParentMenuActive('system'),
             }"
             @click="toggleSubmenu('system')"
             @mouseenter="handleSubmenuHover('system')"
@@ -378,7 +381,7 @@
                 d="M9 5l7 7-7 7"
               />
             </svg>
-            
+
             <!-- 收起模式下的子菜单悬浮预览 -->
             <div v-if="sidebarCollapsed" class="submenu-popup">
               <a
@@ -455,8 +458,19 @@
       <header class="header">
         <div class="header-left">
           <button class="mobile-menu-btn" aria-label="打开菜单" @click="toggleMobileMenu">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              />
             </svg>
           </button>
           <h1 class="header-title">{{ pageTitle }}</h1>
@@ -757,7 +771,7 @@ const handleLogout = () => {
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -836,7 +850,9 @@ const handleLogout = () => {
   border-radius: 10px;
   color: #ffffff;
   text-decoration: none;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
   cursor: pointer;
   margin-bottom: 4px;
   position: relative;
@@ -872,15 +888,18 @@ const handleLogout = () => {
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
-  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 /* 收起模式下的选中图标状态 - 更明显的视觉效果 */
 .sidebar.collapsed .nav-item.active {
-  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   box-shadow: 0 6px 20px rgba(3, 105, 161, 0.5);
   transform: scale(1.02);
 }
@@ -922,7 +941,9 @@ const handleLogout = () => {
   font-size: 14px;
   font-weight: 500;
   color: #ffffff;
-  transition: opacity var(--transition-fast), width var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    width var(--transition-fast);
 }
 
 .sidebar.collapsed .nav-item-label,
@@ -968,7 +989,9 @@ const handleLogout = () => {
   margin-top: 4px;
   padding-left: 32px;
   overflow: hidden;
-  transition: opacity var(--transition-base), transform var(--transition-base);
+  transition:
+    opacity var(--transition-base),
+    transform var(--transition-base);
 }
 
 .nav-subitem {
@@ -980,7 +1003,9 @@ const handleLogout = () => {
   color: #ffffff;
   text-decoration: none;
   font-size: 13px;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
   margin-bottom: 2px;
   position: relative;
   cursor: pointer;
@@ -1031,7 +1056,9 @@ const handleLogout = () => {
   display: none;
   opacity: 0;
   transform: translateX(-10px);
-  transition: opacity var(--transition-base), transform var(--transition-base);
+  transition:
+    opacity var(--transition-base),
+    transform var(--transition-base);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -1094,7 +1121,7 @@ const handleLogout = () => {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1152,7 +1179,7 @@ const handleLogout = () => {
   bottom: auto;
   transform: none;
   z-index: 1001;
-  background: linear-gradient(135deg, #0369A1 0%, #0284C7 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 16px rgba(3, 105, 161, 0.4);
   width: 40px;
@@ -1170,7 +1197,9 @@ const handleLogout = () => {
   width: 16px;
   height: 16px;
   color: rgba(255, 255, 255, 0.8);
-  transition: transform var(--transition-fast), color var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .sidebar-toggle:hover svg {
@@ -1289,7 +1318,9 @@ const handleLogout = () => {
   justify-content: center;
   color: var(--neutral-6);
   cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
   border: none;
   background: transparent;
 }
@@ -1336,7 +1367,7 @@ const handleLogout = () => {
     margin-left: 0;
     width: 100%;
   }
-  
+
   .main-content.sidebar-collapsed {
     margin-left: 0;
     width: 100%;
