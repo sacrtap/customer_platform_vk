@@ -239,6 +239,21 @@
               <a-option value="季结">季结</a-option>
             </a-select>
           </a-form-item>
+          <a-form-item field="is_key_customer" label="重点客户">
+            <a-switch v-model="editForm.is_key_customer" />
+          </a-form-item>
+          <a-form-item field="manager_id" label="运营经理">
+            <a-select
+              v-model="editForm.manager_id"
+              placeholder="请选择运营经理"
+              allow-clear
+              :loading="managersLoading"
+            >
+              <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                {{ manager.real_name || manager.username }}
+              </a-option>
+            </a-select>
+          </a-form-item>
         </a-form>
       </a-modal>
 
@@ -279,6 +294,7 @@ import { getCustomer, updateCustomer, getProfile } from '@/api/customers'
 import { getCustomerBalance, getInvoices, type Invoice } from '@/api/billing'
 import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
 import { getDailyUsage } from '@/api/usage'
+import { getManagers } from '@/api/users'
 import type { Customer, CustomerProfile, Balance } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 
@@ -299,6 +315,8 @@ interface EditForm {
   customer_level?: string
   settlement_type?: string
   settlement_cycle?: string
+  is_key_customer?: boolean
+  manager_id?: number
 }
 
 // 状态
@@ -360,6 +378,21 @@ const tagSelectorVisible = ref(false)
 const tagSelectorLoading = ref(false)
 const selectedTagIds = ref<number[]>([])
 
+const managersLoading = ref(false)
+const managers = ref<any[]>([])
+
+const loadManagers = async () => {
+  managersLoading.value = true
+  try {
+    const res = await getManagers()
+    managers.value = res.data?.list || res.data || []
+  } catch (error: any) {
+    console.error('加载运营经理失败:', error)
+  } finally {
+    managersLoading.value = false
+  }
+}
+
 // 用量数据
 const usageLoading = ref(false)
 const usageData = ref<any[]>([])
@@ -396,6 +429,8 @@ const editForm = ref<EditForm>({
   customer_level: undefined,
   settlement_type: undefined,
   settlement_cycle: undefined,
+  is_key_customer: false,
+  manager_id: undefined,
 })
 
 // 加载数据
@@ -459,6 +494,8 @@ const openEditModal = () => {
     customer_level: customer.value.customer_level || undefined,
     settlement_type: customer.value.settlement_type || undefined,
     settlement_cycle: customer.value.settlement_cycle || undefined,
+    is_key_customer: customer.value.is_key_customer || false,
+    manager_id: customer.value.manager_id || undefined,
   }
   editModalVisible.value = true
 }
@@ -475,6 +512,8 @@ const handleEditSubmit = async () => {
       customer_level: editForm.value.customer_level || undefined,
       settlement_type: editForm.value.settlement_type,
       settlement_cycle: editForm.value.settlement_cycle || undefined,
+      is_key_customer: editForm.value.is_key_customer,
+      manager_id: editForm.value.manager_id || undefined,
     })
     Message.success('更新成功')
     editModalVisible.value = false
@@ -607,6 +646,7 @@ onMounted(() => {
   loadCustomerData()
   loadCustomerTags()
   loadUsageData()
+  loadManagers()
 })
 </script>
 
