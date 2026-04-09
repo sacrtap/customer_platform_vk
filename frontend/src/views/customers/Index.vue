@@ -207,6 +207,11 @@
         <template #createdAt="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
+        <template #isKeyCustomer="{ record }">
+          <a-tag :color="record.is_key_customer ? 'red' : 'gray'">
+            {{ record.is_key_customer ? '是' : '否' }}
+          </a-tag>
+        </template>
         <template #action="{ record }">
           <a-space>
             <a-button type="primary" size="small" @click="viewCustomer(record.id)">查看</a-button>
@@ -455,7 +460,7 @@ const columns = [
   { title: '客户等级', dataIndex: 'customer_level', width: 100 },
   { title: '结算方式', dataIndex: 'settlement_type', width: 100 },
   { title: '运营经理', dataIndex: 'manager', width: 120, ellipsis: true, tooltip: true },
-  { title: '重点客户', dataIndex: 'is_key_customer', width: 90 },
+  { title: '重点客户', slotName: 'isKeyCustomer', width: 90 },
   { title: '创建时间', slotName: 'createdAt', width: 180 },
   { title: '操作', slotName: 'action', width: 280, fixed: 'right' as const },
 ]
