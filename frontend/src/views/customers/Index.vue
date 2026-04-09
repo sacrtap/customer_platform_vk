@@ -346,8 +346,17 @@
           </a-col>
         </a-row>
 
-        <a-form-item field="manager" label="运营经理">
-          <a-input v-model="customerForm.manager" placeholder="请输入运营经理姓名" />
+        <a-form-item field="manager_id" label="运营经理">
+          <a-select
+            v-model="customerForm.manager_id"
+            placeholder="请选择运营经理"
+            allow-clear
+            :loading="managersLoading"
+          >
+            <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+              {{ manager.real_name || manager.username }}
+            </a-option>
+          </a-select>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -614,7 +623,7 @@ const customerForm = reactive({
   settlement_type: undefined as string | undefined,
   settlement_cycle: undefined as string | undefined,
   is_key_customer: false,
-  manager: '',
+  manager_id: null as number | null,
 })
 
 const customerFormRules = {
@@ -637,7 +646,7 @@ const openCreateModal = () => {
     settlement_type: undefined,
     settlement_cycle: undefined,
     is_key_customer: false,
-    manager: '',
+    manager_id: null,
   })
   customerModalVisible.value = true
 }
@@ -656,7 +665,7 @@ const openEditModal = (record: any) => {
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,
-    manager: record.manager || '',
+    manager_id: record.manager_id || null,
   })
   customerModalVisible.value = true
 }
@@ -685,7 +694,7 @@ const handleCustomerSubmit = async () => {
       settlement_type: customerForm.settlement_type,
       settlement_cycle: customerForm.settlement_cycle,
       is_key_customer: customerForm.is_key_customer,
-      manager: customerForm.manager || undefined,
+      manager_id: customerForm.manager_id || undefined,
     }
 
     if (isEditMode.value && editingCustomerId.value) {
