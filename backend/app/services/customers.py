@@ -90,7 +90,7 @@ class CustomerService:
             conditions.append(Customer.settlement_type == settlement_type)
 
         # 重点客户筛选
-        if is_key_customer := filters.get("is_key_customer") is not None:
+        if (is_key_customer := filters.get("is_key_customer")) is not None:
             conditions.append(Customer.is_key_customer == is_key_customer)
 
         if conditions:

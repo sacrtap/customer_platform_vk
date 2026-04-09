@@ -203,3 +203,6 @@ secrets/
 
 # Graphify knowledge graph cache
 graphify-out/cache/
+
+# Node.js compile cache
+node-compile-cache/

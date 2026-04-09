@@ -709,3 +709,82 @@ class TestCustomerService_Integration:
         assert result.balance is not None
         assert result.profile.scale_level == "medium"
         assert result.balance.total_amount == Decimal("10000.00")
+
+
+# ==================== Test is_key_customer Filter ====================
+
+
+class TestCustomerService_IsKeyCustomerFilter:
+    """重点客户筛选测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_all_customers_filter_is_key_customer_true(self, mock_db_session):
+        """测试筛选重点客户（is_key_customer=True）"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        # 准备测试数据
+        key_customer = Customer(
+            id=1,
+            company_id="COMP001",
+            name="重点客户",
+            is_key_customer=True,
+            deleted_at=None,
+        )
+
+        # Mock 查询返回 - 需要设置 return_value
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [key_customer]
+        mock_result.scalar.return_value = 1  # count 结果
+
+        # AsyncMock 需要设置 return_value 而不是 side_effect
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        # 强制让 isinstance 检查通过
+        mock_db_session.__class__ = AsyncSession
+
+        customer_service = CustomerService(db_session=mock_db_session)
+
+        # 测试筛选 is_key_customer=True
+        customers, total = await customer_service.get_all_customers(
+            page=1, page_size=20, filters={"is_key_customer": True}
+        )
+
+        # 验证只返回了重点客户
+        assert len(customers) == 1
+        assert customers[0].is_key_customer is True
+        assert customers[0].name == "重点客户"
+
+    @pytest.mark.asyncio
+    async def test_get_all_customers_filter_is_key_customer_false(
+        self, mock_db_session
+    ):
+        """测试筛选非重点客户（is_key_customer=False）"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        # 准备测试数据
+        normal_customer = Customer(
+            id=2,
+            company_id="COMP002",
+            name="普通客户",
+            is_key_customer=False,
+            deleted_at=None,
+        )
+
+        # Mock 查询返回
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [normal_customer]
+        mock_result.scalar.return_value = 1  # count 结果
+
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        customer_service = CustomerService(db_session=mock_db_session)
+
+        # 测试筛选 is_key_customer=False
+        customers, total = await customer_service.get_all_customers(
+            page=1, page_size=20, filters={"is_key_customer": False}
+        )
+
+        # 验证只返回了非重点客户
+        assert len(customers) == 1
+        assert customers[0].is_key_customer is False
+        assert customers[0].name == "普通客户"
