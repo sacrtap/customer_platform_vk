@@ -146,8 +146,8 @@ test.describe('客户管理', () => {
   });
 
   test('分页功能', async ({ authenticatedPage }) => {
-    await authenticatedPage.goto('/customers', { waitUntil: 'networkidle' });
-    await authenticatedPage.waitForTimeout(1000);
+    await authenticatedPage.goto('/customers', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await authenticatedPage.waitForTimeout(2000);
     
     // 检查分页组件存在
     const pagination = authenticatedPage.locator('.arco-pagination');

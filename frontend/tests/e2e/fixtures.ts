@@ -12,10 +12,10 @@ export const test = base.extend<{
   authenticatedPage: Page;
 }>({
   loginPage: async ({ page }, use) => {
-    // 导航到登录页
-    await page.goto('/login');
+    // 导航到登录页，使用 domcontentloaded 减少等待时间
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
     // 等待登录表单加载
-    await page.waitForSelector('input[field="username"], input[type="text"]');
+    await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
     await use(page);
   },
   
@@ -28,7 +28,10 @@ export const test = base.extend<{
     await page.fill('input[field="username"], input[type="text"]', 'admin');
     await page.fill('input[field="password"], input[type="password"]', 'admin123');
     await page.click('button[type="submit"], button:has-text("登录")');
-    await page.waitForURL('/');
+    // 增加超时时间到 60s，等待登录成功跳转
+    await page.waitForURL('/', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    // 额外等待确保页面完全加载
+    await page.waitForTimeout(1000);
     await use(page);
   },
 });

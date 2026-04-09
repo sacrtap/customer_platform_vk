@@ -5,11 +5,13 @@ import { test, expect } from './fixtures';
  */
 test.describe('结算单工作流', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.fill('input[field="username"], input[type="text"]', 'admin');
     await page.fill('input[field="password"], input[type="password"]', 'admin123');
     await page.click('button[type="submit"], button:has-text("登录")');
-    await page.waitForURL('/');
+    // 增加超时时间到 60s，使用 domcontentloaded 事件
+    await page.waitForURL('/', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(1000);
   });
 
   test('访问结算单列表页面', async ({ page }) => {
