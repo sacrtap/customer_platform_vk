@@ -6,8 +6,7 @@
 
 import os
 import sys
-import pytest
-import asyncio
+
 
 # ============================================================
 # 必须在导入 ANY 应用代码之前设置环境变量和清除缓存

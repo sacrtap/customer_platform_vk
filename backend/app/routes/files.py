@@ -19,7 +19,6 @@ from sanic.response import json
 from sanic.request import Request, File
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 from ..middleware.auth import auth_required, require_permission, get_current_user
 from ..config import settings
@@ -85,7 +84,7 @@ def validate_mime_type(file_content: bytes, filename: str) -> tuple[bool, str, s
         expected_mime = ALLOWED_EXTENSIONS.get(ext)
 
         if expected_mime and detected_mime != expected_mime:
-            # 特殊处理：.xls 可能检测为 application/vnd.ms-excel 或 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+            # 特殊处理：.xls 可能检测为不同 MIME 类型
             if ext == ".xls" and detected_mime in ALLOWED_MIME_TYPES:
                 pass  # 允许
             elif ext == ".jpg" and detected_mime == "image/jpeg":
