@@ -181,7 +181,7 @@ class TestCustomerService_CreateCustomer:
         mock_db_session.refresh = mock_refresh
 
         # 执行测试
-        result = await customer_service.create_customer(customer_data)
+        await customer_service.create_customer(customer_data)
 
         # 验证创建了余额记录
         # 检查 add 被调用了至少 2 次（客户 + 余额）
@@ -358,14 +358,6 @@ class TestCustomerService_DeleteCustomer:
     ):
         """测试删除已删除的客户"""
         customer_id = 1
-
-        # Mock 已删除的客户
-        deleted_customer = Customer(
-            id=customer_id,
-            company_id="COMP001",
-            name="测试公司",
-            deleted_at=datetime.now(),
-        )
 
         # Mock 查询 - 已删除的客户应该返回 None（因为查询条件包含 deleted_at.is_(None)）
         mock_result = MagicMock()
@@ -584,14 +576,6 @@ class TestCustomerService_GetCustomerById:
     async def test_get_customer_by_id_deleted(self, customer_service, mock_db_session):
         """测试获取已删除的客户"""
         customer_id = 1
-
-        # Mock 已删除的客户
-        deleted_customer = Customer(
-            id=customer_id,
-            company_id="COMP001",
-            name="测试公司",
-            deleted_at=datetime.now(),
-        )
 
         # Mock 查询 - 已删除的客户应该返回 None
         mock_result = MagicMock()

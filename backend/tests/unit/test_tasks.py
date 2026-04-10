@@ -4,9 +4,8 @@
 """
 
 import pytest
-from datetime import datetime, timedelta, date
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from dateutil.relativedelta import relativedelta
 
 
 # ============================================================================

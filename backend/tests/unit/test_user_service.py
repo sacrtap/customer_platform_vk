@@ -1,11 +1,9 @@
 """User Service 单元测试"""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime
+from unittest.mock import MagicMock, AsyncMock
 
 from app.services.users import UserService
-from app.models.users import User, Role
 
 
 # ==================== Fixtures ====================
@@ -50,14 +48,6 @@ class TestUserService_CreateUser:
         mock_db_session.execute.return_value = mock_result
 
         # Mock 添加和刷新
-        created_user = User(
-            id=1,
-            username=username,
-            email=email,
-            real_name=real_name,
-            is_active=True,
-            is_system=False,
-        )
         mock_db_session.add = MagicMock()
         mock_db_session.flush = AsyncMock()
         mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))
