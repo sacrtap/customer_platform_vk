@@ -23,6 +23,7 @@ export interface Role {
 export interface RoleListParams {
   page?: number
   page_size?: number
+  keyword?: string
 }
 
 export interface RoleListResponse {

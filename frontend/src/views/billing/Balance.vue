@@ -229,7 +229,6 @@ const columns = [
 // 充值对话框相关
 const rechargeModalVisible = ref(false)
 const rechargeLoading = ref(false)
-const rechargeFormRef = ref<FormInstance>()
 const selectedBalance = ref<Balance | null>(null)
 const rechargeForm = reactive({
   customer_id: null as number | null,
