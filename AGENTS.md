@@ -9,7 +9,12 @@
 
 - **语言**: 中文思考、中文回答、中文文档（保存到 `docs/`）
 - **Context-Mode**: 禁止 `curl`/`wget`/直接 HTTP 请求，使用 `context-mode_ctx_*` 工具系列
-- **Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use. See more commands in RTK.md.
+- **RTK 混合模式规则**:
+  - 所有 bash 命令必须加 `rtk` 前缀（如 `rtk git status`、`rtk pytest`）
+  - 大输出搜索/日志分析使用 `bash` + `rtk grep`/`rtk log`（Token 节省 75%+）
+  - 快速探索/多文件并行搜索使用内置工具 `grep`/`glob`/`read`（结构化输出）
+  - 精确单文件操作使用内置工具（开销小，无需 RTK）
+  - 完整命令映射见 [RTK-MAPPING.md](./RTK-MAPPING.md)
 
 ## 架构速览
 
