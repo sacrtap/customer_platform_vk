@@ -7,6 +7,7 @@ from decimal import Decimal
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 import sys
+from unittest.mock import MagicMock
 
 sys.modules["aiosmtplib"] = MagicMock()
 

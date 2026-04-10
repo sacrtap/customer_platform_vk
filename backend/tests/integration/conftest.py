@@ -22,15 +22,14 @@ modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
 for mod in modules_to_clear:
     del sys.modules[mod]
 
-# Mock aiosmtplib 导入 (避免网络依赖问题)
-sys.modules["aiosmtplib"] = MagicMock()
-
 # 现在才导入应用代码
 import pytest
 from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
+# Mock aiosmtplib 导入 (避免网络依赖问题)
+sys.modules["aiosmtplib"] = MagicMock()
 
 from app.main import create_app
 from app.models.base import BaseModel

@@ -163,6 +163,8 @@ class TestAuthService_VerifyToken:
         """测试验证过期 Token"""
         # 创建立即过期的 token
         with patch("app.services.auth.datetime") as mock_datetime:
+            from datetime import datetime
+
             mock_datetime.utcnow.return_value = datetime.utcnow() - timedelta(
                 minutes=61
             )
@@ -236,6 +238,8 @@ class TestAuthService_DecodeRefreshToken:
     def test_decode_refresh_token_expired(self, mock_jwt_settings):
         """测试验证过期 Refresh Token"""
         with patch("app.services.auth.datetime") as mock_datetime:
+            from datetime import datetime
+
             mock_datetime.utcnow.return_value = datetime.utcnow() - timedelta(days=8)
             expired_token = AuthService.create_refresh_token(user_id=1)
 

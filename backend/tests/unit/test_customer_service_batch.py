@@ -10,6 +10,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class MockDBSession(AsyncSession):
