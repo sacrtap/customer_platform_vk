@@ -27,6 +27,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
