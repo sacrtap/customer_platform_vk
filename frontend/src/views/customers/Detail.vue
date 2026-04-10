@@ -30,93 +30,109 @@
       <div class="tabs-section">
         <a-tabs v-model="activeTab">
           <a-tab-pane key="basic" title="基础信息">
-            <div class="info-grid">
-              <div class="info-item">
-                <label>客户名称</label>
-                <span>{{ customer.name }}</span>
-              </div>
-              <div class="info-item">
-                <label>公司 ID</label>
-                <span>{{ customer.company_id }}</span>
-              </div>
-              <div class="info-item">
-                <label>账号类型</label>
-                <a-tag>{{ customer.account_type || '-' }}</a-tag>
-              </div>
-              <div class="info-item">
-                <label>业务类型</label>
-                <a-tag>{{ customer.business_type || '-' }}</a-tag>
-              </div>
-              <div class="info-item">
-                <label>客户等级</label>
-                <a-tag>{{ customer.customer_level || '-' }}</a-tag>
-              </div>
-              <div class="info-item">
-                <label>重点客户</label>
-                <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
-                  {{ customer.is_key_customer ? '是' : '否' }}
-                </a-tag>
-              </div>
-              <div class="info-item">
-                <label>结算方式</label>
-                <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
-                  {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
-                </a-tag>
-              </div>
-              <div class="info-item">
-                <label>结算周期</label>
-                <span>{{ customer.settlement_cycle || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <label>邮箱</label>
-                <span>{{ customer.email || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <label>创建时间</label>
-                <span>{{ formatDateTime(customer.created_at) }}</span>
-              </div>
-              <div class="info-item-full">
-                <label>客户标签</label>
-                <div class="tags-container">
-                  <a-tag
-                    v-for="tag in customerTags"
-                    :key="tag.id"
-                    color="arcoblue"
-                    closable
-                    @close="removeTag(tag.id)"
-                  >
-                    {{ tag.name }}
-                  </a-tag>
-                  <a-button type="text" size="small" @click="openTagSelector">
-                    <template #icon>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                      >
-                        <path
-                          d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-                        />
-                      </svg>
-                    </template>
-                    添加标签
-                  </a-button>
-                </div>
-              </div>
+            <div class="info-table-container">
+              <table class="info-table">
+                <tbody>
+                  <tr>
+                    <td class="label-cell">客户名称</td>
+                    <td class="value-cell">{{ customer.name }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">公司 ID</td>
+                    <td class="value-cell">{{ customer.company_id }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">账号类型</td>
+                    <td class="value-cell">
+                      <a-tag>{{ customer.account_type || '-' }}</a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">业务类型</td>
+                    <td class="value-cell">
+                      <a-tag>{{ customer.business_type || '-' }}</a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">客户等级</td>
+                    <td class="value-cell">
+                      <a-tag>{{ customer.customer_level || '-' }}</a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">重点客户</td>
+                    <td class="value-cell">
+                      <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
+                        {{ customer.is_key_customer ? '是' : '否' }}
+                      </a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">结算方式</td>
+                    <td class="value-cell">
+                      <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
+                        {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
+                      </a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">结算周期</td>
+                    <td class="value-cell">{{ customer.settlement_cycle || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">邮箱</td>
+                    <td class="value-cell">{{ customer.email || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">创建时间</td>
+                    <td class="value-cell">{{ formatDateTime(customer.created_at) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">客户标签</td>
+                    <td class="value-cell">
+                      <div class="tags-container">
+                        <a-tag
+                          v-for="tag in customerTags"
+                          :key="tag.id"
+                          color="arcoblue"
+                          closable
+                          @close="removeTag(tag.id)"
+                        >
+                          {{ tag.name }}
+                        </a-tag>
+                        <a-button type="text" size="small" @click="openTagSelector">
+                          <template #icon>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              fill="currentColor"
+                              viewBox="0 0 16 16"
+                            >
+                              <path
+                                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                              />
+                            </svg>
+                          </template>
+                          添加标签
+                        </a-button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </a-tab-pane>
 
           <a-tab-pane key="profile" title="画像信息">
-            <div class="info-grid">
+            <div class="info-grid profile-grid">
               <div class="info-item">
                 <label>规模等级</label>
-                <a-tag color="blue">{{ profile.scale_level || '-' }}</a-tag>
+                <a-tag color="blue" size="large">{{ profile.scale_level || '-' }}</a-tag>
               </div>
               <div class="info-item">
                 <label>消费等级</label>
-                <a-tag color="green">{{ profile.consume_level || '-' }}</a-tag>
+                <a-tag color="green" size="large">{{ profile.consume_level || '-' }}</a-tag>
               </div>
               <div class="info-item">
                 <label>所属行业</label>
@@ -124,7 +140,7 @@
               </div>
               <div class="info-item">
                 <label>房地产行业</label>
-                <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'">
+                <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
                   {{ profile.is_real_estate ? '是' : '否' }}
                 </a-tag>
               </div>
@@ -166,6 +182,9 @@
               <template #action="{ record }">
                 <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
               </template>
+              <template #empty>
+                <EmptyState title="暂无结算单数据" description="当前客户暂无结算单" />
+              </template>
             </a-table>
           </a-tab-pane>
 
@@ -183,6 +202,9 @@
               </template>
               <template #quantity="{ record }">
                 {{ formatNumber(record.quantity || 0) }}
+              </template>
+              <template #empty>
+                <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
               </template>
             </a-table>
           </a-tab-pane>
@@ -297,6 +319,7 @@ import { getDailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import type { Customer, CustomerProfile, Balance } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
+import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -403,21 +426,21 @@ const usagePagination = reactive({
 })
 
 const usageColumns = [
-  { title: '日期', dataIndex: 'usage_date', width: 120 },
-  { title: '设备类型', slotName: 'deviceType', width: 100 },
-  { title: '层级类型', dataIndex: 'layer_type', width: 100 },
-  { title: '用量', slotName: 'quantity', width: 120 },
-  { title: '同步时间', dataIndex: 'synced_at', width: 160 },
+  { title: '日期', dataIndex: 'usage_date' },
+  { title: '设备类型', slotName: 'deviceType' },
+  { title: '层级类型', dataIndex: 'layer_type' },
+  { title: '用量', slotName: 'quantity' },
+  { title: '同步时间', dataIndex: 'synced_at' },
 ]
 
 const invoiceColumns = [
-  { title: '结算单号', dataIndex: 'invoice_no', width: 180 },
-  { title: '周期开始', dataIndex: 'period_start', width: 120 },
-  { title: '周期结束', dataIndex: 'period_end', width: 120 },
-  { title: '金额', slotName: 'amount', width: 140 },
-  { title: '状态', slotName: 'status', width: 120 },
-  { title: '创建时间', dataIndex: 'created_at', width: 180 },
-  { title: '操作', slotName: 'action', width: 80 },
+  { title: '结算单号', dataIndex: 'invoice_no' },
+  { title: '周期开始', dataIndex: 'period_start' },
+  { title: '周期结束', dataIndex: 'period_end' },
+  { title: '金额', slotName: 'amount' },
+  { title: '状态', slotName: 'status' },
+  { title: '创建时间', dataIndex: 'created_at' },
+  { title: '操作', slotName: 'action' },
 ]
 
 // 编辑表单
@@ -449,8 +472,24 @@ const loadCustomerData = async () => {
     ])
 
     customer.value = customerRes.data
-    profile.value = profileRes.data
-    balance.value = balanceRes.data
+    // 处理 profile 为 null 的情况
+    profile.value = profileRes.data || {
+      id: 0,
+      customer_id: id,
+      scale_level: null,
+      consume_level: null,
+      industry: null,
+      is_real_estate: false,
+      description: null,
+      created_at: '',
+      updated_at: '',
+    }
+    // 为 balance 添加缺失的 id 和 customer_id 字段（后端返回的数据不包含这些字段）
+    balance.value = {
+      ...balanceRes.data,
+      id: 0,
+      customer_id: id,
+    }
     invoices.value = invoicesRes.data?.list || invoicesRes.data?.items || []
   } catch (error) {
     Message.error('加载客户数据失败')
@@ -659,6 +698,12 @@ onMounted(() => {
   --primary-1: #e8f3ff;
   --primary-6: #0369a1;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  
+  /* 修复容器宽度溢出问题 */
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 .page-header {
   display: flex;
@@ -686,65 +731,304 @@ onMounted(() => {
   border-radius: 16px;
   border: 1px solid var(--neutral-2);
   box-shadow: var(--shadow-sm);
-  padding: 24px;
+  padding: 32px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
+
+/* 纵向表格样式 - 基础信息面板 */
+.info-table-container {
+  padding: 8px 0;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.info-table tbody tr {
+  border-bottom: 1px solid var(--neutral-2);
+  transition: background-color 200ms ease;
+}
+
+.info-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.info-table tbody tr:hover {
+  background-color: var(--neutral-1);
+}
+
+.info-table .label-cell {
+  width: 140px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neutral-6);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  vertical-align: top;
+  background: var(--neutral-1);
+}
+
+.info-table .value-cell {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--neutral-10);
+  font-weight: 500;
+  line-height: 1.5;
+  vertical-align: top;
+}
+
+.info-table .value-cell .arco-tag {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 客户标签区域 */
+.info-table .tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.info-table .tags-container .arco-btn-text {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  transition: all 200ms ease;
+  border: 1px dashed var(--neutral-6);
+  background: transparent;
+  color: var(--neutral-6);
+  font-size: 13px;
+}
+
+.info-table .tags-container .arco-btn-text:hover {
+  border-color: var(--primary-6);
+  background: var(--primary-1);
+  color: var(--primary-6);
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .info-table .label-cell {
+    width: 100px;
+    font-size: 12px;
+  }
+  
+  .info-table .value-cell {
+    font-size: 13px;
+  }
+}
+
+/* 保留原有的 grid 布局用于画像信息和余额信息 */
 .info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  padding: 16px 0;
+  display: grid !important;
+  grid-template-columns: repeat(8, 1fr) !important;
+  gap: 16px;
+  padding: 24px 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
+
+@media (max-width: 1600px) {
+  .info-grid {
+    grid-template-columns: repeat(6, 1fr) !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .info-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
 .info-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 16px;
+  background: var(--neutral-1);
+  border-radius: 10px;
+  transition: all 200ms ease;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--neutral-2);
+  min-height: 90px;
 }
+
+.info-item:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-1);
+}
+
 .info-item-full {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  padding: 16px;
+  background: var(--neutral-1);
+  border-radius: 10px;
+  transition: all 200ms ease;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--neutral-2);
 }
-.info-item label {
-  font-size: 13px;
+
+.info-item-full:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-1);
+}
+.info-item label,
+.info-item-full label {
+  font-size: 12px;
   color: var(--neutral-6);
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  word-break: break-word;
+  flex-shrink: 0;
 }
-.info-item span {
+
+.info-item span,
+.info-item-full span {
   font-size: 14px;
   color: var(--neutral-10);
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  display: block;
+  max-width: 100%;
+}
+
+.info-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 修复标签组件溢出问题 */
+.info-item :deep(.arco-tag),
+.info-item-full :deep(.arco-tag) {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tags-container {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  padding-top: 4px;
+}
+
+.tags-container .arco-btn-text {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  transition: all 200ms ease;
+  border: 1px dashed var(--neutral-6);
+  background: transparent;
+  color: var(--neutral-6);
+  font-size: 13px;
+}
+
+.tags-container .arco-btn-text:hover {
+  border-color: var(--primary-6);
+  background: var(--primary-1);
+  color: var(--primary-6);
 }
 .balance-cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  padding: 24px 0;
+  display: grid !important;
+  grid-template-columns: repeat(8, 1fr) !important;
+  gap: 16px;
+  padding: 24px 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
+
+@media (max-width: 1600px) {
+  .balance-cards {
+    grid-template-columns: repeat(6, 1fr) !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .balance-cards {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .balance-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
 .balance-card {
-  background: var(--neutral-1);
-  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, var(--neutral-1) 100%);
+  padding: 20px 16px;
   border-radius: 12px;
   text-align: center;
+  border: 1px solid var(--neutral-2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  transition: all 200ms ease;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.balance-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: var(--primary-1);
 }
 .balance-label {
   font-size: 13px;
   color: var(--neutral-6);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
+
 .balance-value {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--neutral-10);
+  line-height: 1.2;
 }
+
 .balance-value.real {
   color: var(--primary-6);
 }
+
 .balance-value.bonus {
   color: #22c55e;
 }
@@ -770,5 +1054,110 @@ onMounted(() => {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+
+/* 画像区域专属样式 - 8 列布局 */
+.profile-grid {
+  grid-template-columns: repeat(8, 1fr) !important;
+  gap: 16px;
+  padding: 24px 16px;
+}
+
+@media (max-width: 1600px) {
+  .profile-grid {
+    grid-template-columns: repeat(6, 1fr) !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .profile-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* 修复 tabs-pane 宽度适配问题 */
+:deep(.arco-tabs-pane) {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+/* 确保 tabs-content 也有正确的宽度限制 */
+:deep(.arco-tabs-content) {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 表格空状态居中样式 */
+:deep(.arco-table-empty) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 24px;
+}
+
+:deep(.arco-table-empty .empty-state) {
+  margin: 0 auto;
+}
+
+/* 表格左对齐样式 */
+:deep(.arco-table) {
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
+:deep(.arco-table-th),
+:deep(.arco-table-td) {
+  text-align: left !important;
+}
+
+:deep(.arco-table-container) {
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
+:deep(.arco-table-border) {
+  border-left: none !important;
+}
+
+/* 响应式适配 - 侧边栏展开时的窄屏优化 */
+@media (max-width: 1400px) {
+  .info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .header-actions {
+    width: 100%;
+  }
+  
+  .header-actions .arco-btn {
+    flex: 1;
+  }
 }
 </style>
