@@ -5,7 +5,6 @@
 import pytest
 import asyncio
 import json
-from typing import AsyncGenerator, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest_asyncio

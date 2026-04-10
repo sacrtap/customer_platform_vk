@@ -3,6 +3,7 @@
 import pytest
 from datetime import timedelta
 import jwt
+from unittest.mock import patch
 
 from app.services.auth import AuthService
 

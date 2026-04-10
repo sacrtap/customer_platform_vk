@@ -2,9 +2,11 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
+from datetime import datetime
 from decimal import Decimal
 
 from app.services.customers import CustomerService
+from app.models.customers import Customer
 
 
 # ==================== Fixtures ====================
