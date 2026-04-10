@@ -206,3 +206,6 @@ graphify-out/cache/
 
 # Node.js compile cache
 node-compile-cache/
+
+# ruff
+.ruff_cache/
