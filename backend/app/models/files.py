@@ -1,6 +1,6 @@
 """文件管理模型"""
 
-from sqlalchemy import Column, String, Integer, BigInteger, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, BigInteger, ForeignKey
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 
