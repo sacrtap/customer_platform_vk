@@ -24,18 +24,16 @@ for mod in modules_to_clear:
 
 # 现在才导入应用代码
 import pytest
-import bcrypt
 from unittest.mock import MagicMock, patch
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
 from app.main import create_app
 from app.models.base import BaseModel
-from app.models import groups, tags, billing, webhooks, customers, users, files
 
 # 测试数据库配置
 TEST_DATABASE_SYNC_URL = (

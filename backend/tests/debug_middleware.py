@@ -21,7 +21,6 @@ with patch("app.tasks.scheduler.scheduler") as mock_sched:
     mock_sched.get_jobs = MagicMock(return_value=[])
 
     from app.main import create_app
-    from app.middleware.auth import auth_middleware
 
     # 创建测试数据库引擎
     engine = create_engine("postgresql://localhost:5432/customer_platform_test")

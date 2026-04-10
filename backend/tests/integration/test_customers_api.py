@@ -77,10 +77,12 @@ def customer_data(db_session):
 
     for cust in customers:
         db_session.execute(
-            text("""
+            text(
+                """
             INSERT INTO customers (company_id, name, account_type, business_type, customer_level, settlement_type, is_key_customer, email, created_at)
             VALUES (:company_id, :name, :account_type, :business_type, :customer_level, :settlement_type, :is_key_customer, :email, NOW())
-            """),
+            """
+            ),
             cust,
         )
 
