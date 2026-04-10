@@ -145,8 +145,6 @@ coverage/
 
 # Playwright E2E Tests
 frontend/playwright-report/
-frontend/tests/
-frontend/tests/e2e/
 frontend/tests/e2e/playwright-report/
 frontend/tests/e2e/test-results/
 .playwright-mcp/
