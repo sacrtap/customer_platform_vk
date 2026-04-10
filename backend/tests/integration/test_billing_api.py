@@ -41,7 +41,7 @@ async def test_customer(db_session):
     )
     db_session.execute(
         text("""
-        INSERT INTO customers (id, company_id, name, account_type, business_type, 
+        INSERT INTO customers (id, company_id, name, account_type, business_type,
                                customer_level, manager_id, settlement_cycle, settlement_type,
                                created_at, updated_at)
         VALUES (:id, :company_id, :name, :account_type, :business_type,
@@ -99,8 +99,8 @@ async def test_customer_with_balance(db_session, test_customer):
     )
     db_session.execute(
         text("""
-        INSERT INTO customer_balances 
-            (customer_id, total_amount, real_amount, bonus_amount, 
+        INSERT INTO customer_balances
+            (customer_id, total_amount, real_amount, bonus_amount,
              used_total, used_real, used_bonus, created_at, updated_at)
         VALUES (:cid, :total, :real, :bonus, :used_total, :used_real, :used_bonus, NOW(), NOW())
         """),

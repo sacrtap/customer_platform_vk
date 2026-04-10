@@ -9,8 +9,7 @@
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock, MagicMock
 
 
 class MockDBSession(AsyncSession):

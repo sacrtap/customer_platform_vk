@@ -1,13 +1,10 @@
 """Auth Service 单元测试"""
 
 import pytest
-from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
+from datetime import timedelta
 import jwt
-import bcrypt
 
 from app.services.auth import AuthService
-from app.models.users import User
 
 
 # ==================== Fixtures ====================
