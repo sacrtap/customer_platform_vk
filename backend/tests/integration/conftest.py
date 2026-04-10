@@ -22,15 +22,15 @@ modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
 for mod in modules_to_clear:
     del sys.modules[mod]
 
+# Mock aiosmtplib 导入 (避免网络依赖问题)
+sys.modules["aiosmtplib"] = MagicMock()
+
 # 现在才导入应用代码
 import pytest
 from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession
-
-# Mock aiosmtplib 导入 (避免网络依赖问题)
-sys.modules["aiosmtplib"] = MagicMock()
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.main import create_app
 from app.models.base import BaseModel
@@ -218,7 +218,6 @@ def test_user(db_session):
 async def app(sync_test_engine, mock_scheduler, mock_cache):
     """创建 Sanic 应用实例（使用异步数据库引擎）"""
     import uuid
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     unique_app_name = f"test_app_{uuid.uuid4().hex[:8]}"
 
@@ -227,10 +226,6 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         TEST_DATABASE_ASYNC_URL,
         echo=False,
         pool_pre_ping=True,
-    )
-
-    async_session_maker = async_sessionmaker(
-        async_engine, class_=AsyncSession, expire_on_commit=False
     )
 
     app_instance = create_app(
