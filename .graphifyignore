@@ -1,0 +1,240 @@
+# 依赖和虚拟环境
+node_modules/
+vendor/
+.venv/
+env/
+*.egg-info/
+
+# 构建产物
+dist/
+build/
+*.pyc
+__pycache__/
+
+# 大型数据/日志文件
+*.log
+*.csv
+*.jsonl
+data/large-*.bin
+
+# graphify 自身输出（避免递归分析）
+graphify-out/
+
+# 敏感信息（可选）
+*.env
+secrets/
+
+# 分析代码，但忽略大型二进制/媒体文件
+*.png
+*.jpg
+*.gif
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Playwright E2E Tests
+frontend/playwright-report/
+frontend/tests/e2e/playwright-report/
+frontend/tests/e2e/test-results/
+.playwright-mcp/
+
+# Production
+/dist
+/build
+
+# Environment variables
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker / Podman
+*.pid
+*.seed
+
+# Application specific
+backend/static/files/
+backend/media/
+frontend/dist/
+
+# Cache
+.cache/
+*.cache
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+
+# Git worktrees
+.worktrees/
+.worktrees/
+
+# Graphify knowledge graph cache
+graphify-out/cache/
+
+# Node.js compile cache
+node-compile-cache/
+
+# ruff
+.ruff_cache/
