@@ -12,8 +12,6 @@ Web UI: http://localhost:8089
 
 from locust import HttpUser, task, between, events
 import random
-import json
-import time
 from datetime import datetime
 
 

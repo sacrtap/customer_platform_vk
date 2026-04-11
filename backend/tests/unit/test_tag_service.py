@@ -2,11 +2,8 @@
 
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime
 
 from app.services.tags import TagService
-from app.models.tags import Tag, CustomerTag, ProfileTag
-from app.models.customers import Customer, CustomerProfile
 
 
 # ==================== Fixtures ====================
@@ -48,14 +45,6 @@ class TestTagService_CreateTag:
         created_by = 1
 
         # Mock 数据库添加和刷新
-        mock_tag = Tag(
-            id=1,
-            name="VIP 客户",
-            type="customer",
-            category="等级",
-            created_by=created_by,
-            created_at=datetime.utcnow(),
-        )
         mock_db_session.add = MagicMock()
         mock_db_session.commit = AsyncMock()
         mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))
@@ -81,13 +70,6 @@ class TestTagService_CreateTag:
         created_by = 1
 
         # Mock 数据库添加
-        mock_tag = Tag(
-            id=1,
-            name="VIP 客户",
-            type="customer",
-            category="等级",
-            created_by=created_by,
-        )
         mock_db_session.add = MagicMock()
         mock_db_session.commit = AsyncMock()
         mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))

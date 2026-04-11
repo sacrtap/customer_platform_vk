@@ -4,9 +4,8 @@ Webhook Cleanup Tasks 单元测试
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy import select, delete
 
 
 class TestCleanupWebhookSignatures:

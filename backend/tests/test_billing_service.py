@@ -10,8 +10,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from decimal import Decimal
-from datetime import date, datetime
-import uuid
+from datetime import date
 
 # ==================== MockDBSession 工具类 ====================
 

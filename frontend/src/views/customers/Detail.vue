@@ -708,6 +708,10 @@ onMounted(() => {
   --neutral-10: #1d2330;
   --primary-1: #e8f3ff;
   --primary-6: #0369a1;
+  --success-bg: #e8ffea;
+  --success-color: #22c55e;
+  --warning-bg: #fff7e8;
+  --warning-color: #f59e0b;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   
@@ -724,10 +728,9 @@ onMounted(() => {
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   
-  /* 修复容器宽度溢出问题 */
+  /* 修复容器宽度溢出问题 - 允许横向滚动 */
   width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   box-sizing: border-box;
 }
 .page-header {
@@ -758,9 +761,8 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
   padding: 32px;
   width: 100%;
-  max-width: 100%;
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 /* 纵向表格样式 - 基础信息面板 */
@@ -776,7 +778,7 @@ onMounted(() => {
 
 .info-table tbody tr {
   border-bottom: 1px solid var(--neutral-2);
-  transition: background-color 200ms ease;
+  transition: background-color var(--transition-fast, 150ms);
 }
 
 .info-table tbody tr:last-child {
@@ -827,7 +829,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   border: 1px dashed var(--neutral-6);
   background: transparent;
   color: var(--neutral-6);
@@ -906,7 +908,7 @@ onMounted(() => {
   padding: 16px;
   background: var(--neutral-1);
   border-radius: 10px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
@@ -970,7 +972,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   border: 1px dashed var(--neutral-6);
   background: transparent;
   color: var(--neutral-6);
@@ -1054,7 +1056,7 @@ onMounted(() => {
 }
 
 .balance-value.bonus {
-  color: #22c55e;
+  color: var(--success-color);
 }
 .status-badge {
   display: inline-flex;
@@ -1066,12 +1068,12 @@ onMounted(() => {
   font-weight: 500;
 }
 .status-badge.success {
-  background: #e8ffea;
-  color: #22c55e;
+  background: var(--success-bg);
+  color: var(--success-color);
 }
 .status-badge.warning {
-  background: #fff7e8;
-  color: #f59e0b;
+  background: var(--warning-bg);
+  color: var(--warning-color);
 }
 .status-dot {
   width: 6px;
@@ -1087,21 +1089,28 @@ onMounted(() => {
   padding: var(--space-lg, 24px) var(--space-md, 16px);
 }
 
-/* Tabs 容器 - 禁止横向滚动 */
+/* Tabs 容器 - 允许横向滚动 */
 :deep(.arco-tabs-pane) {
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: visible;
 }
 
 :deep(.arco-tabs-content) {
   width: 100%;
-  overflow: hidden;
+  overflow-x: visible;
 }
 
-/* 表格固定布局，防止溢出 */
+/* 表格自动布局，支持横向滚动 */
 :deep(.arco-table) {
-  width: 100%;
-  table-layout: fixed;
+  min-width: 700px;
+  table-layout: auto;
+}
+
+/* 表格容器 - 支持横向滚动 */
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--neutral-2);
+  border-radius: var(--radius-md);
 }
 
 /* 表格空状态居中样式 */
@@ -1110,6 +1119,7 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   padding: 48px 24px;
+  min-height: 300px;
 }
 
 :deep(.arco-table-empty .empty-state) {
@@ -1122,8 +1132,30 @@ onMounted(() => {
   min-height: 200px;
 }
 
-@media (max-width: 768px) {
+/* 响应式断点 */
+/* Mobile - 375px */
+@media (max-width: 374px) {
+  .info-grid,
+  .balance-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .info-item {
+    padding: 12px;
+  }
+  
+  .balance-card {
+    padding: 16px 12px;
+  }
+}
+
+/* Mobile Large - 767px */
+@media (max-width: 767px) {
   .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .balance-cards {
     grid-template-columns: 1fr;
   }
   
@@ -1139,6 +1171,36 @@ onMounted(() => {
   
   .header-actions .arco-btn {
     flex: 1;
+  }
+  
+  .tabs-section {
+    padding: 16px;
+  }
+}
+
+/* Tablet - 768px to 1199px */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .info-grid,
+  .balance-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop - 1200px+ */
+@media (min-width: 1200px) {
+  .balance-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 减少运动偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

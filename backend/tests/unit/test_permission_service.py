@@ -2,10 +2,8 @@
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from sqlalchemy import select
 
 from app.services.permissions import get_user_permissions
-from app.models.users import User, Role, Permission, user_roles, role_permissions
 
 
 # ==================== Fixtures ====================

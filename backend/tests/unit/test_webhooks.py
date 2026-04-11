@@ -6,9 +6,8 @@ Webhook 路由单元测试
 import pytest
 import hmac
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from sqlalchemy import select
 
 from app.routes.webhooks import (
     verify_timestamp_window,
@@ -17,8 +16,6 @@ from app.routes.webhooks import (
     verify_webhook_signature,
     WEBHOOK_TIMESTAMP_WINDOW,
 )
-from app.models.billing import Invoice, InvoiceStatus
-from app.models.webhooks import WebhookSignature
 
 
 # ============================================================================

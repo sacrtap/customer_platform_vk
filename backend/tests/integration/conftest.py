@@ -24,26 +24,16 @@ for mod in modules_to_clear:
 
 # 现在才导入应用代码
 import pytest
-import bcrypt
 from unittest.mock import MagicMock, patch
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
 from app.main import create_app
 from app.models.base import BaseModel
-from app.models import (
-    groups,
-    tags,
-    billing,
-    webhooks,
-    customers,
-    users,
-    files,
-)  # 确保所有表被创建
 
 # 测试数据库配置
 TEST_DATABASE_SYNC_URL = (
@@ -228,7 +218,6 @@ def test_user(db_session):
 async def app(sync_test_engine, mock_scheduler, mock_cache):
     """创建 Sanic 应用实例（使用异步数据库引擎）"""
     import uuid
-    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     unique_app_name = f"test_app_{uuid.uuid4().hex[:8]}"
 
@@ -237,10 +226,6 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         TEST_DATABASE_ASYNC_URL,
         echo=False,
         pool_pre_ping=True,
-    )
-
-    async_session_maker = async_sessionmaker(
-        async_engine, class_=AsyncSession, expire_on_commit=False
     )
 
     app_instance = create_app(
