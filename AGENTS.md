@@ -8,6 +8,7 @@
 ## Agent 必读规则
 
 - **语言**: 中文思考、中文回答、中文文档（保存到 `docs/`）
+- **Graphify**: 本项目使用 Graphify 构建代码知识图谱。**完整工作流指南见 [Graphify.md](./Graphify.md)**
 - **Context-Mode**: 禁止 `curl`/`wget`/直接 HTTP 请求，使用 `context-mode_ctx_*` 工具系列
 - **RTK 混合模式规则**:
   - 所有 bash 命令必须加 `rtk` 前缀（如 `rtk git status`、`rtk pytest`）
