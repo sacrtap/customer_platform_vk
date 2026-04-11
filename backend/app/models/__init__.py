@@ -18,7 +18,7 @@ from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
 from . import groups  # noqa: E402
 from . import files  # noqa: E402
-from . import token_blacklist  # noqa: E402
+
 # isort: on
 
 # 导出所有模型

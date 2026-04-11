@@ -125,7 +125,10 @@
           </a-tab-pane>
 
           <a-tab-pane key="profile" title="画像信息">
-            <div class="info-grid profile-grid">
+            <div v-if="profileLoading" class="info-grid profile-grid">
+              <SkeletonCard v-for="i in 4" :key="i" height="90px" />
+            </div>
+            <div v-else class="info-grid profile-grid">
               <div class="info-item">
                 <label>规模等级</label>
                 <a-tag color="blue" size="large">{{ profile.scale_level || '-' }}</a-tag>
@@ -148,7 +151,10 @@
           </a-tab-pane>
 
           <a-tab-pane key="balance" title="余额信息">
-            <div class="balance-cards">
+            <div v-if="balanceLoading" class="balance-cards">
+              <SkeletonCard v-for="i in 4" :key="i" height="110px" />
+            </div>
+            <div v-else class="balance-cards">
               <div class="balance-card">
                 <div class="balance-label">总余额</div>
                 <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
@@ -320,6 +326,7 @@ import { getManagers } from '@/api/users'
 import type { Customer, CustomerProfile, Balance } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
+import SkeletonCard from '@/components/SkeletonCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -348,6 +355,8 @@ const keyCustomerLoading = ref(false)
 const editLoading = ref(false)
 const editModalVisible = ref(false)
 const activeTab = ref('basic')
+const profileLoading = ref(true)
+const balanceLoading = ref(true)
 
 // 数据
 const customerId = ref<number>(0)
@@ -496,6 +505,8 @@ const loadCustomerData = async () => {
     console.error('加载客户数据失败:', error)
   } finally {
     loading.value = false
+    profileLoading.value = false
+    balanceLoading.value = false
   }
 }
 
@@ -697,12 +708,29 @@ onMounted(() => {
   --neutral-10: #1d2330;
   --primary-1: #e8f3ff;
   --primary-6: #0369a1;
+  --success-bg: #e8ffea;
+  --success-color: #22c55e;
+  --warning-bg: #fff7e8;
+  --warning-color: #f59e0b;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
   
-  /* 修复容器宽度溢出问题 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 修复容器宽度溢出问题 - 允许横向滚动 */
   width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   box-sizing: border-box;
 }
 .page-header {
@@ -733,9 +761,8 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
   padding: 32px;
   width: 100%;
-  max-width: 100%;
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 /* 纵向表格样式 - 基础信息面板 */
@@ -751,7 +778,7 @@ onMounted(() => {
 
 .info-table tbody tr {
   border-bottom: 1px solid var(--neutral-2);
-  transition: background-color 200ms ease;
+  transition: background-color var(--transition-fast, 150ms);
 }
 
 .info-table tbody tr:last-child {
@@ -802,7 +829,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   border: 1px dashed var(--neutral-6);
   background: transparent;
   color: var(--neutral-6);
@@ -827,43 +854,38 @@ onMounted(() => {
   }
 }
 
-/* 保留原有的 grid 布局用于画像信息和余额信息 */
+/* 画像信息和余额信息 - 自适应 Grid 布局 */
 .info-grid {
-  display: grid !important;
-  grid-template-columns: repeat(8, 1fr) !important;
-  gap: 16px;
-  padding: 24px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-lg, 24px);
+  padding: var(--space-lg, 24px) var(--space-md, 16px);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-@media (max-width: 1600px) {
+/* 响应式适配 */
+@media (max-width: 1199px) and (min-width: 768px) {
   .info-grid {
-    grid-template-columns: repeat(6, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 767px) {
   .info-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr;
   }
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 16px);
   background: var(--neutral-1);
-  border-radius: 10px;
-  transition: all 200ms ease;
+  border-radius: var(--radius-md, 10px);
+  transition: all var(--transition-base, 250ms);
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
@@ -874,7 +896,7 @@ onMounted(() => {
 .info-item:hover {
   background: #ffffff;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
   border-color: var(--primary-1);
 }
 
@@ -886,7 +908,7 @@ onMounted(() => {
   padding: 16px;
   background: var(--neutral-1);
   border-radius: 10px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
@@ -950,7 +972,7 @@ onMounted(() => {
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  transition: all 200ms ease;
+  transition: all var(--transition-fast, 150ms);
   border: 1px dashed var(--neutral-6);
   background: transparent;
   color: var(--neutral-6);
@@ -962,42 +984,46 @@ onMounted(() => {
   background: var(--primary-1);
   color: var(--primary-6);
 }
+
+/* 余额卡片 - 自适应 Grid 布局 */
 .balance-cards {
-  display: grid !important;
-  grid-template-columns: repeat(8, 1fr) !important;
-  gap: 16px;
-  padding: 24px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-lg, 24px);
+  padding: var(--space-lg, 24px) var(--space-md, 16px);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-@media (max-width: 1600px) {
+/* 4 张卡片最佳布局 */
+@media (min-width: 1400px) {
   .balance-cards {
-    grid-template-columns: repeat(6, 1fr) !important;
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
-@media (max-width: 1200px) {
+/* 响应式适配 */
+@media (max-width: 1199px) and (min-width: 768px) {
   .balance-cards {
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .balance-cards {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr;
   }
 }
 
 .balance-card {
   background: linear-gradient(135deg, #ffffff 0%, var(--neutral-1) 100%);
-  padding: 20px 16px;
-  border-radius: 12px;
+  padding: var(--space-lg, 20px) var(--space-md, 16px);
+  border-radius: var(--radius-lg, 12px);
   text-align: center;
   border: 1px solid var(--neutral-2);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-  transition: all 200ms ease;
+  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.04));
+  transition: all var(--transition-base, 250ms);
   min-height: 110px;
   display: flex;
   flex-direction: column;
@@ -1006,7 +1032,7 @@ onMounted(() => {
 
 .balance-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
   border-color: var(--primary-1);
 }
 .balance-label {
@@ -1030,7 +1056,7 @@ onMounted(() => {
 }
 
 .balance-value.bonus {
-  color: #22c55e;
+  color: var(--success-color);
 }
 .status-badge {
   display: inline-flex;
@@ -1042,12 +1068,12 @@ onMounted(() => {
   font-weight: 500;
 }
 .status-badge.success {
-  background: #e8ffea;
-  color: #22c55e;
+  background: var(--success-bg);
+  color: var(--success-color);
 }
 .status-badge.warning {
-  background: #fff7e8;
-  color: #f59e0b;
+  background: var(--warning-bg);
+  color: var(--warning-color);
 }
 .status-dot {
   width: 6px;
@@ -1056,44 +1082,35 @@ onMounted(() => {
   background: currentColor;
 }
 
-/* 画像区域专属样式 - 8 列布局 */
+/* 画像区域专属样式 */
 .profile-grid {
-  grid-template-columns: repeat(8, 1fr) !important;
-  gap: 16px;
-  padding: 24px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-lg, 24px);
+  padding: var(--space-lg, 24px) var(--space-md, 16px);
 }
 
-@media (max-width: 1600px) {
-  .profile-grid {
-    grid-template-columns: repeat(6, 1fr) !important;
-  }
-}
-
-@media (max-width: 1200px) {
-  .profile-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .profile-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-}
-
-/* 修复 tabs-pane 宽度适配问题 */
+/* Tabs 容器 - 允许横向滚动 */
 :deep(.arco-tabs-pane) {
   width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  box-sizing: border-box;
+  overflow-x: visible;
 }
 
-/* 确保 tabs-content 也有正确的宽度限制 */
 :deep(.arco-tabs-content) {
   width: 100%;
-  max-width: 100%;
-  overflow: hidden;
+  overflow-x: visible;
+}
+
+/* 表格自动布局，支持横向滚动 */
+:deep(.arco-table) {
+  min-width: 700px;
+  table-layout: auto;
+}
+
+/* 表格容器 - 支持横向滚动 */
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--neutral-2);
+  border-radius: var(--radius-md);
 }
 
 /* 表格空状态居中样式 */
@@ -1102,47 +1119,43 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   padding: 48px 24px;
+  min-height: 300px;
 }
 
 :deep(.arco-table-empty .empty-state) {
   margin: 0 auto;
 }
 
-/* 表格左对齐样式 */
-:deep(.arco-table) {
-  width: 100% !important;
-  margin-left: 0 !important;
+/* 空数据最小高度，防止布局塌陷 */
+.info-grid,
+.balance-cards {
+  min-height: 200px;
 }
 
-:deep(.arco-table-th),
-:deep(.arco-table-td) {
-  text-align: left !important;
-}
-
-:deep(.arco-table-container) {
-  width: 100% !important;
-  margin-left: 0 !important;
-}
-
-:deep(.arco-table-border) {
-  border-left: none !important;
-}
-
-/* 响应式适配 - 侧边栏展开时的窄屏优化 */
-@media (max-width: 1400px) {
-  .info-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+/* 响应式断点 */
+/* Mobile - 375px */
+@media (max-width: 374px) {
+  .info-grid,
+  .balance-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .info-item {
+    padding: 12px;
+  }
+  
+  .balance-card {
+    padding: 16px 12px;
   }
 }
 
-@media (max-width: 1200px) {
+/* Mobile Large - 767px */
+@media (max-width: 767px) {
   .info-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 768px) {
-  .info-grid {
+  
+  .balance-cards {
     grid-template-columns: 1fr;
   }
   
@@ -1158,6 +1171,36 @@ onMounted(() => {
   
   .header-actions .arco-btn {
     flex: 1;
+  }
+  
+  .tabs-section {
+    padding: 16px;
+  }
+}
+
+/* Tablet - 768px to 1199px */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .info-grid,
+  .balance-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop - 1200px+ */
+@media (min-width: 1200px) {
+  .balance-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 减少运动偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

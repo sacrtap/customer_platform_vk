@@ -124,8 +124,6 @@ async def test_login_user_not_found(test_client):
 @pytest.mark.asyncio
 async def test_refresh_token_success(test_client, db_session):
     """测试刷新 Token API - 成功场景"""
-    from sqlalchemy.orm import selectinload
-    from app.models.users import User
 
     username = "refresh_test_user"
     password = "test123456"

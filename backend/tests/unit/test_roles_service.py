@@ -4,7 +4,6 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 from app.services.roles import RoleService
-from app.models.users import Role, Permission, role_permissions
 
 
 # ==================== Fixtures ====================
@@ -45,7 +44,6 @@ class TestRoleService_CreateRole:
         role_service.get_role_by_name = AsyncMock(return_value=None)
 
         # Mock 数据库操作
-        mock_role = Role(id=1, name=role_name, description=description)
         mock_db_session.add = MagicMock()
         mock_db_session.flush = AsyncMock()
         mock_db_session.commit = AsyncMock()

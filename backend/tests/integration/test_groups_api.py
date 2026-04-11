@@ -24,7 +24,6 @@ class TestCreateGroup:
         )
         print(f"\n=== DEBUG: Login Response ===")
         print(f"Status: {login_response.status}")
-        print(f"Body: {login_response.text[:500]}")
 
         assert login_response.status == 200, (
             f"Login failed with status {login_response.status}"

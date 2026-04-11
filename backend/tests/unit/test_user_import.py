@@ -3,8 +3,7 @@
 import pytest
 import openpyxl
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
-from sanic.request import Request
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestUserImportValidation:

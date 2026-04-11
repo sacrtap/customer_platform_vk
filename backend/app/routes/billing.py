@@ -826,7 +826,7 @@ async def export_invoices(request: Request):
     """
     from ..models.billing import Invoice, InvoiceStatus
     from ..models.customers import Customer
-    from sqlalchemy import select, func
+    from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
     # 获取数据库会话

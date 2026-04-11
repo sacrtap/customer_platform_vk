@@ -4,7 +4,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-import os
 
 from app.services.email import EmailService, email_service, get_email_service
 
