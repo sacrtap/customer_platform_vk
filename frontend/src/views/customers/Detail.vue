@@ -894,19 +894,6 @@ const loadUsageData = async () => {
   }
 }
 
-// 移除标签
-const removeTag = async (tagId: number) => {
-  try {
-    await removeCustomerTag(customerId.value, tagId)
-    Message.success('标签移除成功')
-    // 性能优化: 更新后清除缓存并重新加载
-    customerStore.invalidateTagsCache(customerId.value)
-    await loadCustomerTags()
-  } catch (error: any) {
-    Message.error(error.message || '移除标签失败')
-  }
-}
-
 // 加载用量数据
 const loadUsageData = async () => {
   usageLoading.value = true
