@@ -110,9 +110,7 @@ class AnalyticsService:
             select(
                 InvoiceItem.device_type,
                 func.sum(InvoiceItem.quantity).label("total_quantity"),
-                func.sum(InvoiceItem.quantity * InvoiceItem.unit_price).label(
-                    "total_amount"
-                ),
+                func.sum(InvoiceItem.quantity * InvoiceItem.unit_price).label("total_amount"),
             )
             .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
             .where(
@@ -133,9 +131,7 @@ class AnalyticsService:
         return [
             {
                 "device_type": row.device_type,
-                "total_quantity": float(row.total_quantity)
-                if row.total_quantity
-                else 0.0,
+                "total_quantity": float(row.total_quantity) if row.total_quantity else 0.0,
                 "total_amount": float(row.total_amount) if row.total_amount else 0.0,
             }
             for row in result
@@ -168,9 +164,7 @@ class AnalyticsService:
             {
                 "usage_date": row.usage_date.isoformat(),
                 "device_type": row.device_type,
-                "total_quantity": float(row.total_quantity)
-                if row.total_quantity
-                else 0.0,
+                "total_quantity": float(row.total_quantity) if row.total_quantity else 0.0,
             }
             for row in result
         ]
@@ -185,9 +179,7 @@ class AnalyticsService:
         invoice_stmt = select(
             func.sum(Invoice.total_amount).label("total_invoiced"),
             func.sum(Invoice.discount_amount).label("total_discount"),
-            func.sum(Invoice.total_amount - Invoice.discount_amount).label(
-                "total_final"
-            ),
+            func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_final"),
         ).where(
             and_(
                 Invoice.period_start >= start_date,
@@ -202,14 +194,10 @@ class AnalyticsService:
         invoice_result = (await self.db.execute(invoice_stmt)).first()
 
         # 已回款金额
-        payment_stmt = select(
-            func.sum(RechargeRecord.real_amount).label("total_paid")
-        ).where(
+        payment_stmt = select(func.sum(RechargeRecord.real_amount).label("total_paid")).where(
             and_(
-                RechargeRecord.created_at
-                >= datetime.combine(start_date, datetime.min.time()),
-                RechargeRecord.created_at
-                <= datetime.combine(end_date, datetime.max.time()),
+                RechargeRecord.created_at >= datetime.combine(start_date, datetime.min.time()),
+                RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
             )
         )
 
@@ -227,9 +215,7 @@ class AnalyticsService:
             "total_discount": float(invoice_result.total_discount or 0),
             "total_final": total_final,
             "total_paid": total_paid,
-            "completion_rate": round(total_paid / total_final * 100, 2)
-            if total_final > 0
-            else 0,
+            "completion_rate": round(total_paid / total_final * 100, 2) if total_final > 0 else 0,
             "difference": total_final - total_paid,
         }
 
@@ -241,9 +227,7 @@ class AnalyticsService:
             select(
                 Invoice.status,
                 func.count(Invoice.id).label("count"),
-                func.sum(Invoice.total_amount - Invoice.discount_amount).label(
-                    "total_amount"
-                ),
+                func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_amount"),
             )
             .where(
                 and_(
@@ -355,14 +339,10 @@ class AnalyticsService:
             "inactive_customers": total_count - active_count,
             "warning_customers": warning_count,
             "churn_risk_customers": churn_count,
-            "active_rate": round(active_count / total_count * 100, 2)
-            if total_count > 0
-            else 0,
+            "active_rate": round(active_count / total_count * 100, 2) if total_count > 0 else 0,
         }
 
-    async def get_balance_warning_list(
-        self, threshold: float = 1000
-    ) -> List[Dict[str, Any]]:
+    async def get_balance_warning_list(self, threshold: float = 1000) -> List[Dict[str, Any]]:
         """获取余额预警客户列表"""
         stmt = (
             select(
@@ -429,9 +409,7 @@ class AnalyticsService:
                 User.real_name.label("manager_name"),
             )
             .join(has_usage_subq, Customer.id == has_usage_subq.c.customer_id)
-            .outerjoin(
-                recent_usage_subq, Customer.id == recent_usage_subq.c.customer_id
-            )
+            .outerjoin(recent_usage_subq, Customer.id == recent_usage_subq.c.customer_id)
             .outerjoin(User, Customer.manager_id == User.id)
             .where(
                 and_(
@@ -556,9 +534,7 @@ class AnalyticsService:
 
     async def get_real_estate_stats(self) -> Dict[str, Any]:
         """获取房产客户统计"""
-        total_stmt = select(func.count(Customer.id)).where(
-            Customer.deleted_at.is_(None)
-        )
+        total_stmt = select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
         total = (await self.db.execute(total_stmt)).scalar() or 0
 
         real_estate_stmt = (
@@ -577,9 +553,7 @@ class AnalyticsService:
             "total_customers": total,
             "real_estate_customers": real_estate,
             "non_real_estate_customers": total - real_estate,
-            "real_estate_percentage": round(real_estate / total * 100, 2)
-            if total > 0
-            else 0,
+            "real_estate_percentage": round(real_estate / total * 100, 2) if total > 0 else 0,
         }
 
     # ========== 预测回款 ==========
@@ -634,8 +608,7 @@ class AnalyticsService:
                     and_(
                         DailyUsage.customer_id == row.id,
                         DailyUsage.usage_date >= date(year, month, 1),
-                        DailyUsage.usage_date
-                        <= date(year, month, monthrange(year, month)[1]),
+                        DailyUsage.usage_date <= date(year, month, monthrange(year, month)[1]),
                     )
                 )
                 .group_by(DailyUsage.device_type)
@@ -646,14 +619,10 @@ class AnalyticsService:
             for usage_row in usage_result:
                 predicted_amount = self._calculate_predicted_amount(
                     pricing_type=row.pricing_type,
-                    unit_price=float(row.unit_price)
-                    if row.unit_price
-                    else Decimal("0"),
+                    unit_price=float(row.unit_price) if row.unit_price else Decimal("0"),
                     tiers=row.tiers,
                     package_type=row.package_type,
-                    quantity=float(usage_row.total_quantity)
-                    if usage_row.total_quantity
-                    else 0,
+                    quantity=float(usage_row.total_quantity) if usage_row.total_quantity else 0,
                 )
 
                 predictions.append(
@@ -663,9 +632,7 @@ class AnalyticsService:
                         "customer_name": row.name,
                         "device_type": usage_row.device_type,
                         "quantity": (
-                            float(usage_row.total_quantity)
-                            if usage_row.total_quantity
-                            else 0
+                            float(usage_row.total_quantity) if usage_row.total_quantity else 0
                         ),
                         "pricing_type": row.pricing_type,
                         "predicted_amount": predicted_amount,
@@ -717,9 +684,7 @@ class AnalyticsService:
 
     # ========== 余额趋势 ==========
 
-    async def get_balance_trend(
-        self, customer_id: int, months: int = 6
-    ) -> List[Dict[str, Any]]:
+    async def get_balance_trend(self, customer_id: int, months: int = 6) -> List[Dict[str, Any]]:
         """获取客户余额趋势（按月聚合）"""
         from dateutil.relativedelta import relativedelta
 
@@ -742,10 +707,8 @@ class AnalyticsService:
         ).where(
             and_(
                 RechargeRecord.customer_id == customer_id,
-                RechargeRecord.created_at
-                >= datetime.combine(start_of_period, datetime.min.time()),
-                RechargeRecord.created_at
-                <= datetime.combine(end_date, datetime.max.time()),
+                RechargeRecord.created_at >= datetime.combine(start_of_period, datetime.min.time()),
+                RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
             )
         )
         recharge_stmt = recharge_stmt.group_by(
@@ -794,20 +757,15 @@ class AnalyticsService:
         ).where(
             and_(
                 RechargeRecord.customer_id == customer_id,
-                RechargeRecord.created_at
-                < datetime.combine(start_of_period, datetime.min.time()),
+                RechargeRecord.created_at < datetime.combine(start_of_period, datetime.min.time()),
             )
         )
         historical_recharge = (await self.db.execute(historical_recharge_stmt)).first()
         hist_recharge_real = (
-            float(historical_recharge.real_amount)
-            if historical_recharge.real_amount
-            else 0.0
+            float(historical_recharge.real_amount) if historical_recharge.real_amount else 0.0
         )
         hist_recharge_bonus = (
-            float(historical_recharge.bonus_amount)
-            if historical_recharge.bonus_amount
-            else 0.0
+            float(historical_recharge.bonus_amount) if historical_recharge.bonus_amount else 0.0
         )
 
         historical_invoice_stmt = select(func.sum(Invoice.total_amount)).where(
@@ -821,9 +779,7 @@ class AnalyticsService:
 
         # 计算起始余额 = 当前余额 - 窗口内净变化
         window_recharge_real = sum(v["real_amount"] for v in recharge_by_month.values())
-        window_recharge_bonus = sum(
-            v["bonus_amount"] for v in recharge_by_month.values()
-        )
+        window_recharge_bonus = sum(v["bonus_amount"] for v in recharge_by_month.values())
         window_invoice = sum(invoice_by_month.values())
 
         start_total = (
@@ -831,9 +787,7 @@ class AnalyticsService:
             - (window_recharge_real + window_recharge_bonus)
             + window_invoice
         )
-        start_real = (
-            current_balance["real_amount"] - window_recharge_real + window_invoice
-        )
+        start_real = current_balance["real_amount"] - window_recharge_real + window_invoice
         start_bonus = current_balance["bonus_amount"] - window_recharge_bonus
 
         # 逐月计算余额
@@ -846,9 +800,7 @@ class AnalyticsService:
             month_date = start_date + relativedelta(months=i)
             month_key = f"{month_date.year}-{month_date.month:02d}"
 
-            recharge = recharge_by_month.get(
-                month_key, {"real_amount": 0.0, "bonus_amount": 0.0}
-            )
+            recharge = recharge_by_month.get(month_key, {"real_amount": 0.0, "bonus_amount": 0.0})
             invoice = invoice_by_month.get(month_key, 0.0)
 
             running_total += recharge["real_amount"] + recharge["bonus_amount"]
@@ -868,9 +820,7 @@ class AnalyticsService:
 
         return result
 
-    async def _get_current_balance(
-        self, customer_id: int
-    ) -> Optional[Dict[str, float]]:
+    async def _get_current_balance(self, customer_id: int) -> Optional[Dict[str, float]]:
         """获取客户当前余额"""
         stmt = select(
             CustomerBalance.total_amount,
@@ -891,15 +841,153 @@ class AnalyticsService:
             "bonus_amount": float(result.bonus_amount) if result.bonus_amount else 0.0,
         }
 
+    # ========== 客户健康度评分 ==========
+
+    async def get_customer_health_score(self, customer_id: int) -> Dict[str, Any]:
+        """获取单个客户的健康度评分
+
+        健康度 = 用量达标率 × 50% + 余额充足率 × 30% + 回款及时率 × 20%
+
+        Returns:
+            {
+                "score": float,           # 健康度总分 (0-100)
+                "usage_rate": float,      # 用量达标率 (0-100)
+                "balance_rate": float,    # 余额充足率 (0-100)
+                "payment_rate": float,    # 回款及时率 (0-100)
+                "health_level": str,      # healthy/normal/unhealthy
+            }
+        """
+        from datetime import timedelta
+
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        ninety_days_ago = datetime.utcnow() - timedelta(days=90)
+
+        # 1. 获取近30天实际用量
+        usage_stmt = select(func.sum(DailyUsage.quantity).label("total_quantity")).where(
+            and_(
+                DailyUsage.customer_id == customer_id,
+                DailyUsage.usage_date >= thirty_days_ago.date(),
+            )
+        )
+        usage_result = (await self.db.execute(usage_stmt)).first()
+        actual_usage = float(usage_result.total_quantity or 0)
+
+        # 2. 获取预期用量（从定价规则取期望值，如果没有则用近30天日均 * 30）
+        pricing_stmt = select(PricingRule).where(
+            and_(
+                PricingRule.customer_id == customer_id,
+                PricingRule.effective_date <= datetime.utcnow().date(),
+                or_(
+                    PricingRule.expiry_date.is_(None),
+                    PricingRule.expiry_date >= datetime.utcnow().date(),
+                ),
+            )
+        )
+        pricing_result = (await self.db.execute(pricing_stmt)).first()
+        expected_usage = 0.0
+        if pricing_result and pricing_result.tiers:
+            # 从 tiers 中提取预期用量（如果有配置）
+            tiers = pricing_result.tiers
+            if isinstance(tiers, list) and len(tiers) > 0:
+                # 取最后一个 tier 的 threshold 作为预期用量参考
+                expected_usage = float(tiers[-1].get("threshold", 0))
+        if expected_usage == 0:
+            # 回退：用近30天的日均 * 30 作为预期
+            expected_usage = actual_usage if actual_usage > 0 else 0
+
+        # 3. 获取当前余额
+        balance_result = await self._get_current_balance(customer_id)
+        current_balance = balance_result["total_amount"] if balance_result else 0.0
+
+        # 4. 获取月均消耗（过去90天）
+        avg_consumption_stmt = select(func.avg(ConsumptionRecord.amount).label("avg_amount")).where(
+            and_(
+                ConsumptionRecord.customer_id == customer_id,
+                ConsumptionRecord.created_at >= ninety_days_ago,
+            )
+        )
+        avg_result = (await self.db.execute(avg_consumption_stmt)).first()
+        monthly_avg = float(avg_result.avg_amount or 0)
+
+        # 5. 计算各项指标
+        usage_rate = await self._calculate_usage_rate(actual_usage, expected_usage)
+        balance_rate = await self._calculate_balance_rate(current_balance, monthly_avg)
+        payment_rate = await self._calculate_payment_rate(customer_id)
+
+        # 6. 综合评分
+        score = round(usage_rate * 0.5 + balance_rate * 0.3 + payment_rate * 0.2, 2)
+
+        # 7. 健康等级映射
+        if score >= 80:
+            health_level = "healthy"
+        elif score >= 60:
+            health_level = "normal"
+        else:
+            health_level = "unhealthy"
+
+        return {
+            "score": score,
+            "usage_rate": round(usage_rate, 2),
+            "balance_rate": round(balance_rate, 2),
+            "payment_rate": round(payment_rate, 2),
+            "health_level": health_level,
+        }
+
+    async def _calculate_usage_rate(self, actual_usage: float, expected_usage: float) -> float:
+        """计算用量达标率
+
+        用量达标率 = min(实际用量 / 预期用量，1.0) × 100
+        """
+        if expected_usage <= 0:
+            return 0.0
+        return min(actual_usage / expected_usage, 1.0) * 100
+
+    async def _calculate_balance_rate(self, current_balance: float, monthly_avg: float) -> float:
+        """计算余额充足率
+
+        余额充足率 = min(当前余额 / 月均消耗，1.0) × 100
+        """
+        if monthly_avg <= 0:
+            return 0.0
+        return min(current_balance / monthly_avg, 1.0) * 100
+
+    async def _calculate_payment_rate(self, customer_id: int) -> float:
+        """计算回款及时率
+
+        回款及时率 = 按时付款结算单数 / 总结算单数 × 100
+        按时付款定义为：结算单状态为 paid 或 completed
+        """
+        # 总结算单数
+        total_stmt = select(func.count(Invoice.id)).where(
+            and_(
+                Invoice.customer_id == customer_id,
+                Invoice.status != "cancelled",
+                Invoice.status != "draft",
+            )
+        )
+        total_count = (await self.db.execute(total_stmt)).scalar() or 0
+
+        if total_count == 0:
+            return 0.0
+
+        # 按时付款结算单数
+        paid_stmt = select(func.count(Invoice.id)).where(
+            and_(
+                Invoice.customer_id == customer_id,
+                Invoice.status.in_(["paid", "completed"]),
+            )
+        )
+        paid_count = (await self.db.execute(paid_stmt)).scalar() or 0
+
+        return paid_count / total_count * 100
+
     # ========== 首页仪表盘 ==========
 
     async def get_dashboard_stats(self) -> Dict[str, Any]:
         """获取仪表盘统计数据（优化：6次查询 → 2次查询）"""
         today = datetime.utcnow()
         current_month_start = date(today.year, today.month, 1)
-        current_month_end = date(
-            today.year, today.month, monthrange(today.year, today.month)[1]
-        )
+        current_month_end = date(today.year, today.month, monthrange(today.year, today.month)[1])
 
         # 查询 1: 客户统计 + 余额 + 结算单统计（单次聚合查询）
         stats_stmt = (
@@ -939,9 +1027,9 @@ class AnalyticsService:
                         )
                     )
                 ).label("month_invoice_count"),
-                func.count(
-                    case((Invoice.status == "pending_customer", Invoice.id))
-                ).label("pending_confirmation"),
+                func.count(case((Invoice.status == "pending_customer", Invoice.id))).label(
+                    "pending_confirmation"
+                ),
                 func.sum(
                     case(
                         (

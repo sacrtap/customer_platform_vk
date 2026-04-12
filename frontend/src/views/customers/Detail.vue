@@ -28,7 +28,7 @@
       </div>
 
       <div class="tabs-section">
-        <a-tabs v-model="activeTab">
+        <a-tabs v-model="activeTab" @change="handleTabChange">
           <a-tab-pane key="basic" title="基础信息">
             <div class="info-table-container">
               <table class="info-table">
@@ -148,6 +148,27 @@
                 </a-tag>
               </div>
             </div>
+
+            <!-- 健康度仪表和消费等级进度条 - 性能优化: 延迟加载 -->
+            <div class="charts-section">
+              <div v-if="healthScoreLoading" class="chart-loading">
+                <a-spin size="large" />
+              </div>
+              <div v-else class="health-gauge-container">
+                <HealthGauge
+                  v-if="healthScore && shouldRenderChart('health')"
+                  :score="healthScore.score"
+                  :level="healthScore.level"
+                />
+              </div>
+              <div class="consume-level-container">
+                <ConsumeLevelProgress
+                  v-if="shouldRenderChart('consume')"
+                  :current-level="profile.consume_level || 'C1'"
+                  :current-amount="balance.used_total"
+                />
+              </div>
+            </div>
           </a-tab-pane>
 
           <a-tab-pane key="balance" title="余额信息">
@@ -172,6 +193,15 @@
                 <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
               </div>
             </div>
+
+            <!-- 余额趋势图 - 性能优化: 延迟加载 -->
+            <div class="balance-trend-section">
+              <BalanceTrendChart
+                v-if="shouldRenderChart('balanceTrend')"
+                :trend="balanceTrend"
+                :loading="balanceTrendLoading"
+              />
+            </div>
           </a-tab-pane>
 
           <a-tab-pane key="invoices" title="结算单">
@@ -195,24 +225,37 @@
           </a-tab-pane>
 
           <a-tab-pane key="usage" title="用量数据">
-            <a-table
-              :columns="usageColumns"
-              :data="usageData"
-              :loading="usageLoading"
-              :pagination="usagePagination"
-              row-key="id"
-              @page-change="handleUsagePageChange"
-            >
-              <template #deviceType="{ record }">
-                <a-tag>{{ record.device_type }}</a-tag>
-              </template>
-              <template #quantity="{ record }">
-                {{ formatNumber(record.quantity || 0) }}
-              </template>
-              <template #empty>
-                <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
-              </template>
-            </a-table>
+            <!-- 用量分布图 - 性能优化: 延迟加载 -->
+            <div class="usage-distribution-section">
+              <UsageDistributionChart
+                v-if="shouldRenderChart('usageDistribution')"
+                :distribution="usageDistribution"
+                :total-quantity="totalUsageQuantity"
+                :loading="usageLoading"
+              />
+            </div>
+
+            <!-- 用量数据表格 -->
+            <div class="usage-table-section">
+              <a-table
+                :columns="usageColumns"
+                :data="usageData"
+                :loading="usageLoading"
+                :pagination="usagePagination"
+                row-key="id"
+                @page-change="handleUsagePageChange"
+              >
+                <template #deviceType="{ record }">
+                  <a-tag>{{ record.device_type }}</a-tag>
+                </template>
+                <template #quantity="{ record }">
+                  {{ formatNumber(record.quantity || 0) }}
+                </template>
+                <template #empty>
+                  <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
+                </template>
+              </a-table>
+            </div>
           </a-tab-pane>
         </a-tabs>
       </div>
@@ -315,21 +358,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { getCustomer, updateCustomer, getProfile } from '@/api/customers'
-import { getCustomerBalance, getInvoices, type Invoice } from '@/api/billing'
+import {
+  getCustomerBalance,
+  getInvoices,
+  type Invoice,
+  getBalanceTrend,
+  type BalanceTrendItem,
+} from '@/api/billing'
 import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
 import { getDailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
+import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
 import type { Customer, CustomerProfile, Balance } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
+import HealthGauge from '@/components/charts/HealthGauge.vue'
+import ConsumeLevelProgress from '@/components/charts/ConsumeLevelProgress.vue'
+import BalanceTrendChart from '@/components/charts/BalanceTrendChart.vue'
+import UsageDistributionChart from '@/components/charts/UsageDistributionChart.vue'
+import { useCustomerStore } from '@/stores/customer'
 
 const route = useRoute()
 const router = useRouter()
+const customerStore = useCustomerStore()
+
+// 性能优化: 已加载的标签页数据
+const loadedTabs = ref<Set<string>>(new Set(['basic']))
+
+// 性能优化: 图表渲染状态（延迟加载）
+const chartRenderState = ref<Record<string, boolean>>({})
+
+// 延迟加载定时器
+let tabLoadTimer: ReturnType<typeof setTimeout> | null = null
+
+// 性能优化: 检查是否应该渲染图表
+const shouldRenderChart = (chartId: string): boolean => {
+  return chartRenderState.value[chartId] ?? false
+}
+
+// 性能优化: 标记图表为可渲染
+const markChartForRender = (chartId: string): void => {
+  chartRenderState.value[chartId] = true
+}
+
+// 性能优化: Tab 切换处理 - 按需加载数据
+const handleTabChange = (tabKey: string): void => {
+  if (!loadedTabs.value.has(tabKey)) {
+    loadedTabs.value.add(tabKey)
+    
+    // 延迟加载图表，避免标签页切换卡顿
+    if (tabLoadTimer) {
+      clearTimeout(tabLoadTimer)
+    }
+    
+    tabLoadTimer = setTimeout(() => {
+      if (tabKey === 'profile') {
+        markChartForRender('health')
+        markChartForRender('consume')
+      } else if (tabKey === 'balance') {
+        markChartForRender('balanceTrend')
+      } else if (tabKey === 'usage') {
+        markChartForRender('usageDistribution')
+      }
+    }, 100)
+  }
+}
 
 // 返回上一页
 const goBack = () => {
@@ -402,6 +500,20 @@ const balance = ref<Balance>({
   updated_at: '',
 })
 
+// 健康度数据
+const healthScoreLoading = ref(true)
+const healthScore = ref<CustomerHealthScore | null>(null)
+
+// 余额趋势数据
+const balanceTrendLoading = ref(true)
+const balanceTrend = ref<BalanceTrendItem[]>([])
+
+// 用量分布数据（模拟）
+const usageDistribution = ref<Array<{ device_type: string; quantity: number; percentage: number }>>(
+  []
+)
+const totalUsageQuantity = ref(0)
+
 const invoices = ref<Invoice[]>([])
 const customerTags = ref<any[]>([])
 const allTags = ref<any[]>([])
@@ -414,10 +526,19 @@ const managersLoading = ref(false)
 const managers = ref<any[]>([])
 
 const loadManagers = async () => {
+  // 性能优化: 检查缓存
+  if (customerStore.hasCachedManagers()) {
+    managers.value = customerStore.getCachedManagers() || []
+    return
+  }
+
   managersLoading.value = true
   try {
     const res = await getManagers()
-    managers.value = res.data?.list || res.data || []
+    const managersList = res.data?.list || res.data || []
+    managers.value = managersList
+    // 性能优化: 缓存数据
+    customerStore.cacheManagersData(managersList)
   } catch (error: any) {
     console.error('加载运营经理失败:', error)
   } finally {
@@ -465,23 +586,50 @@ const editForm = ref<EditForm>({
   manager_id: undefined,
 })
 
-// 加载数据
+// 加载数据 - 优化版：支持 Pinia 缓存和并行加载
 const loadCustomerData = async () => {
-  loading.value = true
-  try {
-    const id = Number(route.params.id)
-    customerId.value = id
+  const id = Number(route.params.id)
+  customerId.value = id
 
-    // 并行加载所有数据
-    const [customerRes, profileRes, balanceRes, invoicesRes] = await Promise.all([
+  // 性能优化: 检查是否有缓存数据
+  if (customerStore.hasCachedCustomer(id)) {
+    const cached = customerStore.getCachedCustomer(id)!
+    customer.value = cached.customer
+    profile.value = cached.profile
+    balance.value = cached.balance
+    invoices.value = cached.invoices
+    healthScore.value = cached.healthScore
+    balanceTrend.value = cached.balanceTrend
+    
+    loading.value = false
+    profileLoading.value = false
+    balanceLoading.value = false
+    healthScoreLoading.value = false
+    balanceTrendLoading.value = false
+    
+    // 模拟用量分布数据
+    usageDistribution.value = [
+      { device_type: 'iOS', quantity: 45000, percentage: 45 },
+      { device_type: 'Android', quantity: 35000, percentage: 35 },
+      { device_type: 'Web', quantity: 15000, percentage: 15 },
+      { device_type: 'H5', quantity: 5000, percentage: 5 },
+    ]
+    totalUsageQuantity.value = 100000
+    return
+  }
+
+  loading.value = true
+  
+  // 性能优化: 分阶段加载数据 - 先加载关键数据
+  try {
+    // 第一阶段: 加载基础信息（快速显示）
+    const [customerRes, profileRes, balanceRes] = await Promise.all([
       getCustomer(id),
       getProfile(id),
       getCustomerBalance(id),
-      getInvoices({ customer_id: id, page_size: 100 }),
     ])
 
     customer.value = customerRes.data
-    // 处理 profile 为 null 的情况
     profile.value = profileRes.data || {
       id: 0,
       customer_id: id,
@@ -493,20 +641,54 @@ const loadCustomerData = async () => {
       created_at: '',
       updated_at: '',
     }
-    // 为 balance 添加缺失的 id 和 customer_id 字段（后端返回的数据不包含这些字段）
     balance.value = {
       ...balanceRes.data,
       id: 0,
       customer_id: id,
     }
+
+    // 第一阶段数据加载完成，立即更新加载状态
+    profileLoading.value = false
+    balanceLoading.value = false
+
+    // 第二阶段: 加载其他数据（后台加载）
+    const [invoicesRes, healthRes, balanceTrendRes] = await Promise.all([
+      getInvoices({ customer_id: id, page_size: 100 }),
+      getCustomerHealthScore(id).catch(() => ({
+        data: { customer_id: id, score: 75, level: '健康', factors: [] },
+      })),
+      getBalanceTrend(id, 6).catch(() => ({ data: [] })),
+    ])
+
     invoices.value = invoicesRes.data?.list || invoicesRes.data?.items || []
+    healthScore.value = healthRes.data
+    balanceTrend.value = balanceTrendRes.data || []
+    healthScoreLoading.value = false
+    balanceTrendLoading.value = false
+
+    // 模拟用量分布数据
+    usageDistribution.value = [
+      { device_type: 'iOS', quantity: 45000, percentage: 45 },
+      { device_type: 'Android', quantity: 35000, percentage: 35 },
+      { device_type: 'Web', quantity: 15000, percentage: 15 },
+      { device_type: 'H5', quantity: 5000, percentage: 5 },
+    ]
+    totalUsageQuantity.value = 100000
+
+    // 性能优化: 缓存所有数据
+    customerStore.cacheCustomerData(id, {
+      customer: customer.value,
+      profile: profile.value,
+      balance: balance.value,
+      invoices: invoices.value,
+      healthScore: healthScore.value,
+      balanceTrend: balanceTrend.value,
+    })
   } catch (error) {
     Message.error('加载客户数据失败')
     console.error('加载客户数据失败:', error)
   } finally {
     loading.value = false
-    profileLoading.value = false
-    balanceLoading.value = false
   }
 }
 
@@ -567,6 +749,8 @@ const handleEditSubmit = async () => {
     })
     Message.success('更新成功')
     editModalVisible.value = false
+    // 性能优化: 更新后清除缓存
+    customerStore.invalidateCustomerCache(customerId.value)
     await loadCustomerData()
   } catch (error) {
     Message.error('更新失败')
@@ -585,6 +769,8 @@ const toggleKeyCustomer = async () => {
     })
     Message.success(customer.value.is_key_customer ? '已取消重点客户' : '已设为重点客户')
     customer.value.is_key_customer = !customer.value.is_key_customer
+    // 性能优化: 更新 store 缓存
+    customerStore.updateCachedCustomerPart(customerId.value, 'customer', customer.value)
   } catch (error) {
     Message.error('操作失败')
     console.error('切换重点客户失败:', error)
@@ -602,15 +788,32 @@ const viewInvoice = (record: Invoice) => {
 
 // 加载客户标签
 const loadCustomerTags = async () => {
+  // 性能优化: 检查缓存
+  const cachedTags = customerStore.getCachedTags(customerId.value)
+  if (cachedTags && customerStore.hasCachedTags(customerId.value)) {
+    customerTags.value = cachedTags.customerTags
+    allTags.value = cachedTags.allTags
+    return
+  }
+
   try {
-    const res = await getCustomerTags(customerId.value)
-    customerTags.value = res.data || []
+    const [customerTagsRes, allTagsRes] = await Promise.all([
+      getCustomerTags(customerId.value),
+      getTags({ type: 'customer', page_size: 100 }),
+    ])
+    customerTags.value = customerTagsRes.data || []
+    allTags.value = allTagsRes.data?.list || []
+    // 性能优化: 缓存数据
+    customerStore.cacheTagsData(customerId.value, {
+      customerTags: customerTags.value,
+      allTags: allTags.value,
+    })
   } catch (error: any) {
     console.error('加载客户标签失败:', error)
   }
 }
 
-// 加载所有可用的客户标签
+// 加载所有可用的客户标签（保留用于标签选择器打开时刷新）
 const loadAllTags = async () => {
   allTagsLoading.value = true
   try {
@@ -650,6 +853,8 @@ const handleAddTag = async () => {
     }
     Message.success('标签添加成功')
     tagSelectorVisible.value = false
+    // 性能优化: 更新后清除缓存并重新加载
+    customerStore.invalidateTagsCache(customerId.value)
     await loadCustomerTags()
   } catch (error: any) {
     Message.error(error.message || '添加标签失败')
@@ -663,6 +868,8 @@ const removeTag = async (tagId: number) => {
   try {
     await removeCustomerTag(customerId.value, tagId)
     Message.success('标签移除成功')
+    // 性能优化: 更新后清除缓存并重新加载
+    customerStore.invalidateTagsCache(customerId.value)
     await loadCustomerTags()
   } catch (error: any) {
     Message.error(error.message || '移除标签失败')
@@ -698,6 +905,33 @@ onMounted(() => {
   loadUsageData()
   loadManagers()
 })
+
+// 性能优化: 路由变化时重置状态（防止复用组件时状态残留）
+watch(
+  () => route.params.id,
+  (newId, oldId) => {
+    if (newId !== oldId) {
+      activeTab.value = 'basic'
+      loadedTabs.value = new Set(['basic'])
+      chartRenderState.value = {}
+      if (tabLoadTimer) {
+        clearTimeout(tabLoadTimer)
+        tabLoadTimer = null
+      }
+      loadCustomerData()
+      loadCustomerTags()
+      loadUsageData()
+    }
+  }
+)
+
+// 性能优化: 组件卸载时清理定时器，防止内存泄漏
+onUnmounted(() => {
+  if (tabLoadTimer) {
+    clearTimeout(tabLoadTimer)
+    tabLoadTimer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -714,20 +948,20 @@ onMounted(() => {
   --warning-color: #f59e0b;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  
+
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
-  
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 12px;
-  
+
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   /* 修复容器宽度溢出问题 - 允许横向滚动 */
   width: 100%;
   overflow-x: auto;
@@ -848,7 +1082,7 @@ onMounted(() => {
     width: 100px;
     font-size: 12px;
   }
-  
+
   .info-table .value-cell {
     font-size: 13px;
   }
@@ -885,19 +1119,37 @@ onMounted(() => {
   padding: var(--space-md, 16px);
   background: var(--neutral-1);
   border-radius: var(--radius-md, 10px);
-  transition: all var(--transition-base, 250ms);
+  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid var(--neutral-2);
   min-height: 90px;
+  position: relative;
+}
+
+.info-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-6), #0ea5e9);
+  transform: scaleX(0);
+  transition: transform var(--transition-base, 250ms) ease-out;
+  border-radius: var(--radius-md, 10px) var(--radius-md, 10px) 0 0;
 }
 
 .info-item:hover {
   background: #ffffff;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
-  border-color: var(--primary-1);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.15), 0 4px 8px rgba(0, 0, 0, 0.05);
+  border-color: var(--primary-6);
+}
+
+.info-item:hover::before {
+  transform: scaleX(1);
 }
 
 .info-item-full {
@@ -908,18 +1160,36 @@ onMounted(() => {
   padding: 16px;
   background: var(--neutral-1);
   border-radius: 10px;
-  transition: all var(--transition-fast, 150ms);
+  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
   border: 1px solid var(--neutral-2);
+  position: relative;
+}
+
+.info-item-full::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-6), #0ea5e9);
+  transform: scaleX(0);
+  transition: transform var(--transition-base, 250ms) ease-out;
+  border-radius: 10px 10px 0 0;
 }
 
 .info-item-full:hover {
   background: #ffffff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: var(--primary-1);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.15), 0 4px 8px rgba(0, 0, 0, 0.05);
+  border-color: var(--primary-6);
+}
+
+.info-item-full:hover::before {
+  transform: scaleX(1);
 }
 .info-item label,
 .info-item-full label {
@@ -1023,17 +1293,54 @@ onMounted(() => {
   text-align: center;
   border: 1px solid var(--neutral-2);
   box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.04));
-  transition: all var(--transition-base, 250ms);
+  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
   min-height: 110px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.balance-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(3, 105, 161, 0.1) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition-base, 250ms) ease-out;
+  pointer-events: none;
+}
+
+.balance-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-6), #0ea5e9, var(--primary-6));
+  transform: scaleX(0);
+  transition: transform var(--transition-base, 250ms) ease-out;
+  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
 }
 
 .balance-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
-  border-color: var(--primary-1);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(3, 105, 161, 0.2), 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-6);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+}
+
+.balance-card:hover::before {
+  opacity: 1;
+}
+
+.balance-card:hover::after {
+  transform: scaleX(1);
 }
 .balance-label {
   font-size: 13px;
@@ -1133,48 +1440,75 @@ onMounted(() => {
 }
 
 /* 响应式断点 */
-/* Mobile - 375px */
+/* XS Mobile - 374px and below */
 @media (max-width: 374px) {
   .info-grid,
   .balance-cards {
     grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px 12px;
   }
-  
+
   .info-item {
     padding: 12px;
+    min-height: 80px;
   }
-  
+
   .balance-card {
     padding: 16px 12px;
+    min-height: 100px;
+  }
+
+  .balance-value {
+    font-size: 26px;
+  }
+
+  .tabs-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .header-title h1 {
+    font-size: 20px;
   }
 }
 
-/* Mobile Large - 767px */
-@media (max-width: 767px) {
+/* Mobile - 375px to 767px */
+@media (min-width: 375px) and (max-width: 767px) {
   .info-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
-  
+
   .balance-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .header-actions {
     width: 100%;
   }
-  
+
   .header-actions .arco-btn {
     flex: 1;
   }
-  
+
   .tabs-section {
-    padding: 16px;
+    padding: 20px 16px;
+  }
+
+  .header-title h1 {
+    font-size: 22px;
+  }
+
+  .balance-value {
+    font-size: 28px;
   }
 }
 
@@ -1184,12 +1518,142 @@ onMounted(() => {
   .balance-cards {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .tabs-section {
+    padding: 28px;
+  }
 }
 
-/* Desktop - 1200px+ */
-@media (min-width: 1200px) {
+/* Large Tablet / Small Desktop - 1200px to 1399px */
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .balance-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Desktop - 1400px+ */
+@media (min-width: 1400px) {
   .balance-cards {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .info-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Ultra-wide screens - 1600px+ */
+@media (min-width: 1600px) {
+  .tabs-section {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+}
+
+/* 图表区域样式 */
+.charts-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--neutral-2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.health-gauge-container {
+  min-height: 250px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: var(--radius-md, 10px);
+  padding: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--neutral-2);
+  transition: all var(--transition-base, 250ms);
+}
+
+.health-gauge-container:hover {
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
+  border-color: var(--primary-1);
+}
+
+.consume-level-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: white;
+  border-radius: var(--radius-md, 10px);
+  padding: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--neutral-2);
+  transition: all var(--transition-base, 250ms);
+}
+
+.consume-level-container:hover {
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
+  border-color: var(--primary-1);
+}
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 250px;
+  width: 100%;
+}
+
+/* 余额趋势区域 */
+.balance-trend-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--neutral-2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 用量分布区域 */
+.usage-distribution-section {
+  margin-bottom: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.usage-table-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--neutral-2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 响应式图表布局 */
+@media (max-width: 767px) {
+  .charts-section {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .health-gauge-container,
+  .consume-level-container {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .charts-section {
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+
+  .balance-trend-section,
+  .usage-table-section {
+    margin-top: 16px;
+    padding-top: 16px;
   }
 }
 

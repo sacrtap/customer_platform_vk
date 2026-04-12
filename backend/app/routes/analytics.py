@@ -240,6 +240,35 @@ async def get_inactive_list(request: Request):
     return json(result)
 
 
+@analytics.route("/health/customers/<customer_id:int>/score", methods=["GET"])
+@auth_required
+async def get_customer_health_score(request: Request, customer_id: int):
+    """获取客户健康度评分"""
+    from sqlalchemy import select as sa_select
+    from ..models.customers import Customer
+
+    db_session = request.ctx.db_session
+
+    # 验证客户是否存在
+    customer_check = await db_session.execute(
+        sa_select(Customer.id).where(
+            Customer.id == customer_id,
+            Customer.deleted_at.is_(None),
+        )
+    )
+    if customer_check.scalar() is None:
+        return json(
+            {"code": 404, "message": "Customer not found", "data": None},
+            status=404,
+        )
+
+    service = AnalyticsService(db_session)
+    score = await service.get_customer_health_score(customer_id)
+
+    result = {"code": 0, "message": "success", "data": score}
+    return json(result)
+
+
 @analytics.route("/profile/industry", methods=["GET"])
 @auth_required
 async def get_industry_distribution(request: Request):
@@ -393,3 +422,19 @@ async def get_dashboard_chart_data(request: Request):
     result = {"code": 0, "message": "success", "data": chart_data}
     await cache_service.set("analytics_dashboard_chart", result, cache_key)
     return json(result)
+
+
+@analytics.route("/billing/trend/<customer_id:int>", methods=["GET"])
+@auth_required
+async def get_balance_trend(request: Request, customer_id: int):
+    """获取客户余额趋势"""
+    months = int(request.args.get("months", 6))
+    if months > 12:
+        months = 12
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    trend = await service.get_balance_trend(customer_id=customer_id, months=months)
+
+    return json({"code": 0, "message": "success", "data": trend})

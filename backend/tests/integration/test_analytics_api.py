@@ -44,48 +44,54 @@ def auth_token(test_client, db_session: Session, app):
 
     # 确保超级管理员角色存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 确保需要的权限存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('analytics:read', '分析读取', '读取分析数据的权限', 'analytics', NOW())
         ON CONFLICT (code) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 获取角色 ID 和权限 ID
     result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
 
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'analytics:read'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'analytics:read'"))
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
+        """
+        ),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -103,11 +109,13 @@ def auth_token(test_client, db_session: Session, app):
     user_id = result.scalar_one()
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()
@@ -506,4 +514,184 @@ async def test_analytics_unauthorized(test_client):
 
     for endpoint in endpoints:
         request, response = await test_client.get(endpoint)
+        assert response.status in [401, 403]
+
+
+class TestBalanceTrendApi:
+    """余额趋势 API 集成测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_balance_trend_success(self, test_client, auth_token, mock_cache, db_session):
+        """测试获取余额趋势 - 成功场景"""
+        from sqlalchemy import text
+
+        # 创建测试客户
+        db_session.execute(
+            text(
+                "INSERT INTO customers (company_id, name, email) "
+                "VALUES ('BT_TEST_001', 'balance_trend_test', 'balance_trend@test.com') "
+                "RETURNING id"
+            )
+        )
+        result = db_session.execute(
+            text("SELECT id FROM customers WHERE email = 'balance_trend@test.com'")
+        )
+        customer_id = result.scalar_one()
+        db_session.commit()
+
+        try:
+            request, response = await test_client.get(
+                f"/api/v1/analytics/billing/trend/{customer_id}",
+                headers=auth_token,
+            )
+
+            assert response.status == 200
+            data = response.json
+            assert data["code"] == 0
+            assert data["message"] == "success"
+            assert "data" in data
+            assert isinstance(data["data"], list)
+            if data["data"]:
+                point = data["data"][0]
+                assert "month" in point
+                assert "total_amount" in point
+                assert "real_amount" in point
+                assert "bonus_amount" in point
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE email = 'balance_trend@test.com'"))
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_get_balance_trend_invalid_customer(self, test_client, auth_token, mock_cache):
+        """测试获取不存在的客户余额趋势"""
+        request, response = await test_client.get(
+            "/api/v1/analytics/billing/trend/999999",
+            headers=auth_token,
+        )
+
+        assert response.status == 200
+        data = response.json
+        assert data["code"] == 0
+        assert data["data"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_balance_trend_with_months_param(
+        self, test_client, auth_token, mock_cache, db_session
+    ):
+        """测试 months 参数（默认 6，最大 12）"""
+        from sqlalchemy import text
+
+        db_session.execute(
+            text(
+                "INSERT INTO customers (company_id, name, email) "
+                "VALUES ('BT_TEST_002', 'balance_trend_months', 'balance_trend_m@test.com') "
+                "RETURNING id"
+            )
+        )
+        result = db_session.execute(
+            text("SELECT id FROM customers WHERE email = 'balance_trend_m@test.com'")
+        )
+        customer_id = result.scalar_one()
+        db_session.commit()
+
+        try:
+            # 默认 6 个月
+            request, response = await test_client.get(
+                f"/api/v1/analytics/billing/trend/{customer_id}",
+                headers=auth_token,
+            )
+            assert response.status == 200
+            assert len(response.json["data"]) <= 6
+
+            # 指定 3 个月
+            request, response = await test_client.get(
+                f"/api/v1/analytics/billing/trend/{customer_id}?months=3",
+                headers=auth_token,
+            )
+            assert response.status == 200
+            assert len(response.json["data"]) <= 3
+
+            # 最大 12 个月
+            request, response = await test_client.get(
+                f"/api/v1/analytics/billing/trend/{customer_id}?months=12",
+                headers=auth_token,
+            )
+            assert response.status == 200
+            assert len(response.json["data"]) <= 12
+
+            # 超过最大值应被限制为 12
+            request, response = await test_client.get(
+                f"/api/v1/analytics/billing/trend/{customer_id}?months=24",
+                headers=auth_token,
+            )
+            assert response.status == 200
+            assert len(response.json["data"]) <= 12
+        finally:
+            db_session.execute(
+                text("DELETE FROM customers WHERE email = 'balance_trend_m@test.com'")
+            )
+            db_session.commit()
+
+
+class TestCustomerHealthScoreApi:
+    """客户健康度评分 API 集成测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_health_score_success(self, test_client, auth_token, mock_cache, db_session):
+        """测试获取客户健康度评分 - 成功场景"""
+        # 创建测试客户
+        db_session.execute(
+            text(
+                "INSERT INTO customers (company_id, name, email) "
+                "VALUES ('HS_TEST_001', 'health_score_test', 'health_score@test.com') "
+                "RETURNING id"
+            )
+        )
+        result = db_session.execute(
+            text("SELECT id FROM customers WHERE email = 'health_score@test.com'")
+        )
+        customer_id = result.scalar_one()
+        db_session.commit()
+
+        try:
+            request, response = await test_client.get(
+                f"/api/v1/analytics/health/customers/{customer_id}/score",
+                headers=auth_token,
+            )
+
+            assert response.status == 200
+            data = response.json
+            assert data["code"] == 0
+            assert data["message"] == "success"
+            assert "data" in data
+            score_data = data["data"]
+            assert "score" in score_data
+            assert "usage_rate" in score_data
+            assert "balance_rate" in score_data
+            assert "payment_rate" in score_data
+            assert "health_level" in score_data
+            assert score_data["health_level"] in ["healthy", "normal", "unhealthy"]
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE email = 'health_score@test.com'"))
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_get_health_score_not_found(self, test_client, auth_token, mock_cache):
+        """测试获取不存在客户的健康度评分"""
+        request, response = await test_client.get(
+            "/api/v1/analytics/health/customers/999999/score",
+            headers=auth_token,
+        )
+
+        assert response.status == 404
+        data = response.json
+        assert data["code"] != 0
+        assert "message" in data
+
+    @pytest.mark.asyncio
+    async def test_get_health_score_unauthorized(self, test_client):
+        """测试健康度评分 API - 未授权访问"""
+        request, response = await test_client.get(
+            "/api/v1/analytics/health/customers/1/score",
+        )
         assert response.status in [401, 403]

@@ -320,3 +320,20 @@ export function getPendingTasks() {
     },
   })
 }
+
+// ==================== 客户健康度 ====================
+
+export interface CustomerHealthScore {
+  customer_id: number
+  score: number
+  level: string
+  factors: Array<{
+    name: string
+    value: number
+    weight: number
+  }>
+}
+
+export function getCustomerHealthScore(customerId: number) {
+  return api.get(`/analytics/health/customers/${customerId}/score`)
+}

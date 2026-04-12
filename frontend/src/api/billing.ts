@@ -207,3 +207,16 @@ export function deleteInvoice(id: number) {
 export function getRecentInvoices(limit: number = 10) {
   return getInvoices({ page: 1, page_size: limit })
 }
+
+// ==================== 余额趋势 ====================
+
+export interface BalanceTrendItem {
+  month: string
+  total_amount: number
+  real_amount: number
+  bonus_amount: number
+}
+
+export function getBalanceTrend(customerId: number, months: number = 6) {
+  return api.get(`/billing/customers/${customerId}/balance-trend`, { params: { months } })
+}

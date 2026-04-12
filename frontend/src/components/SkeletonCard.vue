@@ -36,27 +36,49 @@ withDefaults(
 
 .skeleton-line {
   height: 16px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #f7f7f7 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
+  background: linear-gradient(
+    90deg,
+    var(--neutral-1) 0%,
+    var(--neutral-2) 25%,
+    var(--neutral-1) 50%,
+    var(--neutral-2) 75%,
+    var(--neutral-1) 100%
+  );
+  background-size: 400% 100%;
   border-radius: 4px;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2s ease-in-out infinite;
 }
 
 .skeleton-line--short {
   width: 60%;
   height: 14px;
+  animation-delay: 0.1s;
 }
 
 .skeleton-line--long {
   width: 100%;
+  animation-delay: 0.2s;
 }
 
 @keyframes shimmer {
   0% {
-    background-position: 200% 0;
+    background-position: 400% 0;
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
   }
   100% {
-    background-position: -200% 0;
+    background-position: -400% 0;
+    opacity: 0.5;
+  }
+}
+
+/* 减少运动偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+    background: var(--neutral-2);
   }
 }
 </style>

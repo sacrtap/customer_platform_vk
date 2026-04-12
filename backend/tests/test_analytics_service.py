@@ -250,17 +250,17 @@ def make_mock_execute_result(rows, scalar_value=None):
     """
     # 将元组转换为具名 mock 对象
     mock_rows = [
-        make_mock_row(row)
-        if not hasattr(row, "__dict__") and not isinstance(row, MagicMock)
-        else row
+        (
+            make_mock_row(row)
+            if not hasattr(row, "__dict__") and not isinstance(row, MagicMock)
+            else row
+        )
         for row in rows
     ]
 
     result = MagicMock()
     result.all = MagicMock(return_value=mock_rows)
-    result.scalar_one_or_none = MagicMock(
-        return_value=mock_rows[0] if mock_rows else None
-    )
+    result.scalar_one_or_none = MagicMock(return_value=mock_rows[0] if mock_rows else None)
 
     # 处理 .scalar() 调用（用于 count 查询）
     if scalar_value is not None:
@@ -423,9 +423,7 @@ class TestGetTopCustomers:
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_top_customers(
-            start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
-        )
+        result = service.get_top_customers(start_date=date(2026, 1, 1), end_date=date(2026, 1, 31))
 
         assert len(result) == 0
 
@@ -896,9 +894,7 @@ class TestPredictMonthlyPayment:
         """测试按客户 ID 筛选预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)]
         usage_rows = [("X", Decimal("500"))]
 
         mock_db.execute.side_effect = [
@@ -930,9 +926,7 @@ class TestPredictMonthlyPayment:
             {"threshold": 100, "price": 10},
             {"threshold": 500, "price": 8},
         ]
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)]
         usage_rows = [("X", Decimal("600"))]
 
         mock_db.execute.side_effect = [
@@ -950,9 +944,7 @@ class TestPredictMonthlyPayment:
         """测试套餐定价预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")]
         usage_rows = [("L", Decimal("1000"))]
 
         mock_db.execute.side_effect = [
@@ -1053,12 +1045,8 @@ class TestGetDashboardChartData:
             "completion_rate": 80.0,
         }
 
-        with patch.object(
-            service, "get_consumption_trend", return_value=consumption_trend_data
-        ):
-            with patch.object(
-                service, "get_payment_analysis", return_value=payment_data
-            ):
+        with patch.object(service, "get_consumption_trend", return_value=consumption_trend_data):
+            with patch.object(service, "get_payment_analysis", return_value=payment_data):
                 result = service.get_dashboard_chart_data(months=3)
 
                 assert "consumption_trend" in result
@@ -1396,11 +1384,108 @@ class TestBalanceTrendService:
             balance_row.bonus_amount = None
 
             mock_db.execute.side_effect = [
-                make_mock_execute_result(
-                    [balance_row]
-                ),  # 当前余额为 None，直接返回空列表
+                make_mock_execute_result([balance_row]),  # 当前余额为 None，直接返回空列表
             ]
 
             result = await service.get_balance_trend(customer_id=1, months=6)
 
             assert result == []
+
+
+# ==================== 客户健康度评分测试 ====================
+
+
+class TestCustomerHealthScoreService:
+    """get_customer_health_score 测试"""
+
+    async def test_get_health_score_success(self, analytics_service):
+        """测试获取健康度评分成功"""
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            # 模拟查询：
+            # 1. DailyUsage 聚合（近30天实际用量）
+            usage_row = MagicMock()
+            usage_row.total_quantity = Decimal("800")
+
+            # 2. PricingRule（从 tiers 提取预期用量）
+            pricing_row = MagicMock()
+            pricing_row.tiers = [
+                {"threshold": 500, "price": 10},
+                {"threshold": 1000, "price": 8},
+            ]
+
+            # 3. CustomerBalance（当前余额）
+            balance_row = MagicMock()
+            balance_row.total_amount = Decimal("15000.00")
+            balance_row.real_amount = Decimal("12000.00")
+            balance_row.bonus_amount = Decimal("3000.00")
+
+            # 4. 月均消耗（过去90天平均）
+            avg_consumption_row = MagicMock()
+            avg_consumption_row.avg_amount = Decimal("5000.00")
+
+            # 5. 总结算单数
+            total_invoices_row = MagicMock()
+            total_invoices_row.total_count = 10
+
+            # 6. 按时付款结算单数
+            paid_invoices_row = MagicMock()
+            paid_invoices_row.paid_count = 8
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row]),  # 实际用量
+                make_mock_execute_result([pricing_row]),  # 定价规则
+                make_mock_execute_result([balance_row]),  # 当前余额
+                make_mock_execute_result([avg_consumption_row]),  # 月均消耗
+                make_mock_execute_result([], scalar_value=10),  # 总结算单数
+                make_mock_execute_result([], scalar_value=8),  # 按时付款数
+            ]
+
+            result = await service.get_customer_health_score(customer_id=1)
+
+            # 验证返回结构
+            assert "score" in result
+            assert "usage_rate" in result
+            assert "balance_rate" in result
+            assert "payment_rate" in result
+            assert "health_level" in result
+
+            # 用量达标率 = min(800/1000, 1.0) * 100 = 80 (从 tiers[-1].threshold=1000)
+            assert result["usage_rate"] == 80.0
+            # 余额充足率 = min(15000/5000, 1.0) * 100 = 100
+            assert result["balance_rate"] == 100.0
+            # 回款及时率 = 8/10 * 100 = 80
+            assert result["payment_rate"] == 80.0
+            # 健康度 = 80*0.5 + 100*0.3 + 80*0.2 = 40 + 30 + 16 = 86
+            assert result["score"] == 86.0
+            assert result["health_level"] == "healthy"
+
+    async def test_get_health_score_no_data(self, analytics_service):
+        """测试无数据时返回默认值"""
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            # 所有查询返回 None/0
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([MagicMock(total_quantity=None)]),
+                make_mock_execute_result([MagicMock(expected_quantity=None)]),
+                make_mock_execute_result([MagicMock(total_amount=None)]),
+                make_mock_execute_result([MagicMock(avg_amount=None)]),
+                make_mock_execute_result([MagicMock(total_count=0)]),
+                make_mock_execute_result([MagicMock(paid_count=0)]),
+            ]
+
+            result = await service.get_customer_health_score(customer_id=1)
+
+            assert result["score"] == 0.0
+            assert result["usage_rate"] == 0.0
+            assert result["balance_rate"] == 0.0
+            assert result["payment_rate"] == 0.0
+            assert result["health_level"] == "unhealthy"
