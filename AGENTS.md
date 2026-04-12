@@ -102,7 +102,7 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 **核心规则：**
 1. 架构问题优先查询 `graphify-out/GRAPH_REPORT.md`
 2. 使用 `graphify_query_graph` 等工具追踪依赖关系
-3. 修改代码后运行 `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` 更新图谱
+3. 修改代码或docs目录中的文档更新后运行 `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` 更新图谱
 
 ---
 
