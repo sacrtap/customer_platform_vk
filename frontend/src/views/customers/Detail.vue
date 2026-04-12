@@ -894,24 +894,6 @@ const loadUsageData = async () => {
   }
 }
 
-// 加载用量数据
-const loadUsageData = async () => {
-  usageLoading.value = true
-  try {
-    const res = await getDailyUsage({
-      customer_id: customerId.value,
-      page: usagePagination.current,
-      page_size: usagePagination.pageSize,
-    })
-    usageData.value = res.data?.list || []
-    usagePagination.total = res.data?.total || 0
-  } catch (error: any) {
-    console.error('加载用量数据失败:', error)
-  } finally {
-    usageLoading.value = false
-  }
-}
-
 const handleUsagePageChange = (page: number) => {
   usagePagination.current = page
   loadUsageData()
