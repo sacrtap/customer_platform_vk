@@ -11,23 +11,21 @@
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from decimal import Decimal
 from datetime import date, datetime
 
-# ==================== MockDBSession 工具类 ====================
-
 
 class MockDBSession:
-    """Mock 数据库会话"""
+    """Mock 数据库会话（支持异步操作）"""
 
     def __init__(self):
-        self.execute = MagicMock()
+        self.execute = AsyncMock()
         self._add_calls = []
         self._add_all_calls = []
-        self.flush = MagicMock()
-        self.commit = MagicMock()
-        self.refresh = MagicMock()
+        self.flush = AsyncMock()
+        self.commit = AsyncMock()
+        self.refresh = AsyncMock()
         self._new = []
 
     def add(self, obj):
@@ -1308,3 +1306,101 @@ class TestEdgeCases:
 
         total_percentage = sum(item["percentage"] for item in result)
         assert abs(total_percentage - 100.0) < 0.01  # 允许浮点误差
+
+
+# ==================== 余额趋势测试 ====================
+
+
+class TestBalanceTrendService:
+    """get_balance_trend 测试"""
+
+    async def test_get_balance_trend_success(self, analytics_service):
+        """测试获取余额趋势成功 - 返回 6 个月数据"""
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            # 模拟 5 次查询：当前余额 + 充值记录 + 结算单 + 历史充值 + 历史结算
+            balance_row = MagicMock()
+            balance_row.total_amount = Decimal("50000.00")
+            balance_row.real_amount = Decimal("40000.00")
+            balance_row.bonus_amount = Decimal("10000.00")
+
+            recharge_row1 = MagicMock()
+            recharge_row1.year = 2026
+            recharge_row1.month = 3
+            recharge_row1.real_amount = Decimal("5000.00")
+            recharge_row1.bonus_amount = Decimal("1000.00")
+
+            recharge_row2 = MagicMock()
+            recharge_row2.year = 2026
+            recharge_row2.month = 2
+            recharge_row2.real_amount = Decimal("3000.00")
+            recharge_row2.bonus_amount = Decimal("500.00")
+
+            recharge_rows = [recharge_row1, recharge_row2]
+
+            invoice_row1 = MagicMock()
+            invoice_row1.year = 2026
+            invoice_row1.month = 3
+            invoice_row1.total_amount = Decimal("8000.00")
+
+            invoice_row2 = MagicMock()
+            invoice_row2.year = 2026
+            invoice_row2.month = 2
+            invoice_row2.total_amount = Decimal("6000.00")
+
+            invoice_rows = [invoice_row1, invoice_row2]
+
+            # 历史充值 - 返回 None
+            hist_recharge_row = MagicMock()
+            hist_recharge_row.real_amount = None
+            hist_recharge_row.bonus_amount = None
+
+            # 历史结算 - 返回 None
+            hist_invoice_row = MagicMock()
+            hist_invoice_row.total_amount = None
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([balance_row]),  # 当前余额
+                make_mock_execute_result(recharge_rows),  # 充值记录
+                make_mock_execute_result(invoice_rows),  # 结算单
+                make_mock_execute_result([hist_recharge_row]),  # 历史充值
+                make_mock_execute_result([hist_invoice_row]),  # 历史结算
+            ]
+
+            result = await service.get_balance_trend(customer_id=1, months=6)
+
+            assert len(result) == 6
+            # 验证返回字段
+            for item in result:
+                assert "month" in item
+                assert "total_amount" in item
+                assert "real_amount" in item
+                assert "bonus_amount" in item
+
+    async def test_get_balance_trend_no_data(self, analytics_service):
+        """测试无余额数据时返回空列表"""
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            # 当前余额为 None
+            balance_row = MagicMock()
+            balance_row.total_amount = None
+            balance_row.real_amount = None
+            balance_row.bonus_amount = None
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result(
+                    [balance_row]
+                ),  # 当前余额为 None，直接返回空列表
+            ]
+
+            result = await service.get_balance_trend(customer_id=1, months=6)
+
+            assert result == []

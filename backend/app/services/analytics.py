@@ -715,6 +715,182 @@ class AnalyticsService:
 
         return round(quantity * unit_price, 2)
 
+    # ========== 余额趋势 ==========
+
+    async def get_balance_trend(
+        self, customer_id: int, months: int = 6
+    ) -> List[Dict[str, Any]]:
+        """获取客户余额趋势（按月聚合）"""
+        from dateutil.relativedelta import relativedelta
+
+        now = datetime.utcnow()
+        end_date = now.date()
+        start_date = end_date - relativedelta(months=months - 1)
+        start_of_period = date(start_date.year, start_date.month, 1)
+
+        # 获取当前余额
+        current_balance = await self._get_current_balance(customer_id)
+        if current_balance is None:
+            return []
+
+        # 查询趋势窗口内的充值记录（按月聚合）
+        recharge_stmt = select(
+            extract("year", RechargeRecord.created_at).label("year"),
+            extract("month", RechargeRecord.created_at).label("month"),
+            func.sum(RechargeRecord.real_amount).label("real_amount"),
+            func.sum(RechargeRecord.bonus_amount).label("bonus_amount"),
+        ).where(
+            and_(
+                RechargeRecord.customer_id == customer_id,
+                RechargeRecord.created_at
+                >= datetime.combine(start_of_period, datetime.min.time()),
+                RechargeRecord.created_at
+                <= datetime.combine(end_date, datetime.max.time()),
+            )
+        )
+        recharge_stmt = recharge_stmt.group_by(
+            extract("year", RechargeRecord.created_at),
+            extract("month", RechargeRecord.created_at),
+        )
+        recharge_result = (await self.db.execute(recharge_stmt)).all()
+
+        # 查询趋势窗口内的结算单（按月聚合）
+        invoice_stmt = select(
+            extract("year", Invoice.period_start).label("year"),
+            extract("month", Invoice.period_start).label("month"),
+            func.sum(Invoice.total_amount).label("total_amount"),
+        ).where(
+            and_(
+                Invoice.customer_id == customer_id,
+                Invoice.period_start >= start_of_period,
+                Invoice.period_end <= end_date,
+                Invoice.status != "cancelled",
+            )
+        )
+        invoice_stmt = invoice_stmt.group_by(
+            extract("year", Invoice.period_start),
+            extract("month", Invoice.period_start),
+        )
+        invoice_result = (await self.db.execute(invoice_stmt)).all()
+
+        # 构建月度查找字典
+        recharge_by_month: Dict[str, Dict[str, float]] = {}
+        for row in recharge_result:
+            key = f"{int(row.year)}-{int(row.month):02d}"
+            recharge_by_month[key] = {
+                "real_amount": float(row.real_amount) if row.real_amount else 0.0,
+                "bonus_amount": float(row.bonus_amount) if row.bonus_amount else 0.0,
+            }
+
+        invoice_by_month: Dict[str, float] = {}
+        for row in invoice_result:
+            key = f"{int(row.year)}-{int(row.month):02d}"
+            invoice_by_month[key] = float(row.total_amount) if row.total_amount else 0.0
+
+        # 计算趋势窗口开始前的历史累计充值和消耗
+        historical_recharge_stmt = select(
+            func.sum(RechargeRecord.real_amount).label("real_amount"),
+            func.sum(RechargeRecord.bonus_amount).label("bonus_amount"),
+        ).where(
+            and_(
+                RechargeRecord.customer_id == customer_id,
+                RechargeRecord.created_at
+                < datetime.combine(start_of_period, datetime.min.time()),
+            )
+        )
+        historical_recharge = (await self.db.execute(historical_recharge_stmt)).first()
+        hist_recharge_real = (
+            float(historical_recharge.real_amount)
+            if historical_recharge.real_amount
+            else 0.0
+        )
+        hist_recharge_bonus = (
+            float(historical_recharge.bonus_amount)
+            if historical_recharge.bonus_amount
+            else 0.0
+        )
+
+        historical_invoice_stmt = select(func.sum(Invoice.total_amount)).where(
+            and_(
+                Invoice.customer_id == customer_id,
+                Invoice.period_start < start_of_period,
+                Invoice.status != "cancelled",
+            )
+        )
+        hist_invoice = (await self.db.execute(historical_invoice_stmt)).scalar() or 0.0
+
+        # 计算起始余额 = 当前余额 - 窗口内净变化
+        window_recharge_real = sum(v["real_amount"] for v in recharge_by_month.values())
+        window_recharge_bonus = sum(
+            v["bonus_amount"] for v in recharge_by_month.values()
+        )
+        window_invoice = sum(invoice_by_month.values())
+
+        start_total = (
+            current_balance["total_amount"]
+            - (window_recharge_real + window_recharge_bonus)
+            + window_invoice
+        )
+        start_real = (
+            current_balance["real_amount"] - window_recharge_real + window_invoice
+        )
+        start_bonus = current_balance["bonus_amount"] - window_recharge_bonus
+
+        # 逐月计算余额
+        result = []
+        running_total = start_total
+        running_real = start_real
+        running_bonus = start_bonus
+
+        for i in range(months):
+            month_date = start_date + relativedelta(months=i)
+            month_key = f"{month_date.year}-{month_date.month:02d}"
+
+            recharge = recharge_by_month.get(
+                month_key, {"real_amount": 0.0, "bonus_amount": 0.0}
+            )
+            invoice = invoice_by_month.get(month_key, 0.0)
+
+            running_total += recharge["real_amount"] + recharge["bonus_amount"]
+            running_total -= invoice
+            running_real += recharge["real_amount"]
+            running_real -= invoice
+            running_bonus += recharge["bonus_amount"]
+
+            result.append(
+                {
+                    "month": month_key,
+                    "total_amount": round(running_total, 2),
+                    "real_amount": round(running_real, 2),
+                    "bonus_amount": round(running_bonus, 2),
+                }
+            )
+
+        return result
+
+    async def _get_current_balance(
+        self, customer_id: int
+    ) -> Optional[Dict[str, float]]:
+        """获取客户当前余额"""
+        stmt = select(
+            CustomerBalance.total_amount,
+            CustomerBalance.real_amount,
+            CustomerBalance.bonus_amount,
+        ).where(
+            and_(
+                CustomerBalance.customer_id == customer_id,
+                CustomerBalance.deleted_at.is_(None),
+            )
+        )
+        result = (await self.db.execute(stmt)).first()
+        if result is None or result.total_amount is None:
+            return None
+        return {
+            "total_amount": float(result.total_amount),
+            "real_amount": float(result.real_amount) if result.real_amount else 0.0,
+            "bonus_amount": float(result.bonus_amount) if result.bonus_amount else 0.0,
+        }
+
     # ========== 首页仪表盘 ==========
 
     async def get_dashboard_stats(self) -> Dict[str, Any]:
