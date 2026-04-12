@@ -3,13 +3,13 @@
   "plugin": [".opencode/plugins/graphify.js"],
   "agent": {
     "build": {
-      "prompt": "{Graphify_Prompt.txt}",
+      "prompt": "{.opencode/prompts/graphify-prompt.txt}",
       "permission": {
         "graphify_*": "allow"
       }
     },
     "plan": {
-      "prompt": "{Graphify_Prompt.txt}",
+      "prompt": "{.opencode/prompts/graphify-prompt.txt}",
       "permission": {
         "graphify_*": "allow"
       }

@@ -148,12 +148,11 @@ npx playwright show-report tests/e2e/playwright-report
 ```
 
 ### 5.3 测试执行脚本
-项目提供便捷脚本: `frontend/run-e2e-tests.sh`
+项目提供便捷脚本: `scripts/run-e2e-tests.sh`
 
 ```bash
-cd frontend
-chmod +x run-e2e-tests.sh
-./run-e2e-tests.sh
+chmod +x scripts/run-e2e-tests.sh
+./scripts/run-e2e-tests.sh
 ```
 
 ---

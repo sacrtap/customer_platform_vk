@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-13
+**最后更新**: 2026-04-13 (目录结构优化)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
 
 ---
@@ -18,7 +18,7 @@
 - 前端: `frontend/src/main.ts`
 - Alembic: `backend/alembic/` (migrations 被 black 排除)
 
-**后端 scripts**: `scripts/seed.py` | `scripts/create_test_data.py` | `scripts/generate_secrets.py`
+**后端 scripts**: `backend/scripts/seed.py` | `backend/scripts/create_test_data.py` | `backend/scripts/generate_secrets.py`
 
 ---
 
