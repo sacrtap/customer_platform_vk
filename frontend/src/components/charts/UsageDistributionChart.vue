@@ -49,9 +49,10 @@ const chartOption = computed<EChartsOption>(() => {
     color: colors,
     tooltip: {
       trigger: 'item',
-      formatter: (params: any) => {
-        return `${params.name}<br/>用量: ${params.value.toLocaleString()}<br/>占比: ${params.data.percentage}%`
+      formatter: (params: { name: string; value: number; data: { percentage: number } }) => {
+        return `${params.name}<br/>用量：${params.value.toLocaleString()}<br/>占比：${params.data.percentage}%`
       },
+    },
     },
     legend: {
       orient: 'vertical',
