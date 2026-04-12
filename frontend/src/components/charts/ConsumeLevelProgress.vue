@@ -94,11 +94,19 @@ const formatNumber = (num: number) => {
 <style scoped>
 .consume-level-progress {
   width: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-height: 248px;
   padding: 20px;
   background: white;
   border-radius: 12px;
   border: 1px solid #eef0f3;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .level-header {

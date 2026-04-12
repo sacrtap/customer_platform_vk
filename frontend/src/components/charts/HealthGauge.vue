@@ -123,7 +123,10 @@ onUnmounted(() => {
 <style scoped>
 .health-gauge {
   width: 100%;
-  height: 100%;
+  max-width: 100%;
+  height: 248px;
   min-height: 200px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 </style>

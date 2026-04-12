@@ -1303,10 +1303,7 @@ const handleLogout = () => {
   margin: 0 4px;
 }
 
-/* 页面内容 */
-.page-content {
-  padding: 32px;
-}
+/* 页面内容 - 保留 overflow-x: hidden 以防止溢出 */
 
 /* 移动端菜单按钮样式 */
 .mobile-menu-btn {

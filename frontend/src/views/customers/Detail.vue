@@ -125,48 +125,55 @@
           </a-tab-pane>
 
           <a-tab-pane key="profile" title="画像信息">
-            <div v-if="profileLoading" class="info-grid profile-grid">
-              <SkeletonCard v-for="i in 4" :key="i" height="90px" />
-            </div>
-            <div v-else class="info-grid profile-grid">
-              <div class="info-item">
-                <label>规模等级</label>
-                <a-tag color="blue" size="large">{{ profile.scale_level || '-' }}</a-tag>
+            <div class="profile-tab-content">
+              <!-- 画像基础信息 -->
+              <div class="info-section">
+                <div v-if="profileLoading" class="info-grid profile-grid">
+                  <SkeletonCard v-for="i in 4" :key="i" height="90px" />
+                </div>
+                <div v-else class="info-grid profile-grid">
+                  <div class="info-item">
+                    <label>规模等级</label>
+                    <a-tag color="blue" size="large">{{ profile.scale_level || '-' }}</a-tag>
+                  </div>
+                  <div class="info-item">
+                    <label>消费等级</label>
+                    <a-tag color="green" size="large">{{ profile.consume_level || '-' }}</a-tag>
+                  </div>
+                  <div class="info-item">
+                    <label>所属行业</label>
+                    <span>{{ profile.industry || '-' }}</span>
+                  </div>
+                  <div class="info-item">
+                    <label>房地产行业</label>
+                    <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
+                      {{ profile.is_real_estate ? '是' : '否' }}
+                    </a-tag>
+                  </div>
+                </div>
               </div>
-              <div class="info-item">
-                <label>消费等级</label>
-                <a-tag color="green" size="large">{{ profile.consume_level || '-' }}</a-tag>
-              </div>
-              <div class="info-item">
-                <label>所属行业</label>
-                <span>{{ profile.industry || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <label>房地产行业</label>
-                <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
-                  {{ profile.is_real_estate ? '是' : '否' }}
-                </a-tag>
-              </div>
-            </div>
 
-            <!-- 健康度仪表和消费等级进度条 - 性能优化: 延迟加载 -->
-            <div class="charts-section">
-              <div v-if="healthScoreLoading" class="chart-loading">
-                <a-spin size="large" />
-              </div>
-              <div v-else class="health-gauge-container">
-                <HealthGauge
-                  v-if="healthScore && shouldRenderChart('health')"
-                  :score="healthScore.score"
-                  :level="healthScore.level"
-                />
-              </div>
-              <div class="consume-level-container">
-                <ConsumeLevelProgress
-                  v-if="shouldRenderChart('consume')"
-                  :current-level="profile.consume_level || 'C1'"
-                  :current-amount="balance.used_total"
-                />
+              <!-- 健康度仪表和消费等级进度条 - 性能优化: 延迟加载 -->
+              <div class="charts-wrapper">
+                <div class="charts-section">
+                  <div v-if="healthScoreLoading" class="chart-loading">
+                    <a-spin size="large" />
+                  </div>
+                  <div v-else class="health-gauge-container">
+                    <HealthGauge
+                      v-if="healthScore && shouldRenderChart('health')"
+                      :score="healthScore.score"
+                      :level="healthScore.level"
+                    />
+                  </div>
+                  <div class="consume-level-container">
+                    <ConsumeLevelProgress
+                      v-if="shouldRenderChart('consume')"
+                      :current-level="profile.consume_level || 'C1'"
+                      :current-amount="balance.used_total"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </a-tab-pane>
@@ -962,10 +969,23 @@ onUnmounted(() => {
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* 修复容器宽度溢出问题 - 允许横向滚动 */
+  /* 修复容器宽度溢出问题 - 不允许横向滚动 */
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   box-sizing: border-box;
+}
+
+/* Arco Spin 组件宽度约束 */
+:deep(.arco-spin) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+:deep(.arco-spin-nested-loading) {
+  width: 100%;
+  max-width: 100%;
 }
 .page-header {
   display: flex;
@@ -995,19 +1015,27 @@ onUnmounted(() => {
   box-shadow: var(--shadow-sm);
   padding: 32px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 /* 纵向表格样式 - 基础信息面板 */
 .info-table-container {
   padding: 8px 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .info-table {
   width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .info-table tbody tr {
@@ -1091,12 +1119,13 @@ onUnmounted(() => {
 /* 画像信息和余额信息 - 自适应 Grid 布局 */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-lg, 24px);
   padding: var(--space-lg, 24px) var(--space-md, 16px);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 响应式适配 */
@@ -1391,26 +1420,56 @@ onUnmounted(() => {
 
 /* 画像区域专属样式 */
 .profile-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-lg, 24px);
-  padding: var(--space-lg, 24px) var(--space-md, 16px);
+  padding: 0;
+  margin-bottom: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
-/* Tabs 容器 - 允许横向滚动 */
+/* 画像信息整体包装器 */
+.profile-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.profile-tab-content .info-section {
+  margin-bottom: 32px;
+}
+
+.profile-tab-content .charts-wrapper {
+  border-top: 1px solid var(--neutral-2);
+  padding-top: 32px;
+}
+
+/* Tabs 容器 - 防止内容溢出 */
 :deep(.arco-tabs-pane) {
   width: 100%;
-  overflow-x: visible;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 :deep(.arco-tabs-content) {
   width: 100%;
-  overflow-x: visible;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-/* 表格自动布局，支持横向滚动 */
+/* 表格自动布局 - 确保表格不超过容器宽度 */
 :deep(.arco-table) {
-  min-width: 700px;
-  table-layout: auto;
+  table-layout: fixed;
+  width: 100%;
+  max-width: 100%;
+}
+
+:deep(.arco-table-wrapper) {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* 表格容器 - 支持横向滚动 */
@@ -1553,18 +1612,18 @@ onUnmounted(() => {
 /* 图表区域样式 */
 .charts-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 24px;
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--neutral-2);
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .health-gauge-container {
-  min-height: 250px;
+  height: 280px;
   width: 100%;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1574,6 +1633,7 @@ onUnmounted(() => {
   box-sizing: border-box;
   border: 1px solid var(--neutral-2);
   transition: all var(--transition-base, 250ms);
+  overflow: hidden;
 }
 
 .health-gauge-container:hover {
@@ -1586,12 +1646,15 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
+  max-width: 100%;
+  height: 280px;
   background: white;
   border-radius: var(--radius-md, 10px);
   padding: 16px;
   box-sizing: border-box;
   border: 1px solid var(--neutral-2);
   transition: all var(--transition-base, 250ms);
+  overflow: hidden;
 }
 
 .consume-level-container:hover {
@@ -1614,6 +1677,7 @@ onUnmounted(() => {
   border-top: 1px solid var(--neutral-2);
   width: 100%;
   box-sizing: border-box;
+  min-height: 400px;
 }
 
 /* 用量分布区域 */
@@ -1621,6 +1685,11 @@ onUnmounted(() => {
   margin-bottom: 24px;
   width: 100%;
   box-sizing: border-box;
+  min-height: 350px;
+  background: white;
+  border-radius: var(--radius-md, 10px);
+  padding: 16px;
+  border: 1px solid var(--neutral-2);
 }
 
 .usage-table-section {
