@@ -532,13 +532,16 @@ REDIS_URL=redis://localhost:6379/0
 
 ## 📚 核心文档
 
+完整文档导航请参考 [`docs/README.md`](docs/README.md)
+
 | 文档 | 路径 |
 |------|------|
-| **设计文档** | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
+| **文档导航** | `docs/README.md` (完整索引) |
+| **系统设计** | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
 | **部署指南** | `deploy/README.md` |
 | **Podman 部署** | `deploy/PODMAN_MACOS.md` |
-| **测试数据库配置** | `docs/testing/test-database-setup.md` |
-| **部署验证报告** | `docs/DEPLOY_CONSISTENCY_REPORT.md` |
+| **数据库迁移** | `docs/guides/database-migration-guide.md` |
+| **Graphify 工作流** | `Graphify.md` |
 
 ---
 
@@ -624,8 +627,18 @@ python -m alembic upgrade head
 
 - **当前版本**: v1.0.0
 - **开发状态**: Phase 0-7 完成
-- **测试覆盖率**: 46%+ (核心模块 60%+)
-- **最后更新**: 2026-04-04
+- **测试覆盖率**: 46%+ (核心模块 60%+, CI 门槛 ≥50%)
+- **最后更新**: 2026-04-13
+
+---
+
+## 🧠 Graphify 知识图谱
+
+本项目使用 Graphify 构建代码知识图谱，帮助快速理解代码架构和依赖关系。
+
+- **图谱报告**: `graphify-out/GRAPH_REPORT.md`
+- **使用方式**: 通过 `graphify_query_graph` 等工具查询模块间依赖关系
+- **更新图谱**: 修改代码后运行 `_rebuild_code(Path('.'))` 重新生成
 
 ---
 
