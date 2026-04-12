@@ -53,7 +53,6 @@ const chartOption = computed<EChartsOption>(() => {
         return `${params.name}<br/>用量：${params.value.toLocaleString()}<br/>占比：${params.data.percentage}%`
       },
     },
-    },
     legend: {
       orient: 'vertical',
       right: '5%',

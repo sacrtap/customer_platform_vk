@@ -20,6 +20,6 @@ module.exports = {
   plugins: ['vue', '@typescript-eslint'],
   rules: {
     'vue/multi-word-component-names': 'off',
-    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-explicit-any': 'error', // 禁止使用 any 类型，强制类型安全
   },
 }

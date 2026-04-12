@@ -893,7 +893,6 @@ const loadUsageData = async () => {
     usageLoading.value = false
   }
 }
-}
 
 // 移除标签
 const removeTag = async (tagId: number) => {
