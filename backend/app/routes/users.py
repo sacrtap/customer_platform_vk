@@ -18,7 +18,7 @@ users_bp = Blueprint("users", url_prefix="/api/v1/users")
 
 @users_bp.get("")
 @auth_required
-@require_permission("users:read")
+@require_permission("users:view")
 async def list_users(request: Request):
     """
     获取用户列表
@@ -38,7 +38,9 @@ async def list_users(request: Request):
     db_session: AsyncSession = request.ctx.db_session
     service = UserService(db_session)
 
-    users, total = await service.get_all_users(page=page, page_size=page_size, keyword=keyword)
+    users, total = await service.get_all_users(
+        page=page, page_size=page_size, keyword=keyword
+    )
 
     return json(
         {
@@ -54,7 +56,9 @@ async def list_users(request: Request):
                         "is_active": user.is_active,
                         "is_system": user.is_system,
                         "roles": [{"id": r.id, "name": r.name} for r in user.roles],
-                        "created_at": user.created_at.isoformat() if user.created_at else None,
+                        "created_at": user.created_at.isoformat()
+                        if user.created_at
+                        else None,
                     }
                     for user in users
                 ],
@@ -68,7 +72,7 @@ async def list_users(request: Request):
 
 @users_bp.get("/<user_id:int>")
 @auth_required
-@require_permission("users:read")
+@require_permission("users:view")
 async def get_user(request: Request, user_id: int):
     """获取用户详情"""
     db_session: AsyncSession = request.ctx.db_session
@@ -99,7 +103,7 @@ async def get_user(request: Request, user_id: int):
 
 @users_bp.post("")
 @auth_required
-@require_permission("users:write")
+@require_permission("users:create")
 async def create_user(request: Request):
     """
     创建用户
@@ -153,7 +157,7 @@ async def create_user(request: Request):
 
 @users_bp.put("/<user_id:int>")
 @auth_required
-@require_permission("users:write")
+@require_permission("users:edit")
 async def update_user(request: Request, user_id: int):
     """
     更新用户信息
@@ -221,7 +225,7 @@ async def delete_user(request: Request, user_id: int):
 
 @users_bp.post("/<user_id:int>/reset-password")
 @auth_required
-@require_permission("users:write")
+@require_permission("users:edit")
 async def reset_password(request: Request, user_id: int):
     """
     重置用户密码
@@ -253,7 +257,7 @@ async def reset_password(request: Request, user_id: int):
 
 @users_bp.post("/<user_id:int>/roles")
 @auth_required
-@require_permission("users:write")
+@require_permission("users:role_assign")
 async def assign_roles(request: Request, user_id: int):
     """
     为用户分配角色
@@ -282,7 +286,7 @@ async def assign_roles(request: Request, user_id: int):
 
 @users_bp.get("/<user_id:int>/roles")
 @auth_required
-@require_permission("users:read")
+@require_permission("users:view")
 async def get_user_roles(request: Request, user_id: int):
     """获取用户角色"""
     db_session: AsyncSession = request.ctx.db_session
@@ -294,14 +298,17 @@ async def get_user_roles(request: Request, user_id: int):
         {
             "code": 0,
             "message": "success",
-            "data": [{"id": r.id, "name": r.name, "description": r.description} for r in roles],
+            "data": [
+                {"id": r.id, "name": r.name, "description": r.description}
+                for r in roles
+            ],
         }
     )
 
 
 @users_bp.post("/import")
 @auth_required
-@require_permission("users:write")
+@require_permission("users:create")
 async def import_users(
     request: Request,
     db: AsyncSession = None,
@@ -346,11 +353,15 @@ async def import_users(
         "application/vnd.ms-excel",
     ]
     if file.type not in allowed_types and not file.name.endswith((".xlsx", ".xls")):
-        return json({"code": 40002, "message": "仅支持 Excel 文件 (.xlsx, .xls)"}, status=400)
+        return json(
+            {"code": 40002, "message": "仅支持 Excel 文件 (.xlsx, .xls)"}, status=400
+        )
 
     try:
         # 读取 Excel 文件
-        workbook = openpyxl.load_workbook(BytesIO(file.body), read_only=True, data_only=True)
+        workbook = openpyxl.load_workbook(
+            BytesIO(file.body), read_only=True, data_only=True
+        )
         sheet = workbook.active
 
         # 读取表头
@@ -386,17 +397,23 @@ async def import_users(
 
         # 开始事务处理
         async with db_session.begin():
-            for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            for row_idx, row in enumerate(
+                sheet.iter_rows(min_row=2, values_only=True), start=2
+            ):
                 # 跳过空行
                 if not any(cell for cell in row):
                     continue
 
                 try:
                     # 提取数据
-                    username = str(row[col_username]).strip() if row[col_username] else ""
+                    username = (
+                        str(row[col_username]).strip() if row[col_username] else ""
+                    )
                     email = str(row[col_email]).strip() if row[col_email] else ""
                     role_name = str(row[col_role]).strip() if row[col_role] else ""
-                    password = str(row[col_password]).strip() if row[col_password] else ""
+                    password = (
+                        str(row[col_password]).strip() if row[col_password] else ""
+                    )
 
                     # 验证数据
                     if not username:
@@ -420,7 +437,9 @@ async def import_users(
                     role_id = None
                     if role_name:
                         role_result = await db_session.execute(
-                            select(Role).where(Role.name == role_name, Role.deleted_at.is_(None))
+                            select(Role).where(
+                                Role.name == role_name, Role.deleted_at.is_(None)
+                            )
                         )
                         role = role_result.scalar_one_or_none()
                         if not role:
@@ -460,12 +479,18 @@ async def import_users(
                 except ValueError as e:
                     # 记录错误
                     failed_count += 1
-                    username_val = str(row[col_username]).strip() if row[col_username] else "(空)"
-                    errors.append({"row": row_idx, "username": username_val, "error": str(e)})
+                    username_val = (
+                        str(row[col_username]).strip() if row[col_username] else "(空)"
+                    )
+                    errors.append(
+                        {"row": row_idx, "username": username_val, "error": str(e)}
+                    )
                 except Exception as e:
                     # 记录未知错误
                     failed_count += 1
-                    username_val = str(row[col_username]).strip() if row[col_username] else "(空)"
+                    username_val = (
+                        str(row[col_username]).strip() if row[col_username] else "(空)"
+                    )
                     errors.append(
                         {
                             "row": row_idx,
