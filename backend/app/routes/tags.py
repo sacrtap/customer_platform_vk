@@ -13,7 +13,7 @@ tags_bp = Blueprint("tags", url_prefix="/api/v1/tags")
 
 @tags_bp.get("")
 @auth_required
-@require_permission("tags:read")
+@require_permission("tags:view")
 async def list_tags(request: Request):
     """
     获取标签列表（支持筛选）
@@ -75,7 +75,7 @@ async def list_tags(request: Request):
 
 @tags_bp.get("/<tag_id:int>")
 @auth_required
-@require_permission("tags:read")
+@require_permission("tags:view")
 async def get_tag(request: Request, tag_id: int):
     """获取标签详情"""
     db_session: AsyncSession = request.ctx.db_session
@@ -106,7 +106,7 @@ async def get_tag(request: Request, tag_id: int):
 
 @tags_bp.post("")
 @auth_required
-@require_permission("tags:write")
+@require_permission("tags:create")
 async def create_tag(request: Request):
     """
     创建标签
@@ -158,7 +158,7 @@ async def create_tag(request: Request):
 
 @tags_bp.put("/<tag_id:int>")
 @auth_required
-@require_permission("tags:write")
+@require_permission("tags:edit")
 async def update_tag(request: Request, tag_id: int):
     """
     更新标签
@@ -217,7 +217,7 @@ async def delete_tag(request: Request, tag_id: int):
 
 @tags_bp.get("/usage/<tag_id:int>")
 @auth_required
-@require_permission("tags:read")
+@require_permission("tags:view")
 async def get_tag_usage(request: Request, tag_id: int):
     """获取标签使用次数"""
     db_session: AsyncSession = request.ctx.db_session
@@ -239,7 +239,7 @@ customer_tags_bp = Blueprint("customer_tags", url_prefix="/api/v1/customers")
 
 @customer_tags_bp.get("/<customer_id:int>/tags")
 @auth_required
-@require_permission("customers:read")
+@require_permission("customers:view")
 async def get_customer_tags(request: Request, customer_id: int):
     """获取客户的所有标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -266,7 +266,7 @@ async def get_customer_tags(request: Request, customer_id: int):
 
 @customer_tags_bp.post("/<customer_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def add_customer_tag(request: Request, customer_id: int, tag_id: int):
     """给客户添加标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -285,7 +285,7 @@ async def add_customer_tag(request: Request, customer_id: int, tag_id: int):
 
 @customer_tags_bp.delete("/<customer_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
     """移除客户标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -304,7 +304,7 @@ async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
 
 @customer_tags_bp.post("/tags/batch-add")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def batch_add_customer_tags(request: Request):
     """
     批量给客户添加标签
@@ -349,7 +349,7 @@ async def batch_add_customer_tags(request: Request):
 
 @customer_tags_bp.post("/tags/batch-remove")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def batch_remove_customer_tags(request: Request):
     """
     批量移除客户标签
@@ -394,7 +394,7 @@ profile_tags_bp = Blueprint("profile_tags", url_prefix="/api/v1/profiles")
 
 @profile_tags_bp.get("/<profile_id:int>/tags")
 @auth_required
-@require_permission("profiles:read")
+@require_permission("profiles:view")
 async def get_profile_tags(request: Request, profile_id: int):
     """获取画像的所有标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -421,7 +421,7 @@ async def get_profile_tags(request: Request, profile_id: int):
 
 @profile_tags_bp.post("/<profile_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("profiles:write")
+@require_permission("profiles:edit")
 async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
     """给画像添加标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -443,7 +443,7 @@ async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
 
 @profile_tags_bp.delete("/<profile_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("profiles:write")
+@require_permission("profiles:edit")
 async def remove_profile_tag(request: Request, profile_id: int, tag_id: int):
     """移除画像标签"""
     db_session: AsyncSession = request.ctx.db_session

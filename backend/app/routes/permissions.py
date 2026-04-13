@@ -42,7 +42,7 @@ async def list_permissions(request: Request):
 
 
 @permissions_bp.post("")
-@require_permission("permissions:create")
+@require_permission("roles:assign")
 async def create_permission(request: Request):
     """
     创建权限
@@ -99,7 +99,7 @@ async def create_permission(request: Request):
 
 
 @permissions_bp.put("/<perm_id:int>")
-@require_permission("permissions:update")
+@require_permission("roles:assign")
 async def update_permission(request: Request, perm_id: int):
     """
     更新权限信息
@@ -150,7 +150,7 @@ async def update_permission(request: Request, perm_id: int):
 
 
 @permissions_bp.delete("/<perm_id:int>")
-@require_permission("permissions:delete")
+@require_permission("roles:assign")
 async def delete_permission(request: Request, perm_id: int):
     """删除权限"""
     db_session: AsyncSession = request.ctx.db_session

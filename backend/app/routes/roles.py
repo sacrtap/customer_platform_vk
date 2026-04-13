@@ -13,6 +13,7 @@ roles_bp = Blueprint("roles", url_prefix="/api/v1/roles")
 
 @roles_bp.get("")
 @auth_required
+@require_permission("roles:view")
 async def list_roles(request: Request):
     """
     获取角色列表
@@ -59,6 +60,7 @@ async def list_roles(request: Request):
 
 @roles_bp.get("/<role_id:int>")
 @auth_required
+@require_permission("roles:view")
 async def get_role(request: Request, role_id: int):
     """获取角色详情"""
     db_session: AsyncSession = request.ctx.db_session
@@ -135,7 +137,7 @@ async def create_role(request: Request):
 
 
 @roles_bp.put("/<role_id:int>")
-@require_permission("roles:update")
+@require_permission("roles:edit")
 async def update_role(request: Request, role_id: int):
     """
     更新角色信息
@@ -199,7 +201,7 @@ async def delete_role(request: Request, role_id: int):
 
 
 @roles_bp.post("/<role_id:int>/permissions")
-@require_permission("roles:update")
+@require_permission("roles:assign")
 async def assign_permissions(request: Request, role_id: int):
     """
     为角色分配权限
