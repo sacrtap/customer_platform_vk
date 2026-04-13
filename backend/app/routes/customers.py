@@ -17,7 +17,7 @@ customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
 @customers_bp.get("")
 @auth_required
-@require_permission("customers:read")
+@require_permission("customers:view")
 async def list_customers(request: Request):
     """
     获取客户列表（支持筛选）
@@ -108,7 +108,7 @@ async def list_customers(request: Request):
 
 @customers_bp.get("/<customer_id:int>")
 @auth_required
-@require_permission("customers:read")
+@require_permission("customers:view")
 async def get_customer(request: Request, customer_id: int):
     """获取客户详情（包含画像和余额）"""
     # 尝试从缓存获取
@@ -194,7 +194,7 @@ async def get_customer(request: Request, customer_id: int):
 
 @customers_bp.post("")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:create")
 async def create_customer(request: Request):
     """
     创建客户
@@ -258,7 +258,7 @@ async def create_customer(request: Request):
 
 @customers_bp.put("/<customer_id:int>")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def update_customer(request: Request, customer_id: int):
     """
     更新客户信息
@@ -337,7 +337,7 @@ async def delete_customer(request: Request, customer_id: int):
 
 @customers_bp.get("/<customer_id:int>/profile")
 @auth_required
-@require_permission("customers:read")
+@require_permission("customers:view")
 async def get_profile(request: Request, customer_id: int):
     """获取客户画像"""
     db_session: AsyncSession = request.ctx.db_session
@@ -371,7 +371,7 @@ async def get_profile(request: Request, customer_id: int):
 
 @customers_bp.put("/<customer_id:int>/profile")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:edit")
 async def update_profile(request: Request, customer_id: int):
     """
     创建或更新客户画像
@@ -413,7 +413,7 @@ async def update_profile(request: Request, customer_id: int):
 
 @customers_bp.post("/import")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:import")
 async def import_customers(request: Request):
     """
     Excel 批量导入客户
@@ -504,7 +504,7 @@ async def import_customers(request: Request):
 
 @customers_bp.get("/import-template")
 @auth_required
-@require_permission("customers:write")
+@require_permission("customers:import")
 async def download_import_template(request: Request):
     """下载 Excel 导入模板"""
     from openpyxl import Workbook
@@ -578,7 +578,7 @@ async def download_import_template(request: Request):
 
 @customers_bp.get("/export")
 @auth_required
-@require_permission("customers:read")
+@require_permission("customers:export")
 async def export_customers(request: Request):
     """
     Excel 导出客户列表
