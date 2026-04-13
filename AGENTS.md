@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-14 (添加 type-check 命令)
+**最后更新**: 2026-04-14 (修正 Python 版本约束 + Graphify 重建命令)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
 
 ---
@@ -9,7 +9,7 @@
 
 | 层级 | 技术栈                                                                            |
 | ---- | --------------------------------------------------------------------------------- |
-| **后端** | Python 3.12 (⚠️ 不支持 3.14+) + Sanic 22.12 + SQLAlchemy 2.0 + PostgreSQL + Redis |
+| **后端** | Python 3.12.x (要求 >=3.12,<3.13，不支持 3.13+) + Sanic 22.12 + SQLAlchemy 2.0 + PostgreSQL + Redis |
 | **前端** | Vue 3.4 + TypeScript 5.3 + Arco Design 2.54 + Vite 5.0                            |
 | **部署** | Docker Compose (生产) / 本地 PostgreSQL (开发)                                    |
 
@@ -103,7 +103,10 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 **核心规则：**
 1. 架构问题优先查询 `graphify-out/GRAPH_REPORT.md`
 2. 使用 `graphify_query_graph` 等工具追踪依赖关系
-3. 修改代码或docs目录中的文档更新后运行 `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` 更新图谱
+3. 更新图谱（二选一）：
+   - **手动触发**：`graphify update .`（代码文件 AST 重建，无需 LLM）
+   - **自动触发**：运行 `graphify hook install` 安装 Git hooks，每次 `git commit` 后自动重建
+   - 文档/图片变更需运行 `graphify . --update`（含 LLM 语义提取）
 
 ---
 
@@ -150,3 +153,12 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 | 结算管理     | 3 种计费模式 (定价/阶梯/包年)，余额管理 (先赠后实) |
 | 画像管理     | 双等级体系 (规模等级 + 消费等级)，自定义标签       |
 | 客户分析     | 消耗/回款/健康度/画像分析，预测回款                |
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (or use `graphify hook install` for auto-rebuild on commit)
