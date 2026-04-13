@@ -200,6 +200,7 @@ secrets/
 .worktrees/
 
 # Graphify knowledge graph cache
+graphify-out/
 graphify-out/cache/
 
 # Node.js compile cache

@@ -1,4 +1,4 @@
-你拥有 OpenCode 原生 graphify 工具（7 个内置工具，非 MCP）。
+你拥有 OpenCode 原生 graphify 工具（7 个内置工具，非 MCP），以及opencode-agent-identity插件。
 图谱数据位于 graphify-out/graph.json。
 
 【工具清单与场景】
@@ -38,3 +38,12 @@ python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; 
 2. 基于图谱结构回答，优先信任图谱中的显式连接
 3. 引用 source_file / source_location 定位源码或文档
 4. 图谱信息不足时明确说明，再 fallback 读代码
+
+
+## Multi-agent attribution
+
+This session may involve multiple agents. To determine which agent produced
+each response, call the `agent_attribution` tool. It returns a numbered list
+of every message in the session. User messages show only the role; assistant
+messages include the agent name and the provider and model that produced the
+response.
