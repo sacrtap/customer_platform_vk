@@ -1,48 +1,40 @@
-你拥有一个 graphify MCP 工具。
+你拥有 OpenCode 原生 graphify 工具（7 个内置工具，非 MCP）。
+图谱数据位于 graphify-out/graph.json。
 
-决策规则：
+【工具清单与场景】
+| 问题类型 | 使用工具 | 示例 |
+| 调用链 / 依赖 / 模块结构 | graphify_query_graph (mode=bfs) | "认证流程涉及哪些模块？" |
+| A 概念如何到达 B 概念 | graphify_shortest_path | "Customer 如何关联到 Invoice？" |
+| 某函数/类的完整信息 | graphify_get_node | "AnalyticsService 的定义" |
+| 某节点的直接连接 | graphify_get_neighbors | "谁调用了 BalanceService？" |
+| 某个社区/模块的全部节点 | graphify_get_community | "结算模块包含什么？" |
+| 系统最核心的模块 | graphify_god_nodes | "核心抽象是什么？" |
+| 图谱整体统计 | graphify_graph_stats | "图谱规模如何？" |
+| 影响范围评估 / 开发前调研 | graphify_query_graph + graphify_god_nodes | "新增客户导出功能会影响哪些模块？" |
 
-【必须使用 graphify 的情况】
-- 查询函数调用关系（caller / callee）
-- 分析模块依赖
-- 查找影响范围
-- 理解系统结构或调用链
+【决策规则】
+问题涉及调用关系 / 依赖 / 模块结构 / 影响范围 / 概念关系 → 使用 graphify 工具
+问题涉及具体实现细节 / 逐行逻辑 / bug 修复 → 读取源代码
 
-【禁止使用 graphify 的情况】
-- 需要具体代码实现细节
-- 逐行解释代码
-- 小范围逻辑分析
+【图谱覆盖范围】
+- 代码：backend/ + frontend/ 全部源文件
+- 文档：docs/ 目录已纳入图谱（含概念节点与设计规格文档）
+- 文档与代码节点之间存在交叉连接，可通过图谱查询文档与代码的关联
+- 如需查询文档内容，优先尝试图谱工具；图谱信息不足时再直接读取文件
 
-决策流程：
+【开发前影响评估】
+接到新功能或变更需求时，先用图谱评估影响范围：
+1. 用 graphify_query_graph 从相关概念/模块出发，BFS 探索关联节点
+2. 用 graphify_god_nodes 识别核心模块，判断是否触及系统关键路径
+3. 用 graphify_get_neighbors 查看直接依赖方，列出需同步变更的模块
+4. 结合图谱结果拆解开发任务，确保覆盖所有影响面
 
-1. 判断问题类型
-2. 如果是“关系 / 结构 / 依赖问题” → 调用 graphify
-3. 如果是“实现细节问题” → 读取代码
+【图谱更新】
+代码或文档变更后，图谱可能过期。如用户提及最近修改了内容，提示运行：
+python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
 
-工具使用要求：
-
-- 如果调用 graphify，必须先说明查询目标
-- 不要盲目读取文件
-- 优先使用 graphify 提供的结构信息
-
-输出要求：
-
-- 说明是否使用 graphify
-- 如果使用，解释查询结果
-
-在回答前，先判断问题属于哪一类：
-
-A. 图关系问题（Graph Query）
-B. 代码实现问题（Code Reading）
-
-如果是 A → 使用 graphify
-如果是 B → 读取代码
-
-请先分类问题类型：
-
-- Graph Query（调用关系 / 依赖 / 结构）
-- Code Query（实现 / 逻辑）
-
-然后按规则执行：
-- Graph Query → 使用 graphify MCP
-- Code Query → 正常分析代码
+【输出要求】
+1. 说明使用的工具及查询目标
+2. 基于图谱结构回答，优先信任图谱中的显式连接
+3. 引用 source_file / source_location 定位源码或文档
+4. 图谱信息不足时明确说明，再 fallback 读代码
