@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-14 (修正 Python 版本约束 + Graphify 重建命令)
+**最后更新**: 2026-04-14 (添加 Superpowers 流程入口规则)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
 
 ---
@@ -74,6 +74,29 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 4. **权限校验**: 所有 API 端点必须添加 `@auth_required` 装饰器
 5. **审计日志**: 关键操作必须记录到 `audit_logs` 表
 6. **JWT 密钥**: 生产环境必须使用 32+ 字符随机密钥
+
+---
+
+## Superpowers 流程入口规则
+
+**核心原则**: 技能是链式流程，加载入口技能后后续流程自动引导。
+
+| 用户意图             | 入口技能（必须加载）                           | 后续自动流程                                                  |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
+| 新功能/改功能/加组件 | `brainstorming`                                  | → using-git-worktrees → writing-plans → subagent-driven → TDD |
+| 修 bug/调试问题      | `systematic-debugging`                           | → TDD（写复现测试）→ verification-before-completion           |
+| 提交代码             | `git-commit`                                     | 分析 diff → 生成 conventional commit                          |
+| 完成开发/准备合并    | `finishing-a-development-branch`                 | → 验证测试 → 提供合并选项                                     |
+| 收到代码审查反馈     | `receiving-code-review`                          | → 理解反馈 → 验证 → 修复                                      |
+| 有规格文档要实现     | `writing-plans`                                  | → 分解任务 → subagent-driven                                  |
+| 有计划要执行         | `subagent-driven-development` 或 `executing-plans` | → 逐任务执行 → 审查 → 完成                                    |
+
+**显式声明格式**: 加载技能后，第一句话必须说明 "正在使用 [技能名] 来 [目的]"
+
+**禁止跳过流程**:
+- 新功能不得跳过 brainstorming 直接写代码
+- 修 bug 不得跳过 systematic-debugging 直接提修复
+- 完成开发不得跳过 verification-before-completion 直接声称成功
 
 ---
 
