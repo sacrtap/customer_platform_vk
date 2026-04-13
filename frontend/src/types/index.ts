@@ -180,3 +180,10 @@ export interface CustomerGroup {
   created_by: number
   created_at: string
 }
+
+/** 导入结果 */
+export interface ImportResult {
+  success_count: number
+  error_count: number
+  errors: string[]
+}

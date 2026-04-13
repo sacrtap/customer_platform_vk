@@ -441,6 +441,16 @@ async def import_customers(request: Request):
         # 读取 Excel 文件
         df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl")
 
+        # 如果第 2 行是中文说明行（模板特征），跳过它
+        if (
+            len(df) > 0
+            and isinstance(df.iloc[0].get("company_id"), str)
+            and df.iloc[0].get("company_id") in ("必填", "可选")
+        ):
+            df = pd.read_excel(
+                io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1]
+            )
+
         # 必填列检查
         required_columns = ["company_id", "name"]
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -493,7 +503,6 @@ async def import_customers(request: Request):
 @require_permission("customers:write")
 async def download_import_template(request: Request):
     """下载 Excel 导入模板"""
-    import io
     from openpyxl import Workbook
 
     # 创建 Excel 工作簿
@@ -501,23 +510,40 @@ async def download_import_template(request: Request):
     ws = wb.active
     ws.title = "客户导入模板"
 
-    # 设置表头
+    # 设置表头（纯英文列名，与 pd.read_excel 解析的列名一致）
+    # 第二行添加中文说明作为提示
     headers = [
-        "company_id(必填)",
-        "name(必填)",
-        "account_type(可选)",
-        "business_type(可选)",
-        "customer_level(可选)",
-        "settlement_cycle(可选)",
-        "settlement_type(可选)",
-        "is_key_customer(可选)",
-        "email(可选)",
+        "company_id",
+        "name",
+        "account_type",
+        "business_type",
+        "customer_level",
+        "price_policy",
+        "settlement_cycle",
+        "settlement_type",
+        "is_key_customer",
+        "email",
     ]
     ws.append(headers)
 
+    # 添加中文说明行（不作为数据行，仅提示用户）
+    notes = [
+        "必填",
+        "必填",
+        "可选",
+        "可选",
+        "可选",
+        "可选：定价/阶梯/包年",
+        "可选",
+        "可选：prepaid/postpaid",
+        "可选：true/false",
+        "可选",
+    ]
+    ws.append(notes)
+
     # 设置列宽
     for col in ws.columns:
-        ws.column_dimensions[col[0].column_letter].width = 18
+        ws.column_dimensions[col[0].column_letter].width = 20
 
     # 添加示例数据
     example_data = [
@@ -526,6 +552,7 @@ async def download_import_template(request: Request):
         "正式账号",
         "A",
         "KA",
+        "定价",
         "月结",
         "prepaid",
         "false",

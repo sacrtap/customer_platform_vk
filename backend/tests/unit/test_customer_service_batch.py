@@ -107,20 +107,22 @@ async def test_batch_create_empty_list(customer_service):
 
 @pytest.mark.asyncio
 async def test_batch_create_with_partial_data(customer_service):
-    """测试部分字段填充"""
+    """测试部分字段填充 - 缺少 name 应被拒绝"""
     service, mock_db = customer_service
 
     mock_db.execute.return_value = make_mock_execute_result([])
 
     customers_data = [
         {"company_id": "C001", "name": "公司A"},
-        {"company_id": "C002"},  # 缺少 name
+        {"company_id": "C002"},  # 缺少 name - 应被拒绝
     ]
 
     success_count, errors = await service.batch_create_customers(customers_data)
 
-    assert success_count == 2
-    assert len(mock_db._add_calls) == 2
+    assert success_count == 1
+    assert len(errors) == 1
+    assert "缺少 name" in errors[0]
+    assert len(mock_db._add_calls) == 1
 
 
 # ==================== 重复检测 ====================

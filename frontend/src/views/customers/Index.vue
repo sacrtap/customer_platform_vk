@@ -434,6 +434,7 @@ import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
+import type { ImportResult } from '@/types'
 
 const router = useRouter()
 
@@ -770,8 +771,21 @@ const handleImportSubmit = async () => {
   importLoading.value = true
   try {
     const file = importFileList.value[0].originFile
-    await importCustomers(file)
-    Message.success('导入成功')
+    const res = await importCustomers(file)
+    const data = (res as { data: ImportResult }).data
+    const { success_count, error_count, errors } = data
+
+    if (error_count > 0) {
+      // 有错误：展示详情
+      const errorList = errors?.slice(0, 10).map((e: string) => `• ${e}`).join('\n') || ''
+      const moreMsg = error_count > 10 ? `\n... 还有 ${error_count - 10} 条错误` : ''
+      Message.warning({
+        content: `导入完成：成功 ${success_count} 条，失败 ${error_count} 条\n${errorList}${moreMsg}`,
+        duration: 8000,
+      })
+    } else {
+      Message.success(`导入成功，共导入 ${success_count} 条客户数据`)
+    }
     loadCustomers()
     return true
   } catch (error: any) {

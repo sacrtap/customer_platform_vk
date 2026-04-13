@@ -577,6 +577,95 @@ async def test_import_customers_missing_columns(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_import_customers_with_template_notes_row(
+    test_client, auth_headers, db_session
+):
+    """测试导入带中文说明行的模板文件（智能跳过逻辑）"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    # 第 1 行：列名
+    ws.append(["company_id", "name", "account_type"])
+    # 第 2 行：中文说明（模板特征）
+    ws.append(["必填", "必填", "可选"])
+    # 第 3 行：实际数据
+    ws.append(["TEST_TEMPLATE_001", "模板测试公司", "正式账号"])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_template.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 1
+
+    # 清理测试数据
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'")
+    )
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_without_notes_row(
+    test_client, auth_headers, db_session
+):
+    """测试导入普通用户文件（无说明行，不应跳过）"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id", "name"])
+    ws.append(["TEST_NORMAL_001", "普通公司 A"])
+    ws.append(["TEST_NORMAL_002", "普通公司 B"])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_normal.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2
+
+    # 清理测试数据
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'")
+    )
+    db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_export_customers_success(test_client, auth_headers, customer_data):
     """测试 Excel 导出客户 - 成功场景"""
     request, response = await test_client.get(

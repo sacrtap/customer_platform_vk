@@ -108,7 +108,9 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
+        stmt = stmt.options(
+            selectinload(Customer.profile), selectinload(Customer.balance)
+        )
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -196,7 +198,9 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
+    async def create_or_update_profile(
+        self, customer_id: int, data: dict
+    ) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -229,7 +233,9 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self, customers_data: List[dict]
+    ) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
@@ -254,6 +260,11 @@ class CustomerService:
                     errors.append(f"行{i + 1}: 缺少 company_id")
                     continue
 
+                name = data.get("name")
+                if not name:
+                    errors.append(f"行{i + 1}: 缺少 name")
+                    continue
+
                 # 检查是否已存在
                 if company_id in existing_company_ids:
                     errors.append(f"行{i + 1}: 公司 ID {company_id} 已存在")
@@ -261,7 +272,7 @@ class CustomerService:
 
                 customer = Customer(
                     company_id=company_id,
-                    name=data.get("name"),
+                    name=name,
                     account_type=data.get("account_type"),
                     business_type=data.get("business_type"),
                     customer_level=data.get("customer_level"),
