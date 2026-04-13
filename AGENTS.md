@@ -38,8 +38,8 @@ cd frontend && npm run dev  # http://localhost:5173
 ### 测试
 ```bash
 # 后端 (RTK 插件自动处理，无需手动加前缀)
-cd backend && python -m pytest tests/ -v
-cd backend && python -m pytest --cov=app --cov-report=html  # 覆盖率
+cd backend && source .venv/bin/activate && python -m pytest tests/ -v
+cd backend && source .venv/bin/activate && python -m pytest --cov=app --cov-report=html  # 覆盖率
 
 # 前端
 cd frontend && npm run test:e2e

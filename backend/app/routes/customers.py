@@ -265,6 +265,7 @@ async def update_customer(request: Request, customer_id: int):
 
     Body:
     {
+        "company_id": "string (optional, 需唯一)",
         "name": "string (optional)",
         "account_type": "string (optional)",
         "business_type": "string (optional)",
@@ -291,7 +292,10 @@ async def update_customer(request: Request, customer_id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
-    customer = await service.update_customer(customer_id, data)
+    try:
+        customer = await service.update_customer(customer_id, data)
+    except ValueError as e:
+        return json({"code": 40003, "message": str(e)}, status=400)
 
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)

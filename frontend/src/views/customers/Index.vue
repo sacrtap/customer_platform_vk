@@ -206,6 +206,12 @@
         <template #createdAt="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
+        <template #settlementType="{ record }">
+          {{ getSettlementTypeName(record.settlement_type) }}
+        </template>
+        <template #manager="{ record }">
+          {{ getManagerName(record.manager_id) }}
+        </template>
         <template #isKeyCustomer="{ record }">
           <a-tag :color="record.is_key_customer ? 'red' : 'gray'">
             {{ record.is_key_customer ? '是' : '否' }}
@@ -258,7 +264,6 @@
               <a-input
                 v-model="customerForm.company_id"
                 placeholder="请输入公司 ID"
-                :disabled="isEditMode"
               />
             </a-form-item>
           </a-col>
@@ -472,12 +477,31 @@ const columns = [
   { title: '客户名称', dataIndex: 'name', width: 250, ellipsis: true, tooltip: true },
   { title: '业务类型', dataIndex: 'business_type', width: 100 },
   { title: '客户等级', dataIndex: 'customer_level', width: 100 },
-  { title: '结算方式', dataIndex: 'settlement_type', width: 100 },
-  { title: '运营经理', dataIndex: 'manager', width: 150, ellipsis: true, tooltip: true },
+  { title: '结算方式', slotName: 'settlementType', width: 100 },
+  { title: '运营经理', slotName: 'manager', width: 150, ellipsis: true, tooltip: true },
   { title: '重点客户', slotName: 'isKeyCustomer', width: 100 },
   { title: '创建时间', slotName: 'createdAt', width: 180 },
   { title: '操作', slotName: 'action', width: 320, fixed: 'right' as const },
 ]
+
+// 结算方式映射
+const settlementTypeMap: Record<string, string> = {
+  prepaid: '预付费',
+  postpaid: '后付费',
+}
+
+// 获取结算方式显示名称
+const getSettlementTypeName = (type: string | undefined): string => {
+  if (!type) return '-'
+  return settlementTypeMap[type] || type
+}
+
+// 获取运营经理显示名称
+const getManagerName = (managerId: number | null | undefined): string => {
+  if (!managerId) return '-'
+  const manager = managers.value.find(m => m.id === managerId)
+  return manager ? (manager.real_name || manager.username) : '-'
+}
 
 // 加载客户列表
 const loadCustomers = async () => {

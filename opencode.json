@@ -14,5 +14,11 @@
         "graphify_*": "allow"
       }
     }
+  },
+  "mcp": {
+    "graphify": {
+      "type": "local",
+      "command": ["python", "-m" , "graphify.serve", "graphify-out/graph.json"]
+    }
   }
 }

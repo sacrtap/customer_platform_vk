@@ -154,8 +154,21 @@ class CustomerService:
         if not customer:
             return None
 
+        # company_id 唯一性校验（如果修改了 company_id）
+        new_company_id = data.get("company_id")
+        if new_company_id and new_company_id != customer.company_id:
+            existing = await self.db.execute(
+                select(Customer.id).where(
+                    Customer.company_id == new_company_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise ValueError(f"公司 ID '{new_company_id}' 已被其他客户使用")
+
         # 可更新字段
         updatable_fields = [
+            "company_id",
             "name",
             "account_type",
             "business_type",

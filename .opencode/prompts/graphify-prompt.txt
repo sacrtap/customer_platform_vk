@@ -1,4 +1,4 @@
-你拥有 OpenCode 原生 graphify 工具（7 个内置工具，非 MCP），以及opencode-agent-identity插件。
+你拥有 OpenCode 原生 graphify 工具（7 个内置工具，MCP服务），以及opencode-agent-identity插件。
 图谱数据位于 graphify-out/graph.json。
 
 【工具清单与场景】
