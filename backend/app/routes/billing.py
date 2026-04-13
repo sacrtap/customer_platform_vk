@@ -22,7 +22,7 @@ billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
 @billing_bp.get("/balances")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_balances(request: Request):
     """获取余额列表（支持服务端筛选和分页）"""
     db: AsyncSession = request.ctx.db_session
@@ -113,7 +113,7 @@ async def get_balances(request: Request):
 
 @billing_bp.get("/customers/<customer_id:int>/balance")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_customer_balance(request: Request, customer_id: int):
     """获取客户余额"""
     db: AsyncSession = request.ctx.db_session
@@ -159,7 +159,7 @@ async def get_customer_balance(request: Request, customer_id: int):
 
 @billing_bp.post("/recharge")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:recharge")
 async def recharge(request: Request):
     """
     客户充值
@@ -221,7 +221,7 @@ async def recharge(request: Request):
 
 @billing_bp.get("/recharge-records")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_recharge_records(request: Request):
     """获取充值记录列表"""
     db: AsyncSession = request.ctx.db_session
@@ -272,7 +272,7 @@ async def get_recharge_records(request: Request):
 
 @billing_bp.get("/consumption-records")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_consumption_records(request: Request):
     """获取消费记录列表"""
     db: AsyncSession = request.ctx.db_session
@@ -340,7 +340,7 @@ async def get_consumption_records(request: Request):
 
 @billing_bp.get("/pricing-rules")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_pricing_rules(request: Request):
     """获取定价规则列表"""
     db: AsyncSession = request.ctx.db_session
@@ -387,7 +387,7 @@ async def get_pricing_rules(request: Request):
 
 @billing_bp.post("/pricing-rules")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def create_pricing_rule(request: Request):
     """
     创建定价规则
@@ -437,7 +437,7 @@ async def create_pricing_rule(request: Request):
 
 @billing_bp.put("/pricing-rules/<rule_id:int>")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def update_pricing_rule(request: Request, rule_id: int):
     """更新定价规则"""
     db: AsyncSession = request.ctx.db_session
@@ -496,7 +496,7 @@ async def delete_pricing_rule(request: Request, rule_id: int):
 
 @billing_bp.get("/invoices")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_invoices(request: Request):
     """获取结算单列表"""
     db: AsyncSession = request.ctx.db_session
@@ -559,7 +559,7 @@ async def get_invoices(request: Request):
 
 @billing_bp.get("/invoices/<invoice_id:int>")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def get_invoice(request: Request, invoice_id: int):
     """获取结算单详情"""
     db: AsyncSession = request.ctx.db_session
@@ -616,7 +616,7 @@ async def get_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/generate")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def generate_invoice(request: Request):
     """
     生成结算单
@@ -672,7 +672,7 @@ async def generate_invoice(request: Request):
 
 @billing_bp.put("/invoices/<invoice_id:int>/discount")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def apply_discount(request: Request, invoice_id: int):
     """
     应用减免
@@ -707,7 +707,7 @@ async def apply_discount(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/submit")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def submit_invoice(request: Request, invoice_id: int):
     """提交结算单（商务确认）"""
     db: AsyncSession = request.ctx.db_session
@@ -730,7 +730,7 @@ async def submit_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/confirm")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def confirm_invoice(request: Request, invoice_id: int):
     """客户确认结算单"""
     db: AsyncSession = request.ctx.db_session
@@ -749,7 +749,7 @@ async def confirm_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/pay")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def pay_invoice(request: Request, invoice_id: int):
     """确认付款"""
     db: AsyncSession = request.ctx.db_session
@@ -772,7 +772,7 @@ async def pay_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/complete")
 @auth_required
-@require_permission("billing:write")
+@require_permission("billing:edit")
 async def complete_invoice(request: Request, invoice_id: int):
     """完成结算（扣款）"""
     db: AsyncSession = request.ctx.db_session
@@ -810,7 +810,7 @@ async def delete_invoice(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/export")
 @auth_required
-@require_permission("billing:read")
+@require_permission("billing:view")
 async def export_invoices(request: Request):
     """
     导出结算单为 Excel 文件
