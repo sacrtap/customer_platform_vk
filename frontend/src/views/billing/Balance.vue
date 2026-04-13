@@ -6,7 +6,7 @@
         <p class="header-subtitle">客户余额充值与管理</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="openRechargeModal()">
+        <a-button v-if="can('billing:recharge')" type="primary" @click="openRechargeModal()">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -82,14 +82,14 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="primary" size="small" @click="openRechargeModal(record)">充值</a-button>
+            <a-button v-if="can('billing:recharge')" type="primary" size="small" @click="openRechargeModal(record)">充值</a-button>
             <a-button type="text" size="small" @click="viewRechargeRecords(record)">记录</a-button>
           </a-space>
         </template>
         <template #empty>
           <EmptyState title="暂无余额数据" description="点击「新建充值」为客户充值">
             <template #action>
-              <a-button type="primary" @click="openRechargeModal()">新建充值</a-button>
+              <a-button v-if="can('billing:recharge')" type="primary" @click="openRechargeModal()">新建充值</a-button>
             </template>
           </EmptyState>
         </template>
@@ -185,6 +185,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
+import { useUserStore } from '@/stores/user'
 
 import {
   getBalances,
@@ -196,6 +197,9 @@ import {
 import { getCustomers } from '@/api/customers'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatCurrency } from '@/utils/formatters'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 // 筛选条件
 const filters = reactive({

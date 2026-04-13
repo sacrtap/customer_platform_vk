@@ -15,7 +15,7 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button type="primary" @click="handleCreate">
+        <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -51,10 +51,11 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="handlePermissionConfig(record)">
+            <a-button v-if="can('roles:assign')" type="text" size="small" @click="handlePermissionConfig(record)">
               权限配置
             </a-button>
             <a-button
+              v-if="can('roles:edit')"
               type="text"
               size="small"
               :disabled="record.isSystem"
@@ -63,6 +64,7 @@
               编辑
             </a-button>
             <a-popconfirm
+              v-if="can('roles:delete')"
               content="确认删除该角色？删除后无法恢复。"
               :disabled="record.isSystem"
               @ok="handleDelete(record.id)"
@@ -72,6 +74,13 @@
               </a-button>
             </a-popconfirm>
           </a-space>
+        </template>
+        <template #empty>
+          <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
+            <template #action>
+              <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">新建角色</a-button>
+            </template>
+          </EmptyState>
         </template>
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
@@ -144,6 +153,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
+import { useUserStore } from '@/stores/user'
 import {
   getRoles,
   getRole,
@@ -156,6 +166,9 @@ import {
 } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 // ========== 类型定义 ==========
 interface Role {

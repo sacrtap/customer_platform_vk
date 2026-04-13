@@ -6,7 +6,7 @@
         <p class="header-subtitle">自定义标签分类与管理</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="handleCreate">
+        <a-button v-if="can('tags:create')" type="primary" @click="handleCreate">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -36,8 +36,8 @@
               size="large"
               closable
               style="cursor: pointer"
-              @close="handleDelete(tag.id)"
-              @click="openEditModal(tag)"
+              @close="can('tags:delete') && handleDelete(tag.id)"
+              @click="can('tags:edit') && openEditModal(tag)"
             >
               {{ tag.name }}
             </a-tag>
@@ -53,8 +53,8 @@
               size="large"
               closable
               style="cursor: pointer"
-              @close="handleDelete(tag.id)"
-              @click="openEditModal(tag)"
+              @close="can('tags:delete') && handleDelete(tag.id)"
+              @click="can('tags:edit') && openEditModal(tag)"
             >
               {{ tag.name }}
             </a-tag>
@@ -107,7 +107,11 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
+import { useUserStore } from '@/stores/user'
 import { getTags, createTag, updateTag, deleteTag, type Tag as ApiTag } from '@/api/tags'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 // ========== 类型定义 ==========
 interface Tag extends ApiTag {

@@ -6,7 +6,7 @@
         <p class="header-subtitle">统一客户基础信息与画像数据管理</p>
       </div>
       <div class="header-actions">
-        <a-button type="primary" @click="openCreateModal">
+        <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -22,7 +22,7 @@
           </template>
           新建客户
         </a-button>
-        <a-button @click="openImportModal">
+        <a-button v-if="can('customers:import')" @click="openImportModal">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -41,7 +41,7 @@
           </template>
           导入
         </a-button>
-        <a-button @click="handleExport">
+        <a-button v-if="can('customers:export')" @click="handleExport">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -220,12 +220,12 @@
         <template #action="{ record }">
           <a-space>
             <a-button type="primary" size="small" @click="viewCustomer(record.id)">查看</a-button>
-            <a-button type="text" size="small" @click="openEditModal(record)">编辑</a-button>
+            <a-button v-if="can('customers:edit')" type="text" size="small" @click="openEditModal(record)">编辑</a-button>
             <a-dropdown>
               <a-button type="text" size="small">更多</a-button>
               <template #content>
                 <a-doption @click="viewProfile(record.id)">画像</a-doption>
-                <a-doption style="color: #ff4d4f" @click="() => handleDelete(record.id)"
+                <a-doption v-if="can('customers:delete')" style="color: #ff4d4f" @click="() => handleDelete(record.id)"
                   >删除</a-doption
                 >
               </template>
@@ -235,7 +235,7 @@
         <template #empty>
           <EmptyState title="暂无客户数据" description="点击「新建客户」添加第一个客户">
             <template #action>
-              <a-button type="primary" @click="openCreateModal">新建客户</a-button>
+              <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">新建客户</a-button>
             </template>
           </EmptyState>
         </template>
@@ -426,6 +426,7 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
+import { useUserStore } from '@/stores/user'
 import {
   getCustomers,
   deleteCustomer,
@@ -442,6 +443,8 @@ import { formatDateTime } from '@/utils/formatters'
 import type { ImportResult } from '@/types'
 
 const router = useRouter()
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 const filters = reactive({
   keyword: '',

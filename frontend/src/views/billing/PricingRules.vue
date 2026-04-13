@@ -4,7 +4,7 @@
       <template #title>
         <a-space>
           <span>定价规则</span>
-          <a-button type="primary" @click="showCreateModal">
+          <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
             <template #icon><icon-plus /></template>
             新建规则
           </a-button>
@@ -113,8 +113,8 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button type="text" size="small" @click="showEditModal(record)">编辑</a-button>
-            <a-popconfirm content="确定要删除此定价规则吗？" @ok="handleDelete(record)">
+            <a-button v-if="can('billing:edit')" type="text" size="small" @click="showEditModal(record)">编辑</a-button>
+            <a-popconfirm v-if="can('billing:delete')" content="确定要删除此定价规则吗？" @ok="handleDelete(record)">
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
           </a-space>
@@ -235,8 +235,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
+import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import { getCustomers } from '@/api/customers'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 interface PricingRule {
   id: number
