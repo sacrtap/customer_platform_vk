@@ -48,7 +48,7 @@
           </a>
 
           <a
-            v-if="can('customers:manage')"
+            v-if="can('customers:view')"
             class="nav-item"
             :class="{ active: $route.path.startsWith('/customers') }"
             @click="$router.push('/customers')"
@@ -147,7 +147,7 @@
           </div>
 
           <a
-            v-if="can('profiles:manage')"
+            v-if="can('profiles:view')"
             class="nav-item"
             :class="{ active: $route.path.startsWith('/profiles') }"
             @click="$router.push('/profiles')"
@@ -260,7 +260,7 @@
           <div class="nav-section-title">系统管理</div>
 
           <a
-            v-if="can('users:manage')"
+            v-if="can('users:view')"
             class="nav-item"
             :class="{ active: $route.path.startsWith('/users') }"
             @click="$router.push('/users')"
@@ -285,7 +285,7 @@
           </a>
 
           <a
-            v-if="can('roles:manage')"
+            v-if="can('roles:view')"
             class="nav-item"
             :class="{ active: $route.path.startsWith('/roles') }"
             @click="$router.push('/roles')"
@@ -310,7 +310,7 @@
           </a>
 
           <a
-            v-if="can('tags:manage')"
+            v-if="can('tags:view')"
             class="nav-item"
             :class="{ active: $route.path.startsWith('/tags') }"
             @click="$router.push('/tags')"
