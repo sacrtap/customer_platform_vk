@@ -58,7 +58,7 @@ def auth_token(test_client, db_session: Session, app):
         text(
             """
         INSERT INTO permissions (code, name, description, module, created_at)
-        VALUES ('analytics:read', '分析读取', '读取分析数据的权限', 'analytics', NOW())
+        VALUES ('analytics:view', '查看分析', '查看所有分析报表', 'analytics', NOW())
         ON CONFLICT (code) DO NOTHING
         """
         )
@@ -68,7 +68,9 @@ def auth_token(test_client, db_session: Session, app):
     result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
 
-    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'analytics:read'"))
+    result = db_session.execute(
+        text("SELECT id FROM permissions WHERE code = 'analytics:view'")
+    )
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
@@ -521,7 +523,9 @@ class TestBalanceTrendApi:
     """余额趋势 API 集成测试"""
 
     @pytest.mark.asyncio
-    async def test_get_balance_trend_success(self, test_client, auth_token, mock_cache, db_session):
+    async def test_get_balance_trend_success(
+        self, test_client, auth_token, mock_cache, db_session
+    ):
         """测试获取余额趋势 - 成功场景"""
         from sqlalchemy import text
 
@@ -558,11 +562,15 @@ class TestBalanceTrendApi:
                 assert "real_amount" in point
                 assert "bonus_amount" in point
         finally:
-            db_session.execute(text("DELETE FROM customers WHERE email = 'balance_trend@test.com'"))
+            db_session.execute(
+                text("DELETE FROM customers WHERE email = 'balance_trend@test.com'")
+            )
             db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_get_balance_trend_invalid_customer(self, test_client, auth_token, mock_cache):
+    async def test_get_balance_trend_invalid_customer(
+        self, test_client, auth_token, mock_cache
+    ):
         """测试获取不存在的客户余额趋势"""
         request, response = await test_client.get(
             "/api/v1/analytics/billing/trend/999999",
@@ -637,7 +645,9 @@ class TestCustomerHealthScoreApi:
     """客户健康度评分 API 集成测试"""
 
     @pytest.mark.asyncio
-    async def test_get_health_score_success(self, test_client, auth_token, mock_cache, db_session):
+    async def test_get_health_score_success(
+        self, test_client, auth_token, mock_cache, db_session
+    ):
         """测试获取客户健康度评分 - 成功场景"""
         # 创建测试客户
         db_session.execute(
@@ -672,11 +682,15 @@ class TestCustomerHealthScoreApi:
             assert "health_level" in score_data
             assert score_data["health_level"] in ["healthy", "normal", "unhealthy"]
         finally:
-            db_session.execute(text("DELETE FROM customers WHERE email = 'health_score@test.com'"))
+            db_session.execute(
+                text("DELETE FROM customers WHERE email = 'health_score@test.com'")
+            )
             db_session.commit()
 
     @pytest.mark.asyncio
-    async def test_get_health_score_not_found(self, test_client, auth_token, mock_cache):
+    async def test_get_health_score_not_found(
+        self, test_client, auth_token, mock_cache
+    ):
         """测试获取不存在客户的健康度评分"""
         request, response = await test_client.get(
             "/api/v1/analytics/health/customers/999999/score",

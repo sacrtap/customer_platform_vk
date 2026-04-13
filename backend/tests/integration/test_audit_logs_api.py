@@ -43,11 +43,11 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
         """)
     )
 
-    # 确保 system:audit_read 权限存在
+    # 确保 system:view 权限存在
     await db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
-        VALUES ('system:audit_read', '审计日志查看', '查看系统审计日志', 'system', NOW())
+        VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
         """)
     )
@@ -58,7 +58,7 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
     )
     role_id = result.scalar_one()
     result = await db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:audit_read'")
+        text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
@@ -172,11 +172,11 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
         """)
     )
 
-    # 确保 system:audit_read 权限存在
+    # 确保 system:view 权限存在
     await db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
-        VALUES ('system:audit_read', '审计日志查看', '查看系统审计日志', 'system', NOW())
+        VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
         """)
     )
@@ -187,7 +187,7 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
     )
     role_id = result.scalar_one()
     result = await db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:audit_read'")
+        text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
@@ -317,11 +317,11 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
         """)
     )
 
-    # 确保 system:audit_read 权限存在
+    # 确保 system:view 权限存在
     await db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
-        VALUES ('system:audit_read', '审计日志查看', '查看系统审计日志', 'system', NOW())
+        VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
         """)
     )
@@ -332,7 +332,7 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
     )
     role_id = result.scalar_one()
     result = await db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:audit_read'")
+        text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
@@ -442,11 +442,11 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
         """)
     )
 
-    # 确保 system:audit_read 权限存在
+    # 确保 system:view 权限存在
     await db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
-        VALUES ('system:audit_read', '审计日志查看', '查看系统审计日志', 'system', NOW())
+        VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
         """)
     )
@@ -457,7 +457,7 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
     )
     role_id = result.scalar_one()
     result = await db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:audit_read'")
+        text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
