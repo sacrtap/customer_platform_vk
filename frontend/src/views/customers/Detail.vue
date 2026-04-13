@@ -126,47 +126,64 @@
 
           <a-tab-pane key="profile" title="画像信息">
             <div class="profile-tab-content">
-              <!-- 画像基础信息 -->
-              <div class="info-section">
-                <div v-if="profileLoading" class="info-grid profile-grid">
-                  <SkeletonCard v-for="i in 4" :key="i" height="90px" />
+              <!-- 核心指标区 -->
+              <div class="metrics-grid">
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
                 </div>
-                <div v-else class="info-grid profile-grid">
-                  <div class="info-item">
-                    <label>规模等级</label>
-                    <a-tag color="blue" size="large">{{ profile.scale_level || '-' }}</a-tag>
-                  </div>
-                  <div class="info-item">
-                    <label>消费等级</label>
-                    <a-tag color="green" size="large">{{ profile.consume_level || '-' }}</a-tag>
-                  </div>
-                  <div class="info-item">
-                    <label>所属行业</label>
-                    <span>{{ profile.industry || '-' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>房地产行业</label>
-                    <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
-                      {{ profile.is_real_estate ? '是' : '否' }}
-                    </a-tag>
-                  </div>
+                <div v-else class="metric-card primary">
+                  <span class="metric-label">规模等级</span>
+                  <span class="metric-value">{{ profile.scale_level || '-' }}</span>
+                </div>
+                
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card success">
+                  <span class="metric-label">消费等级</span>
+                  <span class="metric-value">{{ profile.consume_level || '-' }}</span>
+                </div>
+                
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">所属行业</span>
+                  <span class="metric-value">{{ profile.industry || '-' }}</span>
+                </div>
+                
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">房地产行业</span>
+                  <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
+                    {{ profile.is_real_estate ? '是' : '否' }}
+                  </a-tag>
                 </div>
               </div>
 
-              <!-- 健康度仪表和消费等级进度条 - 性能优化: 延迟加载 -->
-              <div class="charts-wrapper">
-                <div class="charts-section">
+              <!-- 图表区域 -->
+              <div class="charts-grid">
+                <div class="chart-panel">
+                  <h4 class="chart-title">健康度评分</h4>
+                  <p class="chart-description">综合评估客户健康状况</p>
                   <div v-if="healthScoreLoading" class="chart-loading">
                     <a-spin size="large" />
                   </div>
-                  <div v-else class="health-gauge-container">
+                  <div v-else class="chart-content">
                     <HealthGauge
                       v-if="healthScore && shouldRenderChart('health')"
                       :score="healthScore.score"
                       :level="healthScore.level"
                     />
                   </div>
-                  <div class="consume-level-container">
+                </div>
+                
+                <div class="chart-panel">
+                  <h4 class="chart-title">消费等级进度</h4>
+                  <p class="chart-description">当前消费等级升级进度</p>
+                  <div class="chart-content">
                     <ConsumeLevelProgress
                       v-if="shouldRenderChart('consume')"
                       :current-level="profile.consume_level || 'C1'"
@@ -1116,174 +1133,6 @@ onUnmounted(() => {
   }
 }
 
-/* 画像信息和余额信息 - 自适应 Grid 布局 */
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-lg, 24px);
-  padding: var(--space-lg, 24px) var(--space-md, 16px);
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-/* 响应式适配 */
-@media (max-width: 1199px) and (min-width: 768px) {
-  .info-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm, 8px);
-  padding: var(--space-md, 16px);
-  background: var(--neutral-1);
-  border-radius: var(--radius-md, 10px);
-  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
-  width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 1px solid var(--neutral-2);
-  min-height: 90px;
-  position: relative;
-}
-
-.info-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary-6), #0ea5e9);
-  transform: scaleX(0);
-  transition: transform var(--transition-base, 250ms) ease-out;
-  border-radius: var(--radius-md, 10px) var(--radius-md, 10px) 0 0;
-}
-
-.info-item:hover {
-  background: #ffffff;
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.15), 0 4px 8px rgba(0, 0, 0, 0.05);
-  border-color: var(--primary-6);
-}
-
-.info-item:hover::before {
-  transform: scaleX(1);
-}
-
-.info-item-full {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--neutral-1);
-  border-radius: 10px;
-  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
-  width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-  border: 1px solid var(--neutral-2);
-  position: relative;
-}
-
-.info-item-full::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary-6), #0ea5e9);
-  transform: scaleX(0);
-  transition: transform var(--transition-base, 250ms) ease-out;
-  border-radius: 10px 10px 0 0;
-}
-
-.info-item-full:hover {
-  background: #ffffff;
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 12px 32px rgba(3, 105, 161, 0.15), 0 4px 8px rgba(0, 0, 0, 0.05);
-  border-color: var(--primary-6);
-}
-
-.info-item-full:hover::before {
-  transform: scaleX(1);
-}
-.info-item label,
-.info-item-full label {
-  font-size: 12px;
-  color: var(--neutral-6);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  word-break: break-word;
-  flex-shrink: 0;
-}
-
-.info-item span,
-.info-item-full span {
-  font-size: 14px;
-  color: var(--neutral-10);
-  font-weight: 500;
-  line-height: 1.4;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  display: block;
-  max-width: 100%;
-}
-
-.info-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-/* 修复标签组件溢出问题 */
-.info-item :deep(.arco-tag),
-.info-item-full :deep(.arco-tag) {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding-top: 4px;
-}
-
-.tags-container .arco-btn-text {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  transition: all var(--transition-fast, 150ms);
-  border: 1px dashed var(--neutral-6);
-  background: transparent;
-  color: var(--neutral-6);
-  font-size: 13px;
-}
-
-.tags-container .arco-btn-text:hover {
-  border-color: var(--primary-6);
-  background: var(--primary-1);
-  color: var(--primary-6);
-}
-
 /* 余额卡片 - 自适应 Grid 布局 */
 .balance-cards {
   display: grid;
@@ -1418,30 +1267,243 @@ onUnmounted(() => {
   background: currentColor;
 }
 
-/* 画像区域专属样式 */
-.profile-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-lg, 24px);
-  padding: 0;
-  margin-bottom: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
+/* ========== 画像信息页面优化样式 ========== */
 
 /* 画像信息整体包装器 */
 .profile-tab-content {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 24px;
 }
 
-.profile-tab-content .info-section {
-  margin-bottom: 32px;
+/* 核心指标网格 - 2x2 布局 */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
 
-.profile-tab-content .charts-wrapper {
-  border-top: 1px solid var(--neutral-2);
-  padding-top: 32px;
+/* 核心指标卡片 */
+.metric-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 12px;
+  min-height: 72px;
+  background: #ffffff;
+  border: 1px solid var(--neutral-2);
+  transition: all 200ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 加载状态 */
+.metric-card.loading {
+  background: var(--neutral-1);
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.metric-card.loading :deep(.skeleton-card) {
+  opacity: 0.6;
+}
+
+/* 主色指标卡片 - 规模等级 */
+.metric-card.primary {
+  background: linear-gradient(135deg, #0369A1 0%, #0EA5E9 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.metric-card.primary .metric-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.metric-card.primary .metric-value {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.metric-card.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(3, 105, 161, 0.25);
+}
+
+/* 成功色指标卡片 - 消费等级 */
+.metric-card.success {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.metric-card.success .metric-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.metric-card.success .metric-value {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.metric-card.success:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.25);
+}
+
+/* 普通指标卡片 */
+.metric-card .metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--neutral-5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.metric-card .metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--neutral-10);
+  line-height: 1.2;
+}
+
+/* 指标卡片 Hover 效果 - 简化版 */
+.metric-card:not(.primary):not(.success):not(.loading):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary-1);
+  background: #fafbfc;
+}
+
+/* 图表网格 - 2列布局 */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+/* 图表面板 */
+.chart-panel {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid var(--neutral-2);
+  padding: 20px;
+  transition: all 200ms ease;
+}
+
+.chart-panel:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border-color: var(--neutral-3);
+}
+
+/* 图表标题 */
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neutral-10);
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+}
+
+.chart-description {
+  font-size: 12px;
+  color: var(--neutral-5);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+/* 图表内容区 */
+.chart-content {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-content :deep(.health-gauge),
+.chart-content :deep(.consume-level-progress) {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* 加载状态 */
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  width: 100%;
+}
+
+/* 响应式布局 */
+@media (max-width: 1199px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .metric-card {
+    padding: 14px 16px;
+    min-height: 64px;
+  }
+  
+  .metric-card .metric-value {
+    font-size: 16px;
+  }
+  
+  .metric-card.primary .metric-value,
+  .metric-card.success .metric-value {
+    font-size: 18px;
+  }
+  
+  .charts-grid {
+    gap: 16px;
+  }
+  
+  .chart-panel {
+    padding: 16px;
+  }
+  
+  .chart-content {
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .metric-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .metric-card .metric-value {
+    font-size: 18px;
+  }
+}
+
+/* 减少运动偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  .metric-card,
+  .chart-panel {
+    transition: none;
+  }
+  
+  .metric-card:hover {
+    transform: none;
+  }
 }
 
 /* Tabs 容器 - 防止内容溢出 */
@@ -1534,11 +1596,6 @@ onUnmounted(() => {
 
 /* Mobile - 375px to 767px */
 @media (min-width: 375px) and (max-width: 767px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
   .balance-cards {
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
@@ -1573,7 +1630,6 @@ onUnmounted(() => {
 
 /* Tablet - 768px to 1199px */
 @media (min-width: 768px) and (max-width: 1199px) {
-  .info-grid,
   .balance-cards {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1595,10 +1651,6 @@ onUnmounted(() => {
   .balance-cards {
     grid-template-columns: repeat(4, 1fr);
   }
-
-  .info-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
 }
 
 /* Ultra-wide screens - 1600px+ */
@@ -1607,67 +1659,6 @@ onUnmounted(() => {
     max-width: 1600px;
     margin: 0 auto;
   }
-}
-
-/* 图表区域样式 */
-.charts-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 24px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-
-.health-gauge-container {
-  height: 280px;
-  width: 100%;
-  max-width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  border-radius: var(--radius-md, 10px);
-  padding: 16px;
-  box-sizing: border-box;
-  border: 1px solid var(--neutral-2);
-  transition: all var(--transition-base, 250ms);
-  overflow: hidden;
-}
-
-.health-gauge-container:hover {
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
-  border-color: var(--primary-1);
-}
-
-.consume-level-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 100%;
-  height: 280px;
-  background: white;
-  border-radius: var(--radius-md, 10px);
-  padding: 16px;
-  box-sizing: border-box;
-  border: 1px solid var(--neutral-2);
-  transition: all var(--transition-base, 250ms);
-  overflow: hidden;
-}
-
-.consume-level-container:hover {
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
-  border-color: var(--primary-1);
-}
-
-.chart-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 250px;
-  width: 100%;
 }
 
 /* 余额趋势区域 */
@@ -1698,32 +1689,6 @@ onUnmounted(() => {
   border-top: 1px solid var(--neutral-2);
   width: 100%;
   box-sizing: border-box;
-}
-
-/* 响应式图表布局 */
-@media (max-width: 767px) {
-  .charts-section {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .health-gauge-container,
-  .consume-level-container {
-    padding: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .charts-section {
-    margin-top: 16px;
-    padding-top: 16px;
-  }
-
-  .balance-trend-section,
-  .usage-table-section {
-    margin-top: 16px;
-    padding-top: 16px;
-  }
 }
 
 /* 减少运动偏好支持 */

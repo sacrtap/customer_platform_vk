@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-13 (目录结构优化)
+**最后更新**: 2026-04-14 (添加 type-check 命令)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
 
 ---
@@ -48,7 +48,8 @@ cd frontend && npm run test:e2e
 ### 代码质量
 ```bash
 cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
-cd frontend && npm run lint && npm run format && npx vue-tsc --noEmit
+cd frontend && npm run lint && npm run format && npm run type-check  # TypeScript 类型检查
+cd frontend && npm run type-check:watch  # 持续监听模式
 ```
 
 ### 数据库迁移
