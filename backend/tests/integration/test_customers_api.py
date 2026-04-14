@@ -47,7 +47,6 @@ def customer_data(db_session):
             "company_id": "TEST001",
             "name": "测试公司 1",
             "account_type": "正式账号",
-            "business_type": "A",
             "customer_level": "KA",
             "settlement_type": "prepaid",
             "is_key_customer": True,
@@ -57,7 +56,6 @@ def customer_data(db_session):
             "company_id": "TEST002",
             "name": "测试公司 2",
             "account_type": "试用账号",
-            "business_type": "B",
             "customer_level": "SMB",
             "settlement_type": "postpaid",
             "is_key_customer": False,
@@ -67,7 +65,6 @@ def customer_data(db_session):
             "company_id": "TEST003",
             "name": "测试公司 3",
             "account_type": "正式账号",
-            "business_type": "A",
             "customer_level": "KA",
             "settlement_type": "prepaid",
             "is_key_customer": True,
@@ -79,9 +76,9 @@ def customer_data(db_session):
         db_session.execute(
             text(
                 """
-            INSERT INTO customers (company_id, name, account_type, business_type,
+            INSERT INTO customers (company_id, name, account_type,
                 customer_level, settlement_type, is_key_customer, email, created_at)
-            VALUES (:company_id, :name, :account_type, :business_type, :customer_level,
+            VALUES (:company_id, :name, :account_type, :customer_level,
                 :settlement_type, :is_key_customer, :email, NOW())
             """
             ),
@@ -190,7 +187,6 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
         "company_id": "TEST_CREATE_001",
         "name": "新创建测试公司",
         "account_type": "正式账号",
-        "business_type": "A",
         "customer_level": "KA",
         "settlement_type": "prepaid",
         "is_key_customer": True,
@@ -451,7 +447,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "company_id",
             "name",
             "account_type",
-            "business_type",
+            "industry",
             "customer_level",
             "settlement_type",
             "is_key_customer",
@@ -463,7 +459,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "TEST_IMPORT_001",
             "导入测试公司 1",
             "正式账号",
-            "A",
+            "互联网",
             "KA",
             "prepaid",
             "false",
@@ -475,7 +471,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "TEST_IMPORT_002",
             "导入测试公司 2",
             "试用账号",
-            "B",
+            "房地产",
             "SMB",
             "postpaid",
             "true",

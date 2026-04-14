@@ -42,11 +42,11 @@ async def test_customer(db_session):
     db_session.execute(
         text(
             """
-        INSERT INTO customers (id, company_id, name, account_type, business_type,
+        INSERT INTO customers (id, company_id, name, account_type,
                                customer_level, manager_id, settlement_cycle, settlement_type,
                                created_at, updated_at)
-        VALUES (:id, :company_id, :name, :account_type, :business_type,
-                :level, :manager_id, :cycle, :type, NOW(), NOW())
+        VALUES (:id, :company_id, :name, :account_type, :level,
+                :manager_id, :cycle, :type, NOW(), NOW())
         """
         ),
         {
@@ -54,7 +54,6 @@ async def test_customer(db_session):
             "company_id": company_id,
             "name": customer_name,
             "account_type": "enterprise",
-            "business_type": "technology",
             "level": "A",
             "manager_id": 1,
             "cycle": "monthly",
@@ -84,7 +83,9 @@ async def test_customer(db_session):
         text("DELETE FROM customer_balances WHERE customer_id = :id"),
         {"id": customer_id},
     )
-    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("DELETE FROM customers WHERE id = :id"), {"id": customer_id}
+    )
     db_session.commit()
 
 
@@ -148,7 +149,9 @@ async def test_get_balances_list(test_client, auth_token, test_customer_with_bal
 
 
 @pytest.mark.asyncio
-async def test_get_customer_balance_exists(test_client, auth_token, test_customer_with_balance):
+async def test_get_customer_balance_exists(
+    test_client, auth_token, test_customer_with_balance
+):
     """测试获取客户余额 - 余额存在"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer_with_balance["id"]
@@ -329,7 +332,9 @@ async def test_generate_invoice_empty_items(test_client, auth_token, test_custom
 
 
 @pytest.mark.asyncio
-async def test_invoice_workflow_full(test_client, auth_token, test_customer_with_balance):
+async def test_invoice_workflow_full(
+    test_client, auth_token, test_customer_with_balance
+):
     """测试结算单完整工作流：生成 -> 提交 -> 确认 -> 付款 -> 完成"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer_with_balance["id"]
@@ -504,7 +509,9 @@ async def test_pay_invoice_invalid_state(test_client, auth_token, test_customer)
 
 
 @pytest.mark.asyncio
-async def test_complete_invoice_insufficient_balance(test_client, auth_token, test_customer):
+async def test_complete_invoice_insufficient_balance(
+    test_client, auth_token, test_customer
+):
     """测试完成结算 - 余额不足"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer["id"]
@@ -530,11 +537,17 @@ async def test_complete_invoice_insufficient_balance(test_client, auth_token, te
     invoice_id = gen_res.json["data"]["id"]
 
     # 提交
-    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers)
+    await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers
+    )
     # 确认
-    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/confirm", headers=headers)
+    await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/confirm", headers=headers
+    )
     # 付款
-    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/pay", headers=headers)
+    await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/pay", headers=headers
+    )
 
     # 完成结算（应该失败，因为客户没有余额）
     complete_req, complete_res = await test_client.post(
@@ -682,7 +695,9 @@ async def test_delete_invoice(test_client, auth_token, test_customer):
 
 
 @pytest.mark.asyncio
-async def test_get_recharge_records(test_client, auth_token, test_customer_with_balance):
+async def test_get_recharge_records(
+    test_client, auth_token, test_customer_with_balance
+):
     """测试获取充值记录 API"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer_with_balance["id"]
