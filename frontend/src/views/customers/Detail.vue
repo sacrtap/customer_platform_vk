@@ -497,6 +497,14 @@ const customer = ref<Customer>({
   email: null,
   created_at: '',
   updated_at: '',
+  erp_system: null,
+  first_payment_date: null,
+  onboarding_date: null,
+  sales_manager_id: null,
+  cooperation_status: null,
+  is_settlement_enabled: null,
+  is_disabled: null,
+  notes: null,
 })
 
 const profile = ref<CustomerProfile>({
@@ -509,6 +517,10 @@ const profile = ref<CustomerProfile>({
   description: null,
   created_at: '',
   updated_at: '',
+  monthly_avg_shots: null,
+  monthly_avg_shots_estimated: null,
+  estimated_annual_spend: null,
+  actual_annual_spend_2025: null,
 })
 
 const balance = ref<Balance>({

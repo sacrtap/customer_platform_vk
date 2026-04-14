@@ -89,6 +89,15 @@ export interface Customer {
   email: string | null
   created_at: string
   updated_at: string
+  // 新增字段
+  erp_system: string | null
+  first_payment_date: string | null
+  onboarding_date: string | null
+  sales_manager_id: number | null
+  cooperation_status: string | null
+  is_settlement_enabled: boolean | null
+  is_disabled: boolean | null
+  notes: string | null
 }
 
 /** 客户画像 */
@@ -102,6 +111,11 @@ export interface CustomerProfile {
   description: string | null
   created_at: string
   updated_at: string
+  // 新增字段
+  monthly_avg_shots: number | null
+  monthly_avg_shots_estimated: number | null
+  estimated_annual_spend: number | null
+  actual_annual_spend_2025: number | null
 }
 
 /** 行业类型字典 */
