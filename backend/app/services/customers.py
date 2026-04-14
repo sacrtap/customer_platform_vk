@@ -43,7 +43,7 @@ class CustomerService:
             filters: 筛选条件字典
                 - keyword: 公司名称/公司 ID 关键词
                 - account_type: 账号类型
-                - business_type: 业务类型
+                - business_type: 业务类型（筛选 customer_profiles.industry）
                 - customer_level: 客户等级
                 - manager_id: 运营经理 ID
                 - settlement_type: 结算方式
@@ -73,9 +73,12 @@ class CustomerService:
         if account_type := filters.get("account_type"):
             conditions.append(Customer.account_type == account_type)
 
-        # 业务类型筛选
+        # 业务类型筛选（使用 profile.industry）
         if business_type := filters.get("business_type"):
-            conditions.append(Customer.business_type == business_type)
+            stmt = stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            )
+            conditions.append(CustomerProfile.industry == business_type)
 
         # 客户等级筛选
         if customer_level := filters.get("customer_level"):
@@ -108,7 +111,9 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
+        stmt = stmt.options(
+            selectinload(Customer.profile), selectinload(Customer.balance)
+        )
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -218,7 +223,9 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
+    async def create_or_update_profile(
+        self, customer_id: int, data: dict
+    ) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -260,7 +267,9 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self, customers_data: List[dict]
+    ) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
