@@ -51,6 +51,14 @@ export function updateCustomer(
     settlement_type?: string
     is_key_customer?: boolean
     email?: string
+    erp_system?: string
+    first_payment_date?: string
+    onboarding_date?: string
+    sales_manager_id?: number
+    cooperation_status?: string
+    is_settlement_enabled?: boolean
+    is_disabled?: boolean
+    notes?: string
   }
 ) {
   return api.put(`/customers/${id}`, data)
@@ -75,6 +83,10 @@ export function updateProfile(
     industry?: string
     is_real_estate?: boolean
     description?: string
+    monthly_avg_shots?: number
+    monthly_avg_shots_estimated?: number
+    estimated_annual_spend?: number
+    actual_annual_spend_2025?: number
   }
 ) {
   return api.put(`/customers/${customerId}/profile`, data)
