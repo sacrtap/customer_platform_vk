@@ -405,9 +405,7 @@ async def test_get_group_members_empty(group_service):
     count_result.scalar = MagicMock(return_value=0)
 
     members_result = MagicMock()
-    members_result.scalars = MagicMock(
-        return_value=MagicMock(all=MagicMock(return_value=[]))
-    )
+    members_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
 
     mock_db.execute.side_effect = [count_result, members_result]
 
@@ -433,9 +431,7 @@ async def test_apply_group_filter_static(group_service):
     count_result.scalar = MagicMock(return_value=10)
 
     members_result = MagicMock()
-    members_result.scalars = MagicMock(
-        return_value=MagicMock(all=MagicMock(return_value=[]))
-    )
+    members_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
 
     mock_db.execute.side_effect = [
         make_mock_execute_result([mock_group]),
@@ -443,9 +439,7 @@ async def test_apply_group_filter_static(group_service):
         members_result,
     ]
 
-    customers, total = await service.apply_group_filter(
-        group_id=1, page=1, page_size=20
-    )
+    customers, total = await service.apply_group_filter(group_id=1, page=1, page_size=20)
 
     assert total == 10
 
@@ -465,9 +459,7 @@ async def test_apply_group_filter_dynamic(group_service):
     count_result.scalar = MagicMock(return_value=50)
 
     filter_result = MagicMock()
-    filter_result.scalars = MagicMock(
-        return_value=MagicMock(all=MagicMock(return_value=[]))
-    )
+    filter_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
 
     mock_db.execute.side_effect = [
         make_mock_execute_result([mock_group]),
@@ -475,9 +467,7 @@ async def test_apply_group_filter_dynamic(group_service):
         filter_result,
     ]
 
-    customers, total = await service.apply_group_filter(
-        group_id=1, page=1, page_size=20
-    )
+    customers, total = await service.apply_group_filter(group_id=1, page=1, page_size=20)
 
     assert total == 50
 
@@ -489,9 +479,7 @@ async def test_apply_group_filter_not_found(group_service):
 
     mock_db.execute.return_value = make_mock_execute_result([])
 
-    customers, total = await service.apply_group_filter(
-        group_id=999, page=1, page_size=20
-    )
+    customers, total = await service.apply_group_filter(group_id=999, page=1, page_size=20)
 
     assert len(customers) == 0
     assert total == 0

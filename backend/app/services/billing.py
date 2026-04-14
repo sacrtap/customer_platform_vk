@@ -30,9 +30,7 @@ class BalanceService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_balance_by_customer_id(
-        self, customer_id: int
-    ) -> Optional[CustomerBalance]:
+    async def get_balance_by_customer_id(self, customer_id: int) -> Optional[CustomerBalance]:
         """获取客户余额"""
         result = await self.db.execute(
             select(CustomerBalance).where(
@@ -144,9 +142,7 @@ class BalanceService:
                     if not balance:
                         return False, "客户余额账户不存在"
 
-                    total_balance = (balance.real_amount or 0) + (
-                        balance.bonus_amount or 0
-                    )
+                    total_balance = (balance.real_amount or 0) + (balance.bonus_amount or 0)
                     if total_balance < amount:
                         return False, f"余额不足，当前余额：{total_balance:.2f}元"
 
@@ -165,11 +161,7 @@ class BalanceService:
                             remaining -= balance.bonus_amount
                             balance.bonus_amount = Decimal(0)
 
-                    if (
-                        remaining > 0
-                        and balance.real_amount
-                        and balance.real_amount > 0
-                    ):
+                    if remaining > 0 and balance.real_amount and balance.real_amount > 0:
                         if balance.real_amount >= remaining:
                             real_used = remaining
                             balance.real_amount -= remaining
@@ -189,8 +181,7 @@ class BalanceService:
                         amount=amount,
                         bonus_used=bonus_used,
                         real_used=real_used,
-                        balance_after=(balance.real_amount or 0)
-                        + (balance.bonus_amount or 0),
+                        balance_after=(balance.real_amount or 0) + (balance.bonus_amount or 0),
                     )
                     self.db.add(consumption)
 
@@ -291,9 +282,7 @@ class PricingService:
     ) -> Optional[PricingRule]:
         """更新定价规则"""
         result = await self.db.execute(
-            select(PricingRule).where(
-                PricingRule.id == rule_id, PricingRule.deleted_at.is_(None)
-            )
+            select(PricingRule).where(PricingRule.id == rule_id, PricingRule.deleted_at.is_(None))
         )
         rule = result.scalar_one_or_none()
 
@@ -324,9 +313,7 @@ class PricingService:
     async def delete_pricing_rule(self, rule_id: int) -> bool:
         """删除定价规则（软删除）"""
         result = await self.db.execute(
-            select(PricingRule).where(
-                PricingRule.id == rule_id, PricingRule.deleted_at.is_(None)
-            )
+            select(PricingRule).where(PricingRule.id == rule_id, PricingRule.deleted_at.is_(None))
         )
         rule = result.scalar_one_or_none()
 
@@ -369,12 +356,13 @@ class InvoiceService:
             Invoice
         """
         # 生成结算单号
-        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8].upper()}"
+        invoice_no = (
+            f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8].upper()}"
+        )
 
         # 计算总金额
         total_amount = sum(
-            Decimal(str(item["quantity"])) * Decimal(str(item["unit_price"]))
-            for item in items
+            Decimal(str(item["quantity"])) * Decimal(str(item["unit_price"])) for item in items
         )
 
         # 创建结算单
@@ -419,9 +407,7 @@ class InvoiceService:
     ) -> Tuple[List[Invoice], int]:
         """获取结算单列表"""
         stmt = (
-            select(Invoice)
-            .options(selectinload(Invoice.items))
-            .where(Invoice.deleted_at.is_(None))
+            select(Invoice).options(selectinload(Invoice.items)).where(Invoice.deleted_at.is_(None))
         )
 
         if customer_id:
@@ -485,9 +471,7 @@ class InvoiceService:
 
         return True, "减免应用成功"
 
-    async def submit_invoice(
-        self, invoice_id: int, approver_id: int
-    ) -> Tuple[bool, str]:
+    async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
         """提交结算单（商务确认）"""
         invoice = await self.get_invoice_by_id(invoice_id)
 

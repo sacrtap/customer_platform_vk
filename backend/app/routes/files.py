@@ -151,17 +151,13 @@ async def upload_file(request):
     try:
         # ========== 步骤 1: 检查文件是否存在 ==========
         if not request.files or "file" not in request.files:
-            return json(
-                {"code": 400, "message": "未找到上传文件", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "未找到上传文件", "data": None}, status=400)
 
         file: File = request.files["file"]
 
         # ========== 步骤 2: 检查文件名 ==========
         if not file.name:
-            return json(
-                {"code": 400, "message": "文件名不能为空", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "文件名不能为空", "data": None}, status=400)
 
         # ========== 步骤 3: 扩展名白名单验证 ==========
         if not allowed_extension(file.name):
@@ -200,9 +196,7 @@ async def upload_file(request):
             )
 
         # ========== 步骤 5: MIME 类型验证（python-magic）==========
-        is_valid_mime, detected_mime, mime_error = validate_mime_type(
-            file.body, file.name
-        )
+        is_valid_mime, detected_mime, mime_error = validate_mime_type(file.body, file.name)
         if not is_valid_mime:
             logger.warning(
                 f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{request.get('auth_user', 'unknown')}"
@@ -289,9 +283,7 @@ async def upload_file(request):
             f"大小：{file_size} 字节，MIME: {detected_mime}, 用户：{user_id}"
         )
 
-        return json(
-            {"code": 0, "message": "success", "data": response_data}, status=201
-        )
+        return json({"code": 0, "message": "success", "data": response_data}, status=201)
 
     except Exception as e:
         # 回滚事务
@@ -402,14 +394,10 @@ async def list_files(request: Request):
 
     except ValueError as e:
         logger.error(f"❌ 文件列表查询参数错误：{str(e)}")
-        return json(
-            {"code": 400, "message": f"参数错误：{str(e)}", "data": None}, status=400
-        )
+        return json({"code": 400, "message": f"参数错误：{str(e)}", "data": None}, status=400)
     except Exception as e:
         logger.error(f"❌ 文件列表查询失败：{str(e)}")
-        return json(
-            {"code": 500, "message": f"查询失败：{str(e)}", "data": None}, status=500
-        )
+        return json({"code": 500, "message": f"查询失败：{str(e)}", "data": None}, status=500)
 
 
 @files_bp.get("/<file_id:int>")
@@ -449,12 +437,8 @@ async def get_file(file_id: int, request: Request):
         file_record = result.scalar_one_or_none()
 
         if not file_record:
-            logger.warning(
-                f"⚠️ 文件未找到：ID={file_id}, 用户={current_user.get('user_id')}"
-            )
-            return json(
-                {"code": 404, "message": "文件未找到", "data": None}, status=404
-            )
+            logger.warning(f"⚠️ 文件未找到：ID={file_id}, 用户={current_user.get('user_id')}")
+            return json({"code": 404, "message": "文件未找到", "data": None}, status=404)
 
         # 构建响应数据
         file_data = {
@@ -468,25 +452,17 @@ async def get_file(file_id: int, request: Request):
             "business_type": file_record.business_type,
             "business_id": file_record.business_id,
             "file_hash": file_record.file_hash,
-            "created_at": file_record.created_at.isoformat()
-            if file_record.created_at
-            else None,
-            "updated_at": file_record.updated_at.isoformat()
-            if file_record.updated_at
-            else None,
+            "created_at": file_record.created_at.isoformat() if file_record.created_at else None,
+            "updated_at": file_record.updated_at.isoformat() if file_record.updated_at else None,
         }
 
-        logger.info(
-            f"📄 文件详情查询成功：ID={file_id}, 用户={current_user.get('user_id')}"
-        )
+        logger.info(f"📄 文件详情查询成功：ID={file_id}, 用户={current_user.get('user_id')}")
 
         return json({"code": 0, "message": "success", "data": file_data})
 
     except Exception as e:
         logger.error(f"❌ 文件详情查询失败：ID={file_id}, 错误={str(e)}")
-        return json(
-            {"code": 500, "message": f"查询失败：{str(e)}", "data": None}, status=500
-        )
+        return json({"code": 500, "message": f"查询失败：{str(e)}", "data": None}, status=500)
 
 
 @files_bp.delete("/<file_id:int>")
@@ -517,14 +493,10 @@ async def delete_file(file_id: int, request: Request):
 
         if not file_record:
             logger.warning(f"⚠️ 文件未找到：ID={file_id}, 用户={user_id}")
-            return json(
-                {"code": 404, "message": "文件未找到", "data": None}, status=404
-            )
+            return json({"code": 404, "message": "文件未找到", "data": None}, status=404)
 
         # 删除物理文件
-        file_path = Path(settings.file_storage_path) / file_record.file_path.lstrip(
-            "/uploads/"
-        )
+        file_path = Path(settings.file_storage_path) / file_record.file_path.lstrip("/uploads/")
         try:
             if file_path.exists():
                 file_path.unlink()
@@ -559,9 +531,7 @@ async def delete_file(file_id: int, request: Request):
         # 提交事务
         await db_session.commit()
 
-        logger.info(
-            f"✅ 文件删除成功：ID={file_id}, 文件名={file_record.filename}, 用户={user_id}"
-        )
+        logger.info(f"✅ 文件删除成功：ID={file_id}, 文件名={file_record.filename}, 用户={user_id}")
 
         return json({"code": 0, "message": "success", "data": {"deleted_id": file_id}})
 
@@ -569,6 +539,4 @@ async def delete_file(file_id: int, request: Request):
         # 回滚事务
         await db_session.rollback()
         logger.error(f"❌ 文件删除失败：ID={file_id}, 错误={str(e)}")
-        return json(
-            {"code": 500, "message": f"删除失败：{str(e)}", "data": None}, status=500
-        )
+        return json({"code": 500, "message": f"删除失败：{str(e)}", "data": None}, status=500)

@@ -36,9 +36,7 @@ from app.main import create_app
 from app.models.base import BaseModel
 
 # 测试数据库配置
-TEST_DATABASE_SYNC_URL = (
-    "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
-)
+TEST_DATABASE_SYNC_URL = "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
 TEST_DATABASE_ASYNC_URL = (
     "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
 )
@@ -84,9 +82,7 @@ def sync_test_engine():
 @pytest.fixture(scope="function")
 async def db_session(sync_test_engine):
     """创建同步数据库会话（用于测试清理）"""
-    SessionLocal = sessionmaker(
-        bind=sync_test_engine, class_=Session, expire_on_commit=False
-    )
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
     session = SessionLocal()
     try:
         yield session
@@ -112,10 +108,12 @@ def test_user(db_session):
 
     # 创建管理员角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, created_at)
         VALUES (:name, :description, NOW())
-        """),
+        """
+        ),
         {"name": "admin", "description": "系统管理员"},
     )
 
@@ -160,10 +158,12 @@ def test_user(db_session):
     ]
     for perm_code, desc, module in permissions:
         db_session.execute(
-            text("""
+            text(
+                """
             INSERT INTO permissions (code, name, description, module, created_at)
             VALUES (:code, :name, :description, :module, NOW())
-            """),
+            """
+            ),
             {"code": perm_code, "name": desc, "description": desc, "module": module},
         )
 
@@ -183,19 +183,23 @@ def test_user(db_session):
     # 创建角色权限关联
     for perm_id in perm_ids:
         db_session.execute(
-            text("""
+            text(
+                """
             INSERT INTO role_permissions (role_id, permission_id, created_at)
             VALUES (:role_id, :permission_id, NOW())
-            """),
+            """
+            ),
             {"role_id": role_id, "permission_id": perm_id},
         )
 
     # 创建用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -212,10 +216,12 @@ def test_user(db_session):
     user_id = result[0]
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
 

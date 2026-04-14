@@ -225,9 +225,7 @@ class TestInvoiceGeneratorTask:
         mock_session.rollback.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_generate_monthly_invoices_handles_exception(
-        self, mock_session, caplog
-    ):
+    async def test_generate_monthly_invoices_handles_exception(self, mock_session, caplog):
         """测试处理单个客户异常"""
         customer = MagicMock()
         customer.id = 1

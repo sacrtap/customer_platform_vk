@@ -25,9 +25,7 @@ class TestCreateGroup:
         print(f"\n=== DEBUG: Login Response ===")
         print(f"Status: {login_response.status}")
 
-        assert login_response.status == 200, (
-            f"Login failed with status {login_response.status}"
-        )
+        assert login_response.status == 200, f"Login failed with status {login_response.status}"
 
         login_data = login_response.json
         print(f"Parsed JSON: {login_data}")
@@ -278,11 +276,13 @@ class TestGroupMembers:
 
         # 创建一个测试客户
         await db_session.execute(
-            text("""
+            text(
+                """
             INSERT INTO customers (company_id, name, created_at)
             VALUES ('TEST001', '测试客户', NOW())
             ON CONFLICT (company_id) DO NOTHING
-            """)
+            """
+            )
         )
         await db_session.commit()
 

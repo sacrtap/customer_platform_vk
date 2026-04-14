@@ -30,9 +30,7 @@ async def sync_daily_usage(session: AsyncSession):
         logger.info(f"📊 同步日期范围：{yesterday}")
 
         # 获取所有活跃客户
-        result = await session.execute(
-            select(Customer).where(Customer.deleted_at.is_(None))
-        )
+        result = await session.execute(select(Customer).where(Customer.deleted_at.is_(None)))
         customers = result.scalars().all()
 
         logger.info(f"📋 待同步客户数量：{len(customers)}")

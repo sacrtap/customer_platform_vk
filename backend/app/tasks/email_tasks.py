@@ -27,12 +27,8 @@ async def send_overdue_emails(session: AsyncSession):
         # 获取所有逾期未付款的结算单
         result = await session.execute(
             select(Invoice)
-            .options(
-                selectinload(Invoice.customer), selectinload(Invoice.created_by_user)
-            )
-            .where(
-                Invoice.status == InvoiceStatus.OVERDUE, Invoice.deleted_at.is_(None)
-            )
+            .options(selectinload(Invoice.customer), selectinload(Invoice.created_by_user))
+            .where(Invoice.status == InvoiceStatus.OVERDUE, Invoice.deleted_at.is_(None))
         )
         invoices = result.scalars().all()
 
@@ -82,9 +78,7 @@ async def send_overdue_emails(session: AsyncSession):
 
                 if success:
                     sent_count += 1
-                    logger.info(
-                        f"✅ 邮件发送成功：{email}, 结算单数：{len(invoices_list)}"
-                    )
+                    logger.info(f"✅ 邮件发送成功：{email}, 结算单数：{len(invoices_list)}")
                 else:
                     failed_count += 1
                     logger.error(f"❌ 邮件发送失败：{email}")
@@ -94,9 +88,7 @@ async def send_overdue_emails(session: AsyncSession):
                 logger.error(f"❌ 邮件发送异常 {email}: {str(e)}")
                 continue
 
-        logger.info(
-            f"✅ 逾期提醒邮件发送完成 | 成功：{sent_count} | 失败：{failed_count}"
-        )
+        logger.info(f"✅ 逾期提醒邮件发送完成 | 成功：{sent_count} | 失败：{failed_count}")
 
         # 记录任务日志
         await _log_email_task(

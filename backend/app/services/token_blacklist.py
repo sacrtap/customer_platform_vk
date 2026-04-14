@@ -12,9 +12,7 @@ class TokenBlacklistService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def add_to_blacklist(
-        self, jti: str, token_type: str, expires_at: datetime
-    ) -> None:
+    async def add_to_blacklist(self, jti: str, token_type: str, expires_at: datetime) -> None:
         """
         将 Token 加入黑名单
 

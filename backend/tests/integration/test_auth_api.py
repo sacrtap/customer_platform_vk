@@ -25,10 +25,12 @@ async def test_login_success(test_client, db_session):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -76,10 +78,12 @@ async def test_login_wrong_password(test_client, db_session):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -134,10 +138,12 @@ async def test_refresh_token_success(test_client, db_session):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -206,10 +212,12 @@ async def test_logout_success(test_client, db_session):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -257,10 +265,12 @@ async def test_get_me_success(test_client, db_session):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,

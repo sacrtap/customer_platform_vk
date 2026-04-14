@@ -63,9 +63,7 @@ async def create_permission(request: Request):
     module = data.get("module")
 
     if not code or not name or not module:
-        return json(
-            {"code": 40001, "message": "权限代码、名称和模块不能为空"}, status=400
-        )
+        return json({"code": 40001, "message": "权限代码、名称和模块不能为空"}, status=400)
 
     db_session: AsyncSession = request.ctx.db_session
 
@@ -75,9 +73,7 @@ async def create_permission(request: Request):
     if existing_result.scalar_one_or_none():
         return json({"code": 40002, "message": "权限代码已存在"}, status=400)
 
-    permission = Permission(
-        code=code, name=name, description=description, module=module
-    )
+    permission = Permission(code=code, name=name, description=description, module=module)
     db_session.add(permission)
     await db_session.commit()
     await db_session.refresh(permission)

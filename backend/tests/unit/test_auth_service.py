@@ -165,9 +165,7 @@ class TestAuthService_VerifyToken:
         with patch("app.services.auth.datetime") as mock_datetime:
             from datetime import datetime
 
-            mock_datetime.utcnow.return_value = datetime.utcnow() - timedelta(
-                minutes=61
-            )
+            mock_datetime.utcnow.return_value = datetime.utcnow() - timedelta(minutes=61)
             expired_token = AuthService.create_access_token(
                 user_id=1,
                 username="testuser",

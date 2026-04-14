@@ -81,9 +81,7 @@ class TestExternalAPIClient:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_daily_usage_general_exception(
-        self, api_client, sample_date_range
-    ):
+    async def test_get_daily_usage_general_exception(self, api_client, sample_date_range):
         """测试通用异常处理"""
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -273,9 +271,7 @@ class TestExternalAPIClient:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_sync_customer_data_with_retry_logic(
-        self, api_client, sample_date_range
-    ):
+    async def test_sync_customer_data_with_retry_logic(self, api_client, sample_date_range):
         """测试同步重试逻辑（模拟网络波动）"""
         call_count = 0
 

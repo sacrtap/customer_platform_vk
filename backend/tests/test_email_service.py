@@ -35,9 +35,7 @@ class TestEmailService:
     @pytest.mark.asyncio
     async def test_send_email_success(self, email_service_instance, sample_email_data):
         """测试邮件发送成功"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=sample_email_data["to_emails"],
                 subject=sample_email_data["subject"],
@@ -57,9 +55,7 @@ class TestEmailService:
         attachment_file = tmp_path / "test_attachment.txt"
         attachment_file.write_text("附件内容")
 
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=sample_email_data["to_emails"],
                 subject=sample_email_data["subject"],
@@ -75,9 +71,7 @@ class TestEmailService:
         self, email_service_instance, sample_email_data
     ):
         """测试无效附件路径"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=sample_email_data["to_emails"],
                 subject=sample_email_data["subject"],
@@ -90,13 +84,9 @@ class TestEmailService:
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_email_smtp_error(
-        self, email_service_instance, sample_email_data
-    ):
+    async def test_send_email_smtp_error(self, email_service_instance, sample_email_data):
         """测试 SMTP 发送错误"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             mock_send.side_effect = Exception("SMTP 连接失败")
 
             result = await email_service_instance.send_email(
@@ -110,9 +100,7 @@ class TestEmailService:
     @pytest.mark.asyncio
     async def test_send_email_empty_to_emails(self, email_service_instance):
         """测试空收件人列表"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=[],
                 subject="测试主题",
@@ -126,9 +114,7 @@ class TestEmailService:
     @pytest.mark.asyncio
     async def test_send_email_only_html_content(self, email_service_instance):
         """测试仅 HTML 内容（无纯文本）"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=["user@example.com"],
                 subject="测试主题",
@@ -153,9 +139,7 @@ class TestEmailService:
                 mock_template.render.return_value = "<h1>Hello World!</h1>"
                 mock_env.get_template.return_value = mock_template
 
-                result = email_service_instance.render_template(
-                    "test_template.html", name="World"
-                )
+                result = email_service_instance.render_template("test_template.html", name="World")
 
                 assert result == "<h1>Hello World!</h1>"
                 mock_env.get_template.assert_called_once_with("test_template.html")
@@ -195,13 +179,9 @@ class TestEmailService:
             assert service.from_email == "admin@example.com"
 
     @pytest.mark.asyncio
-    async def test_send_email_multiple_recipients(
-        self, email_service_instance, sample_email_data
-    ):
+    async def test_send_email_multiple_recipients(self, email_service_instance, sample_email_data):
         """测试发送给多个收件人"""
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=[
                     "user1@example.com",
@@ -221,15 +201,11 @@ class TestEmailService:
             assert "user3@example.com" in msg["To"]
 
     @pytest.mark.asyncio
-    async def test_send_email_special_characters(
-        self, email_service_instance, sample_email_data
-    ):
+    async def test_send_email_special_characters(self, email_service_instance, sample_email_data):
         """测试包含特殊字符的邮件内容"""
         special_content = "<h1>测试中文 & 特殊字符 <>&\"'</h1>"
 
-        with patch(
-            "app.services.email.aiosmtplib.send", new_callable=AsyncMock
-        ) as mock_send:
+        with patch("app.services.email.aiosmtplib.send", new_callable=AsyncMock) as mock_send:
             result = await email_service_instance.send_email(
                 to_emails=sample_email_data["to_emails"],
                 subject="特殊字符测试",

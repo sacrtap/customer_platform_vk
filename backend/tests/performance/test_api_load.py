@@ -56,9 +56,7 @@ class CustomerPlatformUser(HttpUser):
                 else:
                     print(f"[{self._user_name}] 登录失败：{data.get('message')}")
             else:
-                print(
-                    f"[{self._user_name}] 登录请求失败，状态码：{response.status_code}"
-                )
+                print(f"[{self._user_name}] 登录请求失败，状态码：{response.status_code}")
         except Exception as e:
             print(f"[{self._user_name}] 登录异常：{str(e)}")
 
@@ -311,9 +309,7 @@ def on_test_stop(environment, **kwargs):
 
     # 按端点统计
     print("\n【按端点统计】")
-    print(
-        f"{'端点':<50} {'请求数':>10} {'失败数':>10} {'平均 (ms)':>12} {'P95 (ms)':>12}"
-    )
+    print(f"{'端点':<50} {'请求数':>10} {'失败数':>10} {'平均 (ms)':>12} {'P95 (ms)':>12}")
     print("-" * 94)
 
     for endpoint in sorted(stats.entries, key=lambda x: x[1]):
@@ -398,9 +394,7 @@ class StressTestUser(HttpUser):
 
     def _login(self):
         try:
-            response = self.client.post(
-                "/api/v1/auth/login", json=self.test_credentials
-            )
+            response = self.client.post("/api/v1/auth/login", json=self.test_credentials)
             if response.status_code == 200:
                 data = response.json()
                 self.access_token = data.get("data", {}).get("access_token")
@@ -410,11 +404,7 @@ class StressTestUser(HttpUser):
     @task(10)
     def rapid_customer_list(self):
         """快速获取客户列表"""
-        headers = (
-            {"Authorization": f"Bearer {self.access_token}"}
-            if self.access_token
-            else {}
-        )
+        headers = {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
         self.client.get(
             "/api/v1/customers",
             headers=headers,
@@ -425,11 +415,7 @@ class StressTestUser(HttpUser):
     @task(5)
     def rapid_dashboard(self):
         """快速获取仪表盘"""
-        headers = (
-            {"Authorization": f"Bearer {self.access_token}"}
-            if self.access_token
-            else {}
-        )
+        headers = {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
         self.client.get(
             "/api/v1/analytics/dashboard/stats",
             headers=headers,

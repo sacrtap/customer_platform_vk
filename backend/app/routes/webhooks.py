@@ -24,9 +24,7 @@ webhooks_bp = Blueprint("webhooks", url_prefix="/api/v1/webhooks")
 WEBHOOK_TIMESTAMP_WINDOW = 300  # 5 分钟
 
 
-def verify_timestamp_window(
-    timestamp: str, window_seconds: int = WEBHOOK_TIMESTAMP_WINDOW
-) -> bool:
+def verify_timestamp_window(timestamp: str, window_seconds: int = WEBHOOK_TIMESTAMP_WINDOW) -> bool:
     """
     验证时间戳是否在有效窗口内
 
@@ -100,9 +98,7 @@ async def check_signature_not_used(db_session, signature: str) -> bool:
         return False
 
 
-async def record_webhook_signature(
-    db_session, signature: str, timestamp: str, endpoint: str
-):
+async def record_webhook_signature(db_session, signature: str, timestamp: str, endpoint: str):
     """
     记录已使用的 Webhook 签名
 
@@ -198,18 +194,14 @@ async def invoice_confirmation(request):
 
         if not signature or not timestamp:
             logger.warning("Webhook 请求缺少签名或时间戳")
-            return json(
-                {"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401
-            )
+            return json({"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401)
 
         # 获取数据库会话
         db_session = request.ctx.db_session
 
         # 1. 验证时间戳窗口（防止旧请求重放）
         if not verify_timestamp_window(timestamp):
-            return json(
-                {"code": 403, "message": "请求时间戳过期", "data": None}, status=403
-            )
+            return json({"code": 403, "message": "请求时间戳过期", "data": None}, status=403)
 
         # 2. 检查签名是否已被使用（防止重放攻击）
         if not await check_signature_not_used(db_session, signature):
@@ -221,9 +213,7 @@ async def invoice_confirmation(request):
         # 3. 验证签名
         if not verify_webhook_signature(request.body, signature, timestamp):
             logger.warning("Webhook 签名验证失败")
-            return json(
-                {"code": 403, "message": "签名验证失败", "data": None}, status=403
-            )
+            return json({"code": 403, "message": "签名验证失败", "data": None}, status=403)
 
         # 解析请求体
         data = request.json
@@ -234,18 +224,14 @@ async def invoice_confirmation(request):
         remarks = data.get("remarks", "")
 
         if not invoice_no:
-            return json(
-                {"code": 400, "message": "缺少结算单号", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "缺少结算单号", "data": None}, status=400)
 
         # 获取数据库会话
         db_session = request.ctx.db_session
 
         # 查找结算单
         result = await db_session.execute(
-            select(Invoice).where(
-                Invoice.invoice_no == invoice_no, Invoice.deleted_at.is_(None)
-            )
+            select(Invoice).where(Invoice.invoice_no == invoice_no, Invoice.deleted_at.is_(None))
         )
         invoice = result.scalar_one_or_none()
 
@@ -258,9 +244,7 @@ async def invoice_confirmation(request):
 
         # 检查结算单状态
         if invoice.status != InvoiceStatus.PENDING_CUSTOMER:
-            logger.warning(
-                f"结算单状态不正确：{invoice_no}, 当前状态：{invoice.status}"
-            )
+            logger.warning(f"结算单状态不正确：{invoice_no}, 当前状态：{invoice.status}")
             return json(
                 {
                     "code": 400,
@@ -277,9 +261,7 @@ async def invoice_confirmation(request):
         invoice.confirmation_remarks = remarks
 
         # 记录 Webhook 签名（防止重放）
-        await record_webhook_signature(
-            db_session, signature, timestamp, "/invoice-confirmation"
-        )
+        await record_webhook_signature(db_session, signature, timestamp, "/invoice-confirmation")
 
         await db_session.commit()
 
@@ -305,9 +287,7 @@ async def invoice_confirmation(request):
 
     except Exception as e:
         logger.error(f"❌ 结算单确认回调处理失败：{str(e)}")
-        return json(
-            {"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500
-        )
+        return json({"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500)
 
 
 @webhooks_bp.post("/payment-notify")
@@ -336,18 +316,14 @@ async def payment_notify(request):
         timestamp = request.headers.get("X-Webhook-Timestamp")
 
         if not signature or not timestamp:
-            return json(
-                {"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401
-            )
+            return json({"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401)
 
         # 获取数据库会话
         db_session = request.ctx.db_session
 
         # 1. 验证时间戳窗口（防止旧请求重放）
         if not verify_timestamp_window(timestamp):
-            return json(
-                {"code": 403, "message": "请求时间戳过期", "data": None}, status=403
-            )
+            return json({"code": 403, "message": "请求时间戳过期", "data": None}, status=403)
 
         # 2. 检查签名是否已被使用（防止重放攻击）
         if not await check_signature_not_used(db_session, signature):
@@ -358,9 +334,7 @@ async def payment_notify(request):
 
         # 3. 验证签名
         if not verify_webhook_signature(request.body, signature, timestamp):
-            return json(
-                {"code": 403, "message": "签名验证失败", "data": None}, status=403
-            )
+            return json({"code": 403, "message": "签名验证失败", "data": None}, status=403)
 
         # 解析请求体
         data = request.json
@@ -370,15 +344,11 @@ async def payment_notify(request):
         transaction_id = data.get("transaction_id")
 
         if not invoice_no or not payment_amount:
-            return json(
-                {"code": 400, "message": "缺少必要参数", "data": None}, status=400
-            )
+            return json({"code": 400, "message": "缺少必要参数", "data": None}, status=400)
 
         # 查找结算单
         result = await db_session.execute(
-            select(Invoice).where(
-                Invoice.invoice_no == invoice_no, Invoice.deleted_at.is_(None)
-            )
+            select(Invoice).where(Invoice.invoice_no == invoice_no, Invoice.deleted_at.is_(None))
         )
         invoice = result.scalar_one_or_none()
 
@@ -416,9 +386,7 @@ async def payment_notify(request):
         invoice.transaction_id = transaction_id
 
         # 记录 Webhook 签名（防止重放）
-        await record_webhook_signature(
-            db_session, signature, timestamp, "/payment-notify"
-        )
+        await record_webhook_signature(db_session, signature, timestamp, "/payment-notify")
 
         await db_session.commit()
 
@@ -443,6 +411,4 @@ async def payment_notify(request):
 
     except Exception as e:
         logger.error(f"❌ 付款通知处理失败：{str(e)}")
-        return json(
-            {"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500
-        )
+        return json({"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500)

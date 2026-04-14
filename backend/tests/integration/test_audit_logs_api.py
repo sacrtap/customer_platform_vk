@@ -36,47 +36,53 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
 
     # 确保超级管理员角色存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 确保 system:view 权限存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 获取角色 ID 和权限 ID
     result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:view'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'system:view'"))
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
+        """
+        ),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -94,11 +100,13 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
     user_id = result.scalar_one()
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()
@@ -163,49 +171,53 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
 
     # 确保超级管理员角色存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 确保 system:view 权限存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 获取角色 ID 和权限 ID
-    result = db_session.execute(
-        text("SELECT id FROM roles WHERE name = '超级管理员'")
-    )
+    result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:view'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'system:view'"))
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
+        """
+        ),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -223,11 +235,13 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
     user_id = result.scalar_one()
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()
@@ -308,49 +322,53 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
 
     # 确保超级管理员角色存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 确保 system:view 权限存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 获取角色 ID 和权限 ID
-    result = db_session.execute(
-        text("SELECT id FROM roles WHERE name = '超级管理员'")
-    )
+    result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:view'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'system:view'"))
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
+        """
+        ),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -368,11 +386,13 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
     user_id = result.scalar_one()
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()
@@ -433,49 +453,53 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
 
     # 确保超级管理员角色存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 确保 system:view 权限存在
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
         ON CONFLICT (code) DO NOTHING
-        """)
+        """
+        )
     )
 
     # 获取角色 ID 和权限 ID
-    result = db_session.execute(
-        text("SELECT id FROM roles WHERE name = '超级管理员'")
-    )
+    result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'system:view'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'system:view'"))
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """),
+        """
+        ),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -493,11 +517,13 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
     user_id = result.scalar_one()
 
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """),
+        """
+        ),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()

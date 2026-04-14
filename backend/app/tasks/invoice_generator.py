@@ -28,13 +28,9 @@ async def generate_monthly_invoices(session: AsyncSession):
         # 计算上月日期范围
         today = date.today()
         first_day_of_last_month = today.replace(day=1) - relativedelta(months=1)
-        last_day_of_last_month = first_day_of_last_month + relativedelta(
-            months=1, days=-1
-        )
+        last_day_of_last_month = first_day_of_last_month + relativedelta(months=1, days=-1)
 
-        logger.info(
-            f"📊 结算周期：{first_day_of_last_month} 至 {last_day_of_last_month}"
-        )
+        logger.info(f"📊 结算周期：{first_day_of_last_month} 至 {last_day_of_last_month}")
 
         # 获取非重点客户（普通客户自动生成，重点客户需要手动出账）
         result = await session.execute(
@@ -87,15 +83,11 @@ async def generate_monthly_invoices(session: AsyncSession):
                     )
                 else:
                     skipped_count += 1
-                    logger.debug(
-                        f"⚠️  客户 {customer.company_name} 无用量数据，跳过结算单生成"
-                    )
+                    logger.debug(f"⚠️  客户 {customer.company_name} 无用量数据，跳过结算单生成")
 
             except Exception as e:
                 failed_count += 1
-                logger.error(
-                    f"❌ 客户 {customer.company_name} 结算单生成失败：{str(e)}"
-                )
+                logger.error(f"❌ 客户 {customer.company_name} 结算单生成失败：{str(e)}")
                 continue
 
         logger.info(

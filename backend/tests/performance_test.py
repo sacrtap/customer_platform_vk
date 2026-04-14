@@ -34,9 +34,7 @@ class CustomerPlatformUser(HttpUser):
     @task(3)
     def get_customers(self):
         """获取客户列表"""
-        self.client.get(
-            "/api/v1/customers", headers=self.headers, name="/api/v1/customers"
-        )
+        self.client.get("/api/v1/customers", headers=self.headers, name="/api/v1/customers")
 
     @task(2)
     def get_dashboard_stats(self):

@@ -235,9 +235,7 @@ async def test_single_bulk_query_not_n_plus_1(customer_service):
 
     mock_db.execute.return_value = make_mock_execute_result([])
 
-    customers_data = [
-        {"company_id": f"C{i:03d}", "name": f"公司{i}"} for i in range(50)
-    ]
+    customers_data = [{"company_id": f"C{i:03d}", "name": f"公司{i}"} for i in range(50)]
 
     await service.batch_create_customers(customers_data)
 
@@ -250,9 +248,7 @@ async def test_uses_set_for_existing_ids(customer_service):
     """验证使用 set 存储现有 ID"""
     service, mock_db = customer_service
 
-    mock_db.execute.return_value = make_mock_execute_result(
-        [("C001",), ("C002",), ("C003",)]
-    )
+    mock_db.execute.return_value = make_mock_execute_result([("C001",), ("C002",), ("C003",)])
 
     customers_data = [
         {"company_id": "C001", "name": "已存在1"},
@@ -310,9 +306,7 @@ async def test_large_batch(customer_service):
 
     mock_db.execute.return_value = make_mock_execute_result([])
 
-    customers_data = [
-        {"company_id": f"C{i:04d}", "name": f"公司{i}"} for i in range(150)
-    ]
+    customers_data = [{"company_id": f"C{i:04d}", "name": f"公司{i}"} for i in range(150)]
 
     success_count, errors = await service.batch_create_customers(customers_data)
 
@@ -329,9 +323,7 @@ async def test_large_batch_with_some_existing(customer_service):
     existing = [(f"C{i:04d}",) for i in range(0, 100, 10)]
     mock_db.execute.return_value = make_mock_execute_result(existing)
 
-    customers_data = [
-        {"company_id": f"C{i:04d}", "name": f"公司{i}"} for i in range(100)
-    ]
+    customers_data = [{"company_id": f"C{i:04d}", "name": f"公司{i}"} for i in range(100)]
 
     success_count, errors = await service.batch_create_customers(customers_data)
 

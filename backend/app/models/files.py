@@ -12,17 +12,13 @@ class File(BaseModel):
 
     # 文件信息
     filename = Column(String(255), nullable=False, comment="原始文件名")
-    stored_filename = Column(
-        String(255), nullable=False, unique=True, comment="存储文件名（随机）"
-    )
+    stored_filename = Column(String(255), nullable=False, unique=True, comment="存储文件名（随机）")
     file_path = Column(String(500), nullable=False, comment="文件相对路径")
     file_size = Column(BigInteger, nullable=False, comment="文件大小（字节）")
     file_type = Column(String(100), nullable=False, comment="文件 MIME 类型")
 
     # 关联信息
-    uploaded_by = Column(
-        Integer, ForeignKey("users.id"), nullable=False, comment="上传人 ID"
-    )
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False, comment="上传人 ID")
 
     # 索引字段
     file_hash = Column(

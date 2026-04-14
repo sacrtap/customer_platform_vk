@@ -98,9 +98,7 @@ class TestRoleService_UpdateRole:
         new_description = "更新后的描述"
 
         # Mock get_role_by_id 返回现有角色
-        existing_role = Role(
-            id=role_id, name="old_role", description="旧描述", is_system=False
-        )
+        existing_role = Role(id=role_id, name="old_role", description="旧描述", is_system=False)
         role_service.get_role_by_id = AsyncMock(return_value=existing_role)
 
         # Mock get_role_by_name 返回 None (新名称未被使用)

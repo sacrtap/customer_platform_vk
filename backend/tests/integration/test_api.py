@@ -36,10 +36,12 @@ async def test_login_success(test_client, db_session: AsyncSession):
         {"username": username},
     )
     db_session.execute(
-        text("""
+        text(
+            """
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """),
+        """
+        ),
         {
             "username": username,
             "password_hash": password_hash,
@@ -116,9 +118,7 @@ async def test_get_billing_balance(test_client, test_user):
 
     # 使用 token 访问余额查询
     headers = {"Authorization": f"Bearer {token}"}
-    request, response = await test_client.get(
-        "/api/v1/billing/balance", headers=headers
-    )
+    request, response = await test_client.get("/api/v1/billing/balance", headers=headers)
 
     # 应该返回 200 或 404（取决于是否有账单数据）
     assert response.status in [200, 404]

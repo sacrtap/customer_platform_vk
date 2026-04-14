@@ -105,9 +105,7 @@ class TestVerifyWebhookSignature:
         timestamp = "2024-01-15T10:30:00Z"
 
         message = f"{timestamp}{payload.decode('utf-8')}".encode("utf-8")
-        expected_signature = hmac.new(
-            secret.encode("utf-8"), message, hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
         with patch("app.routes.webhooks.settings") as mock_settings:
             mock_settings.webhook_secret = secret
@@ -133,9 +131,7 @@ class TestVerifyWebhookSignature:
 
         # 生成原始签名
         message = f"{timestamp}{original_payload.decode('utf-8')}".encode("utf-8")
-        signature = hmac.new(
-            secret.encode("utf-8"), message, hashlib.sha256
-        ).hexdigest()
+        signature = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
         # 篡改负载
         tampered_payload = b'{"invoice_no": "INV-001", "amount": 9999}'
@@ -149,9 +145,7 @@ class TestVerifyWebhookSignature:
         """测试空负载"""
         with patch("app.routes.webhooks.settings") as mock_settings:
             mock_settings.webhook_secret = "test-secret"
-            result = verify_webhook_signature(
-                b"", "some-signature", "2024-01-15T10:30:00Z"
-            )
+            result = verify_webhook_signature(b"", "some-signature", "2024-01-15T10:30:00Z")
             assert result is False
 
     def test_unicode_payload(self):
@@ -161,9 +155,7 @@ class TestVerifyWebhookSignature:
         timestamp = "2024-01-15T10:30:00Z"
 
         message = f"{timestamp}{payload.decode('utf-8')}".encode("utf-8")
-        expected_signature = hmac.new(
-            secret.encode("utf-8"), message, hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
         with patch("app.routes.webhooks.settings") as mock_settings:
             mock_settings.webhook_secret = secret

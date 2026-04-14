@@ -41,14 +41,10 @@ def auth_middleware(app: Sanic):
                 payload = AuthService.verify_token(token)
             except Exception as e:
                 app.logger.warning(f"Token verification failed: {e}")
-                return json(
-                    {"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401
-                )
+                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
 
             if not payload:
-                return json(
-                    {"code": 40102, "message": "Token 无效或已过期"}, status=401
-                )
+                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
 
             # 检查 Token 是否在黑名单中
             jti = payload.get("jti")

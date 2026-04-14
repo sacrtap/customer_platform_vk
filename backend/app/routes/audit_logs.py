@@ -36,9 +36,7 @@ async def list_audit_logs(request: Request):
     # 构建筛选条件
     conditions = [AuditLog.deleted_at.is_(None)]
 
-    if user_id := (
-        int(request.args.get("user_id")) if request.args.get("user_id") else None
-    ):
+    if user_id := (int(request.args.get("user_id")) if request.args.get("user_id") else None):
         conditions.append(AuditLog.user_id == user_id)
 
     if action := request.args.get("action"):
@@ -91,9 +89,7 @@ async def list_audit_logs(request: Request):
             "record_type": row.AuditLog.record_type,
             "changes": row.AuditLog.changes,
             "ip_address": row.AuditLog.ip_address,
-            "created_at": row.AuditLog.created_at.isoformat()
-            if row.AuditLog.created_at
-            else None,
+            "created_at": row.AuditLog.created_at.isoformat() if row.AuditLog.created_at else None,
         }
         for row in rows
     ]

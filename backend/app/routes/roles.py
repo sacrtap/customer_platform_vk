@@ -44,9 +44,7 @@ async def list_roles(request: Request):
                         "name": role.name,
                         "description": role.description,
                         "is_system": role.is_system,
-                        "created_at": role.created_at.isoformat()
-                        if role.created_at
-                        else None,
+                        "created_at": role.created_at.isoformat() if role.created_at else None,
                     }
                     for role in roles
                 ],
@@ -81,8 +79,7 @@ async def get_role(request: Request, role_id: int):
                 "description": role.description,
                 "is_system": role.is_system,
                 "permissions": [
-                    {"id": p.id, "code": p.code, "name": p.name}
-                    for p in role.permissions
+                    {"id": p.id, "code": p.code, "name": p.name} for p in role.permissions
                 ],
                 "created_at": role.created_at.isoformat() if role.created_at else None,
             },

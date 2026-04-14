@@ -14,9 +14,7 @@ class RoleService:
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
-    async def get_all_roles(
-        self, page: int = 1, page_size: int = 20
-    ) -> Tuple[List[Role], int]:
+    async def get_all_roles(self, page: int = 1, page_size: int = 20) -> Tuple[List[Role], int]:
         """获取所有角色（分页）"""
         # 计算总数
         count_query = select(func.count()).select_from(Role)
@@ -105,9 +103,7 @@ class RoleService:
             # 添加新权限
             for perm_id in permission_ids:
                 await self.db_session.execute(
-                    role_permissions.insert().values(
-                        role_id=role_id, permission_id=perm_id
-                    )
+                    role_permissions.insert().values(role_id=role_id, permission_id=perm_id)
                 )
 
         await self.db_session.commit()
@@ -147,9 +143,7 @@ class RoleService:
             perm_result = await self.db_session.execute(perm_query)
             if perm_result.scalar_one_or_none():
                 await self.db_session.execute(
-                    role_permissions.insert().values(
-                        role_id=role_id, permission_id=perm_id
-                    )
+                    role_permissions.insert().values(role_id=role_id, permission_id=perm_id)
                 )
 
         await self.db_session.commit()
