@@ -209,3 +209,6 @@ node-compile-cache/
 
 # ruff
 .ruff_cache/
+
+# redis
+/dump.rdb
