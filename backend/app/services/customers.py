@@ -75,9 +75,7 @@ class CustomerService:
 
         # 业务类型筛选（使用 profile.industry）
         if business_type := filters.get("business_type"):
-            stmt = stmt.outerjoin(
-                CustomerProfile, Customer.id == CustomerProfile.customer_id
-            )
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             conditions.append(CustomerProfile.industry == business_type)
 
         # 客户等级筛选
@@ -111,9 +109,7 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(
-            selectinload(Customer.profile), selectinload(Customer.balance)
-        )
+        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -129,7 +125,6 @@ class CustomerService:
             company_id=data["company_id"],
             name=data["name"],
             account_type=data.get("account_type"),
-            business_type=data.get("business_type"),
             customer_level=data.get("customer_level"),
             price_policy=data.get("price_policy"),
             manager_id=data.get("manager_id"),
@@ -145,6 +140,14 @@ class CustomerService:
         # 创建初始余额记录
         balance = CustomerBalance(customer_id=customer.id)
         self.db.add(balance)
+
+        # 如果提供了 industry，创建 profile 记录
+        if data.get("industry"):
+            profile = CustomerProfile(
+                customer_id=customer.id,
+                industry=data["industry"],
+            )
+            self.db.add(profile)
 
         await self.db.commit()
         await self.db.refresh(customer)
@@ -174,7 +177,6 @@ class CustomerService:
             "company_id",
             "name",
             "account_type",
-            "business_type",
             "customer_level",
             "price_policy",
             "manager_id",
@@ -196,6 +198,15 @@ class CustomerService:
         for field in updatable_fields:
             if field in data:
                 setattr(customer, field, data[field])
+
+        # 如果提供了 industry，更新 profile
+        if "industry" in data:
+            profile = await self.get_customer_profile(customer.id)
+            if profile:
+                profile.industry = data["industry"]
+            else:
+                profile = CustomerProfile(customer_id=customer.id, industry=data["industry"])
+                self.db.add(profile)
 
         await self.db.commit()
         await self.db.refresh(customer)
@@ -223,9 +234,7 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(
-        self, customer_id: int, data: dict
-    ) -> CustomerProfile:
+    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -267,9 +276,7 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(
-        self, customers_data: List[dict]
-    ) -> Tuple[int, List[str]]:
+    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
@@ -308,7 +315,6 @@ class CustomerService:
                     company_id=company_id,
                     name=name,
                     account_type=data.get("account_type"),
-                    business_type=data.get("business_type"),
                     customer_level=data.get("customer_level"),
                     price_policy=data.get("price_policy"),
                     manager_id=data.get("manager_id"),
