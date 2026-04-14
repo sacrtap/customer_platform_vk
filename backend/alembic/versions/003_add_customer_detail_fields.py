@@ -39,7 +39,7 @@ def upgrade() -> None:
             "cooperation_status",
             sa.String(length=50),
             nullable=True,
-            server_default="active",
+            server_default=sa.text("'active'"),
         ),
     )
     op.add_column(
