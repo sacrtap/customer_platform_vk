@@ -116,9 +116,7 @@ class TestGet:
     """缓存获取测试"""
 
     @pytest.mark.asyncio
-    async def test_get_cache_hit(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_get_cache_hit(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试缓存命中"""
         # 准备测试数据
         test_data = {"id": 1, "name": "测试客户"}
@@ -132,9 +130,7 @@ class TestGet:
         mock_redis.get.assert_called_once_with("cache:customer_detail:123")
 
     @pytest.mark.asyncio
-    async def test_get_cache_miss(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_get_cache_miss(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试缓存未命中"""
         mock_redis.get.return_value = None
 
@@ -146,9 +142,7 @@ class TestGet:
     @pytest.mark.asyncio
     async def test_get_redis_connection_failure(self, cache_service: CacheService):
         """测试 Redis 连接失败时的错误处理"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis connection failed")
 
             result = await cache_service.get("customer_list", "all")
@@ -218,9 +212,7 @@ class TestSet:
         test_data = {"data": "test"}
         custom_ttl = 600
 
-        result = await cache_with_mock_redis.set(
-            "customer_list", test_data, "all", ttl=custom_ttl
-        )
+        result = await cache_with_mock_redis.set("customer_list", test_data, "all", ttl=custom_ttl)
 
         assert result is True
         call_args = mock_redis.setex.call_args
@@ -262,9 +254,7 @@ class TestSet:
     @pytest.mark.asyncio
     async def test_set_redis_failure(self, cache_service: CacheService):
         """测试 Redis 写入失败时的错误处理"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis write failed")
 
             result = await cache_service.set("customer_list", {"data": "test"}, "all")
@@ -299,9 +289,7 @@ class TestDelete:
     """缓存删除测试"""
 
     @pytest.mark.asyncio
-    async def test_delete_success(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_delete_success(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试删除缓存成功"""
         mock_redis.delete.return_value = 1
 
@@ -324,9 +312,7 @@ class TestDelete:
     @pytest.mark.asyncio
     async def test_delete_redis_failure(self, cache_service: CacheService):
         """测试 Redis 删除失败时的错误处理"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis delete failed")
 
             result = await cache_service.delete("customer_list", "all")
@@ -373,9 +359,7 @@ class TestInvalidatePattern:
     @pytest.mark.asyncio
     async def test_invalidate_pattern_redis_failure(self, cache_service: CacheService):
         """测试 Redis 模式删除失败时的错误处理"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis pattern delete failed")
 
             result = await cache_service.invalidate_pattern("cache:*")
@@ -420,13 +404,9 @@ class TestInvalidateCustomerCache:
         mock_redis.keys.assert_called_once_with("cache:customer_list:*")
 
     @pytest.mark.asyncio
-    async def test_invalidate_customer_cache_error_recovery(
-        self, cache_service: CacheService
-    ):
+    async def test_invalidate_customer_cache_error_recovery(self, cache_service: CacheService):
         """测试客户缓存清除错误时的恢复"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis failure")
 
             # 即使 Redis 失败，也应该返回 True（错误在内部处理）
@@ -472,13 +452,9 @@ class TestInvalidateTagCache:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_invalidate_tag_cache_error_recovery(
-        self, cache_service: CacheService
-    ):
+    async def test_invalidate_tag_cache_error_recovery(self, cache_service: CacheService):
         """测试标签缓存清除错误时的恢复"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Redis failure")
 
             result = await cache_service.invalidate_tag_cache()
@@ -511,27 +487,21 @@ class TestTTLConfiguration:
         assert call_args[0][1] == 600
 
     @pytest.mark.asyncio
-    async def test_tag_list_ttl(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_tag_list_ttl(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试标签列表 TTL 为 1 小时"""
         await cache_with_mock_redis.set("tag_list", {"data": "test"}, "customer")
         call_args = mock_redis.setex.call_args
         assert call_args[0][1] == 3600
 
     @pytest.mark.asyncio
-    async def test_tag_stats_ttl(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_tag_stats_ttl(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试标签统计 TTL 为 30 分钟"""
         await cache_with_mock_redis.set("tag_stats", {"data": "test"}, "summary")
         call_args = mock_redis.setex.call_args
         assert call_args[0][1] == 1800
 
     @pytest.mark.asyncio
-    async def test_analytics_ttl(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_analytics_ttl(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试分析数据 TTL 为 15 分钟"""
         await cache_with_mock_redis.set("analytics", {"data": "test"}, "stats")
         call_args = mock_redis.setex.call_args
@@ -542,9 +512,7 @@ class TestTTLConfiguration:
         self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
     ):
         """测试自定义 TTL 覆盖默认配置"""
-        await cache_with_mock_redis.set(
-            "customer_list", {"data": "test"}, "all", ttl=1200
-        )
+        await cache_with_mock_redis.set("customer_list", {"data": "test"}, "all", ttl=1200)
         call_args = mock_redis.setex.call_args
         assert call_args[0][1] == 1200  # 自定义 TTL 优先
 
@@ -556,9 +524,7 @@ class TestIntegrationScenarios:
     """集成场景测试"""
 
     @pytest.mark.asyncio
-    async def test_cache_workflow(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_cache_workflow(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试完整的缓存工作流：设置 -> 获取 -> 删除"""
         test_data = {"id": 1, "name": "测试客户", "level": "KA"}
 
@@ -599,9 +565,7 @@ class TestIntegrationScenarios:
     @pytest.mark.asyncio
     async def test_error_recovery_workflow(self, cache_service: CacheService):
         """测试错误恢复工作流"""
-        with patch.object(
-            cache_service, "_get_redis", new_callable=AsyncMock
-        ) as mock_get_redis:
+        with patch.object(cache_service, "_get_redis", new_callable=AsyncMock) as mock_get_redis:
             mock_get_redis.side_effect = Exception("Connection lost")
 
             # 所有操作都应该优雅失败
@@ -632,9 +596,7 @@ class TestEdgeCases:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_get_zero_value(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_get_zero_value(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试获取零值"""
         mock_redis.get.return_value = "0"
 
@@ -654,9 +616,7 @@ class TestEdgeCases:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_set_none_data(
-        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
-    ):
+    async def test_set_none_data(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
         """测试设置 None 数据"""
         mock_redis.setex.return_value = True
 

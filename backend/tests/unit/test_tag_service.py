@@ -96,9 +96,7 @@ class TestTagService_CreateTag:
         mock_db_session.execute = AsyncMock(return_value=mock_check_result)
 
         # 执行测试（应该抛出 ValueError）
-        with pytest.raises(
-            ValueError, match="标签名称 'VIP 客户' 在类型 'customer' 中已存在"
-        ):
+        with pytest.raises(ValueError, match="标签名称 'VIP 客户' 在类型 'customer' 中已存在"):
             await tag_service.create_tag(tag_data, created_by)
 
         # 验证没有调用 add（因为提前检查出重复）
@@ -211,9 +209,7 @@ class TestTagService_ProfileTagOperations:
 
         # Mock 标签存在
         mock_tag_result = MagicMock()
-        mock_tag_result.scalar_one_or_none.return_value = Tag(
-            id=tag_id, name="VIP", type="profile"
-        )
+        mock_tag_result.scalar_one_or_none.return_value = Tag(id=tag_id, name="VIP", type="profile")
 
         # Mock 检查现有关系（不存在）
         mock_existing_result = MagicMock()
@@ -328,9 +324,7 @@ class TestTagService_BatchOperations:
         mock_db_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_batch_remove_customer_tags_success(
-        self, tag_service, mock_db_session
-    ):
+    async def test_batch_remove_customer_tags_success(self, tag_service, mock_db_session):
         """测试批量移除客户标签成功"""
         customer_ids = [1, 2]
         tag_ids = [1, 2]
@@ -347,9 +341,7 @@ class TestTagService_BatchOperations:
         mock_db_session.commit = AsyncMock()
 
         # 执行测试
-        removed_count = await tag_service.batch_remove_customer_tags(
-            customer_ids, tag_ids
-        )
+        removed_count = await tag_service.batch_remove_customer_tags(customer_ids, tag_ids)
 
         # 验证结果
         assert removed_count == 2

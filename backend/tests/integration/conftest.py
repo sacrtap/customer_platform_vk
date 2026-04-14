@@ -36,9 +36,7 @@ from app.main import create_app  # noqa: E402
 from app.models.base import BaseModel  # noqa: E402
 
 # 测试数据库配置
-TEST_DATABASE_SYNC_URL = (
-    "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
-)
+TEST_DATABASE_SYNC_URL = "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
 TEST_DATABASE_ASYNC_URL = (
     "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
 )
@@ -84,9 +82,7 @@ def sync_test_engine():
 @pytest.fixture(scope="function")
 async def db_session(sync_test_engine):
     """创建同步数据库会话（用于测试清理）"""
-    SessionLocal = sessionmaker(
-        bind=sync_test_engine, class_=Session, expire_on_commit=False
-    )
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
     session = SessionLocal()
     try:
         yield session

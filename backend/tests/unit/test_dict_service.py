@@ -30,9 +30,7 @@ class TestDictService_GetIndustryTypes:
     """获取行业类型测试"""
 
     @pytest.mark.asyncio
-    async def test_get_industry_types_returns_sorted_list(
-        self, dict_service, mock_db_session
-    ):
+    async def test_get_industry_types_returns_sorted_list(self, dict_service, mock_db_session):
         """测试获取行业类型按 sort_order 升序返回"""
         types = [
             IndustryType(id=2, name="房产经纪", sort_order=2),

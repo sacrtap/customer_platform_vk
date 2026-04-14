@@ -260,9 +260,7 @@ def make_mock_execute_result(rows, scalar_value=None):
 
     result = MagicMock()
     result.all = MagicMock(return_value=mock_rows)
-    result.scalar_one_or_none = MagicMock(
-        return_value=mock_rows[0] if mock_rows else None
-    )
+    result.scalar_one_or_none = MagicMock(return_value=mock_rows[0] if mock_rows else None)
 
     # 处理 .scalar() 调用（用于 count 查询）
     if scalar_value is not None:
@@ -896,9 +894,7 @@ class TestPredictMonthlyPayment:
         """测试按客户 ID 筛选预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)]
         usage_rows = [("X", Decimal("500"))]
 
         mock_db.execute.side_effect = [
@@ -930,9 +926,7 @@ class TestPredictMonthlyPayment:
             {"threshold": 100, "price": 10},
             {"threshold": 500, "price": 8},
         ]
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)]
         usage_rows = [("X", Decimal("600"))]
 
         mock_db.execute.side_effect = [
@@ -950,9 +944,7 @@ class TestPredictMonthlyPayment:
         """测试套餐定价预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")
-        ]
+        pricing_rows = [(1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")]
         usage_rows = [("L", Decimal("1000"))]
 
         mock_db.execute.side_effect = [
@@ -1053,12 +1045,8 @@ class TestGetDashboardChartData:
             "completion_rate": 80.0,
         }
 
-        with patch.object(
-            service, "get_consumption_trend", return_value=consumption_trend_data
-        ):
-            with patch.object(
-                service, "get_payment_analysis", return_value=payment_data
-            ):
+        with patch.object(service, "get_consumption_trend", return_value=consumption_trend_data):
+            with patch.object(service, "get_payment_analysis", return_value=payment_data):
                 result = await service.get_dashboard_chart_data(months=3)
 
                 assert "consumption_trend" in result
@@ -1396,9 +1384,7 @@ class TestBalanceTrendService:
             balance_row.bonus_amount = None
 
             mock_db.execute.side_effect = [
-                make_mock_execute_result(
-                    [balance_row]
-                ),  # 当前余额为 None，直接返回空列表
+                make_mock_execute_result([balance_row]),  # 当前余额为 None，直接返回空列表
             ]
 
             result = await service.get_balance_trend(customer_id=1, months=6)

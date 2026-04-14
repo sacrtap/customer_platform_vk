@@ -87,9 +87,7 @@ def customer_data(db_session):
 
     db_session.commit()
 
-    result = db_session.execute(
-        text("SELECT id FROM customers WHERE company_id = 'TEST001'")
-    )
+    result = db_session.execute(text("SELECT id FROM customers WHERE company_id = 'TEST001'"))
     customer_id = result.scalar_one()
 
     yield {"customers": customers, "customer_id": customer_id}
@@ -206,9 +204,7 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
     assert data["data"]["company_id"] == "TEST_CREATE_001"
     assert data["data"]["name"] == "新创建测试公司"
 
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'")
-    )
+    db_session.execute(text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'"))
     db_session.commit()
 
 
@@ -253,9 +249,7 @@ async def test_create_customer_invalid_email(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_update_customer_success(
-    test_client, auth_headers, customer_data, db_session
-):
+async def test_update_customer_success(test_client, auth_headers, customer_data, db_session):
     """测试更新客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -277,9 +271,7 @@ async def test_update_customer_success(
     assert data["message"] == "更新成功"
 
     result = db_session.execute(
-        text(
-            "SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"
-        ),
+        text("SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"),
         {"id": customer_id},
     )
     updated = result.fetchone()
@@ -306,9 +298,7 @@ async def test_update_customer_not_found(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_delete_customer_success(
-    test_client, auth_headers, customer_data, db_session
-):
+async def test_delete_customer_success(test_client, auth_headers, customer_data, db_session):
     """测试删除客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -503,9 +493,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     assert data["message"] == "导入完成"
     assert data["data"]["success_count"] == 2
 
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'")
-    )
+    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'"))
     db_session.commit()
 
 
@@ -575,9 +563,7 @@ async def test_import_customers_missing_columns(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_import_customers_with_template_notes_row(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_with_template_notes_row(test_client, auth_headers, db_session):
     """测试导入带中文说明行的模板文件（智能跳过逻辑）"""
     from openpyxl import Workbook
 
@@ -614,16 +600,12 @@ async def test_import_customers_with_template_notes_row(
     assert data["data"]["success_count"] == 1
 
     # 清理测试数据
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'")
-    )
+    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'"))
     db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_import_customers_without_notes_row(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_without_notes_row(test_client, auth_headers, db_session):
     """测试导入普通用户文件（无说明行，不应跳过）"""
     from openpyxl import Workbook
 
@@ -657,9 +639,7 @@ async def test_import_customers_without_notes_row(
     assert data["data"]["success_count"] == 2
 
     # 清理测试数据
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'")
-    )
+    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'"))
     db_session.commit()
 
 

@@ -25,9 +25,7 @@ class TestCreateGroup:
         print("\n=== DEBUG: Login Response ===")
         print(f"Status: {login_response.status}")
 
-        assert login_response.status == 200, (
-            f"Login failed with status {login_response.status}"
-        )
+        assert login_response.status == 200, f"Login failed with status {login_response.status}"
 
         login_data = login_response.json
         print(f"Parsed JSON: {login_data}")

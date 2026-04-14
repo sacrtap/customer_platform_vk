@@ -44,9 +44,7 @@ async def list_customers(request: Request):
         "business_type": request.args.get("business_type"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
-            int(request.args.get("manager_id", 0))
-            if request.args.get("manager_id")
-            else None
+            int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -140,9 +138,7 @@ async def get_customer(request: Request, customer_id: int):
         "created_at": customer.created_at.isoformat() if customer.created_at else None,
         "erp_system": customer.erp_system,
         "first_payment_date": (
-            customer.first_payment_date.isoformat()
-            if customer.first_payment_date
-            else None
+            customer.first_payment_date.isoformat() if customer.first_payment_date else None
         ),
         "onboarding_date": (
             customer.onboarding_date.isoformat() if customer.onboarding_date else None
@@ -183,29 +179,17 @@ async def get_customer(request: Request, customer_id: int):
     if customer.balance:
         data["balance"] = {
             "total_amount": (
-                float(customer.balance.total_amount)
-                if customer.balance.total_amount
-                else 0
+                float(customer.balance.total_amount) if customer.balance.total_amount else 0
             ),
             "real_amount": (
-                float(customer.balance.real_amount)
-                if customer.balance.real_amount
-                else 0
+                float(customer.balance.real_amount) if customer.balance.real_amount else 0
             ),
             "bonus_amount": (
-                float(customer.balance.bonus_amount)
-                if customer.balance.bonus_amount
-                else 0
+                float(customer.balance.bonus_amount) if customer.balance.bonus_amount else 0
             ),
-            "used_total": float(customer.balance.used_total)
-            if customer.balance.used_total
-            else 0,
-            "used_real": float(customer.balance.used_real)
-            if customer.balance.used_real
-            else 0,
-            "used_bonus": float(customer.balance.used_bonus)
-            if customer.balance.used_bonus
-            else 0,
+            "used_total": float(customer.balance.used_total) if customer.balance.used_total else 0,
+            "used_real": float(customer.balance.used_real) if customer.balance.used_real else 0,
+            "used_bonus": float(customer.balance.used_bonus) if customer.balance.used_bonus else 0,
         }
     else:
         data["balance"] = None
@@ -244,9 +228,7 @@ async def create_customer(request: Request):
 
     # 必填字段验证
     if not data.get("company_id") or not data.get("name"):
-        return json(
-            {"code": 40001, "message": "公司 ID 和客户名称不能为空"}, status=400
-        )
+        return json({"code": 40001, "message": "公司 ID 和客户名称不能为空"}, status=400)
 
     # 邮箱格式验证
     email = data.get("email")
@@ -501,9 +483,7 @@ async def import_customers(request: Request):
             and isinstance(df.iloc[0].get("company_id"), str)
             and df.iloc[0].get("company_id") in ("必填", "可选")
         ):
-            df = pd.read_excel(
-                io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1]
-            )
+            df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1])
 
         # 必填列检查
         required_columns = ["company_id", "name"]
@@ -649,9 +629,7 @@ async def export_customers(request: Request):
         "business_type": request.args.get("business_type"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
-            int(request.args.get("manager_id"))
-            if request.args.get("manager_id")
-            else None
+            int(request.args.get("manager_id")) if request.args.get("manager_id") else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -666,9 +644,7 @@ async def export_customers(request: Request):
     service = CustomerService(db_session)
 
     # 获取所有匹配的客户（不分页）
-    customers, _ = await service.get_all_customers(
-        page=1, page_size=10000, filters=filters
-    )
+    customers, _ = await service.get_all_customers(page=1, page_size=10000, filters=filters)
 
     # 转换为 DataFrame
     data = []

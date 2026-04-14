@@ -45,9 +45,7 @@ class TestUserImportValidation:
 
         # 验证数据行数
         row_count = sum(
-            1
-            for _ in sheet.iter_rows(min_row=2, values_only=True)
-            if any(cell for cell in _)
+            1 for _ in sheet.iter_rows(min_row=2, values_only=True) if any(cell for cell in _)
         )
         assert row_count == 3
 
@@ -57,17 +55,13 @@ class TestUserImportValidation:
 
         # 测试缺少列的情况
         headers_missing = ["用户名", "邮箱", "密码"]
-        missing_columns = [
-            col for col in required_columns if col not in headers_missing
-        ]
+        missing_columns = [col for col in required_columns if col not in headers_missing]
         assert "角色" in missing_columns
         assert "初始密码" in missing_columns
 
         # 测试列顺序不同的情况
         headers_different_order = ["邮箱", "用户名", "初始密码", "角色"]
-        missing_columns = [
-            col for col in required_columns if col not in headers_different_order
-        ]
+        missing_columns = [col for col in required_columns if col not in headers_different_order]
         assert len(missing_columns) == 0
 
         # 验证可以正确获取列索引
@@ -105,9 +99,7 @@ class TestUserImportValidation:
         ]
 
         for password, should_be_valid, description in test_cases:
-            is_valid = (
-                bool(password.strip()) and len(password) >= 6 if password else False
-            )
+            is_valid = bool(password.strip()) and len(password) >= 6 if password else False
             assert is_valid == should_be_valid, f"失败：{description}"
 
     def test_email_validation(self):
