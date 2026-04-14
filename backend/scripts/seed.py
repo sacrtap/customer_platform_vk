@@ -24,12 +24,13 @@ try:
 except ImportError:
     pass  # python-dotenv 未安装时跳过
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 # 导入模型（在 sys.path 设置之后）
 from app.models.users import User, Role, Permission
 from app.models.billing import AuditLog
+from app.models.customers import Customer
 
 # 从环境变量读取数据库 URL，默认本地 PostgreSQL（无密码，使用当前系统用户）
 DATABASE_URL = os.getenv(
@@ -178,24 +179,12 @@ def seed(reset: bool = False):
         # ---- 可选：重置 ----
         if reset:
             print("\n⚠️  重置模式：清理已有种子数据...")
-            # 先解除关联
-            admin_result = session.execute(select(User).where(User.username == "admin"))
-            admin_user = admin_result.scalar_one_or_none()
-            if admin_user:
-                admin_user.roles.clear()
-
-            super_admin_result = session.execute(
-                select(Role).where(Role.name == SUPER_ADMIN_ROLE_NAME)
+            # 使用 TRUNCATE CASCADE 一次性清理所有关联数据
+            session.execute(
+                text(
+                    "TRUNCATE users, user_roles, roles, role_permissions, permissions, audit_logs, customers CASCADE"
+                )
             )
-            super_admin_role = super_admin_result.scalar_one_or_none()
-            if super_admin_role:
-                super_admin_role.permissions.clear()
-
-            session.execute(Permission.__table__.delete())
-            session.execute(Role.__table__.delete())
-            # 先清理审计日志（外键引用 users）
-            session.execute(AuditLog.__table__.delete())
-            session.execute(User.__table__.delete())
             session.commit()
             print("  ✅ 已清理所有种子数据\n")
 
