@@ -1,9 +1,13 @@
 """Tag Service 单元测试"""
 
 import pytest
+from datetime import datetime
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from app.services.tags import TagService
+from app.models.tags import Tag, CustomerTag, ProfileTag
+from app.models.customers import Customer
+from app.models.customers import CustomerProfile
 
 
 # ==================== Fixtures ====================

@@ -82,7 +82,7 @@
       :title="isEditMode ? '编辑标签' : '新建标签'"
       :confirm-loading="submitting"
       width="500px"
-      @ok="handleTagSubmit"
+      @before-ok="handleTagSubmit"
       @cancel="handleTagModalCancel"
     >
       <a-form ref="tagFormRef" :model="tagForm" :rules="tagFormRules" layout="vertical">
@@ -226,7 +226,7 @@ const handleTagSubmit = async () => {
   try {
     await tagFormRef.value?.validate()
   } catch {
-    return
+    return false
   }
 
   submitting.value = true
@@ -245,10 +245,11 @@ const handleTagSubmit = async () => {
       })
       Message.success('标签创建成功')
     }
-    tagModalVisible.value = false
     loadTags()
+    return true
   } catch (error: any) {
     Message.error(error.message || '操作失败')
+    return false
   } finally {
     submitting.value = false
   }
