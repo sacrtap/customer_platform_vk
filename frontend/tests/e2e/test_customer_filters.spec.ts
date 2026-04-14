@@ -43,7 +43,7 @@ test.describe('客户筛选功能', () => {
     const customers = [
       { company_id: generateTestCompanyId('正式'), name: generateTestCustomerName('KA正式'), account_type: 'production', customer_level: 'KA', is_key_customer: true },
       { company_id: generateTestCompanyId('测试'), name: generateTestCustomerName('普通测试'), account_type: 'test', customer_level: '普通', is_key_customer: false },
-      { company_id: generateTestCompanyId('房产'), name: generateTestCustomerName('房产KA'), account_type: 'production', customer_level: 'KA', business_type: 'real_estate', is_key_customer: true },
+      { company_id: generateTestCompanyId('房产'), name: generateTestCustomerName('房产KA'), account_type: 'production', customer_level: 'KA', industry: 'real_estate', is_key_customer: true },
       { company_id: generateTestCompanyId('SKA'), name: generateTestCustomerName('SKA测试'), account_type: 'production', customer_level: 'SKA', is_key_customer: false },
     ];
 

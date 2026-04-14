@@ -23,9 +23,7 @@ def create_test_data():
     print(f"连接到数据库：{DATABASE_URL}")
 
     # 使用同步引擎
-    engine = create_engine(
-        DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    )
+    engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
     with Session(engine) as session:
         # 导入模型
@@ -55,9 +53,7 @@ def create_test_data():
             print("✅ 管理员用户已创建 (admin/admin123)")
 
         # 检查是否已存在测试客户
-        result = session.execute(
-            select(Customer).where(Customer.company_id == "TEST001")
-        )
+        result = session.execute(select(Customer).where(Customer.company_id == "TEST001"))
         customer = result.scalar_one_or_none()
 
         if customer:
@@ -69,12 +65,21 @@ def create_test_data():
                 company_id="TEST001",
                 name="测试客户公司",
                 account_type="formal",
-                business_type="A",
                 customer_level="KA",
                 email="test@customer.com",
                 is_key_customer=True,
             )
             session.add(customer)
+            session.flush()
+
+            # 创建客户画像（行业类型存在 profile 中）
+            from app.models.customers import CustomerProfile
+
+            profile = CustomerProfile(
+                customer_id=customer.id,
+                industry="A",
+            )
+            session.add(profile)
             session.flush()
             print("✅ 测试客户已创建")
 

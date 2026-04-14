@@ -50,7 +50,7 @@
                   <tr>
                     <td class="label-cell">行业类型</td>
                     <td class="value-cell">
-                      <a-tag>{{ customer.business_type || '-' }}</a-tag>
+                      <a-tag>{{ customer.industry || '-' }}</a-tag>
                     </td>
                   </tr>
                   <tr>
@@ -392,8 +392,8 @@
               <a-option value="测试账号">测试账号</a-option>
             </a-select>
           </a-form-item>
-          <a-form-item field="business_type" label="行业类型">
-            <a-select v-model="editForm.business_type" placeholder="请选择行业类型" allow-clear>
+          <a-form-item field="industry" label="行业类型">
+            <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear>
               <a-option value="A">A 类</a-option>
               <a-option value="B">B 类</a-option>
               <a-option value="C">C 类</a-option>
@@ -604,7 +604,7 @@ interface EditForm {
   name: string
   email: string
   account_type?: string
-  business_type?: string
+  industry?: string
   customer_level?: string
   settlement_type?: string
   settlement_cycle?: string
@@ -637,7 +637,7 @@ const customer = ref<Customer>({
   company_id: '',
   name: '',
   account_type: null,
-  business_type: null,
+  industry: null,
   customer_level: null,
   price_policy: null,
   manager_id: null,
@@ -764,7 +764,7 @@ const editForm = ref<EditForm>({
   name: '',
   email: '',
   account_type: undefined,
-  business_type: undefined,
+  industry: undefined,
   customer_level: undefined,
   settlement_type: undefined,
   settlement_cycle: undefined,
@@ -917,7 +917,7 @@ const openEditModal = () => {
     name: customer.value.name || '',
     email: customer.value.email || '',
     account_type: customer.value.account_type || undefined,
-    business_type: customer.value.business_type || undefined,
+    industry: customer.value.industry || undefined,
     customer_level: customer.value.customer_level || undefined,
     settlement_type: customer.value.settlement_type || undefined,
     settlement_cycle: customer.value.settlement_cycle || undefined,
@@ -944,7 +944,7 @@ const handleEditSubmit = async () => {
       name: editForm.value.name,
       email: editForm.value.email || undefined,
       account_type: editForm.value.account_type || undefined,
-      business_type: editForm.value.business_type || undefined,
+      industry: editForm.value.industry || undefined,
       customer_level: editForm.value.customer_level || undefined,
       settlement_type: editForm.value.settlement_type,
       settlement_cycle: editForm.value.settlement_cycle || undefined,

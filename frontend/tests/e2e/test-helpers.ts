@@ -93,7 +93,7 @@ export async function apiCreateCustomer(token: string, data: {
   name: string;
   email?: string;
   account_type?: string;
-  business_type?: string;
+  industry?: string;
   customer_level?: string;
   settlement_type?: string;
   settlement_cycle?: string;

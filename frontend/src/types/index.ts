@@ -79,7 +79,7 @@ export interface Customer {
   company_id: string
   name: string
   account_type: string | null
-  business_type: string | null
+  industry: string | null
   customer_level: string | null
   price_policy: string | null
   manager_id: number | null

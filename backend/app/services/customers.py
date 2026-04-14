@@ -43,7 +43,7 @@ class CustomerService:
             filters: 筛选条件字典
                 - keyword: 公司名称/公司 ID 关键词
                 - account_type: 账号类型
-                - business_type: 业务类型（筛选 customer_profiles.industry）
+                - industry: 行业类型（筛选 customer_profiles.industry）
                 - customer_level: 客户等级
                 - manager_id: 运营经理 ID
                 - settlement_type: 结算方式
@@ -73,10 +73,10 @@ class CustomerService:
         if account_type := filters.get("account_type"):
             conditions.append(Customer.account_type == account_type)
 
-        # 业务类型筛选（使用 profile.industry）
-        if business_type := filters.get("business_type"):
+        # 行业筛选（使用 profile.industry）
+        if industry := filters.get("industry"):
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-            conditions.append(CustomerProfile.industry == business_type)
+            conditions.append(CustomerProfile.industry == industry)
 
         # 客户等级筛选
         if customer_level := filters.get("customer_level"):

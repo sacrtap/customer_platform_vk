@@ -27,7 +27,7 @@ async def list_customers(request: Request):
     - page_size: 每页数量 (默认 20)
     - keyword: 关键词（公司名称/公司 ID）
     - account_type: 账号类型
-    - business_type: 业务类型
+    - industry: 行业类型
     - customer_level: 客户等级
     - manager_id: 运营经理 ID
     - settlement_type: 结算方式
@@ -41,7 +41,7 @@ async def list_customers(request: Request):
     filters = {
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
-        "business_type": request.args.get("business_type"),
+        "industry": request.args.get("industry"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
@@ -80,7 +80,7 @@ async def list_customers(request: Request):
                     "company_id": c.company_id,
                     "name": c.name,
                     "account_type": c.account_type,
-                    "business_type": c.profile.industry if c.profile else None,
+                    "industry": c.profile.industry if c.profile else None,
                     "customer_level": c.customer_level,
                     "price_policy": c.price_policy,
                     "manager_id": c.manager_id,
@@ -127,7 +127,7 @@ async def get_customer(request: Request, customer_id: int):
         "company_id": customer.company_id,
         "name": customer.name,
         "account_type": customer.account_type,
-        "business_type": customer.profile.industry if customer.profile else None,
+        "industry": customer.profile.industry if customer.profile else None,
         "customer_level": customer.customer_level,
         "price_policy": customer.price_policy,
         "manager_id": customer.manager_id,
@@ -626,7 +626,7 @@ async def export_customers(request: Request):
     filters = {
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
-        "business_type": request.args.get("business_type"),
+        "industry": request.args.get("industry"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
             int(request.args.get("manager_id")) if request.args.get("manager_id") else None
@@ -654,7 +654,7 @@ async def export_customers(request: Request):
                 "company_id": c.company_id,
                 "name": c.name,
                 "account_type": c.account_type,
-                "business_type": c.profile.industry if c.profile else None,
+                "industry": c.profile.industry if c.profile else None,
                 "customer_level": c.customer_level,
                 "price_policy": c.price_policy,
                 "settlement_cycle": c.settlement_cycle,

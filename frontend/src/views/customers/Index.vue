@@ -96,7 +96,7 @@
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="6">
             <a-form-item label="行业类型">
-              <a-select v-model="filters.business_type" placeholder="请选择行业类型" allow-clear>
+              <a-select v-model="filters.industry" placeholder="请选择行业类型" allow-clear>
                 <a-option
                   v-for="item in industryTypes"
                   :key="item.id"
@@ -296,9 +296,9 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item field="business_type" label="行业类型">
+            <a-form-item field="industry" label="行业类型">
               <a-select
-                v-model="customerForm.business_type"
+                v-model="customerForm.industry"
                 placeholder="请选择行业类型"
                 allow-clear
               >
@@ -458,7 +458,7 @@ const can = (permission: string) => userStore.hasPermission(permission)
 const filters = reactive({
   keyword: '',
   account_type: '',
-  business_type: '',
+  industry: '',
   customer_level: '',
   is_key_customer: null as boolean | null,
 })
@@ -488,7 +488,7 @@ const pagination = reactive({
 const columns = [
   { title: '公司 ID', dataIndex: 'company_id', width: 140, ellipsis: true, tooltip: true },
   { title: '客户名称', dataIndex: 'name', width: 250, ellipsis: true, tooltip: true },
-  { title: '行业类型', dataIndex: 'business_type', width: 100 },
+  { title: '行业类型', dataIndex: 'industry', width: 100 },
   { title: '客户等级', dataIndex: 'customer_level', width: 100 },
   { title: '结算方式', slotName: 'settlementType', width: 100 },
   { title: '运营经理', slotName: 'manager', width: 150, ellipsis: true, tooltip: true },
@@ -525,7 +525,7 @@ const loadCustomers = async () => {
       page_size: number
       keyword?: string
       account_type?: string
-      business_type?: string
+      industry?: string
       customer_level?: string
       manager_id?: number
       is_key_customer?: boolean
@@ -535,7 +535,7 @@ const loadCustomers = async () => {
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.business_type) params.business_type = filters.business_type
+    if (filters.industry) params.industry = filters.industry
     if (filters.customer_level) params.customer_level = filters.customer_level
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -561,7 +561,7 @@ const handleSearch = () => {
 const handleReset = () => {
   filters.keyword = ''
   filters.account_type = ''
-  filters.business_type = ''
+  filters.industry = ''
   filters.customer_level = ''
   filters.is_key_customer = null
   advancedFilters.manager_id = null
@@ -641,7 +641,7 @@ const handleExport = async () => {
     const params: Record<string, unknown> = {}
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.business_type) params.business_type = filters.business_type
+    if (filters.industry) params.industry = filters.industry
     if (filters.customer_level) params.customer_level = filters.customer_level
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -679,7 +679,7 @@ const customerForm = reactive({
   name: '',
   email: '',
   account_type: undefined as string | undefined,
-  business_type: undefined as string | undefined,
+  industry: undefined as string | undefined,
   customer_level: undefined as string | undefined,
   settlement_type: undefined as string | undefined,
   settlement_cycle: undefined as string | undefined,
@@ -702,7 +702,7 @@ const openCreateModal = () => {
     name: '',
     email: '',
     account_type: undefined,
-    business_type: undefined,
+    industry: undefined,
     customer_level: undefined,
     settlement_type: undefined,
     settlement_cycle: undefined,
@@ -721,7 +721,7 @@ const openEditModal = (record: Customer) => {
     name: record.name,
     email: record.email || '',
     account_type: record.account_type,
-    business_type: record.business_type,
+    industry: record.industry,
     customer_level: record.customer_level,
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
@@ -750,7 +750,7 @@ const handleCustomerSubmit = async () => {
       name: customerForm.name,
       email: customerForm.email || undefined,
       account_type: customerForm.account_type,
-      business_type: customerForm.business_type,
+      industry: customerForm.industry,
       customer_level: customerForm.customer_level,
       settlement_type: customerForm.settlement_type,
       settlement_cycle: customerForm.settlement_cycle,

@@ -6,7 +6,7 @@ export function getCustomers(params?: {
   page_size?: number
   keyword?: string
   account_type?: string
-  business_type?: string
+  industry?: string
   customer_level?: string
   manager_id?: number
   settlement_type?: string
@@ -25,7 +25,7 @@ export function createCustomer(data: {
   company_id: string
   name: string
   account_type?: string
-  business_type?: string
+  industry?: string
   customer_level?: string
   price_policy?: string
   manager_id?: number
@@ -43,7 +43,7 @@ export function updateCustomer(
   data: {
     name?: string
     account_type?: string
-    business_type?: string
+    industry?: string
     customer_level?: string
     price_policy?: string
     manager_id?: number
@@ -114,7 +114,7 @@ export function downloadImportTemplate() {
 export function exportCustomers(params?: {
   keyword?: string
   account_type?: string
-  business_type?: string
+  industry?: string
   customer_level?: string
   manager_id?: number
   settlement_type?: string
