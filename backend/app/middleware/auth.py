@@ -79,8 +79,8 @@ def require_permission(permission_code: str):
     """权限校验装饰器
 
     支持权限通配符匹配：
-    - 用户有 'customers:manage' 权限时，自动拥有 'customers:read'、'customers:write'、'customers:delete'
     - 用户有 'system:view' 权限时，自动拥有 'system:audit_read'
+    - 模块级 `*:manage` 权限自动包含 read/write/delete/create/update 操作
     """
 
     def decorator(f):
@@ -150,16 +150,6 @@ def _check_permission(user_permissions: set, required_permission: str) -> bool:
     # 特殊映射：system:view 包含 system:audit_read
     if module == "system" and action == "audit_read":
         if "system:view" in user_permissions:
-            return True
-
-    # 特殊映射：billing.recharge 是 billing:manage 的子权限
-    if module == "billing" and action == "recharge":
-        if "billing:manage" in user_permissions:
-            return True
-
-    # 特殊映射：user.delete 是 users:manage 的子权限
-    if module == "user" and action == "delete":
-        if "users:manage" in user_permissions:
             return True
 
     return False

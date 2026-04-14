@@ -109,39 +109,6 @@ ALL_PERMISSIONS = [
     ("files:upload", "上传文件", "上传新文件", "files"),
     ("files:delete", "删除文件", "删除文件", "files"),
     ("webhooks:manage", "Webhook 管理", "管理 Webhook 配置", "webhooks"),
-    # ============================================================
-    # 向后兼容 (旧权限码，标记 deprecated)
-    # ============================================================
-    (
-        "customers:manage",
-        "[已弃用] 客户管理",
-        "请使用 customers:view/edit/delete 等细粒度权限",
-        "customers",
-    ),
-    (
-        "billing:manage",
-        "[已弃用] 结算管理",
-        "请使用 billing:view/edit/recharge 等细粒度权限",
-        "billing",
-    ),
-    (
-        "users:manage",
-        "[已弃用] 用户管理",
-        "请使用 users:view/edit/delete 等细粒度权限",
-        "users",
-    ),
-    (
-        "roles:manage",
-        "[已弃用] 角色权限管理",
-        "请使用 roles:view/edit/assign 等细粒度权限",
-        "roles",
-    ),
-    (
-        "tags:manage",
-        "[已弃用] 标签管理",
-        "请使用 tags:view/edit/delete 等细粒度权限",
-        "tags",
-    ),
 ]
 
 # 超级管理员角色名称

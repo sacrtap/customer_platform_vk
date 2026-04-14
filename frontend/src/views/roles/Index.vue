@@ -85,13 +85,6 @@
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
-        <template #empty>
-          <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
-            <template #action>
-              <a-button type="primary" @click="handleCreate">新建角色</a-button>
-            </template>
-          </EmptyState>
-        </template>
       </a-table>
     </div>
 
