@@ -31,11 +31,11 @@ async def test_login_success(test_client, db_session: AsyncSession):
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     # 清理旧数据并创建新用户
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -47,7 +47,7 @@ async def test_login_success(test_client, db_session: AsyncSession):
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         # 执行登录测试
@@ -64,11 +64,11 @@ async def test_login_success(test_client, db_session: AsyncSession):
         assert data["data"]["user"]["username"] == username
     finally:
         # 清理测试数据
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio

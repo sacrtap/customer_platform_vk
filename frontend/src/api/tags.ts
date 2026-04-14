@@ -1,15 +1,7 @@
 import api from './index'
+import type { Tag } from '@/types'
 
-// ========== 标签管理 ==========
-
-export interface Tag {
-  id: number
-  name: string
-  type: 'customer' | 'profile'
-  category?: string
-  created_by?: number
-  created_at?: string
-}
+export type { Tag }
 
 // 获取标签列表
 export function getTags(params?: {

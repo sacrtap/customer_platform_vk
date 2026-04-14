@@ -306,7 +306,7 @@ async def upload_file(request):
 
 @files_bp.get("")
 @auth_required
-@require_permission("files:read")
+@require_permission("files:view")
 async def list_files(request: Request):
     """
     获取文件列表（支持分页和筛选）
@@ -414,7 +414,7 @@ async def list_files(request: Request):
 
 @files_bp.get("/<file_id:int>")
 @auth_required
-@require_permission("files:read")
+@require_permission("files:view")
 async def get_file(file_id: int, request: Request):
     """
     获取文件详情

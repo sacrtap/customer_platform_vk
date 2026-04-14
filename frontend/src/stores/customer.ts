@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Customer, CustomerProfile, Balance } from '@/types'
+import type { Customer, CustomerProfile, Balance, Tag, User } from '@/types'
 import type { Invoice, BalanceTrendItem } from '@/api/billing'
 import type { CustomerHealthScore } from '@/api/analytics'
 
@@ -14,13 +14,6 @@ interface CachedCustomerData {
   timestamp: number
 }
 
-interface Tag {
-  id: number
-  name: string
-  type: string
-  category?: string
-}
-
 interface CachedTagsData {
   customerTags: Tag[]
   allTags: Tag[]
@@ -28,7 +21,7 @@ interface CachedTagsData {
 }
 
 interface CachedManagersData {
-  managers: Array<{ id: number; username: string; real_name?: string }>
+  managers: User[]
   timestamp: number
 }
 
@@ -156,16 +149,14 @@ export const useCustomerStore = defineStore('customer', () => {
   /**
    * Get cached managers data
    */
-  function getCachedManagers(): Array<{ id: number; username: string; real_name?: string }> | null {
+  function getCachedManagers(): User[] | null {
     return managersCache.value?.managers ?? null
   }
 
   /**
    * Cache managers data
    */
-  function cacheManagersData(
-    managers: Array<{ id: number; username: string; real_name?: string }>
-  ): void {
+  function cacheManagersData(managers: User[]): void {
     managersCache.value = {
       managers,
       timestamp: Date.now(),

@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 # 导入模型（在 sys.path 设置之后）
 from app.models.users import User, Role, Permission
+from app.models.billing import AuditLog
 
 # 从环境变量读取数据库 URL，默认本地 PostgreSQL（无密码，使用当前系统用户）
 DATABASE_URL = os.getenv(
@@ -103,7 +104,9 @@ ALL_PERMISSIONS = [
     # ============================================================
     ("groups:view", "查看分组", "查看客户分组", "groups"),
     ("groups:manage", "管理分组", "创建/编辑/删除分组", "groups"),
-    ("files:manage", "文件管理", "上传/删除文件", "files"),
+    ("files:view", "查看文件", "查看和下载文件", "files"),
+    ("files:upload", "上传文件", "上传新文件", "files"),
+    ("files:delete", "删除文件", "删除文件", "files"),
     ("webhooks:manage", "Webhook 管理", "管理 Webhook 配置", "webhooks"),
     # ============================================================
     # 向后兼容 (旧权限码，标记 deprecated)
@@ -190,6 +193,8 @@ def seed(reset: bool = False):
 
             session.execute(Permission.__table__.delete())
             session.execute(Role.__table__.delete())
+            # 先清理审计日志（外键引用 users）
+            session.execute(AuditLog.__table__.delete())
             session.execute(User.__table__.delete())
             session.commit()
             print("  ✅ 已清理所有种子数据\n")
