@@ -18,6 +18,7 @@ from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
 from . import groups  # noqa: E402
 from . import files  # noqa: E402
+from . import industry_type  # noqa: E402
 
 # isort: on
 
@@ -31,4 +32,5 @@ __all__ = [
     "webhooks",
     "groups",
     "files",
+    "industry_type",
 ]
