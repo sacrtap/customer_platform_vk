@@ -111,8 +111,25 @@ customer_platform_vk/
 
 - **Python**: 3.12 (⚠️ 不支持 3.14+)
 - **Node.js**: 18+
-- **PostgreSQL**: 18 (本地开发可选)
+- **PostgreSQL**: 18 (本地开发)
+- **Redis**: 7+ (本地开发，后端必需)
 - **Docker/Podman**: 生产部署必需
+
+#### 启动本地服务
+
+```bash
+# 启动 PostgreSQL (如使用 Postgres.app 或 Homebrew)
+# Postgres.app: 打开应用即可
+# Homebrew: brew services start postgresql
+
+# 启动 Redis (必需，否则后端客户 API 会报 500 错误)
+# 如未安装: brew install redis
+redis-server --daemonize yes
+
+# 验证服务运行正常
+redis-cli ping  # 应返回 PONG
+psql -h localhost -U postgres -c "SELECT 1"  # 应返回 ?column? = 1
+```
 
 ### 方式一：本地开发环境
 
@@ -386,8 +403,9 @@ npx playwright show-report
 
 ### 当前测试状态
 
-- **总测试数**: 295
-- **测试覆盖率**: 46%+ (核心模块 60%+)
+- **后端测试**: 295+
+- **前端 E2E 测试**: 76 (含 54 个客户管理测试)
+- **总测试数**: 371+
 - **测试状态**: ✅ 全部通过
 
 ---
@@ -621,6 +639,50 @@ python -m alembic downgrade -1
 python -m alembic upgrade head
 ```
 
+#### 5. 客户 API 报 500 错误
+
+```bash
+# 症状: GET /api/v1/customers 返回 500 Internal Server Error
+
+# 原因 1: Redis 未启动
+redis-server --daemonize yes
+redis-cli ping  # 验证返回 PONG
+
+# 原因 2: 数据库缺少新列 (模型与数据库不同步)
+# 运行数据库迁移
+python -m alembic upgrade head
+
+# 原因 3: 数据库列缺失但 Alembic 无法处理
+# 手动添加缺失列:
+# psql -h localhost -U postgres -d customer_platform
+# ALTER TABLE customers ADD COLUMN IF NOT EXISTS erp_system VARCHAR(100);
+# ALTER TABLE customers ADD COLUMN IF NOT EXISTS cooperation_status VARCHAR(50) DEFAULT 'active';
+# ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS monthly_avg_shots INTEGER;
+```
+
+#### 6. Playwright E2E 测试失败
+
+```bash
+# 症状: 测试报 "strict mode violation" 或 "element not visible"
+
+# 确保所有 .first() 都已添加
+# 例如: page.locator('button:has-text("新建客户")').first()
+
+# 检查前端服务是否运行
+curl -s http://localhost:5173 > /dev/null && echo "Frontend OK"
+
+# 检查后端 API 是否正常
+python3 -c "
+import http.client
+conn = http.client.HTTPConnection('localhost', 8000)
+conn.request('GET', '/health')
+print('Backend:', conn.getresponse().status)
+"
+
+# 调试单个测试
+npx playwright test test_customer_crud.spec.ts --headed
+```
+
 ---
 
 ## 📊 项目状态
@@ -628,7 +690,8 @@ python -m alembic upgrade head
 - **当前版本**: v1.0.0
 - **开发状态**: Phase 0-7 完成
 - **测试覆盖率**: 46%+ (核心模块 60%+, CI 门槛 ≥50%)
-- **最后更新**: 2026-04-13
+- **E2E 测试**: 76 个 (客户管理 54 个)
+- **最后更新**: 2026-04-15
 
 ---
 

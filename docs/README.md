@@ -1,6 +1,6 @@
 # 客户运营中台 - 文档导航
 
-> 最后更新: 2026-04-13
+> 最后更新: 2026-04-15
 
 ---
 
@@ -9,7 +9,7 @@
 | 文档类型       | 路径                                    | 说明                     |
 | -------------- | --------------------------------------- | ------------------------ |
 | **用户手册**   | [user-manual.md](user-manual.md)        | 面向最终用户的使用指南   |
-| **开发指南**   | [guides/](guides/)                      | 数据库迁移等开发操作指南 |
+| **开发指南**   | [guides/](guides/)                      | 本地环境搭建、数据库迁移等 |
 | **设计文档**   | [design/](design/)                      | 设计规范、样式规范       |
 | **性能优化**   | [performance/](performance/)            | 查询优化、缓存、监控     |
 | **测试文档**   | [testing/](testing/)                    | 测试计划、报告、环境配置 |
@@ -17,6 +17,13 @@
 | **原型**       | [prototypes/](prototypes/)              | HTML 原型文件            |
 
 ---
+
+## 开发指南
+
+| 文件                                              | 说明             |
+| ------------------------------------------------- | ---------------- |
+| [local-setup-guide.md](guides/local-setup-guide.md) | 本地环境搭建指南 (PostgreSQL + Redis + 后端 + 前端) |
+| [database-migration-guide.md](guides/database-migration-guide.md) | 数据库迁移指南 |
 
 ## 设计文档
 
@@ -54,6 +61,10 @@
 
 ### 测试环境
 - [test-database-setup.md](testing/setup/test-database-setup.md) - 测试数据库配置
+
+### E2E 测试
+- [前端 E2E 测试指南](../frontend/tests/e2e/README.md) - Playwright E2E 测试指南 (57 个客户管理测试)
+- [HTML 测试报告](../frontend/tests/e2e/playwright-report/index.html) - 最新测试报告 (需运行测试后生成)
 
 ## Superpowers 工作流
 
