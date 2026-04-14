@@ -23,7 +23,6 @@ class Customer(BaseModel):
     company_id = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False, index=True)
     account_type = Column(String(50), index=True)
-    business_type = Column(String(50), index=True)
     customer_level = Column(String(50), index=True)
     price_policy = Column(String(50))
     manager_id = Column(Integer, ForeignKey("users.id"), index=True)
@@ -39,14 +38,15 @@ class Customer(BaseModel):
     sales_manager_id = Column(
         Integer, ForeignKey("users.id"), nullable=True, index=True
     )  # 销售负责人
-    cooperation_status = Column(String(50), nullable=True, index=True, default="active")  # 合作状态
+    cooperation_status = Column(
+        String(50), nullable=True, index=True, default="active"
+    )  # 合作状态
     is_settlement_enabled = Column(Boolean, nullable=True, default=True)  # 是否启用结算
     is_disabled = Column(Boolean, nullable=True, default=False, index=True)  # 是否停用
     notes = Column(Text, nullable=True)  # 备注
 
     __table_args__ = (
         Index("idx_customer_manager_level", "manager_id", "customer_level"),
-        Index("idx_customer_business_settlement", "business_type", "settlement_type"),
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
         Index("idx_customer_cooperation_status", "cooperation_status"),  # 新增
         Index("idx_customer_disabled", "is_disabled"),  # 新增
@@ -67,7 +67,9 @@ class CustomerProfile(BaseModel):
 
     __tablename__ = "customer_profiles"
 
-    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True)
+    customer_id = Column(
+        Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True
+    )
     scale_level = Column(String(50))  # 客户规模等级
     consume_level = Column(String(50))  # 客户消费等级
     industry = Column(String(100))
