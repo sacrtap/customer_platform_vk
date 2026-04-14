@@ -84,6 +84,58 @@
                     <td class="value-cell">{{ customer.email || '-' }}</td>
                   </tr>
                   <tr>
+                    <td class="label-cell">所属 ERP</td>
+                    <td class="value-cell">
+                      <a-tag v-if="customer.erp_system">{{ customer.erp_system }}</a-tag>
+                      <span v-else>-</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">合作状态</td>
+                    <td class="value-cell">
+                      <a-tag :color="cooperationStatusColor">
+                        {{ cooperationStatusText }}
+                      </a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">销售负责人</td>
+                    <td class="value-cell">
+                      {{ salesManagerName || '-' }}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">是否结算</td>
+                    <td class="value-cell">
+                      <a-tag :color="customer.is_settlement_enabled ? 'green' : 'gray'">
+                        {{ customer.is_settlement_enabled ? '是' : '否' }}
+                      </a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">是否停用</td>
+                    <td class="value-cell">
+                      <a-tag :color="customer.is_disabled ? 'red' : 'gray'">
+                        {{ customer.is_disabled ? '是' : '否' }}
+                      </a-tag>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">首次回款时间</td>
+                    <td class="value-cell">{{ customer.first_payment_date || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">接入时间</td>
+                    <td class="value-cell">{{ customer.onboarding_date || '-' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label-cell">备注</td>
+                    <td class="value-cell">
+                      <span v-if="customer.notes" class="notes-text">{{ customer.notes }}</span>
+                      <span v-else>-</span>
+                    </td>
+                  </tr>
+                  <tr>
                     <td class="label-cell">创建时间</td>
                     <td class="value-cell">{{ formatDateTime(customer.created_at) }}</td>
                   </tr>
@@ -160,6 +212,41 @@
                   <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
                     {{ profile.is_real_estate ? '是' : '否' }}
                   </a-tag>
+                </div>
+              </div>
+
+              <!-- 扩展指标区（新增 4 张卡片） -->
+              <div class="metrics-grid metrics-grid-extended">
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">月均拍摄量（实际）</span>
+                  <span class="metric-value">{{ profile.monthly_avg_shots ?? '-' }}</span>
+                </div>
+
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">月均拍摄量（测算）</span>
+                  <span class="metric-value">{{ profile.monthly_avg_shots_estimated ?? '-' }}</span>
+                </div>
+
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">预估年消费</span>
+                  <span class="metric-value">{{ profile.estimated_annual_spend ? formatCurrency(Number(profile.estimated_annual_spend)) : '-' }}</span>
+                </div>
+
+                <div v-if="profileLoading" class="metric-card loading">
+                  <SkeletonCard height="72px" />
+                </div>
+                <div v-else class="metric-card">
+                  <span class="metric-label">25年实际消费</span>
+                  <span class="metric-value">{{ profile.actual_annual_spend_2025 ? formatCurrency(Number(profile.actual_annual_spend_2025)) : '-' }}</span>
                 </div>
               </div>
 
@@ -349,6 +436,60 @@
               </a-option>
             </a-select>
           </a-form-item>
+          <a-form-item field="erp_system" label="所属 ERP">
+            <a-input v-model="editForm.erp_system" placeholder="请输入所属 ERP 系统" allow-clear />
+          </a-form-item>
+          <a-form-item field="sales_manager_id" label="销售负责人">
+            <a-select
+              v-model="editForm.sales_manager_id"
+              placeholder="请选择销售负责人"
+              allow-clear
+              :loading="managersLoading"
+            >
+              <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                {{ manager.real_name || manager.username }}
+              </a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="cooperation_status" label="合作状态">
+            <a-select v-model="editForm.cooperation_status" placeholder="请选择合作状态" allow-clear>
+              <a-option value="active">合作中</a-option>
+              <a-option value="suspended">暂停</a-option>
+              <a-option value="terminated">终止</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="first_payment_date" label="首次回款时间">
+            <a-date-picker
+              v-model="editForm.first_payment_date"
+              placeholder="请选择首次回款时间"
+              style="width: 100%"
+              allow-clear
+              value-format="YYYY-MM-DD"
+            />
+          </a-form-item>
+          <a-form-item field="onboarding_date" label="接入时间">
+            <a-date-picker
+              v-model="editForm.onboarding_date"
+              placeholder="请选择接入时间"
+              style="width: 100%"
+              allow-clear
+              value-format="YYYY-MM-DD"
+            />
+          </a-form-item>
+          <a-form-item field="is_settlement_enabled" label="是否结算">
+            <a-switch v-model="editForm.is_settlement_enabled" />
+          </a-form-item>
+          <a-form-item field="is_disabled" label="是否停用">
+            <a-switch v-model="editForm.is_disabled" />
+          </a-form-item>
+          <a-form-item field="notes" label="备注">
+            <a-textarea
+              v-model="editForm.notes"
+              placeholder="请输入备注信息"
+              :auto-size="{ minRows: 2, maxRows: 4 }"
+              allow-clear
+            />
+          </a-form-item>
         </a-form>
       </a-modal>
 
@@ -469,6 +610,15 @@ interface EditForm {
   settlement_cycle?: string
   is_key_customer?: boolean
   manager_id?: number
+  // 新增字段
+  erp_system?: string
+  first_payment_date?: string
+  onboarding_date?: string
+  sales_manager_id?: number
+  cooperation_status?: string
+  is_settlement_enabled?: boolean
+  is_disabled?: boolean
+  notes?: string
 }
 
 // 状态
@@ -620,6 +770,15 @@ const editForm = ref<EditForm>({
   settlement_cycle: undefined,
   is_key_customer: false,
   manager_id: undefined,
+  // 新增字段
+  erp_system: undefined,
+  first_payment_date: undefined,
+  onboarding_date: undefined,
+  sales_manager_id: undefined,
+  cooperation_status: undefined,
+  is_settlement_enabled: true,
+  is_disabled: false,
+  notes: undefined,
 })
 
 // 加载数据 - 优化版：支持 Pinia 缓存和并行加载
@@ -764,6 +923,15 @@ const openEditModal = () => {
     settlement_cycle: customer.value.settlement_cycle || undefined,
     is_key_customer: customer.value.is_key_customer || false,
     manager_id: customer.value.manager_id || undefined,
+    // 新增字段
+    erp_system: customer.value.erp_system || undefined,
+    first_payment_date: customer.value.first_payment_date || undefined,
+    onboarding_date: customer.value.onboarding_date || undefined,
+    sales_manager_id: customer.value.sales_manager_id || undefined,
+    cooperation_status: customer.value.cooperation_status || undefined,
+    is_settlement_enabled: customer.value.is_settlement_enabled ?? true,
+    is_disabled: customer.value.is_disabled ?? false,
+    notes: customer.value.notes || undefined,
   }
   editModalVisible.value = true
 }
@@ -782,6 +950,15 @@ const handleEditSubmit = async () => {
       settlement_cycle: editForm.value.settlement_cycle || undefined,
       is_key_customer: editForm.value.is_key_customer,
       manager_id: editForm.value.manager_id || undefined,
+      // 新增字段
+      erp_system: editForm.value.erp_system || undefined,
+      first_payment_date: editForm.value.first_payment_date || undefined,
+      onboarding_date: editForm.value.onboarding_date || undefined,
+      sales_manager_id: editForm.value.sales_manager_id || undefined,
+      cooperation_status: editForm.value.cooperation_status || undefined,
+      is_settlement_enabled: editForm.value.is_settlement_enabled,
+      is_disabled: editForm.value.is_disabled,
+      notes: editForm.value.notes || undefined,
     })
     Message.success('更新成功')
     editModalVisible.value = false
@@ -866,6 +1043,32 @@ const loadAllTags = async () => {
 const availableTags = computed(() => {
   const addedIds = new Set(customerTags.value.map((t) => t.id))
   return allTags.value.filter((t) => !addedIds.has(t.id))
+})
+
+// 合作状态展示
+const cooperationStatusColor = computed(() => {
+  const status = customer.value.cooperation_status
+  if (status === 'active') return 'green'
+  if (status === 'suspended') return 'orange'
+  if (status === 'terminated') return 'red'
+  return 'gray'
+})
+
+const cooperationStatusText = computed(() => {
+  const status = customer.value.cooperation_status
+  const map: Record<string, string> = {
+    active: '合作中',
+    suspended: '暂停',
+    terminated: '终止',
+  }
+  return map[status || ''] || '-'
+})
+
+// 销售负责人名称（从 managers 列表中查找）
+const salesManagerName = computed(() => {
+  if (!customer.value.sales_manager_id) return null
+  const manager = managers.value.find((m) => m.id === customer.value.sales_manager_id)
+  return manager ? manager.real_name || manager.username : null
 })
 
 // 打开标签选择器
@@ -1712,5 +1915,17 @@ onUnmounted(() => {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 扩展指标网格间距 */
+.metrics-grid-extended {
+  margin-top: 4px;
+}
+
+/* 备注文字样式 - 支持换行 */
+.notes-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
 }
 </style>
