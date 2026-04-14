@@ -1,17 +1,16 @@
 """Email Tasks 单元测试 - 逾期提醒邮件任务"""
 
 import pytest
-from unittest.mock import AsyncMock, patch
-from datetime import date
+from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime
 from decimal import Decimal
+import sys
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
-import sys
-from unittest.mock import MagicMock
-
 sys.modules["aiosmtplib"] = MagicMock()
 
-from app.tasks.email_tasks import send_overdue_emails, _log_email_task
+from app.models.task_log import SyncTaskLog  # noqa: E402
+from app.tasks.email_tasks import send_overdue_emails, _log_email_task  # noqa: E402
 
 
 # ==================== Fixtures ====================
@@ -97,7 +96,9 @@ class TestSendOverdueEmails:
     """发送逾期提醒邮件测试"""
 
     @pytest.mark.asyncio
-    async def test_no_overdue_invoices(self, mock_session, mock_email_service, mock_models):
+    async def test_no_overdue_invoices(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试无逾期账单情况"""
         # Mock 查询结果为空
         mock_result = MagicMock()
@@ -170,7 +171,9 @@ class TestSendOverdueEmails:
         assert "2 笔" in call_args[1]["subject"]
 
     @pytest.mark.asyncio
-    async def test_invoice_without_creator(self, mock_session, mock_email_service, mock_models):
+    async def test_invoice_without_creator(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试没有创建人的逾期账单"""
         invoice = MagicMock()
         invoice.id = 1
@@ -249,7 +252,9 @@ class TestSendOverdueEmails:
         assert log_entry.status == "partial"
 
     @pytest.mark.asyncio
-    async def test_main_task_exception(self, mock_session, mock_email_service, mock_models):
+    async def test_main_task_exception(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试主任务执行异常"""
         # Mock 查询抛出异常
         mock_session.execute.side_effect = Exception("数据库连接失败")
@@ -268,7 +273,9 @@ class TestSendOverdueEmails:
         assert log_entry.error_message is not None
 
     @pytest.mark.asyncio
-    async def test_multiple_sales_emails(self, mock_session, mock_email_service, mock_models):
+    async def test_multiple_sales_emails(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试向多个商务发送邮件"""
         # 创建属于不同商务的逾期账单
         invoice1 = MagicMock()
@@ -293,7 +300,9 @@ class TestSendOverdueEmails:
         assert mock_email_service.send_email.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_deleted_invoices_excluded(self, mock_session, mock_email_service, mock_models):
+    async def test_deleted_invoices_excluded(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试已删除的账单被排除"""
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
@@ -461,7 +470,9 @@ class TestEmailTasksIntegration:
         mock_session.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_full_workflow_with_failures(self, mock_session, mock_email_service, mock_models):
+    async def test_full_workflow_with_failures(
+        self, mock_session, mock_email_service, mock_models
+    ):
         """测试完整工作流程 - 包含失败"""
         # 创建两个账单
         invoice1 = MagicMock()

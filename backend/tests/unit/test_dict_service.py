@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.dict_service import DictService
 from app.models.industry_type import IndustryType
 
@@ -31,7 +30,9 @@ class TestDictService_GetIndustryTypes:
     """获取行业类型测试"""
 
     @pytest.mark.asyncio
-    async def test_get_industry_types_returns_sorted_list(self, dict_service, mock_db_session):
+    async def test_get_industry_types_returns_sorted_list(
+        self, dict_service, mock_db_session
+    ):
         """测试获取行业类型按 sort_order 升序返回"""
         types = [
             IndustryType(id=2, name="房产经纪", sort_order=2),

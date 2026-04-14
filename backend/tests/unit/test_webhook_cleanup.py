@@ -4,7 +4,7 @@ Webhook Cleanup Tasks 单元测试
 """
 
 import pytest
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -64,7 +64,9 @@ class TestCleanupWebhookSignatures:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_cleanup_with_valid_signatures_only(self, mock_session, mock_datetime):
+    async def test_cleanup_with_valid_signatures_only(
+        self, mock_session, mock_datetime
+    ):
         """测试只有有效签名记录（无需清理）"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
@@ -165,7 +167,9 @@ class TestCleanupWebhookSignatures:
         assert SIGNATURE_RETENTION_DAYS == 5
 
     @pytest.mark.asyncio
-    async def test_cleanup_delete_query_parameters(self, mock_session, mock_datetime, caplog):
+    async def test_cleanup_delete_query_parameters(
+        self, mock_session, mock_datetime, caplog
+    ):
         """测试删除查询参数正确性"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
         from sqlalchemy.sql.dml import Delete
@@ -204,11 +208,15 @@ class TestCleanupWebhookSignatures:
         with caplog.at_level(logging.INFO):
             await cleanup_webhook_signatures(mock_session)
 
-        assert any("Webhook 签名清理完成" in record.message for record in caplog.records)
+        assert any(
+            "Webhook 签名清理完成" in record.message for record in caplog.records
+        )
         assert any("删除记录数：1" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_cleanup_logs_debug_when_no_records(self, mock_session, mock_datetime, caplog):
+    async def test_cleanup_logs_debug_when_no_records(
+        self, mock_session, mock_datetime, caplog
+    ):
         """测试无记录时的调试日志"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
         import logging
@@ -220,7 +228,10 @@ class TestCleanupWebhookSignatures:
         with caplog.at_level(logging.DEBUG):
             await cleanup_webhook_signatures(mock_session)
 
-        assert any("Webhook 签名清理：无过期记录" in record.message for record in caplog.records)
+        assert any(
+            "Webhook 签名清理：无过期记录" in record.message
+            for record in caplog.records
+        )
 
     @pytest.mark.asyncio
     async def test_cleanup_error_logging(self, mock_session, mock_datetime, caplog):
@@ -232,11 +243,15 @@ class TestCleanupWebhookSignatures:
         with pytest.raises(Exception):
             await cleanup_webhook_signatures(mock_session)
 
-        assert any("Webhook 签名清理失败" in record.message for record in caplog.records)
+        assert any(
+            "Webhook 签名清理失败" in record.message for record in caplog.records
+        )
         assert any("数据库错误" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_cleanup_with_multiple_expired_signatures(self, mock_session, mock_datetime):
+    async def test_cleanup_with_multiple_expired_signatures(
+        self, mock_session, mock_datetime
+    ):
         """测试清理多个过期签名"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
@@ -257,7 +272,9 @@ class TestCleanupWebhookSignatures:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_cleanup_session_state_after_success(self, mock_session, mock_datetime):
+    async def test_cleanup_session_state_after_success(
+        self, mock_session, mock_datetime
+    ):
         """测试成功清理后会话状态"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
@@ -294,10 +311,11 @@ class TestCleanupWebhookSignatures:
         mock_session.rollback.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_cleanup_query_uses_correct_model(self, mock_session, mock_datetime, caplog):
+    async def test_cleanup_query_uses_correct_model(
+        self, mock_session, mock_datetime, caplog
+    ):
         """测试查询使用正确的模型"""
         from app.tasks.webhook_cleanup import cleanup_webhook_signatures
-        from app.models.webhooks import WebhookSignature
 
         expired_sig = MagicMock()
         expired_sig.signature = "sig_expired"

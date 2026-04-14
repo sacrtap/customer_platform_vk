@@ -162,7 +162,6 @@ async def test_create_user_success(test_client, db_session, test_user):
     """测试创建用户 API - 成功场景"""
     username = "create_user_success_test"
     password = "test123456"
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     db_session.execute(
         text("DELETE FROM users WHERE username = :username"),

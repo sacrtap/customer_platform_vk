@@ -8,7 +8,7 @@
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from decimal import Decimal
 from datetime import date
 
@@ -133,7 +133,9 @@ class TestBalanceService_GetBalance:
 
         from app.models.billing import CustomerBalance
 
-        mock_balance = CustomerBalance(id=1, customer_id=100, total_amount=Decimal("1000.00"))
+        mock_balance = CustomerBalance(
+            id=1, customer_id=100, total_amount=Decimal("1000.00")
+        )
         mock_db.execute.return_value = make_mock_execute_result([mock_balance])
 
         result = await service.get_balance_by_customer_id(100)
@@ -164,7 +166,9 @@ class TestBalanceService_GetOrCreate:
 
         from app.models.billing import CustomerBalance
 
-        mock_balance = CustomerBalance(id=1, customer_id=100, total_amount=Decimal("500.00"))
+        mock_balance = CustomerBalance(
+            id=1, customer_id=100, total_amount=Decimal("500.00")
+        )
         mock_db.execute.return_value = make_mock_execute_result([mock_balance])
 
         result = await service.get_or_create_balance(100)

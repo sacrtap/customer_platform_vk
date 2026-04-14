@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["JWT_SECRET"] = "test_jwt_secret_123"
 os.environ["WEBHOOK_SECRET"] = "test_webhook_secret_123"
 
-from unittest.mock import MagicMock, patch
-from sqlalchemy import create_engine
+from unittest.mock import MagicMock, patch  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
 
 # Mock scheduler
 with patch("app.tasks.scheduler.scheduler") as mock_sched:

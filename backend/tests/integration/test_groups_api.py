@@ -13,7 +13,7 @@ class TestCreateGroup:
         # 诊断：检查 settings.jwt_secret
         from app.config import settings, get_settings
 
-        print(f"\n=== DEBUG: Settings ===")
+        print("\n=== DEBUG: Settings ===")
         print(f"JWT_SECRET: {settings.jwt_secret[:20]}...")
         print(f"Settings cache info: {get_settings.cache_info()}")
 
@@ -22,10 +22,12 @@ class TestCreateGroup:
             "/api/v1/auth/login",
             json={"username": test_user["username"], "password": test_user["password"]},
         )
-        print(f"\n=== DEBUG: Login Response ===")
+        print("\n=== DEBUG: Login Response ===")
         print(f"Status: {login_response.status}")
 
-        assert login_response.status == 200, f"Login failed with status {login_response.status}"
+        assert login_response.status == 200, (
+            f"Login failed with status {login_response.status}"
+        )
 
         login_data = login_response.json
         print(f"Parsed JSON: {login_data}")
@@ -52,7 +54,7 @@ class TestCreateGroup:
             headers={"Authorization": f"Bearer {token}"},
         )
 
-        print(f"\n=== DEBUG: Create Group Response ===")
+        print("\n=== DEBUG: Create Group Response ===")
         print(f"Status: {response.status}")
         print(f"Body: {response.text}")
         print(f"Headers: {dict(response.headers)}")

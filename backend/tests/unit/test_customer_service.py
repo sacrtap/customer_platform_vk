@@ -1,8 +1,7 @@
 """Customer Service 单元测试"""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime
+from unittest.mock import MagicMock, AsyncMock
 from decimal import Decimal
 
 from app.services.customers import CustomerService
@@ -116,7 +115,9 @@ class TestCustomerService_CreateCustomer:
         mock_db_session_with_flush.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_create_customer_minimal_data(self, customer_service, mock_db_session):
+    async def test_create_customer_minimal_data(
+        self, customer_service, mock_db_session
+    ):
         """测试使用最少数据创建客户"""
         # 准备最少测试数据
         customer_data = {
@@ -154,7 +155,9 @@ class TestCustomerService_CreateCustomer:
         assert result.is_key_customer is False
 
     @pytest.mark.asyncio
-    async def test_create_customer_creates_balance(self, customer_service, mock_db_session):
+    async def test_create_customer_creates_balance(
+        self, customer_service, mock_db_session
+    ):
         """测试创建客户时自动创建余额记录"""
         customer_data = {
             "company_id": "COMP003",
@@ -264,7 +267,9 @@ class TestCustomerService_UpdateCustomer:
         mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_customer_partial_update(self, customer_service, mock_db_session):
+    async def test_update_customer_partial_update(
+        self, customer_service, mock_db_session
+    ):
         """测试部分字段更新"""
         customer_id = 1
 
@@ -350,7 +355,9 @@ class TestCustomerService_DeleteCustomer:
         mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_customer_already_deleted(self, customer_service, mock_db_session):
+    async def test_delete_customer_already_deleted(
+        self, customer_service, mock_db_session
+    ):
         """测试删除已删除的客户"""
         customer_id = 1
 
@@ -405,7 +412,9 @@ class TestCustomerService_BatchCreateCustomers:
         customer_service = CustomerService(db_session=mock_db_session_with_flush)
 
         # 执行测试
-        success_count, errors = await customer_service.batch_create_customers(customers_data)
+        success_count, errors = await customer_service.batch_create_customers(
+            customers_data
+        )
 
         # 验证结果
         assert success_count == 3
@@ -414,7 +423,9 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session_with_flush.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_batch_create_customers_with_duplicates(self, customer_service, mock_db_session):
+    async def test_batch_create_customers_with_duplicates(
+        self, customer_service, mock_db_session
+    ):
         """测试批量创建客户 - 包含重复的公司 ID"""
         customers_data = [
             {"company_id": "COMP001", "name": "公司 1"},
@@ -438,7 +449,9 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.flush = mock_flush
 
         # 执行测试
-        success_count, errors = await customer_service.batch_create_customers(customers_data)
+        success_count, errors = await customer_service.batch_create_customers(
+            customers_data
+        )
 
         # 验证结果 - 同批次重复会被检测到
         assert success_count == 2
@@ -446,7 +459,9 @@ class TestCustomerService_BatchCreateCustomers:
         assert "COMP001 已存在" in errors[0]
 
     @pytest.mark.asyncio
-    async def test_batch_create_customers_with_existing(self, customer_service, mock_db_session):
+    async def test_batch_create_customers_with_existing(
+        self, customer_service, mock_db_session
+    ):
         """测试批量创建客户 - 包含已存在的公司 ID"""
         customers_data = [
             {"company_id": "EXIST001", "name": "已存在公司"},
@@ -466,7 +481,9 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.flush = mock_flush
 
         # 执行测试
-        success_count, errors = await customer_service.batch_create_customers(customers_data)
+        success_count, errors = await customer_service.batch_create_customers(
+            customers_data
+        )
 
         # 验证结果
         assert success_count == 1
@@ -496,7 +513,9 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.flush = mock_flush
 
         # 执行测试
-        success_count, errors = await customer_service.batch_create_customers(customers_data)
+        success_count, errors = await customer_service.batch_create_customers(
+            customers_data
+        )
 
         # 验证结果
         assert success_count == 1
@@ -538,7 +557,9 @@ class TestCustomerService_GetCustomerById:
         assert result.name == "测试公司"
 
     @pytest.mark.asyncio
-    async def test_get_customer_by_id_not_found(self, customer_service, mock_db_session):
+    async def test_get_customer_by_id_not_found(
+        self, customer_service, mock_db_session
+    ):
         """测试获取不存在的客户"""
         customer_id = 999
 
@@ -627,7 +648,9 @@ class TestCustomerService_Integration:
         assert created_customer.deleted_at is not None
 
     @pytest.mark.asyncio
-    async def test_customer_with_profile_and_balance(self, customer_service, mock_db_session):
+    async def test_customer_with_profile_and_balance(
+        self, customer_service, mock_db_session
+    ):
         """测试客户关联画像和余额"""
         customer_id = 1
 
@@ -714,7 +737,9 @@ class TestCustomerService_IsKeyCustomerFilter:
         assert customers[0].name == "重点客户"
 
     @pytest.mark.asyncio
-    async def test_get_all_customers_filter_is_key_customer_false(self, mock_db_session):
+    async def test_get_all_customers_filter_is_key_customer_false(
+        self, mock_db_session
+    ):
         """测试筛选非重点客户（is_key_customer=False）"""
         from sqlalchemy.ext.asyncio import AsyncSession
 
