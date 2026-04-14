@@ -306,7 +306,7 @@ def analytics_service(mock_db):
 class TestGetConsumptionTrend:
     """get_consumption_trend 测试"""
 
-    def test_get_consumption_trend_success(self, analytics_service):
+    async def test_get_consumption_trend_success(self, analytics_service):
         """测试获取消耗趋势成功"""
         service, mock_db = analytics_service
 
@@ -317,7 +317,7 @@ class TestGetConsumptionTrend:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_consumption_trend(
+        result = await service.get_consumption_trend(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
         )
 
@@ -329,14 +329,14 @@ class TestGetConsumptionTrend:
         assert result[1]["total_amount"] == 12000.00
         assert result[2]["total_amount"] == 15000.00
 
-    def test_get_consumption_trend_with_customer_filter(self, analytics_service):
+    async def test_get_consumption_trend_with_customer_filter(self, analytics_service):
         """测试按客户 ID 筛选消耗趋势"""
         service, mock_db = analytics_service
 
         mock_rows = [{"year": 2026, "month": 3, "total_amount": Decimal("5000.00")}]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_consumption_trend(
+        result = await service.get_consumption_trend(
             start_date=date(2026, 3, 1),
             end_date=date(2026, 3, 31),
             customer_id=100,
@@ -345,19 +345,19 @@ class TestGetConsumptionTrend:
         assert len(result) == 1
         assert result[0]["total_amount"] == 5000.00
 
-    def test_get_consumption_trend_empty(self, analytics_service):
+    async def test_get_consumption_trend_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_consumption_trend(
+        result = await service.get_consumption_trend(
             start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
         )
 
         assert len(result) == 0
 
-    def test_get_consumption_trend_with_null_amount(self, analytics_service):
+    async def test_get_consumption_trend_with_null_amount(self, analytics_service):
         """测试包含 null 金额的情况"""
         service, mock_db = analytics_service
 
@@ -367,7 +367,7 @@ class TestGetConsumptionTrend:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_consumption_trend(
+        result = await service.get_consumption_trend(
             start_date=date(2026, 1, 1), end_date=date(2026, 2, 28)
         )
 
@@ -379,7 +379,7 @@ class TestGetConsumptionTrend:
 class TestGetTopCustomers:
     """get_top_customers 测试"""
 
-    def test_get_top_customers_success(self, analytics_service):
+    async def test_get_top_customers_success(self, analytics_service):
         """测试获取 Top 客户成功"""
         service, mock_db = analytics_service
 
@@ -390,7 +390,7 @@ class TestGetTopCustomers:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_top_customers(
+        result = await service.get_top_customers(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=10
         )
 
@@ -401,7 +401,7 @@ class TestGetTopCustomers:
         assert result[0]["total_amount"] == 50000.00
         assert result[1]["total_amount"] == 30000.00
 
-    def test_get_top_customers_limit(self, analytics_service):
+    async def test_get_top_customers_limit(self, analytics_service):
         """测试限制返回数量"""
         service, mock_db = analytics_service
 
@@ -411,19 +411,19 @@ class TestGetTopCustomers:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_top_customers(
+        result = await service.get_top_customers(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=2
         )
 
         assert len(result) == 2
 
-    def test_get_top_customers_empty(self, analytics_service):
+    async def test_get_top_customers_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_top_customers(
+        result = await service.get_top_customers(
             start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
         )
 
@@ -433,7 +433,7 @@ class TestGetTopCustomers:
 class TestGetDeviceTypeDistribution:
     """get_device_type_distribution 测试"""
 
-    def test_get_device_type_distribution_success(self, analytics_service):
+    async def test_get_device_type_distribution_success(self, analytics_service):
         """测试获取设备类型分布成功"""
         service, mock_db = analytics_service
 
@@ -444,7 +444,7 @@ class TestGetDeviceTypeDistribution:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_device_type_distribution(
+        result = await service.get_device_type_distribution(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
         )
 
@@ -455,14 +455,14 @@ class TestGetDeviceTypeDistribution:
         assert result[1]["device_type"] == "N"
         assert result[2]["device_type"] == "L"
 
-    def test_get_device_type_distribution_with_customer_filter(self, analytics_service):
+    async def test_get_device_type_distribution_with_customer_filter(self, analytics_service):
         """测试按客户 ID 筛选设备类型分布"""
         service, mock_db = analytics_service
 
         mock_rows = [("X", Decimal("500"), Decimal("5000.00"))]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_device_type_distribution(
+        result = await service.get_device_type_distribution(
             start_date=date(2026, 1, 1),
             end_date=date(2026, 3, 31),
             customer_id=100,
@@ -471,13 +471,13 @@ class TestGetDeviceTypeDistribution:
         assert len(result) == 1
         assert result[0]["device_type"] == "X"
 
-    def test_get_device_type_distribution_empty(self, analytics_service):
+    async def test_get_device_type_distribution_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_device_type_distribution(
+        result = await service.get_device_type_distribution(
             start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
         )
 
@@ -490,7 +490,7 @@ class TestGetDeviceTypeDistribution:
 class TestGetInvoiceStatusStats:
     """get_invoice_status_stats 测试"""
 
-    def test_get_invoice_status_stats_success(self, analytics_service):
+    async def test_get_invoice_status_stats_success(self, analytics_service):
         """测试获取结算单状态统计成功"""
         service, mock_db = analytics_service
 
@@ -502,7 +502,7 @@ class TestGetInvoiceStatusStats:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_invoice_status_stats(
+        result = await service.get_invoice_status_stats(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
         )
 
@@ -513,26 +513,26 @@ class TestGetInvoiceStatusStats:
         assert result[1]["status"] == "pending_customer"
         assert result[2]["status"] == "paid"
 
-    def test_get_invoice_status_stats_empty(self, analytics_service):
+    async def test_get_invoice_status_stats_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_invoice_status_stats(
+        result = await service.get_invoice_status_stats(
             start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
         )
 
         assert len(result) == 0
 
-    def test_get_invoice_status_stats_with_null_amount(self, analytics_service):
+    async def test_get_invoice_status_stats_with_null_amount(self, analytics_service):
         """测试包含 null 金额"""
         service, mock_db = analytics_service
 
         mock_rows = [("draft", 0, None)]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_invoice_status_stats(
+        result = await service.get_invoice_status_stats(
             start_date=date(2026, 1, 1), end_date=date(2026, 1, 31)
         )
 
@@ -547,7 +547,7 @@ class TestGetInvoiceStatusStats:
 class TestGetCustomerHealthStats:
     """get_customer_health_stats 测试"""
 
-    def test_get_customer_health_stats_success(self, analytics_service):
+    async def test_get_customer_health_stats_success(self, analytics_service):
         """测试获取客户健康度统计成功"""
         service, mock_db = analytics_service
 
@@ -561,7 +561,7 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=15),  # churn 计数
         ]
 
-        result = service.get_customer_health_stats()
+        result = await service.get_customer_health_stats()
 
         assert result["total_customers"] == 100
         assert result["active_customers"] == 50
@@ -570,7 +570,7 @@ class TestGetCustomerHealthStats:
         assert result["churn_risk_customers"] == 15
         assert result["active_rate"] == 50.0
 
-    def test_get_customer_health_stats_no_recent_customers(self, analytics_service):
+    async def test_get_customer_health_stats_no_recent_customers(self, analytics_service):
         """测试无最近消耗客户（全部为流失风险）"""
         service, mock_db = analytics_service
 
@@ -583,13 +583,13 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=20),  # churn 计数
         ]
 
-        result = service.get_customer_health_stats()
+        result = await service.get_customer_health_stats()
 
         assert result["total_customers"] == 50
         assert result["active_customers"] == 30
         assert result["churn_risk_customers"] == 20
 
-    def test_get_customer_health_stats_all_recent(self, analytics_service):
+    async def test_get_customer_health_stats_all_recent(self, analytics_service):
         """测试所有客户最近都有消耗（无流失风险）"""
         service, mock_db = analytics_service
 
@@ -602,11 +602,11 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=0),  # churn 计数
         ]
 
-        result = service.get_customer_health_stats()
+        result = await service.get_customer_health_stats()
 
         assert result["churn_risk_customers"] == 0
 
-    def test_get_customer_health_stats_zero_total(self, analytics_service):
+    async def test_get_customer_health_stats_zero_total(self, analytics_service):
         """测试总客户数为 0 的情况"""
         service, mock_db = analytics_service
 
@@ -619,7 +619,7 @@ class TestGetCustomerHealthStats:
             make_mock_execute_result([], scalar_value=0),  # churn 计数
         ]
 
-        result = service.get_customer_health_stats()
+        result = await service.get_customer_health_stats()
 
         assert result["total_customers"] == 0
         assert result["active_rate"] == 0  # 避免除零错误
@@ -628,7 +628,7 @@ class TestGetCustomerHealthStats:
 class TestGetBalanceWarningList:
     """get_balance_warning_list 测试"""
 
-    def test_get_balance_warning_list_success(self, analytics_service):
+    async def test_get_balance_warning_list_success(self, analytics_service):
         """测试获取余额预警客户列表成功"""
         service, mock_db = analytics_service
 
@@ -652,7 +652,7 @@ class TestGetBalanceWarningList:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_balance_warning_list(threshold=1000)
+        result = await service.get_balance_warning_list(threshold=1000)
 
         assert len(result) == 2
         assert result[0]["customer_id"] == 1
@@ -663,17 +663,17 @@ class TestGetBalanceWarningList:
         assert result[0]["bonus_amount"] == 100.00
         assert result[1]["total_amount"] == 800.00
 
-    def test_get_balance_warning_list_empty(self, analytics_service):
+    async def test_get_balance_warning_list_empty(self, analytics_service):
         """测试空结果（无预警客户）"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_balance_warning_list(threshold=1000)
+        result = await service.get_balance_warning_list(threshold=1000)
 
         assert len(result) == 0
 
-    def test_get_balance_warning_list_custom_threshold(self, analytics_service):
+    async def test_get_balance_warning_list_custom_threshold(self, analytics_service):
         """测试自定义阈值"""
         service, mock_db = analytics_service
 
@@ -689,7 +689,7 @@ class TestGetBalanceWarningList:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_balance_warning_list(threshold=5000)
+        result = await service.get_balance_warning_list(threshold=5000)
 
         assert len(result) == 1
         assert result[0]["total_amount"] == 2000.00
@@ -698,7 +698,7 @@ class TestGetBalanceWarningList:
 class TestGetInactiveCustomers:
     """get_inactive_customers 测试"""
 
-    def test_get_inactive_customers_success(self, analytics_service):
+    async def test_get_inactive_customers_success(self, analytics_service):
         """测试获取长期未消耗客户成功"""
         service, mock_db = analytics_service
 
@@ -709,7 +709,7 @@ class TestGetInactiveCustomers:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_inactive_customers(days=90)
+        result = await service.get_inactive_customers(days=90)
 
         assert len(result) == 2
         assert result[0]["customer_id"] == 1
@@ -718,25 +718,25 @@ class TestGetInactiveCustomers:
         assert result[1]["customer_id"] == 2
         assert result[1]["manager_name"] == "未分配"  # None 转为"未分配"
 
-    def test_get_inactive_customers_all_recent(self, analytics_service):
+    async def test_get_inactive_customers_all_recent(self, analytics_service):
         """测试所有客户最近都有消耗"""
         service, mock_db = analytics_service
 
         # 优化后：单次查询，返回空结果
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_inactive_customers(days=90)
+        result = await service.get_inactive_customers(days=90)
 
         assert len(result) == 0
 
-    def test_get_inactive_customers_empty(self, analytics_service):
+    async def test_get_inactive_customers_empty(self, analytics_service):
         """测试无任何消耗记录的客户"""
         service, mock_db = analytics_service
 
         # 优化后：单次查询，返回空结果
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_inactive_customers(days=90)
+        result = await service.get_inactive_customers(days=90)
 
         assert len(result) == 0
 
@@ -747,7 +747,7 @@ class TestGetInactiveCustomers:
 class TestGetIndustryDistribution:
     """get_industry_distribution 测试"""
 
-    def test_get_industry_distribution_success(self, analytics_service):
+    async def test_get_industry_distribution_success(self, analytics_service):
         """测试获取行业分布成功"""
         service, mock_db = analytics_service
 
@@ -759,7 +759,7 @@ class TestGetIndustryDistribution:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_industry_distribution()
+        result = await service.get_industry_distribution()
 
         assert len(result) == 4
         total = 80
@@ -769,24 +769,24 @@ class TestGetIndustryDistribution:
         assert result[1]["industry"] == "制造业"
         assert result[2]["industry"] == "零售业"
 
-    def test_get_industry_distribution_empty(self, analytics_service):
+    async def test_get_industry_distribution_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_industry_distribution()
+        result = await service.get_industry_distribution()
 
         assert len(result) == 0
 
-    def test_get_industry_distribution_single(self, analytics_service):
+    async def test_get_industry_distribution_single(self, analytics_service):
         """测试只有一个行业"""
         service, mock_db = analytics_service
 
         mock_rows = [("房地产", 100)]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_industry_distribution()
+        result = await service.get_industry_distribution()
 
         assert len(result) == 1
         assert result[0]["percentage"] == 100.0
@@ -795,7 +795,7 @@ class TestGetIndustryDistribution:
 class TestGetCustomerLevelStats:
     """get_customer_level_stats 测试"""
 
-    def test_get_customer_level_stats_success(self, analytics_service):
+    async def test_get_customer_level_stats_success(self, analytics_service):
         """测试获取客户等级统计成功"""
         service, mock_db = analytics_service
 
@@ -807,7 +807,7 @@ class TestGetCustomerLevelStats:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_customer_level_stats()
+        result = await service.get_customer_level_stats()
 
         assert len(result) == 4
         assert result[0]["level"] == "A"
@@ -815,13 +815,13 @@ class TestGetCustomerLevelStats:
         assert result[0]["percentage"] == round(50 / 100 * 100, 2)
         assert result[3]["level"] == "未分类"  # None 转为"未分类"
 
-    def test_get_customer_level_stats_empty(self, analytics_service):
+    async def test_get_customer_level_stats_empty(self, analytics_service):
         """测试空结果"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.get_customer_level_stats()
+        result = await service.get_customer_level_stats()
 
         assert len(result) == 0
 
@@ -829,7 +829,7 @@ class TestGetCustomerLevelStats:
 class TestGetRealEstateStats:
     """get_real_estate_stats 测试"""
 
-    def test_get_real_estate_stats_success(self, analytics_service):
+    async def test_get_real_estate_stats_success(self, analytics_service):
         """测试获取房产客户统计成功"""
         service, mock_db = analytics_service
 
@@ -838,14 +838,14 @@ class TestGetRealEstateStats:
             make_mock_execute_result([], scalar_value=40),  # real_estate
         ]
 
-        result = service.get_real_estate_stats()
+        result = await service.get_real_estate_stats()
 
         assert result["total_customers"] == 100
         assert result["real_estate_customers"] == 40
         assert result["non_real_estate_customers"] == 60
         assert result["real_estate_percentage"] == 40.0
 
-    def test_get_real_estate_stats_zero_total(self, analytics_service):
+    async def test_get_real_estate_stats_zero_total(self, analytics_service):
         """测试总客户数为 0"""
         service, mock_db = analytics_service
 
@@ -854,7 +854,7 @@ class TestGetRealEstateStats:
             make_mock_execute_result([], scalar_value=0),  # real_estate
         ]
 
-        result = service.get_real_estate_stats()
+        result = await service.get_real_estate_stats()
 
         assert result["total_customers"] == 0
         assert result["real_estate_percentage"] == 0  # 避免除零错误
@@ -866,7 +866,7 @@ class TestGetRealEstateStats:
 class TestPredictMonthlyPayment:
     """predict_monthly_payment 测试"""
 
-    def test_predict_monthly_payment_success(self, analytics_service):
+    async def test_predict_monthly_payment_success(self, analytics_service):
         """测试预测月度回款成功"""
         service, mock_db = analytics_service
 
@@ -882,7 +882,7 @@ class TestPredictMonthlyPayment:
             make_mock_execute_result(usage_rows),  # 用量
         ]
 
-        result = service.predict_monthly_payment(year=2026, month=4)
+        result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 1
         assert result[0]["customer_id"] == 1
@@ -892,7 +892,7 @@ class TestPredictMonthlyPayment:
         assert result[0]["pricing_type"] == "fixed"
         assert result[0]["predicted_amount"] == 10000.00  # 1000 * 10
 
-    def test_predict_monthly_payment_with_customer_filter(self, analytics_service):
+    async def test_predict_monthly_payment_with_customer_filter(self, analytics_service):
         """测试按客户 ID 筛选预测"""
         service, mock_db = analytics_service
 
@@ -906,23 +906,23 @@ class TestPredictMonthlyPayment:
             make_mock_execute_result(usage_rows),
         ]
 
-        result = service.predict_monthly_payment(year=2026, month=4, customer_id=1)
+        result = await service.predict_monthly_payment(year=2026, month=4, customer_id=1)
 
         assert len(result) == 1
         assert result[0]["quantity"] == 500.0
         assert result[0]["predicted_amount"] == 5000.00
 
-    def test_predict_monthly_payment_empty_pricing(self, analytics_service):
+    async def test_predict_monthly_payment_empty_pricing(self, analytics_service):
         """测试无定价规则"""
         service, mock_db = analytics_service
 
         mock_db.execute.return_value = make_mock_execute_result([])
 
-        result = service.predict_monthly_payment(year=2026, month=4)
+        result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 0
 
-    def test_predict_monthly_payment_tiered_pricing(self, analytics_service):
+    async def test_predict_monthly_payment_tiered_pricing(self, analytics_service):
         """测试阶梯定价预测"""
         service, mock_db = analytics_service
 
@@ -940,13 +940,13 @@ class TestPredictMonthlyPayment:
             make_mock_execute_result(usage_rows),
         ]
 
-        result = service.predict_monthly_payment(year=2026, month=4)
+        result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 1
         # 100 * 10 + 500 * 8 = 1000 + 4000 = 5000
         assert result[0]["predicted_amount"] == 5000.00
 
-    def test_predict_monthly_payment_package_pricing(self, analytics_service):
+    async def test_predict_monthly_payment_package_pricing(self, analytics_service):
         """测试套餐定价预测"""
         service, mock_db = analytics_service
 
@@ -960,7 +960,7 @@ class TestPredictMonthlyPayment:
             make_mock_execute_result(usage_rows),
         ]
 
-        result = service.predict_monthly_payment(year=2026, month=4)
+        result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 1
         assert result[0]["predicted_amount"] == 10000.00  # 套餐 A 价格
@@ -972,7 +972,7 @@ class TestPredictMonthlyPayment:
 class TestGetDashboardStats:
     """get_dashboard_stats 测试"""
 
-    def test_get_dashboard_stats_success(self, analytics_service):
+    async def test_get_dashboard_stats_success(self, analytics_service):
         """测试获取仪表盘统计数据成功"""
         service, mock_db = analytics_service
 
@@ -993,7 +993,7 @@ class TestGetDashboardStats:
 
             mock_db.execute.return_value = make_mock_execute_result([stats_row])
 
-            result = service.get_dashboard_stats()
+            result = await service.get_dashboard_stats()
 
             assert result["total_customers"] == 100
             assert result["key_customers"] == 20
@@ -1004,7 +1004,7 @@ class TestGetDashboardStats:
             assert result["pending_confirmation"] == 5
             assert result["month_consumption"] == 25000.00
 
-    def test_get_dashboard_stats_empty(self, analytics_service):
+    async def test_get_dashboard_stats_empty(self, analytics_service):
         """测试空数据"""
         service, mock_db = analytics_service
 
@@ -1024,7 +1024,7 @@ class TestGetDashboardStats:
 
             mock_db.execute.return_value = make_mock_execute_result([stats_row])
 
-            result = service.get_dashboard_stats()
+            result = await service.get_dashboard_stats()
 
             assert result["total_customers"] == 0
             assert result["key_customers"] == 0
@@ -1035,7 +1035,7 @@ class TestGetDashboardStats:
 class TestGetDashboardChartData:
     """get_dashboard_chart_data 测试"""
 
-    def test_get_dashboard_chart_data_success(self, analytics_service):
+    async def test_get_dashboard_chart_data_success(self, analytics_service):
         """测试获取仪表盘图表数据成功"""
         service, mock_db = analytics_service
 
@@ -1059,7 +1059,7 @@ class TestGetDashboardChartData:
             with patch.object(
                 service, "get_payment_analysis", return_value=payment_data
             ):
-                result = service.get_dashboard_chart_data(months=3)
+                result = await service.get_dashboard_chart_data(months=3)
 
                 assert "consumption_trend" in result
                 assert "payment_trend" in result
@@ -1075,11 +1075,11 @@ class TestGetDashboardChartData:
 class TestCalculatePredictedAmount:
     """_calculate_predicted_amount 辅助方法测试"""
 
-    def test_calculate_fixed_pricing(self, analytics_service):
+    async def test_calculate_fixed_pricing(self, analytics_service):
         """测试固定价格计算"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="fixed",
             unit_price=10.00,
             tiers=None,
@@ -1089,13 +1089,13 @@ class TestCalculatePredictedAmount:
 
         assert result == 1000.00
 
-    def test_calculate_tiered_pricing_single_tier(self, analytics_service):
+    async def test_calculate_tiered_pricing_single_tier(self, analytics_service):
         """测试单阶梯定价计算"""
         service, mock_db = analytics_service
 
         tiers = [{"threshold": 500, "price": 8}]
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="tiered",
             unit_price=10.00,
             tiers=tiers,
@@ -1106,7 +1106,7 @@ class TestCalculatePredictedAmount:
         # 300 < 500, 所以 300 * 8 = 2400
         assert result == 2400.00
 
-    def test_calculate_tiered_pricing_multiple_tiers(self, analytics_service):
+    async def test_calculate_tiered_pricing_multiple_tiers(self, analytics_service):
         """测试多阶梯定价计算"""
         service, mock_db = analytics_service
 
@@ -1115,7 +1115,7 @@ class TestCalculatePredictedAmount:
             {"threshold": 500, "price": 8},
         ]
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="tiered",
             unit_price=5.00,
             tiers=tiers,
@@ -1126,11 +1126,11 @@ class TestCalculatePredictedAmount:
         # 100 * 10 + 500 * 8 + (600-600) * 5 = 1000 + 4000 = 5000
         assert result == 5000.00
 
-    def test_calculate_package_pricing_type_a(self, analytics_service):
+    async def test_calculate_package_pricing_type_a(self, analytics_service):
         """测试套餐 A 定价"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="package",
             unit_price=0,
             tiers=None,
@@ -1140,11 +1140,11 @@ class TestCalculatePredictedAmount:
 
         assert result == 10000.00
 
-    def test_calculate_package_pricing_type_b(self, analytics_service):
+    async def test_calculate_package_pricing_type_b(self, analytics_service):
         """测试套餐 B 定价"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="package",
             unit_price=0,
             tiers=None,
@@ -1154,11 +1154,11 @@ class TestCalculatePredictedAmount:
 
         assert result == 20000.00
 
-    def test_calculate_package_pricing_type_c(self, analytics_service):
+    async def test_calculate_package_pricing_type_c(self, analytics_service):
         """测试套餐 C 定价"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="package",
             unit_price=0,
             tiers=None,
@@ -1168,11 +1168,11 @@ class TestCalculatePredictedAmount:
 
         assert result == 30000.00
 
-    def test_calculate_package_pricing_type_d(self, analytics_service):
+    async def test_calculate_package_pricing_type_d(self, analytics_service):
         """测试套餐 D 定价"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="package",
             unit_price=0,
             tiers=None,
@@ -1182,11 +1182,11 @@ class TestCalculatePredictedAmount:
 
         assert result == 50000.00
 
-    def test_calculate_unknown_package_type(self, analytics_service):
+    async def test_calculate_unknown_package_type(self, analytics_service):
         """测试未知套餐类型"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="package",
             unit_price=0,
             tiers=None,
@@ -1196,11 +1196,11 @@ class TestCalculatePredictedAmount:
 
         assert result == 0
 
-    def test_calculate_default_fallback(self, analytics_service):
+    async def test_calculate_default_fallback(self, analytics_service):
         """测试默认回退计算"""
         service, mock_db = analytics_service
 
-        result = service._calculate_predicted_amount(
+        result = await service._calculate_predicted_amount(
             pricing_type="unknown",
             unit_price=15.00,
             tiers=None,
@@ -1217,14 +1217,14 @@ class TestCalculatePredictedAmount:
 class TestEdgeCases:
     """边缘情况测试"""
 
-    def test_get_consumption_trend_single_month(self, analytics_service):
+    async def test_get_consumption_trend_single_month(self, analytics_service):
         """测试单月消耗趋势"""
         service, mock_db = analytics_service
 
         mock_rows = [(2026, 3, Decimal("10000.00"))]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_consumption_trend(
+        result = await service.get_consumption_trend(
             start_date=date(2026, 3, 1), end_date=date(2026, 3, 31)
         )
 
@@ -1232,7 +1232,7 @@ class TestEdgeCases:
         assert result[0]["period"] == "2026-03"
         assert result[0]["total_amount"] == 10000.00
 
-    def test_get_top_customers_tie(self, analytics_service):
+    async def test_get_top_customers_tie(self, analytics_service):
         """测试 Top 客户金额相同"""
         service, mock_db = analytics_service
 
@@ -1242,14 +1242,14 @@ class TestEdgeCases:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_top_customers(
+        result = await service.get_top_customers(
             start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), limit=2
         )
 
         assert len(result) == 2
         assert result[0]["total_amount"] == result[1]["total_amount"]
 
-    def test_get_balance_warning_list_boundary(self, analytics_service):
+    async def test_get_balance_warning_list_boundary(self, analytics_service):
         """测试余额预警边界值"""
         service, mock_db = analytics_service
 
@@ -1266,12 +1266,12 @@ class TestEdgeCases:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_balance_warning_list(threshold=1000)
+        result = await service.get_balance_warning_list(threshold=1000)
 
         assert len(result) == 1
         assert result[0]["total_amount"] == 999.99
 
-    def test_get_customer_health_stats_all_zero(self, analytics_service):
+    async def test_get_customer_health_stats_all_zero(self, analytics_service):
         """测试所有统计为 0"""
         service, mock_db = analytics_service
 
@@ -1283,7 +1283,7 @@ class TestEdgeCases:
             make_mock_execute_result([]),
         ]
 
-        result = service.get_customer_health_stats()
+        result = await service.get_customer_health_stats()
 
         assert result["total_customers"] == 0
         assert result["active_customers"] == 0
@@ -1291,7 +1291,7 @@ class TestEdgeCases:
         assert result["churn_risk_customers"] == 0
         assert result["active_rate"] == 0
 
-    def test_get_industry_distribution_percentage_sum(self, analytics_service):
+    async def test_get_industry_distribution_percentage_sum(self, analytics_service):
         """测试行业分布百分比总和"""
         service, mock_db = analytics_service
 
@@ -1302,7 +1302,7 @@ class TestEdgeCases:
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
-        result = service.get_industry_distribution()
+        result = await service.get_industry_distribution()
 
         total_percentage = sum(item["percentage"] for item in result)
         assert abs(total_percentage - 100.0) < 0.01  # 允许浮点误差

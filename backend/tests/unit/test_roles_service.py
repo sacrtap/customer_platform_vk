@@ -4,8 +4,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 
 from app.services.roles import RoleService
-from app.models.roles import Role
-from app.models.permissions import Permission
+from app.models.users import Role, Permission
 
 
 # ==================== Fixtures ====================

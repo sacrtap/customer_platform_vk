@@ -9,7 +9,7 @@ import sys
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
-from app.models.task_log import SyncTaskLog  # noqa: E402
+from app.models.billing import SyncTaskLog  # noqa: E402
 from app.tasks.email_tasks import send_overdue_emails, _log_email_task  # noqa: E402
 
 

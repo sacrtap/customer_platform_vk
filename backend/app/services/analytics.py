@@ -644,7 +644,7 @@ class AnalyticsService:
             usage_result = (await self.db.execute(usage_stmt)).all()
 
             for usage_row in usage_result:
-                predicted_amount = self._calculate_predicted_amount(
+                predicted_amount = await self._calculate_predicted_amount(
                     pricing_type=row.pricing_type,
                     unit_price=float(row.unit_price)
                     if row.unit_price
