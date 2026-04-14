@@ -42,13 +42,13 @@ const initChart = () => {
 
   chart = echarts.init(chartRef.value)
 
-  const option = {
+  const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: echarts.EChartsOption['tooltip']) => {
+      formatter: (params: any) => {
         if (!Array.isArray(params)) return ''
         let result = `${params[0].axisValue}<br/>`
-        params.forEach((param: echarts.TooltipComponentFormatterCallbackParams) => {
+        params.forEach((param: any) => {
           result += `${param.marker} ${param.seriesName}: ¥${(param.value as number).toLocaleString()}<br/>`
         })
         return result

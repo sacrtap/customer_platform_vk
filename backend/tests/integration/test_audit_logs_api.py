@@ -22,20 +22,20 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text(
             "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 确保超级管理员角色存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
@@ -44,7 +44,7 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
     )
 
     # 确保 system:view 权限存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
@@ -53,17 +53,15 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
     )
 
     # 获取角色 ID 和权限 ID
-    result = await db_session.execute(
-        text("SELECT id FROM roles WHERE name = '超级管理员'")
-    )
+    result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
     role_id = result.scalar_one()
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
@@ -71,10 +69,10 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
         """),
         {"role_id": role_id, "perm_id": perm_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 创建测试用户
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -86,16 +84,16 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 获取用户 ID 并分配角色
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM users WHERE username = :username"),
         {"username": username},
     )
     user_id = result.scalar_one()
 
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
@@ -103,7 +101,7 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
         """),
         {"user_id": user_id, "role_id": role_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -129,17 +127,17 @@ async def test_list_audit_logs_success(test_client, db_session: AsyncSession):
         assert "page" in data["data"]
         assert "page_size" in data["data"]
     finally:
-        await db_session.execute(
+        db_session.execute(
             text(
                 "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
             ),
             {"username": username},
         )
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -151,20 +149,20 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text(
             "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 确保超级管理员角色存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
@@ -173,7 +171,7 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
     )
 
     # 确保 system:view 权限存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
@@ -182,17 +180,17 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
     )
 
     # 获取角色 ID 和权限 ID
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM roles WHERE name = '超级管理员'")
     )
     role_id = result.scalar_one()
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
@@ -200,10 +198,10 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
         """),
         {"role_id": role_id, "perm_id": perm_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 创建测试用户
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -215,16 +213,16 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 获取用户 ID 并分配角色
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM users WHERE username = :username"),
         {"username": username},
     )
     user_id = result.scalar_one()
 
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
@@ -232,7 +230,7 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
         """),
         {"user_id": user_id, "role_id": role_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -242,7 +240,7 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
         assert login_response.status == 200
         token = login_response.json["data"]["access_token"]
 
-        result = await db_session.execute(
+        result = db_session.execute(
             text("SELECT id FROM users WHERE username = :username"),
             {"username": username},
         )
@@ -274,17 +272,17 @@ async def test_list_audit_logs_with_filters(test_client, db_session: AsyncSessio
         assert data["data"]["page"] == 1
         assert data["data"]["page_size"] == 10
     finally:
-        await db_session.execute(
+        db_session.execute(
             text(
                 "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
             ),
             {"username": username},
         )
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -296,20 +294,20 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text(
             "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 确保超级管理员角色存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
@@ -318,7 +316,7 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
     )
 
     # 确保 system:view 权限存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
@@ -327,17 +325,17 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
     )
 
     # 获取角色 ID 和权限 ID
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM roles WHERE name = '超级管理员'")
     )
     role_id = result.scalar_one()
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
@@ -345,10 +343,10 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
         """),
         {"role_id": role_id, "perm_id": perm_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 创建测试用户
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -360,16 +358,16 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 获取用户 ID 并分配角色
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM users WHERE username = :username"),
         {"username": username},
     )
     user_id = result.scalar_one()
 
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
@@ -377,7 +375,7 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
         """),
         {"user_id": user_id, "role_id": role_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -399,17 +397,17 @@ async def test_get_audit_actions_success(test_client, db_session: AsyncSession):
         assert data["message"] == "success"
         assert isinstance(data["data"], list)
     finally:
-        await db_session.execute(
+        db_session.execute(
             text(
                 "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
             ),
             {"username": username},
         )
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -421,20 +419,20 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    await db_session.execute(
+    db_session.execute(
         text("DELETE FROM users WHERE username = :username"),
         {"username": username},
     )
-    await db_session.execute(
+    db_session.execute(
         text(
             "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
         ),
         {"username": username},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 确保超级管理员角色存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
@@ -443,7 +441,7 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
     )
 
     # 确保 system:view 权限存在
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('system:view', '查看系统', '查看同步/审计日志', 'system', NOW())
@@ -452,17 +450,17 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
     )
 
     # 获取角色 ID 和权限 ID
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM roles WHERE name = '超级管理员'")
     )
     role_id = result.scalar_one()
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM permissions WHERE code = 'system:view'")
     )
     perm_id = result.scalar_one()
 
     # 将权限关联到角色
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
@@ -470,10 +468,10 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
         """),
         {"role_id": role_id, "perm_id": perm_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 创建测试用户
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
@@ -485,16 +483,16 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
             "is_active": True,
         },
     )
-    await db_session.commit()
+    db_session.commit()
 
     # 获取用户 ID 并分配角色
-    result = await db_session.execute(
+    result = db_session.execute(
         text("SELECT id FROM users WHERE username = :username"),
         {"username": username},
     )
     user_id = result.scalar_one()
 
-    await db_session.execute(
+    db_session.execute(
         text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
@@ -502,7 +500,7 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
         """),
         {"user_id": user_id, "role_id": role_id},
     )
-    await db_session.commit()
+    db_session.commit()
 
     try:
         login_request, login_response = await test_client.post(
@@ -524,14 +522,14 @@ async def test_get_audit_modules_success(test_client, db_session: AsyncSession):
         assert data["message"] == "success"
         assert isinstance(data["data"], list)
     finally:
-        await db_session.execute(
+        db_session.execute(
             text(
                 "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
             ),
             {"username": username},
         )
-        await db_session.execute(
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        await db_session.commit()
+        db_session.commit()

@@ -45,11 +45,11 @@ const chartOption = computed<EChartsOption>(() => {
 
   const colors = ['#0369A1', '#0284C7', '#0EA5E9', '#38BDF8', '#7DD3FC', '#BAE6FD']
 
-  return {
+  const option = {
     color: colors,
     tooltip: {
       trigger: 'item',
-      formatter: (params: { name: string; value: number; data: { percentage: number } }) => {
+      formatter: (params: any) => {
         return `${params.name}<br/>用量：${params.value.toLocaleString()}<br/>占比：${params.data.percentage}%`
       },
     },
@@ -124,6 +124,8 @@ const chartOption = computed<EChartsOption>(() => {
       },
     ],
   }
+
+  return option as EChartsOption
 })
 </script>
 
