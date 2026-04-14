@@ -1,7 +1,7 @@
 # 设计文档：删除 customers.business_type，改用 customer_profiles.industry
 
 **日期**: 2026-04-15
-**状态**: 待批准
+**状态**: 已完成
 **范围**: 客户管理模块 - 行业类型字段统一
 
 ---
