@@ -8,6 +8,8 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     Index,
+    Date,
+    Numeric,
 )
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -30,9 +32,24 @@ class Customer(BaseModel):
     is_key_customer = Column(Boolean, default=False, index=True)
     email = Column(String(100), index=True)
 
+    # === 新增字段（方案A） ===
+    erp_system = Column(String(100), nullable=True)  # 所属 ERP 系统
+    first_payment_date = Column(Date, nullable=True)  # 首次回款时间
+    onboarding_date = Column(Date, nullable=True)  # 客户接入时间
+    sales_manager_id = Column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )  # 销售负责人
+    cooperation_status = Column(String(50), nullable=True, index=True, default="active")  # 合作状态
+    is_settlement_enabled = Column(Boolean, nullable=True, default=True)  # 是否启用结算
+    is_disabled = Column(Boolean, nullable=True, default=False, index=True)  # 是否停用
+    notes = Column(Text, nullable=True)  # 备注
+
     __table_args__ = (
         Index("idx_customer_manager_level", "manager_id", "customer_level"),
         Index("idx_customer_business_settlement", "business_type", "settlement_type"),
+        Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
+        Index("idx_customer_cooperation_status", "cooperation_status"),  # 新增
+        Index("idx_customer_disabled", "is_disabled"),  # 新增
     )
 
     # 关联
@@ -56,6 +73,12 @@ class CustomerProfile(BaseModel):
     industry = Column(String(100))
     is_real_estate = Column(Boolean, default=False)
     description = Column(Text)
+
+    # === 新增字段（方案A） ===
+    monthly_avg_shots = Column(Integer, nullable=True)  # 月均拍摄量（实际）
+    monthly_avg_shots_estimated = Column(Integer, nullable=True)  # 月均拍摄量（测算）
+    estimated_annual_spend = Column(Numeric(12, 2), nullable=True)  # 预估年消费
+    actual_annual_spend_2025 = Column(Numeric(12, 2), nullable=True)  # 2025年实际消费
 
     # 关联
     customer = relationship("Customer", back_populates="profile")
