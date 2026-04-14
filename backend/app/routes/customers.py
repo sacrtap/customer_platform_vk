@@ -164,10 +164,10 @@ async def get_customer(request: Request, customer_id: int):
             "monthly_avg_shots": customer.profile.monthly_avg_shots,
             "monthly_avg_shots_estimated": customer.profile.monthly_avg_shots_estimated,
             "estimated_annual_spend": float(customer.profile.estimated_annual_spend)
-            if customer.profile.estimated_annual_spend
+            if customer.profile.estimated_annual_spend is not None
             else None,
             "actual_annual_spend_2025": float(customer.profile.actual_annual_spend_2025)
-            if customer.profile.actual_annual_spend_2025
+            if customer.profile.actual_annual_spend_2025 is not None
             else None,
         }
     else:
@@ -387,10 +387,10 @@ async def get_profile(request: Request, customer_id: int):
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
                 "estimated_annual_spend": float(profile.estimated_annual_spend)
-                if profile.estimated_annual_spend
+                if profile.estimated_annual_spend is not None
                 else None,
                 "actual_annual_spend_2025": float(profile.actual_annual_spend_2025)
-                if profile.actual_annual_spend_2025
+                if profile.actual_annual_spend_2025 is not None
                 else None,
             },
         }
@@ -437,10 +437,10 @@ async def update_profile(request: Request, customer_id: int):
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
                 "estimated_annual_spend": float(profile.estimated_annual_spend)
-                if profile.estimated_annual_spend
+                if profile.estimated_annual_spend is not None
                 else None,
                 "actual_annual_spend_2025": float(profile.actual_annual_spend_2025)
-                if profile.actual_annual_spend_2025
+                if profile.actual_annual_spend_2025 is not None
                 else None,
             },
         }
