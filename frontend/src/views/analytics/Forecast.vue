@@ -208,8 +208,8 @@ const loadData = async () => {
     filters.customer_id = customerId.value
 
     await loadPredictionData()
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   } finally {
     loading.value = false
   }

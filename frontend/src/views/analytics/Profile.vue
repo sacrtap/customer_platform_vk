@@ -108,6 +108,31 @@ import {
   getRealEstateStats,
 } from '@/api/analytics'
 
+interface IndustryData {
+  industry: string
+  count: number
+}
+
+interface LevelData {
+  level: string
+  count: number
+}
+
+interface ScaleData {
+  scale_level: string
+  count: number
+}
+
+interface ConsumeLevelData {
+  consume_level: string
+  count: number
+}
+
+interface RealEstateData {
+  real_estate_customers: number
+  non_real_estate_customers: number
+}
+
 const industryChartRef = ref<HTMLElement>()
 const levelChartRef = ref<HTMLElement>()
 const scaleChartRef = ref<HTMLElement>()
@@ -139,8 +164,8 @@ const loadData = async () => {
       loadConsumeLevelData(),
       loadRealEstateData(),
     ])
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   }
 }
 
@@ -149,7 +174,7 @@ const loadIndustryData = async () => {
   const res = await getIndustryDistribution()
   const data = res.data || []
   industryCount.value = data.length
-  totalCustomers.value = data.reduce((sum: number, item: any) => sum + item.count, 0)
+  totalCustomers.value = data.reduce((sum: number, item: { count: number }) => sum + item.count, 0)
   initIndustryChart(data)
 }
 
@@ -187,7 +212,7 @@ const loadRealEstateData = async () => {
 }
 
 // 初始化行业分布图表
-const initIndustryChart = (data: any[]) => {
+const initIndustryChart = (data: IndustryData[]) => {
   if (!industryChartRef.value) return
 
   if (industryChart) {
@@ -262,7 +287,7 @@ const initIndustryChart = (data: any[]) => {
 }
 
 // 初始化客户等级图表
-const initLevelChart = (data: any[]) => {
+const initLevelChart = (data: LevelData[]) => {
   if (!levelChartRef.value) return
 
   if (levelChart) {
@@ -323,7 +348,7 @@ const initLevelChart = (data: any[]) => {
 }
 
 // 初始化规模等级图表
-const initScaleChart = (data: any[]) => {
+const initScaleChart = (data: ScaleData[]) => {
   if (!scaleChartRef.value) return
 
   if (scaleChart) {
@@ -384,7 +409,7 @@ const initScaleChart = (data: any[]) => {
 }
 
 // 初始化消费等级图表
-const initConsumeLevelChart = (data: any[]) => {
+const initConsumeLevelChart = (data: ConsumeLevelData[]) => {
   if (!consumeLevelChartRef.value) return
 
   if (consumeLevelChart) {
@@ -445,7 +470,7 @@ const initConsumeLevelChart = (data: any[]) => {
 }
 
 // 初始化房产客户图表
-const initRealEstateChart = (data: any) => {
+const initRealEstateChart = (data: RealEstateData) => {
   if (!realEstateChartRef.value) return
 
   if (realEstateChart) {

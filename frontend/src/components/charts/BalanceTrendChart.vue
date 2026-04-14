@@ -12,6 +12,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
+import type { CallbackDataParams } from 'echarts/types/dist/shared'
 
 interface TrendItem {
   month: string
@@ -45,10 +46,11 @@ const initChart = () => {
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
-        if (!Array.isArray(params)) return ''
-        let result = `${params[0].axisValue}<br/>`
-        params.forEach((param: any) => {
+      formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
+        const arr = Array.isArray(params) ? params : [params]
+        if (arr.length === 0) return ''
+        let result = `${arr[0].axisValue}<br/>`
+        arr.forEach((param: CallbackDataParams) => {
           result += `${param.marker} ${param.seriesName}: ¥${(param.value as number).toLocaleString()}<br/>`
         })
         return result

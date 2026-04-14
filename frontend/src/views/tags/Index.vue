@@ -181,11 +181,11 @@ const loadTags = async () => {
       type: activeTab.value,
     })
 
-    const tagsList = (res.data as any).list || []
-    pagination.total = (res.data as any).total || 0
+    const tagsList = (res.data as Record<string, unknown>).list as Tag[] || []
+    pagination.total = ((res.data as Record<string, unknown>).total as number) || 0
     allTags.value = tagsList
-  } catch (error: any) {
-    Message.error(error.message || '加载标签列表失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载标签列表失败')
   } finally {
     loading.value = false
   }
@@ -263,8 +263,8 @@ const handleTagSubmit = async () => {
     // 等待刷新完成，确保数据已加载
     await loadTags()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '操作失败')
     return false
   } finally {
     submitting.value = false
@@ -277,8 +277,8 @@ const handleDelete = async (id: number) => {
     Message.success('删除成功')
     // 等待刷新完成
     await loadTags()
-  } catch (error: any) {
-    Message.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '删除失败')
   }
 }
 

@@ -449,7 +449,7 @@ import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
-import type { ImportResult, IndustryType } from '@/types'
+import type { ImportResult, IndustryType, Customer } from '@/types'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -469,13 +469,13 @@ const advancedFilters = reactive({
 })
 
 const managersLoading = ref(false)
-const managers = ref<any[]>([])
+const managers = ref<Array<Record<string, unknown>>>([])
 const tagsLoading = ref(false)
-const customerTags = ref<any[]>([])
+const customerTags = ref<Array<Record<string, unknown>>>([])
 const industryTypes = ref<IndustryType[]>([])
 
 const loading = ref(false)
-const customers = ref<any[]>([])
+const customers = ref<Customer[]>([])
 
 const pagination = reactive({
   current: 1,
@@ -520,7 +520,16 @@ const getManagerName = (managerId: number | null | undefined): string => {
 const loadCustomers = async () => {
   loading.value = true
   try {
-    const params: any = {
+    const params: {
+      page: number
+      page_size: number
+      keyword?: string
+      account_type?: string
+      business_type?: string
+      customer_level?: string
+      manager_id?: number
+      is_key_customer?: boolean
+    } = {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
@@ -535,8 +544,8 @@ const loadCustomers = async () => {
     customers.value = res.data.list || []
     pagination.total = res.data.total || 0
     pagination.current = res.data.page || 1
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -577,8 +586,8 @@ const handleDelete = async (id: number) => {
         await deleteCustomer(id)
         Message.success('删除成功')
         loadCustomers()
-      } catch (error: any) {
-        Message.error(error.message || '删除失败')
+      } catch (error: unknown) {
+        Message.error((error as Error).message || '删除失败')
       }
     },
   })
@@ -596,7 +605,7 @@ const loadManagers = async () => {
   try {
     const res = await getManagers()
     managers.value = res.data?.list || res.data || []
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('加载运营经理失败:', error)
   } finally {
     managersLoading.value = false
@@ -609,7 +618,7 @@ const loadCustomerTags = async () => {
   try {
     const res = await getTags({ type: 'customer', page_size: 100 })
     customerTags.value = res.data?.list || []
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('加载标签失败:', error)
   } finally {
     tagsLoading.value = false
@@ -629,7 +638,7 @@ const loadIndustryTypesData = async () => {
 // 导出客户
 const handleExport = async () => {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.business_type) params.business_type = filters.business_type
@@ -653,8 +662,8 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
 
     Message.success('导出成功')
-  } catch (error: any) {
-    Message.error(error.message || '导出失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '导出失败')
   }
 }
 
@@ -704,7 +713,7 @@ const openCreateModal = () => {
 }
 
 // 打开编辑对话框
-const openEditModal = (record: any) => {
+const openEditModal = (record: Customer) => {
   isEditMode.value = true
   editingCustomerId.value = record.id
   Object.assign(customerForm, {
@@ -736,7 +745,7 @@ const handleCustomerSubmit = async () => {
 
   customerModalLoading.value = true
   try {
-    const data: any = {
+    const data: Record<string, unknown> = {
       company_id: customerForm.company_id,
       name: customerForm.name,
       email: customerForm.email || undefined,
@@ -758,8 +767,8 @@ const handleCustomerSubmit = async () => {
     }
     loadCustomers()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '操作失败')
     return false
   } finally {
     customerModalLoading.value = false
@@ -778,14 +787,14 @@ const viewProfile = (id: number) => {
 // ========== 导入客户 ==========
 const importModalVisible = ref(false)
 const importLoading = ref(false)
-const importFileList = ref<any[]>([])
+const importFileList = ref<File[]>([])
 
 const openImportModal = () => {
   importFileList.value = []
   importModalVisible.value = true
 }
 
-const handleImportFileChange = (file: any) => {
+const handleImportFileChange = (file: File) => {
   importFileList.value = [file]
 }
 
@@ -804,8 +813,8 @@ const downloadTemplate = async () => {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     Message.success('模板下载成功')
-  } catch (error: any) {
-    Message.error(error.message || '下载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '下载失败')
   }
 }
 
@@ -835,8 +844,8 @@ const handleImportSubmit = async () => {
     }
     loadCustomers()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '导入失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '导入失败')
     return false
   } finally {
     importLoading.value = false

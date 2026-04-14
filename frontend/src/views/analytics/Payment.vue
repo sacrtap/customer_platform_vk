@@ -136,7 +136,7 @@ const completionRate = ref(0)
 const difference = ref(0)
 
 // 状态统计
-const statusStats = ref<any[]>([])
+const statusStats = ref<Array<{ name: string; count: number; percentage: number }>>([])
 
 // 时间范围变化
 const handleTimeRangeChange = () => {
@@ -186,8 +186,8 @@ const loadData = async () => {
   try {
     await Promise.all([loadPaymentData(), loadStatusData()])
     calculateStats()
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   }
 }
 

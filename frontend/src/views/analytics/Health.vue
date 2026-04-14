@@ -292,8 +292,8 @@ const loadHealthStats = async () => {
     warningCustomers.value = data.warning_customers || 0
     churnRiskCustomers.value = data.churn_risk_customers || 0
     activeRate.value = data.active_rate || 0
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -306,8 +306,8 @@ const loadWarningList = async () => {
     const res = await getWarningList({ threshold: 1000 })
     warningList.value = res.data || []
     warningPagination.total = warningList.value.length
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   } finally {
     loading.value = false
   }
@@ -318,13 +318,13 @@ const loadInactiveList = async () => {
   loading.value = true
   try {
     const res = await getInactiveList({ days: inactiveDays.value })
-    inactiveList.value = (res.data || []).map((item: any) => ({
+    inactiveList.value = (res.data || []).map((item: InactiveCustomer) => ({
       ...item,
       days_inactive: item.days || 0,
     }))
     inactivePagination.total = inactiveList.value.length
-  } catch (error: any) {
-    Message.error(error.message || '加载失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载失败')
   } finally {
     loading.value = false
   }

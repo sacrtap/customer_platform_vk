@@ -16,6 +16,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { PieChart } from 'echarts/charts'
 import { TitleComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import type { EChartsOption } from 'echarts'
+import type { CallbackDataParams } from 'echarts/types/dist/shared'
 
 use([CanvasRenderer, PieChart, TitleComponent, LegendComponent, TooltipComponent])
 
@@ -49,8 +50,8 @@ const chartOption = computed<EChartsOption>(() => {
     color: colors,
     tooltip: {
       trigger: 'item',
-      formatter: (params: any) => {
-        return `${params.name}<br/>用量：${params.value.toLocaleString()}<br/>占比：${params.data.percentage}%`
+      formatter: (params: CallbackDataParams) => {
+        return `${params.name}<br/>用量：${(params.value as number).toLocaleString()}<br/>占比：${(params.data as Record<string, unknown>)?.percentage}%`
       },
     },
     legend: {

@@ -54,7 +54,7 @@
         <template #roles="{ record }">
           <a-tooltip
             v-if="record.roles && record.roles.length > 0"
-            :content="record.roles?.map((r: any) => r.name).join(', ') || '-'"
+            :content="record.roles?.map((r: { name: string }) => r.name).join(', ') || '-'"
           >
             <span>
               <a-tag
@@ -309,7 +309,7 @@ const passwordFormRules = {
   confirmPassword: [
     { required: true, message: '请确认新密码' },
     {
-      validator: (value: any, callback: (error?: Error) => void) => {
+      validator: (value: string | undefined, callback: (error?: Error) => void) => {
         if (!value) {
           callback()
           return
@@ -333,14 +333,14 @@ const loadUsers = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    users.value = (res.data as any).list.map((item: ApiUser) => ({
+    users.value = ((res.data as Record<string, unknown>).list as ApiUser[]).map((item: ApiUser) => ({
       ...item,
       roles: item.roles || [],
       role_ids: item.roles?.map((r) => r.id) || [],
     }))
-    pagination.total = (res.data as any).total || 0
-  } catch (error: any) {
-    Message.error(error.message || '加载用户列表失败')
+    pagination.total = ((res.data as Record<string, unknown>).total as number) || 0
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载用户列表失败')
   } finally {
     loading.value = false
   }
@@ -349,9 +349,9 @@ const loadUsers = async () => {
 const loadRoles = async () => {
   try {
     const res = await getRoles({ page: 1, page_size: 100 })
-    availableRoles.value = (res.data as any).list || []
-  } catch (error: any) {
-    Message.error(error.message || '加载角色列表失败')
+    availableRoles.value = (res.data as Record<string, unknown>).list as Array<Record<string, unknown>> || []
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载角色列表失败')
   }
 }
 
@@ -408,9 +408,9 @@ const handleUserModalCancel = () => {
 const handleUserSubmit = async () => {
   try {
     await userFormRef.value?.validate()
-  } catch (error: any) {
-    if (error?.message) {
-      Message.error(error.message)
+  } catch (error: unknown) {
+    if ((error as Error)?.message) {
+      Message.error((error as Error).message)
     }
     return
   }
@@ -443,8 +443,8 @@ const handleUserSubmit = async () => {
     }
     userModalVisible.value = false
     loadUsers()
-  } catch (error: any) {
-    Message.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '操作失败')
   } finally {
     submitting.value = false
   }
@@ -455,8 +455,8 @@ const handleDelete = async (id: number) => {
     await deleteUser(id)
     Message.success('删除成功')
     loadUsers()
-  } catch (error: any) {
-    Message.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '删除失败')
   }
 }
 
@@ -483,9 +483,9 @@ const handlePasswordSubmit = async () => {
 
   try {
     await passwordFormRef.value?.validate()
-  } catch (error: any) {
-    if (error?.message) {
-      Message.error(error.message)
+  } catch (error: unknown) {
+    if ((error as Error)?.message) {
+      Message.error((error as Error).message)
     }
     return false // 阻止模态框关闭
   }
@@ -497,8 +497,8 @@ const handlePasswordSubmit = async () => {
     await resetPassword(resettingUserId.value, passwordForm.newPassword)
     Message.success('密码重置成功')
     return true // 允许模态框关闭
-  } catch (error: any) {
-    Message.error(error.message || '密码重置失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '密码重置失败')
     return false // 阻止模态框关闭
   } finally {
     resettingPassword.value = false

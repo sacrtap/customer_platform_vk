@@ -220,7 +220,7 @@ const loading = ref(false)
 const balances = ref<Balance[]>([])
 
 // 客户选项
-const customerOptions = ref<any[]>([])
+const customerOptions = ref<Array<{ label: string; value: number; company_id?: string }>>([])
 
 // 表格列定义
 const columns = [
@@ -265,7 +265,11 @@ const recordColumns = [
 const loadBalances = async () => {
   loading.value = true
   try {
-    const params: any = {
+    const params: {
+      page: number
+      page_size: number
+      customer_id?: number
+    } = {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
@@ -275,8 +279,8 @@ const loadBalances = async () => {
     balances.value = res.data.list || []
     pagination.total = res.data.total || 0
     pagination.current = res.data.page || 1
-  } catch (error: any) {
-    Message.error(error.message || '加载余额列表失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载余额列表失败')
   } finally {
     loading.value = false
   }
@@ -347,8 +351,8 @@ const handleRecharge = async () => {
     Message.success('充值成功')
     loadBalances()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '充值失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '充值失败')
     return false
   } finally {
     rechargeLoading.value = false
@@ -368,8 +372,8 @@ const viewRechargeRecords = async (record: Balance) => {
     })
     rechargeRecords.value = res.data.list || res.data.items || []
     recordPagination.total = res.data.total || 0
-  } catch (error: any) {
-    Message.error(error.message || '加载充值记录失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载充值记录失败')
   } finally {
     recordLoading.value = false
   }
@@ -388,8 +392,8 @@ const loadRechargeRecords = async () => {
     })
     rechargeRecords.value = res.data.list || []
     recordPagination.total = res.data.total || 0
-  } catch (error: any) {
-    Message.error(error.message || '加载充值记录失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载充值记录失败')
   } finally {
     recordLoading.value = false
   }

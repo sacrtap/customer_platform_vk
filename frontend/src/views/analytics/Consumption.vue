@@ -229,7 +229,7 @@ const loadData = async () => {
   try {
     await Promise.all([loadTrendData(), loadTopCustomersData(), loadDeviceData()])
     calculateStats()
-  } catch (error: any) {
+  } catch (error: unknown) {
     Message.error(error.message || '加载失败')
   } finally {
     loading.value = false

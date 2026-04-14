@@ -227,9 +227,16 @@ const savingPermissions = ref(false)
 const currentRole = ref<Role | null>(null)
 const selectedPermissionIds = ref<number[]>([])
 
+interface PermissionTreeNode {
+  id: string | number
+  name: string
+  title: string
+  children?: PermissionTreeNode[]
+}
+
 const permissionsTree = computed(() => {
-  const tree: any[] = []
-  const moduleMap = new Map<string, any>()
+  const tree: PermissionTreeNode[] = []
+  const moduleMap = new Map<string, PermissionTreeNode>()
 
   allPermissions.value.forEach((perm) => {
     const module = perm.module || '其他'
@@ -268,14 +275,14 @@ const loadRoles = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    const data = res.data as any
-    roles.value = (data.list || []).map((item: ApiRole) => ({
+    const data = res.data as Record<string, unknown>
+    roles.value = (data.list as ApiRole[] || []).map((item: ApiRole) => ({
       ...item,
       isSystem: item.isSystem || false,
     }))
     pagination.total = data.total || 0
-  } catch (error: any) {
-    Message.error(error.message || '加载角色列表失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载角色列表失败')
   } finally {
     loading.value = false
   }
@@ -285,8 +292,8 @@ const loadPermissions = async () => {
   try {
     const res = await getPermissions()
     allPermissions.value = res.data || []
-  } catch (error: any) {
-    Message.error(error.message || '加载权限列表失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载权限列表失败')
   }
 }
 
@@ -356,8 +363,8 @@ const handleRoleSubmit = async () => {
     }
     loadRoles()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '操作失败')
     return false
   } finally {
     submitting.value = false
@@ -369,8 +376,8 @@ const handleDelete = async (id: number) => {
     await deleteRole(id)
     Message.success('删除成功')
     loadRoles()
-  } catch (error: any) {
-    Message.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '删除失败')
   }
 }
 
@@ -382,8 +389,8 @@ const handlePermissionConfig = async (record: Role) => {
     const res = await getRole(record.id)
     const roleData = res.data as ApiRole
     selectedPermissionIds.value = roleData.permissions?.map((p) => p.id) || []
-  } catch (error: any) {
-    Message.error(error.message || '加载角色权限失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载角色权限失败')
   }
 
   permissionModalVisible.value = true
@@ -409,8 +416,8 @@ const handlePermissionSubmit = async () => {
     Message.success('权限配置成功')
     loadRoles()
     return true
-  } catch (error: any) {
-    Message.error(error.message || '权限配置失败')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '权限配置失败')
     return false
   } finally {
     savingPermissions.value = false

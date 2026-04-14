@@ -350,6 +350,7 @@ import StatCard from '@/components/StatCard.vue'
 import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
+import type { ApiResponse } from '@/types'
 
 const loading = ref(false)
 const chartRef = ref<HTMLElement>()
@@ -402,7 +403,7 @@ const loadStats = async () => {
 // 加载图表数据
 const loadChartData = async () => {
   try {
-    const res: any = await getDashboardChartData({ months: 12 })
+    const res: ApiResponse<Record<string, unknown>> = await getDashboardChartData({ months: 12 })
     await nextTick()
     initChart(res.data.consumption_trend)
   } catch (error) {
@@ -492,7 +493,7 @@ const loadTodos = async () => {
   try {
     const res = await getPendingTasks()
     // Mock 数据返回的是 items
-    todos.value = res.data.items.map((item: any) => ({
+    todos.value = res.data.items.map((item: { id: number; title: string; priority: string; priority_text: string; due_date: string }) => ({
       id: item.id,
       title: item.title,
       priority: item.priority,

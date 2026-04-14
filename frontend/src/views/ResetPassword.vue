@@ -102,7 +102,7 @@ const formData = reactive({
 
 const loading = ref(false)
 
-const validatePasswordMatch = (value: any) => {
+const validatePasswordMatch = (value: string | undefined) => {
   return value === formData.new_password
 }
 
