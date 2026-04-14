@@ -95,11 +95,15 @@
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="6">
-            <a-form-item label="业务类型">
-              <a-select v-model="filters.business_type" placeholder="请选择" allow-clear>
-                <a-option value="A">A 类业务</a-option>
-                <a-option value="B">B 类业务</a-option>
-                <a-option value="C">C 类业务</a-option>
+            <a-form-item label="行业类型">
+              <a-select v-model="filters.business_type" placeholder="请选择行业类型" allow-clear>
+                <a-option
+                  v-for="item in industryTypes"
+                  :key="item.id"
+                  :value="item.name"
+                >
+                  {{ item.name }}
+                </a-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -292,15 +296,19 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item field="business_type" label="业务类型">
+            <a-form-item field="business_type" label="行业类型">
               <a-select
                 v-model="customerForm.business_type"
-                placeholder="请选择业务类型"
+                placeholder="请选择行业类型"
                 allow-clear
               >
-                <a-option value="A">A 类业务</a-option>
-                <a-option value="B">B 类业务</a-option>
-                <a-option value="C">C 类业务</a-option>
+                <a-option
+                  v-for="item in industryTypes"
+                  :key="item.id"
+                  :value="item.name"
+                >
+                  {{ item.name }}
+                </a-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -435,12 +443,13 @@ import {
   updateCustomer,
   importCustomers,
   downloadImportTemplate,
+  getIndustryTypes,
 } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
-import type { ImportResult } from '@/types'
+import type { ImportResult, IndustryType } from '@/types'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -463,6 +472,7 @@ const managersLoading = ref(false)
 const managers = ref<any[]>([])
 const tagsLoading = ref(false)
 const customerTags = ref<any[]>([])
+const industryTypes = ref<IndustryType[]>([])
 
 const loading = ref(false)
 const customers = ref<any[]>([])
@@ -478,7 +488,7 @@ const pagination = reactive({
 const columns = [
   { title: '公司 ID', dataIndex: 'company_id', width: 140, ellipsis: true, tooltip: true },
   { title: '客户名称', dataIndex: 'name', width: 250, ellipsis: true, tooltip: true },
-  { title: '业务类型', dataIndex: 'business_type', width: 100 },
+  { title: '行业类型', dataIndex: 'business_type', width: 100 },
   { title: '客户等级', dataIndex: 'customer_level', width: 100 },
   { title: '结算方式', slotName: 'settlementType', width: 100 },
   { title: '运营经理', slotName: 'manager', width: 150, ellipsis: true, tooltip: true },
@@ -603,6 +613,16 @@ const loadCustomerTags = async () => {
     console.error('加载标签失败:', error)
   } finally {
     tagsLoading.value = false
+  }
+}
+
+// 加载行业类型
+const loadIndustryTypesData = async () => {
+  try {
+    const res = await getIndustryTypes()
+    industryTypes.value = res.data?.data || res.data || []
+  } catch (error) {
+    console.error('Failed to load industry types:', error)
   }
 }
 
@@ -827,6 +847,7 @@ onMounted(() => {
   loadCustomers()
   loadManagers()
   loadCustomerTags()
+  loadIndustryTypesData()
 })
 </script>
 

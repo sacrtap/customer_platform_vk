@@ -48,7 +48,7 @@
                     </td>
                   </tr>
                   <tr>
-                    <td class="label-cell">业务类型</td>
+                    <td class="label-cell">行业类型</td>
                     <td class="value-cell">
                       <a-tag>{{ customer.business_type || '-' }}</a-tag>
                     </td>
@@ -305,8 +305,8 @@
               <a-option value="测试账号">测试账号</a-option>
             </a-select>
           </a-form-item>
-          <a-form-item field="business_type" label="业务类型">
-            <a-select v-model="editForm.business_type" placeholder="请选择业务类型" allow-clear>
+          <a-form-item field="business_type" label="行业类型">
+            <a-select v-model="editForm.business_type" placeholder="请选择行业类型" allow-clear>
               <a-option value="A">A 类</a-option>
               <a-option value="B">B 类</a-option>
               <a-option value="C">C 类</a-option>
