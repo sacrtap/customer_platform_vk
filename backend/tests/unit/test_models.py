@@ -166,7 +166,6 @@ class TestCustomerGroupMemberModel:
             company_id="TEST001",
             name="测试客户公司",
             account_type="enterprise",
-            business_type="retail",
             customer_level="VIP",
             manager_id=user.id,
         )
@@ -245,7 +244,9 @@ class TestCustomerGroupMemberModel:
 
         # 验证客户的 group_memberships 关联
         result = await async_session.execute(
-            select(CustomerGroupMember).where(CustomerGroupMember.customer_id == customer.id)
+            select(CustomerGroupMember).where(
+                CustomerGroupMember.customer_id == customer.id
+            )
         )
         customer_memberships = result.scalars().all()
         assert len(customer_memberships) == 1
