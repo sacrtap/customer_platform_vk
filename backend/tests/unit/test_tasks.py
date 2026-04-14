@@ -310,15 +310,24 @@ class TestWebhookCleanupTask:
     """测试 Webhook 清理任务"""
 
     @pytest.mark.asyncio
-    async def test_cleanup_old_webhook_signatures(self):
+    async def test_cleanup_webhook_signatures(self):
         """测试清理旧的 Webhook 签名"""
         mock_session = AsyncMock()
         mock_session.commit = AsyncMock()
+        mock_session.rollback = AsyncMock()
+
+        # Mock execute 返回空结果（无过期签名）
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_session.execute.return_value = mock_result
 
         try:
-            from app.tasks.webhook_cleanup import cleanup_old_webhook_signatures
+            from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
-            await cleanup_old_webhook_signatures(mock_session)
+            await cleanup_webhook_signatures(mock_session)
+
+            # 验证 execute 被调用（查询过期记录）
+            assert mock_session.execute.called
         except ImportError:
             pytest.skip("webhook_cleanup 模块不存在")
 
