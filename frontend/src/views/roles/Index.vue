@@ -398,9 +398,14 @@ const handlePermissionModalCancel = () => {
 const handlePermissionSubmit = async () => {
   if (!currentRole.value) return false
 
+  // 过滤掉模块节点 ID（字符串），只保留数字类型的权限 ID
+  const validPermIds = selectedPermissionIds.value.filter(
+    (id): id is number => typeof id === 'number'
+  )
+
   savingPermissions.value = true
   try {
-    await updateRolePermissions(currentRole.value.id, selectedPermissionIds.value)
+    await updateRolePermissions(currentRole.value.id, validPermIds)
     Message.success('权限配置成功')
     loadRoles()
     return true
