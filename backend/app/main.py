@@ -108,6 +108,7 @@ def create_app(
     from .routes.groups import groups_bp
     from .routes.roles import roles_bp
     from .routes.permissions import permissions_bp
+    from .routes.dict_routes import dict_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
@@ -124,6 +125,7 @@ def create_app(
     app.blueprint(groups_bp)
     app.blueprint(roles_bp)
     app.blueprint(permissions_bp)
+    app.blueprint(dict_bp)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
