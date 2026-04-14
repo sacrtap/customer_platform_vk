@@ -113,3 +113,8 @@ export function exportCustomers(params?: {
     responseType: 'blob',
   })
 }
+
+// 获取行业类型字典
+export function getIndustryTypes() {
+  return api.get('/dicts/industry_types')
+}

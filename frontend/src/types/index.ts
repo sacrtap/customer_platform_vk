@@ -104,6 +104,13 @@ export interface CustomerProfile {
   updated_at: string
 }
 
+/** 行业类型字典 */
+export interface IndustryType {
+  id: number
+  name: string
+  sort_order: number
+}
+
 /** 计费规则 */
 export interface PricingRule {
   id: number
