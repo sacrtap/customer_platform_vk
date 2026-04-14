@@ -89,9 +89,7 @@ class TagService:
         # 检查是否已存在相同名称和类型的标签
         existing = await self.get_tag_by_name_and_type(data["name"], data["type"])
         if existing:
-            raise ValueError(
-                f"标签名称 '{data['name']}' 在类型 '{data['type']}' 中已存在"
-            )
+            raise ValueError(f"标签名称 '{data['name']}' 在类型 '{data['type']}' 中已存在")
 
         tag = Tag(
             name=data["name"],
@@ -171,9 +169,7 @@ class TagService:
     async def add_customer_tag(self, customer_id: int, tag_id: int) -> bool:
         """给客户添加标签"""
         customer = await self.db.execute(
-            select(Customer).where(
-                Customer.id == customer_id, Customer.deleted_at.is_(None)
-            )
+            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
         )
         if not customer.scalar_one_or_none():
             return False
@@ -235,9 +231,7 @@ class TagService:
 
         # 1. Bulk fetch valid customers
         valid_customers_result = await self.db.execute(
-            select(Customer.id).where(
-                Customer.id.in_(customer_ids), Customer.deleted_at.is_(None)
-            )
+            select(Customer.id).where(Customer.id.in_(customer_ids), Customer.deleted_at.is_(None))
         )
         valid_customer_ids = set(valid_customers_result.scalars().all())
 
@@ -271,9 +265,7 @@ class TagService:
                 if (cid, tid) in existing_pairs:
                     continue  # Already exists, skip silently
                 new_tags.append(
-                    CustomerTag(
-                        customer_id=cid, tag_id=tid, created_at=now, updated_at=now
-                    )
+                    CustomerTag(customer_id=cid, tag_id=tid, created_at=now, updated_at=now)
                 )
                 success_count += 1
 
@@ -284,9 +276,7 @@ class TagService:
 
         return success_count, error_count
 
-    async def batch_remove_customer_tags(
-        self, customer_ids: List[int], tag_ids: List[int]
-    ) -> int:
+    async def batch_remove_customer_tags(self, customer_ids: List[int], tag_ids: List[int]) -> int:
         """
         批量移除客户标签（优化版：单条 UPDATE 语句）
 
