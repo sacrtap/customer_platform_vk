@@ -44,7 +44,9 @@ async def list_customers(request: Request):
         "business_type": request.args.get("business_type"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
-            int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
+            int(request.args.get("manager_id", 0))
+            if request.args.get("manager_id")
+            else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -80,7 +82,7 @@ async def list_customers(request: Request):
                     "company_id": c.company_id,
                     "name": c.name,
                     "account_type": c.account_type,
-                    "business_type": c.business_type,
+                    "business_type": c.profile.industry if c.profile else None,
                     "customer_level": c.customer_level,
                     "price_policy": c.price_policy,
                     "manager_id": c.manager_id,
@@ -127,7 +129,7 @@ async def get_customer(request: Request, customer_id: int):
         "company_id": customer.company_id,
         "name": customer.name,
         "account_type": customer.account_type,
-        "business_type": customer.business_type,
+        "business_type": customer.profile.industry if customer.profile else None,
         "customer_level": customer.customer_level,
         "price_policy": customer.price_policy,
         "manager_id": customer.manager_id,
@@ -138,7 +140,9 @@ async def get_customer(request: Request, customer_id: int):
         "created_at": customer.created_at.isoformat() if customer.created_at else None,
         "erp_system": customer.erp_system,
         "first_payment_date": (
-            customer.first_payment_date.isoformat() if customer.first_payment_date else None
+            customer.first_payment_date.isoformat()
+            if customer.first_payment_date
+            else None
         ),
         "onboarding_date": (
             customer.onboarding_date.isoformat() if customer.onboarding_date else None
@@ -179,17 +183,29 @@ async def get_customer(request: Request, customer_id: int):
     if customer.balance:
         data["balance"] = {
             "total_amount": (
-                float(customer.balance.total_amount) if customer.balance.total_amount else 0
+                float(customer.balance.total_amount)
+                if customer.balance.total_amount
+                else 0
             ),
             "real_amount": (
-                float(customer.balance.real_amount) if customer.balance.real_amount else 0
+                float(customer.balance.real_amount)
+                if customer.balance.real_amount
+                else 0
             ),
             "bonus_amount": (
-                float(customer.balance.bonus_amount) if customer.balance.bonus_amount else 0
+                float(customer.balance.bonus_amount)
+                if customer.balance.bonus_amount
+                else 0
             ),
-            "used_total": float(customer.balance.used_total) if customer.balance.used_total else 0,
-            "used_real": float(customer.balance.used_real) if customer.balance.used_real else 0,
-            "used_bonus": float(customer.balance.used_bonus) if customer.balance.used_bonus else 0,
+            "used_total": float(customer.balance.used_total)
+            if customer.balance.used_total
+            else 0,
+            "used_real": float(customer.balance.used_real)
+            if customer.balance.used_real
+            else 0,
+            "used_bonus": float(customer.balance.used_bonus)
+            if customer.balance.used_bonus
+            else 0,
         }
     else:
         data["balance"] = None
@@ -214,7 +230,7 @@ async def create_customer(request: Request):
         "company_id": "string (required)",
         "name": "string (required)",
         "account_type": "string (optional)",
-        "business_type": "string (optional)",
+        "industry": "string (optional)",
         "customer_level": "string (optional)",
         "price_policy": "string (optional)",
         "manager_id": "number (optional)",
@@ -228,7 +244,9 @@ async def create_customer(request: Request):
 
     # 必填字段验证
     if not data.get("company_id") or not data.get("name"):
-        return json({"code": 40001, "message": "公司 ID 和客户名称不能为空"}, status=400)
+        return json(
+            {"code": 40001, "message": "公司 ID 和客户名称不能为空"}, status=400
+        )
 
     # 邮箱格式验证
     email = data.get("email")
@@ -276,7 +294,7 @@ async def update_customer(request: Request, customer_id: int):
         "company_id": "string (optional, 需唯一)",
         "name": "string (optional)",
         "account_type": "string (optional)",
-        "business_type": "string (optional)",
+        "industry": "string (optional)",
         "customer_level": "string (optional)",
         "price_policy": "string (optional)",
         "manager_id": "number (optional)",
@@ -457,7 +475,7 @@ async def import_customers(request: Request):
     - company_id (必填)
     - name (必填)
     - account_type (可选)
-    - business_type (可选)
+    - industry (可选)
     - customer_level (可选)
     - price_policy (可选)
     - settlement_cycle (可选)
@@ -483,7 +501,9 @@ async def import_customers(request: Request):
             and isinstance(df.iloc[0].get("company_id"), str)
             and df.iloc[0].get("company_id") in ("必填", "可选")
         ):
-            df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1])
+            df = pd.read_excel(
+                io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1]
+            )
 
         # 必填列检查
         required_columns = ["company_id", "name"]
@@ -550,7 +570,7 @@ async def download_import_template(request: Request):
         "company_id",
         "name",
         "account_type",
-        "business_type",
+        "industry",
         "customer_level",
         "price_policy",
         "settlement_cycle",
@@ -584,7 +604,7 @@ async def download_import_template(request: Request):
         "COMP001",
         "示例公司 1",
         "正式账号",
-        "A",
+        "项目",
         "KA",
         "定价",
         "月结",
@@ -616,7 +636,7 @@ async def export_customers(request: Request):
     Query:
     - keyword: 关键词
     - account_type: 账号类型
-    - business_type: 业务类型
+    - industry: 行业类型
     - customer_level: 客户等级
     - manager_id: 运营经理 ID
     - settlement_type: 结算方式
@@ -629,7 +649,9 @@ async def export_customers(request: Request):
         "business_type": request.args.get("business_type"),
         "customer_level": request.args.get("customer_level"),
         "manager_id": (
-            int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+            int(request.args.get("manager_id"))
+            if request.args.get("manager_id")
+            else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -644,7 +666,9 @@ async def export_customers(request: Request):
     service = CustomerService(db_session)
 
     # 获取所有匹配的客户（不分页）
-    customers, _ = await service.get_all_customers(page=1, page_size=10000, filters=filters)
+    customers, _ = await service.get_all_customers(
+        page=1, page_size=10000, filters=filters
+    )
 
     # 转换为 DataFrame
     data = []
@@ -654,7 +678,7 @@ async def export_customers(request: Request):
                 "company_id": c.company_id,
                 "name": c.name,
                 "account_type": c.account_type,
-                "business_type": c.business_type,
+                "business_type": c.profile.industry if c.profile else None,
                 "customer_level": c.customer_level,
                 "price_policy": c.price_policy,
                 "settlement_cycle": c.settlement_cycle,
