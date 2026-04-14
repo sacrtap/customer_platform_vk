@@ -26,39 +26,53 @@
     </div>
 
     <div class="tabs-section">
-      <a-tabs v-model="activeTab" @change="handleTabChange">
+      <a-tabs v-model:active-key="activeTab" @change="handleTabChange">
         <a-tab-pane key="customer" title="客户标签">
-          <div v-loading="loading" class="tag-list">
-            <a-tag
-              v-for="tag in customerTags"
-              :key="tag.id"
-              color="arcoblue"
-              size="large"
-              closable
-              style="cursor: pointer"
-              @close="can('tags:delete') && handleDelete(tag.id)"
-              @click="can('tags:edit') && openEditModal(tag)"
-            >
-              {{ tag.name }}
-            </a-tag>
-            <a-empty v-if="!loading && customerTags.length === 0" description="暂无标签" />
+          <div class="tag-list">
+            <template v-if="loading">
+              <div class="loading-container">
+                <a-spin />
+              </div>
+            </template>
+            <template v-else>
+              <a-tag
+                v-for="tag in customerTags"
+                :key="tag.id"
+                color="arcoblue"
+                size="large"
+                closable
+                style="cursor: pointer"
+                @close="can('tags:delete') && handleDelete(tag.id)"
+                @click="can('tags:edit') && openEditModal(tag)"
+              >
+                {{ tag.name }}
+              </a-tag>
+              <a-empty v-if="customerTags.length === 0" description="暂无标签" />
+            </template>
           </div>
         </a-tab-pane>
         <a-tab-pane key="profile" title="画像标签">
-          <div v-loading="loading" class="tag-list">
-            <a-tag
-              v-for="tag in profileTags"
-              :key="tag.id"
-              color="green"
-              size="large"
-              closable
-              style="cursor: pointer"
-              @close="can('tags:delete') && handleDelete(tag.id)"
-              @click="can('tags:edit') && openEditModal(tag)"
-            >
-              {{ tag.name }}
-            </a-tag>
-            <a-empty v-if="!loading && profileTags.length === 0" description="暂无标签" />
+          <div class="tag-list">
+            <template v-if="loading">
+              <div class="loading-container">
+                <a-spin />
+              </div>
+            </template>
+            <template v-else>
+              <a-tag
+                v-for="tag in profileTags"
+                :key="tag.id"
+                color="green"
+                size="large"
+                closable
+                style="cursor: pointer"
+                @close="can('tags:delete') && handleDelete(tag.id)"
+                @click="can('tags:edit') && openEditModal(tag)"
+              >
+                {{ tag.name }}
+              </a-tag>
+              <a-empty v-if="profileTags.length === 0" description="暂无标签" />
+            </template>
           </div>
         </a-tab-pane>
       </a-tabs>
@@ -178,7 +192,8 @@ const loadTags = async () => {
 }
 
 // ========== 事件处理 ==========
-const handleTabChange = () => {
+const handleTabChange = (key: string) => {
+  activeTab.value = key as 'customer' | 'profile'
   pagination.current = 1
   loadTags()
 }
@@ -245,7 +260,8 @@ const handleTagSubmit = async () => {
       })
       Message.success('标签创建成功')
     }
-    loadTags()
+    // 等待刷新完成，确保数据已加载
+    await loadTags()
     return true
   } catch (error: any) {
     Message.error(error.message || '操作失败')
@@ -259,7 +275,8 @@ const handleDelete = async (id: number) => {
   try {
     await deleteTag(id)
     Message.success('删除成功')
-    loadTags()
+    // 等待刷新完成
+    await loadTags()
   } catch (error: any) {
     Message.error(error.message || '删除失败')
   }
@@ -318,6 +335,14 @@ onMounted(() => {
   gap: 12px;
   padding: 16px 0;
   min-height: 60px;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 100px;
 }
 
 .pagination-section {

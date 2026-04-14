@@ -48,10 +48,26 @@ class TestTagService_CreateTag:
         }
         created_by = 1
 
+        # Mock 重复检查返回 None（无重复）
+        mock_check_result = MagicMock()
+        mock_check_result.scalar_one_or_none.return_value = None
+
         # Mock 数据库添加和刷新
         mock_db_session.add = MagicMock()
         mock_db_session.commit = AsyncMock()
         mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))
+
+        # 设置 execute 的 side_effect
+        call_count = {"count": 0}
+
+        async def mock_execute_side_effect(query):
+            call_count["count"] += 1
+            if call_count["count"] == 1:
+                # 第一次调用：重复检查
+                return mock_check_result
+            return mock_check_result
+
+        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
 
         # 执行测试
         result = await tag_service.create_tag(tag_data, created_by)
@@ -73,18 +89,20 @@ class TestTagService_CreateTag:
         }
         created_by = 1
 
-        # Mock 数据库添加
-        mock_db_session.add = MagicMock()
-        mock_db_session.commit = AsyncMock()
-        mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))
+        # Mock 重复检查返回已存在的标签
+        existing_tag = Tag(id=1, name="VIP 客户", type="customer")
+        mock_check_result = MagicMock()
+        mock_check_result.scalar_one_or_none.return_value = existing_tag
+        mock_db_session.execute = AsyncMock(return_value=mock_check_result)
 
-        # 执行测试（当前实现不检查重复，直接创建）
-        result = await tag_service.create_tag(tag_data, created_by)
+        # 执行测试（应该抛出 ValueError）
+        with pytest.raises(
+            ValueError, match="标签名称 'VIP 客户' 在类型 'customer' 中已存在"
+        ):
+            await tag_service.create_tag(tag_data, created_by)
 
-        # 验证结果（当前实现会成功创建）
-        assert result is not None
-        assert isinstance(result, Tag)
-        mock_db_session.add.assert_called_once()
+        # 验证没有调用 add（因为提前检查出重复）
+        mock_db_session.add.assert_not_called()
 
 
 # ==================== Test Customer Tag Operations ====================

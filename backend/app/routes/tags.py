@@ -4,6 +4,7 @@ from sanic import Blueprint
 from sanic.response import json
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from ..services.tags import TagService
 from ..middleware.auth import auth_required, require_permission, get_current_user
 from ..cache.base import cache_service
@@ -135,8 +136,21 @@ async def create_tag(request: Request):
 
     try:
         tag = await service.create_tag(data, created_by=current_user["user_id"])
+    except ValueError as e:
+        # 业务逻辑错误（如重复标签）
+        return json({"code": 40901, "message": str(e)}, status=409)
+    except IntegrityError:
+        # 数据库约束错误（并发情况下可能发生）
+        return json(
+            {
+                "code": 40902,
+                "message": f"标签名称 '{data.get('name')}' 已存在，请使用其他名称",
+            },
+            status=409,
+        )
     except Exception as e:
-        return json({"code": 40003, "message": f"创建失败：{str(e)}"}, status=400)
+        # 其他未知错误（不暴露详细信息给用户）
+        return json({"code": 50001, "message": "创建标签失败，请稍后重试"}, status=500)
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
