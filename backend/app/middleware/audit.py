@@ -53,9 +53,7 @@ def audit_middleware(app: Sanic):
             except Exception:
                 pass
 
-            record_id, record_type = extract_record_info(
-                request.path, request_json, response
-            )
+            record_id, record_type = extract_record_info(request.path, request_json, response)
 
             # 提取变更内容（仅 PUT 请求）
             changes = None
@@ -103,9 +101,7 @@ def map_method_to_action(method: str, path: str) -> str:
     return action_map.get(method, method.lower())
 
 
-def extract_record_info(
-    path: str, body: dict | None, response
-) -> tuple[int | None, str | None]:
+def extract_record_info(path: str, body: dict | None, response) -> tuple[int | None, str | None]:
     """从请求/响应中提取记录 ID 和类型"""
     try:
         parts = path.strip("/").split("/")
