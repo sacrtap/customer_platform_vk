@@ -577,7 +577,7 @@ async def test_create_customer_with_all_fields(customer_service):
         "name": "测试公司",
         "account_type": "企业",
         "customer_level": "KA",
-        "price_policy": "VIP",
+        "price_policy": "pricing",  # 使用有效英文标识符
         "manager_id": 1,
         "settlement_cycle": "月结",
         "settlement_type": "银行转账",

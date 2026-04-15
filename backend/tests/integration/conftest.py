@@ -36,7 +36,9 @@ from app.main import create_app  # noqa: E402
 from app.models.base import BaseModel  # noqa: E402
 
 # 测试数据库配置
-TEST_DATABASE_SYNC_URL = "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
+TEST_DATABASE_SYNC_URL = (
+    "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
+)
 TEST_DATABASE_ASYNC_URL = (
     "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
 )
@@ -82,7 +84,9 @@ def sync_test_engine():
 @pytest.fixture(scope="function")
 async def db_session(sync_test_engine):
     """创建同步数据库会话（用于测试清理）"""
-    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
+    SessionLocal = sessionmaker(
+        bind=sync_test_engine, class_=Session, expire_on_commit=False
+    )
     session = SessionLocal()
     try:
         yield session
@@ -280,49 +284,48 @@ async def mock_cache():
     mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
 
-    # Mock 权限缓存 - 返回所有必要的权限（包含 . 和 : 两种格式）
-    # 注意：数据库中的权限代码是 roles.create 格式，但 _check_permission 会同时支持两种分隔符
-    # 这里返回的权限需要匹配数据库中的权限代码
+    # Mock 权限缓存 - 简单方案：所有用户返回完整权限
+    # test_customers_missing_permission 测试需要特殊处理
+    FULL_PERMISSIONS = {
+        "customers:view",
+        "customers:create",
+        "customers:edit",
+        "customers:delete",
+        "customers:export",
+        "customers:import",
+        "billing:view",
+        "billing:edit",
+        "billing:recharge",
+        "billing:refund",
+        "billing:delete",
+        "files:view",
+        "files:upload",
+        "files:delete",
+        "users:view",
+        "users:create",
+        "users:edit",
+        "users:delete",
+        "users:role_assign",
+        "roles:view",
+        "roles:create",
+        "roles:edit",
+        "roles:delete",
+        "roles:assign",
+        "system:view",
+        "system:export",
+        "system:settings",
+        "analytics:view",
+        "analytics:export",
+        "profiles:view",
+        "profiles:edit",
+        "tags:view",
+        "tags:create",
+        "tags:edit",
+        "tags:delete",
+    }
+
     mock_perm_cache = MagicMock()
-    mock_perm_cache.get_permissions = AsyncMock(
-        return_value={
-            "customers:view",
-            "customers:create",
-            "customers:edit",
-            "customers:delete",
-            "customers:export",
-            "customers:import",
-            "billing:view",
-            "billing:edit",
-            "billing:recharge",
-            "billing:refund",
-            "billing:delete",
-            "files:view",
-            "files:upload",
-            "files:delete",
-            "users:view",
-            "users:create",
-            "users:edit",
-            "users:delete",
-            "users:role_assign",
-            "roles:view",
-            "roles:create",
-            "roles:edit",
-            "roles:delete",
-            "roles:assign",
-            "system:view",
-            "system:export",
-            "system:settings",
-            "analytics:view",
-            "analytics:export",
-            "profiles:view",
-            "profiles:edit",
-            "tags:view",
-            "tags:create",
-            "tags:edit",
-            "tags:delete",
-        }
-    )
+    mock_perm_cache.get_permissions = AsyncMock(return_value=FULL_PERMISSIONS)
     mock_perm_cache.set_permissions = AsyncMock(return_value=True)
     mock_perm_cache.invalidate = AsyncMock(return_value=True)
 
