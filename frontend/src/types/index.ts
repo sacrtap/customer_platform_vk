@@ -73,6 +73,20 @@ export interface Role {
   created_at: string
 }
 
+/** 计费模式枚举 */
+export enum PricePolicy {
+  PRICING = 'pricing',   // 定价
+  TIERED = 'tiered',     // 阶梯
+  YEARLY = 'yearly',     // 包年
+}
+
+/** 计费模式展示映射 */
+export const PRICE_POLICY_DISPLAY_MAP: Record<string, string> = {
+  pricing: '定价',
+  tiered: '阶梯',
+  yearly: '包年',
+}
+
 /** 客户 */
 export interface Customer {
   id: number
@@ -81,7 +95,7 @@ export interface Customer {
   account_type: string | null
   industry: string | null
   customer_level: string | null
-  price_policy: string | null
+  price_policy: PricePolicy | string | null
   manager_id: number | null
   settlement_cycle: string | null
   settlement_type: string | null

@@ -1,4 +1,5 @@
 import api from './index'
+import type { PricePolicy } from '@/types'
 
 // 获取客户列表
 export function getCustomers(params?: {
@@ -27,7 +28,7 @@ export function createCustomer(data: {
   account_type?: string
   industry?: string
   customer_level?: string
-  price_policy?: string
+  price_policy?: PricePolicy | string
   manager_id?: number
   settlement_cycle?: string
   settlement_type?: string
@@ -46,7 +47,7 @@ export function updateCustomer(
     account_type?: string
     industry?: string
     customer_level?: string
-    price_policy?: string
+    price_policy?: PricePolicy | string
     manager_id?: number
     settlement_cycle?: string
     settlement_type?: string

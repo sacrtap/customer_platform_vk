@@ -11,6 +11,40 @@ from ..models.customers import Customer, CustomerProfile
 from ..models.billing import CustomerBalance
 
 
+# 价格策略映射：中文 ↔ 英文标识符
+PRICE_POLICY_MAP = {
+    "定价": "pricing",
+    "阶梯": "tiered",
+    "包年": "yearly",
+}
+
+PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
+
+VALID_PRICE_POLICIES = set(PRICE_POLICY_MAP.values())  # {"pricing", "tiered", "yearly"}
+
+
+def convert_price_policy_to_storage(value: Optional[str]) -> Optional[str]:
+    """将前端/导入的中文值转换为数据库存储的英文标识符"""
+    if not value:
+        return None
+    # 如果已经是英文标识符，直接返回
+    if value in VALID_PRICE_POLICIES:
+        return value
+    # 中文转英文
+    return PRICE_POLICY_MAP.get(value)
+
+
+def convert_price_policy_to_display(value: Optional[str]) -> Optional[str]:
+    """将数据库存储的英文标识符转换为前端展示的中文值"""
+    if not value:
+        return None
+    # 如果已经是中文，直接返回（兼容旧数据）
+    if value in PRICE_POLICY_MAP:
+        return value
+    # 英文转中文
+    return PRICE_POLICY_REVERSE_MAP.get(value, value)
+
+
 class CustomerService:
     """客户服务类
 
@@ -77,7 +111,9 @@ class CustomerService:
 
         # 行业筛选（使用 profile.industry）
         if industry := filters.get("industry"):
-            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            stmt = stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            )
             conditions.append(CustomerProfile.industry == industry)
 
         # 客户等级筛选
@@ -111,7 +147,9 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
+        stmt = stmt.options(
+            selectinload(Customer.profile), selectinload(Customer.balance)
+        )
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -207,7 +245,9 @@ class CustomerService:
             if profile:
                 profile.industry = data["industry"]
             else:
-                profile = CustomerProfile(customer_id=customer.id, industry=data["industry"])
+                profile = CustomerProfile(
+                    customer_id=customer.id, industry=data["industry"]
+                )
                 self.db.add(profile)
 
         await self.db.commit()
@@ -236,7 +276,9 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
+    async def create_or_update_profile(
+        self, customer_id: int, data: dict
+    ) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -278,7 +320,9 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self, customers_data: List[dict]
+    ) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
@@ -323,9 +367,16 @@ class CustomerService:
                     continue
 
                 price_policy = data.get("price_policy")
-                if price_policy and price_policy not in ("定价", "阶梯", "包年"):
-                    errors.append(f"行{i + 1}: 无效的计费模式: {price_policy}")
-                    continue
+                if price_policy:
+                    # 转换为存储值（中文→英文）
+                    storage_value = convert_price_policy_to_storage(price_policy)
+                    if storage_value is None:
+                        errors.append(
+                            f"行{i + 1}: 无效的计费模式: {price_policy} (可选值：定价/阶梯/包年)"
+                        )
+                        continue
+                else:
+                    storage_value = None
 
                 # 检查是否已存在
                 if company_id in existing_company_ids:
@@ -337,7 +388,7 @@ class CustomerService:
                     name=name,
                     account_type=data.get("account_type"),
                     customer_level=data.get("customer_level"),
-                    price_policy=data.get("price_policy"),
+                    price_policy=storage_value,
                     manager_id=data.get("manager_id"),
                     settlement_cycle=data.get("settlement_cycle"),
                     settlement_type=data.get("settlement_type"),

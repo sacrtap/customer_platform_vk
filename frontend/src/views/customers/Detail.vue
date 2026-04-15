@@ -412,6 +412,14 @@
                 </a-select>
               </a-form-item>
 
+              <a-form-item field="price_policy" label="计费模式">
+                <a-select v-model="editForm.price_policy" placeholder="请选择计费模式" allow-clear>
+                  <a-option v-for="option in pricePolicyOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </a-option>
+                </a-select>
+              </a-form-item>
+
               <a-form-item field="email" label="邮箱">
                 <a-input v-model="editForm.email" placeholder="请输入邮箱" />
               </a-form-item>
@@ -594,7 +602,7 @@ import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/a
 import { getDailyUsage, type DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
-import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
+import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType, PRICE_POLICY_DISPLAY_MAP } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
@@ -607,6 +615,19 @@ import { useCustomerStore } from '@/stores/customer'
 const route = useRoute()
 const router = useRouter()
 const customerStore = useCustomerStore()
+
+// 价格策略选项
+const pricePolicyOptions = [
+  { label: '定价', value: 'pricing' },
+  { label: '阶梯', value: 'tiered' },
+  { label: '包年', value: 'yearly' },
+]
+
+// 获取价格策略展示名称
+const getPricePolicyDisplay = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  return (PRICE_POLICY_DISPLAY_MAP as Record<string, string>)[value] || value
+}
 
 // 编辑表单 ref
 const editFormRef = ref<FormInstance>()
@@ -675,6 +696,7 @@ interface EditForm {
   account_type?: string
   industry?: string
   customer_level?: string
+  price_policy?: string
   settlement_type?: string
   settlement_cycle?: string
   is_key_customer?: boolean
@@ -854,6 +876,7 @@ const editForm = ref<EditForm>({
   account_type: undefined,
   industry: undefined,
   customer_level: undefined,
+  price_policy: undefined,
   settlement_type: undefined,
   settlement_cycle: undefined,
   is_key_customer: false,
@@ -1034,6 +1057,7 @@ const openEditModal = () => {
     account_type: customer.value.account_type || undefined,
     industry: customer.value.industry || undefined,
     customer_level: customer.value.customer_level || undefined,
+    price_policy: customer.value.price_policy || undefined,
     settlement_type: customer.value.settlement_type || undefined,
     settlement_cycle: customer.value.settlement_cycle || undefined,
     is_key_customer: customer.value.is_key_customer || false,
@@ -1106,6 +1130,7 @@ const handleEditSubmit = async () => {
         account_type: editForm.value.account_type || undefined,
         industry: editForm.value.industry || undefined,
         customer_level: editForm.value.customer_level || undefined,
+        price_policy: editForm.value.price_policy || undefined,
         settlement_type: editForm.value.settlement_type,
         settlement_cycle: editForm.value.settlement_cycle || undefined,
         is_key_customer: editForm.value.is_key_customer,
