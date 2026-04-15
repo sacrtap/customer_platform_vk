@@ -11,6 +11,7 @@ import pandas as pd
 import io
 from datetime import datetime
 import hashlib
+import re
 
 customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
@@ -233,8 +234,6 @@ async def create_customer(request: Request):
     # 邮箱格式验证
     email = data.get("email")
     if email:
-        import re
-
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
             return json({"code": 40002, "message": "邮箱格式不正确"}, status=400)
@@ -291,8 +290,6 @@ async def update_customer(request: Request, customer_id: int):
     # 邮箱格式验证
     email = data.get("email")
     if email:
-        import re
-
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
             return json({"code": 40002, "message": "邮箱格式不正确"}, status=400)
@@ -597,8 +594,6 @@ async def download_import_template(request: Request):
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-
-    from sanic.response import raw
 
     return raw(
         output.read(),
