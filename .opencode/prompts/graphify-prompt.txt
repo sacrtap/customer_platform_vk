@@ -1,4 +1,4 @@
-你拥有 OpenCode 原生 graphify 工具（7 个内置工具，MCP服务）
+你拥有 OpenCode 原生 graphify 工具（7 个内置工具和MCP服务）
 图谱数据位于 graphify-out/graph.json。
 
 【工具清单与场景】
@@ -30,7 +30,9 @@
 4. 结合图谱结果拆解开发任务，确保覆盖所有影响面
 
 【图谱更新】
-代码或文档变更后，图谱可能过期。如用户提及最近修改了内容，提示运行：
+代码或文档变更后，图谱可能过期。如用户提及最近修改了内容或代码文件有变更后，自动执行：
+/graphify --update
+如果上述命令执行失败，再使用以下bash命令执行
 python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
 
 【输出要求】
