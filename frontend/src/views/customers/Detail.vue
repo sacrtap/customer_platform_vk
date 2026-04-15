@@ -201,17 +201,17 @@
                   <span class="metric-label">消费等级</span>
                   <span class="metric-value">{{ consumeLevelDisplay }}</span>
                 </div>
-                
+
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
                 </div>
-                <div v-else class="metric-card">
-                  <span class="metric-label">所属行业</span>
-                  <span class="metric-value">{{ profile.industry || '-' }}</span>
+                <div v-else class="metric-card warning">
+                  <span class="metric-label">预估年消费</span>
+                  <span class="metric-value">{{ profile.estimated_annual_spend ? formatCurrency(Number(profile.estimated_annual_spend)) : '-' }}</span>
                 </div>
               </div>
 
-              <!-- 扩展指标区（新增 4 张卡片） -->
+              <!-- 扩展指标区 -->
               <div class="metrics-grid metrics-grid-extended">
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
@@ -227,14 +227,6 @@
                 <div v-else class="metric-card">
                   <span class="metric-label">月均拍摄量（测算）</span>
                   <span class="metric-value">{{ profile.monthly_avg_shots_estimated ?? '-' }}</span>
-                </div>
-
-                <div v-if="profileLoading" class="metric-card loading">
-                  <SkeletonCard height="72px" />
-                </div>
-                <div v-else class="metric-card">
-                  <span class="metric-label">预估年消费</span>
-                  <span class="metric-value">{{ profile.estimated_annual_spend ? formatCurrency(Number(profile.estimated_annual_spend)) : '-' }}</span>
                 </div>
 
                 <div v-if="profileLoading" class="metric-card loading">
@@ -371,139 +363,188 @@
       <a-modal
         v-model:visible="editModalVisible"
         title="编辑客户"
+        :width="modalWidth"
         :confirm-loading="editLoading"
         @ok="handleEditSubmit"
         @cancel="editModalVisible = false"
       >
-        <a-form :model="editForm" layout="vertical">
-          <a-form-item field="name" label="客户名称">
-            <a-input v-model="editForm.name" placeholder="请输入客户名称" />
-          </a-form-item>
-          <a-form-item field="email" label="邮箱">
-            <a-input v-model="editForm.email" placeholder="请输入邮箱" />
-          </a-form-item>
-          <a-form-item field="account_type" label="账号类型">
-            <a-select v-model="editForm.account_type" placeholder="请选择账号类型" allow-clear>
-              <a-option value="正式账号">正式账号</a-option>
-              <a-option value="测试账号">测试账号</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="industry" label="行业类型">
-            <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear>
-              <a-option value="A">A 类</a-option>
-              <a-option value="B">B 类</a-option>
-              <a-option value="C">C 类</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="customer_level" label="客户等级">
-            <a-select v-model="editForm.customer_level" placeholder="请选择客户等级" allow-clear>
-              <a-option value="KA">KA</a-option>
-              <a-option value="A">A</a-option>
-              <a-option value="B">B</a-option>
-              <a-option value="C">C</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="scale_level" label="规模等级">
-            <a-select v-model="editForm.scale_level" placeholder="请选择规模等级" allow-clear>
-              <a-option value="100">100人</a-option>
-              <a-option value="500">500人</a-option>
-              <a-option value="1000">1000人</a-option>
-              <a-option value="2000">2000人</a-option>
-              <a-option value="5000">5000人</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="consume_level" label="消费等级">
-            <a-select v-model="editForm.consume_level" placeholder="请选择消费等级" allow-clear>
-              <a-option value="S">S - 100万</a-option>
-              <a-option value="A">A - 50万</a-option>
-              <a-option value="B">B - 25万</a-option>
-              <a-option value="C">C - 12万</a-option>
-              <a-option value="D">D - 6万</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="settlement_type" label="结算方式">
-            <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
-              <a-option value="prepaid">预付费</a-option>
-              <a-option value="postpaid">后付费</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="settlement_cycle" label="结算周期">
-            <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
-              <a-option value="日结">日结</a-option>
-              <a-option value="周结">周结</a-option>
-              <a-option value="月结">月结</a-option>
-              <a-option value="季结">季结</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="is_key_customer" label="重点客户">
-            <a-switch v-model="editForm.is_key_customer" />
-          </a-form-item>
-          <a-form-item field="manager_id" label="运营经理">
-            <a-select
-              v-model="editForm.manager_id"
-              placeholder="请选择运营经理"
-              allow-clear
-              :loading="managersLoading"
-            >
-              <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                {{ manager.real_name || manager.username }}
-              </a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="erp_system" label="所属 ERP">
-            <a-input v-model="editForm.erp_system" placeholder="请输入所属 ERP 系统" allow-clear />
-          </a-form-item>
-          <a-form-item field="sales_manager_id" label="销售负责人">
-            <a-select
-              v-model="editForm.sales_manager_id"
-              placeholder="请选择销售负责人"
-              allow-clear
-              :loading="managersLoading"
-            >
-              <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                {{ manager.real_name || manager.username }}
-              </a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="cooperation_status" label="合作状态">
-            <a-select v-model="editForm.cooperation_status" placeholder="请选择合作状态" allow-clear>
-              <a-option value="active">合作中</a-option>
-              <a-option value="suspended">暂停</a-option>
-              <a-option value="terminated">终止</a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item field="first_payment_date" label="首次回款时间">
-            <a-date-picker
-              v-model="editForm.first_payment_date"
-              placeholder="请选择首次回款时间"
-              style="width: 100%"
-              allow-clear
-              value-format="YYYY-MM-DD"
-            />
-          </a-form-item>
-          <a-form-item field="onboarding_date" label="接入时间">
-            <a-date-picker
-              v-model="editForm.onboarding_date"
-              placeholder="请选择接入时间"
-              style="width: 100%"
-              allow-clear
-              value-format="YYYY-MM-DD"
-            />
-          </a-form-item>
-          <a-form-item field="is_settlement_enabled" label="是否结算">
-            <a-switch v-model="editForm.is_settlement_enabled" />
-          </a-form-item>
-          <a-form-item field="is_disabled" label="是否停用">
-            <a-switch v-model="editForm.is_disabled" />
-          </a-form-item>
-          <a-form-item field="notes" label="备注">
-            <a-textarea
-              v-model="editForm.notes"
-              placeholder="请输入备注信息"
-              :auto-size="{ minRows: 2, maxRows: 4 }"
-              allow-clear
-            />
-          </a-form-item>
+        <a-form
+          ref="editFormRef"
+          :model="editForm"
+          :rules="editFormRules"
+          layout="vertical"
+          validate-trigger="['blur', 'change']"
+        >
+          <div class="edit-form-grid">
+            <!-- 第一列：基础信息 -->
+            <div class="edit-form-column">
+              <div class="column-title">基础信息</div>
+
+              <a-form-item field="name" label="客户名称" required>
+                <a-input v-model="editForm.name" placeholder="请输入客户名称" />
+              </a-form-item>
+
+              <a-form-item field="company_id" label="公司 ID" required>
+                <a-input v-model="editForm.company_id" placeholder="请输入公司 ID" />
+              </a-form-item>
+
+              <a-form-item field="account_type" label="账号类型">
+                <a-select v-model="editForm.account_type" placeholder="请选择账号类型" allow-clear>
+                  <a-option value="正式账号">正式账号</a-option>
+                  <a-option value="测试账号">测试账号</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="industry" label="行业类型">
+                <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear>
+                  <a-option value="A">A 类</a-option>
+                  <a-option value="B">B 类</a-option>
+                  <a-option value="C">C 类</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="customer_level" label="客户等级">
+                <a-select v-model="editForm.customer_level" placeholder="请选择客户等级" allow-clear>
+                  <a-option value="KA">KA</a-option>
+                  <a-option value="A">A</a-option>
+                  <a-option value="B">B</a-option>
+                  <a-option value="C">C</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="email" label="邮箱">
+                <a-input v-model="editForm.email" placeholder="请输入邮箱" />
+              </a-form-item>
+            </div>
+
+            <!-- 第二列：结算与业务 -->
+            <div class="edit-form-column">
+              <div class="column-title">结算与业务</div>
+
+              <a-form-item field="settlement_type" label="结算方式" required>
+                <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
+                  <a-option value="prepaid">预付费</a-option>
+                  <a-option value="postpaid">后付费</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="settlement_cycle" label="结算周期">
+                <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
+                  <a-option value="日结">日结</a-option>
+                  <a-option value="周结">周结</a-option>
+                  <a-option value="月结">月结</a-option>
+                  <a-option value="季结">季结</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="cooperation_status" label="合作状态">
+                <a-select v-model="editForm.cooperation_status" placeholder="请选择合作状态" allow-clear>
+                  <a-option value="active">合作中</a-option>
+                  <a-option value="suspended">暂停</a-option>
+                  <a-option value="terminated">终止</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="erp_system" label="所属 ERP">
+                <a-input v-model="editForm.erp_system" placeholder="请输入所属 ERP 系统" allow-clear />
+              </a-form-item>
+
+              <a-form-item field="manager_id" label="运营经理">
+                <a-select
+                  v-model="editForm.manager_id"
+                  placeholder="请选择运营经理"
+                  allow-clear
+                  :loading="managersLoading"
+                >
+                  <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                    {{ manager.real_name || manager.username }}
+                  </a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="sales_manager_id" label="销售负责人">
+                <a-select
+                  v-model="editForm.sales_manager_id"
+                  placeholder="请选择销售负责人"
+                  allow-clear
+                  :loading="managersLoading"
+                >
+                  <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                    {{ manager.real_name || manager.username }}
+                  </a-option>
+                </a-select>
+              </a-form-item>
+            </div>
+
+            <!-- 第三列：画像与状态 -->
+            <div class="edit-form-column">
+              <div class="column-title">画像与状态</div>
+
+              <a-form-item field="scale_level" label="规模等级">
+                <a-select v-model="editForm.scale_level" placeholder="请选择规模等级" allow-clear>
+                  <a-option value="100">100人</a-option>
+                  <a-option value="500">500人</a-option>
+                  <a-option value="1000">1000人</a-option>
+                  <a-option value="2000">2000人</a-option>
+                  <a-option value="5000">5000人</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="consume_level" label="消费等级">
+                <a-select v-model="editForm.consume_level" placeholder="请选择消费等级" allow-clear>
+                  <a-option value="S">S</a-option>
+                  <a-option value="A">A</a-option>
+                  <a-option value="B">B</a-option>
+                  <a-option value="C">C</a-option>
+                  <a-option value="D">D</a-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item field="first_payment_date" label="首次回款时间">
+                <a-date-picker
+                  v-model="editForm.first_payment_date"
+                  placeholder="请选择首次回款时间"
+                  style="width: 100%"
+                  allow-clear
+                  value-format="YYYY-MM-DD"
+                />
+              </a-form-item>
+
+              <a-form-item field="onboarding_date" label="接入时间">
+                <a-date-picker
+                  v-model="editForm.onboarding_date"
+                  placeholder="请选择接入时间"
+                  style="width: 100%"
+                  allow-clear
+                  value-format="YYYY-MM-DD"
+                />
+              </a-form-item>
+
+              <a-form-item field="is_key_customer" label="重点客户">
+                <a-switch v-model="editForm.is_key_customer" />
+              </a-form-item>
+
+              <a-form-item field="is_settlement_enabled" label="是否结算">
+                <a-switch v-model="editForm.is_settlement_enabled" />
+              </a-form-item>
+
+              <a-form-item field="is_disabled" label="是否停用">
+                <a-switch v-model="editForm.is_disabled" />
+              </a-form-item>
+            </div>
+
+            <!-- 备注区域 - 横跨三列 -->
+            <div class="edit-form-note">
+              <a-form-item field="notes" label="备注">
+                <a-textarea
+                  v-model="editForm.notes"
+                  placeholder="请输入备注信息"
+                  :auto-size="{ minRows: 2, maxRows: 4 }"
+                  allow-clear
+                />
+              </a-form-item>
+            </div>
+          </div>
         </a-form>
       </a-modal>
 
@@ -616,6 +657,7 @@ const goBack = () => {
 // 编辑表单类型
 interface EditForm {
   name: string
+  company_id: string
   email: string
   account_type?: string
   industry?: string
@@ -779,6 +821,7 @@ const invoiceColumns = [
 // 编辑表单
 const editForm = ref<EditForm>({
   name: '',
+  company_id: '',
   email: '',
   account_type: undefined,
   industry: undefined,
@@ -941,6 +984,7 @@ const openEditModal = () => {
   
   editForm.value = {
     name: customer.value.name || '',
+    company_id: customer.value.company_id || '',
     email: customer.value.email || '',
     account_type: customer.value.account_type || undefined,
     industry: customer.value.industry || undefined,
@@ -1610,6 +1654,28 @@ onUnmounted(() => {
   box-shadow: 0 8px 24px rgba(5, 150, 105, 0.25);
 }
 
+/* 警告色指标卡片 - 预估年消费 */
+.metric-card.warning {
+  background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.metric-card.warning .metric-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.metric-card.warning .metric-value {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.metric-card.warning:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(217, 119, 6, 0.25);
+}
+
 /* 普通指标卡片 */
 .metric-card .metric-label {
   font-size: 12px;
@@ -1628,7 +1694,7 @@ onUnmounted(() => {
 }
 
 /* 指标卡片 Hover 效果 - 简化版 */
-.metric-card:not(.primary):not(.success):not(.loading):hover {
+.metric-card:not(.primary):not(.success):not(.warning):not(.loading):hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   border-color: var(--primary-1);
