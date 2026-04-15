@@ -857,7 +857,9 @@ async def test_import_customers_with_template_notes_row(
 
 
 @pytest.mark.asyncio
-async def test_import_customers_invalid_email(test_client, auth_headers, db_session):
+async def test_import_customers_invalid_email_should_fail(
+    test_client, auth_headers, db_session
+):
     """测试导入 - 邮箱格式错误应返回错误信息"""
     from openpyxl import Workbook
 
@@ -895,47 +897,9 @@ async def test_import_customers_invalid_email(test_client, auth_headers, db_sess
 
 
 @pytest.mark.asyncio
-async def test_import_customers_invalid_email(test_client, auth_headers, db_session):
-    """测试导入 - 邮箱格式错误的行应被记录（当前实现不校验邮箱格式）"""
-    from openpyxl import Workbook
-
-    wb = Workbook()
-    ws = wb.active
-    ws.append(["company_id", "name", "email"])
-    ws.append(["TEST_BAD_EMAIL", "邮箱错误测试", "not-an-email"])
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    files = {
-        "file": (
-            "test_bad_email.xlsx",
-            output.getvalue(),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    }
-
-    request, response = await test_client.post(
-        "/api/v1/customers/import",
-        headers=auth_headers,
-        files=files,
-    )
-
-    assert response.status == 200
-    data = response.json
-    assert data["code"] == 0
-    # 当前实现不校验邮箱格式，所以应该成功导入
-    assert data["data"]["success_count"] >= 1
-
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_BAD_EMAIL%'")
-    )
-    db_session.commit()
-
-
-@pytest.mark.asyncio
-async def test_import_customers_empty_required_fields(test_client, auth_headers):
+async def test_import_customers_empty_required_fields(
+    test_client, auth_headers, db_session
+):
     """测试导入 - 必填字段为空应返回错误"""
     from openpyxl import Workbook
 
@@ -1043,6 +1007,7 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
     assert response.status == 200
     data = response.json
     assert data["code"] == 0
+    assert data["data"]["error_count"] >= 1
 
 
 @pytest.mark.asyncio
