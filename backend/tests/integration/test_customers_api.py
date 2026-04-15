@@ -1086,6 +1086,70 @@ async def test_export_customers_with_filters(test_client, auth_headers, customer
 
 
 @pytest.mark.asyncio
+async def test_export_customers_contains_test_data(
+    test_client, auth_headers, customer_data
+):
+    """测试导出 - 验证导出文件包含测试数据"""
+    from openpyxl import load_workbook
+
+    request, response = await test_client.get(
+        "/api/v1/customers/export",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+
+    row_count = ws.max_row
+    assert row_count >= 2, f"期望至少 2 行，实际 {row_count} 行"
+
+    found_test_data = False
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[0] and "TEST" in str(row[0]):
+            found_test_data = True
+            break
+    assert found_test_data, "导出文件未找到测试数据"
+
+
+@pytest.mark.asyncio
+async def test_export_customers_field_consistency(
+    test_client, auth_headers, customer_data
+):
+    """测试导出 - 验证导出文件字段与导入模板字段一致性"""
+    from openpyxl import load_workbook
+
+    request, response = await test_client.get(
+        "/api/v1/customers/export",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+
+    export_headers = [cell.value for cell in ws[1] if cell.value is not None]
+
+    template_headers = [
+        "company_id",
+        "name",
+        "account_type",
+        "industry",
+        "customer_level",
+        "price_policy",
+        "settlement_cycle",
+        "settlement_type",
+        "is_key_customer",
+        "email",
+    ]
+
+    for header in template_headers:
+        assert header in export_headers, f"导出文件缺少字段: {header}"
+
+
+@pytest.mark.asyncio
 async def test_customers_unauthorized(test_client):
     """测试未认证访问"""
     request, response = await test_client.get("/api/v1/customers")
