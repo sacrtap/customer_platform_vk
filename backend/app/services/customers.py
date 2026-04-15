@@ -1,6 +1,7 @@
 """客户管理服务"""
 
 import math
+import re
 from typing import Optional, List, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -324,8 +325,16 @@ class CustomerService:
                     errors.append(f"行{i + 1}: 缺少 name")
                     continue
 
-                if not name:
-                    errors.append(f"行{i + 1}: 缺少 name")
+                email = data.get("email")
+                if email and not re.match(
+                    r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", str(email)
+                ):
+                    errors.append(f"行{i + 1}: 邮箱格式错误")
+                    continue
+
+                price_policy = data.get("price_policy")
+                if price_policy and price_policy not in ("定价", "阶梯", "包年"):
+                    errors.append(f"行{i + 1}: 无效的计费模式: {price_policy}")
                     continue
 
                 # 检查是否已存在
