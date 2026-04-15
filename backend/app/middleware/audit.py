@@ -46,13 +46,22 @@ def audit_middleware(app: Sanic):
             action = map_method_to_action(request.method, request.path)
 
             # 提取记录 ID 和类型
-            record_id, record_type = extract_record_info(request.path, request.json, response)
+            # multipart/form-data 请求没有 request.json，需要安全访问
+            request_json = None
+            try:
+                request_json = request.json
+            except Exception:
+                pass
+
+            record_id, record_type = extract_record_info(
+                request.path, request_json, response
+            )
 
             # 提取变更内容（仅 PUT 请求）
             changes = None
-            if request.method == "PUT" and request.json:
+            if request.method == "PUT" and request_json:
                 changes = {
-                    "after": request.json,
+                    "after": request_json,
                 }
 
             # 记录审计日志（在事务提交后写入，避免主事务回滚时审计日志仍被提交）
@@ -94,7 +103,9 @@ def map_method_to_action(method: str, path: str) -> str:
     return action_map.get(method, method.lower())
 
 
-def extract_record_info(path: str, body: dict | None, response) -> tuple[int | None, str | None]:
+def extract_record_info(
+    path: str, body: dict | None, response
+) -> tuple[int | None, str | None]:
     """从请求/响应中提取记录 ID 和类型"""
     try:
         parts = path.strip("/").split("/")
