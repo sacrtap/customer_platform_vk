@@ -2127,4 +2127,102 @@ onUnmounted(() => {
   word-break: break-word;
   line-height: 1.6;
 }
+
+/* ========== 编辑弹框三列布局 ========== */
+
+/* 编辑表单网格容器 */
+.edit-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 20px;
+  width: 100%;
+}
+
+/* 编辑表单列 */
+.edit-form-column {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 列标题 */
+.edit-form-column .column-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-6, #0369a1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary-1, #e8f3ff);
+}
+
+/* 列分隔线 */
+.edit-form-column + .edit-form-column {
+  border-left: 1px solid var(--neutral-2, #eef0f3);
+  padding-left: 20px;
+}
+
+/* 备注区域 - 横跨三列 */
+.edit-form-note {
+  grid-column: 1 / -1;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--neutral-2, #eef0f3);
+}
+
+/* 响应式降级：两列 */
+@media (max-width: 1399px) {
+  .edit-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .edit-form-column:nth-child(1) {
+    border-right: 1px solid var(--neutral-2, #eef0f3);
+    padding-right: 20px;
+  }
+
+  .edit-form-column:nth-child(2) {
+    border-left: none;
+    padding-left: 0;
+  }
+
+  .edit-form-column:nth-child(3) {
+    border-top: 1px solid var(--neutral-2, #eef0f3);
+    padding-top: 16px;
+    margin-top: 16px;
+    grid-column: 1 / -1;
+  }
+
+  .edit-form-column:nth-child(3) .column-title {
+    margin-bottom: 12px;
+  }
+}
+
+/* 响应式降级：单列 */
+@media (max-width: 767px) {
+  .edit-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-form-column {
+    border-left: none !important;
+    border-right: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    grid-column: auto !important;
+  }
+
+  .edit-form-column + .edit-form-column {
+    border-top: 1px solid var(--neutral-2, #eef0f3);
+    padding-top: 16px;
+    margin-top: 16px;
+  }
+
+  .edit-form-note {
+    border-top: 1px solid var(--neutral-2, #eef0f3);
+  }
+}
 </style>
