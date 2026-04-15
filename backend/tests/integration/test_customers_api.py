@@ -87,7 +87,9 @@ def customer_data(db_session):
 
     db_session.commit()
 
-    result = db_session.execute(text("SELECT id FROM customers WHERE company_id = 'TEST001'"))
+    result = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 'TEST001'")
+    )
     customer_id = result.scalar_one()
 
     yield {"customers": customers, "customer_id": customer_id}
@@ -204,7 +206,9 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
     assert data["data"]["company_id"] == "TEST_CREATE_001"
     assert data["data"]["name"] == "新创建测试公司"
 
-    db_session.execute(text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'"))
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'")
+    )
     db_session.commit()
 
 
@@ -249,7 +253,9 @@ async def test_create_customer_invalid_email(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_update_customer_success(test_client, auth_headers, customer_data, db_session):
+async def test_update_customer_success(
+    test_client, auth_headers, customer_data, db_session
+):
     """测试更新客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -271,7 +277,9 @@ async def test_update_customer_success(test_client, auth_headers, customer_data,
     assert data["message"] == "更新成功"
 
     result = db_session.execute(
-        text("SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"),
+        text(
+            "SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"
+        ),
         {"id": customer_id},
     )
     updated = result.fetchone()
@@ -298,7 +306,9 @@ async def test_update_customer_not_found(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_delete_customer_success(test_client, auth_headers, customer_data, db_session):
+async def test_delete_customer_success(
+    test_client, auth_headers, customer_data, db_session
+):
     """测试删除客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -426,6 +436,135 @@ async def test_download_import_template(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_download_import_template_unauthorized(test_client):
+    """测试下载导入模板 - 未认证访问应返回 401"""
+    request, response = await test_client.get(
+        "/api/v1/customers/import-template",
+    )
+
+    assert response.status in [401, 403]
+
+
+@pytest.mark.asyncio
+async def test_download_import_template_no_import_permission(
+    test_client, db_session, test_user
+):
+    """测试下载导入模板 - 无 import 权限的用户仍可下载（权限已放开）"""
+    import bcrypt
+    from sqlalchemy import text
+
+    username = "template_only_user"
+    password = "test123456"
+
+    # 清理旧数据
+    db_session.execute(
+        text("DELETE FROM users WHERE username = :username"),
+        {"username": username},
+    )
+    db_session.commit()
+
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    db_session.execute(
+        text(
+            """
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """
+        ),
+        {
+            "username": username,
+            "password_hash": password_hash,
+            "email": "template_only@example.com",
+            "is_active": True,
+        },
+    )
+
+    # 创建只有 customers:view 权限的角色
+    db_session.execute(text("DELETE FROM roles WHERE name = 'view_only'"))
+    db_session.execute(
+        text(
+            """
+        INSERT INTO roles (name, description, created_at)
+        VALUES (:name, :description, NOW())
+        """
+        ),
+        {"name": "view_only", "description": "仅查看角色"},
+    )
+    result = db_session.execute(text("SELECT id FROM roles WHERE name = 'view_only'"))
+    role_id = result.scalar_one()
+
+    # 仅赋予 customers:view 权限（不赋予 customers:import）
+    result = db_session.execute(
+        text("SELECT id FROM permissions WHERE code = 'customers:view'")
+    )
+    perm_id = result.scalar_one()
+
+    db_session.execute(
+        text("DELETE FROM role_permissions WHERE role_id = :role_id"),
+        {"role_id": role_id},
+    )
+    db_session.execute(
+        text(
+            """
+        INSERT INTO role_permissions (role_id, permission_id)
+        VALUES (:role_id, :permission_id)
+        """
+        ),
+        {"role_id": role_id, "permission_id": perm_id},
+    )
+
+    # 关联用户到角色
+    result = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username},
+    )
+    user_id = result.scalar_one()
+
+    db_session.execute(
+        text("DELETE FROM user_roles WHERE user_id = :user_id"),
+        {"user_id": user_id},
+    )
+    db_session.execute(
+        text(
+            """
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES (:user_id, :role_id)
+        """
+        ),
+        {"user_id": user_id, "role_id": role_id},
+    )
+    db_session.commit()
+
+    try:
+        # 登录
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert login_response.status == 200
+        token = login_response.json["data"]["access_token"]
+
+        # 下载模板 - 应该成功（200），因为不再需要 customers:import 权限
+        request, response = await test_client.get(
+            "/api/v1/customers/import-template",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status == 200
+        assert (
+            response.headers.get("Content-Type")
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    finally:
+        db_session.execute(
+            text("DELETE FROM users WHERE username = :username"),
+            {"username": username},
+        )
+        db_session.execute(text("DELETE FROM roles WHERE name = 'view_only'"))
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_import_customers_success(test_client, auth_headers, db_session):
     """测试 Excel 导入客户 - 成功场景"""
     from openpyxl import Workbook
@@ -493,7 +632,9 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     assert data["message"] == "导入完成"
     assert data["data"]["success_count"] == 2
 
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'"))
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'")
+    )
     db_session.commit()
 
 
@@ -563,7 +704,9 @@ async def test_import_customers_missing_columns(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_import_customers_with_template_notes_row(test_client, auth_headers, db_session):
+async def test_import_customers_with_template_notes_row(
+    test_client, auth_headers, db_session
+):
     """测试导入带中文说明行的模板文件（智能跳过逻辑）"""
     from openpyxl import Workbook
 
@@ -600,12 +743,16 @@ async def test_import_customers_with_template_notes_row(test_client, auth_header
     assert data["data"]["success_count"] == 1
 
     # 清理测试数据
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'"))
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'")
+    )
     db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_import_customers_without_notes_row(test_client, auth_headers, db_session):
+async def test_import_customers_without_notes_row(
+    test_client, auth_headers, db_session
+):
     """测试导入普通用户文件（无说明行，不应跳过）"""
     from openpyxl import Workbook
 
@@ -639,7 +786,9 @@ async def test_import_customers_without_notes_row(test_client, auth_headers, db_
     assert data["data"]["success_count"] == 2
 
     # 清理测试数据
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'"))
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'")
+    )
     db_session.commit()
 
 
