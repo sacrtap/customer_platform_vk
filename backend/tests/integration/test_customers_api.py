@@ -437,6 +437,78 @@ async def test_download_import_template(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_download_import_template_field_structure(test_client, auth_headers):
+    """测试下载导入模板 - 验证模板字段结构正确性"""
+    from openpyxl import load_workbook
+
+    request, response = await test_client.get(
+        "/api/v1/customers/import-template",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+
+    # 解析返回的 Excel 文件
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+
+    assert ws.title == "客户导入模板"
+
+    # 验证第 1 行：表头字段
+    headers = [cell.value for cell in ws[1]]
+    expected_headers = [
+        "company_id",
+        "name",
+        "account_type",
+        "industry",
+        "customer_level",
+        "price_policy",
+        "settlement_cycle",
+        "settlement_type",
+        "is_key_customer",
+        "email",
+    ]
+    assert headers == expected_headers, f"表头不匹配: {headers}"
+
+    # 验证第 2 行：中文说明
+    notes = [cell.value for cell in ws[2]]
+    assert notes[0] == "必填"  # company_id
+    assert notes[1] == "必填"  # name
+    assert notes[2] == "可选"  # account_type
+    assert notes[5] == "可选：定价/阶梯/包年"  # price_policy
+    assert notes[7] == "可选：prepaid/postpaid"  # settlement_type
+    assert notes[8] == "可选：true/false"  # is_key_customer
+
+    # 验证第 3 行：示例数据
+    example = [cell.value for cell in ws[3]]
+    assert example[0] == "COMP001"  # company_id 示例
+    assert "示例公司" in str(example[1])  # name 示例
+    assert example[5] == "定价"  # price_policy 示例
+    assert example[7] == "prepaid"  # settlement_type 示例
+    assert example[8] == "false"  # is_key_customer 示例
+    assert "@" in str(example[9])  # email 示例
+
+
+@pytest.mark.asyncio
+async def test_download_import_template_header_count(test_client, auth_headers):
+    """测试下载导入模板 - 验证表头数量为 10 个字段"""
+    from openpyxl import load_workbook
+
+    request, response = await test_client.get(
+        "/api/v1/customers/import-template",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+
+    header_count = sum(1 for cell in ws[1] if cell.value is not None)
+    assert header_count == 10, f"期望 10 个表头，实际 {header_count} 个"
+
+
+@pytest.mark.asyncio
 async def test_download_import_template_unauthorized(test_client):
     """测试下载导入模板 - 未认证访问应返回 401"""
     request, response = await test_client.get(
