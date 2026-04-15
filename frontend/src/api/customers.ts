@@ -41,6 +41,7 @@ export function createCustomer(data: {
 export function updateCustomer(
   id: number,
   data: {
+    company_id?: string  // 公司 ID 可编辑
     name?: string
     account_type?: string
     industry?: string
