@@ -230,7 +230,7 @@ const loadData = async () => {
     await Promise.all([loadTrendData(), loadTopCustomersData(), loadDeviceData()])
     calculateStats()
   } catch (error: unknown) {
-    Message.error(error.message || '加载失败')
+    Message.error(error instanceof Error ? error.message : '加载失败')
   } finally {
     loading.value = false
   }

@@ -220,7 +220,7 @@ const loading = ref(false)
 const balances = ref<Balance[]>([])
 
 // 客户选项
-const customerOptions = ref<Array<{ label: string; value: number; company_id?: string }>>([])
+const customerOptions = ref<Array<{ id: number; name: string; label: string; value: number; company_id?: string }>>([])
 
 // 表格列定义
 const columns = [

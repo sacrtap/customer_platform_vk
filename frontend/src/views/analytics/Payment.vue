@@ -392,10 +392,10 @@ const initStatusChart = () => {
           show: false,
         },
         data: statusStats.value.map((item) => ({
-          name: statusNames[item.status] || item.status,
+          name: statusNames[item.name] || item.name,
           value: item.count,
           itemStyle: {
-            color: statusColors[item.status] || '#6b7280',
+            color: statusColors[item.name] || '#6b7280',
           },
         })),
       },

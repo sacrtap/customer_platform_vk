@@ -177,7 +177,6 @@ import {
   deleteUser,
   resetPassword,
   assignUserRoles,
-  type User as ApiUser,
 } from '@/api/users'
 import { getRoles } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
@@ -333,12 +332,13 @@ const loadUsers = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    users.value = ((res.data as Record<string, unknown>).list as ApiUser[]).map((item: ApiUser) => ({
+    const data = res.data as any
+    users.value = (data.list as any[]).map((item: any) => ({
       ...item,
       roles: item.roles || [],
-      role_ids: item.roles?.map((r) => r.id) || [],
+      role_ids: item.roles?.map((r: { id: number }) => r.id) || [],
     }))
-    pagination.total = ((res.data as Record<string, unknown>).total as number) || 0
+    pagination.total = (data.total as number) || 0
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载用户列表失败')
   } finally {
@@ -349,7 +349,7 @@ const loadUsers = async () => {
 const loadRoles = async () => {
   try {
     const res = await getRoles({ page: 1, page_size: 100 })
-    availableRoles.value = (res.data as Record<string, unknown>).list as Array<Record<string, unknown>> || []
+    availableRoles.value = (res.data as any).list || []
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载角色列表失败')
   }

@@ -275,12 +275,12 @@ const loadRoles = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    const data = res.data as Record<string, unknown>
+    const data = res.data as any
     roles.value = (data.list as ApiRole[] || []).map((item: ApiRole) => ({
       ...item,
       isSystem: item.isSystem || false,
     }))
-    pagination.total = data.total || 0
+    pagination.total = (data.total as number) || 0
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载角色列表失败')
   } finally {

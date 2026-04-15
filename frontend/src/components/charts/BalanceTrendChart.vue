@@ -49,7 +49,7 @@ const initChart = () => {
       formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
         const arr = Array.isArray(params) ? params : [params]
         if (arr.length === 0) return ''
-        let result = `${arr[0].axisValue}<br/>`
+        let result = `${(arr[0] as any).axisValue}<br/>`
         arr.forEach((param: CallbackDataParams) => {
           result += `${param.marker} ${param.seriesName}: ¥${(param.value as number).toLocaleString()}<br/>`
         })

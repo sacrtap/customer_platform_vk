@@ -513,7 +513,7 @@ const getSettlementTypeName = (type: string | undefined): string => {
 const getManagerName = (managerId: number | null | undefined): string => {
   if (!managerId) return '-'
   const manager = managers.value.find(m => m.id === managerId)
-  return manager ? (manager.real_name || manager.username) : '-'
+  return manager ? ((manager.real_name || manager.username) as string) : '-'
 }
 
 // 加载客户列表
@@ -745,7 +745,7 @@ const handleCustomerSubmit = async () => {
 
   customerModalLoading.value = true
   try {
-    const data: Record<string, unknown> = {
+    const data = {
       company_id: customerForm.company_id,
       name: customerForm.name,
       email: customerForm.email || undefined,
@@ -826,7 +826,7 @@ const handleImportSubmit = async () => {
 
   importLoading.value = true
   try {
-    const file = importFileList.value[0].originFile
+    const file = (importFileList.value[0] as any).originFile
     const res = await importCustomers(file)
     const data = (res as { data: ImportResult }).data
     const { success_count, error_count, errors } = data
