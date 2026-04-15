@@ -366,7 +366,7 @@
         :width="modalWidth"
         :confirm-loading="editLoading"
         @ok="handleEditSubmit"
-        @cancel="editModalVisible = false"
+        @cancel="handleEditCancel"
       >
         <a-form
           ref="editFormRef"
@@ -579,6 +579,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
+import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { getCustomer, updateCustomer, getProfile, updateProfile } from '@/api/customers'
@@ -606,6 +607,18 @@ import { useCustomerStore } from '@/stores/customer'
 const route = useRoute()
 const router = useRouter()
 const customerStore = useCustomerStore()
+
+// 编辑表单 ref
+const editFormRef = ref<FormInstance>()
+
+// 弹窗响应式宽度
+const modalWidth = computed(() => {
+  if (typeof window === 'undefined') return '1100px'
+  const width = window.innerWidth
+  if (width >= 1400) return '1100px'
+  if (width >= 768) return '800px'
+  return '100%'
+})
 
 // 性能优化: 已加载的标签页数据
 const loadedTabs = ref<Set<string>>(new Set(['basic']))
@@ -844,6 +857,23 @@ const editForm = ref<EditForm>({
   consume_level: undefined,
 })
 
+// 编辑表单验证规则
+const editFormRules = {
+  company_id: [
+    { required: true, message: '公司 ID 不能为空', trigger: ['blur', 'change'] },
+  ],
+  name: [
+    { required: true, message: '客户名称不能为空', trigger: ['blur', 'change'] },
+    { maxLength: 200, message: '客户名称不能超过 200 个字符', trigger: ['blur', 'change'] },
+  ],
+  email: [
+    { type: 'email', message: '邮箱格式不正确', trigger: ['blur', 'change'] },
+  ],
+  settlement_type: [
+    { required: true, message: '请选择结算方式', trigger: ['blur', 'change'] },
+  ],
+}
+
 // 加载数据 - 优化版：支持 Pinia 缓存和并行加载
 const loadCustomerData = async () => {
   const id = Number(route.params.id)
@@ -1011,12 +1041,51 @@ const openEditModal = () => {
 
 // 提交编辑
 const handleEditSubmit = async () => {
+  // 1. 客户端表单验证
+  try {
+    await editFormRef.value?.validate()
+  } catch {
+    return false
+  }
+
+  // 2. 日期格式校验
+  if (editForm.value.first_payment_date) {
+    const paymentDate = new Date(editForm.value.first_payment_date)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    if (paymentDate > today) {
+      Message.error('首次回款时间不能超过今天')
+      return false
+    }
+  }
+
+  if (editForm.value.onboarding_date) {
+    const onboardingDate = new Date(editForm.value.onboarding_date)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    if (onboardingDate > today) {
+      Message.error('接入时间不能超过今天')
+      return false
+    }
+  }
+
+  // 3. 首次回款时间不能早于接入时间
+  if (editForm.value.first_payment_date && editForm.value.onboarding_date) {
+    const paymentDate = new Date(editForm.value.first_payment_date)
+    const onboardingDate = new Date(editForm.value.onboarding_date)
+    if (paymentDate < onboardingDate) {
+      Message.error('首次回款时间不能早于接入时间')
+      return false
+    }
+  }
+
   editLoading.value = true
   try {
     // 并行更新 Customer 和 CustomerProfile
     // 注意：Promise.all 任一失败会进入 catch 块，两个更新都是幂等的可重试操作
     await Promise.all([
       updateCustomer(customerId.value, {
+        company_id: editForm.value.company_id,
         name: editForm.value.name,
         email: editForm.value.email || undefined,
         account_type: editForm.value.account_type || undefined,
@@ -1026,7 +1095,6 @@ const handleEditSubmit = async () => {
         settlement_cycle: editForm.value.settlement_cycle || undefined,
         is_key_customer: editForm.value.is_key_customer,
         manager_id: editForm.value.manager_id || undefined,
-        // 新增字段
         erp_system: editForm.value.erp_system || undefined,
         first_payment_date: editForm.value.first_payment_date || undefined,
         onboarding_date: editForm.value.onboarding_date || undefined,
@@ -1046,12 +1114,27 @@ const handleEditSubmit = async () => {
     // 性能优化: 更新后清除缓存
     customerStore.invalidateCustomerCache(customerId.value)
     await loadCustomerData()
-  } catch (error) {
-    Message.error('更新失败')
+    return true
+  } catch (error: unknown) {
+    // 处理服务端 company_id 排重错误
+    const err = error as { message?: string; response?: { data?: { message?: string } } }
+    if (err.response?.data?.message) {
+      Message.error(err.response.data.message)
+    } else if (err.message?.includes('公司 ID')) {
+      Message.error(err.message)
+    } else {
+      Message.error('更新失败')
+    }
     console.error('更新失败:', error)
+    return false
   } finally {
     editLoading.value = false
   }
+}
+
+const handleEditCancel = () => {
+  editModalVisible.value = false
+  editFormRef.value?.resetFields()
 }
 
 // 切换重点客户
@@ -1240,7 +1323,14 @@ onMounted(() => {
   loadCustomerTags()
   loadUsageData()
   loadManagers()
+  window.addEventListener('resize', handleResize)
 })
+
+// 弹窗宽度响应式更新
+const handleResize = () => {
+  // 触发 modalWidth computed 重新计算
+  window.dispatchEvent(new Event('resize'))
+}
 
 // 性能优化: 路由变化时重置状态（防止复用组件时状态残留）
 watch(
@@ -1261,12 +1351,13 @@ watch(
   }
 )
 
-// 性能优化: 组件卸载时清理定时器，防止内存泄漏
+// 性能优化: 组件卸载时清理定时器和事件监听器，防止内存泄漏
 onUnmounted(() => {
   if (tabLoadTimer) {
     clearTimeout(tabLoadTimer)
     tabLoadTimer = null
   }
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
