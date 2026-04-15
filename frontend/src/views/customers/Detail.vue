@@ -396,10 +396,10 @@
               </a-form-item>
 
               <a-form-item field="industry" label="行业类型">
-                <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear>
-                  <a-option value="A">A 类</a-option>
-                  <a-option value="B">B 类</a-option>
-                  <a-option value="C">C 类</a-option>
+                <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear :loading="industryTypesLoading">
+                  <a-option v-for="type in industryTypes" :key="type.name" :value="type.name">
+                    {{ type.name }}
+                  </a-option>
                 </a-select>
               </a-form-item>
 
@@ -582,7 +582,7 @@ import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { getCustomer, updateCustomer, getProfile, updateProfile } from '@/api/customers'
+import { getCustomer, updateCustomer, getProfile, updateProfile, getIndustryTypes } from '@/api/customers'
 import {
   getCustomerBalance,
   getInvoices,
@@ -594,7 +594,7 @@ import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/a
 import { getDailyUsage, type DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
-import type { Customer, CustomerProfile, Balance, Tag, User } from '@/types'
+import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
@@ -782,6 +782,21 @@ const selectedTagIds = ref<number[]>([])
 
 const managersLoading = ref(false)
 const managers = ref<User[]>([])
+
+const industryTypes = ref<IndustryType[]>([])
+const industryTypesLoading = ref(false)
+
+const loadIndustryTypes = async () => {
+  industryTypesLoading.value = true
+  try {
+    const res = await getIndustryTypes()
+    industryTypes.value = res.data || []
+  } catch (error) {
+    console.error('加载行业类型失败:', error)
+  } finally {
+    industryTypesLoading.value = false
+  }
+}
 
 const loadManagers = async () => {
   // 性能优化: 检查缓存
@@ -1323,6 +1338,7 @@ onMounted(() => {
   loadCustomerTags()
   loadUsageData()
   loadManagers()
+  loadIndustryTypes()
   window.addEventListener('resize', handleResize)
 })
 
