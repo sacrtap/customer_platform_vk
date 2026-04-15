@@ -30,149 +30,155 @@
       <div class="tabs-section">
         <a-tabs v-model="activeTab" @change="handleTabChange">
           <a-tab-pane key="basic" title="基础信息">
-            <div class="info-table-container">
-              <table class="info-table">
-                <tbody>
-                  <tr>
-                    <td class="label-cell">客户名称</td>
-                    <td class="value-cell">{{ customer.name }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">公司 ID</td>
-                    <td class="value-cell">{{ customer.company_id }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">账号类型</td>
-                    <td class="value-cell">
-                      <a-tag>{{ customer.account_type || '-' }}</a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">行业类型</td>
-                    <td class="value-cell">
-                      <a-tag>{{ customer.industry || '-' }}</a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">客户等级</td>
-                    <td class="value-cell">
-                      <a-tag>{{ customer.customer_level || '-' }}</a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">重点客户</td>
-                    <td class="value-cell">
-                      <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
-                        {{ customer.is_key_customer ? '是' : '否' }}
-                      </a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">结算方式</td>
-                    <td class="value-cell">
-                      <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
-                        {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
-                      </a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">结算周期</td>
-                    <td class="value-cell">{{ customer.settlement_cycle || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">邮箱</td>
-                    <td class="value-cell">{{ customer.email || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">所属 ERP</td>
-                    <td class="value-cell">
-                      <a-tag v-if="customer.erp_system">{{ customer.erp_system }}</a-tag>
-                      <span v-else>-</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">合作状态</td>
-                    <td class="value-cell">
-                      <a-tag :color="cooperationStatusColor">
-                        {{ cooperationStatusText }}
-                      </a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">销售负责人</td>
-                    <td class="value-cell">
-                      {{ salesManagerName || '-' }}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">是否结算</td>
-                    <td class="value-cell">
-                      <a-tag :color="customer.is_settlement_enabled ? 'green' : 'gray'">
-                        {{ customer.is_settlement_enabled ? '是' : '否' }}
-                      </a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">是否停用</td>
-                    <td class="value-cell">
-                      <a-tag :color="customer.is_disabled ? 'red' : 'gray'">
-                        {{ customer.is_disabled ? '是' : '否' }}
-                      </a-tag>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">首次回款时间</td>
-                    <td class="value-cell">{{ customer.first_payment_date || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">接入时间</td>
-                    <td class="value-cell">{{ customer.onboarding_date || '-' }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">备注</td>
-                    <td class="value-cell">
-                      <span v-if="customer.notes" class="notes-text">{{ customer.notes }}</span>
-                      <span v-else>-</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">创建时间</td>
-                    <td class="value-cell">{{ formatDateTime(customer.created_at) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label-cell">客户标签</td>
-                    <td class="value-cell">
-                      <div class="tags-container">
-                        <a-tag
-                          v-for="tag in customerTags"
-                          :key="tag.id"
-                          color="arcoblue"
-                          closable
-                          @close="removeTag(tag.id)"
+            <div class="info-grid">
+              <!-- 第 1 行 -->
+              <div class="info-item">
+                <span class="label">客户名称</span>
+                <span class="value">{{ customer.name }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">公司 ID</span>
+                <span class="value">{{ customer.company_id }}</span>
+              </div>
+              <!-- 第 2 行 -->
+              <div class="info-item">
+                <span class="label">账号类型</span>
+                <span class="value">
+                  <a-tag>{{ customer.account_type || '-' }}</a-tag>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">行业类型</span>
+                <span class="value">
+                  <a-tag>{{ customer.industry || '-' }}</a-tag>
+                </span>
+              </div>
+              <!-- 第 3 行 -->
+              <div class="info-item">
+                <span class="label">客户等级</span>
+                <span class="value">
+                  <a-tag>{{ customer.customer_level || '-' }}</a-tag>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">重点客户</span>
+                <span class="value">
+                  <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
+                    {{ customer.is_key_customer ? '是' : '否' }}
+                  </a-tag>
+                </span>
+              </div>
+              <!-- 第 4 行 -->
+              <div class="info-item">
+                <span class="label">结算方式</span>
+                <span class="value">
+                  <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
+                    {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
+                  </a-tag>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">结算周期</span>
+                <span class="value">{{ customer.settlement_cycle || '-' }}</span>
+              </div>
+              <!-- 第 5 行 -->
+              <div class="info-item">
+                <span class="label">邮箱</span>
+                <span class="value">{{ customer.email || '-' }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">所属 ERP</span>
+                <span class="value">
+                  <a-tag v-if="customer.erp_system">{{ customer.erp_system }}</a-tag>
+                  <span v-else>-</span>
+                </span>
+              </div>
+              <!-- 第 6 行 -->
+              <div class="info-item">
+                <span class="label">合作状态</span>
+                <span class="value">
+                  <a-tag :color="cooperationStatusColor">
+                    {{ cooperationStatusText }}
+                  </a-tag>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">销售负责人</span>
+                <span class="value">
+                  {{ salesManagerName || '-' }}
+                </span>
+              </div>
+              <!-- 第 7 行 -->
+              <div class="info-item">
+                <span class="label">是否结算</span>
+                <span class="value">
+                  <a-tag :color="customer.is_settlement_enabled ? 'green' : 'gray'">
+                    {{ customer.is_settlement_enabled ? '是' : '否' }}
+                  </a-tag>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">是否停用</span>
+                <span class="value">
+                  <a-tag :color="customer.is_disabled ? 'red' : 'gray'">
+                    {{ customer.is_disabled ? '是' : '否' }}
+                  </a-tag>
+                </span>
+              </div>
+              <!-- 第 8 行 -->
+              <div class="info-item">
+                <span class="label">首次回款时间</span>
+                <span class="value">{{ customer.first_payment_date || '-' }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">接入时间</span>
+                <span class="value">{{ customer.onboarding_date || '-' }}</span>
+              </div>
+              <!-- 第 9 行 -->
+              <div class="info-item">
+                <span class="label">备注</span>
+                <span class="value">
+                  <span v-if="customer.notes" class="notes-text">{{ customer.notes }}</span>
+                  <span v-else>-</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="label">创建时间</span>
+                <span class="value">{{ formatDateTime(customer.created_at) }}</span>
+              </div>
+              <!-- 第 10 行 - 占满整行 -->
+              <div class="info-item full-width">
+                <span class="label">客户标签</span>
+                <span class="value">
+                  <div class="tags-container">
+                    <a-tag
+                      v-for="tag in customerTags"
+                      :key="tag.id"
+                      color="arcoblue"
+                      closable
+                      @close="removeTag(tag.id)"
+                    >
+                      {{ tag.name }}
+                    </a-tag>
+                    <a-button type="text" size="small" @click="openTagSelector">
+                      <template #icon>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          fill="currentColor"
+                          viewBox="0 0 16 16"
                         >
-                          {{ tag.name }}
-                        </a-tag>
-                        <a-button type="text" size="small" @click="openTagSelector">
-                          <template #icon>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              fill="currentColor"
-                              viewBox="0 0 16 16"
-                            >
-                              <path
-                                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-                              />
-                            </svg>
-                          </template>
-                          添加标签
-                        </a-button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                          <path
+                            d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                          />
+                        </svg>
+                      </template>
+                      添加标签
+                    </a-button>
+                  </div>
+                </span>
+              </div>
             </div>
           </a-tab-pane>
 
@@ -193,7 +199,7 @@
                 </div>
                 <div v-else class="metric-card success">
                   <span class="metric-label">消费等级</span>
-                  <span class="metric-value">{{ profile.consume_level || '-' }}</span>
+                  <span class="metric-value">{{ consumeLevelDisplay }}</span>
                 </div>
                 
                 <div v-if="profileLoading" class="metric-card loading">
@@ -202,16 +208,6 @@
                 <div v-else class="metric-card">
                   <span class="metric-label">所属行业</span>
                   <span class="metric-value">{{ profile.industry || '-' }}</span>
-                </div>
-                
-                <div v-if="profileLoading" class="metric-card loading">
-                  <SkeletonCard height="72px" />
-                </div>
-                <div v-else class="metric-card">
-                  <span class="metric-label">房地产行业</span>
-                  <a-tag :color="profile.is_real_estate ? 'orange' : 'gray'" size="large">
-                    {{ profile.is_real_estate ? '是' : '否' }}
-                  </a-tag>
                 </div>
               </div>
 
@@ -407,6 +403,24 @@
               <a-option value="C">C</a-option>
             </a-select>
           </a-form-item>
+          <a-form-item field="scale_level" label="规模等级">
+            <a-select v-model="editForm.scale_level" placeholder="请选择规模等级" allow-clear>
+              <a-option value="100">100人</a-option>
+              <a-option value="500">500人</a-option>
+              <a-option value="1000">1000人</a-option>
+              <a-option value="2000">2000人</a-option>
+              <a-option value="5000">5000人</a-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item field="consume_level" label="消费等级">
+            <a-select v-model="editForm.consume_level" placeholder="请选择消费等级" allow-clear>
+              <a-option value="S">S - 100万</a-option>
+              <a-option value="A">A - 50万</a-option>
+              <a-option value="B">B - 25万</a-option>
+              <a-option value="C">C - 12万</a-option>
+              <a-option value="D">D - 6万</a-option>
+            </a-select>
+          </a-form-item>
           <a-form-item field="settlement_type" label="结算方式">
             <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
               <a-option value="prepaid">预付费</a-option>
@@ -526,7 +540,7 @@
 import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { getCustomer, updateCustomer, getProfile } from '@/api/customers'
+import { getCustomer, updateCustomer, getProfile, updateProfile } from '@/api/customers'
 import {
   getCustomerBalance,
   getInvoices,
@@ -619,6 +633,9 @@ interface EditForm {
   is_settlement_enabled?: boolean
   is_disabled?: boolean
   notes?: string
+  // 规模等级和消费等级（来自 CustomerProfile）
+  scale_level?: string
+  consume_level?: string
 }
 
 // 状态
@@ -779,6 +796,9 @@ const editForm = ref<EditForm>({
   is_settlement_enabled: true,
   is_disabled: false,
   notes: undefined,
+  // 规模等级和消费等级（来自 CustomerProfile）
+  scale_level: undefined,
+  consume_level: undefined,
 })
 
 // 加载数据 - 优化版：支持 Pinia 缓存和并行加载
@@ -913,6 +933,12 @@ const getStatusText = (status: string) => {
 
 // 打开编辑对话框
 const openEditModal = () => {
+  // 防护检查：确保 profile 数据已加载
+  if (profileLoading.value || !profile.value || profile.value.id === 0) {
+    Message.warning('客户画像数据加载中，请稍后编辑')
+    return
+  }
+  
   editForm.value = {
     name: customer.value.name || '',
     email: customer.value.email || '',
@@ -932,6 +958,9 @@ const openEditModal = () => {
     is_settlement_enabled: customer.value.is_settlement_enabled ?? true,
     is_disabled: customer.value.is_disabled ?? false,
     notes: customer.value.notes || undefined,
+    // 规模等级和消费等级（来自 CustomerProfile）
+    scale_level: profile.value.scale_level || undefined,
+    consume_level: profile.value.consume_level || undefined,
   }
   editModalVisible.value = true
 }
@@ -940,26 +969,34 @@ const openEditModal = () => {
 const handleEditSubmit = async () => {
   editLoading.value = true
   try {
-    await updateCustomer(customerId.value, {
-      name: editForm.value.name,
-      email: editForm.value.email || undefined,
-      account_type: editForm.value.account_type || undefined,
-      industry: editForm.value.industry || undefined,
-      customer_level: editForm.value.customer_level || undefined,
-      settlement_type: editForm.value.settlement_type,
-      settlement_cycle: editForm.value.settlement_cycle || undefined,
-      is_key_customer: editForm.value.is_key_customer,
-      manager_id: editForm.value.manager_id || undefined,
-      // 新增字段
-      erp_system: editForm.value.erp_system || undefined,
-      first_payment_date: editForm.value.first_payment_date || undefined,
-      onboarding_date: editForm.value.onboarding_date || undefined,
-      sales_manager_id: editForm.value.sales_manager_id || undefined,
-      cooperation_status: editForm.value.cooperation_status || undefined,
-      is_settlement_enabled: editForm.value.is_settlement_enabled,
-      is_disabled: editForm.value.is_disabled,
-      notes: editForm.value.notes || undefined,
-    })
+    // 并行更新 Customer 和 CustomerProfile
+    // 注意：Promise.all 任一失败会进入 catch 块，两个更新都是幂等的可重试操作
+    await Promise.all([
+      updateCustomer(customerId.value, {
+        name: editForm.value.name,
+        email: editForm.value.email || undefined,
+        account_type: editForm.value.account_type || undefined,
+        industry: editForm.value.industry || undefined,
+        customer_level: editForm.value.customer_level || undefined,
+        settlement_type: editForm.value.settlement_type,
+        settlement_cycle: editForm.value.settlement_cycle || undefined,
+        is_key_customer: editForm.value.is_key_customer,
+        manager_id: editForm.value.manager_id || undefined,
+        // 新增字段
+        erp_system: editForm.value.erp_system || undefined,
+        first_payment_date: editForm.value.first_payment_date || undefined,
+        onboarding_date: editForm.value.onboarding_date || undefined,
+        sales_manager_id: editForm.value.sales_manager_id || undefined,
+        cooperation_status: editForm.value.cooperation_status || undefined,
+        is_settlement_enabled: editForm.value.is_settlement_enabled,
+        is_disabled: editForm.value.is_disabled,
+        notes: editForm.value.notes || undefined,
+      }),
+      updateProfile(customerId.value, {
+        scale_level: editForm.value.scale_level || undefined,
+        consume_level: editForm.value.consume_level || undefined,
+      }),
+    ])
     Message.success('更新成功')
     editModalVisible.value = false
     // 性能优化: 更新后清除缓存
@@ -1062,6 +1099,22 @@ const cooperationStatusText = computed(() => {
     terminated: '终止',
   }
   return map[status || ''] || '-'
+})
+
+// 消费等级显示映射
+const CONSUME_LEVEL_MAP: Record<string, string> = {
+  S: 'S - 100万',
+  A: 'A - 50万',
+  B: 'B - 25万',
+  C: 'C - 12万',
+  D: 'D - 6万',
+}
+
+// 消费等级显示文本
+const consumeLevelDisplay = computed(() => {
+  const level = profile.value.consume_level
+  if (!level) return '-'
+  return CONSUME_LEVEL_MAP[level] || level
 })
 
 // 销售负责人名称（从 managers 列表中查找）
@@ -1252,8 +1305,11 @@ onUnmounted(() => {
   overflow-x: hidden;
 }
 
-/* 纵向表格样式 - 基础信息面板 */
-.info-table-container {
+/* 双列信息网格 - 基础信息面板 */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
   padding: 8px 0;
   width: 100%;
   max-width: 100%;
@@ -1261,90 +1317,76 @@ onUnmounted(() => {
   overflow-x: hidden;
 }
 
-.info-table {
-  width: 100%;
-  max-width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.info-table tbody tr {
+.info-item {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--neutral-2);
-  transition: background-color var(--transition-fast, 150ms);
+  transition: background-color var(--transition-fast);
 }
 
-.info-table tbody tr:last-child {
-  border-bottom: none;
-}
-
-.info-table tbody tr:hover {
+.info-item:hover {
   background-color: var(--neutral-1);
 }
 
-.info-table .label-cell {
-  width: 140px;
-  padding: 14px 16px;
+.info-item .label {
   font-size: 13px;
   font-weight: 600;
   color: var(--neutral-6);
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  vertical-align: top;
-  background: var(--neutral-1);
+  margin-bottom: 6px;
 }
 
-.info-table .value-cell {
-  padding: 14px 16px;
+.info-item .value {
   font-size: 14px;
   color: var(--neutral-10);
   font-weight: 500;
   line-height: 1.5;
-  vertical-align: top;
 }
 
-.info-table .value-cell .arco-tag {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 客户标签占满整行 */
+.info-item.full-width {
+  grid-column: 1 / -1;
 }
 
 /* 客户标签区域 */
-.info-table .tags-container {
+.tags-container {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-.info-table .tags-container .arco-btn-text {
+.tags-container :deep(.arco-btn-text) {
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  transition: all var(--transition-fast, 150ms);
+  transition: all var(--transition-fast);
   border: 1px dashed var(--neutral-6);
   background: transparent;
   color: var(--neutral-6);
   font-size: 13px;
 }
 
-.info-table .tags-container .arco-btn-text:hover {
+.tags-container :deep(.arco-btn-text:hover) {
   border-color: var(--primary-6);
   background: var(--primary-1);
   color: var(--primary-6);
 }
 
-/* 响应式适配 */
-@media (max-width: 768px) {
-  .info-table .label-cell {
-    width: 100px;
+/* 响应式适配 - 平板及中等屏幕 */
+@media (min-width: 375px) and (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-item .label {
     font-size: 12px;
   }
 
-  .info-table .value-cell {
-    font-size: 13px;
+  .info-item .value {
+    font-size: 14px;
   }
 }
 
@@ -1491,10 +1533,10 @@ onUnmounted(() => {
   gap: 24px;
 }
 
-/* 核心指标网格 - 2x2 布局 */
+/* 核心指标网格 - 3 列布局 */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
