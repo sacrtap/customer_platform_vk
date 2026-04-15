@@ -1,5 +1,6 @@
 """客户管理服务"""
 
+import math
 from typing import Optional, List, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -75,7 +76,9 @@ class CustomerService:
 
         # 行业筛选（使用 profile.industry）
         if industry := filters.get("industry"):
-            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            stmt = stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            )
             conditions.append(CustomerProfile.industry == industry)
 
         # 客户等级筛选
@@ -109,7 +112,9 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
+        stmt = stmt.options(
+            selectinload(Customer.profile), selectinload(Customer.balance)
+        )
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -205,7 +210,9 @@ class CustomerService:
             if profile:
                 profile.industry = data["industry"]
             else:
-                profile = CustomerProfile(customer_id=customer.id, industry=data["industry"])
+                profile = CustomerProfile(
+                    customer_id=customer.id, industry=data["industry"]
+                )
                 self.db.add(profile)
 
         await self.db.commit()
@@ -234,7 +241,9 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
+    async def create_or_update_profile(
+        self, customer_id: int, data: dict
+    ) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -276,7 +285,9 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self, customers_data: List[dict]
+    ) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
@@ -297,11 +308,22 @@ class CustomerService:
         for i, data in enumerate(customers_data):
             try:
                 company_id = data.get("company_id")
+                name = data.get("name")
+
+                # Convert NaN to None (pandas uses NaN for missing values)
+                if isinstance(company_id, float) and math.isnan(company_id):
+                    company_id = None
+                if isinstance(name, float) and math.isnan(name):
+                    name = None
+
                 if not company_id:
                     errors.append(f"行{i + 1}: 缺少 company_id")
                     continue
 
-                name = data.get("name")
+                if not name:
+                    errors.append(f"行{i + 1}: 缺少 name")
+                    continue
+
                 if not name:
                     errors.append(f"行{i + 1}: 缺少 name")
                     continue
