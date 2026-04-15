@@ -25,6 +25,10 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse) => {
+    // blob 响应（文件下载等）直接返回完整 response，不做 JSON 校验
+    if (response.config.responseType === 'blob') {
+      return response
+    }
     const res = response.data
     if (res.code !== 0) {
       if (res.code === 40101 || res.code === 40102) {

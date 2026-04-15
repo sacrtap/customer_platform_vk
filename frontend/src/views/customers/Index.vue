@@ -649,9 +649,7 @@ const handleExport = async () => {
     const res = await exportCustomers(params)
 
     // 处理文件下载
-    const blob = new Blob([res as unknown as Blob], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
+    const blob = res.data as Blob
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -801,9 +799,7 @@ const handleImportFileChange = (file: File) => {
 const downloadTemplate = async () => {
   try {
     const res = await downloadImportTemplate()
-    const blob = new Blob([res as unknown as Blob], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
+    const blob = res.data as Blob
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
