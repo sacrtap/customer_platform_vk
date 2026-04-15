@@ -16,6 +16,7 @@ Customers API 集成测试
 
 import pytest
 from sqlalchemy import text
+import bcrypt
 import io
 
 
@@ -442,18 +443,18 @@ async def test_download_import_template_unauthorized(test_client):
         "/api/v1/customers/import-template",
     )
 
-    assert response.status in [401, 403]
+    assert response.status == 401
 
 
 @pytest.mark.asyncio
-async def test_download_import_template_no_import_permission(
-    test_client, db_session, test_user
-):
+async def test_download_import_template_no_import_permission(test_client, db_session):
     """测试下载导入模板 - 无 import 权限的用户仍可下载（权限已放开）"""
-    import bcrypt
-    from sqlalchemy import text
 
-    username = "template_only_user"
+    import time
+
+    unique_suffix = int(time.time())
+    username = f"template_only_user_{unique_suffix}"
+    role_name = f"view_only_{unique_suffix}"
     password = "test123456"
 
     # 清理旧数据
@@ -480,7 +481,9 @@ async def test_download_import_template_no_import_permission(
     )
 
     # 创建只有 customers:view 权限的角色
-    db_session.execute(text("DELETE FROM roles WHERE name = 'view_only'"))
+    db_session.execute(
+        text("DELETE FROM roles WHERE name = :role_name"), {"role_name": role_name}
+    )
     db_session.execute(
         text(
             """
@@ -488,15 +491,32 @@ async def test_download_import_template_no_import_permission(
         VALUES (:name, :description, NOW())
         """
         ),
-        {"name": "view_only", "description": "仅查看角色"},
+        {"name": role_name, "description": "仅查看角色"},
     )
-    result = db_session.execute(text("SELECT id FROM roles WHERE name = 'view_only'"))
+    result = db_session.execute(
+        text("SELECT id FROM roles WHERE name = :role_name"), {"role_name": role_name}
+    )
     role_id = result.scalar_one()
 
     # 仅赋予 customers:view 权限（不赋予 customers:import）
+    # 确保权限存在（test_user fixture 未使用时权限表可能为空）
     result = db_session.execute(
         text("SELECT id FROM permissions WHERE code = 'customers:view'")
     )
+    perm_row = result.fetchone()
+    if perm_row is None:
+        db_session.execute(
+            text(
+                """
+            INSERT INTO permissions (code, name, description, module, created_at)
+            VALUES ('customers:view', '查看客户', '查看客户列表和详情', 'customers', NOW())
+            """
+            )
+        )
+        db_session.commit()
+        result = db_session.execute(
+            text("SELECT id FROM permissions WHERE code = 'customers:view'")
+        )
     perm_id = result.scalar_one()
 
     db_session.execute(
@@ -557,10 +577,25 @@ async def test_download_import_template_no_import_permission(
         )
     finally:
         db_session.execute(
+            text(
+                "DELETE FROM user_roles WHERE user_id = (SELECT id FROM users WHERE username = :username)"
+            ),
+            {"username": username},
+        )
+        db_session.execute(
+            text(
+                "DELETE FROM role_permissions WHERE role_id = (SELECT id FROM roles WHERE name = :role_name)"
+            ),
+            {"role_name": role_name},
+        )
+        db_session.execute(
             text("DELETE FROM users WHERE username = :username"),
             {"username": username},
         )
-        db_session.execute(text("DELETE FROM roles WHERE name = 'view_only'"))
+        db_session.execute(
+            text("DELETE FROM roles WHERE name = :role_name"),
+            {"role_name": role_name},
+        )
         db_session.commit()
 
 
