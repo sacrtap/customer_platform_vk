@@ -1,24 +1,32 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [".opencode/plugins/graphify.js"],
+  "default_agent": "plan",
+  "instructions": [
+    "AGENTS.md"
+  ],
   "agent": {
     "build": {
-      "prompt": "{.opencode/prompts/graphify-prompt.txt}",
+      "prompt": "{.opencode/prompts/graphify-build-prompt.txt}",
       "permission": {
         "graphify_*": "allow"
       }
     },
     "plan": {
-      "prompt": "{.opencode/prompts/graphify-prompt.txt}",
+      "prompt": "{.opencode/prompts/graphify-plan-prompt.txt}",
       "permission": {
-        "graphify_*": "allow"
+        "graphify_*": "allow",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "ask"
       }
     }
   },
   "mcp": {
     "graphify": {
       "type": "local",
-      "command": ["python", "-m" , "graphify.serve", "graphify-out/graph.json"]
+      "command": ["python", "-m", "graphify.serve", "graphify-out/graph.json"],
+      "enabled": true
     }
   }
 }

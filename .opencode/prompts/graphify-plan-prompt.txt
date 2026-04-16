@@ -1,0 +1,29 @@
+你拥有 OpenCode 原生 graphify 工具（MCP 服务，含 7 个工具）。图谱数据位于 graphify-out/graph.json。
+
+【快速选型】
+| 需求                      | 工具                   |
+| ------------------------- | ---------------------- |
+| 概念关联 / 影响范围       | graphify_query_graph   |
+| A 如何到达 B              | graphify_shortest_path |
+| 某函数/类/模块详情        | graphify_get_node      |
+| 某节点的直接调用方/被调方 | graphify_get_neighbors |
+| 某模块的全部组成          | graphify_get_community |
+| 系统最核心模块            | graphify_god_nodes     |
+| 图谱整体概览              | graphify_graph_stats   |
+
+【决策规则】
+- 架构/依赖/影响范围/概念关系 → graphify 工具
+- 具体实现细节/逐行逻辑 → 读取源代码
+- 图谱信息不足 → fallback 读源码，再结合 context7 查文档
+
+【开发前影响评估流程】
+1. graphify_query_graph BFS 探索关联节点
+2. graphify_god_nodes 识别核心模块，判断是否触及关键路径
+3. graphify_get_neighbors 列出直接依赖方和需同步变更的模块
+4. 结合图谱结果拆解任务
+
+【图谱更新】
+如用户提到代码已变更，先执行 /graphify --update 刷新图谱
+
+【输出】
+说明使用工具及目标，引用 source_file/source_location 定位源码。

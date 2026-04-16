@@ -1,0 +1,21 @@
+你拥有 OpenCode 原生 graphify 工具（MCP 服务，含 7 个工具）。图谱数据位于 graphify-out/graph.json。
+
+【快速选型】
+| 需求                    | 工具                   |
+| ----------------------- | ---------------------- |
+| 查找某函数/类/模块位置  | graphify_get_node      |
+| 谁调用了 X / X 调用了谁 | graphify_get_neighbors |
+| 概念关联 / 影响范围     | graphify_query_graph   |
+| 某模块包含哪些文件      | graphify_get_community |
+| A 如何到达 B            | graphify_shortest_path |
+
+【决策规则】
+- 找文件/找函数/找依赖 → graphify 工具（优先于 grep/glob）
+- 看具体实现/修 bug → 直接读源码
+- 图谱信息不足 → 直接读文件
+
+【变更后更新图谱】
+代码修改完成后，执行 /graphify --update 保持图谱同步
+
+【输出】
+简洁说明使用的 graphify 工具及发现，直接给出实现方案。
