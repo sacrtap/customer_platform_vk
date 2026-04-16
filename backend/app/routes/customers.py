@@ -4,7 +4,11 @@ from sanic import Blueprint
 from sanic.response import json, raw
 from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..services.customers import CustomerService, convert_price_policy_to_display
+from ..services.customers import (
+    CustomerService,
+    convert_price_policy_to_display,
+    convert_settlement_type_to_display,
+)
 from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission
 import pandas as pd
@@ -88,7 +92,9 @@ async def list_customers(request: Request):
                     "price_policy": convert_price_policy_to_display(c.price_policy),
                     "manager_id": c.manager_id,
                     "settlement_cycle": c.settlement_cycle,
-                    "settlement_type": c.settlement_type,
+                    "settlement_type": convert_settlement_type_to_display(
+                        c.settlement_type
+                    ),
                     "is_key_customer": c.is_key_customer,
                     "email": c.email,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -678,7 +684,9 @@ async def export_customers(request: Request):
                 "customer_level": c.customer_level,
                 "price_policy": convert_price_policy_to_display(c.price_policy),
                 "settlement_cycle": c.settlement_cycle,
-                "settlement_type": c.settlement_type,
+                "settlement_type": convert_settlement_type_to_display(
+                    c.settlement_type
+                ),
                 "is_key_customer": "是" if c.is_key_customer else "否",
                 "email": c.email,
             }

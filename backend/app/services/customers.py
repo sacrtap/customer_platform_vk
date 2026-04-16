@@ -23,6 +23,39 @@ PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
 VALID_PRICE_POLICIES = set(PRICE_POLICY_MAP.values())  # {"pricing", "tiered", "yearly"}
 
 
+# 结算方式映射：英文标识符 ↔ 中文显示值
+SETTLEMENT_TYPE_MAP = {
+    "prepaid": "预付费",
+    "postpaid": "后付费",
+}
+
+SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
+
+VALID_SETTLEMENT_TYPES = set(SETTLEMENT_TYPE_MAP.values())
+
+
+def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
+    """将前端/导入的中文值转换为数据库存储的英文标识符"""
+    if not value:
+        return None
+    # 如果已经是英文标识符，直接返回
+    if value in SETTLEMENT_TYPE_MAP:
+        return value
+    # 中文转英文
+    return SETTLEMENT_TYPE_REVERSE_MAP.get(value)
+
+
+def convert_settlement_type_to_display(value: Optional[str]) -> Optional[str]:
+    """将数据库存储的英文标识符转换为前端展示的中文值"""
+    if not value:
+        return None
+    # 如果已经是中文，直接返回（兼容旧数据）
+    if value in SETTLEMENT_TYPE_REVERSE_MAP:
+        return value
+    # 英文转中文
+    return SETTLEMENT_TYPE_MAP.get(value, value)
+
+
 def convert_price_policy_to_storage(value: Optional[str]) -> Optional[str]:
     """将前端/导入的中文值转换为数据库存储的英文标识符"""
     if not value:
