@@ -384,47 +384,85 @@
       v-model:visible="importModalVisible"
       title="导入客户"
       :confirm-loading="importLoading"
-      width="500px"
+      width="560px"
       @before-ok="handleImportSubmit"
       @cancel="importModalVisible = false"
     >
-      <a-alert type="info" style="margin-bottom: 16px">
-        请下载模板文件，填写后上传 Excel 文件进行导入
-        <template #action>
-          <a-button type="text" size="small" @click="downloadTemplate">下载模板</a-button>
-        </template>
-      </a-alert>
-      <a-form layout="vertical">
-        <a-form-item label="上传 Excel 文件" required>
-          <a-upload
-            :file-list="importFileList"
-            :show-file-list="true"
-            :on-change="handleImportFileChange"
-            :auto-upload="false"
-          >
-            <template #upload-button>
-              <div class="arco-upload-list-item">
-                <div class="arco-upload-list-item-custom-icon">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path
-                      d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
-                    />
-                  </svg>
-                </div>
-                <div class="arco-upload-list-item-custom-text">
-                  <span>点击或拖拽文件到此处</span>
-                </div>
-              </div>
-            </template>
-          </a-upload>
-        </a-form-item>
-      </a-form>
+      <div class="import-modal-content">
+        <a-alert type="info" style="margin-bottom: 20px">
+          请下载模板文件，填写后上传 Excel 文件进行导入
+          <template #action>
+            <a-button type="text" size="small" @click="downloadTemplate">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </template>
+              下载模板
+            </a-button>
+          </template>
+        </a-alert>
+
+        <div class="upload-area" @click="triggerFileInput" @drop.prevent="handleFileDrop" @dragover.prevent @dragenter.prevent>
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".xlsx,.xls"
+            class="file-input-hidden"
+            @change="handleFileInputChange"
+          />
+          <div v-if="!importFile" class="upload-placeholder">
+            <div class="upload-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="upload-text-primary">点击或拖拽文件到此处</div>
+            <div class="upload-text-secondary">仅支持 .xlsx / .xls 格式的 Excel 文件</div>
+          </div>
+          <div v-else class="file-selected">
+            <div class="file-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </div>
+            <div class="file-info">
+              <div class="file-name">{{ importFile.name }}</div>
+              <div class="file-size">{{ formatFileSize(importFile.size) }}</div>
+            </div>
+            <div class="file-remove" @click.stop="removeFile">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="import-tips">
+          <div class="tips-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            导入须知
+          </div>
+          <ul class="tips-list">
+            <li>请使用下载的模板文件填写客户信息</li>
+            <li>确保必填字段（公司 ID、客户名称等）已填写</li>
+            <li>单次导入建议不超过 1000 条数据</li>
+          </ul>
+        </div>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -785,15 +823,63 @@ const viewProfile = (id: number) => {
 // ========== 导入客户 ==========
 const importModalVisible = ref(false)
 const importLoading = ref(false)
-const importFileList = ref<File[]>([])
+const importFile = ref<File | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const openImportModal = () => {
-  importFileList.value = []
+  importFile.value = null
   importModalVisible.value = true
 }
 
-const handleImportFileChange = (file: File) => {
-  importFileList.value = [file]
+const triggerFileInput = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileInputChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+const handleFileDrop = (event: DragEvent) => {
+  const file = event.dataTransfer?.files[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+const validateAndSetFile = (file: File) => {
+  const allowedTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+  ]
+  const allowedExtensions = ['.xlsx', '.xls']
+  const hasValidExtension = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+  const hasValidType = allowedTypes.includes(file.type)
+
+  if (!hasValidType && !hasValidExtension) {
+    Message.error('仅支持上传 Excel 文件（.xlsx 或 .xls）')
+    return
+  }
+
+  importFile.value = file
+}
+
+const removeFile = () => {
+  importFile.value = null
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 const downloadTemplate = async () => {
@@ -815,15 +901,14 @@ const downloadTemplate = async () => {
 }
 
 const handleImportSubmit = async () => {
-  if (importFileList.value.length === 0) {
+  if (!importFile.value) {
     Message.error('请选择要导入的文件')
     return false
   }
 
   importLoading.value = true
   try {
-    const file = (importFileList.value[0] as any).originFile
-    const res = await importCustomers(file)
+    const res = await importCustomers(importFile.value)
     const data = (res as { data: ImportResult }).data
     const { success_count, error_count, errors } = data
 
@@ -959,5 +1044,153 @@ onMounted(() => {
   content: '*';
   color: #ff4d4f;
   margin-right: 4px;
+}
+
+/* 导入弹框样式 */
+.import-modal-content {
+  padding: 4px 0;
+}
+
+.upload-area {
+  border: 2px dashed var(--neutral-3);
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: var(--neutral-1);
+  margin-bottom: 20px;
+}
+
+.upload-area:hover {
+  border-color: var(--primary-6);
+  background: rgba(3, 105, 161, 0.04);
+}
+
+.upload-area:active {
+  transform: scale(0.99);
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-icon {
+  color: var(--neutral-5);
+  margin-bottom: 8px;
+  transition: color 0.25s ease;
+}
+
+.upload-area:hover .upload-icon {
+  color: var(--primary-6);
+}
+
+.upload-icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.upload-text-primary {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--neutral-9);
+  line-height: 1.5;
+}
+
+.upload-text-secondary {
+  font-size: 13px;
+  color: var(--neutral-6);
+  line-height: 1.4;
+}
+
+.file-selected {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.file-icon {
+  color: var(--primary-6);
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--neutral-9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--neutral-6);
+}
+
+.file-remove {
+  color: var(--neutral-5);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.file-remove:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.08);
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.import-tips {
+  background: rgba(3, 105, 161, 0.04);
+  border-radius: 8px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--primary-6);
+}
+
+.tips-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neutral-9);
+  margin-bottom: 10px;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.tips-list li {
+  font-size: 12px;
+  color: var(--neutral-7);
+  line-height: 1.8;
+}
+
+.tips-list li:last-child {
+  margin-bottom: 0;
 }
 </style>
