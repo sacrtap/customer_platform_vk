@@ -383,10 +383,23 @@ class CustomerService:
                     company_id = None
                 if isinstance(name, float) and math.isnan(name):
                     name = None
-                if isinstance(data.get("email"), float) and math.isnan(
-                    data.get("email")
-                ):
-                    data["email"] = None
+
+                # Convert NaN to None for all optional fields
+                optional_fields = [
+                    "account_type",
+                    "customer_level",
+                    "industry",
+                    "price_policy",
+                    "settlement_cycle",
+                    "settlement_type",
+                    "email",
+                    "erp_system",
+                    "notes",
+                ]
+                for field in optional_fields:
+                    val = data.get(field)
+                    if isinstance(val, float) and math.isnan(val):
+                        data[field] = None
 
                 # Convert string company_id to int if needed (for import compatibility)
                 if isinstance(company_id, str):
