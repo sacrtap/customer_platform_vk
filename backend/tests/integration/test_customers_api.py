@@ -692,7 +692,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     )
     ws.append(
         [
-            "TEST_IMPORT_001",
+            1000001,
             "导入测试公司 1",
             "正式账号",
             "互联网",
@@ -704,7 +704,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     )
     ws.append(
         [
-            "TEST_IMPORT_002",
+            1000002,
             "导入测试公司 2",
             "试用账号",
             "房地产",
@@ -740,7 +740,9 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     assert data["data"]["success_count"] == 2
 
     db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_IMPORT_%'")
+        text(
+            "DELETE FROM customers WHERE company_id >= 1000000 AND company_id < 1000010"
+        )
     )
     db_session.commit()
 
@@ -1160,7 +1162,7 @@ async def test_customers_unauthorized(test_client):
 @pytest.mark.asyncio
 async def test_customers_missing_permission(test_client, db_session):
     """测试缺少权限访问"""
-    from unittest.mock import patch, AsyncMock
+    from unittest.mock import AsyncMock
 
     username = "no_perm_user"
     password = "test123456"
