@@ -45,7 +45,7 @@ def customer_data(db_session):
 
     customers = [
         {
-            "company_id": "TEST001",
+            "company_id": 1001,
             "name": "测试公司 1",
             "account_type": "正式账号",
             "customer_level": "KA",
@@ -54,7 +54,7 @@ def customer_data(db_session):
             "email": "test1@example.com",
         },
         {
-            "company_id": "TEST002",
+            "company_id": 1002,
             "name": "测试公司 2",
             "account_type": "试用账号",
             "customer_level": "SMB",
@@ -63,7 +63,7 @@ def customer_data(db_session):
             "email": "test2@example.com",
         },
         {
-            "company_id": "TEST003",
+            "company_id": 1003,
             "name": "测试公司 3",
             "account_type": "正式账号",
             "customer_level": "KA",
@@ -89,7 +89,7 @@ def customer_data(db_session):
     db_session.commit()
 
     result = db_session.execute(
-        text("SELECT id FROM customers WHERE company_id = 'TEST001'")
+        text("SELECT id FROM customers WHERE company_id = 1001")
     )
     customer_id = result.scalar_one()
 
@@ -163,7 +163,7 @@ async def test_get_customer_success(test_client, auth_headers, customer_data):
     assert response.status == 200
     data = response.json
     assert data["code"] == 0
-    assert data["data"]["company_id"] == "TEST001"
+    assert data["data"]["company_id"] == 1001
     assert data["data"]["name"] == "测试公司 1"
 
 
@@ -234,7 +234,7 @@ async def test_create_customer_missing_required_fields(test_client, auth_headers
 async def test_create_customer_invalid_email(test_client, auth_headers):
     """测试创建客户 - 邮箱格式不正确"""
     new_customer = {
-        "company_id": "TEST_INVALID_EMAIL",
+        "company_id": 999999,
         "name": "无效邮箱测试",
         "email": "invalid-email",
     }
@@ -479,7 +479,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     # 验证第 3 行：示例数据
     example = [cell.value for cell in ws[3]]
-    assert example[0] == "COMP001"  # company_id 示例
+    assert example[0] == 1001  # company_id 示例
     assert "示例公司" in str(example[1])  # name 示例
     assert example[5] == "定价"  # price_policy 示例
     assert example[7] == "prepaid"  # settlement_type 示例
@@ -784,7 +784,7 @@ async def test_import_customers_missing_columns(test_client, auth_headers):
     wb = Workbook()
     ws = wb.active
     ws.append(["company_id"])
-    ws.append(["TEST_MISSING_NAME"])
+    ws.append(["MISSING_NAME"])
 
     output = io.BytesIO()
     wb.save(output)
@@ -912,7 +912,7 @@ async def test_import_customers_empty_required_fields(
     ws.append(["company_id", "name"])
     # Use None (NaN) values - pandas will include these rows
     ws.append([None, "Company with empty company_id"])
-    ws.append(["TEST_EMPTY_NAME", None])
+    ws.append(["EMPTY_NAME", None])
 
     output = io.BytesIO()
     wb.save(output)
@@ -992,7 +992,7 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
     wb = Workbook()
     ws = wb.active
     ws.append(["company_id", "name", "price_policy"])
-    ws.append(["TEST_INVALID_POLICY", "非法策略测试", "非法值"])
+    ws.append(["INVALID_POLICY", "非法策略测试", "非法值"])
 
     output = io.BytesIO()
     wb.save(output)
