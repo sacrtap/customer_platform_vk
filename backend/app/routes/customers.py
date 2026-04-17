@@ -455,7 +455,7 @@ async def import_customers(request: Request):
     - file: Excel 文件 (.xlsx)
 
     Excel 列要求:
-    - company_id (必填)
+    - company_id (integer, required)
     - name (必填)
     - account_type (可选)
     - industry (可选)
