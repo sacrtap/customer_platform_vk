@@ -88,9 +88,7 @@ def customer_data(db_session):
 
     db_session.commit()
 
-    result = db_session.execute(
-        text("SELECT id FROM customers WHERE company_id = 'TEST001'")
-    )
+    result = db_session.execute(text("SELECT id FROM customers WHERE company_id = 'TEST001'"))
     customer_id = result.scalar_one()
 
     yield {"customers": customers, "customer_id": customer_id}
@@ -207,9 +205,7 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
     assert data["data"]["company_id"] == "TEST_CREATE_001"
     assert data["data"]["name"] == "新创建测试公司"
 
-    db_session.execute(
-        text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'")
-    )
+    db_session.execute(text("DELETE FROM customers WHERE company_id = 'TEST_CREATE_001'"))
     db_session.commit()
 
 
@@ -254,9 +250,7 @@ async def test_create_customer_invalid_email(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_update_customer_success(
-    test_client, auth_headers, customer_data, db_session
-):
+async def test_update_customer_success(test_client, auth_headers, customer_data, db_session):
     """测试更新客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -278,9 +272,7 @@ async def test_update_customer_success(
     assert data["message"] == "更新成功"
 
     result = db_session.execute(
-        text(
-            "SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"
-        ),
+        text("SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"),
         {"id": customer_id},
     )
     updated = result.fetchone()
@@ -307,9 +299,7 @@ async def test_update_customer_not_found(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_delete_customer_success(
-    test_client, auth_headers, customer_data, db_session
-):
+async def test_delete_customer_success(test_client, auth_headers, customer_data, db_session):
     """测试删除客户 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
@@ -553,9 +543,7 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
     )
 
     # 创建只有 customers:view 权限的角色
-    db_session.execute(
-        text("DELETE FROM roles WHERE name = :role_name"), {"role_name": role_name}
-    )
+    db_session.execute(text("DELETE FROM roles WHERE name = :role_name"), {"role_name": role_name})
     db_session.execute(
         text(
             """
@@ -572,9 +560,7 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
 
     # 仅赋予 customers:view 权限（不赋予 customers:import）
     # 确保权限存在（test_user fixture 未使用时权限表可能为空）
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE code = 'customers:view'")
-    )
+    result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'customers:view'"))
     perm_row = result.fetchone()
     if perm_row is None:
         db_session.execute(
@@ -740,9 +726,7 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     assert data["data"]["success_count"] == 2
 
     db_session.execute(
-        text(
-            "DELETE FROM customers WHERE company_id >= 1000000 AND company_id < 1000010"
-        )
+        text("DELETE FROM customers WHERE company_id >= 1000000 AND company_id < 1000010")
     )
     db_session.commit()
 
@@ -813,9 +797,7 @@ async def test_import_customers_missing_columns(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_import_customers_with_template_notes_row(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_with_template_notes_row(test_client, auth_headers, db_session):
     """测试导入带中文说明行的模板文件（智能跳过逻辑）"""
     from openpyxl import Workbook
 
@@ -826,7 +808,7 @@ async def test_import_customers_with_template_notes_row(
     # 第 2 行：中文说明（模板特征）
     ws.append(["必填", "必填", "可选"])
     # 第 3 行：实际数据
-    ws.append(["TEST_TEMPLATE_001", "模板测试公司", "正式账号"])
+    ws.append([1000010, "模板测试公司", "正式账号"])
 
     output = io.BytesIO()
     wb.save(output)
@@ -853,22 +835,20 @@ async def test_import_customers_with_template_notes_row(
 
     # 清理测试数据
     db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_TEMPLATE_%'")
+        text("DELETE FROM customers WHERE company_id >= 1000010 AND company_id < 1000020")
     )
     db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_import_customers_invalid_email_should_fail(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_invalid_email_should_fail(test_client, auth_headers, db_session):
     """测试导入 - 邮箱格式错误应返回错误信息"""
     from openpyxl import Workbook
 
     wb = Workbook()
     ws = wb.active
     ws.append(["company_id", "name", "email"])
-    ws.append(["TEST_BAD_EMAIL", "邮箱错误测试", "not-an-email"])
+    ws.append([1000020, "邮箱错误测试", "not-an-email"])
 
     output = io.BytesIO()
     wb.save(output)
@@ -893,15 +873,13 @@ async def test_import_customers_invalid_email_should_fail(
     assert data["data"]["error_count"] >= 1
 
     db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_BAD_EMAIL%'")
+        text("DELETE FROM customers WHERE company_id >= 1000020 AND company_id < 1000030")
     )
     db_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_import_customers_empty_required_fields(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_empty_required_fields(test_client, auth_headers, db_session):
     """测试导入 - 必填字段为空应返回错误"""
     from openpyxl import Workbook
 
@@ -939,17 +917,15 @@ async def test_import_customers_empty_required_fields(
 
 
 @pytest.mark.asyncio
-async def test_import_customers_duplicate_company_id(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_duplicate_company_id(test_client, auth_headers, db_session):
     """测试导入 - 重复 company_id 应部分成功或报错"""
     from openpyxl import Workbook
 
     wb = Workbook()
     ws = wb.active
     ws.append(["company_id", "name"])
-    ws.append(["TEST_DUP_001", "公司 A"])
-    ws.append(["TEST_DUP_001", "公司 B"])
+    ws.append([1000030, "公司 A"])
+    ws.append([1000030, "公司 B"])
 
     output = io.BytesIO()
     wb.save(output)
@@ -974,7 +950,9 @@ async def test_import_customers_duplicate_company_id(
     assert data["code"] == 0
     assert data["data"]["success_count"] >= 1 or data["data"]["error_count"] >= 1
 
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_DUP_%'"))
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id >= 1000030 AND company_id < 1000040")
+    )
     db_session.commit()
 
 
@@ -1013,17 +991,15 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_import_customers_without_notes_row(
-    test_client, auth_headers, db_session
-):
+async def test_import_customers_without_notes_row(test_client, auth_headers, db_session):
     """测试导入普通用户文件（无说明行，不应跳过）"""
     from openpyxl import Workbook
 
     wb = Workbook()
     ws = wb.active
     ws.append(["company_id", "name"])
-    ws.append(["TEST_NORMAL_001", "普通公司 A"])
-    ws.append(["TEST_NORMAL_002", "普通公司 B"])
+    ws.append([1000040, "普通公司 A"])
+    ws.append([1000041, "普通公司 B"])
 
     output = io.BytesIO()
     wb.save(output)
@@ -1050,7 +1026,7 @@ async def test_import_customers_without_notes_row(
 
     # 清理测试数据
     db_session.execute(
-        text("DELETE FROM customers WHERE company_id LIKE 'TEST_NORMAL_%'")
+        text("DELETE FROM customers WHERE company_id >= 1000040 AND company_id < 1000050")
     )
     db_session.commit()
 
@@ -1088,9 +1064,7 @@ async def test_export_customers_with_filters(test_client, auth_headers, customer
 
 
 @pytest.mark.asyncio
-async def test_export_customers_contains_test_data(
-    test_client, auth_headers, customer_data
-):
+async def test_export_customers_contains_test_data(test_client, auth_headers, customer_data):
     """测试导出 - 验证导出文件包含测试数据"""
     from openpyxl import load_workbook
 
@@ -1116,9 +1090,7 @@ async def test_export_customers_contains_test_data(
 
 
 @pytest.mark.asyncio
-async def test_export_customers_field_consistency(
-    test_client, auth_headers, customer_data
-):
+async def test_export_customers_field_consistency(test_client, auth_headers, customer_data):
     """测试导出 - 验证导出文件字段与导入模板字段一致性"""
     from openpyxl import load_workbook
 
@@ -1149,6 +1121,11 @@ async def test_export_customers_field_consistency(
 
     for header in template_headers:
         assert header in export_headers, f"导出文件缺少字段: {header}"
+
+    # Verify company_id values are integers
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[0] is not None:
+            assert isinstance(row[0], (int, float)), f"company_id 应为整数，实际为 {type(row[0])}"
 
 
 @pytest.mark.asyncio
