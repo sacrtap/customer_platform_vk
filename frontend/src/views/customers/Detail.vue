@@ -602,7 +602,7 @@ import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/a
 import { getDailyUsage, type DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
-import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType, PRICE_POLICY_DISPLAY_MAP } from '@/types'
+import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
 import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
@@ -622,12 +622,6 @@ const pricePolicyOptions = [
   { label: '阶梯', value: 'tiered' },
   { label: '包年', value: 'yearly' },
 ]
-
-// 获取价格策略展示名称
-const getPricePolicyDisplay = (value: string | null | undefined): string => {
-  if (!value) return '-'
-  return (PRICE_POLICY_DISPLAY_MAP as Record<string, string>)[value] || value
-}
 
 // 编辑表单 ref
 const editFormRef = ref<FormInstance>()
@@ -691,7 +685,7 @@ const goBack = () => {
 // 编辑表单类型
 interface EditForm {
   name: string
-  company_id: string
+  company_id: number
   email: string
   account_type?: string
   industry?: string
@@ -728,7 +722,7 @@ const balanceLoading = ref(true)
 const customerId = ref<number>(0)
 const customer = ref<Customer>({
   id: 0,
-  company_id: '',
+  company_id: 0,
   name: '',
   account_type: null,
   industry: null,
@@ -871,7 +865,7 @@ const invoiceColumns = [
 // 编辑表单
 const editForm = ref<EditForm>({
   name: '',
-  company_id: '',
+  company_id: 0,
   email: '',
   account_type: undefined,
   industry: undefined,
@@ -1052,7 +1046,7 @@ const openEditModal = () => {
   
   editForm.value = {
     name: customer.value.name || '',
-    company_id: customer.value.company_id || '',
+    company_id: Number(customer.value.company_id) || 0,
     email: customer.value.email || '',
     account_type: customer.value.account_type || undefined,
     industry: customer.value.industry || undefined,

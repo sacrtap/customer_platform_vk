@@ -711,7 +711,7 @@ const isEditMode = ref(false)
 const editingCustomerId = ref<number | null>(null)
 
 const customerForm = reactive({
-  company_id: '',
+  company_id: undefined as number | undefined,
   name: '',
   email: '',
   account_type: undefined as string | undefined,
@@ -734,7 +734,7 @@ const openCreateModal = () => {
   isEditMode.value = false
   editingCustomerId.value = null
   Object.assign(customerForm, {
-    company_id: '',
+    company_id: undefined,
     name: '',
     email: '',
     account_type: undefined,
@@ -782,7 +782,7 @@ const handleCustomerSubmit = async () => {
   customerModalLoading.value = true
   try {
     const data = {
-      company_id: customerForm.company_id,
+      company_id: customerForm.company_id ?? 0,
       name: customerForm.name,
       email: customerForm.email || undefined,
       account_type: customerForm.account_type,

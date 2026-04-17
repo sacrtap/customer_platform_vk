@@ -19,7 +19,7 @@ export function getConsumptionTrend(params?: {
 
 export interface TopCustomer {
   customer_id: number
-  company_id: string
+  company_id: number
   customer_name: string
   total_amount: number
 }
@@ -92,7 +92,7 @@ export function getHealthStats() {
 
 export interface WarningCustomer {
   customer_id: number
-  company_id: string
+  company_id: number
   customer_name: string
   total_amount: number
   real_amount: number
@@ -105,7 +105,7 @@ export function getWarningList(params?: { threshold?: number }) {
 
 export interface InactiveCustomer {
   customer_id: number
-  company_id: string
+  company_id: number
   customer_name: string
   manager_id?: number
   manager_name: string
@@ -174,7 +174,7 @@ export function getRealEstateStats() {
 
 export interface PaymentPrediction {
   customer_id: number
-  company_id: string
+  company_id: number
   customer_name: string
   device_type: string
   quantity: number

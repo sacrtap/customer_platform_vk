@@ -90,7 +90,7 @@ export const PRICE_POLICY_DISPLAY_MAP: Record<string, string> = {
 /** 客户 */
 export interface Customer {
   id: number
-  company_id: string
+  company_id: number
   name: string
   account_type: string | null
   industry: string | null

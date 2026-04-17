@@ -23,7 +23,7 @@ export function getCustomer(id: number) {
 
 // 创建客户
 export function createCustomer(data: {
-  company_id: string
+  company_id: number
   name: string
   account_type?: string
   industry?: string
@@ -42,7 +42,7 @@ export function createCustomer(data: {
 export function updateCustomer(
   id: number,
   data: {
-    company_id?: string  // 公司 ID 可编辑
+    company_id?: number  // 公司 ID 可编辑
     name?: string
     account_type?: string
     industry?: string
