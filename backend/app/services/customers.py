@@ -374,6 +374,14 @@ class CustomerService:
                 if isinstance(name, float) and math.isnan(name):
                     name = None
 
+                # Convert string company_id to int if needed (for import compatibility)
+                if isinstance(company_id, str):
+                    try:
+                        company_id = int(company_id)
+                    except (ValueError, TypeError):
+                        errors.append(f"行{i + 1}: company_id '{company_id}' 不是有效的整数")
+                        continue
+
                 if not company_id:
                     errors.append(f"行{i + 1}: 缺少 company_id")
                     continue
