@@ -25,7 +25,7 @@ customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 @require_permission("customers:view")
 async def list_customers(request: Request):
     """
-    获取客户列表（支持筛选）
+    获取客户列表（支持筛选和排序）
 
     Query:
     - page: 页码 (默认 1)
@@ -36,10 +36,16 @@ async def list_customers(request: Request):
     - manager_id: 运营经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
+    - sort_by: 排序字段 (id, company_id, name, created_at, updated_at，默认 id)
+    - sort_order: 排序方向 (asc 或 desc，默认 asc)
     """
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
     page_size = min(page_size, 100)
+
+    # 排序参数
+    sort_by = request.args.get("sort_by", "id")
+    sort_order = request.args.get("sort_order", "asc")
 
     # 构建筛选条件
     filters = {
@@ -61,7 +67,7 @@ async def list_customers(request: Request):
     filters = {k: v for k, v in filters.items() if v is not None}
 
     # 尝试从缓存获取
-    cache_key = f"p{page}_ps{page_size}_{hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()[:8]}"
+    cache_key = f"p{page}_ps{page_size}_sb{sort_by}_so{sort_order}_{hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()[:8]}"
     cached = await cache_service.get("customer_list", cache_key)
     if cached is not None:
         return json(cached)
@@ -69,9 +75,13 @@ async def list_customers(request: Request):
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
-    customers, total = await service.get_all_customers(
-        page=page, page_size=page_size, filters=filters
-    )
+    try:
+        customers, total = await service.get_all_customers(
+            page=page, page_size=page_size, filters=filters,
+            sort_by=sort_by, sort_order=sort_order
+        )
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
 
     result = {
         "code": 0,
