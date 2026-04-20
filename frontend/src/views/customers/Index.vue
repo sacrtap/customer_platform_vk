@@ -67,9 +67,9 @@
     <div class="filter-section">
       <a-form layout="vertical" :model="filters">
         <a-row :gutter="16">
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="关键词">
-              <a-input v-model="filters.keyword" placeholder="公司名称/公司 ID">
+              <a-input v-model="filters.keyword" placeholder="公司名称/公司 ID" @press-enter="handleSearch">
                 <template #prefix>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -86,7 +86,7 @@
               </a-input>
             </a-form-item>
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="账号类型">
               <a-select v-model="filters.account_type" placeholder="请选择" allow-clear>
                 <a-option value="正式账号">正式账号</a-option>
@@ -94,7 +94,7 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="行业类型">
               <a-select v-model="filters.industry" placeholder="请选择行业类型" allow-clear>
                 <a-option
@@ -107,7 +107,7 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="重点客户">
               <a-select v-model="filters.is_key_customer" placeholder="请选择" allow-clear>
                 <a-option :value="true">是</a-option>
@@ -115,7 +115,7 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="&nbsp;">
               <a-space>
                 <a-button type="primary" @click="handleSearch">查询</a-button>
