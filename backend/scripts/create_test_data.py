@@ -65,7 +65,6 @@ def create_test_data():
                 company_id="TEST001",
                 name="测试客户公司",
                 account_type="formal",
-                customer_level="KA",
                 email="test@customer.com",
                 is_key_customer=True,
             )
