@@ -2126,10 +2126,6 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
   min-height: 350px;
-  background: white;
-  border-radius: var(--radius-md, 10px);
-  padding: 16px;
-  border: 1px solid var(--neutral-2);
 }
 
 .usage-table-section {
