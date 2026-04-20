@@ -59,6 +59,21 @@ def clean_value(val, field_name):
         return None
     if field_name == "settlement_type":
         return "prepaid"
+    # 客户消费等级：0 不是有效值，转为 None
+    if field_name == "consume_level":
+        if val == 0 or val == "0":
+            return None
+        return str(val) if val is not None else None
+    # 数值字段：0 代表无数据，转为 None
+    if field_name in ("monthly_avg_shots", "monthly_avg_shots_estimated"):
+        if val == 0 or val == "0":
+            return None
+        return int(val)
+    # 金额字段：0 代表无数据，转为 None
+    if field_name in ("estimated_annual_spend", "actual_annual_spend_2025"):
+        if val == 0 or val == "0":
+            return None
+        return float(val)
     return val
 
 

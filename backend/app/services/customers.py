@@ -455,6 +455,10 @@ class CustomerService:
                     if isinstance(val, str) and val.strip() in ("#N/A", "#VALUE!"):
                         data[field] = None
 
+                # consume_level: 0 不是有效值，转为 None
+                if data.get("consume_level") in (0, "0"):
+                    data["consume_level"] = None
+
                 # Convert string company_id to int if needed (for import compatibility)
                 if isinstance(company_id, str):
                     try:
@@ -514,11 +518,13 @@ class CustomerService:
                     "monthly_avg_shots_estimated",
                 ]:
                     val = data.get(num_field)
-                    if val is not None:
+                    if val is not None and val != 0:
                         try:
                             data[num_field] = int(float(str(val).strip()))
                         except (ValueError, TypeError):
                             data[num_field] = None
+                    elif val == 0:
+                        data[num_field] = None
 
                 # 金额字段清洗
                 for money_field in [
@@ -526,11 +532,13 @@ class CustomerService:
                     "actual_annual_spend_2025",
                 ]:
                     val = data.get(money_field)
-                    if val is not None:
+                    if val is not None and val != 0:
                         try:
                             data[money_field] = float(str(val).strip())
                         except (ValueError, TypeError):
                             data[money_field] = None
+                    elif val == 0:
+                        data[money_field] = None
 
                 # 检查是否已存在
                 if company_id in existing_company_ids:
