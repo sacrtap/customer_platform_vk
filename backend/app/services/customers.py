@@ -16,6 +16,77 @@ from ..models.billing import CustomerBalance
 ALLOWED_SORT_FIELDS = {"id", "company_id", "name", "created_at", "updated_at"}
 VALID_SORT_ORDERS = {"asc", "desc"}
 
+# 账号类型映射：Excel 值 → 数据库存储值
+ACCOUNT_TYPE_MAP = {
+    "正式": "正式账号",
+    "客户测试账号": "客户测试账号",
+    "众趣内部": "内部账号",
+}
+
+
+def convert_account_type(value: Optional[str]) -> Optional[str]:
+    """将 Excel 中的账号类型转换为数据库存储值"""
+    if not value:
+        return None
+    return ACCOUNT_TYPE_MAP.get(str(value).strip(), str(value).strip())
+
+
+def convert_bool_field(value: Optional[Union[str, bool, int]]) -> Optional[bool]:
+    """将 Excel 中的是/否转换为布尔值"""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    val = str(value).strip().lower()
+    if val in ("是", "true", "1", "yes"):
+        return True
+    if val in ("否", "false", "0", "no"):
+        return False
+    return None
+
+
+def convert_date_field(value: Optional[Any]) -> Optional[str]:
+    """将 Excel 日期值转换为 YYYY-MM-DD 字符串"""
+    if value is None:
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    val = str(value).strip()
+    if not val or val in ("#N/A", "None"):
+        return None
+
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%Y%m%d"):
+        try:
+            return datetime.strptime(val, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
+def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
+    """将前端日期字符串转换为 datetime.date 对象"""
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    val = str(value).strip()
+    if not val or val in ("#N/A", "None"):
+        return None
+    try:
+        return datetime.strptime(val, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
+    """将前端/导入的中文值转换为数据库存储的英文标识符"""
+    if not value:
+        return None
+    if value in SETTLEMENT_TYPE_MAP:
+        return value
+    return SETTLEMENT_TYPE_REVERSE_MAP.get(value)
+
+
 # 计费模式转换
 PRICE_POLICY_MAP = {"定价": "pricing", "阶梯": "tiered", "包年": "yearly"}
 PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
