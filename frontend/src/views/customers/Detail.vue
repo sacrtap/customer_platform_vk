@@ -1039,11 +1039,11 @@ const getStatusText = (status: string) => {
 // 打开编辑对话框
 const openEditModal = () => {
   // 防护检查：确保 profile 数据已加载
-  if (profileLoading.value || !profile.value || profile.value.id === 0) {
+  if (profileLoading.value || !profile.value) {
     Message.warning('客户画像数据加载中，请稍后编辑')
     return
   }
-  
+
   editForm.value = {
     name: customer.value.name || '',
     company_id: Number(customer.value.company_id) || 0,
