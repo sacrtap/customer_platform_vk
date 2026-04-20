@@ -1678,18 +1678,13 @@ onUnmounted(() => {
 }
 
 /* ========== 数据表格卡片容器 ========== */
+/* 透明容器，由外层 .tabs-section 统一提供卡片效果 */
 .data-table-card {
-  background: white;
-  border-radius: var(--radius-md, 10px);
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
-  padding: 0;
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
-/* 用量表格区域的卡片间距 */
+/* 用量表格区域的间距调整 */
 .usage-table-section .data-table-card {
   margin-top: 0;
 }
@@ -2130,8 +2125,6 @@ onUnmounted(() => {
 
 .usage-table-section {
   margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--neutral-2);
   width: 100%;
   box-sizing: border-box;
 }
