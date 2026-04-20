@@ -23,7 +23,6 @@ class Customer(BaseModel):
     company_id = Column(Integer, unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False, index=True)
     account_type = Column(String(50), index=True)
-    customer_level = Column(String(50), index=True)
     price_policy = Column(String(50))
     manager_id = Column(Integer, ForeignKey("users.id"), index=True)
     settlement_cycle = Column(String(20))  # monthly/quarterly/yearly
@@ -44,7 +43,6 @@ class Customer(BaseModel):
     notes = Column(Text, nullable=True)  # 备注
 
     __table_args__ = (
-        Index("idx_customer_manager_level", "manager_id", "customer_level"),
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
         Index("idx_customer_cooperation_status", "cooperation_status"),  # 新增
         Index("idx_customer_disabled", "is_disabled"),  # 新增
