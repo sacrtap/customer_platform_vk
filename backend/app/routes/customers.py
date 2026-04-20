@@ -557,6 +557,19 @@ async def download_import_template(request: Request):
         "settlement_type",
         "is_key_customer",
         "email",
+        # 新增字段
+        "erp_system",
+        "first_payment_date",
+        "onboarding_date",
+        "cooperation_status",
+        "is_settlement_enabled",
+        "is_disabled",
+        "notes",
+        "consume_level",
+        "monthly_avg_shots",
+        "monthly_avg_shots_estimated",
+        "estimated_annual_spend",
+        "actual_annual_spend_2025",
     ]
     ws.append(headers)
 
@@ -564,14 +577,27 @@ async def download_import_template(request: Request):
     notes = [
         "必填",
         "必填",
+        "可选：正式/客户测试账号/众趣内部",
         "可选",
-        "可选",
-        "可选",
+        "可选：S/A/B/C/D",
         "可选：定价/阶梯/包年",
         "可选",
-        "可选：prepaid/postpaid",
+        "可选：默认prepaid",
         "可选：true/false",
         "可选",
+        # 新增字段说明
+        "可选",
+        "可选：YYYY-MM-DD",
+        "可选：YYYY-MM-DD",
+        "可选",
+        "可选：是/否",
+        "可选：是/否",
+        "可选",
+        "可选：C2/C3/C4/C5/C6",
+        "可选：整数",
+        "可选：整数",
+        "可选：金额",
+        "可选：金额",
     ]
     ws.append(notes)
 
@@ -583,7 +609,7 @@ async def download_import_template(request: Request):
     example_data = [
         1001,
         "示例公司 1",
-        "正式账号",
+        "正式",
         "项目",
         "KA",
         "定价",
@@ -591,6 +617,19 @@ async def download_import_template(request: Request):
         "prepaid",
         "false",
         "example@company.com",
+        # 新增字段示例
+        "某某ERP",
+        "2024-01-15",
+        "2024-02-01",
+        "正常使用",
+        "是",
+        "否",
+        "备注示例",
+        "C3",
+        500,
+        450,
+        50000.00,
+        45000.00,
     ]
     ws.append(example_data)
 
