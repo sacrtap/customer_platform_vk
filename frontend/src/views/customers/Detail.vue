@@ -1832,7 +1832,7 @@ onUnmounted(() => {
 
 /* 图表面板 - 透明容器，由外层.tabs-section统一提供卡片效果 */
 .chart-panel {
-  padding: 20px;
+  padding: 20px 28px;
 }
 
 /* 图表标题 */
@@ -2120,6 +2120,7 @@ onUnmounted(() => {
   margin-top: 24px;
   width: 100%;
   box-sizing: border-box;
+  padding: 0 8px;
 }
 
 /* 减少运动偏好支持 */
