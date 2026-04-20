@@ -2,7 +2,7 @@
 
 import math
 import re
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Tuple, Union, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -80,6 +80,22 @@ def convert_date_field(value: Optional[Any]) -> Optional[str]:
         except ValueError:
             continue
     return None
+
+
+def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
+    """将前端日期字符串转换为 datetime.date 对象"""
+
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value  # 已经是 date 对象
+    val = str(value).strip()
+    if not val or val in ("#N/A", "None"):
+        return None
+    try:
+        return datetime.strptime(val, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
@@ -304,6 +320,12 @@ class CustomerService:
             "is_disabled",
             "notes",
         ]
+
+        # 日期字段转换：前端传 YYYY-MM-DD 字符串，需转换为 date 对象
+        date_fields = ["first_payment_date", "onboarding_date"]
+        for field in date_fields:
+            if field in data and data[field]:
+                data[field] = parse_date_to_object(data[field])
 
         for field in updatable_fields:
             if field in data:

@@ -1130,14 +1130,13 @@ const handleEditSubmit = async () => {
     await loadCustomerData()
     return true
   } catch (error: unknown) {
-    // 处理服务端 company_id 排重错误
-    const err = error as { message?: string; response?: { data?: { message?: string } } }
-    if (err.response?.data?.message) {
-      Message.error(err.response.data.message)
-    } else if (err.message?.includes('公司 ID')) {
+    // 处理服务端错误
+    // API 拦截器已将 response.data.message 提取为 Error.message
+    const err = error as Error
+    if (err.message && err.message !== 'Error') {
       Message.error(err.message)
     } else {
-      Message.error('更新失败')
+      Message.error('更新失败，请查看浏览器控制台获取详细信息')
     }
     console.error('更新失败:', error)
     return false

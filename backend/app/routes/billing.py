@@ -956,3 +956,35 @@ async def export_invoices(request: Request):
             "Expires": "0",
         },
     )
+
+
+# ==================== 余额趋势 ====================
+
+
+@billing_bp.get("/customers/<customer_id:int>/balance-trend")
+@auth_required
+@require_permission("billing:view")
+async def get_customer_balance_trend(request: Request, customer_id: int):
+    """
+    获取客户余额趋势（按月聚合）
+
+    查询参数:
+    - months: 查询月数（默认 6，最大 12）
+
+    返回:
+    [
+        {"month": "2025-10", "total_amount": 10000, "real_amount": 8000, "bonus_amount": 2000},
+        ...
+    ]
+    """
+    from ..services.analytics import AnalyticsService
+
+    db: AsyncSession = request.ctx.db_session
+    months = int(request.args.get("months", 6))
+    if months > 12:
+        months = 12
+
+    service = AnalyticsService(db)
+    trend = await service.get_balance_trend(customer_id=customer_id, months=months)
+
+    return json({"code": 0, "message": "success", "data": trend})

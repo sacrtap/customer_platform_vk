@@ -70,6 +70,7 @@ instance/
 # Sphinx documentation
 docs/_build/
 docs/data.xlsx
+docs/data_cleaned.xlsx
 
 # PyBuilder
 target/

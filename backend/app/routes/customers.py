@@ -244,6 +244,8 @@ async def create_customer(request: Request):
         customer = await service.create_customer(data)
     except ValueError as e:
         return json({"code": 40003, "message": str(e)}, status=400)
+    except Exception as e:
+        return json({"code": 40003, "message": str(e)}, status=400)
 
     # 清除缓存
     await cache_service.invalidate_customer_cache()
@@ -299,6 +301,8 @@ async def update_customer(request: Request, customer_id: int):
         customer = await service.update_customer(customer_id, data)
     except ValueError as e:
         return json({"code": 40003, "message": str(e)}, status=400)
+    except Exception as e:
+        return json({"code": 50001, "message": f"更新失败: {str(e)}"}, status=500)
 
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
