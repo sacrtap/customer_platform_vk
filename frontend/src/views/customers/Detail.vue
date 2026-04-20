@@ -1455,7 +1455,7 @@ onUnmounted(() => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 /* 双列信息网格 - 基础信息面板 */
@@ -1967,7 +1967,7 @@ onUnmounted(() => {
 :deep(.arco-table-wrapper) {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 /* 表格容器 - 支持横向滚动 */
