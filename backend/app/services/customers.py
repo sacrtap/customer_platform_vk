@@ -161,7 +161,6 @@ class CustomerService:
                 - keyword: 公司名称/公司 ID 关键词
                 - account_type: 账号类型
                 - industry: 行业类型（筛选 customer_profiles.industry）
-                - customer_level: 客户等级
                 - manager_id: 运营经理 ID
                 - settlement_type: 结算方式
                 - is_key_customer: 是否重点客户
@@ -194,10 +193,6 @@ class CustomerService:
         if industry := filters.get("industry"):
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             conditions.append(CustomerProfile.industry == industry)
-
-        # 客户等级筛选
-        if customer_level := filters.get("customer_level"):
-            conditions.append(Customer.customer_level == customer_level)
 
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
@@ -242,7 +237,6 @@ class CustomerService:
             company_id=data["company_id"],
             name=data["name"],
             account_type=data.get("account_type"),
-            customer_level=data.get("customer_level"),
             price_policy=data.get("price_policy"),
             manager_id=data.get("manager_id"),
             settlement_cycle=data.get("settlement_cycle"),
@@ -294,7 +288,6 @@ class CustomerService:
             "company_id",
             "name",
             "account_type",
-            "customer_level",
             "price_policy",
             "manager_id",
             "settlement_cycle",
@@ -427,7 +420,6 @@ class CustomerService:
                 # Convert NaN to None for all optional fields
                 optional_fields = [
                     "account_type",
-                    "customer_level",
                     "industry",
                     "price_policy",
                     "settlement_cycle",
@@ -562,7 +554,6 @@ class CustomerService:
                     company_id=company_id,
                     name=name,
                     account_type=data.get("account_type"),
-                    customer_level=data.get("customer_level"),
                     price_policy=storage_value,
                     manager_id=data.get("manager_id"),
                     settlement_cycle=data.get("settlement_cycle"),

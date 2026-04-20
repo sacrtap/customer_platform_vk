@@ -458,30 +458,6 @@ class AnalyticsService:
             for row in result
         ]
 
-    async def get_customer_level_stats(self) -> List[Dict[str, Any]]:
-        """获取客户等级统计"""
-        stmt = (
-            select(
-                Customer.customer_level,
-                func.count(Customer.id).label("count"),
-            )
-            .where(Customer.deleted_at.is_(None))
-            .group_by(Customer.customer_level)
-            .order_by(func.count(Customer.id).desc())
-        )
-
-        result = (await self.db.execute(stmt)).all()
-        total = sum(row.count for row in result)
-
-        return [
-            {
-                "level": row.customer_level or "未分类",
-                "count": row.count,
-                "percentage": round(row.count / total * 100, 2) if total > 0 else 0,
-            }
-            for row in result
-        ]
-
     async def get_scale_level_stats(self) -> List[Dict[str, Any]]:
         """获取客户规模等级统计"""
         stmt = (
