@@ -36,14 +36,14 @@ const props = withDefaults(
   {}
 )
 
-const levels = ['C1', 'C2', 'C3', 'C4', 'C5']
+const levels = ['D', 'C', 'B', 'A', 'S']
 
 const levelThresholds = {
-  C1: 0,
-  C2: 10000,
-  C3: 50000,
-  C4: 200000,
-  C5: 500000,
+  D: 0,
+  C: 60000,
+  B: 120000,
+  A: 250000,
+  S: 500000,
 }
 
 const currentLevelIndex = computed(() => levels.indexOf(props.currentLevel))
