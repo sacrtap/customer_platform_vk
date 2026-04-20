@@ -298,23 +298,25 @@
           </a-tab-pane>
 
           <a-tab-pane key="invoices" title="结算单">
-            <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
-              <template #status="{ record }">
-                <span :class="['status-badge', getStatusClass(record.status)]">
-                  <span class="status-dot"></span>
-                  {{ getStatusText(record.status) }}
-                </span>
-              </template>
-              <template #amount="{ record }">
-                {{ formatCurrency(record.final_amount || record.total_amount) }}
-              </template>
-              <template #action="{ record }">
-                <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
-              </template>
-              <template #empty>
-                <EmptyState title="暂无结算单数据" description="当前客户暂无结算单" />
-              </template>
-            </a-table>
+            <div class="data-table-card">
+              <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
+                <template #status="{ record }">
+                  <span :class="['status-badge', getStatusClass(record.status)]">
+                    <span class="status-dot"></span>
+                    {{ getStatusText(record.status) }}
+                  </span>
+                </template>
+                <template #amount="{ record }">
+                  {{ formatCurrency(record.final_amount || record.total_amount) }}
+                </template>
+                <template #action="{ record }">
+                  <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
+                </template>
+                <template #empty>
+                  <EmptyState title="暂无结算单数据" description="当前客户暂无结算单" />
+                </template>
+              </a-table>
+            </div>
           </a-tab-pane>
 
           <a-tab-pane key="usage" title="用量数据">
@@ -330,24 +332,26 @@
 
             <!-- 用量数据表格 -->
             <div class="usage-table-section">
-              <a-table
-                :columns="usageColumns"
-                :data="usageData"
-                :loading="usageLoading"
-                :pagination="usagePagination"
-                row-key="id"
-                @page-change="handleUsagePageChange"
-              >
-                <template #deviceType="{ record }">
-                  <a-tag>{{ record.device_type }}</a-tag>
-                </template>
-                <template #quantity="{ record }">
-                  {{ formatNumber(record.quantity || 0) }}
-                </template>
-                <template #empty>
-                  <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
-                </template>
-              </a-table>
+              <div class="data-table-card">
+                <a-table
+                  :columns="usageColumns"
+                  :data="usageData"
+                  :loading="usageLoading"
+                  :pagination="usagePagination"
+                  row-key="id"
+                  @page-change="handleUsagePageChange"
+                >
+                  <template #deviceType="{ record }">
+                    <a-tag>{{ record.device_type }}</a-tag>
+                  </template>
+                  <template #quantity="{ record }">
+                    {{ formatNumber(record.quantity || 0) }}
+                  </template>
+                  <template #empty>
+                    <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
+                  </template>
+                </a-table>
+              </div>
             </div>
           </a-tab-pane>
         </a-tabs>
@@ -1671,6 +1675,22 @@ onUnmounted(() => {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+
+/* ========== 数据表格卡片容器 ========== */
+.data-table-card {
+  background: white;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 用量表格区域的卡片间距 */
+.usage-table-section .data-table-card {
+  margin-top: 0;
 }
 
 /* ========== 画像信息页面优化样式 ========== */
