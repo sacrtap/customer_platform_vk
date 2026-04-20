@@ -11,6 +11,8 @@ export function getCustomers(params?: {
   manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
 }) {
   return api.get('/customers', { params })
 }
