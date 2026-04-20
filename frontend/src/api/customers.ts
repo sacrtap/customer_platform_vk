@@ -8,7 +8,6 @@ export function getCustomers(params?: {
   keyword?: string
   account_type?: string
   industry?: string
-  customer_level?: string
   manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
@@ -27,7 +26,6 @@ export function createCustomer(data: {
   name: string
   account_type?: string
   industry?: string
-  customer_level?: string
   price_policy?: PricePolicy | string
   manager_id?: number
   settlement_cycle?: string
@@ -46,7 +44,6 @@ export function updateCustomer(
     name?: string
     account_type?: string
     industry?: string
-    customer_level?: string
     price_policy?: PricePolicy | string
     manager_id?: number
     settlement_cycle?: string
@@ -117,7 +114,6 @@ export function exportCustomers(params?: {
   keyword?: string
   account_type?: string
   industry?: string
-  customer_level?: string
   manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean

@@ -108,15 +108,6 @@
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="6">
-            <a-form-item label="客户等级">
-              <a-select v-model="filters.customer_level" placeholder="请选择" allow-clear>
-                <a-option value="KA">KA</a-option>
-                <a-option value="SKA">SKA</a-option>
-                <a-option value="普通">普通</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
             <a-form-item label="重点客户">
               <a-select v-model="filters.is_key_customer" placeholder="请选择" allow-clear>
                 <a-option :value="true">是</a-option>
@@ -316,19 +307,6 @@
 
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item field="customer_level" label="客户等级">
-              <a-select
-                v-model="customerForm.customer_level"
-                placeholder="请选择客户等级"
-                allow-clear
-              >
-                <a-option value="KA">KA</a-option>
-                <a-option value="SKA">SKA</a-option>
-                <a-option value="普通">普通</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
             <a-form-item field="settlement_type" label="结算方式">
               <a-select
                 v-model="customerForm.settlement_type"
@@ -497,7 +475,6 @@ const filters = reactive({
   keyword: '',
   account_type: '',
   industry: '',
-  customer_level: '',
   is_key_customer: null as boolean | null,
 })
 
@@ -527,7 +504,6 @@ const columns = [
   { title: '公司 ID', dataIndex: 'company_id', width: 140, ellipsis: true, tooltip: true },
   { title: '客户名称', dataIndex: 'name', width: 250, ellipsis: true, tooltip: true },
   { title: '行业类型', dataIndex: 'industry', width: 100 },
-  { title: '客户等级', dataIndex: 'customer_level', width: 100 },
   { title: '结算方式', slotName: 'settlementType', width: 100 },
   { title: '运营经理', slotName: 'manager', width: 150, ellipsis: true, tooltip: true },
   { title: '重点客户', slotName: 'isKeyCustomer', width: 100 },
@@ -564,7 +540,6 @@ const loadCustomers = async () => {
       keyword?: string
       account_type?: string
       industry?: string
-      customer_level?: string
       manager_id?: number
       is_key_customer?: boolean
     } = {
@@ -574,7 +549,6 @@ const loadCustomers = async () => {
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry) params.industry = filters.industry
-    if (filters.customer_level) params.customer_level = filters.customer_level
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
 
@@ -600,7 +574,6 @@ const handleReset = () => {
   filters.keyword = ''
   filters.account_type = ''
   filters.industry = ''
-  filters.customer_level = ''
   filters.is_key_customer = null
   advancedFilters.manager_id = null
   advancedFilters.tag_ids = []
@@ -680,7 +653,6 @@ const handleExport = async () => {
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry) params.industry = filters.industry
-    if (filters.customer_level) params.customer_level = filters.customer_level
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
 
@@ -716,7 +688,6 @@ const customerForm = reactive({
   email: '',
   account_type: undefined as string | undefined,
   industry: undefined as string | undefined,
-  customer_level: undefined as string | undefined,
   settlement_type: undefined as string | undefined,
   settlement_cycle: undefined as string | undefined,
   is_key_customer: false,
@@ -739,7 +710,6 @@ const openCreateModal = () => {
     email: '',
     account_type: undefined,
     industry: undefined,
-    customer_level: undefined,
     settlement_type: undefined,
     settlement_cycle: undefined,
     is_key_customer: false,
@@ -758,7 +728,6 @@ const openEditModal = (record: Customer) => {
     email: record.email || '',
     account_type: record.account_type,
     industry: record.industry,
-    customer_level: record.customer_level,
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,
@@ -787,7 +756,6 @@ const handleCustomerSubmit = async () => {
       email: customerForm.email || undefined,
       account_type: customerForm.account_type,
       industry: customerForm.industry,
-      customer_level: customerForm.customer_level,
       settlement_type: customerForm.settlement_type,
       settlement_cycle: customerForm.settlement_cycle,
       is_key_customer: customerForm.is_key_customer,

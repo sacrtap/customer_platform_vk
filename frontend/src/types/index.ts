@@ -94,7 +94,6 @@ export interface Customer {
   name: string
   account_type: string | null
   industry: string | null
-  customer_level: string | null
   price_policy: PricePolicy | string | null
   manager_id: number | null
   settlement_cycle: string | null
