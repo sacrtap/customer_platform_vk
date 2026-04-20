@@ -1967,7 +1967,7 @@ onUnmounted(() => {
 :deep(.arco-table-wrapper) {
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 /* 表格容器 - 支持横向滚动 */
