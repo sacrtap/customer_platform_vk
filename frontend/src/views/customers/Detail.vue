@@ -1829,18 +1829,9 @@ onUnmounted(() => {
   gap: 20px;
 }
 
-/* 图表面板 */
+/* 图表面板 - 透明容器，由外层.tabs-section统一提供卡片效果 */
 .chart-panel {
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid var(--neutral-2);
   padding: 20px;
-  transition: all 200ms ease;
-}
-
-.chart-panel:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  border-color: var(--neutral-3);
 }
 
 /* 图表标题 */
