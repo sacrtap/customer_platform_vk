@@ -16,6 +16,26 @@ from ..models.billing import CustomerBalance
 ALLOWED_SORT_FIELDS = {"id", "company_id", "name", "created_at", "updated_at"}
 VALID_SORT_ORDERS = {"asc", "desc"}
 
+# 计费模式转换
+PRICE_POLICY_MAP = {"定价": "pricing", "阶梯": "tiered", "包年": "yearly"}
+PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
+
+# 结算方式转换
+SETTLEMENT_TYPE_MAP = {"预付费": "prepaid", "后付费": "postpaid"}
+SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
+
+
+def convert_price_policy_to_storage(value: str) -> str:
+    return PRICE_POLICY_MAP.get(value, value)
+
+
+def convert_price_policy_to_display(value: str) -> str:
+    return PRICE_POLICY_REVERSE_MAP.get(value, value)
+
+
+def convert_settlement_type_to_display(value: str) -> str:
+    return SETTLEMENT_TYPE_REVERSE_MAP.get(value, value)
+
 
 class CustomerService:
     """客户服务类
