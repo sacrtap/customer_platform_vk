@@ -501,7 +501,6 @@ async def test_get_all_customers_with_multiple_filters(customer_service):
 
     filters = {
         "account_type": "企业",
-        "customer_level": "KA",
         "is_key_customer": True,
     }
     customers, total = await service.get_all_customers(filters=filters)
@@ -545,7 +544,6 @@ async def test_create_customer_success(customer_service):
         "company_id": "C001",
         "name": "测试公司",
         "account_type": "企业",
-        "customer_level": "KA",
     }
 
     customer = await service.create_customer(data)
@@ -568,7 +566,6 @@ async def test_create_customer_with_all_fields(customer_service):
         "company_id": "C001",
         "name": "测试公司",
         "account_type": "企业",
-        "customer_level": "KA",
         "price_policy": "pricing",  # 使用有效英文标识符
         "manager_id": 1,
         "settlement_cycle": "月结",
@@ -599,7 +596,7 @@ async def test_update_customer_success(customer_service):
     # get_customer_by_id 返回
     mock_db.execute.return_value = make_mock_execute_result([mock_customer])
 
-    data = {"name": "新名称", "customer_level": "KA"}
+    data = {"name": "新名称"}
 
     customer = await service.update_customer(customer_id=1, data=data)
 
@@ -616,7 +613,6 @@ async def test_update_customer_partial_fields(customer_service):
     mock_customer = MagicMock()
     mock_customer.id = 1
     mock_customer.name = "旧名称"
-    mock_customer.customer_level = "A"
 
     mock_db.execute.return_value = make_mock_execute_result([mock_customer])
 
@@ -625,7 +621,6 @@ async def test_update_customer_partial_fields(customer_service):
     customer = await service.update_customer(customer_id=1, data=data)
 
     assert customer.name == "新名称"
-    # customer_level 应该保持不变
 
 
 @pytest.mark.asyncio
@@ -836,7 +831,6 @@ async def test_get_all_customers_with_all_filter_types(customer_service):
         "keyword": "科技",
         "account_type": "企业",
         "industry": "互联网",
-        "customer_level": "KA",
         "manager_id": 1,
         "settlement_type": "银行转账",
         "is_key_customer": True,

@@ -57,7 +57,6 @@ class TestCustomerService_CreateCustomer:
             "name": "测试公司",
             "account_type": "enterprise",
             "industry": "technology",
-            "customer_level": "gold",
             "price_policy": "pricing",  # 使用英文标识符
             "manager_id": 1,
             "settlement_cycle": "monthly",
@@ -72,7 +71,6 @@ class TestCustomerService_CreateCustomer:
             company_id=customer_data["company_id"],
             name=customer_data["name"],
             account_type=customer_data["account_type"],
-            customer_level=customer_data["customer_level"],
             price_policy=customer_data["price_policy"],
             manager_id=customer_data["manager_id"],
             settlement_cycle=customer_data["settlement_cycle"],
@@ -202,7 +200,6 @@ class TestCustomerService_UpdateCustomer:
             company_id="COMP001",
             name="原名称",
             account_type="enterprise",
-            customer_level="silver",
             email="old@example.com",
             deleted_at=None,
         )
@@ -215,7 +212,6 @@ class TestCustomerService_UpdateCustomer:
         # 准备更新数据
         update_data = {
             "name": "新名称",
-            "customer_level": "gold",
             "email": "new@example.com",
             "is_key_customer": True,
         }
@@ -227,7 +223,6 @@ class TestCustomerService_UpdateCustomer:
         assert result is not None
         assert result.id == customer_id
         assert result.name == "新名称"
-        assert result.customer_level == "gold"
         assert result.email == "new@example.com"
         assert result.is_key_customer is True
         # 验证未更新的字段保持不变
@@ -270,7 +265,6 @@ class TestCustomerService_UpdateCustomer:
             company_id="COMP001",
             name="原名称",
             account_type="enterprise",
-            customer_level="silver",
             email="test@example.com",
             deleted_at=None,
         )
@@ -291,7 +285,6 @@ class TestCustomerService_UpdateCustomer:
         assert result.is_key_customer is True
         # 验证其他字段不变
         assert result.name == "原名称"
-        assert result.customer_level == "silver"
 
 
 # ==================== Test Delete Customer ====================
@@ -579,14 +572,12 @@ class TestCustomerService_Integration:
         create_data = {
             "company_id": "COMP100",
             "name": "生命周期测试公司",
-            "customer_level": "silver",
         }
 
         created_customer = Customer(
             id=100,
             company_id="COMP100",
             name="生命周期测试公司",
-            customer_level="silver",
             deleted_at=None,
         )
 
@@ -611,10 +602,9 @@ class TestCustomerService_Integration:
         mock_result.scalar_one_or_none.return_value = created_customer
         mock_db_session.execute.return_value = mock_result
 
-        update_data = {"customer_level": "gold", "is_key_customer": True}
+        update_data = {"is_key_customer": True}
         result = await customer_service.update_customer(100, update_data)
         assert result is not None
-        assert result.customer_level == "gold"
         assert result.is_key_customer is True
 
         # 3. 删除客户

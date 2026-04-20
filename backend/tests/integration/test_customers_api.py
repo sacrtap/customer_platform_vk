@@ -48,7 +48,6 @@ def customer_data(db_session):
             "company_id": 1001,
             "name": "测试公司 1",
             "account_type": "正式账号",
-            "customer_level": "KA",
             "settlement_type": "prepaid",
             "is_key_customer": True,
             "email": "test1@example.com",
@@ -57,7 +56,6 @@ def customer_data(db_session):
             "company_id": 1002,
             "name": "测试公司 2",
             "account_type": "试用账号",
-            "customer_level": "SMB",
             "settlement_type": "postpaid",
             "is_key_customer": False,
             "email": "test2@example.com",
@@ -66,7 +64,6 @@ def customer_data(db_session):
             "company_id": 1003,
             "name": "测试公司 3",
             "account_type": "正式账号",
-            "customer_level": "KA",
             "settlement_type": "prepaid",
             "is_key_customer": True,
             "email": "test3@example.com",
@@ -78,8 +75,8 @@ def customer_data(db_session):
             text(
                 """
             INSERT INTO customers (company_id, name, account_type,
-                customer_level, settlement_type, is_key_customer, email, created_at)
-            VALUES (:company_id, :name, :account_type, :customer_level,
+                settlement_type, is_key_customer, email, created_at)
+            VALUES (:company_id, :name, :account_type,
                 :settlement_type, :is_key_customer, :email, NOW())
             """
             ),
@@ -118,7 +115,7 @@ async def test_list_customers_success(test_client, auth_headers, customer_data):
 async def test_list_customers_with_filters(test_client, auth_headers, customer_data):
     """测试获取客户列表 - 带筛选条件"""
     request, response = await test_client.get(
-        "/api/v1/customers?customer_level=KA&is_key_customer=true",
+        "/api/v1/customers?is_key_customer=true",
         headers=auth_headers,
     )
 
@@ -128,7 +125,6 @@ async def test_list_customers_with_filters(test_client, auth_headers, customer_d
     assert len(data["data"]["list"]) >= 2
 
     for item in data["data"]["list"]:
-        assert item["customer_level"] == "KA"
         assert item["is_key_customer"] is True
 
 
@@ -186,7 +182,6 @@ async def test_create_customer_success(test_client, auth_headers, db_session):
         "company_id": 1000100,
         "name": "新创建测试公司",
         "account_type": "正式账号",
-        "customer_level": "KA",
         "settlement_type": "prepaid",
         "is_key_customer": True,
         "email": "create_test@example.com",
@@ -256,7 +251,6 @@ async def test_update_customer_success(test_client, auth_headers, customer_data,
 
     update_data = {
         "name": "更新后的公司名称",
-        "customer_level": "SMB",
         "is_key_customer": False,
     }
 
@@ -272,13 +266,12 @@ async def test_update_customer_success(test_client, auth_headers, customer_data,
     assert data["message"] == "更新成功"
 
     result = db_session.execute(
-        text("SELECT name, customer_level, is_key_customer FROM customers WHERE id = :id"),
+        text("SELECT name, is_key_customer FROM customers WHERE id = :id"),
         {"id": customer_id},
     )
     updated = result.fetchone()
     assert updated[0] == "更新后的公司名称"
-    assert updated[1] == "SMB"
-    assert updated[2] is False
+    assert updated[1] is False
 
 
 @pytest.mark.asyncio
@@ -451,7 +444,6 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "name",
         "account_type",
         "industry",
-        "customer_level",
         "price_policy",
         "settlement_cycle",
         "settlement_type",
@@ -477,25 +469,25 @@ async def test_download_import_template_field_structure(test_client, auth_header
     assert notes[0] == "必填"  # company_id
     assert notes[1] == "必填"  # name
     assert "正式" in str(notes[2])  # account_type
-    assert "定价" in str(notes[5])  # price_policy
-    assert "prepaid" in str(notes[7])  # settlement_type
+    assert "定价" in str(notes[4])  # price_policy
+    assert "prepaid" in str(notes[6])  # settlement_type
 
     # 验证第 3 行：示例数据
     example = [cell.value for cell in ws[3]]
     assert example[0] == 1001  # company_id 示例
     assert "示例公司" in str(example[1])  # name 示例
-    assert example[5] == "定价"  # price_policy 示例
-    assert example[7] == "prepaid"  # settlement_type 示例
-    assert "example@" in str(example[9])  # email 示例
+    assert example[4] == "定价"  # price_policy 示例
+    assert example[6] == "prepaid"  # settlement_type 示例
+    assert "example@" in str(example[8])  # email 示例
     # 验证新增字段
-    assert example[11] == "2024-01-15"  # first_payment_date
-    assert example[13] == "正常使用"  # cooperation_status
-    assert example[17] == "C3"  # consume_level
+    assert example[10] == "2024-01-15"  # first_payment_date
+    assert example[12] == "正常使用"  # cooperation_status
+    assert example[16] == "C3"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 22 个字段"""
+    """测试下载导入模板 - 验证表头数量为 21 个字段"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -509,7 +501,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 22, f"期望 22 个表头，实际 {header_count} 个"
+    assert header_count == 21, f"期望 21 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -684,7 +676,6 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "name",
             "account_type",
             "industry",
-            "customer_level",
             "settlement_type",
             "is_key_customer",
             "email",
@@ -696,7 +687,6 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "导入测试公司 1",
             "正式账号",
             "互联网",
-            "KA",
             "prepaid",
             "false",
             "import1@example.com",
@@ -708,7 +698,6 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
             "导入测试公司 2",
             "试用账号",
             "房地产",
-            "SMB",
             "postpaid",
             "true",
             "import2@example.com",
@@ -1066,7 +1055,7 @@ async def test_export_customers_success(test_client, auth_headers, customer_data
 async def test_export_customers_with_filters(test_client, auth_headers, customer_data):
     """测试 Excel 导出客户 - 带筛选条件"""
     request, response = await test_client.get(
-        "/api/v1/customers/export?customer_level=KA",
+        "/api/v1/customers/export",
         headers=auth_headers,
     )
 
@@ -1125,7 +1114,6 @@ async def test_export_customers_field_consistency(test_client, auth_headers, cus
         "name",
         "account_type",
         "industry",
-        "customer_level",
         "price_policy",
         "settlement_cycle",
         "settlement_type",
