@@ -164,7 +164,7 @@ const formatNumber = (num: number) => {
 
 .segment-label {
   position: absolute;
-  bottom: 0;
+  bottom: 6px;
   font-size: 12px;
   font-weight: 600;
   color: #646a73;
