@@ -1683,9 +1683,10 @@ onUnmounted(() => {
   border-radius: var(--radius-md, 10px);
   border: 1px solid var(--neutral-2);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
-  padding: 16px;
+  padding: 0;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* 用量表格区域的卡片间距 */
