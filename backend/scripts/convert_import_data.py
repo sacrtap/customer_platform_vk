@@ -83,7 +83,6 @@ for _, row in df_source.iterrows():
             "name": clean_value(row["公司名称"]),
             "account_type": map_account_type(row["账号类型"]),
             "industry": clean_value(row["行业类型"]),
-            "customer_level": clean_value(row["客户等级"]),
             "price_policy": map_price_policy(row["结算方式"]),
             "settlement_cycle": map_settlement_cycle(row["结算方式"]),
             "settlement_type": "prepaid",

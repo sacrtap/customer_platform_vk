@@ -19,7 +19,6 @@ FIELD_MAP = {
     "所属ERP": "erp_system",
     "首次回款时间": "first_payment_date",
     "接入时间": "onboarding_date",
-    "客户等级": "customer_level",
     "合作状态": "cooperation_status",
     "是否结算": "is_settlement_enabled",
     "是否停用": "is_disabled",
