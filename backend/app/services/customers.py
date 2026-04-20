@@ -408,6 +408,7 @@ class CustomerService:
         existing_result = await self.db.execute(existing_stmt)
         existing_company_ids = {row[0] for row in existing_result.all()}
 
+        pending_profiles: list[dict] = []
         success_count = 0
         errors = []
 
@@ -433,10 +434,24 @@ class CustomerService:
                     "email",
                     "erp_system",
                     "notes",
+                    # 新增字段
+                    "cooperation_status",
+                    "is_settlement_enabled",
+                    "is_disabled",
+                    "first_payment_date",
+                    "onboarding_date",
+                    "consume_level",
+                    "monthly_avg_shots",
+                    "monthly_avg_shots_estimated",
+                    "estimated_annual_spend",
+                    "actual_annual_spend_2025",
                 ]
                 for field in optional_fields:
                     val = data.get(field)
                     if isinstance(val, float) and math.isnan(val):
+                        data[field] = None
+                    # 额外清洗 #N/A 和 #VALUE! 字符串
+                    if isinstance(val, str) and val.strip() in ("#N/A", "#VALUE!"):
                         data[field] = None
 
                 # Convert string company_id to int if needed (for import compatibility)
@@ -474,10 +489,65 @@ class CustomerService:
                 else:
                     storage_value = None
 
+                # 转换账号类型
+                account_type = data.get("account_type")
+                data["account_type"] = convert_account_type(account_type)
+
+                # 转换布尔字段
+                data["is_settlement_enabled"] = convert_bool_field(
+                    data.get("is_settlement_enabled")
+                )
+                data["is_disabled"] = convert_bool_field(data.get("is_disabled"))
+
+                # 转换日期字段
+                data["first_payment_date"] = convert_date_field(data.get("first_payment_date"))
+                data["onboarding_date"] = convert_date_field(data.get("onboarding_date"))
+
+                # 结算方式统一设为 prepaid
+                if data.get("settlement_type") is None:
+                    data["settlement_type"] = "prepaid"
+
+                # 数值字段清洗（月均拍摄量等）
+                for num_field in [
+                    "monthly_avg_shots",
+                    "monthly_avg_shots_estimated",
+                ]:
+                    val = data.get(num_field)
+                    if val is not None:
+                        try:
+                            data[num_field] = int(float(str(val).strip()))
+                        except (ValueError, TypeError):
+                            data[num_field] = None
+
+                # 金额字段清洗
+                for money_field in [
+                    "estimated_annual_spend",
+                    "actual_annual_spend_2025",
+                ]:
+                    val = data.get(money_field)
+                    if val is not None:
+                        try:
+                            data[money_field] = float(str(val).strip())
+                        except (ValueError, TypeError):
+                            data[money_field] = None
+
                 # 检查是否已存在
                 if company_id in existing_company_ids:
                     errors.append(f"行{i + 1}: 公司 ID {company_id} 已存在")
                     continue
+
+                # 暂存 profile 数据（等待 flush 后设置 customer_id）
+                profile_data = None
+                profile_fields = {
+                    "industry": data.get("industry"),
+                    "consume_level": data.get("consume_level"),
+                    "monthly_avg_shots": data.get("monthly_avg_shots"),
+                    "monthly_avg_shots_estimated": data.get("monthly_avg_shots_estimated"),
+                    "estimated_annual_spend": data.get("estimated_annual_spend"),
+                    "actual_annual_spend_2025": data.get("actual_annual_spend_2025"),
+                }
+                if any(v is not None for v in profile_fields.values()):
+                    profile_data = profile_fields
 
                 customer = Customer(
                     company_id=company_id,
@@ -490,21 +560,55 @@ class CustomerService:
                     settlement_type=data.get("settlement_type"),
                     is_key_customer=data.get("is_key_customer", False),
                     email=data.get("email"),
+                    # 新增字段
+                    erp_system=data.get("erp_system"),
+                    first_payment_date=data.get("first_payment_date"),
+                    onboarding_date=data.get("onboarding_date"),
+                    cooperation_status=data.get("cooperation_status"),
+                    is_settlement_enabled=data.get("is_settlement_enabled"),
+                    is_disabled=data.get("is_disabled"),
+                    notes=data.get("notes"),
                 )
                 self.db.add(customer)
+                # 暂存 profile 数据（等待 flush 后设置 customer_id）
+                if profile_data:
+                    pending_profiles.append(
+                        {
+                            "data": profile_data,
+                            "company_id": company_id,
+                        }
+                    )
                 existing_company_ids.add(company_id)  # 防止同批次重复
 
                 success_count += 1
             except Exception as e:
                 errors.append(f"行{i + 1}: {str(e)}")
 
-        # 批量创建余额记录
+        # 批量创建余额记录和 profile
         if success_count > 0:
             # 获取刚创建的客户 ID
             await self.db.flush()
             new_customers = [c for c in self.db.new if isinstance(c, Customer)]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
             self.db.add_all(balances)
+
+            # 创建 profile 记录
+            if pending_profiles:
+                company_id_to_id = {c.company_id: c.id for c in new_customers}
+                for p_info in pending_profiles:
+                    customer_id = company_id_to_id.get(p_info["company_id"])
+                    if customer_id:
+                        pd = p_info["data"]
+                        profile = CustomerProfile(
+                            customer_id=customer_id,
+                            industry=pd.get("industry"),
+                            consume_level=pd.get("consume_level"),
+                            monthly_avg_shots=pd.get("monthly_avg_shots"),
+                            monthly_avg_shots_estimated=pd.get("monthly_avg_shots_estimated"),
+                            estimated_annual_spend=pd.get("estimated_annual_spend"),
+                            actual_annual_spend_2025=pd.get("actual_annual_spend_2025"),
+                        )
+                        self.db.add(profile)
 
         await self.db.commit()
         return success_count, errors

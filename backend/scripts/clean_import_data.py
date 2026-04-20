@@ -45,7 +45,7 @@ def clean_value(val, field_name):
         return None
     if isinstance(val, str):
         val = val.strip()
-        if val in ("#N/A", "None", ""):
+        if val in ("#N/A", "#VALUE!", "None", ""):
             return None
     if field_name == "account_type":
         return ACCOUNT_TYPE_MAP.get(str(val), str(val))
