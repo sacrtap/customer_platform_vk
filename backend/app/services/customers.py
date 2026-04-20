@@ -12,134 +12,9 @@ from ..models.customers import Customer, CustomerProfile
 from ..models.billing import CustomerBalance
 
 
-# 价格策略映射：中文 ↔ 英文标识符
-PRICE_POLICY_MAP = {
-    "定价": "pricing",
-    "阶梯": "tiered",
-    "包年": "yearly",
-}
-
-PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
-
-VALID_PRICE_POLICIES = set(PRICE_POLICY_MAP.values())  # {"pricing", "tiered", "yearly"}
-
-
-# 结算方式映射：英文标识符 ↔ 中文显示值
-SETTLEMENT_TYPE_MAP = {
-    "prepaid": "预付费",
-    "postpaid": "后付费",
-}
-
-SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
-
-VALID_SETTLEMENT_TYPES = set(SETTLEMENT_TYPE_MAP.values())
-
-
-# 账号类型映射：Excel 值 → 数据库存储值
-ACCOUNT_TYPE_MAP = {
-    "正式": "正式账号",
-    "客户测试账号": "客户测试账号",
-    "众趣内部": "内部账号",
-}
-
-
-def convert_account_type(value: Optional[str]) -> Optional[str]:
-    """将 Excel 中的账号类型转换为数据库存储值"""
-    if not value:
-        return None
-    return ACCOUNT_TYPE_MAP.get(str(value).strip(), str(value).strip())
-
-
-def convert_bool_field(value: Optional[Union[str, bool, int]]) -> Optional[bool]:
-    """将 Excel 中的是/否转换为布尔值"""
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    val = str(value).strip().lower()
-    if val in ("是", "true", "1", "yes"):
-        return True
-    if val in ("否", "false", "0", "no"):
-        return False
-    return None
-
-
-def convert_date_field(value: Optional[Any]) -> Optional[str]:
-    """将 Excel 日期值转换为 YYYY-MM-DD 字符串"""
-    if value is None:
-        return None
-    if hasattr(value, "strftime"):
-        return value.strftime("%Y-%m-%d")
-    val = str(value).strip()
-    if not val or val in ("#N/A", "None"):
-        return None
-
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%Y%m%d"):
-        try:
-            return datetime.strptime(val, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return None
-
-
-def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
-    """将前端日期字符串转换为 datetime.date 对象"""
-
-    if value is None:
-        return None
-    if isinstance(value, date):
-        return value  # 已经是 date 对象
-    val = str(value).strip()
-    if not val or val in ("#N/A", "None"):
-        return None
-    try:
-        return datetime.strptime(val, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
-def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
-    """将前端/导入的中文值转换为数据库存储的英文标识符"""
-    if not value:
-        return None
-    # 如果已经是英文标识符，直接返回
-    if value in SETTLEMENT_TYPE_MAP:
-        return value
-    # 中文转英文
-    return SETTLEMENT_TYPE_REVERSE_MAP.get(value)
-
-
-def convert_settlement_type_to_display(value: Optional[str]) -> Optional[str]:
-    """将数据库存储的英文标识符转换为前端展示的中文值"""
-    if not value:
-        return None
-    # 如果已经是中文，直接返回（兼容旧数据）
-    if value in SETTLEMENT_TYPE_REVERSE_MAP:
-        return value
-    # 英文转中文
-    return SETTLEMENT_TYPE_MAP.get(value, value)
-
-
-def convert_price_policy_to_storage(value: Optional[str]) -> Optional[str]:
-    """将前端/导入的中文值转换为数据库存储的英文标识符"""
-    if not value:
-        return None
-    # 如果已经是英文标识符，直接返回
-    if value in VALID_PRICE_POLICIES:
-        return value
-    # 中文转英文
-    return PRICE_POLICY_MAP.get(value)
-
-
-def convert_price_policy_to_display(value: Optional[str]) -> Optional[str]:
-    """将数据库存储的英文标识符转换为前端展示的中文值"""
-    if not value:
-        return None
-    # 如果已经是中文，直接返回（兼容旧数据）
-    if value in PRICE_POLICY_MAP:
-        return value
-    # 英文转中文
-    return PRICE_POLICY_REVERSE_MAP.get(value, value)
+# 允许排序的字段白名单
+ALLOWED_SORT_FIELDS = {"id", "company_id", "name", "created_at", "updated_at"}
+VALID_SORT_ORDERS = {"asc", "desc"}
 
 
 class CustomerService:
@@ -166,6 +41,8 @@ class CustomerService:
         page: int = 1,
         page_size: int = 20,
         filters: Optional[dict] = None,
+        sort_by: str = "id",
+        sort_order: str = "asc",
     ) -> Tuple[List[Customer], int]:
         """
         获取客户列表（支持筛选和分页）
@@ -180,6 +57,8 @@ class CustomerService:
                 - manager_id: 运营经理 ID
                 - settlement_type: 结算方式
                 - is_key_customer: 是否重点客户
+            sort_by: 排序字段，可选值：id, company_id, name, created_at, updated_at（默认 id）
+            sort_order: 排序方向，asc 或 desc（默认 asc）
 
         Returns:
             (customers, total)
@@ -232,8 +111,18 @@ class CustomerService:
         else:
             total = self.db.execute(count_stmt).scalar()
 
-        # 分页排序
-        stmt = stmt.order_by(Customer.created_at.desc())
+        # 验证排序参数
+        if sort_by not in ALLOWED_SORT_FIELDS:
+            raise ValueError(f"Invalid sort field: {sort_by}")
+        if sort_order not in VALID_SORT_ORDERS:
+            raise ValueError(f"Invalid sort order: {sort_order}")
+
+        # 动态排序
+        sort_column = getattr(Customer, sort_by)
+        if sort_order == "desc":
+            stmt = stmt.order_by(sort_column.desc())
+        else:
+            stmt = stmt.order_by(sort_column.asc())
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
