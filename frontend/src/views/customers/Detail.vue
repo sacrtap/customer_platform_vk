@@ -1682,7 +1682,7 @@ onUnmounted(() => {
 .data-table-card {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 0;
+  padding: 8px 0 0 0;
 }
 
 /* 用量表格区域的间距调整 */
