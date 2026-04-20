@@ -287,24 +287,6 @@ async def get_industry_distribution(request: Request):
     return json(result)
 
 
-@analytics.route("/profile/level", methods=["GET"])
-@auth_required
-async def get_level_stats(request: Request):
-    """获取客户等级统计"""
-    cached = await cache_service.get("analytics_profile", "level")
-    if cached is not None:
-        return json(cached)
-
-    db_session = request.ctx.db_session
-    service = AnalyticsService(db_session)
-
-    stats = await service.get_customer_level_stats()
-
-    result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_profile", result, "level")
-    return json(result)
-
-
 @analytics.route("/profile/scale", methods=["GET"])
 @auth_required
 async def get_scale_stats(request: Request):

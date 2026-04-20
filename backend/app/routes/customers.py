@@ -33,7 +33,6 @@ async def list_customers(request: Request):
     - keyword: 关键词（公司名称/公司 ID）
     - account_type: 账号类型
     - industry: 行业类型
-    - customer_level: 客户等级
     - manager_id: 运营经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
@@ -47,7 +46,6 @@ async def list_customers(request: Request):
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
-        "customer_level": request.args.get("customer_level"),
         "manager_id": (
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
         ),
@@ -86,7 +84,6 @@ async def list_customers(request: Request):
                     "name": c.name,
                     "account_type": c.account_type,
                     "industry": c.profile.industry if c.profile else None,
-                    "customer_level": c.customer_level,
                     "price_policy": convert_price_policy_to_display(c.price_policy),
                     "manager_id": c.manager_id,
                     "settlement_cycle": c.settlement_cycle,
@@ -133,7 +130,6 @@ async def get_customer(request: Request, customer_id: int):
         "name": customer.name,
         "account_type": customer.account_type,
         "industry": customer.profile.industry if customer.profile else None,
-        "customer_level": customer.customer_level,
         "price_policy": convert_price_policy_to_display(customer.price_policy),
         "manager_id": customer.manager_id,
         "settlement_cycle": customer.settlement_cycle,
@@ -220,7 +216,6 @@ async def create_customer(request: Request):
         "name": "string (required)",
         "account_type": "string (optional)",
         "industry": "string (optional)",
-        "customer_level": "string (optional)",
         "price_policy": "string (optional)",
         "manager_id": "number (optional)",
         "settlement_cycle": "string (optional)",
@@ -280,7 +275,6 @@ async def update_customer(request: Request, customer_id: int):
         "name": "string (optional)",
         "account_type": "string (optional)",
         "industry": "string (optional)",
-        "customer_level": "string (optional)",
         "price_policy": "string (optional)",
         "manager_id": "number (optional)",
         "settlement_cycle": "string (optional)",
@@ -459,7 +453,6 @@ async def import_customers(request: Request):
     - name (必填)
     - account_type (可选)
     - industry (可选)
-    - customer_level (可选)
     - price_policy (可选)
     - settlement_cycle (可选)
     - settlement_type (可选)
@@ -554,7 +547,6 @@ async def download_import_template(request: Request):
         "name",
         "account_type",
         "industry",
-        "customer_level",
         "price_policy",
         "settlement_cycle",
         "settlement_type",
@@ -582,7 +574,6 @@ async def download_import_template(request: Request):
         "必填",
         "可选：正式/客户测试账号/众趣内部",
         "可选",
-        "可选：S/A/B/C/D",
         "可选：定价/阶梯/包年",
         "可选",
         "可选：默认prepaid",
@@ -614,7 +605,6 @@ async def download_import_template(request: Request):
         "示例公司 1",
         "正式",
         "项目",
-        "KA",
         "定价",
         "月结",
         "prepaid",
@@ -659,7 +649,6 @@ async def export_customers(request: Request):
     - keyword: 关键词
     - account_type: 账号类型
     - industry: 行业类型
-    - customer_level: 客户等级
     - manager_id: 运营经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户
@@ -669,7 +658,6 @@ async def export_customers(request: Request):
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
-        "customer_level": request.args.get("customer_level"),
         "manager_id": (
             int(request.args.get("manager_id")) if request.args.get("manager_id") else None
         ),
@@ -697,7 +685,6 @@ async def export_customers(request: Request):
                 "name": c.name,
                 "account_type": c.account_type,
                 "industry": c.profile.industry if c.profile else None,
-                "customer_level": c.customer_level,
                 "price_policy": convert_price_policy_to_display(c.price_policy),
                 "settlement_cycle": c.settlement_cycle,
                 "settlement_type": convert_settlement_type_to_display(c.settlement_type),
