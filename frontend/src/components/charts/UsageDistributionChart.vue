@@ -135,11 +135,6 @@ const chartOption = computed<EChartsOption>(() => {
   width: 100%;
   height: 100%;
   min-height: 318px;
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  border: 1px solid #eef0f3;
   position: relative;
 }
 
