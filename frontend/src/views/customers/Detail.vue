@@ -1682,6 +1682,7 @@ onUnmounted(() => {
 .data-table-card {
   width: 100%;
   box-sizing: border-box;
+  padding: 0 8px;
 }
 
 /* 用量表格区域的间距调整 */
@@ -2112,6 +2113,7 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
   min-height: 350px;
+  padding: 0 8px;
 }
 
 .usage-table-section {
