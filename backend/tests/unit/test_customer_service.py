@@ -373,9 +373,9 @@ class TestCustomerService_BatchCreateCustomers:
         """测试批量创建客户成功"""
         # 准备测试数据
         customers_data = [
-            {"company_id": "COMP001", "name": "公司 1"},
-            {"company_id": "COMP002", "name": "公司 2"},
-            {"company_id": "COMP003", "name": "公司 3"},
+            {"company_id": 1, "name": "公司 1"},
+            {"company_id": 2, "name": "公司 2"},
+            {"company_id": 3, "name": "公司 3"},
         ]
 
         # Mock 现有 company_id 查询
@@ -385,9 +385,9 @@ class TestCustomerService_BatchCreateCustomers:
 
         # Mock 创建的客户
         created_customers = [
-            Customer(id=1, company_id="COMP001", name="公司 1", deleted_at=None),
-            Customer(id=2, company_id="COMP002", name="公司 2", deleted_at=None),
-            Customer(id=3, company_id="COMP003", name="公司 3", deleted_at=None),
+            Customer(id=1, company_id=1, name="公司 1", deleted_at=None),
+            Customer(id=2, company_id=2, name="公司 2", deleted_at=None),
+            Customer(id=3, company_id=3, name="公司 3", deleted_at=None),
         ]
 
         # Mock flush 添加新对象
@@ -413,9 +413,9 @@ class TestCustomerService_BatchCreateCustomers:
     async def test_batch_create_customers_with_duplicates(self, customer_service, mock_db_session):
         """测试批量创建客户 - 包含重复的公司 ID"""
         customers_data = [
-            {"company_id": "COMP001", "name": "公司 1"},
-            {"company_id": "COMP001", "name": "重复公司 1"},  # 重复
-            {"company_id": "COMP002", "name": "公司 2"},
+            {"company_id": 1, "name": "公司 1"},
+            {"company_id": 1, "name": "重复公司 1"},  # 重复
+            {"company_id": 2, "name": "公司 2"},
         ]
 
         # Mock 现有 company_id 查询
@@ -425,10 +425,10 @@ class TestCustomerService_BatchCreateCustomers:
 
         async def mock_flush():
             mock_db_session.new.add(
-                Customer(id=1, company_id="COMP001", name="公司 1", deleted_at=None)
+                Customer(id=1, company_id=1, name="公司 1", deleted_at=None)
             )
             mock_db_session.new.add(
-                Customer(id=2, company_id="COMP002", name="公司 2", deleted_at=None)
+                Customer(id=2, company_id=2, name="公司 2", deleted_at=None)
             )
 
         mock_db_session.flush = mock_flush
@@ -439,24 +439,24 @@ class TestCustomerService_BatchCreateCustomers:
         # 验证结果 - 同批次重复会被检测到
         assert success_count == 2
         assert len(errors) == 1
-        assert "COMP001 已存在" in errors[0]
+        assert "公司 ID 1 已存在" in errors[0]
 
     @pytest.mark.asyncio
     async def test_batch_create_customers_with_existing(self, customer_service, mock_db_session):
         """测试批量创建客户 - 包含已存在的公司 ID"""
         customers_data = [
-            {"company_id": "EXIST001", "name": "已存在公司"},
-            {"company_id": "NEW001", "name": "新公司"},
+            {"company_id": 100, "name": "已存在公司"},
+            {"company_id": 200, "name": "新公司"},
         ]
 
         # Mock 现有 company_id 查询
         mock_result = MagicMock()
-        mock_result.all.return_value = [("EXIST001",)]  # 已存在的公司
+        mock_result.all.return_value = [(100,)]  # 已存在的公司
         mock_db_session.execute.return_value = mock_result
 
         async def mock_flush():
             mock_db_session.new.add(
-                Customer(id=1, company_id="NEW001", name="新公司", deleted_at=None)
+                Customer(id=1, company_id=200, name="新公司", deleted_at=None)
             )
 
         mock_db_session.flush = mock_flush
@@ -467,7 +467,7 @@ class TestCustomerService_BatchCreateCustomers:
         # 验证结果
         assert success_count == 1
         assert len(errors) == 1
-        assert "EXIST001 已存在" in errors[0]
+        assert "公司 ID 100 已存在" in errors[0]
 
     @pytest.mark.asyncio
     async def test_batch_create_customers_missing_company_id(
@@ -476,7 +476,7 @@ class TestCustomerService_BatchCreateCustomers:
         """测试批量创建客户 - 缺少 company_id"""
         customers_data = [
             {"name": "公司 1"},  # 缺少 company_id
-            {"company_id": "COMP001", "name": "公司 2"},
+            {"company_id": 100, "name": "公司 2"},
         ]
 
         # Mock 现有 company_id 查询
@@ -486,7 +486,7 @@ class TestCustomerService_BatchCreateCustomers:
 
         async def mock_flush():
             mock_db_session.new.add(
-                Customer(id=1, company_id="COMP001", name="公司 2", deleted_at=None)
+                Customer(id=1, company_id=100, name="公司 2", deleted_at=None)
             )
 
         mock_db_session.flush = mock_flush

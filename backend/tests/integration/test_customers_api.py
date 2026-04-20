@@ -444,7 +444,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     assert ws.title == "客户导入模板"
 
-    # 验证第 1 行：表头字段
+    # 验证第 1 行：表头字段（22 个字段）
     headers = [cell.value for cell in ws[1]]
     expected_headers = [
         "company_id",
@@ -457,6 +457,18 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "settlement_type",
         "is_key_customer",
         "email",
+        "erp_system",
+        "first_payment_date",
+        "onboarding_date",
+        "cooperation_status",
+        "is_settlement_enabled",
+        "is_disabled",
+        "notes",
+        "consume_level",
+        "monthly_avg_shots",
+        "monthly_avg_shots_estimated",
+        "estimated_annual_spend",
+        "actual_annual_spend_2025",
     ]
     assert headers == expected_headers, f"表头不匹配: {headers}"
 
@@ -464,10 +476,9 @@ async def test_download_import_template_field_structure(test_client, auth_header
     notes = [cell.value for cell in ws[2]]
     assert notes[0] == "必填"  # company_id
     assert notes[1] == "必填"  # name
-    assert notes[2] == "可选"  # account_type
-    assert notes[5] == "可选：定价/阶梯/包年"  # price_policy
-    assert notes[7] == "可选：prepaid/postpaid"  # settlement_type
-    assert notes[8] == "可选：true/false"  # is_key_customer
+    assert "正式" in str(notes[2])  # account_type
+    assert "定价" in str(notes[5])  # price_policy
+    assert "prepaid" in str(notes[7])  # settlement_type
 
     # 验证第 3 行：示例数据
     example = [cell.value for cell in ws[3]]
@@ -475,13 +486,16 @@ async def test_download_import_template_field_structure(test_client, auth_header
     assert "示例公司" in str(example[1])  # name 示例
     assert example[5] == "定价"  # price_policy 示例
     assert example[7] == "prepaid"  # settlement_type 示例
-    assert example[8] == "false"  # is_key_customer 示例
-    assert "@" in str(example[9])  # email 示例
+    assert "example@" in str(example[9])  # email 示例
+    # 验证新增字段
+    assert example[11] == "2024-01-15"  # first_payment_date
+    assert example[13] == "正常使用"  # cooperation_status
+    assert example[17] == "C3"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 10 个字段"""
+    """测试下载导入模板 - 验证表头数量为 22 个字段"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -495,7 +509,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 10, f"期望 10 个表头，实际 {header_count} 个"
+    assert header_count == 22, f"期望 22 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
