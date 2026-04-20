@@ -517,6 +517,9 @@ async def import_customers(request: Request):
 
         success_count, errors = await service.batch_create_customers(customers_data)
 
+        # 清除客户列表缓存
+        await cache_service.invalidate_customer_cache()
+
         return json(
             {
                 "code": 0,
