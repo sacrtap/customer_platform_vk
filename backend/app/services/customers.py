@@ -2,7 +2,8 @@
 
 import math
 import re
-from typing import Optional, List, Tuple, Union
+from datetime import datetime
+from typing import Optional, List, Tuple, Union, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_, or_, cast, String
@@ -32,6 +33,53 @@ SETTLEMENT_TYPE_MAP = {
 SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
 
 VALID_SETTLEMENT_TYPES = set(SETTLEMENT_TYPE_MAP.values())
+
+
+# 账号类型映射：Excel 值 → 数据库存储值
+ACCOUNT_TYPE_MAP = {
+    "正式": "正式账号",
+    "客户测试账号": "客户测试账号",
+    "众趣内部": "内部账号",
+}
+
+
+def convert_account_type(value: Optional[str]) -> Optional[str]:
+    """将 Excel 中的账号类型转换为数据库存储值"""
+    if not value:
+        return None
+    return ACCOUNT_TYPE_MAP.get(str(value).strip(), str(value).strip())
+
+
+def convert_bool_field(value: Optional[Union[str, bool, int]]) -> Optional[bool]:
+    """将 Excel 中的是/否转换为布尔值"""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    val = str(value).strip().lower()
+    if val in ("是", "true", "1", "yes"):
+        return True
+    if val in ("否", "false", "0", "no"):
+        return False
+    return None
+
+
+def convert_date_field(value: Optional[Any]) -> Optional[str]:
+    """将 Excel 日期值转换为 YYYY-MM-DD 字符串"""
+    if value is None:
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    val = str(value).strip()
+    if not val or val in ("#N/A", "None"):
+        return None
+
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%Y%m%d"):
+        try:
+            return datetime.strptime(val, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
 
 
 def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
@@ -144,9 +192,7 @@ class CustomerService:
 
         # 行业筛选（使用 profile.industry）
         if industry := filters.get("industry"):
-            stmt = stmt.outerjoin(
-                CustomerProfile, Customer.id == CustomerProfile.customer_id
-            )
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             conditions.append(CustomerProfile.industry == industry)
 
         # 客户等级筛选
@@ -180,9 +226,7 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(
-            selectinload(Customer.profile), selectinload(Customer.balance)
-        )
+        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
 
         if self._is_async:
             result = await self.db.execute(stmt)
@@ -278,9 +322,7 @@ class CustomerService:
             if profile:
                 profile.industry = data["industry"]
             else:
-                profile = CustomerProfile(
-                    customer_id=customer.id, industry=data["industry"]
-                )
+                profile = CustomerProfile(customer_id=customer.id, industry=data["industry"])
                 self.db.add(profile)
 
         await self.db.commit()
@@ -309,9 +351,7 @@ class CustomerService:
         )
         return result.scalar_one_or_none()
 
-    async def create_or_update_profile(
-        self, customer_id: int, data: dict
-    ) -> CustomerProfile:
+    async def create_or_update_profile(self, customer_id: int, data: dict) -> CustomerProfile:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
@@ -353,9 +393,7 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(
-        self, customers_data: List[dict]
-    ) -> Tuple[int, List[str]]:
+    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
@@ -406,9 +444,7 @@ class CustomerService:
                     try:
                         company_id = int(company_id)
                     except (ValueError, TypeError):
-                        errors.append(
-                            f"行{i + 1}: company_id '{company_id}' 不是有效的整数"
-                        )
+                        errors.append(f"行{i + 1}: company_id '{company_id}' 不是有效的整数")
                         continue
 
                 if not company_id:
