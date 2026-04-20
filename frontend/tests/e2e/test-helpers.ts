@@ -94,7 +94,6 @@ export async function apiCreateCustomer(token: string, data: {
   email?: string;
   account_type?: string;
   industry?: string;
-  customer_level?: string;
   settlement_type?: string;
   settlement_cycle?: string;
   is_key_customer?: boolean;

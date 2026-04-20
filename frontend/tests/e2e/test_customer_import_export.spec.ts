@@ -141,8 +141,8 @@ test.describe('客户导入/导出', () => {
 
   test('6. 导出带筛选条件的数据', async ({ page }) => {
     const customers = [
-      { company_id: generateTestCompanyId('导出KA'), name: generateTestCustomerName('KA导出'), customer_level: 'KA' },
-      { company_id: generateTestCompanyId('导出普通'), name: generateTestCustomerName('普通导出'), customer_level: '普通' },
+      { company_id: generateTestCompanyId('导出KA'), name: generateTestCustomerName('KA导出') },
+      { company_id: generateTestCompanyId('导出普通'), name: generateTestCustomerName('普通导出') },
     ];
 
     for (const c of customers) {

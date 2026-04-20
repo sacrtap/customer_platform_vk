@@ -43,9 +43,9 @@ async def test_customer(db_session):
         text(
             """
         INSERT INTO customers (id, company_id, name, account_type,
-                               customer_level, manager_id, settlement_cycle, settlement_type,
+                               manager_id, settlement_cycle, settlement_type,
                                created_at, updated_at)
-        VALUES (:id, :company_id, :name, :account_type, :level,
+        VALUES (:id, :company_id, :name, :account_type,
                 :manager_id, :cycle, :type, NOW(), NOW())
         """
         ),
@@ -54,7 +54,6 @@ async def test_customer(db_session):
             "company_id": company_id,
             "name": customer_name,
             "account_type": "enterprise",
-            "level": "A",
             "manager_id": 1,
             "cycle": "monthly",
             "type": "prepaid",

@@ -166,7 +166,6 @@ class TestCustomerGroupMemberModel:
             company_id="TEST001",
             name="测试客户公司",
             account_type="enterprise",
-            customer_level="VIP",
             manager_id=user.id,
         )
         async_session.add(customer)

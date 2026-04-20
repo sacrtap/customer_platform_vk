@@ -5,7 +5,7 @@
 1. 消耗分析 - get_consumption_trend, get_top_customers, get_device_type_distribution
 2. 回款分析 - get_payment_analysis, get_invoice_status_stats
 3. 健康度分析 - get_customer_health_stats, get_balance_warning_list, get_inactive_customers
-4. 画像分析 - get_industry_distribution, get_customer_level_stats, get_real_estate_stats
+4. 画像分析 - get_industry_distribution, get_real_estate_stats
 5. 预测回款 - predict_monthly_payment
 6. 首页仪表盘 - get_dashboard_stats, get_dashboard_chart_data
 """
@@ -123,7 +123,6 @@ def make_mock_row(data):
         # None 表示未分类
         if data[0] is None:
             setattr(row, "level", "未分类")
-            setattr(row, "customer_level", "未分类")
             setattr(row, "count", data[1])
         elif isinstance(data[0], str):
             # 设备类型
@@ -143,12 +142,10 @@ def make_mock_row(data):
             # 客户等级 (A, B, C, etc.) 或 None (未分类)
             elif data[0] in ["A", "B", "C", "D", "E"]:
                 setattr(row, "level", data[0])
-                setattr(row, "customer_level", data[0])
                 setattr(row, "count", data[1])
             # None 表示未分类
             elif data[0] is None:
                 setattr(row, "level", "未分类")
-                setattr(row, "customer_level", "未分类")
                 setattr(row, "count", data[1])
             # 行业分布、健康等级等
             else:
@@ -788,40 +785,6 @@ class TestGetIndustryDistribution:
 
         assert len(result) == 1
         assert result[0]["percentage"] == 100.0
-
-
-class TestGetCustomerLevelStats:
-    """get_customer_level_stats 测试"""
-
-    async def test_get_customer_level_stats_success(self, analytics_service):
-        """测试获取客户等级统计成功"""
-        service, mock_db = analytics_service
-
-        mock_rows = [
-            ("A", 50),
-            ("B", 30),
-            ("C", 15),
-            (None, 5),  # 未分类
-        ]
-        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
-
-        result = await service.get_customer_level_stats()
-
-        assert len(result) == 4
-        assert result[0]["level"] == "A"
-        assert result[0]["count"] == 50
-        assert result[0]["percentage"] == round(50 / 100 * 100, 2)
-        assert result[3]["level"] == "未分类"  # None 转为"未分类"
-
-    async def test_get_customer_level_stats_empty(self, analytics_service):
-        """测试空结果"""
-        service, mock_db = analytics_service
-
-        mock_db.execute.return_value = make_mock_execute_result([])
-
-        result = await service.get_customer_level_stats()
-
-        assert len(result) == 0
 
 
 class TestGetRealEstateStats:

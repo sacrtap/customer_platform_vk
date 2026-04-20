@@ -33,7 +33,6 @@ test.describe('客户详情页面', () => {
       company_id: testCompanyId,
       name: generateTestCustomerName('详情'),
       account_type: 'production',
-      customer_level: '普通',
     });
     testCustomerId = createResult.data?.id;
     test.skip(!testCustomerId, '创建测试客户失败');
