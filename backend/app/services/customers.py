@@ -409,6 +409,7 @@ class CustomerService:
         existing_company_ids = {row[0] for row in existing_result.all()}
 
         pending_profiles: list[dict] = []
+        new_customers: list[Customer] = []
         success_count = 0
         errors = []
 
@@ -570,6 +571,7 @@ class CustomerService:
                     notes=data.get("notes"),
                 )
                 self.db.add(customer)
+                new_customers.append(customer)
                 # 暂存 profile 数据（等待 flush 后设置 customer_id）
                 if profile_data:
                     pending_profiles.append(
@@ -586,9 +588,8 @@ class CustomerService:
 
         # 批量创建余额记录和 profile
         if success_count > 0:
-            # 获取刚创建的客户 ID
+            # flush 后 customer.id 可用
             await self.db.flush()
-            new_customers = [c for c in self.db.new if isinstance(c, Customer)]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
             self.db.add_all(balances)
 
