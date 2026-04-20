@@ -197,6 +197,7 @@
         row-key="id"
         :pagination="pagination"
         @page-change="handlePageChange"
+        @sort="handleSort"
       >
         <template #createdAt="{ record }">
           {{ formatDateTime(record.created_at) }}
@@ -492,6 +493,12 @@ const industryTypes = ref<IndustryType[]>([])
 const loading = ref(false)
 const customers = ref<Customer[]>([])
 
+// 排序状态
+const sortState = reactive({
+  sort_by: 'id',
+  sort_order: 'asc' as 'asc' | 'desc',
+})
+
 const pagination = reactive({
   current: 1,
   pageSize: 20,
@@ -501,7 +508,7 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 140, ellipsis: true, tooltip: true },
+  { title: '公司 ID', dataIndex: 'company_id', width: 140, sortable: true, ellipsis: true, tooltip: true },
   { title: '客户名称', dataIndex: 'name', width: 250, ellipsis: true, tooltip: true },
   { title: '行业类型', dataIndex: 'industry', width: 100 },
   { title: '结算方式', slotName: 'settlementType', width: 100 },
@@ -530,6 +537,20 @@ const getManagerName = (managerId: number | null | undefined): string => {
   return manager ? ((manager.real_name || manager.username) as string) : '-'
 }
 
+// 处理排序
+const handleSort = (dataIndex: string, direction: 'asc' | 'desc' | '') => {
+  if (!direction) {
+    // 取消排序时恢复默认
+    sortState.sort_by = 'id'
+    sortState.sort_order = 'asc'
+  } else {
+    sortState.sort_by = dataIndex
+    sortState.sort_order = direction
+  }
+  pagination.current = 1 // 重置到第一页
+  loadCustomers()
+}
+
 // 加载客户列表
 const loadCustomers = async () => {
   loading.value = true
@@ -542,9 +563,13 @@ const loadCustomers = async () => {
       industry?: string
       manager_id?: number
       is_key_customer?: boolean
+      sort_by: string
+      sort_order: 'asc' | 'desc'
     } = {
       page: pagination.current,
       page_size: pagination.pageSize,
+      sort_by: sortState.sort_by,
+      sort_order: sortState.sort_order,
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
