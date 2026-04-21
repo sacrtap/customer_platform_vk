@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from app.services.customers import CustomerService, ALLOWED_SORT_FIELDS, VALID_SORT_ORDERS
-from app.models.customers import Customer, CustomerProfile
+from app.models.customers import Customer
 
 
 # ==================== MockDBSession 工具类 ====================
@@ -91,17 +91,17 @@ class TestSortConstants:
     """排序常量验证"""
 
     def test_allowed_sort_fields_contains_expected_fields(self):
-        """验证排序字段白名单包含预期字段"""
+        """验证排序字段白名单包含预期字段（包括新扩展的 industry, settlement_type, manager_id, is_key_customer）"""
         expected_fields = {
             "id",
             "company_id",
             "name",
             "created_at",
             "updated_at",
-            "industry",  # 行业类型 (CustomerProfile 表)
-            "settlement_type",  # 结算方式 (Customer 表)
-            "manager_id",  # 运营经理 (Customer 表)
-            "is_key_customer",  # 重点客户 (Customer 表)
+            "industry",          # 行业类型 (CustomerProfile 表)
+            "settlement_type",   # 结算方式 (Customer 表)
+            "manager_id",        # 运营经理 (Customer 表)
+            "is_key_customer",   # 重点客户 (Customer 表)
         }
         assert ALLOWED_SORT_FIELDS == expected_fields
 
@@ -114,7 +114,8 @@ class TestSortConstants:
         assert "password" not in ALLOWED_SORT_FIELDS
         assert "deleted_at" not in ALLOWED_SORT_FIELDS
         assert "email" not in ALLOWED_SORT_FIELDS
-        # manager_id 现在是允许的排序字段，不再测试其不在白名单中
+        # manager_id 现在是可排序字段（运营经理）
+        # 注意：manager_id 是业务字段，不是敏感字段
 
     def test_sort_order_case_sensitive(self):
         """验证排序方向区分大小写"""
@@ -475,21 +476,13 @@ class TestSortEdgeCases:
 
     @pytest.mark.asyncio
     async def test_all_allowed_sort_fields_are_valid_customer_attributes(self):
-        """验证所有允许的排序字段都是 Customer 或 CustomerProfile 模型的有效属性"""
-        # Customer 表字段
-        customer_fields = {
-            "id",
-            "company_id",
-            "name",
-            "created_at",
-            "updated_at",
-            "manager_id",
-            "settlement_type",
-            "is_key_customer",
-        }
-        # CustomerProfile 表字段
-        profile_fields = {"industry"}
-
+        """验证所有允许的排序字段都是有效字段（Customer 或 CustomerProfile 的属性）"""
+        from app.models.customers import CustomerProfile
+        
         for field in ALLOWED_SORT_FIELDS:
-            is_valid = hasattr(Customer, field) or hasattr(CustomerProfile, field)
-            assert is_valid, f"{field} is not a valid Customer or CustomerProfile attribute"
+            # industry 字段在 CustomerProfile 表中
+            if field == "industry":
+                assert hasattr(CustomerProfile, field), f"{field} is not a valid CustomerProfile attribute"
+            else:
+                # 其他字段在 Customer 表中
+                assert hasattr(Customer, field), f"{field} is not a valid Customer attribute"
