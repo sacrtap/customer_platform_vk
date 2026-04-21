@@ -97,7 +97,7 @@
                 </span>
               </div>
               <div class="info-item">
-                <span class="label">销售负责人</span>
+                <span class="label">商务经理</span>
                 <span class="value">
                   {{ salesManagerName || '-' }}
                 </span>
@@ -459,10 +459,10 @@
                 </a-select>
               </a-form-item>
 
-              <a-form-item field="sales_manager_id" label="销售负责人">
+              <a-form-item field="sales_manager_id" label="商务经理">
                 <a-select
                   v-model="editForm.sales_manager_id"
-                  placeholder="请选择销售负责人"
+                  placeholder="请选择商务经理"
                   allow-clear
                   :loading="managersLoading"
                 >
@@ -1261,7 +1261,7 @@ const consumeLevelDisplay = computed(() => {
   return CONSUME_LEVEL_MAP[level] || level
 })
 
-// 销售负责人名称（从 managers 列表中查找）
+// 商务经理名称（从 managers 列表中查找）
 const salesManagerName = computed(() => {
   if (!customer.value.sales_manager_id) return null
   const manager = managers.value.find((m) => m.id === customer.value.sales_manager_id)

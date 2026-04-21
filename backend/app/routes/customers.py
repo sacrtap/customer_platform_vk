@@ -34,6 +34,7 @@ async def list_customers(request: Request):
     - account_type: 账号类型
     - industry: 行业类型
     - manager_id: 运营经理 ID
+    - sales_manager_id: 商务经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
     - sort_by: 排序字段 (id, company_id, name, created_at, updated_at，默认 id)
@@ -54,6 +55,9 @@ async def list_customers(request: Request):
         "industry": request.args.get("industry"),
         "manager_id": (
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
+        ),
+        "sales_manager_id": (
+            int(request.args.get("sales_manager_id", 0)) if request.args.get("sales_manager_id") else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -96,6 +100,7 @@ async def list_customers(request: Request):
                     "industry": c.profile.industry if c.profile else None,
                     "price_policy": convert_price_policy_to_display(c.price_policy),
                     "manager_id": c.manager_id,
+                    "sales_manager_id": c.sales_manager_id,
                     "settlement_cycle": c.settlement_cycle,
                     "settlement_type": convert_settlement_type_to_display(c.settlement_type),
                     "is_key_customer": c.is_key_customer,

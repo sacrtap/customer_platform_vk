@@ -22,6 +22,7 @@ ALLOWED_SORT_FIELDS = {
     "industry",          # 行业类型 (CustomerProfile 表)
     "settlement_type",   # 结算方式 (Customer 表)
     "manager_id",        # 运营经理 (Customer 表)
+    "sales_manager_id",  # 商务经理 (Customer 表)
     "is_key_customer",   # 重点客户 (Customer 表)
 }
 VALID_SORT_ORDERS = {"asc", "desc"}
@@ -193,6 +194,10 @@ class CustomerService:
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
             conditions.append(Customer.manager_id == manager_id)
+
+        # 商务经理筛选
+        if sales_manager_id := filters.get("sales_manager_id"):
+            conditions.append(Customer.sales_manager_id == sales_manager_id)
 
         # 结算方式筛选
         if settlement_type := filters.get("settlement_type"):

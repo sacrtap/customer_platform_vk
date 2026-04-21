@@ -9,6 +9,7 @@ export function getCustomers(params?: {
   account_type?: string
   industry?: string
   manager_id?: number
+  sales_manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
   sort_by?: string
@@ -117,6 +118,7 @@ export function exportCustomers(params?: {
   account_type?: string
   industry?: string
   manager_id?: number
+  sales_manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
 }) {

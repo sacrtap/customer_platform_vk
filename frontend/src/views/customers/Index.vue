@@ -163,6 +163,20 @@
                 </a-form-item>
               </a-col>
               <a-col :xs="24" :sm="12" :md="8" :lg="6">
+                <a-form-item label="商务经理">
+                  <a-select
+                    v-model="advancedFilters.sales_manager_id"
+                    placeholder="请选择商务经理"
+                    allow-clear
+                    :loading="managersLoading"
+                  >
+                    <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                      {{ manager.real_name || manager.username }}
+                    </a-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :sm="12" :md="8" :lg="6">
                 <a-form-item label="标签筛选">
                   <a-select
                     v-model="advancedFilters.tag_ids"
@@ -196,9 +210,17 @@
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        :scroll="{ x: 'max-content' }"
         @page-change="handlePageChange"
-        @sort="handleSort"
+        @page-size-change="handlePageSizeChange"
+        @sorter-change="handleSort"
       >
+        <template #name="{ record }">
+          <div class="name-cell">
+            <span v-if="record.is_key_customer" class="key-customer-badge" title="重点客户">★</span>
+            <span class="name-text">{{ record.name }}</span>
+          </div>
+        </template>
         <template #createdAt="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
@@ -208,10 +230,8 @@
         <template #manager="{ record }">
           {{ getManagerName(record.manager_id) }}
         </template>
-        <template #isKeyCustomer="{ record }">
-          <a-tag :color="record.is_key_customer ? 'red' : 'gray'">
-            {{ record.is_key_customer ? '是' : '否' }}
-          </a-tag>
+        <template #salesManager="{ record }">
+          {{ getSalesManagerName(record.sales_manager_id) }}
         </template>
         <template #action="{ record }">
           <a-space>
@@ -355,6 +375,19 @@
             </a-option>
           </a-select>
         </a-form-item>
+
+        <a-form-item field="sales_manager_id" label="商务经理">
+          <a-select
+            v-model="customerForm.sales_manager_id"
+            placeholder="请选择商务经理"
+            allow-clear
+            :loading="managersLoading"
+          >
+            <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+              {{ manager.real_name || manager.username }}
+            </a-option>
+          </a-select>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -481,6 +514,7 @@ const filters = reactive({
 
 const advancedFilters = reactive({
   manager_id: null as number | null,
+  sales_manager_id: null as number | null,
   tag_ids: [] as number[],
 })
 
@@ -496,7 +530,7 @@ const customers = ref<Customer[]>([])
 // 排序状态
 const sortState = reactive({
   sort_by: 'id',
-  sort_order: 'asc' as 'asc' | 'desc',
+  sort_order: 'ascend' as 'ascend' | 'descend' | '',
 })
 
 const pagination = reactive({
@@ -508,14 +542,14 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 140, sortable: { sorter: true }, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'name', width: 250, sortable: { sorter: true }, ellipsis: true, tooltip: true },
-  { title: '行业类型', dataIndex: 'industry', width: 100, sortable: { sorter: true } },
-  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlementType', width: 100, sortable: { sorter: true } },
-  { title: '运营经理', dataIndex: 'manager_id', slotName: 'manager', width: 150, sortable: { sorter: true }, ellipsis: true, tooltip: true },
-  { title: '重点客户', dataIndex: 'is_key_customer', slotName: 'isKeyCustomer', width: 100, sortable: { sorter: true } },
-  { title: '创建时间', dataIndex: 'created_at', slotName: 'createdAt', width: 180, sortable: { sorter: true } },
-  { title: '操作', slotName: 'action', width: 320, fixed: 'right' as const },
+  { title: '公司 ID', dataIndex: 'company_id', width: 100, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '客户名称', dataIndex: 'name', slotName: 'name', width: 220, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '行业类型', dataIndex: 'industry', width: 120, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlementType', width: 120, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '商务经理', dataIndex: 'sales_manager_id', slotName: 'salesManager', width: 130, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '运营经理', dataIndex: 'manager_id', slotName: 'manager', width: 130, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '创建时间', dataIndex: 'created_at', slotName: 'createdAt', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '操作', slotName: 'action', width: 180, fixed: 'right' as const },
 ]
 
 // 结算方式映射
@@ -537,12 +571,19 @@ const getManagerName = (managerId: number | null | undefined): string => {
   return manager ? ((manager.real_name || manager.username) as string) : '-'
 }
 
+// 获取商务经理显示名称
+const getSalesManagerName = (managerId: number | null | undefined): string => {
+  if (!managerId) return '-'
+  const manager = managers.value.find(m => m.id === managerId)
+  return manager ? ((manager.real_name || manager.username) as string) : '-'
+}
+
 // 处理排序
-const handleSort = (dataIndex: string, direction: 'asc' | 'desc' | '') => {
+const handleSort = (dataIndex: string, direction: 'ascend' | 'descend' | '') => {
   if (!direction) {
     // 取消排序时恢复默认
     sortState.sort_by = 'id'
-    sortState.sort_order = 'asc'
+    sortState.sort_order = 'ascend'
   } else {
     sortState.sort_by = dataIndex
     sortState.sort_order = direction
@@ -555,6 +596,9 @@ const handleSort = (dataIndex: string, direction: 'asc' | 'desc' | '') => {
 const loadCustomers = async () => {
   loading.value = true
   try {
+    // 将前端的 ascend/descend 转换为后端期望的 asc/desc
+    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+
     const params: {
       page: number
       page_size: number
@@ -562,6 +606,7 @@ const loadCustomers = async () => {
       account_type?: string
       industry?: string
       manager_id?: number
+      sales_manager_id?: number
       is_key_customer?: boolean
       sort_by: string
       sort_order: 'asc' | 'desc'
@@ -569,13 +614,14 @@ const loadCustomers = async () => {
       page: pagination.current,
       page_size: pagination.pageSize,
       sort_by: sortState.sort_by,
-      sort_order: sortState.sort_order,
+      sort_order: backendSortOrder,
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry) params.industry = filters.industry
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
 
     const res = await getCustomers(params)
     customers.value = res.data.list || []
@@ -601,6 +647,7 @@ const handleReset = () => {
   filters.industry = ''
   filters.is_key_customer = null
   advancedFilters.manager_id = null
+  advancedFilters.sales_manager_id = null
   advancedFilters.tag_ids = []
   pagination.current = 1
   loadCustomers()
@@ -609,6 +656,13 @@ const handleReset = () => {
 // 分页变化
 const handlePageChange = (page: number) => {
   pagination.current = page
+  loadCustomers()
+}
+
+// 每页条数变化
+const handlePageSizeChange = (pageSize: number) => {
+  pagination.pageSize = pageSize
+  pagination.current = 1 // 切换条数时回到第一页
   loadCustomers()
 }
 
@@ -680,6 +734,7 @@ const handleExport = async () => {
     if (filters.industry) params.industry = filters.industry
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
 
     const res = await exportCustomers(params)
 
@@ -717,6 +772,7 @@ const customerForm = reactive({
   settlement_cycle: undefined as string | undefined,
   is_key_customer: false,
   manager_id: null as number | null,
+  sales_manager_id: null as number | null,
 })
 
 const customerFormRules = {
@@ -739,6 +795,7 @@ const openCreateModal = () => {
     settlement_cycle: undefined,
     is_key_customer: false,
     manager_id: null,
+    sales_manager_id: null,
   })
   customerModalVisible.value = true
 }
@@ -757,6 +814,7 @@ const openEditModal = (record: Customer) => {
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,
     manager_id: record.manager_id || null,
+    sales_manager_id: record.sales_manager_id || null,
   })
   customerModalVisible.value = true
 }
@@ -785,6 +843,7 @@ const handleCustomerSubmit = async () => {
       settlement_cycle: customerForm.settlement_cycle,
       is_key_customer: customerForm.is_key_customer,
       manager_id: customerForm.manager_id || undefined,
+      sales_manager_id: customerForm.sales_manager_id || undefined,
     }
 
     if (isEditMode.value && editingCustomerId.value) {
@@ -1020,6 +1079,8 @@ onMounted(() => {
 }
 
 :deep(.arco-table th) {
+  font-size: 13px;
+  white-space: nowrap;
   background: var(--neutral-1);
   color: var(--neutral-6);
   font-weight: 600;
@@ -1031,6 +1092,26 @@ onMounted(() => {
 
 :deep(.arco-table tr:hover td) {
   background: var(--neutral-1);
+}
+
+/* 重点客户名称单元格布局 */
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.key-customer-badge {
+  color: #ff4d4f;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :deep(.arco-form-item-required) .arco-form-item-label::before {
