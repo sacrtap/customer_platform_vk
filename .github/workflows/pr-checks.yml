@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened]
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
   NODE_VERSION: "18"
 
 concurrency:
@@ -119,12 +119,20 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET_KEY: test-secret-key-for-ci
+          JWT_SECRET: test-secret-key-for-ci
           JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
         run: |
           cd backend
-          pytest --cov=app --cov-report=term-missing --cov-fail-under=50
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+
+      - name: Upload JUnit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-backend-junit
+          path: backend/junit.xml
+          retention-days: 3
 
   # ============================================================
   # 前端构建
@@ -153,6 +161,14 @@ jobs:
         run: |
           cd frontend
           npm run build
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-frontend-dist
+          path: frontend/dist/
+          retention-days: 3
 
   # ============================================================
   # PR 质量门禁

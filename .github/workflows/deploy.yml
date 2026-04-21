@@ -24,8 +24,8 @@ on:
         type: string
 
 env:
-  PYTHON_VERSION: "3.11"
-  NODE_VERSION: "18"
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
 
 jobs:
   # ============================================================
@@ -66,7 +66,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./backend
-          file: ./deploy/podman/Containerfile
+          file: ./deploy/docker/Containerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.tag }}

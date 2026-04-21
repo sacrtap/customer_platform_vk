@@ -3,11 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
   NODE_VERSION: "18"
 
 jobs:
@@ -71,12 +69,12 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET_KEY: test-secret-key-for-ci
+          JWT_SECRET: test-secret-key-for-ci
           JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
         run: |
           cd backend
-          pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50
+          pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
 
       - name: Upload coverage to GitHub
         uses: actions/upload-artifact@v4
@@ -85,19 +83,19 @@ jobs:
           path: backend/coverage.xml
           retention-days: 7
 
+      - name: Upload JUnit test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-junit
+          path: backend/junit.xml
+          retention-days: 7
+
       - name: Upload coverage HTML report
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage-html
           path: backend/htmlcov/
           retention-days: 7
-
-      - name: Comment coverage on PR
-        if: github.event_name == 'pull_request'
-        uses: MishaKav/pytest-coverage-comment@main
-        with:
-          pytest-coverage-path: backend/coverage.xml
-          junitxml-path: backend/coverage.xml
 
   # ============================================================
   # Frontend CI
@@ -158,10 +156,10 @@ jobs:
         run: |
           echo "Backend Tests: ${{ needs.backend-test.result }}"
           echo "Frontend Check: ${{ needs.frontend-check.result }}"
-          
+
           if [ "${{ needs.backend-test.result }}" != "success" ] || [ "${{ needs.frontend-check.result }}" != "success" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi
-          
+
           echo "✅ All quality checks passed"

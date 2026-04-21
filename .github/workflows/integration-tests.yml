@@ -18,7 +18,7 @@ on:
           - performance
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.12"
   NODE_VERSION: "18"
 
 jobs:
@@ -248,13 +248,13 @@ jobs:
 
       - name: Run Bandit security scan
         run: |
-          bandit -r backend/app/ -f json -o bandit-report.json || true
+          bandit -r backend/app/ -f json -o bandit-report.json
           bandit -r backend/app/ -f txt -ll
 
       - name: Check dependencies for known vulnerabilities
         run: |
           cd backend
-          safety check -r requirements.txt --json || true
+          safety check -r requirements.txt --json
           safety check -r requirements.txt
 
       - name: Upload security report
@@ -291,8 +291,8 @@ jobs:
       - name: Run npm audit
         run: |
           cd frontend
-          npm audit --audit-level=moderate || true
-          npm audit --json > npm-audit-report.json || true
+          npm audit --audit-level=high
+          npm audit --json > npm-audit-report.json
 
       - name: Upload audit report
         if: always()
