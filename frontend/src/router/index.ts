@@ -108,6 +108,12 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: 'profiles',
+        name: 'ProfileDashboard',
+        component: () => import('@/views/profiles/Dashboard.vue'),
+        meta: { requiresPermission: 'profiles:view' },
+      },
+      {
         path: 'system',
         name: 'System',
         children: [
