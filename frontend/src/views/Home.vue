@@ -404,7 +404,9 @@ const loadChartData = async () => {
   try {
     const res = await getDashboardChartData({ months: 12 })
     await nextTick()
-    initChart((res as any).data.consumption_trend as Array<{ period: string; total_amount: number }>)
+    initChart(
+      (res as any).data.consumption_trend as Array<{ period: string; total_amount: number }>
+    )
   } catch (error) {
     console.error('加载图表数据失败:', error)
     Message.error('加载图表数据失败')
@@ -492,14 +494,22 @@ const loadTodos = async () => {
   try {
     const res = await getPendingTasks()
     // Mock 数据返回的是 items
-    todos.value = res.data.items.map((item: { id: number; title: string; priority: string; priority_text: string; due_date: string }) => ({
-      id: item.id,
-      title: item.title,
-      priority: item.priority as 'high' | 'medium' | 'low',
-      priorityText: item.priority_text,
-      due: item.due_date,
-      checked: false,
-    }))
+    todos.value = res.data.items.map(
+      (item: {
+        id: number
+        title: string
+        priority: string
+        priority_text: string
+        due_date: string
+      }) => ({
+        id: item.id,
+        title: item.title,
+        priority: item.priority as 'high' | 'medium' | 'low',
+        priorityText: item.priority_text,
+        due: item.due_date,
+        checked: false,
+      })
+    )
   } catch (error) {
     Message.error('加载待办事项失败')
   }

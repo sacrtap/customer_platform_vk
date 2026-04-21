@@ -51,7 +51,12 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button v-if="can('roles:assign')" type="text" size="small" @click="handlePermissionConfig(record)">
+            <a-button
+              v-if="can('roles:assign')"
+              type="text"
+              size="small"
+              @click="handlePermissionConfig(record)"
+            >
               权限配置
             </a-button>
             <a-button
@@ -78,7 +83,9 @@
         <template #empty>
           <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
             <template #action>
-              <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">新建角色</a-button>
+              <a-button v-if="can('roles:create')" type="primary" @click="handleCreate"
+                >新建角色</a-button
+              >
             </template>
           </EmptyState>
         </template>
@@ -276,7 +283,7 @@ const loadRoles = async () => {
       keyword: searchKeyword.value || undefined,
     })
     const data = res.data as any
-    roles.value = (data.list as ApiRole[] || []).map((item: ApiRole) => ({
+    roles.value = ((data.list as ApiRole[]) || []).map((item: ApiRole) => ({
       ...item,
       isSystem: item.isSystem || false,
     }))

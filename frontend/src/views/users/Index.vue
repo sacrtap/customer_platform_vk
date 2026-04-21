@@ -80,11 +80,17 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button v-if="can('users:edit')" type="text" size="small" @click="handleEdit(record)">编辑</a-button>
+            <a-button v-if="can('users:edit')" type="text" size="small" @click="handleEdit(record)"
+              >编辑</a-button
+            >
             <a-button type="text" size="small" @click="handleResetPassword(record)">
               重置密码
             </a-button>
-            <a-popconfirm v-if="can('users:delete')" content="确认删除该用户？删除后无法恢复。" @ok="handleDelete(record.id)">
+            <a-popconfirm
+              v-if="can('users:delete')"
+              content="确认删除该用户？删除后无法恢复。"
+              @ok="handleDelete(record.id)"
+            >
               <a-button type="text" size="small" status="danger" class="delete-btn">删除</a-button>
             </a-popconfirm>
           </a-space>
@@ -92,7 +98,9 @@
         <template #empty>
           <EmptyState title="暂无用户数据" description="点击「新建用户」添加第一个用户">
             <template #action>
-              <a-button v-if="can('users:create')" type="primary" @click="handleCreate">新建用户</a-button>
+              <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
+                >新建用户</a-button
+              >
             </template>
           </EmptyState>
         </template>

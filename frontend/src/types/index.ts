@@ -75,9 +75,9 @@ export interface Role {
 
 /** 计费模式枚举 */
 export enum PricePolicy {
-  PRICING = 'pricing',   // 定价
-  TIERED = 'tiered',     // 阶梯
-  YEARLY = 'yearly',     // 包年
+  PRICING = 'pricing', // 定价
+  TIERED = 'tiered', // 阶梯
+  YEARLY = 'yearly', // 包年
 }
 
 /** 计费模式展示映射 */

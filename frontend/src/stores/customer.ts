@@ -119,10 +119,7 @@ export const useCustomerStore = defineStore('customer', () => {
   /**
    * Cache tags data for a customer
    */
-  function cacheTagsData(
-    customerId: number,
-    data: { customerTags: Tag[]; allTags: Tag[] }
-  ): void {
+  function cacheTagsData(customerId: number, data: { customerTags: Tag[]; allTags: Tag[] }): void {
     tagsCache.value.set(customerId, {
       ...data,
       timestamp: Date.now(),

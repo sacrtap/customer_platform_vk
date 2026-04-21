@@ -82,14 +82,22 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button v-if="can('billing:recharge')" type="primary" size="small" @click="openRechargeModal(record)">充值</a-button>
+            <a-button
+              v-if="can('billing:recharge')"
+              type="primary"
+              size="small"
+              @click="openRechargeModal(record)"
+              >充值</a-button
+            >
             <a-button type="text" size="small" @click="viewRechargeRecords(record)">记录</a-button>
           </a-space>
         </template>
         <template #empty>
           <EmptyState title="暂无余额数据" description="点击「新建充值」为客户充值">
             <template #action>
-              <a-button v-if="can('billing:recharge')" type="primary" @click="openRechargeModal()">新建充值</a-button>
+              <a-button v-if="can('billing:recharge')" type="primary" @click="openRechargeModal()"
+                >新建充值</a-button
+              >
             </template>
           </EmptyState>
         </template>
@@ -220,7 +228,9 @@ const loading = ref(false)
 const balances = ref<Balance[]>([])
 
 // 客户选项
-const customerOptions = ref<Array<{ id: number; name: string; label: string; value: number; company_id?: string }>>([])
+const customerOptions = ref<
+  Array<{ id: number; name: string; label: string; value: number; company_id?: string }>
+>([])
 
 // 表格列定义
 const columns = [

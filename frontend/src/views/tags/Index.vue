@@ -181,7 +181,7 @@ const loadTags = async () => {
       type: activeTab.value,
     })
 
-    const tagsList = (res.data as Record<string, unknown>).list as Tag[] || []
+    const tagsList = ((res.data as Record<string, unknown>).list as Tag[]) || []
     pagination.total = ((res.data as Record<string, unknown>).total as number) || 0
     allTags.value = tagsList
   } catch (error: unknown) {

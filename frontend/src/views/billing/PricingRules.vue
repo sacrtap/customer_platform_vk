@@ -113,8 +113,18 @@
         </template>
         <template #action="{ record }">
           <a-space>
-            <a-button v-if="can('billing:edit')" type="text" size="small" @click="showEditModal(record)">编辑</a-button>
-            <a-popconfirm v-if="can('billing:delete')" content="确定要删除此定价规则吗？" @ok="handleDelete(record)">
+            <a-button
+              v-if="can('billing:edit')"
+              type="text"
+              size="small"
+              @click="showEditModal(record)"
+              >编辑</a-button
+            >
+            <a-popconfirm
+              v-if="can('billing:delete')"
+              content="确定要删除此定价规则吗？"
+              @ok="handleDelete(record)"
+            >
               <a-button type="text" size="small" status="danger">删除</a-button>
             </a-popconfirm>
           </a-space>
