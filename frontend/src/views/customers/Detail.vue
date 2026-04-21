@@ -841,12 +841,12 @@ const usageColumns = [
 
 const invoiceColumns = [
   { title: '结算单号', dataIndex: 'invoice_no' },
-  { title: '周期开始', dataIndex: 'period_start' },
-  { title: '周期结束', dataIndex: 'period_end' },
-  { title: '金额', slotName: 'amount' },
-  { title: '状态', slotName: 'status' },
-  { title: '创建时间', dataIndex: 'created_at' },
-  { title: '操作', slotName: 'action' },
+  { title: '周期开始', dataIndex: 'period_start', width: 120 },
+  { title: '周期结束', dataIndex: 'period_end', width: 120 },
+  { title: '金额', slotName: 'amount', width: 130, align: 'right' },
+  { title: '状态', slotName: 'status', width: 100, align: 'center' },
+  { title: '创建时间', dataIndex: 'created_at', width: 170 },
+  { title: '操作', slotName: 'action', width: 90, align: 'center' },
 ]
 
 // 编辑表单
@@ -1957,11 +1957,20 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-/* 表格自动布局 - 确保表格不超过容器宽度 */
+/* 表格自动布局 - 使用 auto 自适应，不强制固定宽度 */
 :deep(.arco-table) {
-  table-layout: fixed;
+  table-layout: auto;
   width: 100%;
   max-width: 100%;
+  box-sizing: border-box; /* 修复：Arco 默认 content-box + padding 导致溢出 */
+}
+
+/* 表格单元格内容不换行时截断显示 */
+:deep(.arco-table-td),
+:deep(.arco-table-th) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 :deep(.arco-table-wrapper) {
