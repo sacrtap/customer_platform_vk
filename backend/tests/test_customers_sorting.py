@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from app.services.customers import CustomerService, ALLOWED_SORT_FIELDS, VALID_SORT_ORDERS
-from app.models.customers import Customer
+from app.models.customers import Customer, CustomerProfile
 
 
 # ==================== MockDBSession 工具类 ====================
@@ -92,7 +92,17 @@ class TestSortConstants:
 
     def test_allowed_sort_fields_contains_expected_fields(self):
         """验证排序字段白名单包含预期字段"""
-        expected_fields = {"id", "company_id", "name", "created_at", "updated_at"}
+        expected_fields = {
+            "id",
+            "company_id",
+            "name",
+            "created_at",
+            "updated_at",
+            "industry",  # 行业类型 (CustomerProfile 表)
+            "settlement_type",  # 结算方式 (Customer 表)
+            "manager_id",  # 运营经理 (Customer 表)
+            "is_key_customer",  # 重点客户 (Customer 表)
+        }
         assert ALLOWED_SORT_FIELDS == expected_fields
 
     def test_valid_sort_orders(self):
@@ -104,7 +114,7 @@ class TestSortConstants:
         assert "password" not in ALLOWED_SORT_FIELDS
         assert "deleted_at" not in ALLOWED_SORT_FIELDS
         assert "email" not in ALLOWED_SORT_FIELDS
-        assert "manager_id" not in ALLOWED_SORT_FIELDS
+        # manager_id 现在是允许的排序字段，不再测试其不在白名单中
 
     def test_sort_order_case_sensitive(self):
         """验证排序方向区分大小写"""
@@ -465,6 +475,21 @@ class TestSortEdgeCases:
 
     @pytest.mark.asyncio
     async def test_all_allowed_sort_fields_are_valid_customer_attributes(self):
-        """验证所有允许的排序字段都是 Customer 模型的有效属性"""
+        """验证所有允许的排序字段都是 Customer 或 CustomerProfile 模型的有效属性"""
+        # Customer 表字段
+        customer_fields = {
+            "id",
+            "company_id",
+            "name",
+            "created_at",
+            "updated_at",
+            "manager_id",
+            "settlement_type",
+            "is_key_customer",
+        }
+        # CustomerProfile 表字段
+        profile_fields = {"industry"}
+
         for field in ALLOWED_SORT_FIELDS:
-            assert hasattr(Customer, field), f"{field} is not a valid Customer attribute"
+            is_valid = hasattr(Customer, field) or hasattr(CustomerProfile, field)
+            assert is_valid, f"{field} is not a valid Customer or CustomerProfile attribute"

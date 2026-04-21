@@ -13,7 +13,17 @@ from ..models.billing import CustomerBalance
 
 
 # 允许排序的字段白名单
-ALLOWED_SORT_FIELDS = {"id", "company_id", "name", "created_at", "updated_at"}
+ALLOWED_SORT_FIELDS = {
+    "id",
+    "company_id",
+    "name",
+    "created_at",
+    "updated_at",
+    "industry",          # 行业类型 (CustomerProfile 表)
+    "settlement_type",   # 结算方式 (Customer 表)
+    "manager_id",        # 运营经理 (Customer 表)
+    "is_key_customer",   # 重点客户 (Customer 表)
+}
 VALID_SORT_ORDERS = {"asc", "desc"}
 
 # 账号类型映射：Excel 值 → 数据库存储值
@@ -209,7 +219,13 @@ class CustomerService:
             raise ValueError(f"Invalid sort order: {sort_order}")
 
         # 动态排序
-        sort_column = getattr(Customer, sort_by)
+        if sort_by == "industry":
+            # industry 字段在 CustomerProfile 表中,需要 join
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            sort_column = CustomerProfile.industry
+        else:
+            sort_column = getattr(Customer, sort_by)
+
         if sort_order == "desc":
             stmt = stmt.order_by(sort_column.desc())
         else:
