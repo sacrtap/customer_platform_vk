@@ -116,6 +116,14 @@
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="结算方式">
+              <a-select v-model="filters.settlement_type" placeholder="请选择" allow-clear>
+                <a-option value="prepaid">预付费</a-option>
+                <a-option value="postpaid">后付费</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="&nbsp;">
               <a-space>
                 <a-button type="primary" @click="handleSearch">查询</a-button>
@@ -510,6 +518,7 @@ const filters = reactive({
   account_type: '',
   industry: '',
   is_key_customer: null as boolean | null,
+  settlement_type: '',
 })
 
 const advancedFilters = reactive({
@@ -608,6 +617,7 @@ const loadCustomers = async () => {
       manager_id?: number
       sales_manager_id?: number
       is_key_customer?: boolean
+      settlement_type?: string
       sort_by: string
       sort_order: 'asc' | 'desc'
     } = {
@@ -620,6 +630,7 @@ const loadCustomers = async () => {
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry) params.industry = filters.industry
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
 
@@ -646,6 +657,7 @@ const handleReset = () => {
   filters.account_type = ''
   filters.industry = ''
   filters.is_key_customer = null
+  filters.settlement_type = ''
   advancedFilters.manager_id = null
   advancedFilters.sales_manager_id = null
   advancedFilters.tag_ids = []
@@ -733,6 +745,7 @@ const handleExport = async () => {
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry) params.industry = filters.industry
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
 
