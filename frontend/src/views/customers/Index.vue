@@ -508,13 +508,13 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 140, sortable: { sortType: 'all' }, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'name', width: 250, sortable: { sortType: 'all' }, ellipsis: true, tooltip: true },
-  { title: '行业类型', dataIndex: 'industry', width: 100, sortable: { sortType: 'all' } },
-  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlementType', width: 100, sortable: { sortType: 'all' } },
-  { title: '运营经理', dataIndex: 'manager_id', slotName: 'manager', width: 150, sortable: { sortType: 'all' }, ellipsis: true, tooltip: true },
-  { title: '重点客户', dataIndex: 'is_key_customer', slotName: 'isKeyCustomer', width: 100, sortable: { sortType: 'all' } },
-  { title: '创建时间', dataIndex: 'created_at', slotName: 'createdAt', width: 180, sortable: { sortType: 'all' } },
+  { title: '公司 ID', dataIndex: 'company_id', width: 140, sortable: { sorter: true }, ellipsis: true, tooltip: true },
+  { title: '客户名称', dataIndex: 'name', width: 250, sortable: { sorter: true }, ellipsis: true, tooltip: true },
+  { title: '行业类型', dataIndex: 'industry', width: 100, sortable: { sorter: true } },
+  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlementType', width: 100, sortable: { sorter: true } },
+  { title: '运营经理', dataIndex: 'manager_id', slotName: 'manager', width: 150, sortable: { sorter: true }, ellipsis: true, tooltip: true },
+  { title: '重点客户', dataIndex: 'is_key_customer', slotName: 'isKeyCustomer', width: 100, sortable: { sorter: true } },
+  { title: '创建时间', dataIndex: 'created_at', slotName: 'createdAt', width: 180, sortable: { sorter: true } },
   { title: '操作', slotName: 'action', width: 320, fixed: 'right' as const },
 ]
 
