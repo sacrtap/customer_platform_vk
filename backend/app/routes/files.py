@@ -250,15 +250,16 @@ async def upload_file(request):
         # 记录审计日志
         audit_log = AuditLog(
             user_id=user_id,
-            action="FILE_UPLOAD",
+            action="create",
             module="files",
             record_id=None,  # 将在 flush 后获取
             record_type="file",
             changes={
-                "action": "upload",
-                "filename": file.name,
-                "file_size": file_size,
-                "file_type": detected_mime,
+                "after": {
+                    "filename": file.name,
+                    "file_size": file_size,
+                    "file_type": detected_mime,
+                },
             },
             ip_address=request.ip,
         )
@@ -514,15 +515,16 @@ async def delete_file(file_id: int, request: Request):
         # 记录审计日志
         audit_log = AuditLog(
             user_id=user_id,
-            action="FILE_DELETE",
+            action="delete",
             module="files",
             record_id=file_id,
             record_type="file",
             changes={
-                "action": "delete",
-                "filename": file_record.filename,
-                "file_path": file_record.file_path,
-                "file_size": file_record.file_size,
+                "before": {
+                    "filename": file_record.filename,
+                    "file_path": file_record.file_path,
+                    "file_size": file_record.file_size,
+                },
             },
             ip_address=request.ip,
         )

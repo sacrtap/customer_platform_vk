@@ -442,14 +442,15 @@ async def import_users(
                     # 记录审计日志
                     audit_log = AuditLog(
                         user_id=current_user["user_id"],
-                        action="USER_IMPORT",
+                        action="create",
                         module="users",
                         record_id=user.id,
                         record_type="user",
                         changes={
-                            "action": "import",
-                            "username": username,
-                            "email": email,
+                            "after": {
+                                "username": username,
+                                "email": email,
+                            },
                         },
                         ip_address=request.ip,
                     )
