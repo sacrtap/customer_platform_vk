@@ -170,6 +170,9 @@ class CustomerService:
         # 构建基础查询
         stmt = select(Customer).where(Customer.deleted_at.is_(None))
 
+        # 跟踪是否已 JOIN CustomerProfile（避免重复 JOIN）
+        joined_profile = False
+
         # 应用筛选条件
         conditions = []
 
@@ -186,10 +189,16 @@ class CustomerService:
         if account_type := filters.get("account_type"):
             conditions.append(Customer.account_type == account_type)
 
-        # 行业筛选（使用 profile.industry）
+        # 行业筛选（使用 profile.industry，支持逗号分隔多选）
         if industry := filters.get("industry"):
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-            conditions.append(CustomerProfile.industry == industry)
+            joined_profile = True
+            # 支持逗号分隔的多个行业类型
+            industry_list = [i.strip() for i in industry.split(",") if i.strip()]
+            if len(industry_list) == 1:
+                conditions.append(CustomerProfile.industry == industry_list[0])
+            else:
+                conditions.append(CustomerProfile.industry.in_(industry_list))
 
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
@@ -226,7 +235,8 @@ class CustomerService:
         # 动态排序
         if sort_by == "industry":
             # industry 字段在 CustomerProfile 表中,需要 join
-            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             sort_column = CustomerProfile.industry
         else:
             sort_column = getattr(Customer, sort_by)

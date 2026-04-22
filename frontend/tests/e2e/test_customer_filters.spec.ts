@@ -138,7 +138,7 @@ test.describe('客户筛选功能', () => {
     }
   });
 
-  test('4. 行业类型筛选', async ({ page }) => {
+  test('4. 行业类型多选筛选', async ({ page }) => {
     const industrySelect = page.locator('.arco-select').filter({ hasText: '行业类型' }).first();
     const selectVisible = await industrySelect.isVisible({ timeout: 3000 }).catch(() => false);
 
@@ -149,9 +149,15 @@ test.describe('客户筛选功能', () => {
       const options = page.locator('.arco-select-option');
       const optionCount = await options.count();
 
-      if (optionCount > 1) {
-        // 选择第二个选项
+      if (optionCount >= 2) {
+        // 多选：选择前两个选项
+        await options.nth(0).click();
+        await page.waitForTimeout(200);
         await options.nth(1).click();
+        await page.waitForTimeout(300);
+      } else if (optionCount === 1) {
+        // 只有一个选项时选择它
+        await options.first().click();
         await page.waitForTimeout(300);
       }
     }

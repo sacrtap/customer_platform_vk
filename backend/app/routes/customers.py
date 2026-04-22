@@ -102,7 +102,7 @@ async def list_customers(request: Request):
                     "manager_id": c.manager_id,
                     "sales_manager_id": c.sales_manager_id,
                     "settlement_cycle": c.settlement_cycle,
-                    "settlement_type": convert_settlement_type_to_display(c.settlement_type),
+                    "settlement_type": c.settlement_type,
                     "is_key_customer": c.is_key_customer,
                     "email": c.email,
                     "created_at": c.created_at.isoformat() if c.created_at else None,

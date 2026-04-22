@@ -316,13 +316,9 @@ const handlePageChange = (page: number) => {
 }
 
 // 客户搜索
-const handleCustomerSearch = async (keyword: string) => {
-  if (!keyword) {
-    customerOptions.value = []
-    return
-  }
+const handleCustomerSearch = async (keyword?: string) => {
   try {
-    const res = await getCustomers({ keyword, page: 1, page_size: 50 })
+    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
     customerOptions.value = res.data.list || []
   } catch (error) {
     console.error('加载客户列表失败', error)
@@ -417,6 +413,7 @@ const handleRecordPageChange = (page: number) => {
 
 onMounted(() => {
   loadBalances()
+  handleCustomerSearch() // 预加载客户选项
 })
 </script>
 

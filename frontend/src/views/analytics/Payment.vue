@@ -36,9 +36,15 @@
             placeholder="全部客户"
             style="width: 200px"
             allow-clear
+            filterable
+            :remote="true"
+            @search="handleCustomerSearch"
             @change="loadData"
           >
             <a-option :value="undefined">全部客户</a-option>
+            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
+              {{ customer.name }}
+            </a-option>
           </a-select>
         </a-form-item>
         <a-form-item>
@@ -109,6 +115,7 @@ import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { getPaymentAnalysis, getInvoiceStatusStats } from '@/api/analytics'
+import { getCustomers } from '@/api/customers'
 import { formatCurrency } from '@/utils/formatters'
 
 const filters = reactive({
@@ -120,6 +127,7 @@ const filters = reactive({
 const timeRange = ref('3month')
 const dateRange = ref<[Date, Date] | null>(null)
 const customerId = ref<number | undefined>(undefined)
+const customerOptions = ref<Array<{ id: number; name: string }>>([])
 
 const comparisonChartRef = ref<HTMLElement>()
 const statusChartRef = ref<HTMLElement>()
@@ -167,6 +175,16 @@ const handleDateRangeChange = (dates: [Date, Date] | null) => {
   if (dates) {
     filters.start_date = dates[0].toISOString().split('T')[0]
     filters.end_date = dates[1].toISOString().split('T')[0]
+  }
+}
+
+// 客户搜索
+const handleCustomerSearch = async (keyword?: string) => {
+  try {
+    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
+    customerOptions.value = res.data.list || []
+  } catch (error) {
+    console.error('加载客户列表失败', error)
   }
 }
 
@@ -493,6 +511,7 @@ const handleResize = () => {
 
 onMounted(() => {
   handleTimeRangeChange()
+  handleCustomerSearch() // 预加载客户选项
   window.addEventListener('resize', handleResize)
 })
 </script>

@@ -96,7 +96,7 @@
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="行业类型">
-              <a-select v-model="filters.industry" placeholder="请选择行业类型" allow-clear>
+              <a-select v-model="filters.industry" placeholder="请选择行业类型" allow-clear multiple>
                 <a-option
                   v-for="item in industryTypes"
                   :key="item.id"
@@ -516,7 +516,7 @@ const can = (permission: string) => userStore.hasPermission(permission)
 const filters = reactive({
   keyword: '',
   account_type: '',
-  industry: '',
+  industry: [] as string[],
   is_key_customer: null as boolean | null,
   settlement_type: '',
 })
@@ -628,7 +628,7 @@ const loadCustomers = async () => {
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry) params.industry = filters.industry
+    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -655,7 +655,7 @@ const handleSearch = () => {
 const handleReset = () => {
   filters.keyword = ''
   filters.account_type = ''
-  filters.industry = ''
+  filters.industry = []
   filters.is_key_customer = null
   filters.settlement_type = ''
   advancedFilters.manager_id = null
@@ -743,7 +743,7 @@ const handleExport = async () => {
     const params: Record<string, unknown> = {}
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry) params.industry = filters.industry
+    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
