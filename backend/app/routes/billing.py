@@ -320,39 +320,53 @@ async def get_consumption_records(request: Request):
 @auth_required
 @require_permission("billing:view")
 async def get_pricing_rules(request: Request):
-    """获取定价规则列表"""
+    """获取定价规则列表（支持分页）"""
     db: AsyncSession = request.ctx.db_session
     pricing_service = PricingService(db)
 
+    # 分页参数
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+    page_size = min(page_size, 100)
+
+    # 筛选参数
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     device_type = request.args.get("device_type")
     pricing_type = request.args.get("pricing_type")
 
-    rules = await pricing_service.get_pricing_rules(
+    rules, total = await pricing_service.get_pricing_rules(
         customer_id=customer_id,
         device_type=device_type,
         pricing_type=pricing_type,
+        page=page,
+        page_size=page_size,
     )
 
     return json(
         {
             "code": 0,
             "message": "success",
-            "data": [
-                {
-                    "id": r.id,
-                    "customer_id": r.customer_id,
-                    "device_type": r.device_type,
-                    "pricing_type": r.pricing_type,
-                    "unit_price": float(r.unit_price) if r.unit_price else None,
-                    "tiers": r.tiers,
-                    "package_type": r.package_type,
-                    "package_limits": r.package_limits,
-                    "effective_date": r.effective_date.isoformat() if r.effective_date else None,
-                    "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
-                }
-                for r in rules
-            ],
+            "data": {
+                "list": [
+                    {
+                        "id": r.id,
+                        "customer_id": r.customer_id,
+                        "customer_name": r.customer.name if r.customer else None,
+                        "device_type": r.device_type,
+                        "pricing_type": r.pricing_type,
+                        "unit_price": float(r.unit_price) if r.unit_price else None,
+                        "tiers": r.tiers,
+                        "package_type": r.package_type,
+                        "package_limits": r.package_limits,
+                        "effective_date": r.effective_date.isoformat() if r.effective_date else None,
+                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                    }
+                    for r in rules
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
         }
     )
 

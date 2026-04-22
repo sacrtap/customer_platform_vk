@@ -501,10 +501,15 @@ class TestPricingService_GetRules:
                 effective_date=date.today(),
             ),
         ]
-        mock_db.execute.return_value = make_mock_execute_result(mock_rules)
+        # 第一次 execute 返回总数，第二次返回数据
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(2,)], scalar_value=2),
+            make_mock_execute_result(mock_rules),
+        ]
 
-        rules = await service.get_pricing_rules()
+        rules, total = await service.get_pricing_rules()
 
+        assert total == 2
         assert len(rules) == 2
 
     @pytest.mark.asyncio
@@ -517,10 +522,14 @@ class TestPricingService_GetRules:
         mock_rules = [
             PricingRule(id=1, customer_id=100, device_type="X", pricing_type="fixed"),
         ]
-        mock_db.execute.return_value = make_mock_execute_result(mock_rules)
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(1,)], scalar_value=1),
+            make_mock_execute_result(mock_rules),
+        ]
 
-        rules = await service.get_pricing_rules(customer_id=100)
+        rules, total = await service.get_pricing_rules(customer_id=100)
 
+        assert total == 1
         assert len(rules) == 1
 
     @pytest.mark.asyncio
@@ -533,10 +542,14 @@ class TestPricingService_GetRules:
         mock_rules = [
             PricingRule(id=1, device_type="X", pricing_type="fixed"),
         ]
-        mock_db.execute.return_value = make_mock_execute_result(mock_rules)
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(1,)], scalar_value=1),
+            make_mock_execute_result(mock_rules),
+        ]
 
-        rules = await service.get_pricing_rules(device_type="X")
+        rules, total = await service.get_pricing_rules(device_type="X")
 
+        assert total == 1
         assert len(rules) == 1
 
     @pytest.mark.asyncio
@@ -549,10 +562,14 @@ class TestPricingService_GetRules:
         mock_rules = [
             PricingRule(id=1, device_type="X", pricing_type="tier"),
         ]
-        mock_db.execute.return_value = make_mock_execute_result(mock_rules)
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(1,)], scalar_value=1),
+            make_mock_execute_result(mock_rules),
+        ]
 
-        rules = await service.get_pricing_rules(pricing_type="tier")
+        rules, total = await service.get_pricing_rules(pricing_type="tier")
 
+        assert total == 1
         assert len(rules) == 1
 
     @pytest.mark.asyncio
@@ -560,10 +577,14 @@ class TestPricingService_GetRules:
         """测试空结果"""
         service, mock_db = pricing_service
 
-        mock_db.execute.return_value = make_mock_execute_result([])
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([(0,)], scalar_value=0),
+            make_mock_execute_result([]),
+        ]
 
-        rules = await service.get_pricing_rules()
+        rules, total = await service.get_pricing_rules()
 
+        assert total == 0
         assert len(rules) == 0
 
 

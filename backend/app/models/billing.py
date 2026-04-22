@@ -78,6 +78,9 @@ class PricingRule(BaseModel):
     expiry_date = Column(Date)
     created_by = Column(Integer, ForeignKey("users.id"))
 
+    # 关联
+    customer = relationship("Customer", lazy="selectin")
+
 
 class Invoice(BaseModel):
     """结算单表"""

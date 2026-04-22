@@ -230,33 +230,38 @@ class PricingService:
         customer_id: Optional[int] = None,
         device_type: Optional[str] = None,
         pricing_type: Optional[str] = None,
-    ) -> List[PricingRule]:
-        """获取定价规则列表"""
-        stmt = select(PricingRule).where(PricingRule.deleted_at.is_(None))
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Tuple[List[PricingRule], int]:
+        """获取定价规则列表（支持分页）"""
+        from ..models.customers import Customer
 
-        if customer_id:
-            stmt = stmt.where(PricingRule.customer_id == customer_id)
-        if device_type:
-            stmt = stmt.where(PricingRule.device_type == device_type)
-        if pricing_type:
-            stmt = stmt.where(PricingRule.pricing_type == pricing_type)
-
-        # 只获取生效中的规则
-        today = date.today()
-        stmt = stmt.where(
-            and_(
-                PricingRule.effective_date <= today,
-                or_(
-                    PricingRule.expiry_date.is_(None),
-                    PricingRule.expiry_date >= today,
-                ),
-            )
+        base_stmt = (
+            select(PricingRule)
+            .join(Customer, PricingRule.customer_id == Customer.id, isouter=True)
+            .where(PricingRule.deleted_at.is_(None))
         )
 
-        stmt = stmt.order_by(PricingRule.created_at.desc())
-        result = await self.db.execute(stmt)
+        if customer_id:
+            base_stmt = base_stmt.where(PricingRule.customer_id == customer_id)
+        if device_type:
+            base_stmt = base_stmt.where(PricingRule.device_type == device_type)
+        if pricing_type:
+            base_stmt = base_stmt.where(PricingRule.pricing_type == pricing_type)
 
-        return list(result.scalars().all())
+        # 总数
+        count_stmt = select(func.count()).select_from(base_stmt.subquery())
+        total = (await self.db.execute(count_stmt)).scalar()
+
+        # 分页
+        stmt = base_stmt.options(selectinload(PricingRule.customer))
+        stmt = stmt.order_by(PricingRule.created_at.desc())
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+
+        result = await self.db.execute(stmt)
+        rules = result.scalars().all()
+
+        return list(rules), total
 
     async def create_pricing_rule(self, data: Dict[str, Any]) -> PricingRule:
         """创建定价规则"""

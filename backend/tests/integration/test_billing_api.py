@@ -714,7 +714,7 @@ async def test_get_consumption_records(test_client, auth_token):
 
 @pytest.mark.asyncio
 async def test_get_pricing_rules(test_client, auth_token):
-    """测试获取定价规则 API"""
+    """测试获取定价规则 API（分页格式）"""
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     request, response = await test_client.get(
@@ -724,7 +724,9 @@ async def test_get_pricing_rules(test_client, auth_token):
 
     assert response.status == 200
     data = response.json
-    assert isinstance(data["data"], list)
+    assert "list" in data["data"]
+    assert "total" in data["data"]
+    assert isinstance(data["data"]["list"], list)
 
 
 @pytest.mark.asyncio
