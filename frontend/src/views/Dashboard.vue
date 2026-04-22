@@ -646,7 +646,6 @@ const pageTitle = computed(() => {
     Roles: '角色权限',
     SyncLogs: '同步日志',
     AuditLogs: '审计日志',
-    ProfileDashboard: '画像管理',
   }
   return routeMap[route.name as string] || '仪表盘'
 })
