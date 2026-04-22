@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-14 (添加 Superpowers 流程入口规则)
+**最后更新**: 2026-04-22 (修复测试数据库连接 + 更新测试命令)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
 
 ---
@@ -37,13 +37,23 @@ cd frontend && npm run dev  # http://localhost:5173
 
 ### 测试
 ```bash
-# 后端 (RTK 插件自动处理，无需手动加前缀)
-cd backend && source .venv/bin/activate && python -m pytest tests/ -v
-cd backend && source .venv/bin/activate && python -m pytest --cov=app --cov-report=html  # 覆盖率
+# 后端测试 (使用 Makefile 快捷命令，推荐)
+cd backend && make test           # 运行所有测试（无覆盖率，快速）
+cd backend && make test-fast      # 仅运行单元测试（最快 ~5-10s）
+cd backend && make test-parallel  # 并行运行所有测试（推荐 ~10-20s）
+cd backend && make test-cov       # 运行测试 + 覆盖率（CI 用）
+cd backend && make test-report    # 运行测试并打开 HTML 报告
+
+# 传统方式（仍可用）
+cd backend && source .venv/bin/activate && python -m pytest tests/ -n auto  # 并行测试
+cd backend && source .venv/bin/activate && python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=50  # CI 覆盖率
 
 # 前端
 cd frontend && npm run test:e2e
 ```
+
+**注意**：后端测试需要本地 PostgreSQL 运行并已创建测试数据库 `customer_platform_test`。
+如未创建，可执行：`createdb -U postgres customer_platform_test`
 
 ### 代码质量
 ```bash
