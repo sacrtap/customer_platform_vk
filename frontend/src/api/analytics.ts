@@ -129,16 +129,6 @@ export function getIndustryDistribution() {
   return api.get('/analytics/profile/industry')
 }
 
-export interface LevelStatsItem {
-  level: string
-  count: number
-  percentage: number
-}
-
-export function getLevelStats() {
-  return api.get('/analytics/profile/level')
-}
-
 export interface ScaleLevelStatsItem {
   scale_level: string
   count: number

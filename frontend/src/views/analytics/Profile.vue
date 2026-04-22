@@ -38,14 +38,6 @@
         <div ref="industryChartRef" class="chart-container"></div>
       </div>
 
-      <!-- 客户等级分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>客户等级分布</h3>
-        </div>
-        <div ref="levelChartRef" class="chart-container"></div>
-      </div>
-
       <!-- 规模等级分布 -->
       <div class="chart-card">
         <div class="chart-header">
@@ -102,7 +94,6 @@ import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import {
   getIndustryDistribution,
-  getLevelStats,
   getScaleStats,
   getConsumeLevelStats,
   getRealEstateStats,
@@ -110,11 +101,6 @@ import {
 
 interface IndustryData {
   industry: string
-  count: number
-}
-
-interface LevelData {
-  level: string
   count: number
 }
 
@@ -134,13 +120,11 @@ interface RealEstateData {
 }
 
 const industryChartRef = ref<HTMLElement>()
-const levelChartRef = ref<HTMLElement>()
 const scaleChartRef = ref<HTMLElement>()
 const consumeLevelChartRef = ref<HTMLElement>()
 const realEstateChartRef = ref<HTMLElement>()
 
 let industryChart: ECharts | null = null
-let levelChart: ECharts | null = null
 let scaleChart: ECharts | null = null
 let consumeLevelChart: ECharts | null = null
 let realEstateChart: ECharts | null = null
@@ -159,7 +143,6 @@ const loadData = async () => {
   try {
     await Promise.all([
       loadIndustryData(),
-      loadLevelData(),
       loadScaleData(),
       loadConsumeLevelData(),
       loadRealEstateData(),
@@ -176,12 +159,6 @@ const loadIndustryData = async () => {
   industryCount.value = data.length
   totalCustomers.value = data.reduce((sum: number, item: { count: number }) => sum + item.count, 0)
   initIndustryChart(data)
-}
-
-// 加载客户等级
-const loadLevelData = async () => {
-  const res = await getLevelStats()
-  initLevelChart(res.data || [])
 }
 
 // 加载规模等级
@@ -284,67 +261,6 @@ const initIndustryChart = (data: IndustryData[]) => {
   }
 
   industryChart.setOption(option)
-}
-
-// 初始化客户等级图表
-const initLevelChart = (data: LevelData[]) => {
-  if (!levelChartRef.value) return
-
-  if (levelChart) {
-    levelChart.dispose()
-  }
-
-  levelChart = echarts.init(levelChartRef.value)
-
-  const option = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
-    },
-    legend: {
-      orient: 'vertical',
-      right: '5%',
-      top: 'center',
-      textStyle: {
-        color: '#646a73',
-      },
-    },
-    series: [
-      {
-        name: '客户等级',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['35%', '50%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 8,
-          borderColor: '#fff',
-          borderWidth: 2,
-        },
-        label: {
-          show: false,
-          position: 'center',
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 14,
-            fontWeight: 'bold',
-            color: '#1d2330',
-          },
-        },
-        labelLine: {
-          show: false,
-        },
-        data: data.map((item) => ({
-          name: item.level || '未知',
-          value: item.count,
-        })),
-      },
-    ],
-  }
-
-  levelChart.setOption(option)
 }
 
 // 初始化规模等级图表
@@ -523,7 +439,6 @@ const initRealEstateChart = (data: RealEstateData) => {
 // 窗口大小变化时重新渲染图表
 const handleResize = () => {
   industryChart?.resize()
-  levelChart?.resize()
   scaleChart?.resize()
   consumeLevelChart?.resize()
   realEstateChart?.resize()

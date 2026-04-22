@@ -13,11 +13,10 @@ Analytics API 集成测试
 9. GET /api/v1/analytics/health/warning-list - 余额预警客户列表
 10. GET /api/v1/analytics/health/inactive-list - 长期未消耗客户列表
 11. GET /api/v1/analytics/profile/industry - 行业分布
-12. GET /api/v1/analytics/profile/level - 客户等级统计
-13. GET /api/v1/analytics/profile/scale - 客户规模等级统计
-14. GET /api/v1/analytics/profile/consume-level - 客户消费等级统计
-15. GET /api/v1/analytics/profile/real-estate - 房产客户统计
-16. GET /api/v1/analytics/prediction/monthly - 预测月度回款
+12. GET /api/v1/analytics/profile/scale - 客户规模等级统计
+13. GET /api/v1/analytics/profile/consume-level - 客户消费等级统计
+14. GET /api/v1/analytics/profile/real-estate - 房产客户统计
+15. GET /api/v1/analytics/prediction/monthly - 预测月度回款
 """
 
 import pytest
@@ -391,22 +390,6 @@ async def test_industry_distribution_success(test_client, auth_token, mock_cache
     """测试获取行业分布 - 成功场景"""
     request, response = await test_client.get(
         "/api/v1/analytics/profile/industry",
-        headers=auth_token,
-    )
-
-    assert response.status == 200
-    data = response.json
-    assert data["code"] == 0
-    assert data["message"] == "success"
-    assert "data" in data
-    assert isinstance(data["data"], list)
-
-
-@pytest.mark.asyncio
-async def test_level_stats_success(test_client, auth_token, mock_cache):
-    """测试获取客户等级统计 - 成功场景"""
-    request, response = await test_client.get(
-        "/api/v1/analytics/profile/level",
         headers=auth_token,
     )
 
