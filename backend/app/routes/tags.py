@@ -400,7 +400,7 @@ profile_tags_bp = Blueprint("profile_tags", url_prefix="/api/v1/profiles")
 
 @profile_tags_bp.get("/<profile_id:int>/tags")
 @auth_required
-@require_permission("profiles:view")
+@require_permission("analytics:view")
 async def get_profile_tags(request: Request, profile_id: int):
     """获取画像的所有标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -427,7 +427,7 @@ async def get_profile_tags(request: Request, profile_id: int):
 
 @profile_tags_bp.post("/<profile_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("profiles:edit")
+@require_permission("analytics:profile_tag_edit")
 async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
     """给画像添加标签"""
     db_session: AsyncSession = request.ctx.db_session
@@ -449,7 +449,7 @@ async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
 
 @profile_tags_bp.delete("/<profile_id:int>/tags/<tag_id:int>")
 @auth_required
-@require_permission("profiles:edit")
+@require_permission("analytics:profile_tag_edit")
 async def remove_profile_tag(request: Request, profile_id: int, tag_id: int):
     """移除画像标签"""
     db_session: AsyncSession = request.ctx.db_session
