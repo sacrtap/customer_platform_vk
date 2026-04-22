@@ -241,23 +241,38 @@ interface PermissionTreeNode {
   children?: PermissionTreeNode[]
 }
 
+
+// 模块英文标识到中文名称的映射（与侧边栏菜单保持一致）
+const MODULE_NAME_MAP: Record<string, string> = {
+  customers: '客户管理',
+  billing: '结算管理',
+  analytics: '客户分析',
+  tags: '标签管理',
+  users: '用户管理',
+  roles: '角色权限',
+  system: '系统设置',
+  groups: '客户分组',
+  files: '文件管理',
+  webhooks: 'Webhook 管理',
+}
 const permissionsTree = computed(() => {
   const tree: PermissionTreeNode[] = []
   const moduleMap = new Map<string, PermissionTreeNode>()
 
   allPermissions.value.forEach((perm) => {
-    const module = perm.module || '其他'
-    if (!moduleMap.has(module)) {
+    const moduleKey = perm.module || '其他'
+    const moduleName = MODULE_NAME_MAP[moduleKey] || moduleKey
+    if (!moduleMap.has(moduleKey)) {
       const moduleNode = {
-        id: `module-${module}`,
-        name: module,
-        title: module,
+        id: `module-${moduleKey}`,
+        name: moduleName,
+        title: moduleName,
         children: [],
       }
-      moduleMap.set(module, moduleNode)
+      moduleMap.set(moduleKey, moduleNode)
       tree.push(moduleNode)
     }
-    const moduleNode = moduleMap.get(module)!
+    const moduleNode = moduleMap.get(moduleKey)!
     moduleNode.children!.push({
       id: perm.id,
       name: perm.name,
@@ -267,7 +282,6 @@ const permissionsTree = computed(() => {
 
   return tree
 })
-
 const isAllPermissionsSelected = computed(() => {
   const allPermIds = allPermissions.value.map((p) => p.id)
   return allPermIds.length > 0 && allPermIds.every((id) => selectedPermissionIds.value.includes(id))
