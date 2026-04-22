@@ -31,3 +31,7 @@ test-changed:
 # 生成 HTML 覆盖率报告并在浏览器中打开
 test-report: test-cov
 	open htmlcov/index.html
+
+# 增量测试：仅运行受更改影响的测试（需要 pytest-testmon）
+test-changed:
+	source .venv/bin/activate && python -m pytest tests/ --testmon
