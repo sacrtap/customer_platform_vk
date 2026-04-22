@@ -154,7 +154,6 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 | 系统设计        | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
 | 部署指南        | `deploy/README.md`                                              |
 | 数据库迁移      | `docs/guides/database-migration-guide.md`                       |
-| RTK 命令映射    | `~/.config/opencode/docs/RTK-MAPPING.md` (全局)                 |
 | Graphify 工作流 | `Graphify.md` (项目级)                                          |
 
 ---
