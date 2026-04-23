@@ -43,6 +43,7 @@ withDefaults(
   {
     variant: 'default',
     layout: 'default',
+    icon: true,
   }
 )
 </script>

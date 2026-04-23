@@ -37,7 +37,6 @@
         title="客户总数"
         :value="formatNumber(stats.totalCustomers)"
         variant="primary"
-        :icon="true"
       >
         <template #icon>
           <svg
@@ -86,7 +85,6 @@
         title="本月消耗"
         :value="formatCurrencyWan(stats.monthConsumption)"
         variant="success"
-        :icon="true"
       >
         <template #icon>
           <svg
@@ -135,7 +133,6 @@
         title="待确认账单"
         :value="stats.pendingConfirmation"
         variant="warning"
-        :icon="true"
       >
         <template #icon>
           <svg
@@ -184,7 +181,6 @@
         title="总余额"
         :value="formatCurrencyWan(stats.totalBalance)"
         variant="danger"
-        :icon="true"
       >
         <template #icon>
           <svg
