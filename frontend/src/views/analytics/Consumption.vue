@@ -31,21 +31,11 @@
           />
         </a-form-item>
         <a-form-item label="客户">
-          <a-select
+          <CustomerAutoComplete
             v-model="customerId"
-            placeholder="全部客户"
-            style="width: 200px"
-            allow-clear
-            filterable
-            :remote="true"
-            @search="handleCustomerSearch"
-            @change="loadData"
-          >
-            <a-option :value="undefined">全部客户</a-option>
-            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
-              {{ customer.name }}
-            </a-option>
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            width="200"
+          />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -154,7 +144,8 @@ import {
   type TopCustomer,
   type DeviceDistributionItem,
 } from '@/api/analytics'
-import { getCustomers } from '@/api/customers'
+
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 
 const filters = reactive({
@@ -166,7 +157,6 @@ const filters = reactive({
 const timeRange = ref('3month')
 const dateRange = ref<[Date, Date] | null>(null)
 const customerId = ref<number | undefined>(undefined)
-const customerOptions = ref<Array<{ id: number; name: string }>>([])
 
 const loading = ref(false)
 const trendChartRef = ref<HTMLElement>()
@@ -217,16 +207,6 @@ const handleDateRangeChange = (dates: [Date, Date] | null) => {
   if (dates) {
     filters.start_date = dates[0].toISOString().split('T')[0]
     filters.end_date = dates[1].toISOString().split('T')[0]
-  }
-}
-
-// 客户搜索
-const handleCustomerSearch = async (keyword?: string) => {
-  try {
-    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
-    customerOptions.value = res.data.list || []
-  } catch (error) {
-    console.error('加载客户列表失败', error)
   }
 }
 
@@ -451,7 +431,6 @@ const handleResize = () => {
 
 onMounted(() => {
   handleTimeRangeChange()
-  handleCustomerSearch() // 预加载客户选项
   window.addEventListener('resize', handleResize)
 })
 </script>

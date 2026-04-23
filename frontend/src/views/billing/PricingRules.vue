@@ -14,20 +14,11 @@
       <!-- 筛选区域 -->
       <a-form :model="filters" layout="inline" class="filter-form">
         <a-form-item label="客户">
-          <a-select
+          <CustomerAutoComplete
             v-model="filters.customer_id"
-            placeholder="请选择客户"
-            style="width: 200px"
-            allow-clear
-            :loading="customersLoading"
-          >
-            <a-option
-              v-for="customer in customers"
-              :key="customer.id"
-              :value="customer.id"
-              :label="customer.name"
-            />
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            width="200"
+          />
         </a-form-item>
         <a-form-item label="设备类型">
           <a-select
@@ -145,14 +136,19 @@
           <a-select
             v-model="formData.customer_id"
             placeholder="请选择客户"
+            filterable
+            :remote="true"
             :loading="customersLoading"
+            @search="loadCustomers"
           >
             <a-option
               v-for="customer in customers"
               :key="customer.id"
               :value="customer.id"
               :label="customer.name"
-            />
+            >
+              {{ customer.name }}
+            </a-option>
           </a-select>
         </a-form-item>
         <a-row :gutter="16">
@@ -248,6 +244,7 @@ import { IconPlus } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import { getCustomers } from '@/api/customers'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -321,10 +318,10 @@ const getPricingTypeText = (type: string) => {
   return map[type] || type
 }
 
-const loadCustomers = async () => {
+const loadCustomers = async (keyword?: string) => {
   customersLoading.value = true
   try {
-    const res = await getCustomers({ page_size: 1000 })
+    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
     customers.value = res.data.list || []
   } catch (err: unknown) {
     Message.error('加载客户列表失败')

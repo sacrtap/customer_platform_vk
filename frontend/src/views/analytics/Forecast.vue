@@ -36,15 +36,11 @@
           </a-select>
         </a-form-item>
         <a-form-item label="客户">
-          <a-select
+          <CustomerAutoComplete
             v-model="customerId"
-            placeholder="全部客户"
-            style="width: 200px"
-            allow-clear
-            @change="loadData"
-          >
-            <a-option :value="undefined">全部客户</a-option>
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            width="200"
+          />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -139,6 +135,8 @@ import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
+
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
 
 const router = useRouter()
@@ -274,7 +272,6 @@ const initForecastChart = () => {
       axisPointer: {
         type: 'shadow',
       },
-      formatter: '{b}<br/>预测：¥{c}<br/>实际：¥{d}',
     },
     legend: {
       data: ['预测回款', '实际回款'],
@@ -330,15 +327,15 @@ const initForecastChart = () => {
         type: 'line',
         smooth: true,
         data: actualData.map((val, index) => (index <= currentMonth ? val : null)),
+        connectNulls: false,
         itemStyle: {
           color: '#22c55e',
         },
         lineStyle: {
           width: 3,
         },
-        symbol: {
-          size: 8,
-        },
+        symbol: 'circle',
+        symbolSize: 8,
       },
     ],
   }

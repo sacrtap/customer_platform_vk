@@ -29,19 +29,11 @@
     <div class="filter-section">
       <a-form layout="inline" :model="filters">
         <a-form-item label="客户">
-          <a-select
+          <CustomerAutoComplete
             v-model="filters.customer_id"
-            placeholder="请选择客户"
-            style="width: 250px"
-            allow-clear
-            filterable
-            :remote="true"
-            @search="handleCustomerSearch"
-          >
-            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
-              {{ customer.name }}
-            </a-option>
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            :width="250"
+          />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -120,7 +112,7 @@
             style="width: 100%"
             filterable
             :remote="true"
-            :disabled="!!selectedBalance"
+            :loading="customersLoading"
             @search="handleCustomerSearch"
           >
             <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
@@ -204,6 +196,7 @@ import {
 } from '@/api/billing'
 import { getCustomers } from '@/api/customers'
 import EmptyState from '@/components/EmptyState.vue'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
 
 const userStore = useUserStore()
@@ -211,7 +204,7 @@ const can = (permission: string) => userStore.hasPermission(permission)
 
 // 筛选条件
 const filters = reactive({
-  customer_id: null as number | null,
+  customer_id: undefined as number | undefined,
 })
 
 // 分页
@@ -227,11 +220,6 @@ const pagination = reactive({
 const loading = ref(false)
 const balances = ref<Balance[]>([])
 
-// 客户选项
-const customerOptions = ref<
-  Array<{ id: number; name: string; label: string; value: number; company_id?: string }>
->([])
-
 // 表格列定义
 const columns = [
   { title: '客户名称', dataIndex: 'customer_name', width: 200, ellipsis: true, tooltip: true },
@@ -243,6 +231,8 @@ const columns = [
 // 充值对话框相关
 const rechargeModalVisible = ref(false)
 const rechargeLoading = ref(false)
+const customersLoading = ref(false)
+const customerOptions = ref<{ id: number; name: string }[]>([])
 const selectedBalance = ref<Balance | null>(null)
 const rechargeForm = reactive({
   customer_id: null as number | null,
@@ -304,7 +294,7 @@ const handleSearch = () => {
 
 // 重置
 const handleReset = () => {
-  filters.customer_id = null
+  filters.customer_id = undefined
   pagination.current = 1
   loadBalances()
 }
@@ -315,16 +305,6 @@ const handlePageChange = (page: number) => {
   loadBalances()
 }
 
-// 客户搜索
-const handleCustomerSearch = async (keyword?: string) => {
-  try {
-    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
-    customerOptions.value = res.data.list || []
-  } catch (error) {
-    console.error('加载客户列表失败', error)
-  }
-}
-
 // 打开充值对话框
 const openRechargeModal = (balance?: Balance) => {
   selectedBalance.value = balance || null
@@ -333,6 +313,22 @@ const openRechargeModal = (balance?: Balance) => {
   rechargeForm.bonus_amount = null
   rechargeForm.remark = ''
   rechargeModalVisible.value = true
+  // 加载客户列表用于预填充
+  handleCustomerSearch()
+}
+
+// 客户搜索（用于充值弹窗的 a-select）
+const handleCustomerSearch = async (keyword: string = '') => {
+  customersLoading.value = true
+  try {
+    const res = await getCustomers({ keyword: keyword.trim(), page: 1, page_size: 50 })
+    customerOptions.value = res.data?.list || []
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '加载客户列表失败')
+    customerOptions.value = []
+  } finally {
+    customersLoading.value = false
+  }
 }
 
 // 处理充值
@@ -413,7 +409,8 @@ const handleRecordPageChange = (page: number) => {
 
 onMounted(() => {
   loadBalances()
-  handleCustomerSearch() // 预加载客户选项
+  // 预加载客户列表（用于充值弹窗）
+  handleCustomerSearch()
 })
 </script>
 
