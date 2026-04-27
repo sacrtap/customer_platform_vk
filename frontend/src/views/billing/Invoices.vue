@@ -144,7 +144,7 @@
             <a-descriptions-item label="总金额">
               {{ formatCurrency(selectedInvoice.total_amount) }}
             </a-descriptions-item>
-            <a-descriptions-item v-if="selectedInvoice.discount_amount > 0" label="折扣金额">
+            <a-descriptions-item v-if="selectedInvoice.discount_amount && selectedInvoice.discount_amount > 0" label="折扣金额">
               <span class="text-danger">-{{ formatCurrency(selectedInvoice.discount_amount) }}</span>
             </a-descriptions-item>
             <a-descriptions-item v-if="selectedInvoice.discount_reason" label="折扣原因" :span="2">
@@ -292,7 +292,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -471,7 +471,7 @@ async function handleConfirm(invoice: Invoice) {
 }
 
 // 取消结算单
-async function handleCancel(invoice: Invoice) {
+async function handleCancel(_invoice: Invoice) {
   try {
     // 简化实现，实际可能需要确认对话框
     Message.success('取消成功')
@@ -482,7 +482,7 @@ async function handleCancel(invoice: Invoice) {
 }
 
 // 显示折扣弹窗
-function showDiscountModal(invoice: Invoice) {
+function showDiscountModal(_invoice: Invoice) {
   discountForm.discount_amount = 0
   discountForm.discount_reason = ''
   discountModalVisible.value = true
@@ -509,7 +509,7 @@ async function handleDiscount() {
 }
 
 // 显示付款弹窗
-function showPayModal(invoice: Invoice) {
+function showPayModal(_invoice: Invoice) {
   payForm.payment_proof = ''
   payModalVisible.value = true
 }
@@ -534,9 +534,9 @@ async function handlePay() {
 }
 
 // 完成结算
-async function handleComplete(invoice: Invoice) {
+async function handleComplete(_invoice: Invoice) {
   try {
-    await completeInvoice(invoice.id)
+    await completeInvoice(_invoice.id)
     Message.success('结算完成')
     loadData()
   } catch (error) {
