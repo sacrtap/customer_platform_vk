@@ -163,7 +163,7 @@ class TestCustomerGroupMemberModel:
 
         # 创建客户
         customer = Customer(
-            company_id="TEST001",
+            company_id=1001,
             name="测试客户公司",
             account_type="enterprise",
             manager_id=user.id,
@@ -206,7 +206,7 @@ class TestCustomerGroupMemberModel:
 
         # 创建客户
         customer = Customer(
-            company_id="TEST002",
+            company_id=1002,
             name="关联测试客户",
             account_type="enterprise",
             manager_id=user.id,
@@ -272,7 +272,7 @@ class TestCustomerGroupMemberModel:
 
         # 创建客户
         customer = Customer(
-            company_id="TEST003",
+            company_id=1003,
             name="级联测试客户",
             account_type="enterprise",
             manager_id=user.id,
