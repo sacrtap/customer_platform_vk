@@ -142,7 +142,7 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
 3. 更新图谱（二选一）：
    - **手动触发**：`graphify update .`（代码文件 AST 重建，无需 LLM）
    - **自动触发**：运行 `graphify hook install` 安装 Git hooks，每次 `git commit` 后自动重建
-   - 文档/图片变更需运行 `graphify . --update`（含 LLM 语义提取）
+   - 文档/图片变更需要调用技能运行 `/graphify . --update`（含 LLM 语义提取）
 
 ---
 

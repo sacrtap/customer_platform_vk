@@ -22,7 +22,8 @@
         "edit": "deny",
         "write": "ask",
         "todowrite": "allow",
-        "bash": "ask"
+        "bash": "ask",
+        "rtk_*": "allow"
       }
     }
   },
