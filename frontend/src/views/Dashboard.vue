@@ -129,6 +129,12 @@
                 @click="$router.push('/billing/pricing-rules')"
                 >计费规则</a
               >
+              <a
+                class="nav-subitem"
+                :class="{ active: $route.name === 'Invoices' }"
+                @click="$router.push('/billing/invoices')"
+                >结算单管理</a
+              >
             </div>
           </div>
           <div v-show="expandedSubmenu === 'billing' && !sidebarCollapsed" class="nav-submenu">
@@ -143,6 +149,12 @@
               :class="{ active: $route.name === 'PricingRules' }"
               @click="$router.push('/billing/pricing-rules')"
               >计费规则</a
+            >
+            <a
+              class="nav-subitem"
+              :class="{ active: $route.name === 'Invoices' }"
+              @click="$router.push('/billing/invoices')"
+              >结算单管理</a
             >
           </div>
 
