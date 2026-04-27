@@ -433,7 +433,7 @@ const sortState = reactive({
 const columns = [
   { title: '结算单号', dataIndex: 'invoice_no', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
   { title: '客户名称', dataIndex: 'customer_name', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '结算周期', slotName: 'period', width: 180 },
+  { title: '结算周期', slotName: 'period', width: 220, ellipsis: true, tooltip: true },
   { title: '总金额', slotName: 'totalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '折扣', slotName: 'discount', width: 120, align: 'right' as const },
   { title: '折后金额', slotName: 'finalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
