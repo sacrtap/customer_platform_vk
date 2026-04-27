@@ -59,8 +59,8 @@ async def generate_monthly_invoices(session: AsyncSession):
                 existing = await session.execute(
                     select(Invoice).where(
                         Invoice.customer_id == customer.id,
-                        Invoice.billing_start == first_day_of_last_month,
-                        Invoice.billing_end == last_day_of_last_month,
+                        Invoice.period_start == first_day_of_last_month,
+                        Invoice.period_end == last_day_of_last_month,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -71,9 +71,11 @@ async def generate_monthly_invoices(session: AsyncSession):
                 # 生成结算单
                 invoice = await invoice_service.generate_invoice(
                     customer_id=customer.id,
-                    billing_start=first_day_of_last_month,
-                    billing_end=last_day_of_last_month,
-                    auto_generated=True,
+                    period_start=first_day_of_last_month,
+                    period_end=last_day_of_last_month,
+                    items=[],  # 需要从用量数据生成
+                    created_by=1,  # 系统生成
+                    is_auto_generated=True,
                 )
 
                 if invoice:
