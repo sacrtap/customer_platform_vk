@@ -1,5 +1,6 @@
 <template>
   <div class="invoice-management-page">
+    <!-- Page Header -->
     <div class="page-header">
       <div class="header-title">
         <h1>结算单管理</h1>
@@ -26,25 +27,26 @@
       </div>
     </div>
 
-    <div class="page-content">
-      <!-- 左侧列表 (40%) -->
-      <div class="list-panel">
-        <!-- 筛选区域 -->
-        <div class="filter-section">
-          <a-form layout="inline" :model="filters">
+    <!-- 筛选区域 -->
+    <div class="filter-section">
+      <a-form layout="vertical" :model="filters">
+        <a-row :gutter="16">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="客户">
               <CustomerAutoComplete
                 v-model="filters.customer_id"
                 placeholder="请输入客户名称"
-                :width="200"
+                :width="'100%'"
               />
             </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="状态">
               <a-select
                 v-model="filters.status"
                 placeholder="请选择"
                 allow-clear
-                style="width: 160px"
+                style="width: 100%"
               >
                 <a-option value="draft">草稿</a-option>
                 <a-option value="pending_customer">待客户确认</a-option>
@@ -54,80 +56,133 @@
                 <a-option value="cancelled">已取消</a-option>
               </a-select>
             </a-form-item>
-            <a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="&nbsp;">
               <a-space>
                 <a-button type="primary" @click="handleSearch">查询</a-button>
                 <a-button @click="handleReset">重置</a-button>
               </a-space>
             </a-form-item>
-          </a-form>
-        </div>
+          </a-col>
+        </a-row>
+      </a-form>
+    </div>
 
-        <!-- 列表 -->
-        <div class="table-section">
-          <a-table
-            :columns="columns"
-            :data="invoices"
-            :loading="loading"
-            row-key="id"
-            :pagination="pagination"
-            :scroll="{ y: 'calc(100vh - 380px)' }"
-            :row-class="(record: Invoice) => selectedInvoice?.id === record.id ? 'selected-row' : ''"
-            @row-click="handleRowClick"
-            @page-change="handlePageChange"
-          >
-            <template #period="{ record }">
-              {{ formatDate(record.period_start) }} ~ {{ formatDate(record.period_end) }}
-            </template>
-            <template #totalAmount="{ record }">
-              <span class="amount">{{ formatCurrency(record.total_amount) }}</span>
-            </template>
-            <template #finalAmount="{ record }">
-              <span :class="['amount', { 'discounted': record.discount_amount > 0 }]">
-                {{ formatCurrency(record.final_amount) }}
-              </span>
-            </template>
-            <template #status="{ record }">
-              <InvoiceStatusBadge :status="record.status" />
-            </template>
-            <template #createdAt="{ record }">
-              {{ formatDateTime(record.created_at) }}
-            </template>
-            <template #empty>
-              <EmptyState title="暂无结算单数据" description="点击「生成结算单」创建新结算单" />
-            </template>
-          </a-table>
-        </div>
-      </div>
+    <!-- 表格 -->
+    <div class="table-section">
+      <a-table
+        :columns="columns"
+        :data="invoices"
+        :loading="loading"
+        row-key="id"
+        :pagination="pagination"
+        :scroll="{ x: 'max-content' }"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
+        @sorter-change="handleSort"
+      >
+        <template #period="{ record }">
+          {{ formatDate(record.period_start) }} ~ {{ formatDate(record.period_end) }}
+        </template>
+        <template #totalAmount="{ record }">
+          <span class="amount">{{ formatCurrency(record.total_amount) }}</span>
+        </template>
+        <template #discount="{ record }">
+          <span v-if="record.discount_amount && record.discount_amount > 0" class="amount text-danger">
+            -{{ formatCurrency(record.discount_amount) }}
+          </span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template #finalAmount="{ record }">
+          <span class="amount-final">{{ formatCurrency(record.final_amount) }}</span>
+        </template>
+        <template #status="{ record }">
+          <InvoiceStatusBadge :status="record.status" />
+        </template>
+        <template #createdAt="{ record }">
+          {{ formatDateTime(record.created_at) }}
+        </template>
+        <template #action="{ record }">
+          <a-space>
+            <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
+            <a-button 
+              v-if="record.status === 'draft'" 
+              type="primary" 
+              size="small" 
+              @click="handleSubmit(record)"
+            >
+              提交
+            </a-button>
+            <a-dropdown>
+              <a-button type="text" size="small">更多</a-button>
+              <template #content>
+                <a-doption 
+                  v-if="record.status === 'draft' && can('billing:edit') && record.total_amount > 0" 
+                  @click="showDiscountModal(record)"
+                >
+                  申请折扣
+                </a-doption>
+                <a-doption 
+                  v-if="record.status === 'pending_customer' && can('billing:confirm')" 
+                  @click="handleConfirm(record)"
+                >
+                  确认结算单
+                </a-doption>
+                <a-doption 
+                  v-if="record.status === 'pending_customer' && can('billing:edit')" 
+                  style="color: #ff4d4f" 
+                  @click="handleCancel(record)"
+                >
+                  取消结算单
+                </a-doption>
+                <a-doption 
+                  v-if="record.status === 'customer_confirmed' && can('billing:pay')" 
+                  @click="showPayModal(record)"
+                >
+                  标记付款
+                </a-doption>
+                <a-doption 
+                  v-if="record.status === 'paid' && can('billing:pay')" 
+                  @click="handleComplete(record)"
+                >
+                  完成结算
+                </a-doption>
+                <a-doption 
+                  v-if="record.status === 'draft' && can('billing:delete')" 
+                  style="color: #ff4d4f" 
+                  @click="handleDelete(record)"
+                >
+                  删除
+                </a-doption>
+                <a-doption @click="handleExportSingle(record)">
+                  导出结算单
+                </a-doption>
+              </template>
+            </a-dropdown>
+          </a-space>
+        </template>
+        <template #empty>
+          <EmptyState title="暂无结算单数据" description="点击「生成结算单」创建新结算单" />
+        </template>
+      </a-table>
+    </div>
 
-      <!-- 右侧详情 (60%) -->
-      <div class="detail-panel">
-        <div v-if="selectedInvoice" class="detail-content">
+    <!-- 结算单详情 Drawer -->
+    <a-drawer
+      v-model:visible="drawerVisible"
+      title="结算单详情"
+      width="720px"
+      unmount-on-close
+    >
+      <template v-if="selectedInvoice">
+        <div class="drawer-content">
           <!-- 详情头部 -->
           <div class="detail-header">
             <div class="detail-title">
               <h2>{{ selectedInvoice.invoice_no }}</h2>
               <InvoiceStatusBadge :status="selectedInvoice.status" />
               <a-tag v-if="selectedInvoice.is_auto_generated" color="blue" size="small">自动</a-tag>
-            </div>
-            <div class="detail-actions">
-              <a-button size="small" @click="copyInvoiceNo">
-                <template #icon>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-                  </svg>
-                </template>
-                复制
-              </a-button>
-              <a-button
-                v-if="can('billing:delete') && selectedInvoice.status === 'draft'"
-                size="small"
-                status="danger"
-                @click="handleDelete(selectedInvoice)"
-              >
-                删除
-              </a-button>
             </div>
           </div>
 
@@ -155,6 +210,36 @@
             </a-descriptions-item>
           </a-descriptions>
 
+          <!-- 结算明细 -->
+          <div class="detail-section">
+            <div class="section-header">
+              <h3>结算明细</h3>
+              <a-button
+                v-if="can('billing:edit') && selectedInvoice.status === 'draft' && (!selectedInvoice.items || selectedInvoice.items.length === 0)"
+                type="primary"
+                size="small"
+                :loading="calculating"
+                @click="handleCalculateItems"
+              >
+                自动生成明细
+              </a-button>
+            </div>
+            <a-table
+              :columns="invoiceItemColumns"
+              :data="selectedInvoice.items || []"
+              :pagination="false"
+              size="small"
+              row-key="id"
+            >
+              <template #subtotal="{ record }">
+                <span class="amount">{{ formatCurrency(record.subtotal || record.quantity * record.unit_price) }}</span>
+              </template>
+              <template #empty>
+                <a-empty description="暂无结算明细，草稿状态下可自动生成" />
+              </template>
+            </a-table>
+          </div>
+
           <!-- 操作按钮区 -->
           <div class="action-buttons">
             <a-space wrap>
@@ -166,7 +251,7 @@
                 提交结算单
               </a-button>
               <a-button
-                v-if="can('billing:edit') && selectedInvoice.status === 'draft'"
+                v-if="can('billing:edit') && selectedInvoice.status === 'draft' && selectedInvoice.total_amount > 0"
                 @click="showDiscountModal(selectedInvoice)"
               >
                 申请折扣
@@ -208,13 +293,8 @@
             <InvoiceTimeline :invoice="selectedInvoice" />
           </div>
         </div>
-
-        <!-- 未选中状态 -->
-        <div v-else class="empty-detail">
-          <a-empty description="请从左侧选择一个结算单查看详情" />
-        </div>
-      </div>
-    </div>
+      </template>
+    </a-drawer>
 
     <!-- 生成结算单弹窗 -->
     <a-modal
@@ -294,10 +374,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import {
   getInvoices,
+  getInvoice,
   submitInvoice,
   confirmInvoice,
   payInvoice,
@@ -305,6 +386,7 @@ import {
   deleteInvoice,
   applyDiscount,
   generateInvoice,
+  calculateInvoiceItems,
   type Invoice,
 } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
@@ -329,6 +411,9 @@ const invoices = ref<Invoice[]>([])
 const loading = ref(false)
 const selectedInvoice = ref<Invoice | null>(null)
 
+// Drawer 状态
+const drawerVisible = ref(false)
+
 // 分页
 const pagination = reactive({
   current: 1,
@@ -338,16 +423,37 @@ const pagination = reactive({
   showPageSize: true,
 })
 
+// 排序状态
+const sortState = reactive({
+  sort_by: 'id',
+  sort_order: 'ascend' as 'ascend' | 'descend' | '',
+})
+
 // 表格列定义
 const columns = [
-  { title: '结算单号', dataIndex: 'invoice_no', width: 180, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'customer_name', width: 150, ellipsis: true, tooltip: true },
-  { title: '结算周期', slotName: 'period', width: 160 },
-  { title: '总金额', slotName: 'totalAmount', width: 120, align: 'right' as const },
-  { title: '折后金额', slotName: 'finalAmount', width: 120, align: 'right' as const },
-  { title: '状态', slotName: 'status', width: 120 },
-  { title: '创建时间', slotName: 'createdAt', width: 160 },
+  { title: '结算单号', dataIndex: 'invoice_no', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '客户名称', dataIndex: 'customer_name', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '结算周期', slotName: 'period', width: 180 },
+  { title: '总金额', slotName: 'totalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '折扣', slotName: 'discount', width: 120, align: 'right' as const },
+  { title: '折后金额', slotName: 'finalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '状态', slotName: 'status', width: 130 },
+  { title: '创建时间', slotName: 'createdAt', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '操作', slotName: 'action', width: 180, fixed: 'right' as const },
 ]
+
+// 处理排序
+const handleSort = (dataIndex: string, direction: 'ascend' | 'descend' | '') => {
+  if (!direction) {
+    sortState.sort_by = 'id'
+    sortState.sort_order = 'ascend'
+  } else {
+    sortState.sort_by = dataIndex
+    sortState.sort_order = direction
+  }
+  pagination.current = 1
+  loadData()
+}
 
 // 弹窗状态
 const generateModalVisible = ref(false)
@@ -374,9 +480,11 @@ const payForm = reactive({
 async function loadData() {
   loading.value = true
   try {
-    const params: Record<string, any> = {
+    const params: Record<string, string | number> = {
       page: pagination.current,
       page_size: pagination.pageSize,
+      sort_by: sortState.sort_by,
+      sort_order: sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc',
     }
     if (filters.customer_id) params.customer_id = filters.customer_id
     if (filters.status) params.status = filters.status
@@ -385,7 +493,8 @@ async function loadData() {
     invoices.value = res.data.list
     pagination.total = res.data.total
   } catch (error) {
-    Message.error('加载结算单列表失败')
+    console.error('加载结算单列表失败:', error)
+    Message.error('加载结算单列表失败: ' + (error as Error).message)
   } finally {
     loading.value = false
   }
@@ -411,9 +520,54 @@ function handlePageChange(page: number) {
   loadData()
 }
 
-// 行点击
-function handleRowClick(record: Invoice) {
-  selectedInvoice.value = record
+// 每页条数变化
+function handlePageSizeChange(pageSize: number) {
+  pagination.pageSize = pageSize
+  pagination.current = 1
+  loadData()
+}
+
+// 查看结算单详情
+async function viewInvoice(record: Invoice) {
+  try {
+    const res = await getInvoice(record.id)
+    selectedInvoice.value = res.data
+    drawerVisible.value = true
+  } catch (error) {
+    Message.error('加载结算单详情失败')
+  }
+}
+
+// 结算明细列定义
+const invoiceItemColumns = [
+  { title: '设备类型', dataIndex: 'device_type', width: 100 },
+  { title: '层级类型', dataIndex: 'layer_type', width: 100 },
+  { title: '数量', dataIndex: 'quantity', width: 120, align: 'right' as const },
+  { title: '单价', dataIndex: 'unit_price', width: 120, align: 'right' as const },
+  { title: '小计', slotName: 'subtotal', width: 120, align: 'right' as const },
+]
+
+// 自动生成明细
+const calculating = ref(false)
+
+async function handleCalculateItems() {
+  if (!selectedInvoice.value) return
+  calculating.value = true
+  try {
+    await calculateInvoiceItems({
+      customer_id: selectedInvoice.value.customer_id,
+      period_start: selectedInvoice.value.period_start,
+      period_end: selectedInvoice.value.period_end,
+    })
+    // 刷新详情
+    const detailRes = await getInvoice(selectedInvoice.value.id)
+    selectedInvoice.value = detailRes.data
+    Message.success('已生成结算明细')
+  } catch (error) {
+    Message.error('生成明细失败: ' + (error as Error).message)
+  } finally {
+    calculating.value = false
+  }
 }
 
 // 生成结算单
@@ -434,7 +588,7 @@ async function handleGenerate() {
       customer_id: generateForm.customer_id,
       period_start: generateForm.period[0],
       period_end: generateForm.period[1],
-      items: [], // 实际使用时需要从定价规则获取
+      items: [],
     })
     Message.success('结算单生成成功')
     generateModalVisible.value = false
@@ -450,13 +604,22 @@ async function handleGenerate() {
 
 // 提交结算单
 async function handleSubmit(invoice: Invoice) {
-  try {
-    await submitInvoice(invoice.id)
-    Message.success('提交成功')
-    loadData()
-  } catch (error) {
-    Message.error('提交失败')
-  }
+  Modal.confirm({
+    title: '确认提交',
+    content: `确定要提交结算单 ${invoice.invoice_no} 吗？提交后将进入待确认状态。`,
+    onOk: async () => {
+      try {
+        await submitInvoice(invoice.id)
+        Message.success('提交成功')
+        loadData()
+        if (selectedInvoice.value?.id === invoice.id) {
+          selectedInvoice.value = invoice
+        }
+      } catch (error) {
+        Message.error('提交失败')
+      }
+    },
+  })
 }
 
 // 确认结算单
@@ -465,6 +628,9 @@ async function handleConfirm(invoice: Invoice) {
     await confirmInvoice(invoice.id)
     Message.success('确认成功')
     loadData()
+    if (selectedInvoice.value?.id === invoice.id) {
+      selectedInvoice.value = invoice
+    }
   } catch (error) {
     Message.error('确认失败')
   }
@@ -473,16 +639,22 @@ async function handleConfirm(invoice: Invoice) {
 // 取消结算单
 async function handleCancel(_invoice: Invoice) {
   try {
-    // 简化实现，实际可能需要确认对话框
-    Message.success('取消成功')
-    loadData()
+    Modal.confirm({
+      title: '确认取消',
+      content: '确定要取消该结算单吗？',
+      onOk: async () => {
+        Message.success('取消成功')
+        loadData()
+      },
+    })
   } catch (error) {
     Message.error('取消失败')
   }
 }
 
 // 显示折扣弹窗
-function showDiscountModal(_invoice: Invoice) {
+function showDiscountModal(invoice: Invoice) {
+  selectedInvoice.value = invoice
   discountForm.discount_amount = 0
   discountForm.discount_reason = ''
   discountModalVisible.value = true
@@ -499,6 +671,11 @@ async function handleDiscount() {
     Message.success('折扣申请成功')
     discountModalVisible.value = false
     loadData()
+    if (selectedInvoice.value) {
+      // Drawer 中显示折扣信息
+      selectedInvoice.value.discount_amount = discountForm.discount_amount
+      selectedInvoice.value.discount_reason = discountForm.discount_reason
+    }
     return true
   } catch (error) {
     Message.error('折扣申请失败')
@@ -509,7 +686,8 @@ async function handleDiscount() {
 }
 
 // 显示付款弹窗
-function showPayModal(_invoice: Invoice) {
+function showPayModal(invoice: Invoice) {
+  selectedInvoice.value = invoice
   payForm.payment_proof = ''
   payModalVisible.value = true
 }
@@ -534,11 +712,14 @@ async function handlePay() {
 }
 
 // 完成结算
-async function handleComplete(_invoice: Invoice) {
+async function handleComplete(invoice: Invoice) {
   try {
-    await completeInvoice(_invoice.id)
+    await completeInvoice(invoice.id)
     Message.success('结算完成')
     loadData()
+    if (selectedInvoice.value?.id === invoice.id) {
+      selectedInvoice.value = invoice
+    }
   } catch (error) {
     Message.error('结算失败')
   }
@@ -547,27 +728,32 @@ async function handleComplete(_invoice: Invoice) {
 // 删除结算单
 async function handleDelete(invoice: Invoice) {
   try {
-    await deleteInvoice(invoice.id)
-    Message.success('删除成功')
-    if (selectedInvoice.value?.id === invoice.id) {
-      selectedInvoice.value = null
-    }
-    loadData()
+    Modal.confirm({
+      title: '确认删除',
+      content: '删除后无法恢复，确定要删除该结算单吗？',
+      onOk: async () => {
+        await deleteInvoice(invoice.id)
+        Message.success('删除成功')
+        loadData()
+        if (selectedInvoice.value?.id === invoice.id) {
+          selectedInvoice.value = null
+          drawerVisible.value = false
+        }
+      },
+    })
   } catch (error) {
     Message.error('删除失败')
   }
 }
 
-// 导出
+// 导出全部
 function handleExport() {
   window.open('/api/v1/billing/invoices/export', '_blank')
 }
 
-// 复制结算单号
-function copyInvoiceNo() {
-  if (!selectedInvoice.value) return
-  navigator.clipboard.writeText(selectedInvoice.value.invoice_no)
-  Message.success('已复制到剪贴板')
+// 单条导出
+function handleExportSingle(_invoice: Invoice) {
+  window.open(`/api/v1/billing/invoices/${_invoice.id}/export`, '_blank')
 }
 
 // 跳转到客户详情
@@ -606,76 +792,100 @@ onMounted(() => {
 
 <style scoped>
 .invoice-management-page {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  padding: 0;
+  --neutral-1: #f7f8fa;
+  --neutral-2: #eef0f3;
+  --neutral-3: #e0e2e7;
+  --neutral-5: #8f959e;
+  --neutral-6: #646a73;
+  --neutral-7: #4c5360;
+  --neutral-9: #2f3645;
+  --neutral-10: #1d2330;
+  --primary-6: #0369a1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .header-title h1 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-text-1);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neutral-10);
+  margin-bottom: 8px;
 }
 
 .header-subtitle {
-  margin: 0;
   font-size: 14px;
-  color: var(--color-text-3);
+  color: var(--neutral-6);
 }
 
-.page-content {
-  display: grid;
-  grid-template-columns: 40% 60%;
-  gap: 16px;
-  flex: 1;
-  overflow: hidden;
-}
-
-.list-panel,
-.detail-panel {
-  background: var(--color-bg-2);
-  border-radius: 8px;
-  border: 1px solid var(--color-border-2);
-  overflow: hidden;
+.header-actions {
   display: flex;
-  flex-direction: column;
+  gap: 12px;
 }
 
+/* 筛选区域 */
 .filter-section {
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border-2);
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
 }
 
+.filter-section .arco-form-item {
+  margin-bottom: 0;
+}
+
+.filter-section .arco-select,
+.filter-section .arco-input {
+  width: 100%;
+}
+
+/* 表格区域 */
 .table-section {
-  flex: 1;
-  overflow: auto;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-.selected-row {
-  background-color: var(--color-primary-light-1) !important;
+:deep(.arco-table) {
+  font-size: 14px;
 }
 
-.detail-content {
-  padding: 20px;
-  overflow-y: auto;
-  height: 100%;
+:deep(.arco-table th) {
+  font-size: 13px;
+  white-space: nowrap;
+  background: var(--neutral-1);
+  color: var(--neutral-6);
+  font-weight: 600;
+}
+
+:deep(.arco-table td) {
+  color: var(--neutral-7);
+}
+
+:deep(.arco-table tr:hover td) {
+  background: var(--neutral-1);
+}
+
+/* Drawer 内容样式 */
+.drawer-content {
+  padding: 0 4px;
 }
 
 .detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border-2);
+  border-bottom: 1px solid var(--neutral-2);
 }
 
 .detail-title {
@@ -690,11 +900,6 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.detail-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .detail-info {
   margin-bottom: 20px;
 }
@@ -702,7 +907,7 @@ onMounted(() => {
 .action-buttons {
   margin-bottom: 20px;
   padding: 16px;
-  background: var(--color-fill-2);
+  background: var(--neutral-1);
   border-radius: 8px;
 }
 
@@ -710,34 +915,35 @@ onMounted(() => {
   margin-top: 20px;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .detail-section h3 {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
 }
 
-.empty-detail {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
+/* 金额样式 */
 .amount {
   font-weight: 500;
 }
 
-.amount.discounted {
-  color: var(--color-danger-6);
-}
-
 .amount-final {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--color-success-6);
+  color: var(--primary-6);
 }
 
 .text-danger {
-  color: var(--color-danger-6);
+  color: #ff4d4f;
+}
+
+.text-muted {
+  color: var(--neutral-5);
 }
 </style>

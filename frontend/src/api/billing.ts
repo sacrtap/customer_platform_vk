@@ -86,6 +86,7 @@ export interface PricingRule {
   id: number
   customer_id?: number
   device_type: string
+  layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
   tiers?: Record<string, unknown>
@@ -98,6 +99,7 @@ export interface PricingRule {
 export function getPricingRules(params?: {
   customer_id?: number
   device_type?: string
+  layer_type?: string
   pricing_type?: string
   page?: number
   page_size?: number
@@ -120,10 +122,13 @@ export function deletePricingRule(id: number) {
 // ==================== 结算单管理 ====================
 
 export interface InvoiceItem {
+  id?: number
   device_type: string
   layer_type: string
   quantity: number
   unit_price: number
+  subtotal?: number
+  pricing_rule_id?: number
 }
 
 export interface Invoice {
@@ -171,6 +176,16 @@ export interface GenerateInvoiceParams {
 
 export function generateInvoice(data: GenerateInvoiceParams) {
   return api.post('/billing/invoices/generate', data)
+}
+
+export interface CalculateInvoiceItemsParams {
+  customer_id: number
+  period_start: string
+  period_end: string
+}
+
+export function calculateInvoiceItems(data: CalculateInvoiceItemsParams) {
+  return api.post('/billing/invoices/calculate-items', data)
 }
 
 export interface ApplyDiscountParams {

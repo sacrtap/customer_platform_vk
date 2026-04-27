@@ -78,6 +78,11 @@
             {{ record.device_type }}系列
           </a-tag>
         </template>
+        <template #layer_type="{ record }">
+          <a-tag :color="record.layer_type === 'multi' ? 'purple' : 'blue'">
+            {{ record.layer_type === 'multi' ? '多层' : '单层' }}
+          </a-tag>
+        </template>
         <template #pricing_type="{ record }">
           <a-tag
             :color="
@@ -152,7 +157,7 @@
           </a-select>
         </a-form-item>
         <a-row :gutter="16">
-          <a-col :span="12">
+          <a-col :span="8">
             <a-form-item label="设备类型" :rules="[{ required: true, message: '请选择设备类型' }]">
               <a-select v-model="formData.device_type" placeholder="请选择">
                 <a-option value="X">X 系列</a-option>
@@ -161,7 +166,15 @@
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :span="12">
+          <a-col :span="8">
+            <a-form-item label="楼层类型" :rules="[{ required: true, message: '请选择楼层类型' }]">
+              <a-select v-model="formData.layer_type" placeholder="请选择">
+                <a-option value="single">单层</a-option>
+                <a-option value="multi">多层</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
             <a-form-item label="计费类型" :rules="[{ required: true, message: '请选择计费类型' }]">
               <a-select
                 v-model="formData.pricing_type"
@@ -254,6 +267,7 @@ interface PricingRule {
   customer_id?: number
   customer_name?: string
   device_type: string
+  layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
   tiers?: Record<string, unknown>
@@ -265,7 +279,8 @@ interface PricingRule {
 
 const columns = [
   { title: '客户', dataIndex: 'customer_name', slotName: 'customer_name', width: 200 },
-  { title: '设备类型', dataIndex: 'device_type', slotName: 'device_type', width: 120 },
+  { title: '设备类型', dataIndex: 'device_type', slotName: 'device_type', width: 100 },
+  { title: '楼层类型', dataIndex: 'layer_type', slotName: 'layer_type', width: 100 },
   { title: '计费类型', dataIndex: 'pricing_type', slotName: 'pricing_type', width: 120 },
   { title: '单价', dataIndex: 'unit_price', slotName: 'unit_price', width: 100 },
   { title: '套餐类型', dataIndex: 'package_type', width: 100 },
@@ -298,6 +313,7 @@ const formData = reactive({
   id: null as number | null,
   customer_id: null as number | null,
   device_type: 'X',
+  layer_type: 'single' as 'single' | 'multi',
   pricing_type: 'fixed' as 'fixed' | 'tiered' | 'package',
   unit_price: undefined as number | undefined,
   tiersJson: '',
@@ -383,6 +399,7 @@ const showCreateModal = () => {
     id: null,
     customer_id: null,
     device_type: 'X',
+    layer_type: 'single',
     pricing_type: 'fixed',
     unit_price: undefined,
     tiersJson: '',
@@ -401,6 +418,7 @@ const showEditModal = (record: PricingRule) => {
     id: record.id,
     customer_id: record.customer_id,
     device_type: record.device_type,
+    layer_type: record.layer_type || 'single',
     pricing_type: record.pricing_type,
     unit_price: record.unit_price,
     tiersJson: record.tiers ? JSON.stringify(record.tiers) : '',
@@ -433,6 +451,7 @@ const handleSubmit = async () => {
     const data: Partial<PricingRule> = {
       customer_id: formData.customer_id,
       device_type: formData.device_type,
+      layer_type: formData.layer_type,
       pricing_type: formData.pricing_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date,

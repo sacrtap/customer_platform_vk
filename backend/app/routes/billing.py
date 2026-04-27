@@ -332,11 +332,13 @@ async def get_pricing_rules(request: Request):
     # 筛选参数
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     device_type = request.args.get("device_type")
+    layer_type = request.args.get("layer_type")
     pricing_type = request.args.get("pricing_type")
 
     rules, total = await pricing_service.get_pricing_rules(
         customer_id=customer_id,
         device_type=device_type,
+        layer_type=layer_type,
         pricing_type=pricing_type,
         page=page,
         page_size=page_size,
@@ -353,6 +355,7 @@ async def get_pricing_rules(request: Request):
                         "customer_id": r.customer_id,
                         "customer_name": r.customer.name if r.customer else None,
                         "device_type": r.device_type,
+                        "layer_type": r.layer_type or "single",
                         "pricing_type": r.pricing_type,
                         "unit_price": float(r.unit_price) if r.unit_price else None,
                         "tiers": r.tiers,
@@ -413,6 +416,7 @@ async def create_pricing_rule(request: Request):
             "data": {
                 "id": rule.id,
                 "device_type": rule.device_type,
+                "layer_type": rule.layer_type or "single",
                 "pricing_type": rule.pricing_type,
                 "unit_price": float(rule.unit_price) if rule.unit_price else None,
             },
@@ -452,6 +456,7 @@ async def update_pricing_rule(request: Request, rule_id: int):
             "data": {
                 "id": rule.id,
                 "device_type": rule.device_type,
+                "layer_type": rule.layer_type or "single",
                 "pricing_type": rule.pricing_type,
             },
         }
@@ -510,6 +515,7 @@ async def get_invoices(request: Request):
                         "id": i.id,
                         "invoice_no": i.invoice_no,
                         "customer_id": i.customer_id,
+                        "customer_name": i.customer.name if i.customer else None,
                         "period_start": i.period_start.isoformat() if i.period_start else None,
                         "period_end": i.period_end.isoformat() if i.period_end else None,
                         "total_amount": float(i.total_amount),
@@ -550,6 +556,7 @@ async def get_invoice(request: Request, invoice_id: int):
                 "id": invoice.id,
                 "invoice_no": invoice.invoice_no,
                 "customer_id": invoice.customer_id,
+                "customer_name": invoice.customer.name if invoice.customer else None,
                 "period_start": invoice.period_start.isoformat() if invoice.period_start else None,
                 "period_end": invoice.period_end.isoformat() if invoice.period_end else None,
                 "total_amount": float(invoice.total_amount),
@@ -578,6 +585,76 @@ async def get_invoice(request: Request, invoice_id: int):
     )
 
 
+@billing_bp.post("/invoices/calculate-items")
+@auth_required
+@require_permission("billing:edit")
+async def calculate_invoice_items(request: Request):
+    """
+    根据客户 + 结算周期，自动计算结算明细
+
+    Body:
+    {
+        "customer_id": 1,
+        "period_start": "2026-03-01",
+        "period_end": "2026-03-31"
+    }
+
+    Returns:
+    {
+        "code": 0,
+        "message": "计算成功",
+        "data": {
+            "items": [
+                {"device_type": "N", "layer_type": "single", "quantity": 1234, "unit_price": 10.0, "subtotal": 12340.0}
+            ],
+            "total_amount": 12340.0
+        }
+    }
+    """
+    db: AsyncSession = request.ctx.db_session
+    data = request.json
+
+    invoice_service = InvoiceService(db)
+
+    # 日期转换
+    period_start = date.fromisoformat(data["period_start"])
+    period_end = date.fromisoformat(data["period_end"])
+
+    # 调用服务层计算
+    items, total_amount = await invoice_service.calculate_items_from_rules(
+        customer_id=data["customer_id"],
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+    if not items:
+        return json({
+            "code": 40002,
+            "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
+        }, status=400)
+
+    # 格式化返回数据
+    formatted_items = [
+        {
+            "device_type": item["device_type"],
+            "layer_type": item["layer_type"],
+            "quantity": float(item["quantity"]),
+            "unit_price": float(item["unit_price"]),
+            "subtotal": float(item["subtotal"]),
+        }
+        for item in items
+    ]
+
+    return json({
+        "code": 0,
+        "message": "计算成功",
+        "data": {
+            "items": formatted_items,
+            "total_amount": float(total_amount),
+        },
+    })
+
+
 @billing_bp.post("/invoices/generate")
 @auth_required
 @require_permission("billing:edit")
@@ -594,6 +671,8 @@ async def generate_invoice(request: Request):
             {"device_type": "X", "layer_type": "single", "quantity": 100, "unit_price": 10}
         ]
     }
+
+    注意：如果未提供 items，系统会自动根据客户的计费规则和用量数据生成。
     """
     db: AsyncSession = request.ctx.db_session
     data = request.json
@@ -606,14 +685,23 @@ async def generate_invoice(request: Request):
     period_end = date.fromisoformat(data["period_end"])
     items = data.get("items", [])
 
+    # 如果未提供 items，自动根据计费规则 + 用量计算
     if not items:
-        return json({"code": 40001, "message": "结算项不能为空"}, status=400)
-
+        items, _ = await invoice_service.calculate_items_from_rules(
+            customer_id=data["customer_id"],
+            period_start=period_start,
+            period_end=period_end,
+        )
+        if not items:
+            return json({
+                "code": 40002,
+                "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
+            }, status=400)
     invoice = await invoice_service.generate_invoice(
         customer_id=data["customer_id"],
         period_start=period_start,
         period_end=period_end,
-        items=items,
+        items=items if items else [],
         created_by=user["user_id"] if user else 1,
     )
 

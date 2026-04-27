@@ -20,6 +20,7 @@ from ..models.billing import (
     Invoice,
     InvoiceItem,
     ConsumptionRecord,
+    DailyUsage,
 )
 import uuid
 
@@ -229,6 +230,7 @@ class PricingService:
         self,
         customer_id: Optional[int] = None,
         device_type: Optional[str] = None,
+        layer_type: Optional[str] = None,
         pricing_type: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
@@ -246,6 +248,8 @@ class PricingService:
             base_stmt = base_stmt.where(PricingRule.customer_id == customer_id)
         if device_type:
             base_stmt = base_stmt.where(PricingRule.device_type == device_type)
+        if layer_type:
+            base_stmt = base_stmt.where(PricingRule.layer_type == layer_type)
         if pricing_type:
             base_stmt = base_stmt.where(PricingRule.pricing_type == pricing_type)
 
@@ -268,6 +272,7 @@ class PricingService:
         rule = PricingRule(
             customer_id=data.get("customer_id"),
             device_type=data["device_type"],
+            layer_type=data.get("layer_type"),
             pricing_type=data["pricing_type"],
             unit_price=data.get("unit_price"),
             tiers=data.get("tiers"),
@@ -297,6 +302,7 @@ class PricingService:
         # 可更新字段
         updatable = [
             "device_type",
+            "layer_type",
             "pricing_type",
             "unit_price",
             "tiers",
@@ -336,6 +342,174 @@ class InvoiceService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def calculate_items_from_rules(
+        self,
+        customer_id: int,
+        period_start: date,
+        period_end: date,
+    ) -> Tuple[List[Dict[str, Any]], Decimal]:
+        """
+        根据计费规则 + 用量数据计算结算明细
+
+        逻辑：
+        1. 查询客户在结算周期内的每日用量（按 device_type + layer_type 分组汇总）
+        2. 查询客户生效中的定价规则
+        3. 根据 pricing_type 计算每项费用：
+           - fixed: 总用量 × 单价
+           - tiered: 按阶梯单价计算
+           - package: 按包年规则计算
+        4. 返回 items 列表和总金额
+
+        Args:
+            customer_id: 客户 ID
+            period_start: 结算周期开始
+            period_end: 结算周期结束
+
+        Returns:
+            (items, total_amount)
+            items: [{"device_type": "N", "layer_type": "single", "quantity": 1234, "unit_price": 10.0, "subtotal": 12340.0, "pricing_rule_id": 2}]
+        """
+        from sqlalchemy import func as sa_func
+
+        # 1. 查询结算周期内的用量汇总（按 device_type + layer_type 分组）
+        usage_stmt = (
+            select(
+                DailyUsage.device_type,
+                DailyUsage.layer_type,
+                sa_func.sum(DailyUsage.quantity).label("total_quantity"),
+            )
+            .where(
+                DailyUsage.customer_id == customer_id,
+                DailyUsage.usage_date >= period_start,
+                DailyUsage.usage_date <= period_end,
+            )
+            .group_by(DailyUsage.device_type, DailyUsage.layer_type)
+        )
+        usage_result = await self.db.execute(usage_stmt)
+        usage_rows = usage_result.all()
+
+        if not usage_rows:
+            return [], Decimal(0)
+
+        # 2. 查询客户生效中的定价规则
+        rules_stmt = select(PricingRule).where(
+            PricingRule.customer_id == customer_id,
+            PricingRule.effective_date <= period_end,
+            (PricingRule.expiry_date.is_(None)) | (PricingRule.expiry_date >= period_start),
+        )
+        rules_result = await self.db.execute(rules_stmt)
+        pricing_rules = rules_result.scalars().all()
+
+        # 构建规则查找字典：(device_type, layer_type) -> PricingRule
+        # layer_type 为 NULL 时默认为 'single'
+        rules_map: Dict[Tuple[str, str], PricingRule] = {
+            (r.device_type, r.layer_type or "single"): r for r in pricing_rules
+        }
+
+        # 3. 计算每项费用
+        items: List[Dict[str, Any]] = []
+        total_amount = Decimal(0)
+
+        for row in usage_rows:
+            device_type = row.device_type
+            layer_type = row.layer_type or "single"
+            total_quantity = Decimal(str(row.total_quantity))
+
+            # 先尝试精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
+            rule = rules_map.get((device_type, layer_type)) or rules_map.get((device_type, "single"))
+            if not rule:
+                # 没有匹配的定价规则，跳过
+                continue
+
+            if rule.pricing_type == "fixed":
+                # 定价结算：总用量 × 单价
+                unit_price = Decimal(str(rule.unit_price or 0))
+                subtotal = total_quantity * unit_price
+                items.append({
+                    "device_type": device_type,
+                    "layer_type": layer_type,
+                    "quantity": total_quantity,
+                    "unit_price": unit_price,
+                    "subtotal": subtotal,
+                    "pricing_rule_id": rule.id,
+                })
+                total_amount += subtotal
+
+            elif rule.pricing_type == "tiered":
+                # 阶梯结算：按阶梯单价计算
+                tiers = rule.tiers or {}
+                subtotal = self._calculate_tiered_price(total_quantity, tiers)
+                # 阶梯计价的 unit_price 显示为平均单价
+                avg_unit_price = subtotal / total_quantity if total_quantity > 0 else Decimal(0)
+                items.append({
+                    "device_type": device_type,
+                    "layer_type": layer_type,
+                    "quantity": total_quantity,
+                    "unit_price": avg_unit_price,
+                    "subtotal": subtotal,
+                    "pricing_rule_id": rule.id,
+                })
+                total_amount += subtotal
+
+            elif rule.pricing_type == "package":
+                # 包年结算：按包年固定费用
+                package_type = rule.package_type
+                package_limits = rule.package_limits or {}
+                # 简化实现：使用包年基础费用作为单价
+                base_fee = Decimal(str(package_limits.get("base_fee", 0)))
+                items.append({
+                    "device_type": device_type,
+                    "layer_type": layer_type,
+                    "quantity": total_quantity,
+                    "unit_price": base_fee,
+                    "subtotal": base_fee,  # 包年固定费用
+                    "pricing_rule_id": rule.id,
+                })
+                total_amount += base_fee
+
+        return items, total_amount
+
+    def _calculate_tiered_price(self, quantity: Decimal, tiers: Dict[str, Any]) -> Decimal:
+        """
+        计算阶梯价格
+
+        tiers 格式示例：
+        {
+            "ranges": [
+                {"min": 0, "max": 1000, "price": 10},
+                {"min": 1001, "max": 5000, "price": 8},
+                {"min": 5001, "max": null, "price": 5}
+            ]
+        }
+        """
+        ranges = tiers.get("ranges", [])
+        if not ranges:
+            return Decimal(0)
+
+        remaining = quantity
+        total = Decimal(0)
+
+        for tier in sorted(ranges, key=lambda x: x.get("min", 0)):
+            if remaining <= 0:
+                break
+
+            tier_min = Decimal(str(tier.get("min", 0)))
+            tier_max = tier.get("max")
+            tier_price = Decimal(str(tier.get("price", 0)))
+
+            if tier_max is not None:
+                tier_max = Decimal(str(tier_max))
+                tier_capacity = tier_max - tier_min + 1
+            else:
+                tier_capacity = remaining  # 无上限，使用剩余数量
+
+            # 计算实际使用的数量（不能超过剩余数量）
+            used = min(remaining, tier_capacity)
+            total += used * tier_price
+            remaining -= used
+
+        return total
 
     async def generate_invoice(
         self,
@@ -412,7 +586,9 @@ class InvoiceService:
     ) -> Tuple[List[Invoice], int]:
         """获取结算单列表"""
         stmt = (
-            select(Invoice).options(selectinload(Invoice.items)).where(Invoice.deleted_at.is_(None))
+            select(Invoice)
+            .options(selectinload(Invoice.items), selectinload(Invoice.customer))
+            .where(Invoice.deleted_at.is_(None))
         )
 
         if customer_id:
@@ -441,7 +617,7 @@ class InvoiceService:
         """获取结算单详情"""
         result = await self.db.execute(
             select(Invoice)
-            .options(selectinload(Invoice.items))
+            .options(selectinload(Invoice.items), selectinload(Invoice.customer))
             .where(
                 Invoice.id == invoice_id,
                 Invoice.deleted_at.is_(None),

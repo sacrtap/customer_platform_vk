@@ -69,6 +69,7 @@ class PricingRule(BaseModel):
 
     customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
     device_type = Column(String(20), nullable=False)  # X/N/L
+    layer_type = Column(String(20))  # single/multi
     pricing_type = Column(String(20), nullable=False)  # fixed/tier/package
     unit_price = Column(DECIMAL(10, 2))
     tiers = Column(JSON)  # 阶梯配置
