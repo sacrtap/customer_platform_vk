@@ -536,10 +536,11 @@ const refreshData = async () => {
 const getStatusClass = (status: string) => {
   const map: Record<string, string> = {
     draft: 'info',
-    submitted: 'warning',
-    confirmed: 'warning',
+    pending_customer: 'warning',
+    customer_confirmed: 'warning',
     paid: 'info',
     completed: 'success',
+    cancelled: 'danger',
   }
   return map[status] || 'info'
 }
@@ -547,10 +548,11 @@ const getStatusClass = (status: string) => {
 const getStatusText = (status: string) => {
   const map: Record<string, string> = {
     draft: '草稿',
-    submitted: '待审核',
-    confirmed: '待确认',
-    paid: '待付款',
+    pending_customer: '待客户确认',
+    customer_confirmed: '客户已确认',
+    paid: '已付款',
     completed: '已完成',
+    cancelled: '已取消',
   }
   return map[status] || status
 }

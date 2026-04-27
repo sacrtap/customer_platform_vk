@@ -1002,10 +1002,11 @@ const loadCustomerData = async () => {
 const getStatusClass = (status: string) => {
   const statusMap: Record<string, string> = {
     draft: 'warning',
-    submitted: 'warning',
-    confirmed: 'success',
+    pending_customer: 'warning',
+    customer_confirmed: 'success',
     paid: 'success',
     completed: 'success',
+    cancelled: 'danger',
   }
   return statusMap[status] || 'warning'
 }
@@ -1014,10 +1015,11 @@ const getStatusClass = (status: string) => {
 const getStatusText = (status: string) => {
   const statusMap: Record<string, string> = {
     draft: '草稿',
-    submitted: '已提交',
-    confirmed: '已确认',
+    pending_customer: '待客户确认',
+    customer_confirmed: '客户已确认',
     paid: '已付款',
     completed: '已完成',
+    cancelled: '已取消',
   }
   return statusMap[status] || status
 }

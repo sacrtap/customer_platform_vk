@@ -138,7 +138,7 @@ export interface Invoice {
   discount_reason?: string
   discount_attachment?: string
   final_amount: number
-  status: 'draft' | 'submitted' | 'confirmed' | 'paid' | 'completed'
+  status: 'draft' | 'pending_customer' | 'customer_confirmed' | 'paid' | 'completed' | 'cancelled'
   is_auto_generated: boolean
   items?: InvoiceItem[]
   approver_id?: number
