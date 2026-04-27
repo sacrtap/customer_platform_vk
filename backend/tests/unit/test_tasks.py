@@ -3,6 +3,7 @@
 测试覆盖率目标：85%+
 """
 
+import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -232,9 +233,13 @@ class TestInvoiceGeneratorTask:
         customer.deleted_at = None
         customer.is_key_customer = False
 
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [customer]
-        mock_session.execute = AsyncMock(return_value=mock_result)
+        # 第一次 execute 返回客户列表，第二次返回 None（无现有结算单）
+        customer_result = MagicMock()
+        customer_result.scalars.return_value.all.return_value = [customer]
+        empty_result = MagicMock()
+        empty_result.scalar_one_or_none.return_value = None
+
+        mock_session.execute = AsyncMock(side_effect=[customer_result, empty_result])
 
         with patch("app.services.billing.InvoiceService") as MockInvoiceService:
             mock_service = AsyncMock()
@@ -243,9 +248,10 @@ class TestInvoiceGeneratorTask:
 
             from app.tasks.invoice_generator import generate_monthly_invoices
 
-            await generate_monthly_invoices(mock_session)
+            with caplog.at_level(logging.ERROR):
+                await generate_monthly_invoices(mock_session)
 
-            assert any("结算单生成失败" in record.message for record in caplog.records)
+                assert any("结算单生成失败" in record.message for record in caplog.records)
 
 
 # ============================================================================
