@@ -694,7 +694,7 @@ async def submit_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/confirm")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:confirm")
 async def confirm_invoice(request: Request, invoice_id: int):
     """客户确认结算单"""
     db: AsyncSession = request.ctx.db_session
@@ -713,7 +713,7 @@ async def confirm_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/pay")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:pay")
 async def pay_invoice(request: Request, invoice_id: int):
     """确认付款"""
     db: AsyncSession = request.ctx.db_session
@@ -736,7 +736,7 @@ async def pay_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/complete")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:pay")
 async def complete_invoice(request: Request, invoice_id: int):
     """完成结算（扣款）"""
     db: AsyncSession = request.ctx.db_session
