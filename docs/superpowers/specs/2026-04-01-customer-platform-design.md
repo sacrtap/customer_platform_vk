@@ -1,9 +1,9 @@
 # 客户运营中台系统设计文档
 
-**状态**: Draft  
+**状态**: Completed (2026-04-27)  
 **作者**: Alex (Product Manager)  
 **创建日期**: 2026-04-01  
-**版本**: 1.0  
+**版本**: 2.0 (最终版)  
 
 ---
 
@@ -704,6 +704,23 @@ draft → pending_customer → customer_confirmed → paid → completed
 
 - **客户规模等级**：按客户员工规模/业务规模划分
 - **客户消费等级**：按月度/季度消耗金额划分
+
+---
+
+## 9. 变更记录
+
+| 日期       | 版本 | 变更内容                               | 关联文档                                         |
+| ---------- | ---- | -------------------------------------- | ------------------------------------------------ |
+| 2026-04-01 | 1.0  | 初始设计文档                           | -                                                |
+| 2026-04-03 | -    | 新增客户分组功能                       | [customer-groups-design](specs/2026-04-03-customer-groups-design.md) |
+| 2026-04-06 | -    | 前端重设计                             | [frontend-redesign](specs/2026-04-06-frontend-redesign.md) |
+| 2026-04-14 | -    | 业务类型→行业类型转换，细粒度权限       | [business-type→industry](specs/2026-04-14-business-type-to-industry-type-design.md), [fine-grained-permissions](specs/2026-04-14-fine-grained-permissions-design.md) |
+| 2026-04-15 | -    | 客户详情优化，编辑弹窗优化，导入模板修复 | [detail-optimization](specs/2026-04-15-customer-detail-optimization-design.md) |
+| 2026-04-20 | -    | 客户导入扩展                           | [import-extension](specs/2026-04-20-customer-import-extension-design.md) |
+| 2026-04-21 | -    | 客户详情布局统一，列表排序优化         | [layout-unify](specs/2026-04-21-customer-detail-layout-unify-design.md), [sorting](specs/2026-04-21-customer-list-sorting-design.md) |
+| 2026-04-22 | -    | 结算方式筛选，画像页面合并             | [settlement-filter](specs/2026-04-22-customer-filter-settlement-type-design.md), [profile-merge](specs/2026-04-22-profile-pages-merge-design.md) |
+| 2026-04-23 | -    | 客户筛选器输入检索（AutoComplete）     | [search-filter](specs/2026-04-23-customer-search-filter-design.md) |
+| 2026-04-27 | 2.0  | 标记为 Completed，补充变更记录         | -                                                |
 
 ---
 
