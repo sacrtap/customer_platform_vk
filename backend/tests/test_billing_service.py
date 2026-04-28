@@ -606,7 +606,11 @@ class TestPricingService_Create:
             effective_date=date.today(),
         )
 
-        mock_db.execute.return_value = make_mock_execute_result([mock_rule])
+        # _check_overlap 返回空列表（无冲突），主查询返回规则
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),  # _check_overlap 查询
+            make_mock_execute_result([mock_rule]),  # 创建规则
+        ]
 
         data = {
             "device_type": "X",
@@ -636,7 +640,10 @@ class TestPricingService_Create:
             tiers=[{"min": 0, "max": 100, "price": 10}, {"min": 101, "price": 8}],
             effective_date=date.today(),
         )
-        mock_db.execute.return_value = make_mock_execute_result([mock_rule])
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),  # _check_overlap 查询
+            make_mock_execute_result([mock_rule]),  # 创建规则
+        ]
 
         data = {
             "device_type": "N",
@@ -664,7 +671,10 @@ class TestPricingService_Create:
             package_limits={"daily": 1000},
             effective_date=date.today(),
         )
-        mock_db.execute.return_value = make_mock_execute_result([mock_rule])
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),  # _check_overlap 查询
+            make_mock_execute_result([mock_rule]),  # 创建规则
+        ]
 
         data = {
             "device_type": "L",
@@ -696,6 +706,7 @@ class TestPricingService_Update:
             unit_price=Decimal("10.00"),
             effective_date=date.today(),
         )
+        # 仅更新非日期字段，不需要重叠校验，只需一次查询
         mock_db.execute.return_value = make_mock_execute_result([mock_rule])
 
         result = await service.update_pricing_rule(
@@ -749,6 +760,203 @@ class TestPricingService_Delete:
         result = await service.delete_pricing_rule(rule_id=999)
 
         assert result is False
+
+
+class TestPricingService_UpdateOverlap:
+    """PricingService.update_pricing_rule 重叠校验测试"""
+
+    @pytest.mark.asyncio
+    async def test_update_causes_overlap(self, pricing_service):
+        """测试更新导致重叠时抛出异常"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        current_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 6, 30),
+        )
+        other_rule = PricingRule(
+            id=2,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="tier",
+            effective_date=date(2026, 7, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([current_rule]),
+            make_mock_execute_result([other_rule]),
+        ]
+
+        with pytest.raises(ValueError, match="有效期存在重叠"):
+            await service.update_pricing_rule(1, {
+                "effective_date": date(2026, 8, 1),
+                "expiry_date": date(2026, 10, 31),
+            })
+
+    @pytest.mark.asyncio
+    async def test_update_no_overlap(self, pricing_service):
+        """测试更新不导致重叠时成功"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        current_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 6, 30),
+        )
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([current_rule]),
+            make_mock_execute_result([]),
+        ]
+
+        result = await service.update_pricing_rule(1, {
+            "effective_date": date(2026, 7, 1),
+            "expiry_date": date(2026, 12, 31),
+        })
+
+        assert result is not None
+        assert mock_db.commit.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_update_non_date_fields_skip_check(self, pricing_service):
+        """测试仅更新非日期字段时跳过校验"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        current_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            unit_price=Decimal("10.00"),
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+
+        mock_db.execute.return_value = make_mock_execute_result([current_rule])
+
+        result = await service.update_pricing_rule(1, {
+            "unit_price": Decimal("15.00"),
+        })
+
+        assert result is not None
+        assert mock_db.execute.call_count == 1
+
+
+class TestPricingService_CheckConflict:
+    """PricingService.check_pricing_rule_conflict 测试"""
+
+    @pytest.mark.asyncio
+    async def test_has_conflict(self, pricing_service):
+        """测试存在冲突时返回冲突列表"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        conflicting_rule = PricingRule(
+            id=5,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([conflicting_rule]),
+        ]
+
+        result = await service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2026, 9, 30),
+        )
+
+        assert len(result) == 1
+        assert result[0].id == 5
+
+    @pytest.mark.asyncio
+    async def test_no_conflict(self, pricing_service):
+        """测试无冲突时返回空列表"""
+        service, mock_db = pricing_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),
+        ]
+
+        result = await service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2027, 1, 1),
+            expiry_date=date(2027, 12, 31),
+        )
+
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_exclude_self(self, pricing_service):
+        """测试 exclude_id 排除自身"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        self_rule = PricingRule(
+            id=10,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([self_rule]),
+        ]
+
+        result = await service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2026, 9, 30),
+            exclude_id=10,
+        )
+
+        # exclude_id=10 时 SQL 会排除 id=10 的规则，所以 mock 返回空列表
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),
+        ]
+
+        result = await service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2026, 9, 30),
+            exclude_id=10,
+        )
+
+        assert len(result) == 0
 
 
 # ==================== InvoiceService 测试 ====================
