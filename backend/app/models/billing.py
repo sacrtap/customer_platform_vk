@@ -106,6 +106,7 @@ class Invoice(BaseModel):
     payment_proof = Column(String(255))
     paid_at = Column(String(50))
     completed_at = Column(String(50))
+    cancelled_at = Column(String(50))  # 取消时间
     is_auto_generated = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"))
 
