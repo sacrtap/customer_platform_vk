@@ -389,6 +389,7 @@ import {
   payInvoice,
   completeInvoice,
   deleteInvoice,
+  cancelInvoice,
   applyDiscount,
   generateInvoice,
   calculateInvoiceItems,
@@ -617,8 +618,10 @@ async function handleSubmit(invoice: Invoice) {
         await submitInvoice(invoice.id)
         Message.success('提交成功')
         loadData()
+        // 如果 Drawer 中显示的是该结算单，刷新详情
         if (selectedInvoice.value?.id === invoice.id) {
-          selectedInvoice.value = invoice
+          const res = await getInvoice(invoice.id)
+          selectedInvoice.value = res.data
         }
       } catch (error) {
         Message.error('提交失败')
@@ -633,8 +636,10 @@ async function handleConfirm(invoice: Invoice) {
     await confirmInvoice(invoice.id)
     Message.success('确认成功')
     loadData()
+    // 如果 Drawer 中显示的是该结算单，刷新详情
     if (selectedInvoice.value?.id === invoice.id) {
-      selectedInvoice.value = invoice
+      const res = await getInvoice(invoice.id)
+      selectedInvoice.value = res.data
     }
   } catch (error) {
     Message.error('确认失败')
@@ -642,19 +647,25 @@ async function handleConfirm(invoice: Invoice) {
 }
 
 // 取消结算单
-async function handleCancel(_invoice: Invoice) {
-  try {
-    Modal.confirm({
-      title: '确认取消',
-      content: '确定要取消该结算单吗？',
-      onOk: async () => {
+async function handleCancel(invoice: Invoice) {
+  Modal.confirm({
+    title: '确认取消',
+    content: '确定要取消该结算单吗？',
+    onOk: async () => {
+      try {
+        await cancelInvoice(invoice.id)
         Message.success('取消成功')
         loadData()
-      },
-    })
-  } catch (error) {
-    Message.error('取消失败')
-  }
+        // 如果 Drawer 中显示的是该结算单，刷新详情
+        if (selectedInvoice.value?.id === invoice.id) {
+          const res = await getInvoice(invoice.id)
+          selectedInvoice.value = res.data
+        }
+      } catch (error) {
+        Message.error('取消失败')
+      }
+    },
+  })
 }
 
 // 显示折扣弹窗
@@ -707,6 +718,9 @@ async function handlePay() {
     Message.success('付款标记成功')
     payModalVisible.value = false
     loadData()
+    // 刷新 Drawer 中的详情
+    const res = await getInvoice(selectedInvoice.value.id)
+    selectedInvoice.value = res.data
     return true
   } catch (error) {
     Message.error('付款标记失败')
@@ -722,8 +736,10 @@ async function handleComplete(invoice: Invoice) {
     await completeInvoice(invoice.id)
     Message.success('结算完成')
     loadData()
+    // 如果 Drawer 中显示的是该结算单，刷新详情
     if (selectedInvoice.value?.id === invoice.id) {
-      selectedInvoice.value = invoice
+      const res = await getInvoice(invoice.id)
+      selectedInvoice.value = res.data
     }
   } catch (error) {
     Message.error('结算失败')
