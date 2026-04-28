@@ -541,7 +541,7 @@ async function viewInvoice(record: Invoice) {
 // 结算明细列定义
 const invoiceItemColumns = [
   { title: '设备类型', dataIndex: 'device_type', width: 100 },
-  { title: '层级类型', dataIndex: 'layer_type', width: 100 },
+  { title: '楼层类型', dataIndex: 'layer_type', slotName: 'layer_type', width: 100 },
   { title: '数量', dataIndex: 'quantity', width: 120, align: 'right' as const },
   { title: '单价', dataIndex: 'unit_price', width: 120, align: 'right' as const },
   { title: '小计', slotName: 'subtotal', width: 120, align: 'right' as const },
