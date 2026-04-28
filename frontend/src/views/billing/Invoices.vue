@@ -231,6 +231,11 @@
               size="small"
               row-key="id"
             >
+              <template #layer_type="{ record }">
+                <a-tag :color="record.layer_type === 'multi' ? 'purple' : 'blue'">
+                  {{ record.layer_type === 'multi' ? '多层' : '单层' }}
+                </a-tag>
+              </template>
               <template #subtotal="{ record }">
                 <span class="amount">{{ formatCurrency(record.subtotal || record.quantity * record.unit_price) }}</span>
               </template>
