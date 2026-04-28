@@ -1279,6 +1279,120 @@ class TestInvoiceService_Delete:
         assert result is False
 
 
+# ==================== PricingService._check_overlap 测试 ====================
+
+
+class TestPricingService_CheckOverlap:
+    """PricingService._check_overlap 测试"""
+
+    @pytest.mark.asyncio
+    async def test_overlap_same_layer_type(self, pricing_service):
+        """测试相同 layer_type 时检测到重叠"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        existing_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([existing_rule]),
+        ]
+
+        with pytest.raises(ValueError, match="有效期存在重叠"):
+            await service._check_overlap(
+                customer_id=100,
+                device_type="X",
+                layer_type="single",
+                effective_date=date(2026, 6, 1),
+                expiry_date=date(2026, 9, 30),
+            )
+
+    @pytest.mark.asyncio
+    async def test_overlap_layer_type_none(self, pricing_service):
+        """测试 layer_type 为 None 时正确匹配"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        existing_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type=None,
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([existing_rule]),
+        ]
+
+        with pytest.raises(ValueError, match="有效期存在重叠"):
+            await service._check_overlap(
+                customer_id=100,
+                device_type="X",
+                layer_type=None,
+                effective_date=date(2026, 3, 1),
+                expiry_date=date(2026, 8, 31),
+            )
+
+    @pytest.mark.asyncio
+    async def test_no_overlap_different_layer(self, pricing_service):
+        """测试不同 layer_type 不冲突"""
+        service, mock_db = pricing_service
+
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),
+        ]
+
+        # 不应抛出异常
+        await service._check_overlap(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2026, 9, 30),
+        )
+
+    @pytest.mark.asyncio
+    async def test_overlap_exclude_self(self, pricing_service):
+        """测试 exclude_id 排除自身"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        existing_rule = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        # exclude_id=1 时 SQL 会排除 id=1 的规则，所以 mock 返回空列表
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),
+        ]
+
+        # exclude_id=1 应排除自身，不抛出异常
+        await service._check_overlap(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2026, 9, 30),
+            exclude_id=1,
+        )
+
+
 # ==================== 集成场景测试 ====================
 
 
