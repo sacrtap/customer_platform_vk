@@ -773,3 +773,157 @@ async def test_invalid_token(test_client):
     )
 
     assert response.status == 401
+
+
+# ==================== 定价规则冲突检查测试 ====================
+
+
+@pytest.mark.asyncio
+async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token, db_session):
+    """测试冲突检查 API — 有冲突"""
+    # 先创建一个客户（使用子查询获取 manager_id）
+    from sqlalchemy import text
+    
+    # 获取第一个用户的 ID
+    result = db_session.execute(text("SELECT id FROM users LIMIT 1"))
+    user_row = result.fetchone()
+    manager_id = user_row[0] if user_row else 1
+    
+    customer_id = 99998
+    company_id = 99998
+    
+    # 清理旧数据
+    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.commit()
+    
+    # 创建客户
+    db_session.execute(
+        text(
+            """
+        INSERT INTO customers (id, company_id, name, account_type,
+                               manager_id, settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, :account_type,
+                :manager_id, :cycle, :type, NOW(), NOW())
+        """
+        ),
+        {
+            "id": customer_id,
+            "company_id": company_id,
+            "name": "测试客户_99998",
+            "account_type": "enterprise",
+            "manager_id": manager_id,
+            "cycle": "monthly",
+            "type": "prepaid",
+        },
+    )
+    db_session.commit()
+    
+    # 先创建一条规则（指定 customer_id）
+    create_req, create_resp = await test_client.post(
+        "/api/v1/billing/pricing-rules",
+        json={
+            "customer_id": customer_id,
+            "device_type": "X",
+            "layer_type": "single",
+            "pricing_type": "fixed",
+            "unit_price": 10.0,
+            "effective_date": "2026-01-01",
+            "expiry_date": "2026-12-31",
+        },
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert create_resp.status == 201, f"创建规则失败: {create_resp.json}"
+
+    # 检查冲突（使用相同的 customer_id, device_type 和 layer_type，但不同时间段）
+    check_req, check_resp = await test_client.get(
+        "/api/v1/billing/pricing-rules/check-conflict",
+        params={
+            "customer_id": customer_id,
+            "device_type": "X",
+            "layer_type": "single",
+            "effective_date": "2026-06-01",
+            "expiry_date": "2026-09-30",
+        },
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+
+    assert check_resp.status == 200
+    data = check_resp.json
+    assert data["code"] == 0
+    assert data["data"]["has_conflict"] is True
+    assert len(data["data"]["conflicting_rules"]) > 0
+    
+    # 清理
+    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, db_session):
+    """测试冲突检查 API — 无冲突"""
+    # 先创建一个客户（使用子查询获取 manager_id）
+    from sqlalchemy import text
+    
+    # 获取第一个用户的 ID
+    result = db_session.execute(text("SELECT id FROM users LIMIT 1"))
+    user_row = result.fetchone()
+    manager_id = user_row[0] if user_row else 1
+    
+    customer_id = 99997
+    company_id = 99997
+    
+    # 清理旧数据
+    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.commit()
+    
+    # 创建客户
+    db_session.execute(
+        text(
+            """
+        INSERT INTO customers (id, company_id, name, account_type,
+                               manager_id, settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, :account_type,
+                :manager_id, :cycle, :type, NOW(), NOW())
+        """
+        ),
+        {
+            "id": customer_id,
+            "company_id": company_id,
+            "name": "测试客户_99997",
+            "account_type": "enterprise",
+            "manager_id": manager_id,
+            "cycle": "monthly",
+            "type": "prepaid",
+        },
+    )
+    db_session.commit()
+    
+    response_req, response_resp = await test_client.get(
+        "/api/v1/billing/pricing-rules/check-conflict",
+        params={
+            "customer_id": customer_id,
+            "device_type": "Y",  # 使用不同的 device_type，确保无冲突
+            "layer_type": "single",
+            "effective_date": "2027-01-01",
+            "expiry_date": "2027-12-31",
+        },
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+
+    assert response_resp.status == 200
+    data = response_resp.json
+    assert data["code"] == 0
+    assert data["data"]["has_conflict"] is False
+    assert len(data["data"]["conflicting_rules"]) == 0
+    
+    # 清理
+    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.commit()

@@ -485,6 +485,77 @@ async def delete_pricing_rule(request: Request, rule_id: int):
     return json({"code": 0, "message": "删除成功"})
 
 
+@billing_bp.get("/pricing-rules/check-conflict")
+@auth_required
+@require_permission("billing:view")
+async def check_pricing_rule_conflict(request: Request):
+    """
+    检查定价规则有效期冲突
+
+    Query params:
+    - customer_id (必填, int)
+    - device_type (必填, string)
+    - layer_type (必填, string)
+    - effective_date (必填, date)
+    - expiry_date (可选, date)
+    - exclude_id (可选, int) — 编辑时排除自身
+    """
+    from datetime import date
+
+    db: AsyncSession = request.ctx.db_session
+
+    # 参数校验
+    try:
+        customer_id = int(request.args.get("customer_id", 0))
+        device_type = request.args.get("device_type", "")
+        layer_type = request.args.get("layer_type")
+        effective_date_str = request.args.get("effective_date", "")
+        expiry_date_str = request.args.get("expiry_date")
+        exclude_id_str = request.args.get("exclude_id")
+
+        if not customer_id or not device_type or not effective_date_str:
+            return json({
+                "code": 40001,
+                "message": "缺少必填参数：customer_id, device_type, effective_date",
+            }, status=400)
+
+        effective_date = date.fromisoformat(effective_date_str)
+        expiry_date = date.fromisoformat(expiry_date_str) if expiry_date_str else None
+        exclude_id = int(exclude_id_str) if exclude_id_str else None
+    except (ValueError, TypeError):
+        return json({
+            "code": 40001,
+            "message": "参数格式错误",
+        }, status=400)
+
+    pricing_service = PricingService(db)
+
+    conflicting_rules = await pricing_service.check_pricing_rule_conflict(
+        customer_id=customer_id,
+        device_type=device_type,
+        layer_type=layer_type,
+        effective_date=effective_date,
+        expiry_date=expiry_date,
+        exclude_id=exclude_id,
+    )
+
+    return json({
+        "code": 0,
+        "data": {
+            "has_conflict": len(conflicting_rules) > 0,
+            "conflicting_rules": [
+                {
+                    "id": r.id,
+                    "pricing_type": r.pricing_type,
+                    "effective_date": r.effective_date.isoformat() if r.effective_date else None,
+                    "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                }
+                for r in conflicting_rules
+            ],
+        },
+    })
+
+
 # ==================== 结算单管理 ====================
 
 
