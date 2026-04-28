@@ -138,23 +138,11 @@
     >
       <a-form :model="formData" layout="vertical">
         <a-form-item label="客户" :rules="[{ required: true, message: '请选择客户' }]">
-          <a-select
+          <CustomerAutoComplete
             v-model="formData.customer_id"
-            placeholder="请选择客户"
-            filterable
-            :remote="true"
-            :loading="customersLoading"
-            @search="loadCustomers"
-          >
-            <a-option
-              v-for="customer in customers"
-              :key="customer.id"
-              :value="customer.id"
-              :label="customer.name"
-            >
-              {{ customer.name }}
-            </a-option>
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            width="100%"
+          />
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="8">
@@ -256,7 +244,6 @@ import { Message } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
-import { getCustomers } from '@/api/customers'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 const userStore = useUserStore()
@@ -311,7 +298,7 @@ const isEdit = ref(false)
 
 const formData = reactive({
   id: null as number | null,
-  customer_id: null as number | null,
+  customer_id: undefined as number | undefined,
   device_type: 'X',
   layer_type: 'single' as 'single' | 'multi',
   pricing_type: 'fixed' as 'fixed' | 'tiered' | 'package',
@@ -322,9 +309,6 @@ const formData = reactive({
   expiry_date: undefined as string | undefined,
 })
 
-const customers = ref<{ id: number; name: string }[]>([])
-const customersLoading = ref(false)
-
 const getPricingTypeText = (type: string) => {
   const map: Record<string, string> = {
     fixed: '定价结算',
@@ -332,18 +316,6 @@ const getPricingTypeText = (type: string) => {
     package: '包年结算',
   }
   return map[type] || type
-}
-
-const loadCustomers = async (keyword?: string) => {
-  customersLoading.value = true
-  try {
-    const res = await getCustomers({ keyword: keyword || undefined, page: 1, page_size: 50 })
-    customers.value = res.data.list || []
-  } catch (err: unknown) {
-    Message.error('加载客户列表失败')
-  } finally {
-    customersLoading.value = false
-  }
 }
 
 const fetchData = async () => {
@@ -397,7 +369,7 @@ const showCreateModal = () => {
   modalTitle.value = '新建规则'
   Object.assign(formData, {
     id: null,
-    customer_id: null,
+    customer_id: undefined,
     device_type: 'X',
     layer_type: 'single',
     pricing_type: 'fixed',
@@ -408,7 +380,6 @@ const showCreateModal = () => {
     expiry_date: undefined,
   })
   modalVisible.value = true
-  loadCustomers()
 }
 
 const showEditModal = (record: PricingRule) => {
@@ -427,7 +398,6 @@ const showEditModal = (record: PricingRule) => {
     expiry_date: record.expiry_date,
   })
   modalVisible.value = true
-  loadCustomers()
 }
 
 const onPricingTypeChange = () => {
