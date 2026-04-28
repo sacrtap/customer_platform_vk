@@ -29,10 +29,10 @@ async def auth_token(test_client, test_user):
 
 
 @pytest.fixture
-async def test_customer(db_session):
+async def test_customer(db_session, test_user):
     """创建测试客户"""
     customer_id = 99999
-    company_id = f"TEST_COMPANY_{customer_id}"
+    company_id = customer_id  # company_id 现在是 Integer 类型
     customer_name = f"测试客户_{customer_id}"
 
     db_session.execute(
@@ -43,10 +43,10 @@ async def test_customer(db_session):
         text(
             """
         INSERT INTO customers (id, company_id, name, account_type,
-                               manager_id, settlement_cycle, settlement_type,
+                               settlement_cycle, settlement_type,
                                created_at, updated_at)
         VALUES (:id, :company_id, :name, :account_type,
-                :manager_id, :cycle, :type, NOW(), NOW())
+                :cycle, :type, NOW(), NOW())
         """
         ),
         {
@@ -54,7 +54,6 @@ async def test_customer(db_session):
             "company_id": company_id,
             "name": customer_name,
             "account_type": "enterprise",
-            "manager_id": 1,
             "cycle": "monthly",
             "type": "prepaid",
         },
@@ -677,6 +676,114 @@ async def test_delete_invoice(test_client, auth_token, test_customer):
     assert del_res.status == 200
     assert del_res.json["code"] == 0
     assert del_res.json["message"] == "删除成功"
+
+
+@pytest.mark.asyncio
+async def test_cancel_invoice_success(test_client, auth_token, test_customer):
+    """测试取消结算单 API - 成功"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 生成结算单（草稿状态）
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": "2026-03-01",
+            "period_end": "2026-03-31",
+            "items": [
+                {
+                    "device_type": "X",
+                    "layer_type": "single",
+                    "quantity": 10,
+                    "unit_price": 10.00,
+                }
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = gen_res.json["data"]["id"]
+
+    # 提交到 pending_customer 状态
+    await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+
+    # 取消
+    cancel_req, cancel_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/cancel",
+        headers=headers,
+    )
+
+    assert cancel_res.status == 200
+    assert cancel_res.json["code"] == 0
+    assert "取消成功" in cancel_res.json["message"]
+
+    # 验证状态已更新
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "cancelled"
+    assert detail_res.json["data"]["cancelled_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_cancel_invoice_wrong_state(test_client, auth_token, test_customer):
+    """测试取消结算单 API - 错误状态"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 生成结算单
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": "2026-03-01",
+            "period_end": "2026-03-31",
+            "items": [
+                {
+                    "device_type": "X",
+                    "layer_type": "single",
+                    "quantity": 10,
+                    "unit_price": 10.00,
+                }
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = gen_res.json["data"]["id"]
+
+    # 提交并确认，使其进入 customer_confirmed 状态
+    submit_req, submit_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+    assert submit_res.status == 200, f"Submit failed: {submit_res.json}"
+
+    confirm_req, confirm_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/confirm",
+        headers=headers,
+    )
+    assert confirm_res.status == 200, f"Confirm failed: {confirm_res.json}"
+
+    # 验证状态已变为 customer_confirmed
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "customer_confirmed"
+
+    # 尝试取消（应该失败）
+    cancel_req, cancel_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/cancel",
+        headers=headers,
+    )
+
+    assert cancel_res.status == 400
+    assert cancel_res.json["code"] == 40001
+    assert "不能取消" in cancel_res.json["message"]
 
 
 @pytest.mark.asyncio

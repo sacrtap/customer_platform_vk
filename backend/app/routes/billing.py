@@ -655,6 +655,7 @@ async def get_invoice(request: Request, invoice_id: int):
                 "customer_confirmed_at": invoice.customer_confirmed_at,
                 "paid_at": invoice.paid_at,
                 "completed_at": invoice.completed_at,
+                "cancelled_at": invoice.cancelled_at,
             },
         }
     )
@@ -911,6 +912,25 @@ async def complete_invoice(request: Request, invoice_id: int):
         return json({"code": 40001, "message": message}, status=400)
 
     # 结算单完成后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
+    return json({"code": 0, "message": message})
+
+
+@billing_bp.post("/invoices/<invoice_id:int>/cancel")
+@auth_required
+@require_permission("billing:edit")
+async def cancel_invoice_route(request: Request, invoice_id: int):
+    """取消结算单"""
+    db: AsyncSession = request.ctx.db_session
+    invoice_service = InvoiceService(db)
+
+    success, message = await invoice_service.cancel_invoice(invoice_id=invoice_id)
+
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    # 结算单取消后清除相关缓存
     await cache_service.invalidate_billing_cache()
 
     return json({"code": 0, "message": message})

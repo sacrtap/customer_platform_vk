@@ -25,7 +25,7 @@ for mod in modules_to_clear:
 # 现在才导入应用代码
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, patch  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 
@@ -71,6 +71,13 @@ def sync_test_engine():
     # 创建所有表（只在 session 开始时执行一次）
     with engine.begin() as conn:
         BaseModel.metadata.create_all(conn)
+        # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
+        from sqlalchemy import inspect
+        inspector = inspect(conn)
+        if "invoices" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("invoices")]
+            if "cancelled_at" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_at VARCHAR(50)"))
 
     yield engine
 
@@ -130,6 +137,7 @@ def test_user(db_session):
         ("billing:recharge", "充值操作", "billing"),
         ("billing:refund", "退款操作", "billing"),
         ("billing:delete", "结算删除", "billing"),
+        ("billing:confirm", "结算确认", "billing"),
         ("files:view", "查看文件", "files"),
         ("files:upload", "上传文件", "files"),
         ("files:delete", "删除文件", "files"),
@@ -292,6 +300,7 @@ async def mock_cache():
         "billing:recharge",
         "billing:refund",
         "billing:delete",
+        "billing:confirm",
         "files:view",
         "files:upload",
         "files:delete",
