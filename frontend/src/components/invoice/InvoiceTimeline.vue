@@ -4,6 +4,7 @@
       v-for="event in timelineEvents"
       :key="event.time"
       :time="event.time"
+      :color="event.color"
     >
       <div class="timeline-content">
         <strong>{{ event.label }}</strong>
@@ -23,12 +24,13 @@ const props = defineProps<{
     customer_confirmed_at?: string;
     paid_at?: string;
     completed_at?: string;
+    cancelled_at?: string;
     payment_proof?: string;
   };
 }>();
 
 const timelineEvents = computed(() => {
-  const events: Array<{ time: string; label: string; detail?: string }> = [];
+  const events: Array<{ time: string; label: string; detail?: string; color?: string }> = [];
 
   if (props.invoice.created_at) {
     events.push({
@@ -63,6 +65,15 @@ const timelineEvents = computed(() => {
     events.push({
       time: formatDate(props.invoice.completed_at),
       label: '完成结算',
+      color: 'green',
+    });
+  }
+
+  if (props.invoice.cancelled_at) {
+    events.push({
+      time: formatDate(props.invoice.cancelled_at),
+      label: '取消结算单',
+      color: 'red',
     });
   }
 
