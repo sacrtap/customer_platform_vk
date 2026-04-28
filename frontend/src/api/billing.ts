@@ -178,6 +178,7 @@ export interface Invoice {
   customer_confirmed_at?: string
   paid_at?: string
   completed_at?: string
+  cancelled_at?: string
   created_at: string
 }
 
@@ -243,6 +244,10 @@ export function completeInvoice(invoiceId: number) {
 
 export function deleteInvoice(id: number) {
   return api.delete(`/billing/invoices/${id}`)
+}
+
+export function cancelInvoice(id: number) {
+  return api.post(`/billing/invoices/${id}/cancel`)
 }
 
 // 获取最近结算单（简化接口）
