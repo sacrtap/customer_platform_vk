@@ -2,7 +2,7 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": [".opencode/plugins/graphify.js"],
   "default_agent": "plan",
-  "instructions": ["AGENTS.md"],
+  "instructions": ["./AGENTS.md"],
   "agent": {
     "build": {
       "prompt": "{.opencode/prompts/graphify-build-prompt.txt}",
@@ -19,7 +19,7 @@
       "prompt": "{.opencode/prompts/graphify-plan-prompt.txt}",
       "permission": {
         "graphify_*": "allow",
-        "edit": "deny",
+        "edit": "ask",
         "write": "ask",
         "todowrite": "allow",
         "bash": "ask",

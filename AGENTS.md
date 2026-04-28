@@ -1,7 +1,19 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-22 (优化测试 fixture + 增量测试 + 更新测试命令)
+**最后更新**: 2026-04-28 (RTK 指南移至全局 + 添加项目结构说明)
 **项目状态**: Phase 0-7 完成 | **测试覆盖率**: 46%+ (CI 门槛 ≥50%)
+
+---
+
+## 项目结构
+- `backend/app/` - Sanic 后端应用代码（API/Service/Model/Repository）
+- `backend/tests/` - pytest 测试套件（单元测试 + 集成测试）
+- `backend/alembic/` - 数据库迁移脚本
+- `frontend/src/` - Vue 3 前端源码（组件/路由/状态管理）
+- `deploy/` - Docker Compose 部署配置
+- `docs/` - 项目文档（按类型分子目录）
+- `.opencode/` - OpenCode Agent/Command/Plugin 配置
+- `.rtk/` - RTK 项目级过滤器配置
 
 ---
 
@@ -143,6 +155,13 @@ cd backend && python -m alembic revision --autogenerate -m "描述" && python -m
    - **手动触发**：`graphify update .`（代码文件 AST 重建，无需 LLM）
    - **自动触发**：运行 `graphify hook install` 安装 Git hooks，每次 `git commit` 后自动重建
    - 文档/图片变更需要调用技能运行 `/graphify . --update`（含 LLM 语义提取）
+
+### RTK Token 优化工具
+RTK 使用策略已在**全局 AGENTS.md** 中定义，此处补充项目特定说明：
+
+- 项目级过滤器位于 `.rtk/filters.toml`，针对 pytest/black/flake8/alembic 等命令优化
+- 本项目已配置 `on_empty` 提示，避免 RTK 空输出导致 LLM 误判
+- 详细使用规则请参考全局开发偏好
 
 ---
 
