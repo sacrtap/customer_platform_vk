@@ -875,6 +875,24 @@ class InvoiceService:
 
         return True, "结算完成"
 
+    async def cancel_invoice(self, invoice_id: int) -> Tuple[bool, str]:
+        """取消结算单"""
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        # 只有草稿和待客户确认状态可以取消
+        if invoice.status not in ("draft", "pending_customer"):
+            return False, f"当前状态不能取消：{invoice.status}"
+
+        invoice.status = "cancelled"
+        invoice.cancelled_at = datetime.now().isoformat()
+
+        await self.db.commit()
+
+        return True, "取消成功"
+
     async def delete_invoice(self, invoice_id: int) -> bool:
         """删除结算单（软删除）"""
         invoice = await self.get_invoice_by_id(invoice_id)

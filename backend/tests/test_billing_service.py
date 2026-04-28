@@ -1493,6 +1493,104 @@ class TestInvoiceService_Complete:
         assert "余额不足" in message
 
 
+class TestInvoiceService_Cancel:
+    """InvoiceService.cancel_invoice 测试"""
+
+    @pytest.mark.asyncio
+    async def test_cancel_from_draft(self, invoice_service):
+        """测试从草稿状态取消"""
+        service, mock_db = invoice_service
+
+        from app.models.billing import Invoice
+
+        mock_invoice = Invoice(
+            id=1,
+            customer_id=100,
+            invoice_no="INV-001",
+            status="draft",
+        )
+        mock_db.execute.return_value = make_mock_execute_result([mock_invoice])
+
+        success, message = await service.cancel_invoice(invoice_id=1)
+
+        assert success is True
+        assert "取消成功" in message
+        assert mock_invoice.status == "cancelled"
+        assert mock_invoice.cancelled_at is not None
+
+    @pytest.mark.asyncio
+    async def test_cancel_from_pending(self, invoice_service):
+        """测试从待客户确认状态取消"""
+        service, mock_db = invoice_service
+
+        from app.models.billing import Invoice
+
+        mock_invoice = Invoice(
+            id=1,
+            customer_id=100,
+            invoice_no="INV-001",
+            status="pending_customer",
+        )
+        mock_db.execute.return_value = make_mock_execute_result([mock_invoice])
+
+        success, message = await service.cancel_invoice(invoice_id=1)
+
+        assert success is True
+        assert mock_invoice.status == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_cancel_wrong_state(self, invoice_service):
+        """测试状态不能取消（已确认状态）"""
+        service, mock_db = invoice_service
+
+        from app.models.billing import Invoice
+
+        mock_invoice = Invoice(
+            id=1,
+            customer_id=100,
+            invoice_no="INV-001",
+            status="customer_confirmed",  # 已确认，不能取消
+        )
+        mock_db.execute.return_value = make_mock_execute_result([mock_invoice])
+
+        success, message = await service.cancel_invoice(invoice_id=1)
+
+        assert success is False
+        assert "不能取消" in message
+
+    @pytest.mark.asyncio
+    async def test_cancel_paid_invoice(self, invoice_service):
+        """测试已付款状态不能取消"""
+        service, mock_db = invoice_service
+
+        from app.models.billing import Invoice
+
+        mock_invoice = Invoice(
+            id=1,
+            customer_id=100,
+            invoice_no="INV-001",
+            status="paid",  # 已付款，不能取消
+        )
+        mock_db.execute.return_value = make_mock_execute_result([mock_invoice])
+
+        success, message = await service.cancel_invoice(invoice_id=1)
+
+        assert success is False
+        assert "不能取消" in message
+
+    @pytest.mark.asyncio
+    async def test_cancel_not_found(self, invoice_service):
+        """测试结算单不存在"""
+        service, mock_db = invoice_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        success, message = await service.cancel_invoice(invoice_id=999)
+
+        assert success is False
+        assert "不存在" in message
+
+
 class TestInvoiceService_Delete:
     """InvoiceService.delete_invoice 测试"""
 
