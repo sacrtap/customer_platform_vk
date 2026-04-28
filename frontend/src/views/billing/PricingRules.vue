@@ -448,6 +448,31 @@ const handleSubmit = async () => {
 
   modalLoading.value = true
   try {
+    // 提交前检查冲突
+    const conflictRes = await billingApi.checkPricingRuleConflict({
+      customer_id: formData.customer_id,
+      device_type: formData.device_type,
+      layer_type: formData.layer_type,
+      effective_date: formData.effective_date,
+      expiry_date: formData.expiry_date,
+      exclude_id: isEdit.value && formData.id ? formData.id : undefined,
+    })
+
+    if (conflictRes.data.has_conflict) {
+      const conflictRules = conflictRes.data.conflicting_rules
+      const conflictMsg = conflictRules
+        .map(
+          (r: any) =>
+            `规则ID ${r.id}（${r.pricing_type}）：${r.effective_date} ~ ${r.expiry_date || '永久'}`
+        )
+        .join('\n')
+      Message.error({
+        content: `有效期冲突，已存在以下规则：\n${conflictMsg}`,
+        duration: 5000,
+      })
+      return false
+    }
+
     const data: Partial<PricingRule> = {
       customer_id: formData.customer_id,
       device_type: formData.device_type,

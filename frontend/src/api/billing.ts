@@ -119,6 +119,33 @@ export function deletePricingRule(id: number) {
   return api.delete(`/billing/pricing-rules/${id}`)
 }
 
+// ==================== 定价规则冲突检查 ====================
+
+export interface ConflictCheckParams {
+  customer_id: number
+  device_type: string
+  layer_type: string
+  effective_date: string
+  expiry_date?: string
+  exclude_id?: number
+}
+
+export interface ConflictRule {
+  id: number
+  pricing_type: string
+  effective_date: string | null
+  expiry_date: string | null
+}
+
+export interface ConflictCheckResult {
+  has_conflict: boolean
+  conflicting_rules: ConflictRule[]
+}
+
+export function checkPricingRuleConflict(params: ConflictCheckParams) {
+  return api.get<ConflictCheckResult>('/billing/pricing-rules/check-conflict', { params })
+}
+
 // ==================== 结算单管理 ====================
 
 export interface InvoiceItem {
