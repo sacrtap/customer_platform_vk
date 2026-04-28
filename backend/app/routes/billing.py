@@ -444,7 +444,10 @@ async def update_pricing_rule(request: Request, rule_id: int):
     if "expiry_date" in data and isinstance(data["expiry_date"], str):
         data["expiry_date"] = date.fromisoformat(data["expiry_date"])
 
-    rule = await pricing_service.update_pricing_rule(rule_id, data)
+    try:
+        rule = await pricing_service.update_pricing_rule(rule_id, data)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
 
     if not rule:
         return json({"code": 40401, "message": "规则不存在"}, status=404)
@@ -500,8 +503,6 @@ async def check_pricing_rule_conflict(request: Request):
     - expiry_date (可选, date)
     - exclude_id (可选, int) — 编辑时排除自身
     """
-    from datetime import date
-
     db: AsyncSession = request.ctx.db_session
 
     # 参数校验

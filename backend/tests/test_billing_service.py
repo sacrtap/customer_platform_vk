@@ -958,6 +958,47 @@ class TestPricingService_CheckConflict:
 
         assert len(result) == 0
 
+    @pytest.mark.asyncio
+    async def test_multiple_conflicts(self, pricing_service):
+        """测试多个冲突规则全部返回"""
+        service, mock_db = pricing_service
+
+        from app.models.billing import PricingRule
+
+        rule1 = PricingRule(
+            id=5,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="fixed",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 6, 30),
+        )
+        rule2 = PricingRule(
+            id=6,
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            pricing_type="tiered",
+            effective_date=date(2026, 7, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([rule1, rule2]),
+        ]
+
+        result = await service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="X",
+            layer_type="single",
+            effective_date=date(2026, 3, 1),
+            expiry_date=date(2026, 9, 30),
+        )
+
+        assert len(result) == 2
+        assert result[0].id == 5
+        assert result[1].id == 6
+
 
 # ==================== InvoiceService 测试 ====================
 

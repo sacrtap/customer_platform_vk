@@ -124,7 +124,7 @@ export function deletePricingRule(id: number) {
 export interface ConflictCheckParams {
   customer_id: number
   device_type: string
-  layer_type: string
+  layer_type?: string
   effective_date: string
   expiry_date?: string
   exclude_id?: number

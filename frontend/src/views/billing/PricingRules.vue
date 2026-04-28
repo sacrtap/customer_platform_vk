@@ -462,7 +462,7 @@ const handleSubmit = async () => {
       const conflictRules = conflictRes.data.conflicting_rules
       const conflictMsg = conflictRules
         .map(
-          (r: { id: number; pricing_type: string; effective_date: string | null; expiry_date: string | null }) =>
+          (r: billingApi.ConflictRule) =>
             `规则ID ${r.id}（${r.pricing_type}）：${r.effective_date} ~ ${r.expiry_date || '永久'}`
         )
         .join('\n')
