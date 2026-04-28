@@ -1,0 +1,70 @@
+<h2>结算单详情页交互问题分析</h2>
+<p class="subtitle">当前状态下，确认/取消操作后按钮和时间线没有实时更新</p>
+
+<div class="section">
+  <h3>问题根因</h3>
+  <p>在 <code>Invoices.vue</code> 中，<code>handleConfirm</code> 和 <code>handleCancel</code> 方法调用 API 后：</p>
+  <ul>
+    <li>只调用了 <code>loadData()</code> 刷新列表</li>
+    <li><code>selectedInvoice.value = invoice</code> 赋值的是<strong>旧的</strong> invoice 对象</li>
+    <li>没有重新请求详情接口获取最新状态</li>
+    <li><code>handleCancel</code> 甚至没有调用实际的 API（只有 Mock 的 Message.success）</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>当前流程示意</h3>
+  <div class="mockup">
+    <div class="mockup-header">用户操作 → 当前行为</div>
+    <div class="mockup-body">
+      <div class="mock-content">
+        <p><strong>1.</strong> 用户点击「确认结算单」</p>
+        <p><strong>2.</strong> API 调用 <code>confirmInvoice(id)</code> ✅</p>
+        <p><strong>3.</strong> 刷新列表 <code>loadData()</code> ✅</p>
+        <p><strong>4.</strong> Drawer 中 <code>selectedInvoice</code> 仍为旧状态 ❌</p>
+        <p><strong>5.</strong> 按钮仍显示「确认结算单」❌</p>
+        <p><strong>6.</strong> 时间线无新节点 ❌</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>期望流程示意</h3>
+  <div class="mockup">
+    <div class="mockup-header">用户操作 → 期望行为</div>
+    <div class="mockup-body">
+      <div class="mock-content">
+        <p><strong>1.</strong> 用户点击「确认结算单」</p>
+        <p><strong>2.</strong> API 调用 <code>confirmInvoice(id)</code> ✅</p>
+        <p><strong>3.</strong> 重新请求详情 <code>getInvoice(id)</code> ✅</p>
+        <p><strong>4.</strong> 更新 <code>selectedInvoice</code> 为最新数据 ✅</p>
+        <p><strong>5.</strong> 按钮自动切换为下一状态（如「标记付款」）✅</p>
+        <p><strong>6.</strong> 时间线新增「客户确认」节点 ✅</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>需要修复的操作</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>需要修复</h4>
+      <ul>
+        <li><code>handleConfirm</code> - 确认结算单</li>
+        <li><code>handleCancel</code> - 取消结算单（缺少 API 调用）</li>
+        <li><code>handleSubmit</code> - 提交结算单（同样问题）</li>
+        <li><code>handleComplete</code> - 完成结算（同样问题）</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>已正确处理</h4>
+      <ul>
+        <li><code>handleCalculateItems</code> - 已刷新详情</li>
+        <li><code>handleDiscount</code> - 已手动更新字段</li>
+        <li><code>handleDelete</code> - 已关闭 Drawer</li>
+      </ul>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,92 @@
+<h2>优化方案对比</h2>
+<p class="subtitle">选择最适合当前项目的修复方案</p>
+
+<div class="section">
+  <h3>方案 A：最小修复（推荐）</h3>
+  <p>只修复 Drawer 中操作后不刷新详情的问题 + 补充后端取消接口</p>
+  
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>优点</h4>
+      <ul>
+        <li>改动最小，风险最低</li>
+        <li>直接解决用户反馈的问题</li>
+        <li>后端补充 cancel 接口，完善 API</li>
+        <li>不影响现有业务逻辑</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>缺点</h4>
+      <ul>
+        <li>没有操作反馈动画</li>
+        <li>失败时没有乐观更新</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">修改清单</div>
+    <div class="mockup-body">
+      <div class="mock-content">
+        <p><strong>后端 (2 处)</strong></p>
+        <ul>
+          <li><code>billing.py</code> Service: 新增 <code>cancel_invoice()</code> 方法</li>
+          <li><code>billing.py</code> Route: 新增 <code>POST /invoices/:id/cancel</code> 路由</li>
+        </ul>
+        <p><strong>前端 (2 处)</strong></p>
+        <ul>
+          <li><code>billing.ts</code> API: 新增 <code>cancelInvoice()</code> 函数</li>
+          <li><code>Invoices.vue</code>: 修改 <code>handleConfirm/handleCancel/handleSubmit/handleComplete</code> 调用详情接口</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B：增强用户体验</h3>
+  <p>方案 A + 操作反馈动画 + 乐观更新 + 错误回滚</p>
+  
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>优点</h4>
+      <ul>
+        <li>用户体验更流畅</li>
+        <li>操作即时反馈（loading 状态）</li>
+        <li>失败时自动回滚状态</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>缺点</h4>
+      <ul>
+        <li>代码复杂度增加</li>
+        <li>需要处理更多边界情况</li>
+        <li>开发时间更长</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 C：状态管理重构</h3>
+  <p>引入 Pinia store 管理结算单状态，全局共享状态</p>
+  
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>优点</h4>
+      <ul>
+        <li>状态管理更规范</li>
+        <li>多组件共享状态更方便</li>
+        <li>便于后续扩展</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>缺点</h4>
+      <ul>
+        <li>改动范围大</li>
+        <li>引入新的状态管理层</li>
+        <li>当前项目可能过度设计</li>
+      </ul>
+    </div>
+  </div>
+</div>
