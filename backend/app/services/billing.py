@@ -269,6 +269,57 @@ class PricingService:
 
     async def create_pricing_rule(self, data: Dict[str, Any]) -> PricingRule:
         """创建定价规则"""
+        # 校验是否存在有效期重叠的重复配置
+        customer_id = data.get("customer_id")
+        device_type = data["device_type"]
+        layer_type = data.get("layer_type")
+        effective_date = data["effective_date"]
+        expiry_date = data.get("expiry_date")
+
+        # 查询是否存在冲突的定价规则
+        conflict_stmt = select(PricingRule).where(
+            PricingRule.customer_id == customer_id,
+            PricingRule.device_type == device_type,
+            PricingRule.layer_type == layer_type,
+            PricingRule.deleted_at.is_(None),
+        )
+        result = await self.db.execute(conflict_stmt)
+        existing_rules = result.scalars().all()
+
+        for rule in existing_rules:
+            # 检查有效期是否有交集
+            # 新规则的生效日期 <= 已有规则的失效日期（如果有）
+            # 且 新规则的失效日期 >= 已有规则的生效日期
+            rule_expiry = rule.expiry_date
+            new_expiry = expiry_date
+
+            # 已有规则没有失效日期（永久有效）或新规则没有失效日期
+            if rule_expiry is None or new_expiry is None:
+                # 如果任一方没有失效日期，只要有交集就算冲突
+                if rule_expiry is None and new_expiry is None:
+                    # 双方都是永久有效，肯定冲突
+                    raise ValueError(
+                        "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
+                    )
+                elif rule_expiry is None:
+                    # 已有规则永久有效，新规则有失效日期
+                    if new_expiry >= rule.effective_date:
+                        raise ValueError(
+                            "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
+                        )
+                else:
+                    # 新规则永久有效，已有规则有失效日期
+                    if effective_date <= rule_expiry:
+                        raise ValueError(
+                            "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
+                        )
+            else:
+                # 双方都有失效日期，检查是否有交集
+                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
+                    raise ValueError(
+                        "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
+                    )
+
         rule = PricingRule(
             customer_id=data.get("customer_id"),
             device_type=data["device_type"],

@@ -254,6 +254,7 @@ const MODULE_NAME_MAP: Record<string, string> = {
   groups: '客户分组',
   files: '文件管理',
   webhooks: 'Webhook 管理',
+  profiles: '客户画像',
 }
 const permissionsTree = computed(() => {
   const tree: PermissionTreeNode[] = []

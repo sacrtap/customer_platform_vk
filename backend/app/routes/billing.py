@@ -404,7 +404,10 @@ async def create_pricing_rule(request: Request):
     if "expiry_date" in data and isinstance(data["expiry_date"], str):
         data["expiry_date"] = date.fromisoformat(data["expiry_date"])
 
-    rule = await pricing_service.create_pricing_rule(data)
+    try:
+        rule = await pricing_service.create_pricing_rule(data)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
 
     # 定价规则变更后清除相关缓存
     await cache_service.invalidate_billing_cache()
