@@ -68,6 +68,9 @@ def audit_middleware(app: Sanic):
                 "/api/v1/auth/logout",
                 "/api/v1/auth/refresh",
                 "/api/v1/auth/me",
+                # Webhook 外部回调（无认证用户，审计无意义）
+                "/api/v1/webhooks/invoice-confirmation",
+                "/api/v1/webhooks/payment-notify",
             ]
 
             if request.path in skip_paths:
@@ -114,6 +117,9 @@ def audit_middleware(app: Sanic):
             if getattr(request.ctx, "_audit_record_type", None):
                 record_type = request.ctx._audit_record_type
 
+            # 检测敏感操作
+            operation_type = "sensitive" if is_sensitive_operation(request.path) else "standard"
+
             # 记录审计日志
             db_session: AsyncSession = request.ctx.db_session
             audit_entry = AuditLog(
@@ -124,6 +130,7 @@ def audit_middleware(app: Sanic):
                 record_type=record_type,
                 changes=changes,
                 ip_address=ip_address,
+                operation_type=operation_type,
             )
             db_session.add(audit_entry)
             await db_session.commit()
@@ -219,6 +226,7 @@ def get_model_for_module(module: str, path: str = ""):
             "dict": IndustryType,  # fallback
             # customer profile 子路径
             "customers-profile": CustomerProfile,
+            "profiles": CustomerProfile,  # 画像管理模块
         }
 
     # 对 billing 等带子路径的模块，尝试精确匹配
@@ -282,20 +290,36 @@ def extract_module_from_path(path: str) -> str:
 
 
 def extract_record_id_from_path(path: str) -> int | None:
-    """从路径提取记录 ID"""
+    """从路径提取记录 ID
+
+    支持多种路径格式:
+    - 标准路径: /api/v1/users/123
+    - 嵌套路径: /api/v1/customers/123/tags/456
+    - 动作路径: /api/v1/billing/invoices/123/submit
+    """
     parts = path.strip("/").split("/")
-    # 简单路径: /api/v1/users/123
-    if len(parts) >= 4:
+
+    # 嵌套路径: /api/v1/customers/123/tags/456
+    if len(parts) >= 6:
         try:
-            return int(parts[3])
+            return int(parts[5])
         except ValueError:
             pass
-    # billing 嵌套: /api/v1/billing/invoices/456/discount
+
+    # 动作路径: /api/v1/billing/invoices/123/submit
     if len(parts) >= 5:
         try:
             return int(parts[4])
         except ValueError:
             pass
+
+    # 标准路径: /api/v1/users/123
+    if len(parts) >= 4:
+        try:
+            return int(parts[3])
+        except ValueError:
+            pass
+
     return None
 
 
@@ -333,3 +357,12 @@ def extract_record_info(path: str, body: dict | None, response) -> tuple[int | N
         return None, None
     except Exception:
         return None, None
+
+
+def is_sensitive_operation(path: str) -> bool:
+    """检测是否为敏感操作（密码重置、权限变更等）"""
+    sensitive_patterns = [
+        "/reset-password",
+        "/forgot-password",
+    ]
+    return any(pattern in path for pattern in sensitive_patterns)
