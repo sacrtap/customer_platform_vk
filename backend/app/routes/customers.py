@@ -10,12 +10,14 @@ from ..services.customers import (
     convert_settlement_type_to_display,
 )
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required, require_permission
+from ..middleware.auth import auth_required, require_permission, get_current_user
 import pandas as pd
 import io
 from datetime import datetime
 import hashlib
 import re
+
+from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
 
 customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
@@ -57,7 +59,9 @@ async def list_customers(request: Request):
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
         ),
         "sales_manager_id": (
-            int(request.args.get("sales_manager_id", 0)) if request.args.get("sales_manager_id") else None
+            int(request.args.get("sales_manager_id", 0))
+            if request.args.get("sales_manager_id")
+            else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -81,8 +85,7 @@ async def list_customers(request: Request):
 
     try:
         customers, total = await service.get_all_customers(
-            page=page, page_size=page_size, filters=filters,
-            sort_by=sort_by, sort_order=sort_order
+            page=page, page_size=page_size, filters=filters, sort_by=sort_by, sort_order=sort_order
         )
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
@@ -531,6 +534,30 @@ async def import_customers(request: Request):
 
         # 清除客户列表缓存
         await cache_service.invalidate_customer_cache()
+
+        # 记录批量导入审计日志
+        summary = build_batch_audit_summary(
+            operation="customer_import",
+            total_count=len(customers_data),
+            success_count=success_count,
+            failed_count=len(errors),
+            details=errors[:10],
+        )
+
+        current_user = get_current_user(request)
+
+        await create_audit_entry(
+            db_session=db_session,
+            user_id=current_user.get("user_id") if current_user else None,
+            action="batch_create",
+            module="customers",
+            operation_type="batch",
+            extra_metadata=summary,
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=False,
+        )
 
         return json(
             {

@@ -12,6 +12,7 @@ from ..models.users import Role
 from sqlalchemy import select
 import openpyxl
 from io import BytesIO
+from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
 
 users_bp = Blueprint("users", url_prefix="/api/v1/users")
 
@@ -485,6 +486,28 @@ async def import_users(
             message = f"成功导入 {imported_count} 个用户"
         else:
             message = f"导入失败，共 {failed_count} 个用户导入失败"
+
+        # 记录批量导入汇总审计日志（与逐条审计并存）
+        summary = build_batch_audit_summary(
+            operation="user_import",
+            total_count=imported_count + failed_count,
+            success_count=imported_count,
+            failed_count=failed_count,
+            details=errors[:10],
+        )
+
+        await create_audit_entry(
+            db_session=db_session,
+            user_id=current_user.get("user_id") if current_user else None,
+            action="batch_create",
+            module="users",
+            operation_type="batch",
+            extra_metadata=summary,
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=False,
+        )
 
         return json(
             {
