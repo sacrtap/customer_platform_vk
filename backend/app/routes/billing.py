@@ -106,11 +106,16 @@ async def get_balances(request: Request):
                 last_recharge_subq, CustomerBalance.customer_id == last_recharge_subq.c.customer_id
             )
             order_expr = last_recharge_subq.c.last_recharge_at
+            # NULL 值统一排到最后，二级排序按客户 ID 保证稳定性
+            if sort_order == "asc":
+                base_stmt = base_stmt.order_by(order_expr.asc().nulls_last(), Customer.id.asc())
+            else:
+                base_stmt = base_stmt.order_by(order_expr.desc().nulls_last(), Customer.id.asc())
         else:
             order_expr = field
-        base_stmt = base_stmt.order_by(
-            order_expr.asc() if sort_order == "asc" else order_expr.desc()
-        )
+            base_stmt = base_stmt.order_by(
+                order_expr.asc() if sort_order == "asc" else order_expr.desc()
+            )
     else:
         # 默认排序：按客户 ID 升序
         base_stmt = base_stmt.order_by(Customer.id.asc())

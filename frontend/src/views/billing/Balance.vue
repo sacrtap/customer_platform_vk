@@ -74,7 +74,7 @@
           </div>
         </template>
         <template #last_recharge_at="{ record }">
-          {{ record.last_recharge_at ? formatDateTime(record.last_recharge_at) : '-' }}
+          {{ record.last_recharge_at ? formatLastRechargeTime(record.last_recharge_at) : '-' }}
         </template>
         <template #action="{ record }">
           <a-space>
@@ -202,6 +202,19 @@ import { getCustomers } from '@/api/customers'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
+
+// 格式化充值时间（与结算单列表保持一致：不含秒）
+const formatLastRechargeTime = (dateStr: string): string => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
