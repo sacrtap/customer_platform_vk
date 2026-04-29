@@ -53,6 +53,7 @@ async def get_balances(request: Request):
         "company_id": Customer.id,
         "customer_name": Customer.name,
         "total_amount": CustomerBalance.total_amount,
+        "used_total": CustomerBalance.used_total,
         "last_recharge_at": "last_recharge_at",  # 特殊处理
     }
 
@@ -883,10 +884,10 @@ async def generate_invoice(request: Request):
     # 日期转换
     period_start = date.fromisoformat(data["period_start"])
     period_end = date.fromisoformat(data["period_end"])
-    items = data.get("items", [])
 
-    # 如果未提供 items，自动根据计费规则 + 用量计算
-    if not items:
+    # 区分"未提供 items"和"items 为空列表"
+    if "items" not in data:
+        # 未提供 items，自动根据计费规则 + 用量计算
         items, _ = await invoice_service.calculate_items_from_rules(
             customer_id=data["customer_id"],
             period_start=period_start,
@@ -900,11 +901,22 @@ async def generate_invoice(request: Request):
                 },
                 status=400,
             )
+    elif not data["items"]:
+        # 显式传入空列表，拒绝
+        return json(
+            {
+                "code": 40001,
+                "message": "结算项不能为空",
+            },
+            status=400,
+        )
+    else:
+        items = data["items"]
     invoice = await invoice_service.generate_invoice(
         customer_id=data["customer_id"],
         period_start=period_start,
         period_end=period_end,
-        items=items if items else [],
+        items=items,
         created_by=user["user_id"] if user else 1,
     )
 
