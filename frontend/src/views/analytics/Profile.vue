@@ -53,42 +53,20 @@
         </div>
         <div ref="consumeLevelChartRef" class="chart-container"></div>
       </div>
-    </div>
 
-    <!-- 房产客户占比 -->
-    <div class="real-estate-section">
-      <div class="chart-card full-width">
+      <!-- 房产客户占比 -->
+      <div class="chart-card">
         <div class="chart-header">
           <h3>房产客户占比</h3>
         </div>
-        <div class="real-estate-content">
-          <div ref="realEstateChartRef" class="real-estate-chart"></div>
-          <div class="real-estate-stats">
-            <div class="stat-item">
-              <div class="stat-dot" style="background: #f97316"></div>
-              <div class="stat-info">
-                <div class="stat-label">房产客户</div>
-                <div class="stat-value">{{ realEstateCustomers }}</div>
-                <div class="stat-percent">{{ realEstateRate }}%</div>
-              </div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-dot" style="background: #9ca3af"></div>
-              <div class="stat-info">
-                <div class="stat-label">非房产客户</div>
-                <div class="stat-value">{{ nonRealEstateCustomers }}</div>
-                <div class="stat-percent">{{ nonRealEstateRate }}%</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div ref="realEstateChartRef" class="chart-container"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -400,19 +378,37 @@ const initRealEstateChart = (data: RealEstateData) => {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
     },
+    legend: {
+      orient: 'vertical',
+      right: '5%',
+      top: 'center',
+      textStyle: {
+        color: '#646a73',
+      },
+    },
     series: [
       {
         name: '房产客户',
         type: 'pie',
-        radius: ['50%', '70%'],
+        radius: ['40%', '70%'],
+        center: ['35%', '50%'],
         avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 8,
+          borderColor: '#fff',
+          borderWidth: 2,
+        },
         label: {
-          show: true,
+          show: false,
           position: 'center',
-          formatter: '{d}%\n房产客户',
-          fontSize: 16,
-          fontWeight: 'bold',
-          color: '#1d2330',
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold',
+            color: '#1d2330',
+          },
         },
         labelLine: {
           show: false,
@@ -447,6 +443,14 @@ const handleResize = () => {
 onMounted(() => {
   loadData()
   window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  industryChart?.dispose()
+  scaleChart?.dispose()
+  consumeLevelChart?.dispose()
+  realEstateChart?.dispose()
 })
 </script>
 
@@ -554,70 +558,6 @@ onMounted(() => {
   padding: 24px;
 }
 
-.real-estate-section {
-  margin-bottom: 24px;
-}
-
-.chart-card.full-width {
-  grid-column: 1 / -1;
-}
-
-.real-estate-content {
-  display: flex;
-  align-items: center;
-  gap: 48px;
-  padding: 24px;
-}
-
-.real-estate-chart {
-  width: 300px;
-  height: 300px;
-  flex-shrink: 0;
-}
-
-.real-estate-stats {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-info .stat-label {
-  font-size: 14px;
-  color: var(--neutral-6);
-  margin-bottom: 4px;
-}
-
-.stat-info .stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-}
-
-.stat-info .stat-percent {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--neutral-7);
-  margin-top: 4px;
-}
-
 @media (max-width: 1200px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -631,16 +571,6 @@ onMounted(() => {
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-
-  .real-estate-content {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .real-estate-chart {
-    width: 100%;
-    height: 250px;
   }
 }
 </style>
