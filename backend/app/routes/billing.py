@@ -50,7 +50,7 @@ async def get_balances(request: Request):
 
     # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
     sort_field_map = {
-        "company_id": Customer.id,
+        "company_id": Customer.company_id,
         "customer_name": Customer.name,
         "total_amount": CustomerBalance.total_amount,
         "used_total": CustomerBalance.used_total,
