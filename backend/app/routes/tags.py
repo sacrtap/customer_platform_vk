@@ -284,6 +284,7 @@ async def add_customer_tag(request: Request, customer_id: int, tag_id: int):
     """给客户添加标签"""
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.add_customer_tag(customer_id, tag_id)
 
@@ -320,6 +321,7 @@ async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
     """移除客户标签"""
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.remove_customer_tag(customer_id, tag_id)
 
@@ -511,6 +513,7 @@ async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
     """给画像添加标签"""
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.add_profile_tag(profile_id, tag_id)
 
@@ -550,6 +553,7 @@ async def remove_profile_tag(request: Request, profile_id: int, tag_id: int):
     """移除画像标签"""
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.remove_profile_tag(profile_id, tag_id)
 

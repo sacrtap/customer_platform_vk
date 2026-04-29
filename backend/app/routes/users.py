@@ -288,6 +288,7 @@ async def assign_roles(request: Request, user_id: int):
 
     db_session: AsyncSession = request.ctx.db_session
     service = UserService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.assign_roles(user_id, role_ids)
 
