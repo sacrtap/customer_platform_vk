@@ -203,7 +203,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency, formatDateTime } from '@/utils/formatters'
 
-// 格式化充值时间（与结算单列表保持一致：不含秒）
+// 格式化充值时间（与结算单列表保持一致：含秒）
 const formatLastRechargeTime = (dateStr: string): string => {
   if (!dateStr) return ''
   const date = new Date(dateStr)
@@ -213,6 +213,7 @@ const formatLastRechargeTime = (dateStr: string): string => {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   })
 }
 
