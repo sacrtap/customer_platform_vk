@@ -249,7 +249,7 @@ const columns = [
   { title: '客户名称', dataIndex: 'customer_name', width: 200, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
   { title: '余额', dataIndex: 'total_amount', slotName: 'balance', width: 280, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '已消耗', dataIndex: 'used_total', slotName: 'used', width: 200, sortable: { sortDirections: ['ascend', 'descend'] } },
-  { title: '最新充值时间', dataIndex: 'last_recharge_at', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  { title: '最新充值时间', dataIndex: 'last_recharge_at', slotName: 'last_recharge_at', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
