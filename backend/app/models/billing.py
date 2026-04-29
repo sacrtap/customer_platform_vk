@@ -201,3 +201,13 @@ class AuditLog(BaseModel):
     record_type = Column(String(50))
     changes = Column(JSON)  # {"before": {...}, "after": {...}}
     ip_address = Column(String(45))
+    operation_type = Column(
+        String(20),
+        default="standard",
+        comment="操作类型: standard/batch/relation/sensitive",
+    )
+    extra_metadata = Column(
+        JSON,
+        nullable=True,
+        comment="扩展元数据: 批量统计、关系ID列表等",
+    )
