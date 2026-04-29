@@ -31,6 +31,16 @@
       "type": "local",
       "command": ["python", "-m", "graphify.serve", "graphify-out/graph.json"],
       "enabled": true
+    },
+    "chrome-devtools": {
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+      "type": "local",
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest"],
+      "enabled": true
     }
   }
 }
