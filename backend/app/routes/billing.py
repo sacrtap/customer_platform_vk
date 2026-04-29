@@ -25,10 +25,10 @@ billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 @auth_required
 @require_permission("billing:view")
 async def get_balances(request: Request):
-    """获取余额列表（支持服务端筛选和分页）"""
+    """获取余额列表（支持服务端筛选、排序和分页）"""
     db: AsyncSession = request.ctx.db_session
 
-    from ..models.billing import CustomerBalance
+    from ..models.billing import CustomerBalance, RechargeRecord
     from sqlalchemy import select, func
     from sqlalchemy.orm import selectinload
     from ..models.customers import Customer
@@ -41,6 +41,20 @@ async def get_balances(request: Request):
     # 筛选参数
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+
+    # 排序参数
+    sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
+    sort_order = request.args.get("sort_order", "asc")
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
+
+    # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
+    sort_field_map = {
+        "company_id": Customer.id,
+        "customer_name": Customer.name,
+        "total_amount": CustomerBalance.total_amount,
+        "last_recharge_at": "last_recharge_at",  # 特殊处理
+    }
 
     base_stmt = (
         select(CustomerBalance)
@@ -73,13 +87,56 @@ async def get_balances(request: Request):
 
     total = (await db.execute(count_stmt)).scalar()
 
+    # 排序
+    if sort_by in sort_field_map:
+        field = sort_field_map[sort_by]
+        if field == "last_recharge_at":
+            # 最新充值时间排序：使用子查询
+            last_recharge_subq = (
+                select(
+                    RechargeRecord.customer_id,
+                    func.max(RechargeRecord.created_at).label("last_recharge_at"),
+                )
+                .where(RechargeRecord.deleted_at.is_(None))
+                .group_by(RechargeRecord.customer_id)
+                .subquery()
+            )
+            base_stmt = base_stmt.outerjoin(
+                last_recharge_subq, CustomerBalance.customer_id == last_recharge_subq.c.customer_id
+            )
+            order_expr = last_recharge_subq.c.last_recharge_at
+        else:
+            order_expr = field
+        base_stmt = base_stmt.order_by(
+            order_expr.asc() if sort_order == "asc" else order_expr.desc()
+        )
+    else:
+        # 默认排序：按客户 ID 升序
+        base_stmt = base_stmt.order_by(Customer.id.asc())
+
     # 分页查询
     stmt = base_stmt.options(selectinload(CustomerBalance.customer))
-    stmt = stmt.order_by(CustomerBalance.updated_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
     balances = result.scalars().all()
+
+    # 批量获取最新充值时间
+    customer_ids = [b.customer_id for b in balances]
+    last_recharge_map = {}
+    if customer_ids:
+        recharge_result = await db.execute(
+            select(
+                RechargeRecord.customer_id,
+                func.max(RechargeRecord.created_at).label("last_recharge_at"),
+            )
+            .where(
+                RechargeRecord.customer_id.in_(customer_ids), RechargeRecord.deleted_at.is_(None)
+            )
+            .group_by(RechargeRecord.customer_id)
+        )
+        for row in recharge_result.all():
+            last_recharge_map[row.customer_id] = row.last_recharge_at
 
     return json(
         {
@@ -90,6 +147,7 @@ async def get_balances(request: Request):
                     {
                         "id": b.id,
                         "customer_id": b.customer_id,
+                        "company_id": b.customer.company_id if b.customer else None,
                         "customer_name": b.customer.name if b.customer else None,
                         "total_amount": float(b.total_amount) if b.total_amount else 0,
                         "real_amount": float(b.real_amount) if b.real_amount else 0,
@@ -97,6 +155,12 @@ async def get_balances(request: Request):
                         "used_total": float(b.used_total) if b.used_total else 0,
                         "used_real": float(b.used_real) if b.used_real else 0,
                         "used_bonus": float(b.used_bonus) if b.used_bonus else 0,
+                        "last_recharge_at": (
+                            last_recharge_map[b.customer_id].isoformat()
+                            if b.customer_id in last_recharge_map
+                            and last_recharge_map[b.customer_id]
+                            else None
+                        ),
                     }
                     for b in balances
                 ],
@@ -196,6 +260,9 @@ async def recharge(request: Request):
     await cache_service.invalidate_analytics_cache("dashboard")
     await cache_service.invalidate_customer_cache(customer_id)
 
+    # 获取充值后的余额（用于返回给前端局部更新）
+    balance = await balance_service.get_balance_by_customer_id(customer_id)
+
     # 记录充值审计日志
     await create_audit_entry(
         db_session=db,
@@ -226,6 +293,25 @@ async def recharge(request: Request):
                 "real_amount": float(record.real_amount),
                 "bonus_amount": float(record.bonus_amount),
                 "total_amount": float(record.real_amount + record.bonus_amount),
+                # 充值后的完整余额信息（用于前端局部更新）
+                "balance": {
+                    "total_amount": (
+                        float(balance.total_amount) if balance and balance.total_amount else 0
+                    ),
+                    "real_amount": (
+                        float(balance.real_amount) if balance and balance.real_amount else 0
+                    ),
+                    "bonus_amount": (
+                        float(balance.bonus_amount) if balance and balance.bonus_amount else 0
+                    ),
+                    "used_total": (
+                        float(balance.used_total) if balance and balance.used_total else 0
+                    ),
+                    "used_real": float(balance.used_real) if balance and balance.used_real else 0,
+                    "used_bonus": (
+                        float(balance.used_bonus) if balance and balance.used_bonus else 0
+                    ),
+                },
             },
         },
         status=201,

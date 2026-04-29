@@ -5,6 +5,7 @@ import api from './index'
 export interface Balance {
   id: number
   customer_id: number
+  company_id?: number
   customer_name?: string
   total_amount: number
   real_amount: number
@@ -12,6 +13,7 @@ export interface Balance {
   used_total: number
   used_real: number
   used_bonus: number
+  last_recharge_at?: string
 }
 
 export function getBalances(params?: {

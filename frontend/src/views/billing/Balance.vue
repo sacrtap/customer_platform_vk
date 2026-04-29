@@ -53,6 +53,7 @@
         row-key="id"
         :pagination="pagination"
         @page-change="handlePageChange"
+        @sorter-change="handleSort"
       >
         <template #balance="{ record }">
           <div class="balance-info">
@@ -71,6 +72,9 @@
               <span class="used-bonus">赠：{{ formatCurrency(record.used_bonus) }}</span>
             </div>
           </div>
+        </template>
+        <template #last_recharge_at="{ record }">
+          {{ record.last_recharge_at ? formatDateTime(record.last_recharge_at) : '-' }}
         </template>
         <template #action="{ record }">
           <a-space>
@@ -197,7 +201,7 @@ import {
 import { getCustomers } from '@/api/customers'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
-import { formatCurrency } from '@/utils/formatters'
+import { formatCurrency, formatDateTime } from '@/utils/formatters'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -220,11 +224,19 @@ const pagination = reactive({
 const loading = ref(false)
 const balances = ref<Balance[]>([])
 
+// 排序状态
+const sortState = reactive({
+  sort_by: 'company_id',
+  sort_order: 'ascend' as 'ascend' | 'descend' | '',
+})
+
 // 表格列定义
 const columns = [
-  { title: '客户名称', dataIndex: 'customer_name', width: 200, ellipsis: true, tooltip: true },
-  { title: '余额', slotName: 'balance', width: 280 },
+  { title: '公司 ID', dataIndex: 'company_id', width: 100, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '客户名称', dataIndex: 'customer_name', width: 200, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  { title: '余额', slotName: 'balance', width: 280, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '已消耗', slotName: 'used', width: 200 },
+  { title: '最新充值时间', dataIndex: 'last_recharge_at', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
   { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
@@ -265,13 +277,20 @@ const recordColumns = [
 const loadBalances = async () => {
   loading.value = true
   try {
+    // 将前端的 ascend/descend 转换为后端期望的 asc/desc
+    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+
     const params: {
       page: number
       page_size: number
       customer_id?: number
+      sort_by: string
+      sort_order: 'asc' | 'desc'
     } = {
       page: pagination.current,
       page_size: pagination.pageSize,
+      sort_by: sortState.sort_by,
+      sort_order: backendSortOrder,
     }
     if (filters.customer_id) params.customer_id = filters.customer_id
 
@@ -284,6 +303,20 @@ const loadBalances = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 处理排序
+const handleSort = (dataIndex: string, direction: 'ascend' | 'descend' | '') => {
+  if (!direction) {
+    // 取消排序时恢复默认
+    sortState.sort_by = 'company_id'
+    sortState.sort_order = 'ascend'
+  } else {
+    sortState.sort_by = dataIndex
+    sortState.sort_order = direction
+  }
+  pagination.current = 1 // 重置到第一页
+  loadBalances()
 }
 
 // 搜索
@@ -344,14 +377,33 @@ const handleRecharge = async () => {
 
   rechargeLoading.value = true
   try {
-    await recharge({
+    const res = await recharge({
       customer_id: rechargeForm.customer_id,
       real_amount: rechargeForm.real_amount,
       bonus_amount: rechargeForm.bonus_amount || undefined,
       remark: rechargeForm.remark || undefined,
     })
     Message.success('充值成功')
-    loadBalances()
+
+    // 局部更新：找到对应客户行，更新余额数据
+    const customerId = res.data.customer_id
+    const balanceData = res.data.balance
+    if (balanceData) {
+      const targetIndex = balances.value.findIndex(b => b.customer_id === customerId)
+      if (targetIndex !== -1) {
+        balances.value[targetIndex] = {
+          ...balances.value[targetIndex],
+          total_amount: balanceData.total_amount,
+          real_amount: balanceData.real_amount,
+          bonus_amount: balanceData.bonus_amount,
+          used_total: balanceData.used_total,
+          used_real: balanceData.used_real,
+          used_bonus: balanceData.used_bonus,
+          last_recharge_at: new Date().toISOString(),
+        }
+      }
+    }
+
     return true
   } catch (error: unknown) {
     Message.error((error as Error).message || '充值失败')

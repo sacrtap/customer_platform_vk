@@ -66,6 +66,7 @@ def sync_test_engine():
         TEST_DATABASE_SYNC_URL,
         echo=False,
         pool_pre_ping=True,
+        pool_reset_on_return="rollback",  # 确保连接归还时重置状态
     )
 
     # 创建所有表（只在 session 开始时执行一次）
@@ -252,6 +253,7 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         TEST_DATABASE_ASYNC_URL,
         echo=False,
         pool_pre_ping=True,
+        pool_reset_on_return="rollback",  # 确保连接归还时重置状态，防止泄漏
     )
 
     app_instance = create_app(
@@ -259,16 +261,22 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         database_engine=async_engine,
     )
 
+    # 禁用 Sanic Touchup 优化（触发 Python 3.12+ ast.Str.s deprecation warning）
+    app_instance.config.TOUCHUP = False
+
     yield app_instance
 
-    # 清理异步引擎
+    # 清理异步引擎：先 dispose 关闭所有已知连接，再 GC 清理残留
     import asyncio
+    import gc
+    import warnings
 
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(async_engine.dispose())
-    except RuntimeError:
-        asyncio.run(async_engine.dispose())
+    await async_engine.dispose()
+    await asyncio.sleep(0.05)
+    # gc.collect 可能触发残留连接的 SAWarning，临时抑制
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        gc.collect()
 
 
 @pytest.fixture(scope="function")
