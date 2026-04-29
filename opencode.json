@@ -18,11 +18,7 @@
     "plan": {
       "prompt": "{.opencode/prompts/graphify-plan-prompt.txt}",
       "permission": {
-        "graphify_*": "allow",
-        "edit": "ask",
-        "write": "ask",
-        "todowrite": "allow",
-        "bash": "ask"
+        "graphify_*": "allow"
       }
     }
   },
