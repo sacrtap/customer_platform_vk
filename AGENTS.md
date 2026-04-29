@@ -110,6 +110,9 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 - 架构问题优先查询 `graphify-out/GRAPH_REPORT.md`
 - 代码变更后运行 `graphify update .` 或安装 Git hooks 自动重建
 
+### 浏览器交互与测试
+- 使用 OpenCode 内置 Playwright 工具 + bash 命令（详见全局 AGENTS.md）
+
 ## 业务模块
 
 | 模块         | 说明                                               |

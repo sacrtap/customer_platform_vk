@@ -238,3 +238,7 @@ node-compile-cache/
 
 # ruff
 .ruff_cache/
+
+# OpenCode 配置
+opencode.json
+.opencode/
