@@ -25,8 +25,10 @@
 
 | 文件                                              | 说明             |
 | ------------------------------------------------- | ---------------- |
+| [agents-guide.md](guides/agents-guide.md) | **Agent 开发指南** (完整命令/env/git/工作流) |
 | [local-setup-guide.md](guides/local-setup-guide.md) | 本地环境搭建指南 (PostgreSQL + Redis + 后端 + 前端) |
 | [database-migration-guide.md](guides/database-migration-guide.md) | 数据库迁移指南 |
+| [test-optimization-guide.md](guides/test-optimization-guide.md) | 测试优化指南 |
 
 ## 设计文档
 

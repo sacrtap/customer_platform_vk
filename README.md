@@ -109,7 +109,7 @@ customer_platform_vk/
 
 ### 前置要求
 
-- **Python**: 3.12 (⚠️ 不支持 3.14+)
+- **Python**: 3.12 (⚠️ 不支持 3.13+)
 - **Node.js**: 18+
 - **PostgreSQL**: 18 (本地开发)
 - **Redis**: 7+ (本地开发，后端必需)
@@ -403,9 +403,9 @@ npx playwright show-report
 
 ### 当前测试状态
 
-- **后端测试**: 295+
-- **前端 E2E 测试**: 76 (含 54 个客户管理测试)
-- **总测试数**: 371+
+- **后端测试**: 724+ (34 个测试文件)
+- **前端 E2E 测试**: 134 (16 个测试文件)
+- **总测试数**: 858+
 - **测试状态**: ✅ 全部通过
 
 ---
@@ -552,14 +552,15 @@ REDIS_URL=redis://localhost:6379/0
 
 完整文档导航请参考 [`docs/README.md`](docs/README.md)
 
-| 文档 | 路径 |
-|------|------|
-| **文档导航** | `docs/README.md` (完整索引) |
-| **系统设计** | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
-| **部署指南** | `deploy/README.md` |
-| **Podman 部署** | `deploy/PODMAN_MACOS.md` |
-| **数据库迁移** | `docs/guides/database-migration-guide.md` |
-| **Graphify 工作流** | `Graphify.md` |
+| 文档            | 路径                                                          |
+| --------------- | ------------------------------------------------------------- |
+| **文档导航**        | `docs/README.md` (完整索引)                                     |
+| **Agent 开发指南**  | `docs/guides/agents-guide.md` (完整命令/env/git/工作流)         |
+| **系统设计**        | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
+| **部署指南**        | `deploy/README.md`                                              |
+| **Podman 部署**     | `deploy/PODMAN_MACOS.md`                                        |
+| **数据库迁移**      | `docs/guides/database-migration-guide.md`                       |
+| **Graphify 工作流** | `Graphify.md`                                                   |
 
 ---
 
@@ -689,9 +690,10 @@ npx playwright test test_customer_crud.spec.ts --headed
 
 - **当前版本**: v1.0.0
 - **开发状态**: Phase 0-7 完成
-- **测试覆盖率**: 46%+ (核心模块 60%+, CI 门槛 ≥50%)
-- **E2E 测试**: 76 个 (客户管理 54 个)
-- **最后更新**: 2026-04-15
+- **测试覆盖率**: CI 门槛 ≥50% (核心模块 60%+)
+- **后端测试**: 724+ (34 个测试文件)
+- **前端 E2E 测试**: 134 (16 个测试文件)
+- **最后更新**: 2026-04-29
 
 ---
 
