@@ -79,6 +79,10 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 **显式声明格式**: 加载技能后，第一句话必须说明 "正在使用 [技能名] 来 [目的]"
 
+**subagent-driven模型下的subagent派遣规则**:
+- 在派遣任何任务给到 subagent 前，优先查看 `.opencode/agents/` 目录（项目级）或 `~/.config/opencode/agents/`（全局）下已有的subagent
+- 根据任务类型和内容，派遣最匹配的 subagent 执行
+
 **禁止跳过流程**:
 - 新功能不得跳过 brainstorming 直接写代码
 - 修 bug 不得跳过 systematic-debugging 直接提修复
@@ -114,7 +118,7 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 1. **优先查询图谱**，而非直接读取源码
 2. 使用 `graphify query "问题"` 执行 BFS/DFS 遍历
-3. 根据查询结果组织回答，引用 `source_file` 和 `source_location` 作为证据
+3. 根据查询结果组织回答，必须显示回复给用户相关信息，并引用 `source_file` 和 `source_location` 作为证据
 4. 如果图谱信息不足，再回退到源码阅读
 
 **常用命令**:
