@@ -278,6 +278,23 @@ async def assign_roles(request: Request, user_id: int):
     if not success:
         return json({"code": 40401, "message": "用户不存在"}, status=404)
 
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="assign_role",
+        module="users",
+        record_id=user_id,
+        record_type="user-role",
+        changes={"role_id": role_ids},
+        operation_type="relation",
+        extra_metadata={"role_ids": role_ids},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
     return json({"code": 0, "message": "角色分配成功"})
 
 

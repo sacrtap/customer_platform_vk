@@ -6,6 +6,7 @@ from sanic.request import Request
 from typing import Any
 from ..services.groups import CustomerGroupService
 from ..middleware.auth import auth_required
+from ..utils.audit_helpers import create_audit_entry
 
 groups_bp = Blueprint("groups", url_prefix="/api/v1/customer-groups")
 
@@ -180,6 +181,23 @@ async def add_member(request: Request, group_id: int):
     if not success:
         return json({"code": 40002, "message": "添加失败，成员可能已存在"}, status=400)
 
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=request.ctx.user.get("user_id") if request.ctx.user else None,
+        action="add_member",
+        module="customer-groups",
+        record_id=group_id,
+        record_type="group-member",
+        changes={"customer_id": customer_id},
+        operation_type="relation",
+        extra_metadata={"group_id": group_id, "customer_id": customer_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
     return json({"code": 0, "message": "添加成功"})
 
 
@@ -194,6 +212,23 @@ async def remove_member(request: Request, group_id: int, customer_id: int):
 
     if not success:
         return json({"code": 40401, "message": "成员不存在"}, status=404)
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=request.ctx.user.get("user_id") if request.ctx.user else None,
+        action="remove_member",
+        module="customer-groups",
+        record_id=group_id,
+        record_type="group-member",
+        changes={"customer_id": customer_id},
+        operation_type="relation",
+        extra_metadata={"group_id": group_id, "customer_id": customer_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": "移除成功"})
 

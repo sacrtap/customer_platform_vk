@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from ..services.tags import TagService
 from ..middleware.auth import auth_required, require_permission, get_current_user
 from ..cache.base import cache_service
+from ..utils.audit_helpers import create_audit_entry
 
 tags_bp = Blueprint("tags", url_prefix="/api/v1/tags")
 
@@ -292,6 +293,23 @@ async def add_customer_tag(request: Request, customer_id: int, tag_id: int):
             status=400,
         )
 
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="add_tag",
+        module="customer-tags",
+        record_id=customer_id,
+        record_type="customer-tag",
+        changes={"tag_id": tag_id, "customer_id": customer_id},
+        operation_type="relation",
+        extra_metadata={"tag_id": tag_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
     return json({"code": 0, "message": "添加成功"})
 
 
@@ -307,6 +325,23 @@ async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
 
     if not success:
         return json({"code": 40001, "message": "移除失败，标签可能不存在"}, status=400)
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="remove_tag",
+        module="customer-tags",
+        record_id=customer_id,
+        record_type="customer-tag",
+        changes={"tag_id": tag_id, "customer_id": customer_id},
+        operation_type="relation",
+        extra_metadata={"tag_id": tag_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
@@ -441,6 +476,23 @@ async def add_profile_tag(request: Request, profile_id: int, tag_id: int):
             status=400,
         )
 
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="add_tag",
+        module="profile-tags",
+        record_id=profile_id,
+        record_type="profile-tag",
+        changes={"tag_id": tag_id, "profile_id": profile_id},
+        operation_type="relation",
+        extra_metadata={"tag_id": tag_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
     # 清除缓存
     await cache_service.invalidate_tag_cache()
 
@@ -459,6 +511,23 @@ async def remove_profile_tag(request: Request, profile_id: int, tag_id: int):
 
     if not success:
         return json({"code": 40001, "message": "移除失败，标签可能不存在"}, status=400)
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="remove_tag",
+        module="profile-tags",
+        record_id=profile_id,
+        record_type="profile-tag",
+        changes={"tag_id": tag_id, "profile_id": profile_id},
+        operation_type="relation",
+        extra_metadata={"tag_id": tag_id},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
