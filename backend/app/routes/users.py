@@ -243,11 +243,27 @@ async def reset_password(request: Request, user_id: int):
 
     db_session: AsyncSession = request.ctx.db_session
     service = UserService(db_session)
+    current_user = get_current_user(request)
 
     success = await service.reset_password(user_id, new_password)
 
     if not success:
         return json({"code": 40401, "message": "用户不存在"}, status=404)
+
+    # 记录敏感操作审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="reset_password",
+        module="users",
+        record_id=user_id,
+        record_type="user",
+        operation_type="sensitive",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": "密码重置成功"})
 
