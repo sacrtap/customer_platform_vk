@@ -1,215 +1,122 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
+*.py.cover
 *.so
-
-# Distribution / packaging
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
+*.egg-info/
 .eggs/
-lib/
-lib64/
-parts/
+*.egg
+dist/
+build/
 sdist/
-var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-docs/data.xlsx
-docs/data_cleaned.xlsx
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
+# Virtual environments
+.venv/
 env/
 venv/
 ENV/
-env.bak/
+.venv.bak/
 venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Node.js / npm
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# Testing
-coverage/
-.nyc_output/
-
-# Playwright E2E Tests
-frontend/playwright-report/
-frontend/tests/e2e/playwright-report/
-frontend/tests/e2e/test-results/
-.playwright-mcp/
-
-# Production
-/dist
-/build
-
-# Environment variables
+# Environments & Secrets
+.env
 .env.local
 .env.*.local
-
-# Logs
-logs/
-*.log
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Docker / Podman
-*.pid
-*.seed
-
-# Application specific
-backend/static/files/
-backend/media/
-frontend/dist/
-
-# Cache
-.cache/
-*.cache
-
-# Secrets
+.env.secrets
 secrets/
 *.pem
 *.key
 *.crt
 *.p12
 
-# Git worktrees
-.worktrees/
-.worktrees/
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+.nyc_output/
+.tox/
+.nox/
+.hypothesis/
 
-# Graphify knowledge graph cache
-graphify-out/
-graphify-out/cache/
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
-# Node.js compile cache
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 node-compile-cache/
 
-# ruff
-.ruff_cache/
+# Frontend
+frontend/dist/
+frontend/playwright-report/
+frontend/tests/e2e/playwright-report/
+frontend/tests/e2e/test-results/
+.playwright-mcp/
 
-# redis
-**/dump.rdb
+# Backend
+backend/static/files/
+backend/media/
+*.log
+logs/
+dump.rdb
+
+# Graphify
+graphify-out/
+
+# OpenCode
+.opencode/node_modules/
+
+# Cache
+.cache/
+*.cache
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.dmypy.json
+dmypy.json
+
+# Docker
+*.pid
+*.seed
+
+# Git worktrees
+.worktrees/
+
+# Temporary
+*.tmp
+*.temp
+*.bak
+*.manifest
+*.spec
+MANIFEST
+
+# Jupyter
+.ipynb_checkpoints
+
+# Python version
+.python-version
+Pipfile.lock
+__pypackages__/
+
+# Documentation
+docs/_build/
+docs/data.xlsx
+docs/data_cleaned.xlsx
+/site
