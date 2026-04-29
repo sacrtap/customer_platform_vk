@@ -379,9 +379,9 @@ class TestGetTopCustomers:
         service, mock_db = analytics_service
 
         mock_rows = [
-            (1, "客户 A", "COMP001", Decimal("50000.00")),
-            (2, "客户 B", "COMP002", Decimal("30000.00")),
-            (3, "客户 C", "COMP003", Decimal("20000.00")),
+            (1, "客户 A", 1001, Decimal("50000.00")),
+            (2, "客户 B", 1002, Decimal("30000.00")),
+            (3, "客户 C", 1003, Decimal("20000.00")),
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
@@ -392,7 +392,7 @@ class TestGetTopCustomers:
         assert len(result) == 3
         assert result[0]["customer_id"] == 1
         assert result[0]["customer_name"] == "客户 A"
-        assert result[0]["company_id"] == "COMP001"
+        assert result[0]["company_id"] == 1001
         assert result[0]["total_amount"] == 50000.00
         assert result[1]["total_amount"] == 30000.00
 
@@ -401,8 +401,8 @@ class TestGetTopCustomers:
         service, mock_db = analytics_service
 
         mock_rows = [
-            (1, "客户 A", "COMP001", Decimal("50000.00")),
-            (2, "客户 B", "COMP002", Decimal("30000.00")),
+            (1, "客户 A", 1001, Decimal("50000.00")),
+            (2, "客户 B", 1002, Decimal("30000.00")),
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
@@ -631,7 +631,7 @@ class TestGetBalanceWarningList:
             (
                 1,
                 "客户 A",
-                "COMP001",
+                1001,
                 Decimal("500.00"),
                 Decimal("400.00"),
                 Decimal("100.00"),
@@ -639,7 +639,7 @@ class TestGetBalanceWarningList:
             (
                 2,
                 "客户 B",
-                "COMP002",
+                1002,
                 Decimal("800.00"),
                 Decimal("600.00"),
                 Decimal("200.00"),
@@ -652,7 +652,7 @@ class TestGetBalanceWarningList:
         assert len(result) == 2
         assert result[0]["customer_id"] == 1
         assert result[0]["customer_name"] == "客户 A"
-        assert result[0]["company_id"] == "COMP001"
+        assert result[0]["company_id"] == 1001
         assert result[0]["total_amount"] == 500.00
         assert result[0]["real_amount"] == 400.00
         assert result[0]["bonus_amount"] == 100.00
@@ -676,7 +676,7 @@ class TestGetBalanceWarningList:
             (
                 1,
                 "客户 A",
-                "COMP001",
+                1001,
                 Decimal("2000.00"),
                 Decimal("1500.00"),
                 Decimal("500.00"),
@@ -699,8 +699,8 @@ class TestGetInactiveCustomers:
 
         # 优化后：单次查询（使用子查询）
         mock_rows = [
-            (1, "客户 A", "COMP001", 1, "经理 A"),
-            (2, "客户 B", "COMP002", 2, None),  # manager_name 为 None
+            (1, "客户 A", 1001, 1, "经理 A"),
+            (2, "客户 B", 1002, 2, None),  # manager_name 为 None
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 

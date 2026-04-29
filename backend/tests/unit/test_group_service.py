@@ -373,12 +373,12 @@ async def test_get_group_members(group_service):
     mock_customer_a = MagicMock()
     mock_customer_a.id = 1
     mock_customer_a.name = "客户 A"
-    mock_customer_a.company_id = "C001"
+    mock_customer_a.company_id = 1001
 
     mock_customer_b = MagicMock()
     mock_customer_b.id = 2
     mock_customer_b.name = "客户 B"
-    mock_customer_b.company_id = "C002"
+    mock_customer_b.company_id = 1002
 
     mock_customers = [mock_customer_a, mock_customer_b]
 

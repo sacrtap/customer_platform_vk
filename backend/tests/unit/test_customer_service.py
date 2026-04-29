@@ -53,7 +53,7 @@ class TestCustomerService_CreateCustomer:
         """测试创建客户成功"""
         # 准备测试数据
         customer_data = {
-            "company_id": "COMP001",
+            "company_id": 1001,
             "name": "测试公司",
             "account_type": "enterprise",
             "industry": "technology",
@@ -101,7 +101,7 @@ class TestCustomerService_CreateCustomer:
         # 验证结果
         assert result is not None
         assert isinstance(result, Customer)
-        assert result.company_id == "COMP001"
+        assert result.company_id == 1001
         assert result.name == "测试公司"
         assert result.account_type == "enterprise"
         assert result.is_key_customer is True
@@ -116,14 +116,14 @@ class TestCustomerService_CreateCustomer:
         """测试使用最少数据创建客户"""
         # 准备最少测试数据
         customer_data = {
-            "company_id": "COMP002",
+            "company_id": 1002,
             "name": "最小化测试公司",
         }
 
         # Mock 数据库操作
         created_customer = Customer(
             id=2,
-            company_id="COMP002",
+            company_id=1002,
             name="最小化测试公司",
             deleted_at=None,
         )
@@ -144,7 +144,7 @@ class TestCustomerService_CreateCustomer:
 
         # 验证结果
         assert result is not None
-        assert result.company_id == "COMP002"
+        assert result.company_id == 1002
         assert result.name == "最小化测试公司"
         # 验证默认值
         assert result.is_key_customer is False
@@ -153,13 +153,13 @@ class TestCustomerService_CreateCustomer:
     async def test_create_customer_creates_balance(self, customer_service, mock_db_session):
         """测试创建客户时自动创建余额记录"""
         customer_data = {
-            "company_id": "COMP003",
+            "company_id": 1003,
             "name": "测试公司",
         }
 
         created_customer = Customer(
             id=3,
-            company_id="COMP003",
+            company_id=1003,
             name="测试公司",
             deleted_at=None,
         )
@@ -197,7 +197,7 @@ class TestCustomerService_UpdateCustomer:
         # Mock 现有客户
         existing_customer = Customer(
             id=customer_id,
-            company_id="COMP001",
+            company_id=1001,
             name="原名称",
             account_type="enterprise",
             email="old@example.com",
@@ -226,7 +226,7 @@ class TestCustomerService_UpdateCustomer:
         assert result.email == "new@example.com"
         assert result.is_key_customer is True
         # 验证未更新的字段保持不变
-        assert result.company_id == "COMP001"
+        assert result.company_id == 1001
         assert result.account_type == "enterprise"
 
         # 验证数据库操作
@@ -262,7 +262,7 @@ class TestCustomerService_UpdateCustomer:
 
         existing_customer = Customer(
             id=customer_id,
-            company_id="COMP001",
+            company_id=1001,
             name="原名称",
             account_type="enterprise",
             email="test@example.com",
@@ -301,7 +301,7 @@ class TestCustomerService_DeleteCustomer:
         # Mock 现有客户
         existing_customer = Customer(
             id=customer_id,
-            company_id="COMP001",
+            company_id=1001,
             name="测试公司",
             deleted_at=None,
         )
@@ -499,7 +499,7 @@ class TestCustomerService_GetCustomerById:
         # Mock 现有客户
         existing_customer = Customer(
             id=customer_id,
-            company_id="COMP001",
+            company_id=1001,
             name="测试公司",
             account_type="enterprise",
             deleted_at=None,
@@ -562,13 +562,13 @@ class TestCustomerService_Integration:
         """测试客户完整的 CRUD 生命周期"""
         # 1. 创建客户
         create_data = {
-            "company_id": "COMP100",
+            "company_id": 10100,
             "name": "生命周期测试公司",
         }
 
         created_customer = Customer(
             id=100,
-            company_id="COMP100",
+            company_id=10100,
             name="生命周期测试公司",
             deleted_at=None,
         )
@@ -612,7 +612,7 @@ class TestCustomerService_Integration:
         # Mock 客户及其关联数据
         customer = Customer(
             id=customer_id,
-            company_id="COMP001",
+            company_id=1001,
             name="测试公司",
             deleted_at=None,
         )
@@ -663,7 +663,7 @@ class TestCustomerService_IsKeyCustomerFilter:
         # 准备测试数据
         key_customer = Customer(
             id=1,
-            company_id="COMP001",
+            company_id=1001,
             name="重点客户",
             is_key_customer=True,
             deleted_at=None,
@@ -699,7 +699,7 @@ class TestCustomerService_IsKeyCustomerFilter:
         # 准备测试数据
         normal_customer = Customer(
             id=2,
-            company_id="COMP002",
+            company_id=1002,
             name="普通客户",
             is_key_customer=False,
             deleted_at=None,

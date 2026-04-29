@@ -378,7 +378,7 @@ async def test_get_customer_by_id_success(customer_service):
     mock_customer = MagicMock()
     mock_customer.id = 1
     mock_customer.name = "测试客户"
-    mock_customer.company_id = "C001"
+    mock_customer.company_id = 1001
 
     mock_db.execute.return_value = make_mock_execute_result([mock_customer])
 

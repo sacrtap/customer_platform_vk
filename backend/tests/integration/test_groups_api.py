@@ -275,21 +275,19 @@ class TestGroupMembers:
         group_id = create_response.json["data"]["id"]
 
         # 创建一个测试客户
-        await db_session.execute(
+        db_session.execute(
             text(
                 """
             INSERT INTO customers (company_id, name, created_at)
-            VALUES ('TEST001', '测试客户', NOW())
+            VALUES (99999, '测试客户', NOW())
             ON CONFLICT (company_id) DO NOTHING
             """
             )
         )
-        await db_session.commit()
+        db_session.commit()
 
         # 获取客户 ID
-        result = await db_session.execute(
-            text("SELECT id FROM customers WHERE company_id = 'TEST001'")
-        )
+        result = db_session.execute(text("SELECT id FROM customers WHERE company_id = 99999"))
         customer_id = result.scalar()
 
         # 添加成员
