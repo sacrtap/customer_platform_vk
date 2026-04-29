@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from ..services.billing import BalanceService, PricingService, InvoiceService
 from ..middleware.auth import get_current_user, require_permission, auth_required
 from ..cache.base import cache_service
+from ..utils.audit_helpers import create_audit_entry
 
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
@@ -195,6 +196,26 @@ async def recharge(request: Request):
     await cache_service.invalidate_analytics_cache("dashboard")
     await cache_service.invalidate_customer_cache(customer_id)
 
+    # 记录充值审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="recharge",
+        module="billing",
+        record_id=record.id,
+        record_type="recharge",
+        changes={
+            "customer_id": customer_id,
+            "real_amount": float(real_amount),
+            "bonus_amount": float(bonus_amount),
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
     return json(
         {
             "code": 0,
@@ -361,7 +382,9 @@ async def get_pricing_rules(request: Request):
                         "tiers": r.tiers,
                         "package_type": r.package_type,
                         "package_limits": r.package_limits,
-                        "effective_date": r.effective_date.isoformat() if r.effective_date else None,
+                        "effective_date": (
+                            r.effective_date.isoformat() if r.effective_date else None
+                        ),
                         "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
                     }
                     for r in rules
@@ -515,19 +538,25 @@ async def check_pricing_rule_conflict(request: Request):
         exclude_id_str = request.args.get("exclude_id")
 
         if not customer_id or not device_type or not effective_date_str:
-            return json({
-                "code": 40001,
-                "message": "缺少必填参数：customer_id, device_type, effective_date",
-            }, status=400)
+            return json(
+                {
+                    "code": 40001,
+                    "message": "缺少必填参数：customer_id, device_type, effective_date",
+                },
+                status=400,
+            )
 
         effective_date = date.fromisoformat(effective_date_str)
         expiry_date = date.fromisoformat(expiry_date_str) if expiry_date_str else None
         exclude_id = int(exclude_id_str) if exclude_id_str else None
     except (ValueError, TypeError):
-        return json({
-            "code": 40001,
-            "message": "参数格式错误",
-        }, status=400)
+        return json(
+            {
+                "code": 40001,
+                "message": "参数格式错误",
+            },
+            status=400,
+        )
 
     pricing_service = PricingService(db)
 
@@ -540,21 +569,25 @@ async def check_pricing_rule_conflict(request: Request):
         exclude_id=exclude_id,
     )
 
-    return json({
-        "code": 0,
-        "data": {
-            "has_conflict": len(conflicting_rules) > 0,
-            "conflicting_rules": [
-                {
-                    "id": r.id,
-                    "pricing_type": r.pricing_type,
-                    "effective_date": r.effective_date.isoformat() if r.effective_date else None,
-                    "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
-                }
-                for r in conflicting_rules
-            ],
-        },
-    })
+    return json(
+        {
+            "code": 0,
+            "data": {
+                "has_conflict": len(conflicting_rules) > 0,
+                "conflicting_rules": [
+                    {
+                        "id": r.id,
+                        "pricing_type": r.pricing_type,
+                        "effective_date": (
+                            r.effective_date.isoformat() if r.effective_date else None
+                        ),
+                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                    }
+                    for r in conflicting_rules
+                ],
+            },
+        }
+    )
 
 
 # ==================== 结算单管理 ====================
@@ -704,10 +737,13 @@ async def calculate_invoice_items(request: Request):
     )
 
     if not items:
-        return json({
-            "code": 40002,
-            "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
-        }, status=400)
+        return json(
+            {
+                "code": 40002,
+                "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
+            },
+            status=400,
+        )
 
     # 格式化返回数据
     formatted_items = [
@@ -721,14 +757,16 @@ async def calculate_invoice_items(request: Request):
         for item in items
     ]
 
-    return json({
-        "code": 0,
-        "message": "计算成功",
-        "data": {
-            "items": formatted_items,
-            "total_amount": float(total_amount),
-        },
-    })
+    return json(
+        {
+            "code": 0,
+            "message": "计算成功",
+            "data": {
+                "items": formatted_items,
+                "total_amount": float(total_amount),
+            },
+        }
+    )
 
 
 @billing_bp.post("/invoices/generate")
@@ -769,10 +807,13 @@ async def generate_invoice(request: Request):
             period_end=period_end,
         )
         if not items:
-            return json({
-                "code": 40002,
-                "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
-            }, status=400)
+            return json(
+                {
+                    "code": 40002,
+                    "message": "该客户在结算周期内无用量数据或无匹配的计费规则",
+                },
+                status=400,
+            )
     invoice = await invoice_service.generate_invoice(
         customer_id=data["customer_id"],
         period_start=period_start,
