@@ -18,6 +18,7 @@ async def create_audit_entry(
     ip_address: str | None = None,
     operation_type: str = "standard",
     extra_metadata: dict | None = None,
+    auto_commit: bool = False,
 ) -> AuditLog:
     """统一审计记录创建函数"""
     audit_entry = AuditLog(
@@ -32,7 +33,8 @@ async def create_audit_entry(
         extra_metadata=extra_metadata,
     )
     db_session.add(audit_entry)
-    await db_session.commit()
+    if auto_commit:
+        await db_session.commit()
     return audit_entry
 
 
