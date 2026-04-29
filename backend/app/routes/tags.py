@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from ..services.tags import TagService
 from ..middleware.auth import auth_required, require_permission, get_current_user
 from ..cache.base import cache_service
-from ..utils.audit_helpers import create_audit_entry
+from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
 
 tags_bp = Blueprint("tags", url_prefix="/api/v1/tags")
 
@@ -370,6 +370,7 @@ async def batch_add_customer_tags(request: Request):
     if not customer_ids or not tag_ids:
         return json({"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400)
 
+    current_user = get_current_user(request)
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
 
@@ -377,6 +378,27 @@ async def batch_add_customer_tags(request: Request):
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
+
+    # 记录批量操作审计日志
+    summary = build_batch_audit_summary(
+        operation="batch_add_tags",
+        total_count=len(customer_ids),
+        success_count=success_count,
+        failed_count=error_count,
+    )
+
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="batch_add_tags",
+        module="customer-tags",
+        operation_type="batch",
+        extra_metadata=summary,
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json(
         {
@@ -411,6 +433,7 @@ async def batch_remove_customer_tags(request: Request):
     if not customer_ids or not tag_ids:
         return json({"code": 40001, "message": "客户 ID 和标签 ID 不能为空"}, status=400)
 
+    current_user = get_current_user(request)
     db_session: AsyncSession = request.ctx.db_session
     service = TagService(db_session)
 
@@ -418,6 +441,27 @@ async def batch_remove_customer_tags(request: Request):
 
     # 清除缓存
     await cache_service.invalidate_tag_cache()
+
+    # 记录批量操作审计日志
+    summary = build_batch_audit_summary(
+        operation="batch_remove_tags",
+        total_count=len(customer_ids),
+        success_count=removed_count,
+        failed_count=len(customer_ids) - removed_count,
+    )
+
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="batch_remove_tags",
+        module="customer-tags",
+        operation_type="batch",
+        extra_metadata=summary,
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json(
         {
