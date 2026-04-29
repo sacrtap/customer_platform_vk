@@ -40,6 +40,8 @@ secrets/
 .coverage.*
 htmlcov/
 coverage/
+*.coverage.xml
+docs/testing/coverage-reports/
 .nyc_output/
 .tox/
 .nox/
@@ -82,6 +84,7 @@ graphify-out/
 
 # OpenCode
 .opencode/node_modules/
+opencode.json
 
 # Cache
 .cache/
