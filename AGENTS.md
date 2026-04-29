@@ -107,8 +107,40 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 ## 项目工具
 
 ### Graphify 知识图谱
-- 架构问题优先查询 `graphify-out/GRAPH_REPORT.md`
-- 代码变更后运行 `graphify update .` 或安装 Git hooks 自动重建
+
+**图谱状态**: 2554 节点 · 5133 边 · 398 社区 | 输出目录: `graphify-out/`
+
+#### 查询工作流（回答架构问题时必须使用）
+
+1. **优先查询图谱**，而非直接读取源码
+2. 使用 `graphify query "问题"` 执行 BFS/DFS 遍历
+3. 根据查询结果组织回答，引用 `source_file` 和 `source_location` 作为证据
+4. 如果图谱信息不足，再回退到源码阅读
+
+**常用命令**:
+- `graphify query "认证模块依赖哪些服务？"` — BFS 广度查询（默认）
+- `graphify query "问题" --dfs` — DFS 深度追踪特定路径
+- `graphify path "AuthModule" "Database"` — 最短路径分析
+- `graphify explain "Customer"` — 节点及邻居解释
+- `graphify god_nodes` — 查看核心节点（当前核心：SQLAlchemy ORM、Alembic、AnalyticsService）
+
+**输出要求**:
+- 展示查询到的关键节点和关系
+- 说明跨越了哪些社区边界
+- 标注关系的置信度（EXTRACTED/INFERRED/AMBIGUOUS）
+- 引用具体的 source_file 和 source_location
+
+#### 维护工作流
+
+- **代码变更后**: 运行 `graphify update .` 增量更新（仅处理变更文件，无需 LLM）
+- **Git hook 自动重建**: `graphify hook install`（已安装，commit 时自动触发）
+- **完整重建**: `graphify .`（当图谱质量下降或结构大改时）
+
+#### 图谱质量说明
+
+当前图谱存在过度碎片化问题（300+ 单节点社区），建议定期运行：
+- `graphify . --cluster-only` — 重新聚类，改善社区结构
+- `graphify . --mode deep` — 深度模式，增强 INFERRED 边连接
 
 ### 浏览器交互与测试
 - 使用 OpenCode 内置 Playwright 工具 + bash 命令（详见全局 AGENTS.md）
@@ -136,15 +168,3 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 | **系统设计**       | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
 | **部署指南**       | [deploy/README.md](deploy/README.md)                          |
 | **数据库迁移**     | `docs/guides/database-migration-guide.md`                     |
-| **Graphify 工作流**| [Graphify.md](Graphify.md)                                    |
-
----
-
-## graphify
-
-This project has a graphify knowledge graph at graphify-out/.
-
-Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (or use `graphify hook install` for auto-rebuild on commit)
