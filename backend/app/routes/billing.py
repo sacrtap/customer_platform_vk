@@ -31,7 +31,7 @@ async def get_balances(request: Request):
     from ..models.billing import CustomerBalance, RechargeRecord
     from sqlalchemy import select, func
     from sqlalchemy.orm import selectinload
-    from ..models.customers import Customer
+    from ..models.customers import Customer, CustomerProfile
 
     # 分页参数
     page = int(request.args.get("page", 1))
@@ -41,6 +41,17 @@ async def get_balances(request: Request):
     # 筛选参数
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+
+    # 新增筛选参数
+    account_type = request.args.get("account_type")
+    industry = request.args.get("industry")  # 多选逗号分隔
+    manager_id = int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+    sales_manager_id = (
+        int(request.args.get("sales_manager_id")) if request.args.get("sales_manager_id") else None
+    )
+    recharge_date_from = request.args.get("recharge_date_from")
+    recharge_date_to = request.args.get("recharge_date_to")
+    tag_ids = request.args.get("tag_ids")  # 多选逗号分隔
 
     # 排序参数
     sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
@@ -60,6 +71,7 @@ async def get_balances(request: Request):
     base_stmt = (
         select(CustomerBalance)
         .join(Customer, CustomerBalance.customer_id == Customer.id)
+        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .where(
             CustomerBalance.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
@@ -71,11 +83,68 @@ async def get_balances(request: Request):
         base_stmt = base_stmt.where(CustomerBalance.customer_id == customer_id)
     if keyword:
         base_stmt = base_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+    if account_type:
+        base_stmt = base_stmt.where(Customer.account_type == account_type)
+    if industry:
+        # 多选逗号分隔，使用 IN 查询
+        industry_list = [i.strip() for i in industry.split(",") if i.strip()]
+        if industry_list:
+            base_stmt = base_stmt.where(CustomerProfile.industry.in_(industry_list))
+    if manager_id:
+        base_stmt = base_stmt.where(Customer.manager_id == manager_id)
+    if sales_manager_id:
+        base_stmt = base_stmt.where(Customer.sales_manager_id == sales_manager_id)
+
+    # 充值时间范围过滤（需要 JOIN RechargeRecord 子查询）
+    if recharge_date_from or recharge_date_to:
+        recharge_filter_stmt = (
+            select(RechargeRecord.customer_id)
+            .where(RechargeRecord.deleted_at.is_(None))
+            .group_by(RechargeRecord.customer_id)
+        )
+        # 使用 HAVING 子句过滤（聚合函数必须在 HAVING 中）
+        if recharge_date_from:
+            try:
+                from_dt = datetime.fromisoformat(recharge_date_from)
+                recharge_filter_stmt = recharge_filter_stmt.having(
+                    func.max(RechargeRecord.created_at) >= from_dt
+                )
+            except (ValueError, TypeError):
+                pass
+        if recharge_date_to:
+            try:
+                to_dt = datetime.fromisoformat(recharge_date_to).replace(
+                    hour=23, minute=59, second=59
+                )
+                recharge_filter_stmt = recharge_filter_stmt.having(
+                    func.max(RechargeRecord.created_at) <= to_dt
+                )
+            except (ValueError, TypeError):
+                pass
+
+        base_stmt = base_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
+
+    # 标签筛选（需要 JOIN CustomerTag 表）
+    if tag_ids:
+        from ..models.customers import CustomerTag
+
+        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
+        if tag_id_list:
+            tag_customer_subq = (
+                select(CustomerTag.customer_id)
+                .where(
+                    CustomerTag.tag_id.in_(tag_id_list),
+                    CustomerTag.deleted_at.is_(None),
+                )
+                .group_by(CustomerTag.customer_id)
+            )
+            base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
 
     # 总数查询
     count_stmt = (
         select(func.count(CustomerBalance.id))
         .join(Customer, CustomerBalance.customer_id == Customer.id)
+        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .where(
             CustomerBalance.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
@@ -85,6 +154,47 @@ async def get_balances(request: Request):
         count_stmt = count_stmt.where(CustomerBalance.customer_id == customer_id)
     if keyword:
         count_stmt = count_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+    if account_type:
+        count_stmt = count_stmt.where(Customer.account_type == account_type)
+    if industry:
+        industry_list = [i.strip() for i in industry.split(",") if i.strip()]
+        if industry_list:
+            count_stmt = count_stmt.where(CustomerProfile.industry.in_(industry_list))
+    if manager_id:
+        count_stmt = count_stmt.where(Customer.manager_id == manager_id)
+    if sales_manager_id:
+        count_stmt = count_stmt.where(Customer.sales_manager_id == sales_manager_id)
+    if recharge_date_from or recharge_date_to:
+        recharge_filter_stmt = (
+            select(RechargeRecord.customer_id)
+            .where(RechargeRecord.deleted_at.is_(None))
+            .group_by(RechargeRecord.customer_id)
+        )
+        if recharge_date_from:
+            from_dt = datetime.fromisoformat(recharge_date_from)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) >= from_dt
+            )
+        if recharge_date_to:
+            to_dt = datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) <= to_dt
+            )
+        count_stmt = count_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
+    if tag_ids:
+        from ..models.customers import CustomerTag
+
+        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
+        if tag_id_list:
+            tag_customer_subq = (
+                select(CustomerTag.customer_id)
+                .where(
+                    CustomerTag.tag_id.in_(tag_id_list),
+                    CustomerTag.deleted_at.is_(None),
+                )
+                .group_by(CustomerTag.customer_id)
+            )
+            count_stmt = count_stmt.where(Customer.id.in_(tag_customer_subq))
 
     total = (await db.execute(count_stmt)).scalar()
 

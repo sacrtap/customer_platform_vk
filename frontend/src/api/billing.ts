@@ -19,6 +19,13 @@ export interface Balance {
 export function getBalances(params?: {
   customer_id?: number
   keyword?: string
+  account_type?: string
+  industry?: string
+  manager_id?: number
+  sales_manager_id?: number
+  recharge_date_from?: string
+  recharge_date_to?: string
+  tag_ids?: string
   page?: number
   page_size?: number
 }) {

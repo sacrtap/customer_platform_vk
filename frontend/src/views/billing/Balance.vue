@@ -27,21 +27,138 @@
 
     <!-- 筛选区域 -->
     <div class="filter-section">
-      <a-form layout="inline" :model="filters">
-        <a-form-item label="客户">
-          <CustomerAutoComplete
-            v-model="filters.customer_id"
-            placeholder="请输入客户名称搜索"
-            :width="250"
-          />
-        </a-form-item>
-        <a-form-item>
-          <a-space>
-            <a-button type="primary" @click="handleSearch">查询</a-button>
-            <a-button @click="handleReset">重置</a-button>
-          </a-space>
-        </a-form-item>
+      <a-form layout="vertical" :model="filters">
+        <a-row :gutter="16">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="客户">
+              <CustomerAutoComplete
+                v-model="filters.customer_id"
+                placeholder="请输入客户名称搜索"
+                width="100%"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+            <a-form-item label="充值时间">
+              <a-range-picker
+                v-model="filters.recharge_date"
+                placeholder="['开始日期', '结束日期']"
+                style="width: 100%"
+                format="YYYY-MM-DD"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="行业类型">
+              <a-select
+                v-model="filters.industry"
+                placeholder="请选择行业类型"
+                allow-clear
+                multiple
+              >
+                <a-option
+                  v-for="item in industryTypes"
+                  :key="item.id"
+                  :value="item.name"
+                >
+                  {{ item.name }}
+                </a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="账号类型">
+              <a-select v-model="filters.account_type" placeholder="请选择" allow-clear>
+                <a-option value="正式账号">正式账号</a-option>
+                <a-option value="测试账号">测试账号</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+            <a-form-item label="&nbsp;">
+              <a-space>
+                <a-button type="primary" @click="handleSearch">查询</a-button>
+                <a-button @click="handleReset">重置</a-button>
+              </a-space>
+            </a-form-item>
+          </a-col>
+        </a-row>
       </a-form>
+
+      <!-- 高级筛选区域 -->
+      <a-collapse class="advanced-filter-collapse">
+        <a-collapse-item>
+          <template #header>
+            <div class="advanced-filter-toggle">
+              <span>高级筛选</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"
+                />
+              </svg>
+            </div>
+          </template>
+          <a-form layout="vertical" :model="advancedFilters">
+            <a-row :gutter="16">
+              <a-col :xs="24" :sm="12" :md="8" :lg="6">
+                <a-form-item label="运营经理">
+                  <a-select
+                    v-model="advancedFilters.manager_id"
+                    placeholder="请选择运营经理"
+                    allow-clear
+                    :loading="managersLoading"
+                  >
+                    <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                      {{ manager.real_name || manager.username }}
+                    </a-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :sm="12" :md="8" :lg="6">
+                <a-form-item label="商务经理">
+                  <a-select
+                    v-model="advancedFilters.sales_manager_id"
+                    placeholder="请选择商务经理"
+                    allow-clear
+                    :loading="managersLoading"
+                  >
+                    <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
+                      {{ manager.real_name || manager.username }}
+                    </a-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :sm="12" :md="8" :lg="6">
+                <a-form-item label="标签筛选">
+                  <a-select
+                    v-model="advancedFilters.tag_ids"
+                    placeholder="选择标签"
+                    multiple
+                    allow-clear
+                    :loading="tagsLoading"
+                  >
+                    <a-option v-for="tag in customerTags" :key="tag.id" :value="tag.id">
+                      {{ tag.name }}
+                    </a-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :sm="12" :md="8" :lg="6">
+                <a-form-item label="&nbsp;">
+                  <a-button type="primary" @click="handleAdvancedSearch">应用高级筛选</a-button>
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </a-form>
+        </a-collapse-item>
+      </a-collapse>
     </div>
 
     <!-- 表格 -->
@@ -110,19 +227,11 @@
     >
       <a-form ref="rechargeFormRef" :model="rechargeForm" layout="vertical">
         <a-form-item field="customer_id" label="客户" required>
-          <a-select
+          <CustomerAutoComplete
             v-model="rechargeForm.customer_id"
-            placeholder="请选择客户"
-            style="width: 100%"
-            filterable
-            :remote="true"
-            :loading="customersLoading"
-            @search="handleCustomerSearch"
-          >
-            <a-option v-for="customer in customerOptions" :key="customer.id" :value="customer.id">
-              {{ customer.name }}
-            </a-option>
-          </a-select>
+            placeholder="请输入客户名称搜索"
+            width="100%"
+          />
         </a-form-item>
         <a-form-item field="real_amount" label="充值金额" required>
           <a-input-number
@@ -198,10 +307,13 @@ import {
   type Balance,
   type RechargeRecord,
 } from '@/api/billing'
-import { getCustomers } from '@/api/customers'
+import { getIndustryTypes } from '@/api/customers'
+import { getTags } from '@/api/tags'
+import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
-import { formatCurrency, formatDateTime } from '@/utils/formatters'
+import { formatCurrency } from '@/utils/formatters'
+import type { IndustryType } from '@/types'
 
 // 格式化充值时间（与结算单列表保持一致：含秒）
 const formatLastRechargeTime = (dateStr: string): string => {
@@ -223,7 +335,24 @@ const can = (permission: string) => userStore.hasPermission(permission)
 // 筛选条件
 const filters = reactive({
   customer_id: undefined as number | undefined,
+  recharge_date: [] as string[],
+  industry: [] as string[],
+  account_type: '',
 })
+
+// 高级筛选条件
+const advancedFilters = reactive({
+  manager_id: null as number | null,
+  sales_manager_id: null as number | null,
+  tag_ids: [] as number[],
+})
+
+// 下拉选项数据
+const managersLoading = ref(false)
+const managers = ref<Array<Record<string, unknown>>>([])
+const tagsLoading = ref(false)
+const customerTags = ref<Array<Record<string, unknown>>>([])
+const industryTypes = ref<IndustryType[]>([])
 
 // 分页
 const pagination = reactive({
@@ -257,11 +386,9 @@ const columns = [
 // 充值对话框相关
 const rechargeModalVisible = ref(false)
 const rechargeLoading = ref(false)
-const customersLoading = ref(false)
-const customerOptions = ref<{ id: number; name: string }[]>([])
 const selectedBalance = ref<Balance | null>(null)
 const rechargeForm = reactive({
-  customer_id: null as number | null,
+  customer_id: undefined as number | undefined,
   real_amount: null as number | null,
   bonus_amount: null as number | null,
   remark: '',
@@ -298,6 +425,13 @@ const loadBalances = async () => {
       page: number
       page_size: number
       customer_id?: number
+      account_type?: string
+      industry?: string
+      manager_id?: number
+      sales_manager_id?: number
+      recharge_date_from?: string
+      recharge_date_to?: string
+      tag_ids?: string
       sort_by: string
       sort_order: 'asc' | 'desc'
     } = {
@@ -307,6 +441,17 @@ const loadBalances = async () => {
       sort_order: backendSortOrder,
     }
     if (filters.customer_id) params.customer_id = filters.customer_id
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.recharge_date && filters.recharge_date.length === 2) {
+      params.recharge_date_from = filters.recharge_date[0]
+      params.recharge_date_to = filters.recharge_date[1]
+    }
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (advancedFilters.tag_ids && advancedFilters.tag_ids.length > 0) {
+      params.tag_ids = advancedFilters.tag_ids.join(',')
+    }
 
     const res = await getBalances(params)
     balances.value = res.data.list || []
@@ -342,6 +487,18 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   filters.customer_id = undefined
+  filters.recharge_date = []
+  filters.industry = []
+  filters.account_type = ''
+  advancedFilters.manager_id = null
+  advancedFilters.sales_manager_id = null
+  advancedFilters.tag_ids = []
+  pagination.current = 1
+  loadBalances()
+}
+
+// 高级筛选搜索
+const handleAdvancedSearch = () => {
   pagination.current = 1
   loadBalances()
 }
@@ -355,27 +512,11 @@ const handlePageChange = (page: number) => {
 // 打开充值对话框
 const openRechargeModal = (balance?: Balance) => {
   selectedBalance.value = balance || null
-  rechargeForm.customer_id = balance ? balance.customer_id : null
+  rechargeForm.customer_id = balance ? balance.customer_id : undefined
   rechargeForm.real_amount = null
   rechargeForm.bonus_amount = null
   rechargeForm.remark = ''
   rechargeModalVisible.value = true
-  // 加载客户列表用于预填充
-  handleCustomerSearch()
-}
-
-// 客户搜索（用于充值弹窗的 a-select）
-const handleCustomerSearch = async (keyword: string = '') => {
-  customersLoading.value = true
-  try {
-    const res = await getCustomers({ keyword: keyword.trim(), page: 1, page_size: 50 })
-    customerOptions.value = res.data?.list || []
-  } catch (error: unknown) {
-    Message.error((error as Error).message || '加载客户列表失败')
-    customerOptions.value = []
-  } finally {
-    customersLoading.value = false
-  }
 }
 
 // 处理充值
@@ -392,8 +533,8 @@ const handleRecharge = async () => {
   rechargeLoading.value = true
   try {
     const res = await recharge({
-      customer_id: rechargeForm.customer_id,
-      real_amount: rechargeForm.real_amount,
+      customer_id: rechargeForm.customer_id!,
+      real_amount: rechargeForm.real_amount!,
       bonus_amount: rechargeForm.bonus_amount || undefined,
       remark: rechargeForm.remark || undefined,
     })
@@ -475,9 +616,47 @@ const handleRecordPageChange = (page: number) => {
 
 onMounted(() => {
   loadBalances()
-  // 预加载客户列表（用于充值弹窗）
-  handleCustomerSearch()
+  // 加载高级筛选项数据
+  loadManagers()
+  loadCustomerTags()
+  loadIndustryTypesData()
 })
+
+// 加载运营经理列表
+const loadManagers = async () => {
+  managersLoading.value = true
+  try {
+    const res = await getManagers()
+    managers.value = res.data?.list || res.data || []
+  } catch (error: unknown) {
+    console.error('加载运营经理失败:', error)
+  } finally {
+    managersLoading.value = false
+  }
+}
+
+// 加载客户标签列表
+const loadCustomerTags = async () => {
+  tagsLoading.value = true
+  try {
+    const res = await getTags({ type: 'customer', page_size: 100 })
+    customerTags.value = res.data?.list || []
+  } catch (error: unknown) {
+    console.error('加载标签失败:', error)
+  } finally {
+    tagsLoading.value = false
+  }
+}
+
+// 加载行业类型
+const loadIndustryTypesData = async () => {
+  try {
+    const res = await getIndustryTypes()
+    industryTypes.value = res.data?.data || res.data || []
+  } catch (error) {
+    console.error('Failed to load industry types:', error)
+  }
+}
 </script>
 
 <style scoped>
@@ -527,6 +706,31 @@ onMounted(() => {
   border: 1px solid var(--neutral-2);
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
+}
+
+.filter-section .arco-form-item {
+  margin-bottom: 0;
+}
+
+.filter-section .arco-select,
+.filter-section .arco-input,
+.filter-section .arco-picker {
+  width: 100%;
+}
+
+.advanced-filter-collapse {
+  margin-top: 16px;
+}
+
+.advanced-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.advanced-filter-toggle svg {
+  transition: transform 0.2s;
 }
 
 .table-section {
