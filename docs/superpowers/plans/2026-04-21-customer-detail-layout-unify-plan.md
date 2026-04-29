@@ -120,7 +120,7 @@
 - [ ] **Step 4: 验证前端类型检查**
 
 ```bash
-cd frontend && rtk npm run type-check
+cd frontend && npm run type-check
 ```
 
 预期：无新增错误（已有的 28 个 eslint 错误在测试文件中，与此变更无关）
@@ -128,8 +128,8 @@ cd frontend && rtk npm run type-check
 - [ ] **Step 5: 提交**
 
 ```bash
-rtk git add frontend/src/views/customers/Detail.vue
-rtk git commit -m "style(detail): 统一结算单和用量数据区域卡片容器风格
+git add frontend/src/views/customers/Detail.vue
+git commit -m "style(detail): 统一结算单和用量数据区域卡片容器风格
 
 - 结算单表格添加 .data-table-card 卡片容器
 - 用量数据表格添加 .data-table-card 卡片容器

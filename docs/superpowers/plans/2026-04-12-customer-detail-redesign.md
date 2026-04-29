@@ -163,8 +163,8 @@ Expected: PASS
 
 ```bash
 cd backend
-rtk git add app/services/analytics.py tests/test_analytics_service.py
-rtk git commit -m "feat: 添加余额趋势 Service 方法"
+git add app/services/analytics.py tests/test_analytics_service.py
+git commit -m "feat: 添加余额趋势 Service 方法"
 ```
 
 ---
