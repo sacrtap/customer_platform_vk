@@ -1020,7 +1020,7 @@ async def confirm_invoice(request: Request, invoice_id: int):
 async def pay_invoice(request: Request, invoice_id: int):
     """确认付款"""
     db: AsyncSession = request.ctx.db_session
-    data = request.json
+    data = request.json or {}
     invoice_service = InvoiceService(db)
 
     success, message = await invoice_service.pay_invoice(

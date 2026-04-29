@@ -866,6 +866,10 @@ class InvoiceService:
         if invoice.status != "paid":
             return False, f"当前状态不能完成：{invoice.status}"
 
+        # 提交当前事务（get_invoice_by_id 的 autobegin 事务），
+        # 避免与 consume 内部的 db.begin() 冲突
+        await self.db.commit()
+
         # 执行扣款
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
         balance_service = BalanceService(self.db)

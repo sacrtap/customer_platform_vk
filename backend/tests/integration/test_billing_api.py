@@ -70,11 +70,23 @@ async def test_customer(db_session, test_user):
         {"id": customer_id},
     )
     db_session.execute(
+        text("DELETE FROM consumption_records WHERE customer_id = :id"),
+        {"id": customer_id},
+    )
+    db_session.execute(
         text("DELETE FROM invoices WHERE customer_id = :id"),
         {"id": customer_id},
     )
     db_session.execute(
         text("DELETE FROM recharge_records WHERE customer_id = :id"),
+        {"id": customer_id},
+    )
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"),
+        {"id": customer_id},
+    )
+    db_session.execute(
+        text("DELETE FROM daily_usage WHERE customer_id = :id"),
         {"id": customer_id},
     )
     db_session.execute(
@@ -501,10 +513,10 @@ async def test_pay_invoice_invalid_state(test_client, auth_token, test_customer)
 
 
 @pytest.mark.asyncio
-async def test_complete_invoice_insufficient_balance(test_client, auth_token, test_customer):
+async def test_complete_invoice_insufficient_balance(test_client, auth_token, test_customer_with_balance):
     """测试完成结算 - 余额不足"""
     headers = {"Authorization": f"Bearer {auth_token}"}
-    customer_id = test_customer["id"]
+    customer_id = test_customer_with_balance["id"]
 
     # 生成一个金额很大的结算单
     gen_req, gen_res = await test_client.post(
