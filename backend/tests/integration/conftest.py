@@ -56,7 +56,7 @@ def mock_scheduler():
 @pytest.fixture(scope="session")
 def sync_test_engine():
     """创建同步测试数据库引擎（用于 Analytics Service 等）
-    
+
     优化说明：
     - 使用 session scope，表结构只在测试会话开始时创建一次
     - 测试间数据隔离由 test_user fixture 中的 TRUNCATE 负责
@@ -73,6 +73,7 @@ def sync_test_engine():
         BaseModel.metadata.create_all(conn)
         # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
         from sqlalchemy import inspect
+
         inspector = inspect(conn)
         if "invoices" in inspector.get_table_names():
             columns = [col["name"] for col in inspector.get_columns("invoices")]

@@ -303,9 +303,7 @@ class PricingService:
             # 检查有效期是否有交集
             if rule_expiry is None or new_expiry is None:
                 if rule_expiry is None and new_expiry is None:
-                    raise ValueError(
-                        "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
-                    )
+                    raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
                 elif rule_expiry is None:
                     if new_expiry >= rule.effective_date:
                         raise ValueError(
@@ -318,9 +316,7 @@ class PricingService:
                         )
             else:
                 if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
-                    raise ValueError(
-                        "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
-                    )
+                    raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
 
     async def create_pricing_rule(self, data: Dict[str, Any]) -> PricingRule:
         """创建定价规则"""
@@ -370,7 +366,13 @@ class PricingService:
             return None
 
         # 检查是否需要重叠校验
-        overlap_fields = {"effective_date", "expiry_date", "customer_id", "device_type", "layer_type"}
+        overlap_fields = {
+            "effective_date",
+            "expiry_date",
+            "customer_id",
+            "device_type",
+            "layer_type",
+        }
         needs_overlap_check = any(f in data for f in overlap_fields)
 
         if needs_overlap_check:
@@ -556,7 +558,9 @@ class InvoiceService:
             total_quantity = Decimal(str(row.total_quantity))
 
             # 先尝试精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
-            rule = rules_map.get((device_type, layer_type)) or rules_map.get((device_type, "single"))
+            rule = rules_map.get((device_type, layer_type)) or rules_map.get(
+                (device_type, "single")
+            )
             if not rule:
                 # 没有匹配的定价规则，跳过
                 continue
@@ -565,14 +569,16 @@ class InvoiceService:
                 # 定价结算：总用量 × 单价
                 unit_price = Decimal(str(rule.unit_price or 0))
                 subtotal = total_quantity * unit_price
-                items.append({
-                    "device_type": device_type,
-                    "layer_type": layer_type,
-                    "quantity": total_quantity,
-                    "unit_price": unit_price,
-                    "subtotal": subtotal,
-                    "pricing_rule_id": rule.id,
-                })
+                items.append(
+                    {
+                        "device_type": device_type,
+                        "layer_type": layer_type,
+                        "quantity": total_quantity,
+                        "unit_price": unit_price,
+                        "subtotal": subtotal,
+                        "pricing_rule_id": rule.id,
+                    }
+                )
                 total_amount += subtotal
 
             elif rule.pricing_type == "tiered":
@@ -581,14 +587,16 @@ class InvoiceService:
                 subtotal = self._calculate_tiered_price(total_quantity, tiers)
                 # 阶梯计价的 unit_price 显示为平均单价
                 avg_unit_price = subtotal / total_quantity if total_quantity > 0 else Decimal(0)
-                items.append({
-                    "device_type": device_type,
-                    "layer_type": layer_type,
-                    "quantity": total_quantity,
-                    "unit_price": avg_unit_price,
-                    "subtotal": subtotal,
-                    "pricing_rule_id": rule.id,
-                })
+                items.append(
+                    {
+                        "device_type": device_type,
+                        "layer_type": layer_type,
+                        "quantity": total_quantity,
+                        "unit_price": avg_unit_price,
+                        "subtotal": subtotal,
+                        "pricing_rule_id": rule.id,
+                    }
+                )
                 total_amount += subtotal
 
             elif rule.pricing_type == "package":
@@ -597,14 +605,16 @@ class InvoiceService:
                 package_limits = rule.package_limits or {}
                 # 简化实现：使用包年基础费用作为单价
                 base_fee = Decimal(str(package_limits.get("base_fee", 0)))
-                items.append({
-                    "device_type": device_type,
-                    "layer_type": layer_type,
-                    "quantity": total_quantity,
-                    "unit_price": base_fee,
-                    "subtotal": base_fee,  # 包年固定费用
-                    "pricing_rule_id": rule.id,
-                })
+                items.append(
+                    {
+                        "device_type": device_type,
+                        "layer_type": layer_type,
+                        "quantity": total_quantity,
+                        "unit_price": base_fee,
+                        "subtotal": base_fee,  # 包年固定费用
+                        "pricing_rule_id": rule.id,
+                    }
+                )
                 total_amount += base_fee
 
         return items, total_amount

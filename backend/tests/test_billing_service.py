@@ -797,10 +797,13 @@ class TestPricingService_UpdateOverlap:
         ]
 
         with pytest.raises(ValueError, match="有效期存在重叠"):
-            await service.update_pricing_rule(1, {
-                "effective_date": date(2026, 8, 1),
-                "expiry_date": date(2026, 10, 31),
-            })
+            await service.update_pricing_rule(
+                1,
+                {
+                    "effective_date": date(2026, 8, 1),
+                    "expiry_date": date(2026, 10, 31),
+                },
+            )
 
     @pytest.mark.asyncio
     async def test_update_no_overlap(self, pricing_service):
@@ -824,10 +827,13 @@ class TestPricingService_UpdateOverlap:
             make_mock_execute_result([]),
         ]
 
-        result = await service.update_pricing_rule(1, {
-            "effective_date": date(2026, 7, 1),
-            "expiry_date": date(2026, 12, 31),
-        })
+        result = await service.update_pricing_rule(
+            1,
+            {
+                "effective_date": date(2026, 7, 1),
+                "expiry_date": date(2026, 12, 31),
+            },
+        )
 
         assert result is not None
         assert mock_db.commit.call_count == 1
@@ -852,9 +858,12 @@ class TestPricingService_UpdateOverlap:
 
         mock_db.execute.return_value = make_mock_execute_result([current_rule])
 
-        result = await service.update_pricing_rule(1, {
-            "unit_price": Decimal("15.00"),
-        })
+        result = await service.update_pricing_rule(
+            1,
+            {
+                "unit_price": Decimal("15.00"),
+            },
+        )
 
         assert result is not None
         assert mock_db.execute.call_count == 1

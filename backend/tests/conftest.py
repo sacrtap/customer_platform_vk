@@ -13,7 +13,9 @@ import sys
 # ============================================================
 
 # 设置测试环境变量
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
+)
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 os.environ.setdefault("JWT_SECRET", "test-secret-key")
 os.environ.setdefault("JWT_ALGORITHM", "HS256")

@@ -98,10 +98,10 @@ class TestSortConstants:
             "name",
             "created_at",
             "updated_at",
-            "industry",          # 行业类型 (CustomerProfile 表)
-            "settlement_type",   # 结算方式 (Customer 表)
-            "manager_id",        # 运营经理 (Customer 表)
-            "is_key_customer",   # 重点客户 (Customer 表)
+            "industry",  # 行业类型 (CustomerProfile 表)
+            "settlement_type",  # 结算方式 (Customer 表)
+            "manager_id",  # 运营经理 (Customer 表)
+            "is_key_customer",  # 重点客户 (Customer 表)
         }
         assert ALLOWED_SORT_FIELDS == expected_fields
 
@@ -302,15 +302,9 @@ class TestSortServiceIntegration:
 
         # Mock 数据按 created_at 递减（模拟数据库排序后的结果）
         mock_customers = [
-            Customer(
-                id=2, company_id=200, name="Customer B", created_at=datetime(2026, 3, 1)
-            ),
-            Customer(
-                id=3, company_id=150, name="Customer C", created_at=datetime(2026, 2, 1)
-            ),
-            Customer(
-                id=1, company_id=100, name="Customer A", created_at=datetime(2026, 1, 1)
-            ),
+            Customer(id=2, company_id=200, name="Customer B", created_at=datetime(2026, 3, 1)),
+            Customer(id=3, company_id=150, name="Customer C", created_at=datetime(2026, 2, 1)),
+            Customer(id=1, company_id=100, name="Customer A", created_at=datetime(2026, 1, 1)),
         ]
 
         mock_db.execute.side_effect = [
@@ -334,15 +328,9 @@ class TestSortServiceIntegration:
         from datetime import datetime
 
         mock_customers = [
-            Customer(
-                id=1, company_id=100, name="Customer A", updated_at=datetime(2026, 1, 1)
-            ),
-            Customer(
-                id=2, company_id=200, name="Customer B", updated_at=datetime(2026, 2, 1)
-            ),
-            Customer(
-                id=3, company_id=150, name="Customer C", updated_at=datetime(2026, 3, 1)
-            ),
+            Customer(id=1, company_id=100, name="Customer A", updated_at=datetime(2026, 1, 1)),
+            Customer(id=2, company_id=200, name="Customer B", updated_at=datetime(2026, 2, 1)),
+            Customer(id=3, company_id=150, name="Customer C", updated_at=datetime(2026, 3, 1)),
         ]
 
         mock_db.execute.side_effect = [
@@ -478,11 +466,13 @@ class TestSortEdgeCases:
     async def test_all_allowed_sort_fields_are_valid_customer_attributes(self):
         """验证所有允许的排序字段都是有效字段（Customer 或 CustomerProfile 的属性）"""
         from app.models.customers import CustomerProfile
-        
+
         for field in ALLOWED_SORT_FIELDS:
             # industry 字段在 CustomerProfile 表中
             if field == "industry":
-                assert hasattr(CustomerProfile, field), f"{field} is not a valid CustomerProfile attribute"
+                assert hasattr(
+                    CustomerProfile, field
+                ), f"{field} is not a valid CustomerProfile attribute"
             else:
                 # 其他字段在 Customer 表中
                 assert hasattr(Customer, field), f"{field} is not a valid Customer attribute"

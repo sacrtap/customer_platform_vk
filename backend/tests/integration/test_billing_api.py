@@ -890,21 +890,25 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
     """测试冲突检查 API — 有冲突"""
     # 先创建一个客户（使用子查询获取 manager_id）
     from sqlalchemy import text
-    
+
     # 获取第一个用户的 ID
     result = db_session.execute(text("SELECT id FROM users LIMIT 1"))
     user_row = result.fetchone()
     manager_id = user_row[0] if user_row else 1
-    
+
     customer_id = 99998
     company_id = 99998
-    
+
     # 清理旧数据
-    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
-    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+    )
+    db_session.execute(
+        text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id}
+    )
     db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
     db_session.commit()
-    
+
     # 创建客户
     db_session.execute(
         text(
@@ -927,7 +931,7 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
         },
     )
     db_session.commit()
-    
+
     # 先创建一条规则（指定 customer_id）
     create_req, create_resp = await test_client.post(
         "/api/v1/billing/pricing-rules",
@@ -962,9 +966,11 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
     assert data["code"] == 0
     assert data["data"]["has_conflict"] is True
     assert len(data["data"]["conflicting_rules"]) > 0
-    
+
     # 清理
-    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+    )
     db_session.commit()
 
 
@@ -973,21 +979,25 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
     """测试冲突检查 API — 无冲突"""
     # 先创建一个客户（使用子查询获取 manager_id）
     from sqlalchemy import text
-    
+
     # 获取第一个用户的 ID
     result = db_session.execute(text("SELECT id FROM users LIMIT 1"))
     user_row = result.fetchone()
     manager_id = user_row[0] if user_row else 1
-    
+
     customer_id = 99997
     company_id = 99997
-    
+
     # 清理旧数据
-    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
-    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+    )
+    db_session.execute(
+        text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id}
+    )
     db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
     db_session.commit()
-    
+
     # 创建客户
     db_session.execute(
         text(
@@ -1010,7 +1020,7 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
         },
     )
     db_session.commit()
-    
+
     response_req, response_resp = await test_client.get(
         "/api/v1/billing/pricing-rules/check-conflict",
         params={
@@ -1028,9 +1038,13 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
     assert data["code"] == 0
     assert data["data"]["has_conflict"] is False
     assert len(data["data"]["conflicting_rules"]) == 0
-    
+
     # 清理
-    db_session.execute(text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id})
-    db_session.execute(text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+    )
+    db_session.execute(
+        text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": customer_id}
+    )
     db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
     db_session.commit()

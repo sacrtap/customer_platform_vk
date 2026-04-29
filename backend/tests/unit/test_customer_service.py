@@ -417,12 +417,8 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.execute.return_value = mock_result
 
         async def mock_flush():
-            mock_db_session.new.add(
-                Customer(id=1, company_id=1, name="公司 1", deleted_at=None)
-            )
-            mock_db_session.new.add(
-                Customer(id=2, company_id=2, name="公司 2", deleted_at=None)
-            )
+            mock_db_session.new.add(Customer(id=1, company_id=1, name="公司 1", deleted_at=None))
+            mock_db_session.new.add(Customer(id=2, company_id=2, name="公司 2", deleted_at=None))
 
         mock_db_session.flush = mock_flush
 
@@ -448,9 +444,7 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.execute.return_value = mock_result
 
         async def mock_flush():
-            mock_db_session.new.add(
-                Customer(id=1, company_id=200, name="新公司", deleted_at=None)
-            )
+            mock_db_session.new.add(Customer(id=1, company_id=200, name="新公司", deleted_at=None))
 
         mock_db_session.flush = mock_flush
 
@@ -478,9 +472,7 @@ class TestCustomerService_BatchCreateCustomers:
         mock_db_session.execute.return_value = mock_result
 
         async def mock_flush():
-            mock_db_session.new.add(
-                Customer(id=1, company_id=100, name="公司 2", deleted_at=None)
-            )
+            mock_db_session.new.add(Customer(id=1, company_id=100, name="公司 2", deleted_at=None))
 
         mock_db_session.flush = mock_flush
 
