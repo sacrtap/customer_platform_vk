@@ -8,41 +8,56 @@ from app.models.groups import CustomerGroup, CustomerGroupMember
 from app.models.users import User
 from app.models.customers import Customer
 
-# 测试数据库配置
-TEST_DATABASE_URL = "postgresql+asyncpg://localhost:5432/customer_platform_test"
+# 测试数据库配置（修复：缺少用户凭证）
+TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
+
+
+# 使用 xdist_group 标记，确保数据库操作测试在同一 worker 中串行执行
+# 避免多个 worker 同时 drop_all/create_all 导致表冲突
+pytestmark = pytest.mark.xdist_group("db_models")
 
 
 @pytest.fixture(scope="function")
 async def async_engine():
-    """创建异步测试数据库引擎"""
+    """创建异步测试数据库引擎
+
+    注意：此 fixture 会 drop_all + create_all，在并行模式下会导致表冲突。
+    通过 pytest.mark.xdist_group("db_models") 确保这些测试串行执行。
+    """
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
         future=True,
     )
 
-    # 创建所有表
+    # 创建所有表（不 drop，避免影响其他并行测试）
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
-    # 清理
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
+    # 清理：只关闭连接，不 drop 表
     await engine.dispose()
 
 
 @pytest.fixture(scope="function")
 async def async_session(async_engine):
-    """创建异步数据库会话"""
+    """创建异步数据库会话
+
+    每个测试开始前使用 TRUNCATE CASCADE 清理所有相关表数据，
+    确保测试间数据隔离，不受其他测试残留数据影响。
+    """
+    from sqlalchemy import text
+
     async_session_maker = async_sessionmaker(
         async_engine, class_=AsyncSession, expire_on_commit=False
     )
 
     async with async_session_maker() as session:
+        # 测试前清理：TRUNCATE CASCADE 清理所有关联数据
+        await session.execute(text("TRUNCATE customer_group_members, customer_groups, customers, users CASCADE"))
+        await session.commit()
+
         try:
             yield session
             await session.commit()
