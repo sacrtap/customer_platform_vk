@@ -74,6 +74,14 @@
               </a-select>
             </a-form-item>
           </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="重点客户">
+              <a-select v-model="filters.is_key_customer" placeholder="请选择" allow-clear>
+                <a-option :value="true">是</a-option>
+                <a-option :value="false">否</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="6">
             <a-form-item label="&nbsp;">
               <a-space>
@@ -332,13 +340,16 @@ const formatLastRechargeTime = (dateStr: string): string => {
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
 
-// 筛选条件
-const filters = reactive({
+// 默认筛选值
+const DEFAULT_FILTERS = {
   customer_id: undefined as number | undefined,
   recharge_date: [] as string[],
-  industry: [] as string[],
-  account_type: '',
-})
+  industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
+  account_type: '正式账号',
+  is_key_customer: null as boolean | null,
+}
+
+const filters = reactive({ ...DEFAULT_FILTERS })
 
 // 高级筛选条件
 const advancedFilters = reactive({
@@ -432,6 +443,7 @@ const loadBalances = async () => {
       recharge_date_from?: string
       recharge_date_to?: string
       tag_ids?: string
+      is_key_customer?: boolean
       sort_by: string
       sort_order: 'asc' | 'desc'
     } = {
@@ -452,6 +464,7 @@ const loadBalances = async () => {
     if (advancedFilters.tag_ids && advancedFilters.tag_ids.length > 0) {
       params.tag_ids = advancedFilters.tag_ids.join(',')
     }
+    if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
 
     const res = await getBalances(params)
     balances.value = res.data.list || []
@@ -486,10 +499,7 @@ const handleSearch = () => {
 
 // 重置
 const handleReset = () => {
-  filters.customer_id = undefined
-  filters.recharge_date = []
-  filters.industry = []
-  filters.account_type = ''
+  Object.assign(filters, { ...DEFAULT_FILTERS })
   advancedFilters.manager_id = null
   advancedFilters.sales_manager_id = null
   advancedFilters.tag_ids = []
