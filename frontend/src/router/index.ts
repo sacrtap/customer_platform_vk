@@ -145,14 +145,17 @@ router.beforeEach((to, _from, next) => {
   // 确保从 storage 初始化用户状态
   userStore.initFromStorage()
 
-  // 登录态检查
-  if (to.meta.requiresAuth && !userStore.token) {
-    next('/login')
-    return
+  // 登录态检查：token 不存在或已过期
+  if (to.meta.requiresAuth) {
+    if (!userStore.token || userStore.isTokenExpired()) {
+      userStore.logout() // 清理所有状态
+      next('/login')
+      return
+    }
   }
 
   // 已登录访问登录页，重定向到首页
-  if (to.path === '/login' && userStore.token) {
+  if (to.path === '/login' && userStore.token && !userStore.isTokenExpired()) {
     next({ path: '/', replace: true, force: true })
     return
   }

@@ -614,11 +614,18 @@ watch(sidebarCollapsed, (collapsed) => {
   }
 })
 
-// 初始化时从 localStorage 读取侧边栏状态
+// 初始化时从 localStorage 读取侧边栏状态 + token 过期检查
 onMounted(() => {
   const saved = localStorage.getItem('sidebar_collapsed')
   if (saved !== null) {
     sidebarCollapsed.value = saved === 'true'
+  }
+
+  // 双重保障：检查 token 是否过期，过期则自动退出
+  if (userStore.isTokenExpired()) {
+    userStore.logout()
+    Message.warning('登录已过期，请重新登录')
+    router.push('/login')
   }
 })
 
