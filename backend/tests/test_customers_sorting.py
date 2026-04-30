@@ -91,7 +91,7 @@ class TestSortConstants:
     """排序常量验证"""
 
     def test_allowed_sort_fields_contains_expected_fields(self):
-        """验证排序字段白名单包含预期字段（包括新扩展的 industry, settlement_type, manager_id, is_key_customer）"""
+        """验证排序字段白名单包含预期字段（包括新扩展的 industry, settlement_type, manager_id, sales_manager_id, is_key_customer）"""
         expected_fields = {
             "id",
             "company_id",
@@ -101,6 +101,7 @@ class TestSortConstants:
             "industry",  # 行业类型 (CustomerProfile 表)
             "settlement_type",  # 结算方式 (Customer 表)
             "manager_id",  # 运营经理 (Customer 表)
+            "sales_manager_id",  # 商务经理 (Customer 表)
             "is_key_customer",  # 重点客户 (Customer 表)
         }
         assert ALLOWED_SORT_FIELDS == expected_fields

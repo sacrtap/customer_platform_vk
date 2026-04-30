@@ -256,6 +256,7 @@
                     <ConsumeLevelProgress
                       v-if="shouldRenderChart('consume') && profile.consume_level"
                       :current-level="profile.consume_level"
+                      :current-amount="profile.actual_annual_spend_2025 || 0"
                     />
                   </div>
                 </div>
