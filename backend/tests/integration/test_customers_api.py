@@ -1187,11 +1187,11 @@ async def test_customers_missing_permission(test_client, db_session):
         assert login_response.status == 200
         token = login_response.json["data"]["access_token"]
 
-        # Patch auth.py 中的权限缓存引用（装饰器持有的是这个模块的引用）
-        from app.middleware import auth as auth_module
+        # Patch permission cache (now imported lazily inside require_permission)
+        from app.cache import permissions as perm_module
 
-        original_get = auth_module.permission_cache.get_permissions
-        auth_module.permission_cache.get_permissions = AsyncMock(return_value=set())
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(return_value=set())
 
         try:
             request, response = await test_client.get(
@@ -1201,7 +1201,7 @@ async def test_customers_missing_permission(test_client, db_session):
 
             assert response.status == 403
         finally:
-            auth_module.permission_cache.get_permissions = original_get
+            perm_module.permission_cache.get_permissions = original_get
     finally:
         db_session.execute(
             text("DELETE FROM users WHERE username = :username"),

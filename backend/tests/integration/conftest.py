@@ -83,163 +83,213 @@ def sync_test_engine():
 
     yield engine
 
-    # 清理：关闭所有连接
+    # 清理：关闭所有连接，清理测试数据
+    SessionLocal = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    session = SessionLocal()
+    try:
+        session.execute(
+            text("TRUNCATE user_roles, roles, permissions, role_permissions, users CASCADE")
+        )
+        session.commit()
+    finally:
+        session.close()
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
-async def db_session(sync_test_engine):
-    """创建同步数据库会话（用于测试清理）"""
-    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
+@pytest.fixture(scope="session")
+def test_user(sync_test_engine):
+    """Session 级测试用户，只在测试会话开始时创建一次
 
-
-@pytest.fixture(scope="function")
-def test_user(db_session):
-    """提供测试用户信息并创建用户记录"""
+    优化说明：
+    - 从 function scope 改为 session scope，避免每个测试都执行 TRUNCATE + INSERT
+    - 原来 200+ 个测试 × 30+ 条权限 = 6000+ 次 INSERT，现在只执行 1 次
+    - 测试间数据隔离由 db_session 的事务回滚负责
+    """
     import bcrypt
-    from sqlalchemy import text
 
     username = "admin"
     password = "admin123"
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    # 清理旧数据（使用 CASCADE 避免死锁）
-    db_session.execute(
-        text("TRUNCATE user_roles, roles, permissions, role_permissions, users CASCADE")
-    )
-    db_session.commit()
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
+    session = SessionLocal()
 
-    # 创建管理员角色
-    db_session.execute(
-        text(
-            """
-        INSERT INTO roles (name, description, created_at)
-        VALUES (:name, :description, NOW())
-        """
-        ),
-        {"name": "admin", "description": "系统管理员"},
-    )
+    try:
+        # 清理旧数据（使用 CASCADE 避免死锁）
+        session.execute(
+            text("TRUNCATE user_roles, roles, permissions, role_permissions, users CASCADE")
+        )
+        session.commit()
 
-    # 创建权限（细粒度权限，与 seed.py 定义一致）
-    # 注意：权限代码使用 : 分隔符（如 customers:view），与路由中的 require_permission 一致
-    permissions = [
-        ("customers:view", "查看客户", "customers"),
-        ("customers:create", "新建客户", "customers"),
-        ("customers:edit", "编辑客户", "customers"),
-        ("customers:delete", "删除客户", "customers"),
-        ("customers:export", "导出客户", "customers"),
-        ("customers:import", "导入客户", "customers"),
-        ("billing:view", "查看结算", "billing"),
-        ("billing:edit", "编辑结算", "billing"),
-        ("billing:recharge", "充值操作", "billing"),
-        ("billing:refund", "退款操作", "billing"),
-        ("billing:delete", "结算删除", "billing"),
-        ("billing:confirm", "结算确认", "billing"),
-        ("billing:pay", "结算付款", "billing"),
-        ("files:view", "查看文件", "files"),
-        ("files:upload", "上传文件", "files"),
-        ("files:delete", "删除文件", "files"),
-        ("users:view", "查看用户", "users"),
-        ("users:create", "新建用户", "users"),
-        ("users:edit", "编辑用户", "users"),
-        ("users:delete", "删除用户", "users"),
-        ("users:role_assign", "分配角色", "users"),
-        ("roles:view", "查看角色", "roles"),
-        ("roles:create", "新建角色", "roles"),
-        ("roles:edit", "编辑角色", "roles"),
-        ("roles:delete", "删除角色", "roles"),
-        ("roles:assign", "分配权限", "roles"),
-        ("system:view", "查看系统", "system"),
-        ("system:export", "导出日志", "system"),
-        ("system:settings", "系统设置", "system"),
-        ("analytics:view", "查看分析", "analytics"),
-        ("analytics:export", "导出报表", "analytics"),
-        ("analytics:profile_tag_edit", "编辑画像标签", "analytics"),
-        ("tags:view", "查看标签", "tags"),
-        ("tags:create", "新建标签", "tags"),
-        ("tags:edit", "编辑标签", "tags"),
-        ("tags:delete", "删除标签", "tags"),
-    ]
-    for perm_code, desc, module in permissions:
-        db_session.execute(
+        # 创建管理员角色
+        session.execute(
             text(
                 """
-            INSERT INTO permissions (code, name, description, module, created_at)
-            VALUES (:code, :name, :description, :module, NOW())
+            INSERT INTO roles (name, description, created_at)
+            VALUES (:name, :description, NOW())
             """
             ),
-            {"code": perm_code, "name": desc, "description": desc, "module": module},
+            {"name": "admin", "description": "系统管理员"},
         )
 
-    # 获取角色 ID
-    result = db_session.execute(
-        text("SELECT id FROM roles WHERE name = :name"), {"name": "admin"}
-    ).fetchone()
-    role_id = result[0]
+        # 创建权限（细粒度权限，与 seed.py 定义一致）
+        permissions = [
+            ("customers:view", "查看客户", "customers"),
+            ("customers:create", "新建客户", "customers"),
+            ("customers:edit", "编辑客户", "customers"),
+            ("customers:delete", "删除客户", "customers"),
+            ("customers:export", "导出客户", "customers"),
+            ("customers:import", "导入客户", "customers"),
+            ("billing:view", "查看结算", "billing"),
+            ("billing:edit", "编辑结算", "billing"),
+            ("billing:recharge", "充值操作", "billing"),
+            ("billing:refund", "退款操作", "billing"),
+            ("billing:delete", "结算删除", "billing"),
+            ("billing:confirm", "结算确认", "billing"),
+            ("billing:pay", "结算付款", "billing"),
+            ("files:view", "查看文件", "files"),
+            ("files:upload", "上传文件", "files"),
+            ("files:delete", "删除文件", "files"),
+            ("users:view", "查看用户", "users"),
+            ("users:create", "新建用户", "users"),
+            ("users:edit", "编辑用户", "users"),
+            ("users:delete", "删除用户", "users"),
+            ("users:role_assign", "分配角色", "users"),
+            ("roles:view", "查看角色", "roles"),
+            ("roles:create", "新建角色", "roles"),
+            ("roles:edit", "编辑角色", "roles"),
+            ("roles:delete", "删除角色", "roles"),
+            ("roles:assign", "分配权限", "roles"),
+            ("system:view", "查看系统", "system"),
+            ("system:export", "导出日志", "system"),
+            ("system:settings", "系统设置", "system"),
+            ("analytics:view", "查看分析", "analytics"),
+            ("analytics:export", "导出报表", "analytics"),
+            ("analytics:profile_tag_edit", "编辑画像标签", "analytics"),
+            ("tags:view", "查看标签", "tags"),
+            ("tags:create", "新建标签", "tags"),
+            ("tags:edit", "编辑标签", "tags"),
+            ("tags:delete", "删除标签", "tags"),
+        ]
+        for perm_code, desc, module in permissions:
+            session.execute(
+                text(
+                    """
+                INSERT INTO permissions (code, name, description, module, created_at)
+                VALUES (:code, :name, :description, :module, NOW())
+                """
+                ),
+                {"code": perm_code, "name": desc, "description": desc, "module": module},
+            )
 
-    # 获取权限 ID 列表
-    result = db_session.execute(
-        text("SELECT id FROM permissions WHERE name IN :names"),
-        {"names": tuple(p[0] for p in permissions)},
-    ).fetchall()
-    perm_ids = [r[0] for r in result]
+        # 获取角色 ID
+        result = session.execute(
+            text("SELECT id FROM roles WHERE name = :name"), {"name": "admin"}
+        ).fetchone()
+        role_id = result[0]
 
-    # 创建角色权限关联
-    for perm_id in perm_ids:
-        db_session.execute(
+        # 获取权限 ID 列表
+        result = session.execute(
+            text("SELECT id FROM permissions WHERE name IN :names"),
+            {"names": tuple(p[0] for p in permissions)},
+        ).fetchall()
+        perm_ids = [r[0] for r in result]
+
+        # 创建角色权限关联
+        for perm_id in perm_ids:
+            session.execute(
+                text(
+                    """
+                INSERT INTO role_permissions (role_id, permission_id, created_at)
+                VALUES (:role_id, :permission_id, NOW())
+                """
+                ),
+                {"role_id": role_id, "permission_id": perm_id},
+            )
+
+        # 创建用户
+        session.execute(
             text(
                 """
-            INSERT INTO role_permissions (role_id, permission_id, created_at)
-            VALUES (:role_id, :permission_id, NOW())
+            INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
+            VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
             """
             ),
-            {"role_id": role_id, "permission_id": perm_id},
+            {
+                "username": username,
+                "password_hash": password_hash,
+                "email": "admin@example.com",
+                "real_name": "管理员",
+                "is_active": True,
+            },
         )
 
-    # 创建用户
-    db_session.execute(
-        text(
+        # 获取用户 ID 并关联角色
+        result = session.execute(
+            text("SELECT id FROM users WHERE username = :username"), {"username": username}
+        ).fetchone()
+        user_id = result[0]
+
+        session.execute(
+            text(
+                """
+            INSERT INTO user_roles (user_id, role_id)
+            VALUES (:user_id, :role_id)
             """
-        INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
-        VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
-        {
-            "username": username,
-            "password_hash": password_hash,
-            "email": "admin@example.com",
-            "real_name": "管理员",
-            "is_active": True,
-        },
-    )
+            ),
+            {"user_id": user_id, "role_id": role_id},
+        )
 
-    # 获取用户 ID 并关联角色
-    result = db_session.execute(
-        text("SELECT id FROM users WHERE username = :username"), {"username": username}
-    ).fetchone()
-    user_id = result[0]
-
-    db_session.execute(
-        text(
-            """
-        INSERT INTO user_roles (user_id, role_id)
-        VALUES (:user_id, :role_id)
-        """
-        ),
-        {"user_id": user_id, "role_id": role_id},
-    )
-
-    db_session.commit()
+        session.commit()
+    finally:
+        session.close()
 
     return {
         "username": username,
         "password": password,
     }
+
+
+@pytest.fixture(scope="function")
+def db_session(sync_test_engine, test_user):
+    """创建同步数据库会话（用于测试清理）
+
+    优化说明：
+    - 依赖 test_user fixture，确保测试用户已创建
+    - 每个测试开始前 TRUNCATE 业务数据表，确保测试间数据隔离
+    - 保留 test_user 创建的 auth 相关数据（users/roles/permissions）
+    """
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        # 测试后清理业务数据（保留 auth 数据）
+        # 按外键依赖顺序：先删叶子表，再删父表
+        try:
+            session.execute(text("DELETE FROM customer_group_members"))
+            session.execute(text("DELETE FROM customer_groups"))
+            session.execute(text("DELETE FROM customer_tags"))
+            session.execute(text("DELETE FROM tags"))
+            session.execute(text("DELETE FROM invoice_items"))
+            session.execute(text("DELETE FROM invoices"))
+            session.execute(text("DELETE FROM customer_balances"))
+            session.execute(text("DELETE FROM recharge_records"))
+            session.execute(text("DELETE FROM customer_profiles"))
+            session.execute(text("DELETE FROM consumption_records"))
+            session.execute(text("DELETE FROM daily_usage"))
+            session.execute(text("DELETE FROM files"))
+            session.execute(text("DELETE FROM audit_logs"))
+            session.execute(text("DELETE FROM sync_task_logs"))
+            session.execute(text("DELETE FROM pricing_rules"))
+            session.execute(text("DELETE FROM webhook_signatures"))
+            session.execute(text("DELETE FROM token_blacklist"))
+            session.execute(text("DELETE FROM industry_types"))
+            session.execute(text("DELETE FROM customers"))
+            session.commit()
+        except Exception:
+            session.rollback()
+        session.close()
 
 
 @pytest.fixture(scope="function")

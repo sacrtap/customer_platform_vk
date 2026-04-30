@@ -18,8 +18,8 @@ test-parallel:
 	@echo "========== 运行单元测试（DB 依赖，串行） =========="
 	source .venv/bin/activate && python -m pytest tests/unit/test_models.py tests/unit/test_audit_helpers.py --tb=short -q
 	@echo ""
-	@echo "========== 运行集成测试 =========="
-	source .venv/bin/activate && python -m pytest tests/integration/ -n auto --tb=short -q
+	@echo "========== 运行集成测试（串行，避免数据库冲突） =========="
+	source .venv/bin/activate && python -m pytest tests/integration/ --tb=short -q
 
 # 完整分模块运行（详细输出）
 test-all:

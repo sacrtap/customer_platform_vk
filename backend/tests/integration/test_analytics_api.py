@@ -512,7 +512,7 @@ class TestBalanceTrendApi:
         db_session.execute(
             text(
                 "INSERT INTO customers (company_id, name, email) "
-                "VALUES ('BT_TEST_001', 'balance_trend_test', 'balance_trend@test.com') "
+                "VALUES (999001, 'balance_trend_test', 'balance_trend@test.com') "
                 "RETURNING id"
             )
         )
@@ -567,7 +567,7 @@ class TestBalanceTrendApi:
         db_session.execute(
             text(
                 "INSERT INTO customers (company_id, name, email) "
-                "VALUES ('BT_TEST_002', 'balance_trend_months', 'balance_trend_m@test.com') "
+                "VALUES (999002, 'balance_trend_months', 'balance_trend_m@test.com') "
                 "RETURNING id"
             )
         )
@@ -626,7 +626,7 @@ class TestCustomerHealthScoreApi:
         db_session.execute(
             text(
                 "INSERT INTO customers (company_id, name, email) "
-                "VALUES ('HS_TEST_001', 'health_score_test', 'health_score@test.com') "
+                "VALUES (999003, 'health_score_test', 'health_score@test.com') "
                 "RETURNING id"
             )
         )
