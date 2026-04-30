@@ -7,7 +7,8 @@ from functools import wraps
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
 from ..services import get_user_permissions
-from ..cache.permissions import permission_cache
+# Lazy import to avoid capturing real permission_cache at module load time
+# Tests can mock app.cache.permissions.permission_cache before routes are loaded
 from ..services.token_blacklist import TokenBlacklistService
 
 
@@ -86,6 +87,9 @@ def require_permission(permission_code: str):
 
             if not user:
                 return json({"code": 40101, "message": "未认证"}, status=401)
+
+            # Lazy import to support test mocking
+            from ..cache.permissions import permission_cache
 
             # 从缓存或数据库获取用户权限
             user_id = user["user_id"]
