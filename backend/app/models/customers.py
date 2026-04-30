@@ -37,7 +37,7 @@ class Customer(BaseModel):
     sales_manager_id = Column(
         Integer, ForeignKey("users.id"), nullable=True, index=True
     )  # 销售负责人
-    cooperation_status = Column(String(50), nullable=True, index=True, default="active")  # 合作状态
+    cooperation_status = Column(String(50), nullable=True, index=True, default="active")  # 合作状态：active/suspended/terminated/noused
     is_settlement_enabled = Column(Boolean, nullable=True, default=True)  # 是否启用结算
     is_disabled = Column(Boolean, nullable=True, default=False, index=True)  # 是否停用
     notes = Column(Text, nullable=True)  # 备注

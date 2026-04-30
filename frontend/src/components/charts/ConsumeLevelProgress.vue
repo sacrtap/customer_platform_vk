@@ -36,10 +36,12 @@ const props = withDefaults(
   {}
 )
 
-const levels = ['D', 'C', 'B', 'A', 'S']
+// 统一的消费等级配置（从低到高）
+const levels = ['E', 'D', 'C', 'B', 'A', 'S']
 
 const levelThresholds = {
-  D: 0,
+  E: 0,
+  D: 30000,
   C: 60000,
   B: 120000,
   A: 250000,
@@ -60,13 +62,22 @@ const nextThreshold = computed(() => {
 })
 
 const indicatorPosition = computed(() => {
+  if (currentLevelIndex.value < 0) return 0
   if (currentLevelIndex.value >= levels.length - 1) {
     return 100
   }
+  // 6 个等级，5 个间隔，每个间隔占 20%（100/5=20）
+  const segmentWidth = 100 / (levels.length - 1)
+  
+  // 如果没有传入 currentAmount，游标在当前等级的中间位置
+  if (!props.currentAmount || props.currentAmount === 0) {
+    return (currentLevelIndex.value + 0.5) * segmentWidth
+  }
+  
   const range = nextThreshold.value - currentThreshold.value
   const progress = props.currentAmount - currentThreshold.value
-  const segmentProgress = Math.min(progress / range, 1)
-  return (currentLevelIndex.value + segmentProgress) * 25
+  const segmentProgress = Math.min(Math.max(progress / range, 0), 1)
+  return (currentLevelIndex.value + segmentProgress) * segmentWidth
 })
 
 const amountToNextLevel = computed(() => {

@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-29
+**最后更新**: 2026-04-30
 **项目状态**: Phase 0-7 完成 | **CI 要求**: 测试覆盖率 ≥50%
 
 ---
@@ -148,6 +148,7 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 ### 浏览器交互与测试
 - 使用 OpenCode 内置 Playwright 工具 + bash 命令（详见全局 AGENTS.md）
+
 
 ## 业务模块
 

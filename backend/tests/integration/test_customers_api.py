@@ -40,7 +40,7 @@ async def auth_headers(auth_token):
 @pytest.fixture
 def customer_data(db_session):
     """创建测试客户数据"""
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'"))
+    db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.commit()
 
     customers = [
@@ -90,7 +90,8 @@ def customer_data(db_session):
 
     yield {"customers": customers, "customer_id": customer_id}
 
-    db_session.execute(text("DELETE FROM customers WHERE company_id LIKE 'TEST_%'"))
+    # 清理：使用 TRUNCATE 替代 LIKE 查询（company_id 是整数类型）
+    db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.commit()
 
 
@@ -445,8 +446,8 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "account_type",
         "industry",
         "price_policy",
-        "settlement_cycle",
         "settlement_type",
+        "settlement_cycle",
         "is_key_customer",
         "email",
         "erp_system",
@@ -456,6 +457,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "is_settlement_enabled",
         "is_disabled",
         "notes",
+        "scale_level",
         "consume_level",
         "monthly_avg_shots",
         "monthly_avg_shots_estimated",
@@ -466,28 +468,28 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     # 验证第 2 行：中文说明
     notes = [cell.value for cell in ws[2]]
-    assert notes[0] == "必填"  # company_id
-    assert notes[1] == "必填"  # name
-    assert "正式" in str(notes[2])  # account_type
+    assert "必填" in str(notes[0])  # company_id
+    assert "必填" in str(notes[1])  # name
+    assert "正式账号" in str(notes[2])  # account_type
     assert "定价" in str(notes[4])  # price_policy
-    assert "prepaid" in str(notes[6])  # settlement_type
+    assert "prepaid" in str(notes[5])  # settlement_type
 
     # 验证第 3 行：示例数据
     example = [cell.value for cell in ws[3]]
-    assert example[0] == 1001  # company_id 示例
+    assert example[0] == 100001  # company_id 示例
     assert "示例公司" in str(example[1])  # name 示例
     assert example[4] == "定价"  # price_policy 示例
-    assert example[6] == "prepaid"  # settlement_type 示例
+    assert example[5] == "prepaid"  # settlement_type 示例
     assert "example@" in str(example[8])  # email 示例
     # 验证新增字段
     assert example[10] == "2024-01-15"  # first_payment_date
-    assert example[12] == "正常使用"  # cooperation_status
-    assert example[16] == "C3"  # consume_level
+    assert example[12] == "active"  # cooperation_status
+    assert example[17] == "A"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 21 个字段"""
+    """测试下载导入模板 - 验证表头数量为 22 个字段"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -501,7 +503,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 21, f"期望 21 个表头，实际 {header_count} 个"
+    assert header_count == 22, f"期望 22 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -574,14 +576,21 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
                 """
             INSERT INTO permissions (code, name, description, module, created_at)
             VALUES ('customers:view', '查看客户', '查看客户列表和详情', 'customers', NOW())
+            ON CONFLICT (code) DO NOTHING
             """
             )
         )
         db_session.commit()
-        result = db_session.execute(
+        # 重新查询获取权限 ID
+        perm_result = db_session.execute(
             text("SELECT id FROM permissions WHERE code = 'customers:view'")
         )
-    perm_id = result.scalar_one()
+        perm_row = perm_result.fetchone()
+        if perm_row is None:
+            raise RuntimeError("Failed to create or find permission 'customers:view'")
+        perm_id = perm_row[0]
+    else:
+        perm_id = perm_row[0]
 
     db_session.execute(
         text("DELETE FROM role_permissions WHERE role_id = :role_id"),
@@ -1084,9 +1093,11 @@ async def test_export_customers_contains_test_data(test_client, auth_headers, cu
     row_count = ws.max_row
     assert row_count >= 2, f"期望至少 2 行，实际 {row_count} 行"
 
+    # 查找测试数据（company_id 1001/1002/1003 或包含"测试公司"的名称）
     found_test_data = False
     for row in ws.iter_rows(min_row=2, values_only=True):
-        if row[0] and "TEST" in str(row[0]):
+        # company_id 在第 1 列，name 在第 2 列
+        if row[0] in (1001, 1002, 1003) or (row[1] and "测试公司" in str(row[1])):
             found_test_data = True
             break
     assert found_test_data, "导出文件未找到测试数据"

@@ -73,7 +73,7 @@
               </div>
               <div class="info-item">
                 <span class="label">结算周期</span>
-                <span class="value">{{ customer.settlement_cycle || '-' }}</span>
+                <span class="value">{{ settlementCycleText }}</span>
               </div>
               <!-- 第 5 行 -->
               <div class="info-item">
@@ -254,9 +254,8 @@
                   <p class="chart-description">当前消费等级升级进度</p>
                   <div class="chart-content">
                     <ConsumeLevelProgress
-                      v-if="shouldRenderChart('consume')"
-                      :current-level="profile.consume_level || 'C1'"
-                      :current-amount="balance.used_total"
+                      v-if="shouldRenderChart('consume') && profile.consume_level"
+                      :current-level="profile.consume_level"
                     />
                   </div>
                 </div>
@@ -494,6 +493,7 @@
                   <a-option value="B">B</a-option>
                   <a-option value="C">C</a-option>
                   <a-option value="D">D</a-option>
+                  <a-option value="E">E</a-option>
                 </a-select>
               </a-form-item>
 
@@ -1234,6 +1234,7 @@ const cooperationStatusColor = computed(() => {
   if (status === 'active') return 'green'
   if (status === 'suspended') return 'orange'
   if (status === 'terminated') return 'red'
+  if (status === 'noused') return 'gray'
   return 'gray'
 })
 
@@ -1243,17 +1244,32 @@ const cooperationStatusText = computed(() => {
     active: '合作中',
     suspended: '暂停',
     terminated: '终止',
+    noused: '近一年未使用',
   }
   return map[status || ''] || '-'
 })
 
-// 消费等级显示映射
+// 结算周期展示映射
+const settlementCycleText = computed(() => {
+  const cycle = customer.value.settlement_cycle
+  const map: Record<string, string> = {
+    daily: '日结',
+    weekly: '周结',
+    monthly: '月结',
+    quarterly: '季结',
+    yearly: '年结',
+  }
+  return map[cycle || ''] || cycle || '-'
+})
+
+// 消费等级显示映射（与 ConsumeLevelProgress 组件保持一致）
 const CONSUME_LEVEL_MAP: Record<string, string> = {
-  S: 'S - 100万',
-  A: 'A - 50万',
-  B: 'B - 25万',
-  C: 'C - 12万',
+  E: 'E - 3万',
   D: 'D - 6万',
+  C: 'C - 12万',
+  B: 'B - 25万',
+  A: 'A - 50万',
+  S: 'S - 100万',
 }
 
 // 消费等级显示文本

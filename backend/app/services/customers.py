@@ -106,6 +106,10 @@ PRICE_POLICY_REVERSE_MAP = {v: k for k, v in PRICE_POLICY_MAP.items()}
 SETTLEMENT_TYPE_MAP = {"预付费": "prepaid", "后付费": "postpaid"}
 SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
 
+# 结算周期转换
+SETTLEMENT_CYCLE_MAP = {"日结": "daily", "周结": "weekly", "月结": "monthly", "季结": "quarterly", "年结": "yearly"}
+SETTLEMENT_CYCLE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_CYCLE_MAP.items()}
+
 
 def convert_price_policy_to_storage(value: str) -> str:
     return PRICE_POLICY_MAP.get(value, value)
@@ -117,6 +121,18 @@ def convert_price_policy_to_display(value: str) -> str:
 
 def convert_settlement_type_to_display(value: str) -> str:
     return SETTLEMENT_TYPE_REVERSE_MAP.get(value, value)
+
+
+def convert_settlement_cycle_to_storage(value: Optional[str]) -> Optional[str]:
+    """将导入的中文结算周期转换为数据库存储的英文标识符"""
+    if not value:
+        return None
+    return SETTLEMENT_CYCLE_MAP.get(value, value)
+
+
+def convert_settlement_cycle_to_display(value: str) -> str:
+    """将数据库存储的英文结算周期转换为前端显示的中文"""
+    return SETTLEMENT_CYCLE_REVERSE_MAP.get(value, value)
 
 
 class CustomerService:
@@ -529,9 +545,28 @@ class CustomerService:
                 )
                 data["is_disabled"] = convert_bool_field(data.get("is_disabled"))
 
+                # 转换 cooperation_status：支持 noused 值
+                cooperation_status = data.get("cooperation_status")
+                if cooperation_status:
+                    valid_statuses = {"active", "suspended", "terminated", "noused"}
+                    if cooperation_status not in valid_statuses:
+                        # 尝试中文映射
+                        status_map = {
+                            "合作中": "active",
+                            "暂停": "suspended",
+                            "终止": "terminated",
+                            "近一年未使用": "noused",
+                        }
+                        data["cooperation_status"] = status_map.get(cooperation_status)
+
                 # 转换日期字段
                 data["first_payment_date"] = convert_date_field(data.get("first_payment_date"))
                 data["onboarding_date"] = convert_date_field(data.get("onboarding_date"))
+
+                # 转换结算周期：中文→英文
+                settlement_cycle = data.get("settlement_cycle")
+                if settlement_cycle:
+                    data["settlement_cycle"] = convert_settlement_cycle_to_storage(settlement_cycle)
 
                 # 结算方式统一设为 prepaid
                 if data.get("settlement_type") is None:

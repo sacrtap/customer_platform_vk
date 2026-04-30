@@ -13,6 +13,7 @@ from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission, get_current_user
 import pandas as pd
 import io
+import math
 from datetime import datetime
 import hashlib
 import re
@@ -524,6 +525,9 @@ async def import_customers(request: Request):
                     row["is_key_customer"] = val
                 elif isinstance(val, str):
                     row["is_key_customer"] = val.lower() in ["true", "是", "1"]
+                elif isinstance(val, float) and math.isnan(val):
+                    # pandas 空单元格为 NaN，bool(NaN) = True，需特殊处理
+                    row["is_key_customer"] = False
                 else:
                     row["is_key_customer"] = bool(val) if val is not None else False
 
@@ -594,11 +598,10 @@ async def download_import_template(request: Request):
         "account_type",
         "industry",
         "price_policy",
-        "settlement_cycle",
         "settlement_type",
+        "settlement_cycle",
         "is_key_customer",
         "email",
-        # 新增字段
         "erp_system",
         "first_payment_date",
         "onboarding_date",
@@ -606,6 +609,7 @@ async def download_import_template(request: Request):
         "is_settlement_enabled",
         "is_disabled",
         "notes",
+        "scale_level",
         "consume_level",
         "monthly_avg_shots",
         "monthly_avg_shots_estimated",
@@ -616,24 +620,24 @@ async def download_import_template(request: Request):
 
     # 添加中文说明行（不作为数据行，仅提示用户）
     notes = [
-        "必填",
-        "必填",
-        "可选：正式/客户测试账号/众趣内部",
-        "可选",
+        "必填：唯一整数",
+        "必填：客户名称",
+        "可选：正式账号/客户测试账号/内部账号",
+        "可选：行业类型",
         "可选：定价/阶梯/包年",
-        "可选",
-        "可选：默认prepaid",
+        "可选：prepaid=预付费, postpaid=后付费",
+        "可选：daily=日结, weekly=周结, monthly=月结, quarterly=季结, yearly=年结",
         "可选：true/false",
-        "可选",
-        # 新增字段说明
-        "可选",
-        "可选：YYYY-MM-DD",
-        "可选：YYYY-MM-DD",
-        "可选",
-        "可选：是/否",
-        "可选：是/否",
-        "可选",
-        "可选：C2/C3/C4/C5/C6",
+        "可选：邮箱地址",
+        "可选：所属 ERP 系统",
+        "可选：YYYY-MM-DD 格式",
+        "可选：YYYY-MM-DD 格式",
+        "可选：active=合作中, suspended=暂停, terminated=终止, noused=近一年未使用",
+        "可选：true/false",
+        "可选：true/false",
+        "可选：备注信息",
+        "可选：100/500/1000/2000/5000",
+        "可选：S/A/B/C/D/E",
         "可选：整数",
         "可选：整数",
         "可选：金额",
@@ -643,28 +647,28 @@ async def download_import_template(request: Request):
 
     # 设置列宽
     for col in ws.columns:
-        ws.column_dimensions[col[0].column_letter].width = 20
+        ws.column_dimensions[col[0].column_letter].width = 25
 
     # 添加示例数据
     example_data = [
-        1001,
-        "示例公司 1",
-        "正式",
-        "项目",
+        100001,
+        "示例公司",
+        "正式账号",
+        "房产经纪",
         "定价",
-        "月结",
         "prepaid",
-        "false",
+        "monthly",
+        "true",
         "example@company.com",
-        # 新增字段示例
-        "某某ERP",
+        "易遨",
         "2024-01-15",
         "2024-02-01",
-        "正常使用",
-        "是",
-        "否",
+        "active",
+        "true",
+        "false",
         "备注示例",
-        "C3",
+        "500",
+        "A",
         500,
         450,
         50000.00,
