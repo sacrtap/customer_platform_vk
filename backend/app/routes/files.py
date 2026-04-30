@@ -153,7 +153,9 @@ async def upload_file(request):
         if not request.files or "file" not in request.files:
             return json({"code": 400, "message": "未找到上传文件", "data": None}, status=400)
 
-        file: File = request.files["file"]
+        # Sanic request.files["file"] returns a list of File objects
+        file_list = request.files["file"]
+        file = file_list[0] if isinstance(file_list, list) else file_list
 
         # ========== 步骤 2: 检查文件名 ==========
         if not file.name:
@@ -163,7 +165,7 @@ async def upload_file(request):
         if not allowed_extension(file.name):
             ext = get_file_extension(file.name)
             logger.warning(
-                f"安全拦截：拒绝不允许的扩展名 {ext}, 原始文件名：{file.name}, 用户：{request.get('auth_user', 'unknown')}"
+                f"安全拦截：拒绝不允许的扩展名 {ext}, 原始文件名：{file.name}, 用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
             )
             return json(
                 {
@@ -181,7 +183,7 @@ async def upload_file(request):
         file_size = len(file.body)
         if file_size > MAX_FILE_SIZE:
             logger.warning(
-                f"安全拦截：文件大小超限 {file_size} 字节，限制：{MAX_FILE_SIZE} 字节，用户：{request.get('auth_user', 'unknown')}"
+                f"安全拦截：文件大小超限 {file_size} 字节，限制：{MAX_FILE_SIZE} 字节，用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
             )
             return json(
                 {
@@ -199,7 +201,7 @@ async def upload_file(request):
         is_valid_mime, detected_mime, mime_error = validate_mime_type(file.body, file.name)
         if not is_valid_mime:
             logger.warning(
-                f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{request.get('auth_user', 'unknown')}"
+                f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
             )
             return json(
                 {
@@ -404,7 +406,7 @@ async def list_files(request: Request):
 @files_bp.get("/<file_id:int>")
 @auth_required
 @require_permission("files:view")
-async def get_file(file_id: int, request: Request):
+async def get_file(request: Request, file_id: int):
     """
     获取文件详情
 
@@ -469,7 +471,7 @@ async def get_file(file_id: int, request: Request):
 @files_bp.delete("/<file_id:int>")
 @auth_required
 @require_permission("files:delete")
-async def delete_file(file_id: int, request: Request):
+async def delete_file(request: Request, file_id: int):
     """
     删除文件
 

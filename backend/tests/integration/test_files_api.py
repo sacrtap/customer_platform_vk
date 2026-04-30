@@ -71,14 +71,17 @@ async def test_delete_file_unauthorized(test_client):
     assert response.status in [401, 403]
 
 
-@pytest.mark.skip(reason="需要真实文件上传，HTTP 客户端限制")
 @pytest.mark.asyncio
-async def test_upload_file_success(test_client, auth_token):
+async def test_upload_file_success(test_client, auth_token, monkeypatch):
     """测试上传文件 - 成功场景（.xlsx 文件）"""
-    from io import BytesIO
+    # Mock MIME type validation to accept our test content
+    monkeypatch.setattr(
+        "app.routes.files.validate_mime_type",
+        lambda body, name: (True, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ""),
+    )
 
     file_content = b"PK\x03\x04test xlsx content"
-    files = {"file": ("test.xlsx", BytesIO(file_content))}
+    files = {"file": ("test.xlsx", file_content)}
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     request, response = await test_client.post(
@@ -95,7 +98,6 @@ async def test_upload_file_success(test_client, auth_token):
     assert data["data"]["filename"] == "test.xlsx"
 
 
-@pytest.mark.skip(reason="HTTP 客户端文件格式问题")
 @pytest.mark.asyncio
 async def test_upload_file_invalid_extension(test_client, auth_token):
     """测试上传文件 - 不支持的文件扩展名"""
@@ -115,14 +117,13 @@ async def test_upload_file_invalid_extension(test_client, auth_token):
     assert "不支持的文件类型" in data["message"]
 
 
-@pytest.mark.skip(reason="HTTP 客户端文件格式问题")
 @pytest.mark.asyncio
 async def test_upload_file_too_large(test_client, auth_token, monkeypatch):
     """测试上传文件 - 文件大小超限"""
     monkeypatch.setattr("app.routes.files.MAX_FILE_SIZE", 100)
 
     file_content = b"x" * 200
-    files = {"file": ("test.xlsx", file_content)}
+    files = {"file": ("test.xlsx", file_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     request, response = await test_client.post(
