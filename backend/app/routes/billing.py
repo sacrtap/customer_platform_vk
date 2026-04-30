@@ -52,6 +52,9 @@ async def get_balances(request: Request):
     recharge_date_from = request.args.get("recharge_date_from")
     recharge_date_to = request.args.get("recharge_date_to")
     tag_ids = request.args.get("tag_ids")  # 多选逗号分隔
+    is_key_customer = request.args.get("is_key_customer")
+    if is_key_customer is not None:
+        is_key_customer = is_key_customer.lower() == "true"
 
     # 排序参数
     sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
@@ -94,6 +97,8 @@ async def get_balances(request: Request):
         base_stmt = base_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:
         base_stmt = base_stmt.where(Customer.sales_manager_id == sales_manager_id)
+    if is_key_customer is not None:
+        base_stmt = base_stmt.where(Customer.is_key_customer == is_key_customer)
 
     # 充值时间范围过滤（需要 JOIN RechargeRecord 子查询）
     if recharge_date_from or recharge_date_to:
@@ -164,6 +169,8 @@ async def get_balances(request: Request):
         count_stmt = count_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:
         count_stmt = count_stmt.where(Customer.sales_manager_id == sales_manager_id)
+    if is_key_customer is not None:
+        count_stmt = count_stmt.where(Customer.is_key_customer == is_key_customer)
     if recharge_date_from or recharge_date_to:
         recharge_filter_stmt = (
             select(RechargeRecord.customer_id)
