@@ -702,7 +702,7 @@ class TestConvertDateField:
 - [ ] **Step 2: 运行测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/unit/test_import_field_mapping.py -v
+cd backend && source .venv/bin/activate && pytest tests/unit/test_import_field_mapping.py -v
 ```
 
 Expected: All tests pass
@@ -724,7 +724,7 @@ git commit -m "test: add unit tests for import field mapping functions"
 - [ ] **Step 1: 运行所有客户相关测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/unit/test_customer_service.py tests/unit/test_import_field_mapping.py tests/integration/test_customers_api.py -v --timeout=60
+cd backend && source .venv/bin/activate && pytest tests/unit/test_customer_service.py tests/unit/test_import_field_mapping.py tests/integration/test_customers_api.py -v --timeout=60
 ```
 
 - [ ] **Step 2: 如果现有导入测试失败，更新测试数据以匹配新字段**
@@ -734,7 +734,7 @@ cd backend && source .venv/bin/activate && python -m pytest tests/unit/test_cust
 - [ ] **Step 3: 运行覆盖率检查**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest --cov=app/services/customers --cov-report=term-missing
+cd backend && source .venv/bin/activate && pytest --cov=app/services/customers --cov-report=term-missing
 ```
 
 Expected: Coverage >= 50%

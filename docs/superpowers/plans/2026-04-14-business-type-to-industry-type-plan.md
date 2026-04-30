@@ -76,7 +76,7 @@ from .industry_type import IndustryType
 
 ### 步骤 4：运行模型测试
 
-- [ ] **运行**: `cd backend && source .venv/bin/activate && python -m pytest tests/unit/test_models.py -v`
+- [ ] **运行**: `cd backend && source .venv/bin/activate && pytest tests/unit/test_models.py -v`
 - [ ] **确认**: 现有测试仍通过
 
 - [ ] **提交**:
@@ -187,7 +187,7 @@ async def test_get_industry_types_empty_result(dict_service, mock_session):
 
 ### 步骤 3：运行测试
 
-- [ ] **运行**: `cd backend && source .venv/bin/activate && python -m pytest tests/unit/test_dict_service.py -v`
+- [ ] **运行**: `cd backend && source .venv/bin/activate && pytest tests/unit/test_dict_service.py -v`
 - [ ] **确认**: 测试通过
 
 - [ ] **提交**:
@@ -304,7 +304,7 @@ async def test_get_industry_types_returns_success(auth_client):
 
 ### 步骤 5：运行测试
 
-- [ ] **运行**: `cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_dict_routes.py -v`
+- [ ] **运行**: `cd backend && source .venv/bin/activate && pytest tests/integration/test_dict_routes.py -v`
 - [ ] **确认**: 认证测试通过（如果 fixtures 不可用则调整测试代码）
 
 - [ ] **提交**:
@@ -522,7 +522,7 @@ git commit -m "feat: change business type filter to industry type with dynamic A
 
 - [ ] **运行**:
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short
+cd backend && source .venv/bin/activate && pytest tests/ -v --tb=short
 ```
 - [ ] **确认**: 所有测试通过
 
@@ -530,7 +530,7 @@ cd backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short
 
 - [ ] **运行**:
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest --cov=app --cov-report=term-missing
+cd backend && source .venv/bin/activate && pytest --cov=app --cov-report=term-missing
 ```
 - [ ] **确认**: 覆盖率 >= 50%
 

@@ -744,7 +744,7 @@ Expected: All pass
 
 - [ ] **Step 2: 运行后端测试（确保无回归）**
 
-Run: `cd backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short -q`
+Run: `cd backend && source .venv/bin/activate && pytest tests/ -v --tb=short -q`
 Expected: All pass
 
 - [ ] **Step 3: 手动功能验证清单**

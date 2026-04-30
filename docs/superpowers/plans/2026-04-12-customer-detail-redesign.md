@@ -56,7 +56,7 @@ class TestBalanceTrendService:
 
 ```bash
 cd backend && source .venv/bin/activate
-python -m pytest tests/test_analytics_service.py::TestBalanceTrendService::test_get_balance_trend_success -v
+pytest tests/test_analytics_service.py::TestBalanceTrendService::test_get_balance_trend_success -v
 ```
 Expected: FAIL with "AttributeError: 'AnalyticsService' object has no attribute 'get_balance_trend'"
 
@@ -155,7 +155,7 @@ async def _get_current_balance(self, customer_id: int) -> Dict[str, float]:
 
 ```bash
 cd backend && source .venv/bin/activate
-python -m pytest tests/test_analytics_service.py::TestBalanceTrendService -v
+pytest tests/test_analytics_service.py::TestBalanceTrendService -v
 ```
 Expected: PASS
 

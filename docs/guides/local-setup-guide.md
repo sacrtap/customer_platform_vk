@@ -283,13 +283,13 @@ cd backend
 source .venv/bin/activate
 
 # 运行所有测试
-python -m pytest
+pytest
 
 # 运行单个测试
-python -m pytest tests/unit/test_auth_service.py -v
+pytest tests/unit/test_auth_service.py -v
 
 # 生成覆盖率报告
-python -m pytest --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
 ```
 
 ### 6.2 前端 E2E 测试

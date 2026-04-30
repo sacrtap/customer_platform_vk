@@ -1021,7 +1021,7 @@ Expected: 无错误
 
 - [ ] **Step 4: 后端测试**
 
-Run: `cd backend && source .venv/bin/activate && python -m pytest tests/ -v`
+Run: `cd backend && source .venv/bin/activate && pytest tests/ -v`
 Expected: 所有测试通过，覆盖率不低于现有水平
 
 - [ ] **Step 5: Commit（如有修改）**

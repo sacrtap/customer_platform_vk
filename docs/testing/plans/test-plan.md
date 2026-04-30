@@ -224,7 +224,7 @@ class TestAuthService_CreateToken:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_auth_service.py -v --tb=short
+pytest tests/unit/test_auth_service.py -v --tb=short
 # Expected: 6 tests pass
 ```
 
@@ -431,7 +431,7 @@ class TestTagService_BatchOperations:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_tag_service.py -v --tb=short
+pytest tests/unit/test_tag_service.py -v --tb=short
 # Expected: 8 tests pass
 ```
 
@@ -651,7 +651,7 @@ class TestAuthAPI_TokenRefresh:
 
 ```bash
 cd backend
-python3 -m pytest tests/integration/test_auth_api.py -v --tb=short
+pytest tests/integration/test_auth_api.py -v --tb=short
 # Expected: 5 tests pass
 ```
 
@@ -1521,7 +1521,7 @@ echo "📊 生成测试覆盖率报告..."
 cd backend
 
 # 运行所有测试并生成覆盖率
-python3 -m pytest \
+pytest \
     --cov=app \
     --cov-report=html:../docs/testing/coverage-reports/html \
     --cov-report=xml:../docs/testing/coverage-reports/coverage.xml \
@@ -1647,10 +1647,10 @@ git commit -m "docs: 测试覆盖率报告生成脚本"
 
 ```bash
 # 后端单元测试
-cd backend && python3 -m pytest tests/unit/ -v
+cd backend && pytest tests/unit/ -v
 
 # API 集成测试
-cd backend && python3 -m pytest tests/integration/ -v
+cd backend && pytest tests/integration/ -v
 
 # E2E 测试
 cd frontend && npx playwright test

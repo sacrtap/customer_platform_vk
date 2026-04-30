@@ -284,7 +284,7 @@ class TestSortServiceIntegration:
 - [ ] **Step 2: 运行测试验证失败（此时测试应失败，因为服务层尚未实现）**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_customers_sorting.py -v
+cd backend && source .venv/bin/activate && pytest tests/test_customers_sorting.py -v
 ```
 
 预期：部分测试失败（服务层未实现排序功能）
@@ -292,7 +292,7 @@ cd backend && source .venv/bin/activate && python -m pytest tests/test_customers
 - [ ] **Step 3: 实现完成后再次运行测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_customers_sorting.py -v
+cd backend && source .venv/bin/activate && pytest tests/test_customers_sorting.py -v
 ```
 
 预期：所有测试通过
@@ -482,7 +482,7 @@ git commit -m "feat(customers): 前端表格启用排序功能
 - [ ] **Step 1: 运行后端测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/ -v -k "customer" --tb=short
+cd backend && source .venv/bin/activate && pytest tests/ -v -k "customer" --tb=short
 ```
 
 - [ ] **Step 2: 运行前端类型检查**

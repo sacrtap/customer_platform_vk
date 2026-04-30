@@ -787,7 +787,7 @@ git commit -m "test: update integration tests to remove business_type references
 
 - [ ] **Step 1: 运行后端测试**
 
-运行: `cd backend && python -m pytest tests/ -v --tb=short`
+运行: `cd backend && pytest tests/ -v --tb=short`
 期望: 所有测试通过
 
 - [ ] **Step 2: 运行代码质量检查**

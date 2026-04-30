@@ -147,7 +147,7 @@ class TestPricingService_CheckOverlap:
 - [ ] **Step 2: 运行测试确认失败**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_CheckOverlap -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_CheckOverlap -v
 ```
 
 Expected: FAIL — `_check_overlap` 方法不存在
@@ -216,7 +216,7 @@ Expected: FAIL — `_check_overlap` 方法不存在
 - [ ] **Step 4: 运行测试确认通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_CheckOverlap -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_CheckOverlap -v
 ```
 
 Expected: All 4 tests PASS
@@ -279,7 +279,7 @@ git commit -m "feat(billing): 提取 _check_overlap 统一校验方法并处理 
 - [ ] **Step 2: 运行现有测试确认未破坏**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_Create -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_Create -v
 ```
 
 Expected: All existing tests PASS
@@ -409,7 +409,7 @@ class TestPricingService_UpdateOverlap:
 - [ ] **Step 2: 运行测试确认失败**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_UpdateOverlap -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_UpdateOverlap -v
 ```
 
 Expected: FAIL — 更新操作尚无重叠校验
@@ -478,7 +478,7 @@ Expected: FAIL — 更新操作尚无重叠校验
 - [ ] **Step 4: 运行测试确认通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_UpdateOverlap -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_UpdateOverlap -v
 ```
 
 Expected: All 3 tests PASS
@@ -486,7 +486,7 @@ Expected: All 3 tests PASS
 - [ ] **Step 5: 运行所有 billing 测试确认未破坏**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py -v
 ```
 
 Expected: All tests PASS
@@ -600,7 +600,7 @@ class TestPricingService_CheckConflict:
 - [ ] **Step 2: 运行测试确认失败**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_CheckConflict -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_CheckConflict -v
 ```
 
 Expected: FAIL — 方法不存在
@@ -663,7 +663,7 @@ Expected: FAIL — 方法不存在
 - [ ] **Step 4: 运行测试确认通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestPricingService_CheckConflict -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestPricingService_CheckConflict -v
 ```
 
 Expected: All 3 tests PASS
@@ -751,7 +751,7 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token):
 - [ ] **Step 2: 运行测试确认失败**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_has_conflict -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_has_conflict -v
 ```
 
 Expected: FAIL — 路由不存在
@@ -832,7 +832,7 @@ async def check_pricing_rule_conflict(request: Request):
 - [ ] **Step 4: 运行测试确认通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_has_conflict tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_no_conflict -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_has_conflict tests/integration/test_billing_api.py::test_check_pricing_rule_conflict_no_conflict -v
 ```
 
 Expected: All 2 tests PASS

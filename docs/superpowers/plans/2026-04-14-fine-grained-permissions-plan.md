@@ -376,7 +376,7 @@ VALUES
 - [ ] **Step 4: 运行后端测试验证**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/ -v -x
+cd backend && source .venv/bin/activate && pytest tests/integration/ -v -x
 ```
 
 Expected: 所有集成测试通过。
@@ -542,7 +542,7 @@ git commit -m "feat: 页面按钮级细粒度权限控制"
 - [ ] **Step 1: 后端测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short
+cd backend && source .venv/bin/activate && pytest tests/ -v --tb=short
 ```
 
 Expected: 所有测试通过。

@@ -209,7 +209,7 @@ class TestAuthService_CreateToken:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_auth_service.py -v --tb=short
+pytest tests/unit/test_auth_service.py -v --tb=short
 # Expected: 6 tests pass
 ```
 
@@ -374,7 +374,7 @@ class TestTagService_CustomerTags:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_tag_service.py -v --tb=short
+pytest tests/unit/test_tag_service.py -v --tb=short
 # Expected: 5 tests pass
 ```
 
@@ -452,7 +452,7 @@ class TestUserService_Roles:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_user_service.py -v --tb=short
+pytest tests/unit/test_user_service.py -v --tb=short
 # Expected: 4 tests pass
 ```
 
@@ -534,7 +534,7 @@ class TestRolesService_Permissions:
 
 ```bash
 cd backend
-python3 -m pytest tests/unit/test_roles_service.py -v --tb=short
+pytest tests/unit/test_roles_service.py -v --tb=short
 # Expected: 4 tests pass
 ```
 
@@ -695,7 +695,7 @@ class TestAuthAPI_TokenRefresh:
 
 ```bash
 cd backend
-python3 -m pytest tests/integration/test_auth_api.py -v --tb=short
+pytest tests/integration/test_auth_api.py -v --tb=short
 # Expected: 5 tests pass
 ```
 
@@ -813,7 +813,7 @@ class TestUsersAPI_CRUD:
 
 ```bash
 cd backend
-python3 -m pytest tests/integration/test_users_api.py -v --tb=short
+pytest tests/integration/test_users_api.py -v --tb=short
 # Expected: 7 tests pass
 ```
 
@@ -889,7 +889,7 @@ class TestAuditLogsAPI:
 
 ```bash
 cd backend
-python3 -m pytest tests/integration/test_audit_logs_api.py -v --tb=short
+pytest tests/integration/test_audit_logs_api.py -v --tb=short
 # Expected: 4 tests pass
 ```
 
@@ -1153,7 +1153,7 @@ echo "📊 生成测试覆盖率报告..."
 cd backend
 
 # 运行所有测试并生成覆盖率
-python3 -m pytest \
+pytest \
     --cov=app \
     --cov-report=html:../docs/testing/coverage-reports/html \
     --cov-report=xml:../docs/testing/coverage-reports/coverage.xml \

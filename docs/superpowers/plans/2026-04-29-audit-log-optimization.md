@@ -409,7 +409,7 @@ class TestCreateAuditEntry:
 - [ ] **Step 4: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/unit/test_audit_helpers.py -v
+cd backend && pytest tests/unit/test_audit_helpers.py -v
 ```
 
 Expected: 所有测试通过
@@ -671,7 +671,7 @@ class TestModuleMapping:
 - [ ] **Step 3: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_audit_middleware.py -v
+cd backend && pytest tests/integration/test_audit_middleware.py -v
 ```
 
 Expected: 所有测试通过
@@ -773,7 +773,7 @@ from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
 - [ ] **Step 3: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_customers_api.py tests/integration/test_users_api.py -v -k import
+cd backend && pytest tests/integration/test_customers_api.py tests/integration/test_users_api.py -v -k import
 ```
 
 Expected: 导入相关测试通过
@@ -934,7 +934,7 @@ await create_audit_entry(
 - [ ] **Step 5: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_groups_api.py tests/integration/test_roles_api.py -v
+cd backend && pytest tests/integration/test_groups_api.py tests/integration/test_roles_api.py -v
 ```
 
 Expected: 所有测试通过
@@ -987,7 +987,7 @@ await create_audit_entry(
 - [ ] **Step 2: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_users_api.py -v -k reset
+cd backend && pytest tests/integration/test_users_api.py -v -k reset
 ```
 
 Expected: 密码重置测试通过
@@ -1043,7 +1043,7 @@ await create_audit_entry(
 - [ ] **Step 2: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_billing_api.py -v -k recharge
+cd backend && pytest tests/integration/test_billing_api.py -v -k recharge
 ```
 
 Expected: 充值测试通过
@@ -1104,7 +1104,7 @@ await create_audit_entry(
 - [ ] **Step 3: 运行测试验证**
 
 ```bash
-cd backend && python -m pytest tests/integration/test_tags_api.py -v -k batch
+cd backend && pytest tests/integration/test_tags_api.py -v -k batch
 ```
 
 Expected: 批量标签测试通过
@@ -1126,7 +1126,7 @@ git commit -m "feat(audit): add batch audit logging for tag operations"
 - [ ] **Step 1: 运行所有审计相关测试**
 
 ```bash
-cd backend && python -m pytest tests/unit/test_audit_helpers.py tests/integration/test_audit_middleware.py tests/integration/test_audit_logs_api.py -v
+cd backend && pytest tests/unit/test_audit_helpers.py tests/integration/test_audit_middleware.py tests/integration/test_audit_logs_api.py -v
 ```
 
 Expected: 所有审计相关测试通过

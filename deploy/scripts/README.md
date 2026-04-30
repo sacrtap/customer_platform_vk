@@ -119,19 +119,19 @@ source .venv/bin/activate
 export DATABASE_URL="postgresql://localhost/customer_platform"
 export TEST_DATABASE_URL="postgresql://localhost/customer_platform_test"
 
-python -m pytest tests/unit/ -v
+pytest tests/unit/ -v
 ```
 
 ### 集成测试
 
 ```bash
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 ```
 
 ### 生成覆盖率报告
 
 ```bash
-python -m pytest tests/ \
+pytest tests/ \
     --cov=app \
     --cov-report=html:../docs/testing/coverage-reports/html
 ```
