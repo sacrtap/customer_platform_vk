@@ -515,8 +515,8 @@ const can = (permission: string) => userStore.hasPermission(permission)
 
 const filters = reactive({
   keyword: '',
-  account_type: '',
-  industry: [] as string[],
+  account_type: '正式账号',
+  industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
   is_key_customer: null as boolean | null,
   settlement_type: '',
 })
@@ -654,8 +654,8 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   filters.keyword = ''
-  filters.account_type = ''
-  filters.industry = []
+  filters.account_type = '正式账号'
+  filters.industry = ['房产经纪', '房产ERP', '房产平台']
   filters.is_key_customer = null
   filters.settlement_type = ''
   advancedFilters.manager_id = null
