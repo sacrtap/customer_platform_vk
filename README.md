@@ -370,16 +370,16 @@ cd backend
 source .venv/bin/activate
 
 # 运行所有测试
-python -m pytest
+pytest
 
 # 运行单个测试文件
-python -m pytest tests/unit/test_auth_service.py -v
+pytest tests/unit/test_auth_service.py -v
 
 # 运行单个测试函数
-python -m pytest tests/unit/test_auth_service.py::TestAuthService::test_login_success -v
+pytest tests/unit/test_auth_service.py::TestAuthService::test_login_success -v
 
 # 生成覆盖率报告
-python -m pytest --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
 
 # 查看覆盖率报告
 open htmlcov/index.html  # macOS

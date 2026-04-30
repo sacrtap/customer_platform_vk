@@ -47,7 +47,7 @@ Expected: 无错误输出
 - [ ] **Step 3: 验证现有模板测试仍通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py::test_download_import_template -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py::test_download_import_template -v
 ```
 
 Expected: PASS（因为 `test_user` 是 admin 角色拥有所有权限，且 `@auth_required` 仍保留）
@@ -210,7 +210,7 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
 - [ ] **Step 2: 运行测试验证通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py::test_download_import_template_unauthorized tests/integration/test_customers_api.py::test_download_import_template_no_import_permission -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py::test_download_import_template_unauthorized tests/integration/test_customers_api.py::test_download_import_template_no_import_permission -v
 ```
 
 Expected: 2 PASS
@@ -309,7 +309,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
 - [ ] **Step 2: 运行测试验证通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py::test_download_import_template_field_structure tests/integration/test_customers_api.py::test_download_import_template_header_count -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py::test_download_import_template_field_structure tests/integration/test_customers_api.py::test_download_import_template_header_count -v
 ```
 
 Expected: 2 PASS
@@ -483,7 +483,7 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
 - [ ] **Step 2: 运行测试验证通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py::test_import_customers_invalid_email tests/integration/test_customers_api.py::test_import_customers_empty_required_fields tests/integration/test_customers_api.py::test_import_customers_duplicate_company_id tests/integration/test_customers_api.py::test_import_customers_invalid_price_policy -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py::test_import_customers_invalid_email tests/integration/test_customers_api.py::test_import_customers_empty_required_fields tests/integration/test_customers_api.py::test_import_customers_duplicate_company_id tests/integration/test_customers_api.py::test_import_customers_invalid_price_policy -v
 ```
 
 Expected: 4 PASS
@@ -576,7 +576,7 @@ async def test_export_customers_contains_test_data(test_client, auth_headers, cu
 - [ ] **Step 2: 运行测试验证通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py::test_export_customers_field_consistency tests/integration/test_customers_api.py::test_export_customers_contains_test_data -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py::test_export_customers_field_consistency tests/integration/test_customers_api.py::test_export_customers_contains_test_data -v
 ```
 
 Expected: 2 PASS
@@ -598,7 +598,7 @@ git commit -m "test: add export field consistency and data validation tests"
 - [ ] **Step 1: 运行所有客户相关测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_customers_api.py -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_customers_api.py -v
 ```
 
 Expected: 所有测试 PASS（包括原有测试 + 新增的 10 个测试）
@@ -606,7 +606,7 @@ Expected: 所有测试 PASS（包括原有测试 + 新增的 10 个测试）
 - [ ] **Step 2: 检查测试覆盖率**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest --cov=app/routes/customers --cov-report=term-missing tests/integration/test_customers_api.py -v
+cd backend && source .venv/bin/activate && pytest --cov=app/routes/customers --cov-report=term-missing tests/integration/test_customers_api.py -v
 ```
 
 Expected: customers.py 覆盖率应 >= 80%
@@ -629,7 +629,7 @@ git status  # 检查是否有未提交的变更
 - [ ] **Step 5: 运行完整测试套件确保无回归**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short 2>&1 | tail -30
+cd backend && source .venv/bin/activate && pytest tests/ -v --tb=short 2>&1 | tail -30
 ```
 
 Expected: 整体测试通过率 >= 95%，无新增 FAIL

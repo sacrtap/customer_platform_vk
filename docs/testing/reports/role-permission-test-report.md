@@ -308,7 +308,7 @@ TOTAL                              4173   2739    34%
 ```bash
 cd backend
 source .venv/bin/activate
-python -m pytest tests/integration/test_roles_api.py -v --no-cov
+pytest tests/integration/test_roles_api.py -v --no-cov
 ```
 
 **运行前端测试**:
@@ -332,14 +332,14 @@ npx playwright test tests/e2e/test_roles_comprehensive.spec.ts
 ```bash
 cd backend
 source .venv/bin/activate
-python -m pytest tests/integration/test_roles_api.py -v --no-cov
+pytest tests/integration/test_roles_api.py -v --no-cov
 ```
 
 **生成覆盖率报告**:
 ```bash
 cd backend
 source .venv/bin/activate
-python -m pytest tests/integration/test_roles_api.py --cov=app --cov-report=html
+pytest tests/integration/test_roles_api.py --cov=app --cov-report=html
 ```
 
 **运行前端测试** (需要先安装浏览器):

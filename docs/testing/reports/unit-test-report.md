@@ -205,29 +205,29 @@
 cd backend && source .venv/bin/activate
 
 # 权限服务测试
-python -m pytest tests/unit/test_permission_service.py -v
+pytest tests/unit/test_permission_service.py -v
 
 # 客户服务测试
-python -m pytest tests/unit/test_customer_service.py -v
+pytest tests/unit/test_customer_service.py -v
 
 # 认证服务测试
-python -m pytest tests/unit/test_auth_service.py -v
+pytest tests/unit/test_auth_service.py -v
 ```
 
 ### 运行所有单元测试
 ```bash
-python -m pytest tests/unit/ -v
+pytest tests/unit/ -v
 ```
 
 ### 生成覆盖率报告
 ```bash
-python -m pytest tests/unit/ --cov=app --cov-report=html
+pytest tests/unit/ --cov=app --cov-report=html
 # 报告位置：htmlcov/index.html
 ```
 
 ### 运行单个测试用例
 ```bash
-python -m pytest tests/unit/test_customer_service.py::TestCustomerService_CreateCustomer::test_create_customer_success -v
+pytest tests/unit/test_customer_service.py::TestCustomerService_CreateCustomer::test_create_customer_success -v
 ```
 
 ---

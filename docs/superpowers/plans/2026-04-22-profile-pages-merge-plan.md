@@ -364,7 +364,7 @@ cd /Users/sacrtap/Documents/trae_projects/customer_platform_vk && git add backen
 - [ ] **Step 1: 运行后端全量测试**
 
 ```bash
-cd /Users/sacrtap/Documents/trae_projects/customer_platform_vk/backend && source .venv/bin/activate && python -m pytest tests/ -v --tb=short 2>&1 | tail -30
+cd /Users/sacrtap/Documents/trae_projects/customer_platform_vk/backend && source .venv/bin/activate && pytest tests/ -v --tb=short 2>&1 | tail -30
 ```
 
 Expected: All tests pass. If any test references `profiles:view` or `profiles:edit` 权限字符串，需要额外修复。

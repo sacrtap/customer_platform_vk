@@ -104,7 +104,7 @@ def test_login_success(client, db_session: Session):
 ### 集成测试 (5/5 通过)
 
 ```bash
-$ python -m pytest tests/integration/test_api.py -v
+$ pytest tests/integration/test_api.py -v
 
 tests/integration/test_api.py::test_health_check PASSED
 tests/integration/test_api.py::test_login_success PASSED
@@ -118,7 +118,7 @@ tests/integration/test_api.py::test_get_billing_balance PASSED
 ### 单元测试 (30/30 通过)
 
 ```bash
-$ python -m pytest tests/unit/ -v
+$ pytest tests/unit/ -v
 
 tests/unit/test_auth_service.py::TestAuthService_Login::test_login_success PASSED
 tests/unit/test_auth_service.py::TestAuthService_Login::test_login_invalid_credentials PASSED
@@ -174,16 +174,16 @@ pip install --break-system-packages psycopg2-binary
 
 ```bash
 # 运行所有集成测试
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 
 # 运行所有单元测试
-python -m pytest tests/unit/ -v
+pytest tests/unit/ -v
 
 # 运行完整测试套件
-python -m pytest tests/ -v
+pytest tests/ -v
 
 # 生成覆盖率报告
-python -m pytest --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
 ```
 
 ## 已知限制

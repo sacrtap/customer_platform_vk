@@ -36,10 +36,10 @@ make test-report    # 运行测试并打开 HTML 覆盖率报告
 cd backend && source .venv/bin/activate
 
 # 并行测试
-python -m pytest tests/ -n auto
+pytest tests/ -n auto
 
 # CI 覆盖率检查
-python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
+pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
 ```
 
 #### 代码质量

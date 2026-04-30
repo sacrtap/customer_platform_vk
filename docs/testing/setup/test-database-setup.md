@@ -159,16 +159,16 @@ cd backend
 source .venv/bin/activate
 
 # 运行所有测试
-python -m pytest tests/ -v
+pytest tests/ -v
 
 # 运行集成测试
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 
 # 运行单元测试
-python -m pytest tests/unit/ -v
+pytest tests/unit/ -v
 
 # 运行并生成覆盖率
-python -m pytest tests/ --cov=app --cov-report=html
+pytest tests/ --cov=app --cov-report=html
 ```
 
 ---
@@ -268,7 +268,7 @@ export DATABASE_URL="postgresql://user:password@localhost:5432/customer_platform
 python -m alembic upgrade head
 
 # 运行测试
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 
 # 清理
 docker stop customer-platform-test-db
@@ -286,7 +286,7 @@ cd backend
 source .venv/bin/activate
 
 # 运行单个测试验证
-python -m pytest tests/integration/test_api.py -v -k login
+pytest tests/integration/test_api.py -v -k login
 
 # 预期输出: PASSED
 ```

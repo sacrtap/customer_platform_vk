@@ -70,7 +70,7 @@ def test_customer_group_creation():
 
 ```bash
 cd backend
-python3 -m pytest tests/test_models.py::test_customer_group_creation -v
+pytest tests/test_models.py::test_customer_group_creation -v
 # Expected: FAIL with "NameError: name 'CustomerGroup' is not defined"
 ```
 
@@ -162,7 +162,7 @@ group_memberships = relationship("CustomerGroupMember", back_populates="customer
 
 ```bash
 cd backend
-python3 -m pytest tests/test_models.py::test_customer_group_creation -v
+pytest tests/test_models.py::test_customer_group_creation -v
 # Expected: PASS
 ```
 
@@ -234,7 +234,7 @@ async def test_create_dynamic_group():
 
 ```bash
 cd backend
-python3 -m pytest tests/test_group_service.py::test_create_dynamic_group -v
+pytest tests/test_group_service.py::test_create_dynamic_group -v
 # Expected: FAIL with "ModuleNotFoundError: No module named 'app.services.groups'"
 ```
 
@@ -282,7 +282,7 @@ class CustomerGroupService:
 
 ```bash
 cd backend
-python3 -m pytest tests/test_group_service.py::test_create_dynamic_group -v
+pytest tests/test_group_service.py::test_create_dynamic_group -v
 # Expected: PASS
 ```
 
@@ -1445,7 +1445,7 @@ class TestDeleteGroup:
 
 ```bash
 cd backend
-python3 -m pytest tests/integration/test_groups_api.py -v --tb=short
+pytest tests/integration/test_groups_api.py -v --tb=short
 # Expected: All tests pass
 ```
 

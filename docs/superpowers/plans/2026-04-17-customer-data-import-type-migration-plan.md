@@ -656,7 +656,7 @@ print('替换完成')
 
 ```bash
 cd backend && source .venv/bin/activate
-python -m pytest tests/integration/test_customers_api.py -v --tb=short 2>&1 | head -50
+pytest tests/integration/test_customers_api.py -v --tb=short 2>&1 | head -50
 ```
 
 Expected: 测试通过（或仅有预期失败）
@@ -718,7 +718,7 @@ with engine.connect() as conn:
 
 ```bash
 cd backend && source .venv/bin/activate
-python -m pytest tests/ -v --tb=short 2>&1 | tail -30
+pytest tests/ -v --tb=short 2>&1 | tail -30
 ```
 
 Expected: 测试通过率 >= 95%

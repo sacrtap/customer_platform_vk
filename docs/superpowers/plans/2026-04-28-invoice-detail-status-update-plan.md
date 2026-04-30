@@ -180,7 +180,7 @@ class TestInvoiceService_Cancel:
 - [ ] **Step 2: 运行测试验证失败**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestInvoiceService_Cancel -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestInvoiceService_Cancel -v
 ```
 
 预期：所有测试失败，因为 `cancel_invoice` 方法不存在
@@ -212,7 +212,7 @@ async def cancel_invoice(self, invoice_id: int) -> Tuple[bool, str]:
 - [ ] **Step 4: 运行测试验证通过**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/test_billing_service.py::TestInvoiceService_Cancel -v
+cd backend && source .venv/bin/activate && pytest tests/test_billing_service.py::TestInvoiceService_Cancel -v
 ```
 
 预期：5 个测试全部通过
@@ -322,7 +322,7 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
 - [ ] **Step 3: 运行集成测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_billing_api.py::TestCancelInvoiceAPI -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_billing_api.py::TestCancelInvoiceAPI -v
 ```
 
 预期：2 个测试全部通过
@@ -673,7 +673,7 @@ cd backend && make test-cov
 - [ ] **Step 2: 运行后端集成测试**
 
 ```bash
-cd backend && source .venv/bin/activate && python -m pytest tests/integration/test_billing_api.py -v
+cd backend && source .venv/bin/activate && pytest tests/integration/test_billing_api.py -v
 ```
 
 预期：所有集成测试通过

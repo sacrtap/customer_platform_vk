@@ -47,6 +47,7 @@ cd backend && make test-parallel  # 并行测试（推荐）
 cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
 ```
 
+> **RTK 优化**: 使用 `pytest` 而非 `python -m pytest`，RTK 自动压缩测试输出，节省 90% token
 > 完整命令清单、环境变量配置、虚拟环境初始化、Git 工作流 → 详见 [docs/guides/agents-guide.md](docs/guides/agents-guide.md)
 
 ---

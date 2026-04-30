@@ -58,24 +58,24 @@ pip install sanic-testing
 ### 运行所有集成测试
 
 ```bash
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 ```
 
 ### 运行单个测试
 
 ```bash
 # 运行特定测试文件
-python -m pytest tests/integration/test_api.py -v
+pytest tests/integration/test_api.py -v
 
 # 运行特定测试函数
-python -m pytest tests/integration/test_api.py::test_health_check -v
-python -m pytest tests/integration/test_api.py::test_login_success -v
+pytest tests/integration/test_api.py::test_health_check -v
+pytest tests/integration/test_api.py::test_login_success -v
 ```
 
 ### 运行测试并生成覆盖率报告
 
 ```bash
-python -m pytest tests/integration/ --cov=app --cov-report=html
+pytest tests/integration/ --cov=app --cov-report=html
 ```
 
 ## 测试用例
@@ -167,7 +167,7 @@ createdb customer_platform_test
 ✅ **所有集成测试通过**
 
 ```bash
-$ python -m pytest tests/integration/test_api.py -v
+$ pytest tests/integration/test_api.py -v
 ============================= test session starts ==============================
 collected 5 items
 
@@ -184,13 +184,13 @@ tests/integration/test_api.py::test_get_billing_balance PASSED           [100%]
 
 ```bash
 # 集成测试：5/5 通过
-python -m pytest tests/integration/ -v
+pytest tests/integration/ -v
 
 # 单元测试：30/30 通过
-python -m pytest tests/unit/ -v
+pytest tests/unit/ -v
 
 # 总覆盖率：34%
-python -m pytest --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
 ```
 
 ---

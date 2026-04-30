@@ -224,7 +224,7 @@ git commit -m "feat(balance): set default filters and add is_key_customer filter
 
 - [ ] **Step 1: 运行后端测试**
 
-Run: `cd backend && python -m pytest tests/ -v --tb=short -x`
+Run: `cd backend && pytest tests/ -v --tb=short -x`
 Expected: PASS (all tests pass)
 
 - [ ] **Step 2: 运行前端构建**
