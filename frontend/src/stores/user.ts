@@ -76,6 +76,66 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /**
+   * 解析 JWT token payload（不验证签名，仅读取内容）
+   */
+  function decodeJwtPayload(token: string): Record<string, unknown> | null {
+    try {
+      const parts = token.split('.')
+      if (parts.length !== 3) return null
+      const payload = JSON.parse(atob(parts[1]))
+      return payload
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 检查 access_token 是否已过期
+   */
+  function isTokenExpired(): boolean {
+    if (!token.value) return true
+    const payload = decodeJwtPayload(token.value)
+    if (!payload) return true
+    const exp = payload.exp as number | undefined
+    if (!exp) return true
+    // JWT exp 是秒级时间戳，Date.now() 是毫秒级
+    return Date.now() >= exp * 1000
+  }
+
+  /**
+   * 获取 access_token 剩余有效时间（毫秒）
+   * 返回负数表示已过期
+   */
+  function getTokenRemainingTime(): number {
+    if (!token.value) return 0
+    const payload = decodeJwtPayload(token.value)
+    if (!payload) return 0
+    const exp = payload.exp as number | undefined
+    if (!exp) return 0
+    return exp * 1000 - Date.now()
+  }
+
+  /**
+   * 获取 access_token 剩余有效时间（人类可读格式）
+   */
+  function getTokenRemainingTimeFormatted(): string {
+    const ms = getTokenRemainingTime()
+    if (ms <= 0) return '已过期'
+
+    const totalSeconds = Math.floor(ms / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+
+    if (hours > 0) {
+      return `${hours}小时${minutes}分钟`
+    }
+    if (minutes > 0) {
+      return `${minutes}分钟`
+    }
+    return `${totalSeconds}秒`
+  }
+
   const isSuperAdmin = computed(() => {
     return userInfo.value?.roles.includes('超级管理员') ?? false
   })
@@ -92,5 +152,8 @@ export const useUserStore = defineStore('user', () => {
     logout,
     initFromStorage,
     isSuperAdmin,
+    isTokenExpired,
+    getTokenRemainingTime,
+    getTokenRemainingTimeFormatted,
   }
 })
