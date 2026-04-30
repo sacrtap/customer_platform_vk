@@ -8,9 +8,15 @@ test-fast:
 	source .venv/bin/activate && python -m pytest tests/unit/ -v --tb=short
 
 # 并行：分模块并行运行（块内并行，块间顺序）
+# DB 依赖测试（test_models.py, test_audit_helpers.py）单独串行运行，避免并行冲突
 test-parallel:
-	@echo "========== 运行单元测试 =========="
-	source .venv/bin/activate && python -m pytest tests/unit/ -n auto --tb=short -q
+	@echo "========== 运行单元测试（并行） =========="
+	source .venv/bin/activate && python -m pytest tests/unit/ -n auto --tb=short -q \
+		--ignore=tests/unit/test_models.py \
+		--ignore=tests/unit/test_audit_helpers.py
+	@echo ""
+	@echo "========== 运行单元测试（DB 依赖，串行） =========="
+	source .venv/bin/activate && python -m pytest tests/unit/test_models.py tests/unit/test_audit_helpers.py --tb=short -q
 	@echo ""
 	@echo "========== 运行集成测试 =========="
 	source .venv/bin/activate && python -m pytest tests/integration/ -n auto --tb=short -q
