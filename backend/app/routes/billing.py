@@ -53,7 +53,12 @@ async def get_balances(request: Request):
     recharge_date_to = request.args.get("recharge_date_to")
     tag_ids = request.args.get("tag_ids")  # 多选逗号分隔
     is_key_customer = request.args.get("is_key_customer")
-    if is_key_customer is not None:
+    if is_key_customer is not None and is_key_customer.strip() != "":
+        if is_key_customer.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_key_customer 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
         is_key_customer = is_key_customer.lower() == "true"
 
     # 排序参数
