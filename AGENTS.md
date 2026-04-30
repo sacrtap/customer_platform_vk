@@ -48,6 +48,20 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 ```
 
 > **RTK 优化**: 使用 `pytest` 而非 `python -m pytest`，RTK 自动压缩测试输出，节省 90% token
+
+## RTK 支持的优化命令
+
+| 场景        | 命令                  | RTK 效果                  |
+| ----------- | --------------------- | ------------------------- |
+| Python 测试 | `pytest tests/`         | 压缩 90%，只显示失败用例  |
+| E2E 测试    | `npx playwright test`   | 压缩 90%，只显示失败用例  |
+| 代码格式化  | `black` / `prettier`      | 压缩 80%，只显示变更文件  |
+| 代码检查    | `flake8` / `npm run lint` | 压缩 80%，按规则/文件分组 |
+| TypeScript  | `npx tsc` / `npx vue-tsc` | 压缩 80%，按文件分组错误  |
+| 前端构建    | `npm run build`         | 压缩 60%，只显示关键信息  |
+
+> 注意：RTK 通过 OpenCode 插件自动重写命令，无需手动加 `rtk` 前缀
+
 > 完整命令清单、环境变量配置、虚拟环境初始化、Git 工作流 → 详见 [docs/guides/agents-guide.md](docs/guides/agents-guide.md)
 
 ---
