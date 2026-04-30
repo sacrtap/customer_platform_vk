@@ -513,13 +513,16 @@ const router = useRouter()
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
 
-const filters = reactive({
+// 默认筛选值
+const DEFAULT_FILTERS = {
   keyword: '',
   account_type: '正式账号',
   industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
   is_key_customer: null as boolean | null,
   settlement_type: '',
-})
+}
+
+const filters = reactive({ ...DEFAULT_FILTERS })
 
 const advancedFilters = reactive({
   manager_id: null as number | null,
@@ -653,11 +656,7 @@ const handleSearch = () => {
 
 // 重置
 const handleReset = () => {
-  filters.keyword = ''
-  filters.account_type = '正式账号'
-  filters.industry = ['房产经纪', '房产ERP', '房产平台']
-  filters.is_key_customer = null
-  filters.settlement_type = ''
+  Object.assign(filters, { ...DEFAULT_FILTERS })
   advancedFilters.manager_id = null
   advancedFilters.sales_manager_id = null
   advancedFilters.tag_ids = []
