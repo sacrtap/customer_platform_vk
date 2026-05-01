@@ -96,7 +96,14 @@
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="行业类型">
-              <a-select v-model="filters.industry" placeholder="请选择行业类型" allow-clear multiple>
+              <a-select
+                v-model="filters.industry"
+                placeholder="请选择行业类型"
+                allow-clear
+                multiple
+                :max-tag-count="1"
+                :max-tag-placeholder="(count: number) => `+${count}`"
+              >
                 <a-option
                   v-for="item in industryTypes"
                   :key="item.id"
@@ -1278,5 +1285,39 @@ onMounted(() => {
 
 .tips-list li:last-child {
   margin-bottom: 0;
+}
+
+/* 行业类型多选标签样式优化 */
+.filter-section :deep(.arco-select-multiple .arco-tag) {
+  max-width: calc(100% - 40px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(3, 105, 161, 0.08);
+  color: var(--primary-6);
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+/* 标签关闭按钮样式 */
+.filter-section :deep(.arco-select-multiple .arco-tag .arco-icon-close) {
+  color: var(--primary-6);
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.filter-section :deep(.arco-select-multiple .arco-tag .arco-icon-close:hover) {
+  opacity: 1;
+}
+
+/* "+N" 提示样式 */
+.filter-section :deep(.arco-select-multiple .arco-select-tag) {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--neutral-10);
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
 }
 </style>
