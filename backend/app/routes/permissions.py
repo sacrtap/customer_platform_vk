@@ -13,6 +13,7 @@ permissions_bp = Blueprint("permissions", url_prefix="/api/v1/permissions")
 
 
 @permissions_bp.get("")
+@require_permission("roles:view")
 async def list_permissions(request: Request):
     """
     获取所有权限列表
