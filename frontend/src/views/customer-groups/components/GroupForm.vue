@@ -3,11 +3,12 @@
     :visible="visible"
     title="新建群组"
     width="600px"
+    :ok-loading="submitting"
     @ok="handleSubmit"
     @cancel="handleCancel"
   >
-    <a-form :model="form" layout="vertical">
-      <a-form-item label="群组名称" required>
+    <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
+      <a-form-item label="群组名称" field="name" required>
         <a-input
           v-model="form.name"
           placeholder="请输入群组名称"
@@ -16,7 +17,7 @@
         />
       </a-form-item>
 
-      <a-form-item label="群组描述">
+      <a-form-item label="群组描述" field="description">
         <a-textarea
           v-model="form.description"
           placeholder="请输入群组描述（可选）"
@@ -26,7 +27,7 @@
         />
       </a-form-item>
 
-      <a-form-item label="群组类型" required>
+      <a-form-item label="群组类型" field="group_type" required>
         <a-radio-group v-model="form.group_type">
           <a-radio value="dynamic">
             <template #icon><icon-folder /></template>
@@ -53,22 +54,38 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { IconFolder, IconUserGroup } from '@arco-design/web-vue/es/icon'
+import type { FormInstance } from '@arco-design/web-vue'
+import type { CreateGroupParams } from '@/types/customer-groups'
 
 const props = defineProps<{
   visible: boolean
-  defaultFilter?: any
+  defaultFilter?: Record<string, unknown> | null
+  submitting?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
-  (e: 'submit', data: any): void
+  (e: 'submit', data: CreateGroupParams): void
 }>()
+
+const formRef = ref<FormInstance>()
 
 const form = reactive({
   name: '',
   description: '',
   group_type: 'dynamic' as 'dynamic' | 'static',
 })
+
+const rules: Record<string, any> = {
+  name: [
+    { required: true, message: '请输入群组名称' },
+    { minLength: 2, message: '群组名称至少 2 个字符' },
+    { maxLength: 100, message: '群组名称不能超过 100 个字符' },
+  ],
+  group_type: [
+    { required: true, message: '请选择群组类型' },
+  ],
+}
 
 watch(
   () => props.visible,
@@ -77,14 +94,14 @@ watch(
       form.name = ''
       form.description = ''
       form.group_type = 'dynamic'
+      formRef.value?.clearValidate()
     }
   }
 )
 
-const handleSubmit = () => {
-  if (!form.name) {
-    return
-  }
+const handleSubmit = async () => {
+  const valid = await formRef.value?.validate()
+  if (valid) return
 
   emit('submit', {
     ...form,

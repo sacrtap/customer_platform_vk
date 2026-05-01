@@ -1,26 +1,13 @@
 import api from './index'
+import type { CustomerGroup, CreateGroupParams, GroupMember, GroupStats } from '@/types/customer-groups'
 
-export interface CustomerGroup {
-  id: number
-  name: string
-  description?: string
-  group_type: 'dynamic' | 'static'
-  filter_conditions?: any
-  created_at?: string
-}
-
-export interface CreateGroupParams {
-  name: string
-  description?: string
-  group_type: 'dynamic' | 'static'
-  filter_conditions?: any
-}
+export type { CustomerGroup, CreateGroupParams, GroupMember, GroupStats }
 
 /**
  * 获取群组列表
  */
 export function getCustomerGroups() {
-  return api.get('/customer-groups')
+  return api.get<{ list: CustomerGroup[] }>('/customer-groups')
 }
 
 /**
@@ -34,7 +21,7 @@ export function createCustomerGroup(data: CreateGroupParams) {
  * 获取群组详情
  */
 export function getGroupDetail(id: number) {
-  return api.get(`/customer-groups/${id}`)
+  return api.get<CustomerGroup>(`/customer-groups/${id}`)
 }
 
 /**
@@ -55,7 +42,7 @@ export function deleteCustomerGroup(id: number) {
  * 获取群组成员列表
  */
 export function getGroupMembers(id: number, params?: { page?: number; page_size?: number }) {
-  return api.get(`/customer-groups/${id}/members`, { params })
+  return api.get<{ list: GroupMember[]; total: number }>(`/customer-groups/${id}/members`, { params })
 }
 
 /**
@@ -76,12 +63,12 @@ export function removeGroupMember(id: number, customer_id: number) {
  * 应用群组筛选
  */
 export function applyGroupFilter(id: number, params?: { page?: number; page_size?: number }) {
-  return api.post(`/customer-groups/${id}/apply`, undefined, { params })
+  return api.post<{ list: GroupMember[]; total: number }>(`/customer-groups/${id}/apply`, undefined, { params })
 }
 
 /**
  * 获取群组统计
  */
 export function getGroupStats(id: number) {
-  return api.get(`/customer-groups/${id}/stats`)
+  return api.get<GroupStats>(`/customer-groups/${id}/stats`)
 }

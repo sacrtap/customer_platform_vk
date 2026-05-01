@@ -40,12 +40,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { IconFolder, IconApps, IconPlus, IconUserGroup } from '@arco-design/web-vue/es/icon'
-
-interface CustomerGroup {
-  id: number
-  name: string
-  group_type: 'dynamic' | 'static'
-}
+import type { CustomerGroup } from '@/types/customer-groups'
 
 const props = defineProps<{
   groups: CustomerGroup[]
@@ -60,7 +55,7 @@ const emit = defineEmits<{
 
 const selectedGroupId = ref(props.selectedGroupId)
 
-const handleMenuClick = (key: string, event: any) => {
+const handleMenuClick = (key: string) => {
   if (key === 'create') {
     emit('create')
   } else if (key === 'all') {

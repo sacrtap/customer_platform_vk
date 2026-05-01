@@ -55,6 +55,7 @@
     <GroupForm
       v-model:visible="formVisible"
       :default-filter="defaultFilter"
+      :submitting="submitting"
       @submit="handleCreateGroup"
     />
   </div>
@@ -62,32 +63,34 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
+import type { CustomerGroup, CreateGroupParams } from '@/types/customer-groups'
 import * as groupApi from '@/api/customer-groups'
 import GroupSidebar from './components/GroupSidebar.vue'
 import GroupForm from './components/GroupForm.vue'
 
-interface CustomerGroup {
-  id: number
-  name: string
-  description?: string
-  group_type: 'dynamic' | 'static'
-  filter_conditions?: any
+interface ApiError {
+  message?: string
+  code?: number
 }
 
 interface Customer {
   id: number
   name: string
-  company_id: string
+  company_id: string | number
 }
+
+const router = useRouter()
 
 const groups = ref<CustomerGroup[]>([])
 const selectedGroupId = ref<number | null>(null)
 const selectedGroup = ref<CustomerGroup | null>(null)
 const customers = ref<Customer[]>([])
 const loading = ref(false)
+const submitting = ref(false)
 const formVisible = ref(false)
-const defaultFilter = ref<any>(null)
+const defaultFilter = ref<Record<string, unknown> | null>(null)
 
 const currentGroupTitle = computed(() => {
   if (!selectedGroup.value) return '全部客户'
@@ -111,15 +114,15 @@ const fetchGroups = async () => {
   try {
     const res = await groupApi.getCustomerGroups()
     groups.value = res.data.list || res.data
-  } catch (err: any) {
-    Message.error(err.message || '加载群组失败')
+  } catch (err: unknown) {
+    const error = err as ApiError
+    Message.error(error?.message || '加载群组失败')
   }
 }
 
 const fetchCustomers = async () => {
   if (!selectedGroupId.value) {
-    // 全部客户 - 跳转到客户列表页面
-    window.location.href = '/customers'
+    router.push('/customers')
     return
   }
 
@@ -131,8 +134,9 @@ const fetchCustomers = async () => {
     })
     customers.value = res.data.list
     pagination.total = res.data.total
-  } catch (err: any) {
-    Message.error(err.message || '加载客户失败')
+  } catch (err: unknown) {
+    const error = err as ApiError
+    Message.error(error?.message || '加载客户失败')
   } finally {
     loading.value = false
   }
@@ -147,19 +151,23 @@ const handleGroupSelect = (group: CustomerGroup | null) => {
   }
 }
 
-const showCreateModal = (filter?: any) => {
+const showCreateModal = (filter?: Record<string, unknown>) => {
   defaultFilter.value = filter || null
   formVisible.value = true
 }
 
-const handleCreateGroup = async (data: any) => {
+const handleCreateGroup = async (data: CreateGroupParams) => {
+  submitting.value = true
   try {
     await groupApi.createCustomerGroup(data)
     Message.success('创建成功')
     formVisible.value = false
     await fetchGroups()
-  } catch (err: any) {
-    Message.error(err.message || '创建失败')
+  } catch (err: unknown) {
+    const error = err as ApiError
+    Message.error(error?.message || '创建失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -170,8 +178,9 @@ const handleRemoveMember = async (customer_id: number) => {
     await groupApi.removeGroupMember(selectedGroupId.value, customer_id)
     Message.success('移除成功')
     fetchCustomers()
-  } catch (err: any) {
-    Message.error(err.message || '移除失败')
+  } catch (err: unknown) {
+    const error = err as ApiError
+    Message.error(error?.message || '移除失败')
   }
 }
 
