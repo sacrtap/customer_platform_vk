@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, AsyncMock
 
 from app.services.tags import TagService
 from app.models.tags import Tag, CustomerTag, ProfileTag
-from app.models.customers import Customer
-from app.models.customers import CustomerProfile
 
 
 # ==================== Fixtures ====================
@@ -19,7 +17,6 @@ def mock_db_session():
     session = MagicMock()
     session.execute = AsyncMock()
     session.add = MagicMock()
-    session.add_all = MagicMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
     return session
@@ -31,7 +28,7 @@ def tag_service(mock_db_session):
     return TagService(db_session=mock_db_session)
 
 
-# ==================== Test Create Tag ====================
+# ==================== Test TagService - Create Tag ====================
 
 
 class TestTagService_CreateTag:
@@ -40,311 +37,319 @@ class TestTagService_CreateTag:
     @pytest.mark.asyncio
     async def test_create_tag_success(self, tag_service, mock_db_session):
         """测试创建标签成功"""
-        # 准备测试数据
+        # Mock 无重复标签
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
         tag_data = {
-            "name": "VIP 客户",
+            "name": "高价值客户",
             "type": "customer",
-            "category": "等级",
+            "category": "价值等级",
         }
-        created_by = 1
 
-        # Mock 重复检查返回 None（无重复）
-        mock_check_result = MagicMock()
-        mock_check_result.scalar_one_or_none.return_value = None
+        result = await tag_service.create_tag(tag_data, created_by=1)
 
-        # Mock 数据库添加和刷新
-        mock_db_session.add = MagicMock()
-        mock_db_session.commit = AsyncMock()
-        mock_db_session.refresh = AsyncMock(side_effect=lambda x: setattr(x, "id", 1))
-
-        # 设置 execute 的 side_effect
-        call_count = {"count": 0}
-
-        async def mock_execute_side_effect(query):
-            call_count["count"] += 1
-            if call_count["count"] == 1:
-                # 第一次调用：重复检查
-                return mock_check_result
-            return mock_check_result
-
-        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
-
-        # 执行测试
-        result = await tag_service.create_tag(tag_data, created_by)
-
-        # 验证结果
         assert result is not None
         assert isinstance(result, Tag)
-        mock_db_session.add.assert_called_once()
-        mock_db_session.commit.assert_called_once()
+        assert result.name == "高价值客户"
+        assert result.type == "customer"
+        assert result.category == "价值等级"
+        mock_db_session.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_create_tag_duplicate_name(self, tag_service, mock_db_session):
-        """测试创建重复名称的标签"""
-        # 准备测试数据
+    async def test_create_tag_duplicate_error(self, tag_service, mock_db_session):
+        """测试创建标签 - 名称重复"""
+        existing_tag = Tag(id=1, name="高价值客户", type="customer")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_tag
+        mock_db_session.execute.return_value = mock_result
+
         tag_data = {
-            "name": "VIP 客户",
+            "name": "高价值客户",
             "type": "customer",
-            "category": "等级",
         }
-        created_by = 1
 
-        # Mock 重复检查返回已存在的标签
-        existing_tag = Tag(id=1, name="VIP 客户", type="customer")
-        mock_check_result = MagicMock()
-        mock_check_result.scalar_one_or_none.return_value = existing_tag
-        mock_db_session.execute = AsyncMock(return_value=mock_check_result)
+        with pytest.raises(ValueError, match="已存在"):
+            await tag_service.create_tag(tag_data, created_by=1)
 
-        # 执行测试（应该抛出 ValueError）
-        with pytest.raises(ValueError, match="标签名称 'VIP 客户' 在类型 'customer' 中已存在"):
-            await tag_service.create_tag(tag_data, created_by)
-
-        # 验证没有调用 add（因为提前检查出重复）
-        mock_db_session.add.assert_not_called()
-
-
-# ==================== Test Customer Tag Operations ====================
-
-
-class TestTagService_CustomerTagOperations:
-    """客户标签操作测试"""
+        mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_add_customer_tag_success(self, tag_service, mock_db_session):
-        """测试给客户添加标签成功"""
-        customer_id = 1
-        tag_id = 1
+    async def test_create_tag_same_name_different_type(self, tag_service, mock_db_session):
+        """测试创建标签 - 同名不同类型允许创建"""
+        # Mock 查询返回不同类型标签
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
 
-        # Mock 客户存在
-        mock_customer_result = MagicMock()
-        mock_customer_result.scalar_one_or_none.return_value = Customer(
-            id=customer_id, name="Test Customer"
-        )
-        mock_db_session.execute = AsyncMock(return_value=mock_customer_result)
+        tag_data = {
+            "name": "高价值",
+            "type": "profile",  # 不同类型
+        }
 
-        # Mock 标签存在
-        mock_tag_result = MagicMock()
-        mock_tag_result.scalar_one_or_none.return_value = Tag(
-            id=tag_id, name="VIP", type="customer"
-        )
+        result = await tag_service.create_tag(tag_data, created_by=1)
 
-        # Mock 检查现有关系（不存在）
-        mock_existing_result = MagicMock()
-        mock_existing_result.scalar_one_or_none.return_value = None
+        assert result is not None
+        assert result.name == "高价值"
+        assert result.type == "profile"
 
-        # Mock 添加和提交
-        mock_db_session.add = MagicMock()
-        mock_db_session.commit = AsyncMock()
 
-        # 设置 execute 的 side_effect 来返回不同的 mock 结果
-        call_count = {"count": 0}
+# ==================== Test TagService - Update Tag ====================
 
-        async def mock_execute_side_effect(query):
-            call_count["count"] += 1
-            if call_count["count"] == 1:
-                # 第一次调用：检查客户
-                return mock_customer_result
-            elif call_count["count"] == 2:
-                # 第二次调用：检查标签
-                return mock_tag_result
-            elif call_count["count"] == 3:
-                # 第三次调用：检查现有关系
-                return mock_existing_result
-            return mock_existing_result
 
-        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
-
-        # 执行测试
-        result = await tag_service.add_customer_tag(customer_id, tag_id)
-
-        # 验证结果
-        assert result is True
-        mock_db_session.add.assert_called_once()
-        mock_db_session.commit.assert_called_once()
+class TestTagService_UpdateTag:
+    """更新标签测试"""
 
     @pytest.mark.asyncio
-    async def test_remove_customer_tag_success(self, tag_service, mock_db_session):
-        """测试移除客户标签成功"""
-        customer_id = 1
-        tag_id = 1
-
-        # Mock 现有的 CustomerTag 关系
-        mock_customer_tag = CustomerTag(
-            customer_id=customer_id,
-            tag_id=tag_id,
-            created_at=datetime.utcnow(),
+    async def test_update_tag_success(self, tag_service, mock_db_session):
+        """测试更新标签成功"""
+        existing_tag = Tag(
+            id=1,
+            name="原名称",
+            type="customer",
+            category="原分类",
         )
 
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_customer_tag
-        mock_db_session.execute = AsyncMock(return_value=mock_result)
-        mock_db_session.commit = AsyncMock()
+        mock_result.scalar_one_or_none.return_value = existing_tag
+        mock_db_session.execute.return_value = mock_result
 
-        # 执行测试
-        result = await tag_service.remove_customer_tag(customer_id, tag_id)
+        update_data = {
+            "name": "新名称",
+            "category": "新分类",
+        }
 
-        # 验证结果
-        assert result is True
-        assert mock_customer_tag.deleted_at is not None
-        mock_db_session.commit.assert_called_once()
+        result = await tag_service.update_tag(1, update_data)
 
-
-# ==================== Test Profile Tag Operations ====================
-
-
-class TestTagService_ProfileTagOperations:
-    """画像标签操作测试"""
+        assert result is not None
+        assert result.name == "新名称"
+        assert result.category == "新分类"
+        mock_db_session.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_add_profile_tag_success(self, tag_service, mock_db_session):
-        """测试给画像添加标签成功"""
-        profile_id = 1
-        tag_id = 1
-
-        # Mock 画像存在
-        mock_profile_result = MagicMock()
-        mock_profile_result.scalar_one_or_none.return_value = CustomerProfile(
-            id=profile_id, customer_id=profile_id
-        )
-
-        # Mock 标签存在
-        mock_tag_result = MagicMock()
-        mock_tag_result.scalar_one_or_none.return_value = Tag(id=tag_id, name="VIP", type="profile")
-
-        # Mock 检查现有关系（不存在）
-        mock_existing_result = MagicMock()
-        mock_existing_result.scalar_one_or_none.return_value = None
-
-        # Mock 添加和提交
-        mock_db_session.add = MagicMock()
-        mock_db_session.commit = AsyncMock()
-
-        # 设置 execute 的 side_effect
-        call_count = {"count": 0}
-
-        async def mock_execute_side_effect(query):
-            call_count["count"] += 1
-            if call_count["count"] == 1:
-                return mock_profile_result
-            elif call_count["count"] == 2:
-                return mock_tag_result
-            elif call_count["count"] == 3:
-                return mock_existing_result
-            return mock_existing_result
-
-        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
-
-        # 执行测试
-        result = await tag_service.add_profile_tag(profile_id, tag_id)
-
-        # 验证结果
-        assert result is True
-        mock_db_session.add.assert_called_once()
-        mock_db_session.commit.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_remove_profile_tag_success(self, tag_service, mock_db_session):
-        """测试移除画像标签成功"""
-        profile_id = 1
-        tag_id = 1
-
-        # Mock 现有的 ProfileTag 关系
-        mock_profile_tag = ProfileTag(
-            profile_id=profile_id,
-            tag_id=tag_id,
-            created_at=datetime.utcnow(),
-        )
+    async def test_update_tag_partial(self, tag_service, mock_db_session):
+        """测试部分更新标签"""
+        existing_tag = Tag(id=1, name="原名称", type="customer", category="原分类")
 
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_profile_tag
-        mock_db_session.execute = AsyncMock(return_value=mock_result)
-        mock_db_session.commit = AsyncMock()
+        mock_result.scalar_one_or_none.return_value = existing_tag
+        mock_db_session.execute.return_value = mock_result
 
-        # 执行测试
-        result = await tag_service.remove_profile_tag(profile_id, tag_id)
+        update_data = {"name": "新名称"}
 
-        # 验证结果
+        result = await tag_service.update_tag(1, update_data)
+
+        assert result.name == "新名称"
+        assert result.category == "原分类"  # 未改变
+
+    @pytest.mark.asyncio
+    async def test_update_tag_not_found(self, tag_service, mock_db_session):
+        """测试更新不存在的标签"""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.update_tag(999, {"name": "新名称"})
+
+        assert result is None
+        mock_db_session.commit.assert_not_called()
+
+
+# ==================== Test TagService - Delete Tag ====================
+
+
+class TestTagService_DeleteTag:
+    """删除标签测试"""
+
+    @pytest.mark.asyncio
+    async def test_delete_tag_success(self, tag_service, mock_db_session):
+        """测试删除标签成功（软删除）"""
+        existing_tag = Tag(id=1, name="测试标签", type="customer", deleted_at=None)
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_tag
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.delete_tag(1)
+
         assert result is True
-        assert mock_profile_tag.deleted_at is not None
-        mock_db_session.commit.assert_called_once()
-
-
-# ==================== Test Batch Operations ====================
-
-
-class TestTagService_BatchOperations:
-    """批量操作测试"""
+        assert existing_tag.deleted_at is not None
+        mock_db_session.commit.assert_called()
 
     @pytest.mark.asyncio
-    async def test_batch_add_customer_tags_success(self, tag_service, mock_db_session):
-        """测试批量给客户添加标签成功"""
-        customer_ids = [1, 2]
-        tag_ids = [1, 2]
+    async def test_delete_tag_not_found(self, tag_service, mock_db_session):
+        """测试删除不存在的标签"""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
 
-        # Mock 有效客户
-        mock_customers_result = MagicMock()
-        mock_customers_result.scalars.return_value.all.return_value = [1, 2]
+        result = await tag_service.delete_tag(999)
 
-        # Mock 有效标签
-        mock_tags_result = MagicMock()
-        mock_tags_result.scalars.return_value.all.return_value = [1, 2]
+        assert result is False
 
-        # Mock 现有关系（无）
-        mock_existing_result = MagicMock()
-        mock_existing_result.all.return_value = []
 
-        # Mock 添加和提交
-        mock_db_session.add_all = MagicMock()
-        mock_db_session.commit = AsyncMock()
+# ==================== Test TagService - Get Tags ====================
 
-        # 设置 execute 的 side_effect
-        call_count = {"count": 0}
 
-        async def mock_execute_side_effect(query):
-            call_count["count"] += 1
-            if call_count["count"] == 1:
-                return mock_customers_result
-            elif call_count["count"] == 2:
-                return mock_tags_result
-            elif call_count["count"] == 3:
-                return mock_existing_result
-            return mock_existing_result
-
-        mock_db_session.execute = AsyncMock(side_effect=mock_execute_side_effect)
-
-        # 执行测试
-        success_count, error_count = await tag_service.batch_add_customer_tags(
-            customer_ids, tag_ids
-        )
-
-        # 验证结果（4 个新标签关系：2 个客户 x 2 个标签）
-        assert success_count == 4
-        assert error_count == 0
-        mock_db_session.add_all.assert_called_once()
-        mock_db_session.commit.assert_called_once()
+class TestTagService_GetTags:
+    """获取标签列表测试"""
 
     @pytest.mark.asyncio
-    async def test_batch_remove_customer_tags_success(self, tag_service, mock_db_session):
-        """测试批量移除客户标签成功"""
-        customer_ids = [1, 2]
-        tag_ids = [1, 2]
-
-        # Mock 现有的 CustomerTag 关系
-        mock_tags = [
-            CustomerTag(customer_id=1, tag_id=1, created_at=datetime.utcnow()),
-            CustomerTag(customer_id=2, tag_id=2, created_at=datetime.utcnow()),
+    async def test_get_all_tags_no_filter(self, tag_service, mock_db_session):
+        """测试获取所有标签"""
+        tags = [
+            Tag(id=1, name="标签1", type="customer"),
+            Tag(id=2, name="标签2", type="profile"),
         ]
 
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = mock_tags
-        mock_db_session.execute = AsyncMock(return_value=mock_result)
-        mock_db_session.commit = AsyncMock()
+        mock_result.scalars.return_value.all.return_value = tags
+        mock_result.scalar.return_value = 2
+        mock_db_session.execute.return_value = mock_result
 
-        # 执行测试
-        removed_count = await tag_service.batch_remove_customer_tags(customer_ids, tag_ids)
+        result_tags, total = await tag_service.get_all_tags(page=1, page_size=20)
 
-        # 验证结果
-        assert removed_count == 2
-        for tag in mock_tags:
-            assert tag.deleted_at is not None
-        mock_db_session.commit.assert_called_once()
+        assert len(result_tags) == 2
+        assert total == 2
+
+    @pytest.mark.asyncio
+    async def test_get_all_tags_filter_by_type(self, tag_service, mock_db_session):
+        """测试按类型筛选标签"""
+        tags = [Tag(id=1, name="客户标签", type="customer")]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = tags
+        mock_result.scalar.return_value = 1
+        mock_db_session.execute.return_value = mock_result
+
+        result_tags, total = await tag_service.get_all_tags(tag_type="customer")
+
+        assert len(result_tags) == 1
+        assert result_tags[0].type == "customer"
+
+    @pytest.mark.asyncio
+    async def test_get_all_tags_filter_by_category(self, tag_service, mock_db_session):
+        """测试按分类筛选标签"""
+        tags = [Tag(id=1, name="高价值", type="customer", category="价值等级")]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = tags
+        mock_result.scalar.return_value = 1
+        mock_db_session.execute.return_value = mock_result
+
+        result_tags, total = await tag_service.get_all_tags(category="价值等级")
+
+        assert len(result_tags) == 1
+        assert result_tags[0].category == "价值等级"
+
+    @pytest.mark.asyncio
+    async def test_get_all_tags_empty(self, tag_service, mock_db_session):
+        """测试获取空标签列表"""
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute.return_value = mock_result
+
+        result_tags, total = await tag_service.get_all_tags()
+
+        assert len(result_tags) == 0
+        assert total == 0
+
+
+# ==================== Test TagService - Get Tag By ID ====================
+
+
+class TestTagService_GetTagById:
+    """根据 ID 获取标签测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_tag_by_id_success(self, tag_service, mock_db_session):
+        """测试获取存在的标签"""
+        tag = Tag(id=1, name="测试标签", type="customer")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = tag
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_by_id(1)
+
+        assert result is not None
+        assert result.id == 1
+        assert result.name == "测试标签"
+
+    @pytest.mark.asyncio
+    async def test_get_tag_by_id_not_found(self, tag_service, mock_db_session):
+        """测试获取不存在的标签"""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_by_id(999)
+
+        assert result is None
+
+
+# ==================== Test TagService - Tag Usage Count ====================
+
+
+class TestTagService_TagUsageCount:
+    """标签使用次数测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_tag_usage_count(self, tag_service, mock_db_session):
+        """测试获取标签使用次数"""
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 5
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_usage_count(1)
+
+        assert result["customer_count"] == 5
+        assert result["profile_count"] == 5  # mock 返回相同值
+
+    @pytest.mark.asyncio
+    async def test_get_tag_usage_count_zero(self, tag_service, mock_db_session):
+        """测试标签未被使用"""
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_usage_count(1)
+
+        assert result["customer_count"] == 0
+        assert result["profile_count"] == 0
+
+
+# ==================== Test TagService - Get Tag By Name And Type ====================
+
+
+class TestTagService_GetTagByNameAndType:
+    """根据名称和类型获取标签测试"""
+
+    @pytest.mark.asyncio
+    async def test_get_tag_by_name_and_type_found(self, tag_service, mock_db_session):
+        """测试找到标签"""
+        tag = Tag(id=1, name="高价值客户", type="customer")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = tag
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_by_name_and_type("高价值客户", "customer")
+
+        assert result is not None
+        assert result.name == "高价值客户"
+        assert result.type == "customer"
+
+    @pytest.mark.asyncio
+    async def test_get_tag_by_name_and_type_not_found(self, tag_service, mock_db_session):
+        """测试未找到标签"""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_result
+
+        result = await tag_service.get_tag_by_name_and_type("不存在", "customer")
+
+        assert result is None

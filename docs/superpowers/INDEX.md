@@ -1,7 +1,7 @@
 # Superpowers 工作流索引
 
 > 本目录收录 AI 辅助开发工作流 (Superpowers) 产出的设计规格与实现计划。
-> 最后更新: 2026-04-27
+> 最后更新: 2026-05-01
 
 ---
 
@@ -31,6 +31,14 @@
 | [2026-04-22-profile-dashboard-design.md](specs/2026-04-22-profile-dashboard-design.md) | 04-22 | 画像仪表盘设计 | ✅ 完成 |
 | [2026-04-22-profile-pages-merge-design.md](specs/2026-04-22-profile-pages-merge-design.md) | 04-22 | 画像页面合并 | ✅ 完成 |
 | [2026-04-23-customer-search-filter-design.md](specs/2026-04-23-customer-search-filter-design.md) | 04-23 | 客户筛选器输入检索 | ✅ 完成 |
+| [2026-04-27-invoice-management-design.md](specs/2026-04-27-invoice-management-design.md) | 04-27 | 发票管理功能设计 | ✅ 完成 |
+| [2026-04-28-invoice-detail-status-update-design.md](specs/2026-04-28-invoice-detail-status-update-design.md) | 04-28 | 发票详情状态更新 | ✅ 完成 |
+| [2026-04-28-invoice-layer-type-display-fix.md](specs/2026-04-28-invoice-layer-type-display-fix.md) | 04-28 | 发票楼层类型显示修复 | ✅ 完成 |
+| [2026-04-28-pricing-rule-overlap-validation-design.md](specs/2026-04-28-pricing-rule-overlap-validation-design.md) | 04-28 | 定价规则重叠校验 | ✅ 完成 |
+| [2026-04-29-audit-log-optimization-design.md](specs/2026-04-29-audit-log-optimization-design.md) | 04-29 | 审计日志全面优化 | ✅ 完成 |
+| [2026-04-29-profile-page-layout-optimization-design.md](specs/2026-04-29-profile-page-layout-optimization-design.md) | 04-29 | 画像页面布局优化 | ✅ 完成 |
+| [2026-04-30-customer-import-optimization-design.md](specs/2026-04-30-customer-import-optimization-design.md) | 04-30 | 客户导入功能优化 | ✅ 完成 |
+| [2026-04-30-filter-default-values-design.md](specs/2026-04-30-filter-default-values-design.md) | 04-30 | 筛选项默认值优化 | ✅ 完成 |
 
 ## 实现计划 (plans/)
 
@@ -59,6 +67,13 @@
 | [2026-04-22-profile-dashboard-plan.md](plans/2026-04-22-profile-dashboard-plan.md) | 04-22 | 画像仪表盘 | ✅ 完成 |
 | [2026-04-22-profile-pages-merge-plan.md](plans/2026-04-22-profile-pages-merge-plan.md) | 04-22 | 画像页面合并 | ✅ 完成 |
 | [2026-04-23-customer-search-filter-implementation.md](plans/2026-04-23-customer-search-filter-implementation.md) | 04-23 | 客户筛选器输入检索 | ✅ 完成 |
+| [2026-04-27-invoice-management-implementation.md](plans/2026-04-27-invoice-management-implementation.md) | 04-27 | 发票管理实现 | ✅ 完成 |
+| [2026-04-28-invoice-detail-status-update-plan.md](plans/2026-04-28-invoice-detail-status-update-plan.md) | 04-28 | 发票详情状态更新 | ✅ 完成 |
+| [2026-04-28-invoice-layer-type-display-fix-plan.md](plans/2026-04-28-invoice-layer-type-display-fix-plan.md) | 04-28 | 发票楼层类型显示修复 | ✅ 完成 |
+| [2026-04-28-pricing-rule-overlap-validation.md](plans/2026-04-28-pricing-rule-overlap-validation.md) | 04-28 | 定价规则重叠校验 | ✅ 完成 |
+| [2026-04-29-audit-log-optimization.md](plans/2026-04-29-audit-log-optimization.md) | 04-29 | 审计日志优化 | ✅ 完成 |
+| [2026-04-29-profile-page-layout-optimization.md](plans/2026-04-29-profile-page-layout-optimization.md) | 04-29 | 画像页面布局优化 | ✅ 完成 |
+| [2026-04-30-filter-default-values-plan.md](plans/2026-04-30-filter-default-values-plan.md) | 04-30 | 筛选项默认值 | ✅ 完成 |
 
 ---
 
@@ -71,6 +86,6 @@
 
 ## 统计
 
-- **设计规格**: 20 篇（全部完成）
-- **实现计划**: 21 篇（全部完成）
-- **开发周期**: 2026-04-01 至 2026-04-23（23 天）
+- **设计规格**: 27 篇（全部完成）
+- **实现计划**: 28 篇（全部完成）
+- **开发周期**: 2026-04-01 至 2026-04-30（30 天）
