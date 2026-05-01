@@ -341,15 +341,24 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import * as echarts from 'echarts'
 import StatCard from '@/components/StatCard.vue'
 import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 
+// 懒加载 ECharts
+let echartsPromise: Promise<any> | null = null
+const loadEcharts = async () => {
+  if (!echartsPromise) {
+    echartsPromise = import('echarts')
+  }
+  const echarts = await echartsPromise
+  return echarts
+}
+
 const loading = ref(false)
 const chartRef = ref<HTMLElement>()
-let chartInstance: echarts.ECharts | null = null
+let chartInstance: any = null
 
 // 统计数据
 const stats = reactive({
@@ -400,7 +409,7 @@ const loadChartData = async () => {
   try {
     const res = await getDashboardChartData({ months: 12 })
     await nextTick()
-    initChart(
+    await initChart(
       (res as any).data.consumption_trend as Array<{ period: string; total_amount: number }>
     )
   } catch (error) {
@@ -410,8 +419,10 @@ const loadChartData = async () => {
 }
 
 // 初始化图表
-const initChart = (data: Array<{ period: string; total_amount: number }>) => {
+const initChart = async (data: Array<{ period: string; total_amount: number }>) => {
   if (!chartRef.value) return
+
+  const echarts = await loadEcharts()
 
   if (chartInstance) {
     chartInstance.dispose()
