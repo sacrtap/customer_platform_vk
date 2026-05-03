@@ -127,8 +127,6 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 ### Graphify 知识图谱
 
-**图谱状态**: 2554 节点 · 5133 边 · 398 社区 | 输出目录: `graphify-out/`
-
 #### 查询工作流（回答架构问题时必须使用）
 
 1. **优先查询图谱**，而非直接读取源码
@@ -157,7 +155,7 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 #### 图谱质量说明
 
-当前图谱存在过度碎片化问题（300+ 单节点社区），建议定期运行：
+图谱会随代码变更持续演进。如查询结果碎片化或社区结构不合理，可运行：
 - `graphify . --cluster-only` — 重新聚类，改善社区结构
 - `graphify . --mode deep` — 深度模式，增强 INFERRED 边连接
 
