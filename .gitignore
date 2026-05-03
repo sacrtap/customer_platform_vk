@@ -121,6 +121,7 @@ __pypackages__/
 # Documentation
 docs/_build/
 docs/data.xlsx
+docs/data_clean.xlsx
 docs/data_cleaned.xlsx
 /site
 
