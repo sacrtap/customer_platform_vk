@@ -118,7 +118,7 @@ async def test_get_billing_balance(test_client, test_user):
 
     # 使用 token 访问余额查询
     headers = {"Authorization": f"Bearer {token}"}
-    request, response = await test_client.get("/api/v1/billing/balance", headers=headers)
+    request, response = await test_client.get("/api/v1/billing/balances", headers=headers)
 
     # 应该返回 200 或 404（取决于是否有账单数据）
     assert response.status in [200, 404]

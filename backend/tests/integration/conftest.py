@@ -97,13 +97,14 @@ def sync_test_engine():
 
 
 @pytest.fixture(scope="session")
-def test_user(sync_test_engine):
+def test_user(sync_test_engine, worker_id):
     """Session 级测试用户，只在测试会话开始时创建一次
 
     优化说明：
     - 从 function scope 改为 session scope，避免每个测试都执行 TRUNCATE + INSERT
     - 原来 200+ 个测试 × 30+ 条权限 = 6000+ 次 INSERT，现在只执行 1 次
     - 测试间数据隔离由 db_session 的事务回滚负责
+    - 使用 DELETE + ON CONFLICT 替代 TRUNCATE，避免并行测试死锁
     """
     import bcrypt
 
@@ -115,10 +116,25 @@ def test_user(sync_test_engine):
     session = SessionLocal()
 
     try:
-        # 清理旧数据（使用 CASCADE 避免死锁）
-        session.execute(
-            text("TRUNCATE user_roles, roles, permissions, role_permissions, users CASCADE")
+        # 检查是否已经初始化（通过检查 admin 用户是否存在）
+        result = session.execute(
+            text("SELECT COUNT(*) FROM users WHERE username = :username"),
+            {"username": username},
         )
+        if result.scalar() > 0:
+            # 已初始化，直接返回
+            return {
+                "username": username,
+                "password": password,
+            }
+
+        # 清理旧数据（使用 DELETE 而非 TRUNCATE，避免并行死锁）
+        # 按外键依赖顺序删除
+        session.execute(text("DELETE FROM user_roles"))
+        session.execute(text("DELETE FROM role_permissions"))
+        session.execute(text("DELETE FROM roles"))
+        session.execute(text("DELETE FROM permissions"))
+        session.execute(text("DELETE FROM users"))
         session.commit()
 
         # 创建管理员角色
@@ -127,6 +143,7 @@ def test_user(sync_test_engine):
                 """
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
+            ON CONFLICT (name) DO NOTHING
             """
             ),
             {"name": "admin", "description": "系统管理员"},
@@ -177,6 +194,7 @@ def test_user(sync_test_engine):
                     """
                 INSERT INTO permissions (code, name, description, module, created_at)
                 VALUES (:code, :name, :description, :module, NOW())
+                ON CONFLICT (code) DO NOTHING
                 """
                 ),
                 {"code": perm_code, "name": desc, "description": desc, "module": module},
@@ -190,8 +208,8 @@ def test_user(sync_test_engine):
 
         # 获取权限 ID 列表
         result = session.execute(
-            text("SELECT id FROM permissions WHERE name IN :names"),
-            {"names": tuple(p[0] for p in permissions)},
+            text("SELECT id FROM permissions WHERE code IN :codes"),
+            {"codes": tuple(p[0] for p in permissions)},
         ).fetchall()
         perm_ids = [r[0] for r in result]
 
@@ -200,8 +218,9 @@ def test_user(sync_test_engine):
             session.execute(
                 text(
                     """
-                INSERT INTO role_permissions (role_id, permission_id, created_at)
-                VALUES (:role_id, :permission_id, NOW())
+                INSERT INTO role_permissions (role_id, permission_id)
+                VALUES (:role_id, :permission_id)
+                ON CONFLICT (role_id, permission_id) DO NOTHING
                 """
                 ),
                 {"role_id": role_id, "permission_id": perm_id},
@@ -213,6 +232,7 @@ def test_user(sync_test_engine):
                 """
             INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
             VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
+            ON CONFLICT (username) DO NOTHING
             """
             ),
             {
@@ -235,6 +255,7 @@ def test_user(sync_test_engine):
                 """
             INSERT INTO user_roles (user_id, role_id)
             VALUES (:user_id, :role_id)
+            ON CONFLICT (user_id, role_id) DO NOTHING
             """
             ),
             {"user_id": user_id, "role_id": role_id},

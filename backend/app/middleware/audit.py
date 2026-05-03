@@ -322,7 +322,40 @@ def extract_record_id_from_path(path: str) -> int | None:
 
 
 def map_method_to_action(method: str, path: str) -> str:
-    """映射 HTTP 方法到操作类型"""
+    """映射 HTTP 方法到操作类型
+
+    标准 CRUD 操作：
+    - POST → create（创建新记录）
+    - PUT → update（更新记录）
+    - DELETE → delete（删除记录）
+
+    动作型 POST 操作（不是创建）：
+    - 重置密码、分配角色/权限、发票状态变更等
+    """
+    # 动作型 POST 操作（优先匹配，避免被误认为 create）
+    # 注意：顺序很重要，更具体的模式应该放在前面
+    action_patterns = [
+        ("/reset-password", "reset_password"),
+        ("/forgot-password", "forgot_password"),
+        ("/permissions", "assign_permissions"),  # 必须在 /roles 之前
+        ("/roles", "assign_roles"),  # POST /users/<id>/roles
+        ("/submit", "submit"),
+        ("/confirm", "confirm"),
+        ("/pay", "pay"),
+        ("/complete", "complete"),
+        ("/cancel", "cancel"),
+    ]
+
+    # 先检查是否为动作型操作
+    for pattern, action in action_patterns:
+        if path.endswith(pattern):
+            return action
+
+    # 特殊处理：标签关联（路径格式 /<resource>/<id>/tags/<tag_id>）
+    if "/tags/" in path and path.count("/") >= 5:
+        return "add_tag"
+
+    # 标准 CRUD 映射
     action_map = {
         "POST": "create",
         "PUT": "update",

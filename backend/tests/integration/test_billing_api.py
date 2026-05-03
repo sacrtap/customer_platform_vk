@@ -14,7 +14,13 @@ Billing API 集成测试
 """
 
 import pytest
+import uuid
 from sqlalchemy import text
+
+
+def _unique_customer_id(base: int = 90000) -> int:
+    """生成唯一的测试客户 ID，避免并行测试冲突"""
+    return base + abs(hash(uuid.uuid4().hex[:8])) % 10000
 
 
 @pytest.fixture
@@ -29,10 +35,17 @@ async def auth_token(test_client, test_user):
 
 
 @pytest.fixture
-async def test_customer(db_session, test_user):
-    """创建测试客户"""
-    customer_id = 99999
-    company_id = customer_id  # company_id 现在是 Integer 类型
+async def test_customer(db_session, test_user, worker_id):
+    """创建测试客户
+
+    使用 worker_id + 随机后缀确保并行测试时客户 ID 唯一，
+    避免多个 pytest-xdist worker 互相冲突。
+    """
+    import random
+    # worker_id 由 pytest-xdist 提供（如 gw0, gw1），本地运行为 "master"
+    wid = worker_id if worker_id != "master" else "local"
+    customer_id = int(f"{hash(wid) % 10000:04d}{random.randint(1000, 9999)}")
+    company_id = customer_id
     customer_name = f"测试客户_{customer_id}"
 
     db_session.execute(
@@ -908,8 +921,8 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
     user_row = result.fetchone()
     manager_id = user_row[0] if user_row else 1
 
-    customer_id = 99998
-    company_id = 99998
+    customer_id = _unique_customer_id(99998)
+    company_id = customer_id
 
     # 清理旧数据
     db_session.execute(
@@ -935,7 +948,7 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
         {
             "id": customer_id,
             "company_id": company_id,
-            "name": "测试客户_99998",
+            "name": f"测试客户_{customer_id}",
             "account_type": "enterprise",
             "manager_id": manager_id,
             "cycle": "monthly",
@@ -997,8 +1010,8 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
     user_row = result.fetchone()
     manager_id = user_row[0] if user_row else 1
 
-    customer_id = 99997
-    company_id = 99997
+    customer_id = _unique_customer_id(99997)
+    company_id = customer_id
 
     # 清理旧数据
     db_session.execute(
@@ -1024,7 +1037,7 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
         {
             "id": customer_id,
             "company_id": company_id,
-            "name": "测试客户_99997",
+            "name": f"测试客户_{customer_id}",
             "account_type": "enterprise",
             "manager_id": manager_id,
             "cycle": "monthly",
