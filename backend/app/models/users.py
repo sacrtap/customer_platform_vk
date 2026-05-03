@@ -43,7 +43,6 @@ class User(BaseModel):
     # 关联
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     created_tags = relationship("Tag", back_populates="creator")
-    created_groups = relationship("CustomerGroup", back_populates="creator")
 
     def __repr__(self):
         return f"<User {self.username}>"

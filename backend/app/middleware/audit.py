@@ -198,7 +198,6 @@ def get_model_for_module(module: str, path: str = ""):
         from ..models.users import User, Role, Permission
         from ..models.customers import Customer, CustomerProfile
         from ..models.tags import Tag, CustomerTag, ProfileTag
-        from ..models.groups import CustomerGroup
         from ..models.files import File
         from ..models.billing import PricingRule, Invoice, RechargeRecord, CustomerBalance
         from ..models.industry_type import IndustryType
@@ -212,7 +211,6 @@ def get_model_for_module(module: str, path: str = ""):
             "tags": Tag,
             "customer-tags": CustomerTag,
             "profile-tags": ProfileTag,
-            "groups": CustomerGroup,
             "files": File,
             "industry-types": IndustryType,
             # billing 子路径特殊处理

@@ -54,12 +54,6 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresPermission: 'tags:view' },
       },
       {
-        path: 'customer-groups',
-        name: 'CustomerGroups',
-        component: () => import('@/views/customer-groups/Index.vue'),
-        meta: { requiresPermission: 'customers:view' },
-      },
-      {
         path: 'billing',
         name: 'Billing',
         children: [

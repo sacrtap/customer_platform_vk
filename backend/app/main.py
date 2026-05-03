@@ -103,7 +103,7 @@ def create_app(
     from .routes.webhooks import webhooks_bp
     from .routes.sync_logs import sync_logs_bp
     from .routes.audit_logs import audit_logs_bp
-    from .routes.groups import groups_bp
+
     from .routes.roles import roles_bp
     from .routes.permissions import permissions_bp
     from .routes.dict_routes import dict_bp
@@ -120,7 +120,6 @@ def create_app(
     app.blueprint(webhooks_bp)
     app.blueprint(sync_logs_bp)
     app.blueprint(audit_logs_bp)
-    app.blueprint(groups_bp)
     app.blueprint(roles_bp)
     app.blueprint(permissions_bp)
     app.blueprint(dict_bp)

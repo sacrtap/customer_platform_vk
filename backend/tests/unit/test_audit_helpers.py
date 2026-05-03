@@ -59,7 +59,7 @@ async def async_session(async_engine):
 
     async with async_session_maker() as session:
         # 测试前清理：使用 TRUNCATE CASCADE 清理所有相关数据
-        await session.execute(text("TRUNCATE audit_logs, customers, customer_group_members, customer_groups, users CASCADE"))
+        await session.execute(text("TRUNCATE audit_logs, customers, users CASCADE"))
         await session.commit()
 
         try:

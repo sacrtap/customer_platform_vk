@@ -51,22 +51,4 @@ with patch("app.tasks.scheduler.scheduler") as mock_sched:
     )
     print(f"Status: {response.status}")
 
-    # 测试 /api/v1/customer-groups (需要认证)
-    print("\n=== Testing /api/v1/customer-groups (no auth) ===")
-    _, response = client.post(
-        "/api/v1/customer-groups", json={"name": "test", "group_type": "dynamic"}
-    )
-    print(f"Status: {response.status}")
-    print(f"Body: {response.text}")
-
-    # 测试 /api/v1/customer-groups (带认证)
-    print("\n=== Testing /api/v1/customer-groups (with auth) ===")
-    _, response = client.post(
-        "/api/v1/customer-groups",
-        json={"name": "test", "group_type": "dynamic"},
-        headers={"Authorization": "Bearer fake_token"},
-    )
-    print(f"Status: {response.status}")
-    print(f"Body: {response.text}")
-
 print("\nDone!")

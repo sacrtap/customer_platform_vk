@@ -203,18 +203,6 @@ export interface RechargeRecord {
   created_at: string
 }
 
-/** 群组 */
-export interface CustomerGroup {
-  id: number
-  name: string
-  description: string | null
-  group_type: 'dynamic' | 'static'
-  filter_conditions: Record<string, unknown> | null
-  member_count: number
-  created_by: number
-  created_at: string
-}
-
 /** 导入结果 */
 export interface ImportResult {
   success_count: number

@@ -459,37 +459,38 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["tag_id"], ["tags.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("profile_id", "tag_id", "id"),
     )
-    op.add_column(
-        "customer_group_members",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-    )
-    op.drop_index(
-        "idx_customer_group_members_customer_id", table_name="customer_group_members"
-    )
-    op.create_index(
-        op.f("ix_customer_group_members_customer_id"),
-        "customer_group_members",
-        ["customer_id"],
-        unique=False,
-    )
-    op.drop_index("idx_customer_groups_created_by", table_name="customer_groups")
-    op.drop_index("idx_customer_groups_group_type", table_name="customer_groups")
-    op.drop_index("idx_customer_groups_name", table_name="customer_groups")
-    op.create_index(
-        op.f("ix_customer_groups_created_by"),
-        "customer_groups",
-        ["created_by"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_customer_groups_group_type"),
-        "customer_groups",
-        ["group_type"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_customer_groups_name"), "customer_groups", ["name"], unique=False
-    )
+    # Removed: customer_group_members and customer_groups tables removed
+    # op.add_column(
+    #     "customer_group_members",
+    #     sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
+    # )
+    # op.drop_index(
+    #     "idx_customer_group_members_customer_id", table_name="customer_group_members"
+    # )
+    # op.create_index(
+    #     op.f("ix_customer_group_members_customer_id"),
+    #     "customer_group_members",
+    #     ["customer_id"],
+    #     unique=False,
+    # )
+    # op.drop_index("idx_customer_groups_created_by", table_name="customer_groups")
+    # op.drop_index("idx_customer_groups_group_type", table_name="customer_groups")
+    # op.drop_index("idx_customer_groups_name", table_name="customer_groups")
+    # op.create_index(
+    #     op.f("ix_customer_groups_created_by"),
+    #     "customer_groups",
+    #     ["created_by"],
+    #     unique=False,
+    # )
+    # op.create_index(
+    #     op.f("ix_customer_groups_group_type"),
+    #     "customer_groups",
+    #     ["group_type"],
+    #     unique=False,
+    # )
+    # op.create_index(
+    #     op.f("ix_customer_groups_name"), "customer_groups", ["name"], unique=False
+    # )
     op.create_index(
         "idx_customer_business_settlement",
         "customers",
@@ -558,35 +559,36 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_customers_account_type"), table_name="customers")
     op.drop_index("idx_customer_manager_level", table_name="customers")
     op.drop_index("idx_customer_business_settlement", table_name="customers")
-    op.drop_index(op.f("ix_customer_groups_name"), table_name="customer_groups")
-    op.drop_index(op.f("ix_customer_groups_group_type"), table_name="customer_groups")
-    op.drop_index(op.f("ix_customer_groups_created_by"), table_name="customer_groups")
-    op.create_index(
-        "idx_customer_groups_name", "customer_groups", ["name"], unique=False
-    )
-    op.create_index(
-        "idx_customer_groups_group_type",
-        "customer_groups",
-        ["group_type"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_customer_groups_created_by",
-        "customer_groups",
-        ["created_by"],
-        unique=False,
-    )
-    op.drop_index(
-        op.f("ix_customer_group_members_customer_id"),
-        table_name="customer_group_members",
-    )
-    op.create_index(
-        "idx_customer_group_members_customer_id",
-        "customer_group_members",
-        ["customer_id"],
-        unique=False,
-    )
-    op.drop_column("customer_group_members", "id")
+    # Removed: customer_group_members and customer_groups tables removed
+    # op.drop_index(op.f("ix_customer_groups_name"), table_name="customer_groups")
+    # op.drop_index(op.f("ix_customer_groups_group_type"), table_name="customer_groups")
+    # op.drop_index(op.f("ix_customer_groups_created_by"), table_name="customer_groups")
+    # op.create_index(
+    #     "idx_customer_groups_name", "customer_groups", ["name"], unique=False
+    # )
+    # op.create_index(
+    #     "idx_customer_groups_group_type",
+    #     "customer_groups",
+    #     ["group_type"],
+    #     unique=False,
+    # )
+    # op.create_index(
+    #     "idx_customer_groups_created_by",
+    #     "customer_groups",
+    #     ["created_by"],
+    #     unique=False,
+    # )
+    # op.drop_index(
+    #     op.f("ix_customer_group_members_customer_id"),
+    #     table_name="customer_group_members",
+    # )
+    # op.create_index(
+    #     "idx_customer_group_members_customer_id",
+    #     "customer_group_members",
+    #     ["customer_id"],
+    #     unique=False,
+    # )
+    # op.drop_column("customer_group_members", "id")
     op.drop_table("profile_tags")
     op.drop_index(op.f("ix_invoice_items_invoice_id"), table_name="invoice_items")
     op.drop_table("invoice_items")

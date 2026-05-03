@@ -267,8 +267,6 @@ def db_session(sync_test_engine, test_user):
         # 测试后清理业务数据（保留 auth 数据）
         # 按外键依赖顺序：先删叶子表，再删父表
         try:
-            session.execute(text("DELETE FROM customer_group_members"))
-            session.execute(text("DELETE FROM customer_groups"))
             session.execute(text("DELETE FROM customer_tags"))
             session.execute(text("DELETE FROM tags"))
             session.execute(text("DELETE FROM invoice_items"))

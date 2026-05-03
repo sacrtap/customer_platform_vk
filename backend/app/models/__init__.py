@@ -16,7 +16,6 @@ from . import customers  # noqa: E402
 from . import billing  # noqa: E402
 from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
-from . import groups  # noqa: E402
 from . import files  # noqa: E402
 from . import industry_type  # noqa: E402
 
@@ -30,7 +29,6 @@ __all__ = [
     "billing",
     "tags",
     "webhooks",
-    "groups",
     "files",
     "industry_type",
 ]
