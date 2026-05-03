@@ -101,6 +101,21 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 ---
 
+## ⚠️ 测试命令规范（必须遵守）
+
+**运行 Python 测试时，必须直接使用 `pytest`，不要用 `python -m pytest`：**
+
+| 正确 ✅               | 错误 ❌                          |
+| --------------------- | -------------------------------- |
+| `pytest tests/ -v`      | `python -m pytest tests/ -v`       |
+| `pytest tests/ -n auto` | `python3 -m pytest tests/ -n auto` |
+
+**原因**：`python` / `python3` 在 RTK 排除列表中，用 `python -m pytest` 会绕过 RTK 的自动压缩，导致输出膨胀 75%+，浪费 Token。
+
+**记忆口诀**：测试直接跑 `pytest`，不要套 `python -m` 壳。
+
+---
+
 ## 设计规范
 - **主色**: `#0F172A` | **强调色**: `#0369A1` | **字体**: Plus Jakarta Sans
 - **圆角**: 8-16px | **动效**: 150-300ms
