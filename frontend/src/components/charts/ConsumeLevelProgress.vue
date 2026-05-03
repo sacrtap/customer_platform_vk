@@ -39,60 +39,77 @@ const props = withDefaults(
 // 统一的消费等级配置（从低到高）
 const levels = ['E', 'D', 'C', 'B', 'A', 'S']
 
+// 消费等级阈值（与详情页显示映射保持一致）
 const levelThresholds = {
   E: 0,
-  D: 30000,
-  C: 60000,
-  B: 120000,
-  A: 250000,
-  S: 500000,
+  D: 60000,
+  C: 120000,
+  B: 250000,
+  A: 500000,
+  S: 1000000,
 }
 
-const currentLevelIndex = computed(() => levels.indexOf(props.currentLevel))
-
-const nextLevelIndex = computed(() => Math.min(currentLevelIndex.value + 1, levels.length - 1))
-
-const currentThreshold = computed(
-  () => levelThresholds[props.currentLevel as keyof typeof levelThresholds] || 0
-)
-
-const nextThreshold = computed(() => {
-  const nextLevel = levels[nextLevelIndex.value]
-  return levelThresholds[nextLevel as keyof typeof levelThresholds] || 0
-})
+// 根据消费金额自动判断所在等级区间，不依赖 currentLevel
+const getCurrentLevelInfo = (amount: number) => {
+  let index = 0
+  for (let i = levels.length - 1; i >= 0; i--) {
+    if (amount >= levelThresholds[levels[i] as keyof typeof levelThresholds]) {
+      index = i
+      break
+    }
+  }
+  return { index, level: levels[index] }
+}
 
 const indicatorPosition = computed(() => {
-  if (currentLevelIndex.value < 0) return 0
-  if (currentLevelIndex.value >= levels.length - 1) {
+  const levelInfo = getCurrentLevelInfo(props.currentAmount)
+  const levelIndex = levelInfo.index
+  
+  if (levelIndex < 0) return 0
+  if (levelIndex >= levels.length - 1) {
     return 100
   }
+  
   // 6 个等级，5 个间隔，每个间隔占 20%（100/5=20）
   const segmentWidth = 100 / (levels.length - 1)
   
-  // 如果没有传入 currentAmount，游标在当前等级的中间位置
-  if (!props.currentAmount || props.currentAmount === 0) {
-    return (currentLevelIndex.value + 0.5) * segmentWidth
-  }
+  // 当前等级的阈值
+  const currentThreshold = levelThresholds[levels[levelIndex] as keyof typeof levelThresholds]
+  // 下一等级的阈值
+  const nextLevel = levels[levelIndex + 1]
+  const nextThreshold = levelThresholds[nextLevel as keyof typeof levelThresholds]
   
-  const range = nextThreshold.value - currentThreshold.value
-  const progress = props.currentAmount - currentThreshold.value
+  // 在当前等级段内的进度百分比
+  const range = nextThreshold - currentThreshold
+  const progress = props.currentAmount - currentThreshold
   const segmentProgress = Math.min(Math.max(progress / range, 0), 1)
-  return (currentLevelIndex.value + segmentProgress) * segmentWidth
+  
+  // 游标位置 = 已完成的段数 + 当前段内的进度
+  return (levelIndex + segmentProgress) * segmentWidth
 })
 
 const amountToNextLevel = computed(() => {
-  if (currentLevelIndex.value >= levels.length - 1) {
+  const levelInfo = getCurrentLevelInfo(props.currentAmount)
+  const levelIndex = levelInfo.index
+  
+  if (levelIndex >= levels.length - 1) {
     return 0
   }
-  return Math.max(0, nextThreshold.value - props.currentAmount)
+  const nextLevel = levels[levelIndex + 1]
+  const nextThreshold = levelThresholds[nextLevel as keyof typeof levelThresholds]
+  return Math.max(0, nextThreshold - props.currentAmount)
 })
 
 const getSegmentClass = (index: number) => {
-  if (index < currentLevelIndex.value) {
-    return 'completed'
-  }
-  if (index === currentLevelIndex.value) {
+  const currentLevelIndex = getCurrentLevelInfo(props.currentAmount).index
+  
+  // 当前等级所在的 segment
+  if (index === currentLevelIndex) {
     return 'current'
+  }
+  // 已完成的等级（在当前等级之前）
+  if (index < currentLevelIndex) {
+    return 'completed'
   }
   return ''
 }

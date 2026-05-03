@@ -364,10 +364,10 @@
                 placeholder="请选择结算周期"
                 allow-clear
               >
-                <a-option value="日结">日结</a-option>
-                <a-option value="周结">周结</a-option>
-                <a-option value="月结">月结</a-option>
-                <a-option value="季结">季结</a-option>
+                <a-option value="daily">日结</a-option>
+                <a-option value="weekly">周结</a-option>
+                <a-option value="monthly">月结</a-option>
+                <a-option value="quarterly">季结</a-option>
               </a-select>
             </a-form-item>
           </a-col>

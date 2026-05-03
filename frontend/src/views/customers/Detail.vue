@@ -427,10 +427,10 @@
 
               <a-form-item field="settlement_cycle" label="结算周期">
                 <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
-                  <a-option value="日结">日结</a-option>
-                  <a-option value="周结">周结</a-option>
-                  <a-option value="月结">月结</a-option>
-                  <a-option value="季结">季结</a-option>
+                  <a-option value="daily">日结</a-option>
+                  <a-option value="weekly">周结</a-option>
+                  <a-option value="monthly">月结</a-option>
+                  <a-option value="quarterly">季结</a-option>
                 </a-select>
               </a-form-item>
 
@@ -439,6 +439,7 @@
                   <a-option value="active">合作中</a-option>
                   <a-option value="suspended">暂停</a-option>
                   <a-option value="terminated">终止</a-option>
+                  <a-option value="noused">近一年未使用</a-option>
                 </a-select>
               </a-form-item>
 
@@ -1265,12 +1266,12 @@ const settlementCycleText = computed(() => {
 
 // 消费等级显示映射（与 ConsumeLevelProgress 组件保持一致）
 const CONSUME_LEVEL_MAP: Record<string, string> = {
-  E: 'E - 3万',
-  D: 'D - 6万',
-  C: 'C - 12万',
-  B: 'B - 25万',
-  A: 'A - 50万',
-  S: 'S - 100万',
+  E: 'E - 6 万以下',
+  D: 'D - 6 万',
+  C: 'C - 12 万',
+  B: 'B - 25 万',
+  A: 'A - 50 万',
+  S: 'S - 100 万',
 }
 
 // 消费等级显示文本
