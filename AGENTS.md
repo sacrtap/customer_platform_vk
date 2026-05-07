@@ -1,6 +1,6 @@
 # AGENTS.md - 客户运营中台开发指南
 
-**最后更新**: 2026-04-30
+**最后更新**: 2026-05-08
 **项目状态**: Phase 0-7 完成 | **CI 要求**: 测试覆盖率 ≥50%
 
 ---
@@ -59,6 +59,70 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 4. **权限校验**: 所有 API 端点必须添加 `@auth_required` 装饰器
 5. **审计日志**: 关键操作必须记录到 `audit_logs` 表
 6. **JWT 密钥**: 生产环境必须使用 32+ 字符随机密钥
+
+---
+
+## ⚠️ CI/CD 经验教训（必须遵守）
+
+> 以下规则来自真实 CI 失败案例，违反将导致构建失败。
+
+### 1. 依赖升级规则
+
+**问题案例**：升级 pytest 7→9 时未同步升级 pytest-asyncio，导致测试收集失败
+
+**必须遵守**：
+- 升级核心依赖时，必须检查并同步升级相关插件（如 `pytest` → `pytest-asyncio`/`pytest-xdist`）
+- 升级后必须立即运行完整测试套件验证兼容性
+- 使用 `pip install --upgrade` 后，立即更新 `requirements.txt` 中的版本号
+
+### 2. 代码格式化工具升级规则
+
+**问题案例**：升级 black 24→26 后，27 个文件格式不符合新规则，CI 失败
+
+**必须遵守**：
+- 升级 `black`/`prettier` 等格式化工具后，必须立即运行格式化命令修复全项目
+- 不要假设"格式规则没变"——主版本升级通常有新规则
+- 提交前必须在本地运行 `black --check` 验证
+
+### 3. 安全扫描修复规则
+
+**问题案例**：safety check 发现 12 个依赖漏洞，npm audit 发现 esbuild 漏洞
+
+**必须遵守**：
+- 定期运行 `safety check -r requirements.txt` 和 `npm audit --audit-level=high`
+- 发现漏洞后立即升级，不要拖延
+- 前端构建工具（如 vite）升级可能影响插件兼容性，需同步升级相关插件
+
+### 4. 代码规范检查规则
+
+**问题案例**：test_audit_helpers_db.py 第 57 行 143 字符超过 120 限制
+
+**必须遵守**：
+- 编写代码时严格遵守 `flake8 max-line-length=120` 限制
+- 长字符串/SQL 语句必须拆分到多行
+- 提交前必须运行 `flake8` 和 `black` 双重检查
+
+### 5. 提交前完整验证清单
+
+**问题案例**：两次 CI 失败都是因为本地验证不完整
+
+**必须遵守**：每次提交前必须运行以下检查：
+
+```bash
+# 后端检查
+cd backend && source .venv/bin/activate
+flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
+black app/ tests/ --check
+safety check -r requirements.txt
+pytest tests/unit/ -v --tb=short
+
+# 前端检查
+cd frontend
+npm audit --audit-level=high
+npm run build
+```
+
+**记忆口诀**：提交前跑四件套 — flake8、black、safety、pytest
 
 ---
 
