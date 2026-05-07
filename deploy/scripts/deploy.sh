@@ -42,6 +42,16 @@ check_dependencies() {
     if command -v podman &> /dev/null; then
         CONTAINER_RUNTIME="podman"
         log_info "检测到 Podman"
+        
+        # 配置 Podman 使用文件式认证（避免 macOS keychain 问题）
+        if [ "$(uname)" = "Darwin" ]; then
+            export REGISTRY_AUTH_FILE="${HOME}/.config/containers/auth.json"
+            mkdir -p "$(dirname "$REGISTRY_AUTH_FILE")"
+            if [ ! -f "$REGISTRY_AUTH_FILE" ]; then
+                echo '{"auths":{}}' > "$REGISTRY_AUTH_FILE"
+            fi
+            log_info "已配置 Podman 使用文件式认证"
+        fi
     elif command -v docker &> /dev/null; then
         CONTAINER_RUNTIME="docker"
         log_info "检测到 Docker"
@@ -192,6 +202,12 @@ pull_remote_image() {
     # 重新打标签供 compose 使用
     $CONTAINER_RUNTIME tag "$image" "customer_platform_app:latest"
     log_info "远程镜像已拉取并标记为 customer_platform_app:latest"
+    
+    # 预拉取基础镜像（避免 compose 使用 keychain）
+    log_info "预拉取基础镜像..."
+    $CONTAINER_RUNTIME pull postgres:18-alpine 2>/dev/null || true
+    $CONTAINER_RUNTIME pull redis:7-alpine 2>/dev/null || true
+    log_info "基础镜像预拉取完成"
 }
 
 # 拉取基础镜像
