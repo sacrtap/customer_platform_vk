@@ -24,6 +24,7 @@ for mod in modules_to_clear:
 
 # 重置 lru_cache 确保 settings 单例使用新的环境变量
 import app.config  # noqa: E402
+
 app.config.get_settings.cache_clear()
 app.config.settings = app.config.get_settings()
 
