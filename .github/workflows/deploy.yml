@@ -115,9 +115,11 @@ jobs:
           SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
           SSH_USER: ${{ secrets.STAGING_SSH_USER }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           DB_USER: ${{ secrets.STAGING_DB_USER }}
           DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          HEALTH_URL: "http://localhost:8000/health"
         run: |
           echo "🚀 部署到 Staging 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
@@ -135,10 +137,12 @@ jobs:
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/customer_platform_vk
             export IMAGE_TAG=${IMAGE_TAG}
+            export GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
             export DB_USER=${DB_USER}
             export DB_PASSWORD=${DB_PASSWORD}
             export JWT_SECRET=${JWT_SECRET}
-            ./deploy/scripts/deploy.sh ${IMAGE_TAG}
+            export HEALTH_URL=${HEALTH_URL}
+            ./deploy/scripts/deploy.sh --use-remote-image ${IMAGE_TAG}
           EOF
 
           echo "✅ Staging 部署完成"
@@ -171,9 +175,11 @@ jobs:
           SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           DB_USER: ${{ secrets.PRODUCTION_DB_USER }}
           DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+          HEALTH_URL: "http://localhost:8000/health"
         run: |
           echo "🚀 部署到 Production 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
@@ -190,10 +196,12 @@ jobs:
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/customer_platform_vk
             export IMAGE_TAG=${IMAGE_TAG}
+            export GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
             export DB_USER=${DB_USER}
             export DB_PASSWORD=${DB_PASSWORD}
             export JWT_SECRET=${JWT_SECRET}
-            ./deploy/scripts/deploy.sh ${IMAGE_TAG}
+            export HEALTH_URL=${HEALTH_URL}
+            ./deploy/scripts/deploy.sh --use-remote-image ${IMAGE_TAG}
           EOF
 
           echo "✅ Production 部署完成"
