@@ -50,14 +50,28 @@ check_dependencies() {
         exit 1
     fi
     
-    # 检查 docker-compose 或 docker compose
-    if command -v docker-compose &> /dev/null; then
-        COMPOSE_CMD="docker-compose"
-    elif $CONTAINER_RUNTIME compose &>/dev/null; then
-        COMPOSE_CMD="$CONTAINER_RUNTIME compose"
-    else
-        log_error "docker-compose 未安装"
-        exit 1
+    # 检查 compose 命令
+    if [ "$CONTAINER_RUNTIME" = "podman" ]; then
+        # Podman 优先使用 podman compose 或 podman-compose
+        if podman compose version &>/dev/null; then
+            COMPOSE_CMD="podman compose"
+        elif command -v podman-compose &> /dev/null; then
+            COMPOSE_CMD="podman-compose"
+        else
+            log_error "podman compose 或 podman-compose 未安装"
+            log_error "请安装: dnf install podman-compose 或 pip install podman-compose"
+            exit 1
+        fi
+    elif [ "$CONTAINER_RUNTIME" = "docker" ]; then
+        # Docker 使用 docker-compose 或 docker compose
+        if command -v docker-compose &> /dev/null; then
+            COMPOSE_CMD="docker-compose"
+        elif docker compose version &>/dev/null; then
+            COMPOSE_CMD="docker compose"
+        else
+            log_error "docker-compose 未安装"
+            exit 1
+        fi
     fi
     
     log_info "使用 compose 命令：$COMPOSE_CMD"
