@@ -223,9 +223,30 @@ pull_images() {
 run_migrations() {
     log_step "运行数据库迁移..."
     
-    # 一次性启动数据库和迁移服务，让 compose 管理依赖顺序
-    # --abort-on-container-exit 确保迁移失败时能感知
-    $COMPOSE_CMD -f $COMPOSE_FILE up --abort-on-container-exit migrate
+    # 先单独启动数据库容器，捕获可能的错误日志
+    log_info "启动数据库容器..."
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d db
+    
+    # 等待几秒让数据库初始化
+    sleep 3
+    
+    # 检查数据库容器状态
+    db_status=$($COMPOSE_CMD -f $COMPOSE_FILE ps db 2>&1)
+    log_info "数据库容器状态: $db_status"
+    
+    # 如果数据库容器已退出，打印日志并失败
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE ps db | grep -q "Up"; then
+        log_error "数据库容器启动失败，打印日志:"
+        $COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | tail -50
+        exit 1
+    fi
+    
+    log_info "数据库容器已启动，等待就绪..."
+    # 等待数据库通过 healthcheck
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d db redis
+    
+    # 运行迁移服务
+    $COMPOSE_CMD -f $COMPOSE_FILE up migrate
     
     log_info "数据库迁移完成"
 }
