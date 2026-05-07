@@ -202,12 +202,6 @@ pull_remote_image() {
     # 重新打标签供 compose 使用
     $CONTAINER_RUNTIME tag "$image" "customer_platform_app:latest"
     log_info "远程镜像已拉取并标记为 customer_platform_app:latest"
-    
-    # 预拉取基础镜像（避免 compose 使用 keychain）
-    log_info "预拉取基础镜像..."
-    $CONTAINER_RUNTIME pull postgres:18-alpine 2>/dev/null || true
-    $CONTAINER_RUNTIME pull redis:7-alpine 2>/dev/null || true
-    log_info "基础镜像预拉取完成"
 }
 
 # 拉取基础镜像
