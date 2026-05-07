@@ -480,22 +480,23 @@
 
               <a-form-item field="scale_level" label="规模等级">
                 <a-select v-model="editForm.scale_level" placeholder="请选择规模等级" allow-clear>
-                  <a-option value="100">100人</a-option>
-                  <a-option value="500">500人</a-option>
-                  <a-option value="1000">1000人</a-option>
-                  <a-option value="2000">2000人</a-option>
-                  <a-option value="5000">5000人</a-option>
+                  <a-option value="S">S - 5000人</a-option>
+                  <a-option value="A">A - 2000人</a-option>
+                  <a-option value="B">B - 1000人</a-option>
+                  <a-option value="C">C - 500人</a-option>
+                  <a-option value="D">D - 100人</a-option>
+                  <a-option value="E">E - 小于100人</a-option>
                 </a-select>
               </a-form-item>
 
               <a-form-item field="consume_level" label="消费等级">
                 <a-select v-model="editForm.consume_level" placeholder="请选择消费等级" allow-clear>
-                  <a-option value="S">S</a-option>
-                  <a-option value="A">A</a-option>
-                  <a-option value="B">B</a-option>
-                  <a-option value="C">C</a-option>
-                  <a-option value="D">D</a-option>
-                  <a-option value="E">E</a-option>
+                  <a-option value="C1">C1</a-option>
+                  <a-option value="C2">C2</a-option>
+                  <a-option value="C3">C3</a-option>
+                  <a-option value="C4">C4</a-option>
+                  <a-option value="C5">C5</a-option>
+                  <a-option value="C6">C6</a-option>
                 </a-select>
               </a-form-item>
 
@@ -1266,12 +1267,12 @@ const settlementCycleText = computed(() => {
 
 // 消费等级显示映射（与 ConsumeLevelProgress 组件保持一致）
 const CONSUME_LEVEL_MAP: Record<string, string> = {
-  E: 'E - 6 万以下',
-  D: 'D - 6 万',
-  C: 'C - 12 万',
-  B: 'B - 25 万',
-  A: 'A - 50 万',
-  S: 'S - 100 万',
+  C1: 'C1 - 100 万',
+  C2: 'C2 - 50 万',
+  C3: 'C3 - 25 万',
+  C4: 'C4 - 12 万',
+  C5: 'C5 - 6 万',
+  C6: 'C6 - 6 万以下',
 }
 
 // 消费等级显示文本
