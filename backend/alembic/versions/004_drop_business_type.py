@@ -28,8 +28,8 @@ def upgrade() -> None:
         """
     )
 
-    # Step 2: 删除 idx_customer_business_settlement 索引
-    op.drop_index("idx_customer_business_settlement", table_name="customers")
+    # Step 2: 删除 idx_customer_business_settlement 索引（如果存在）
+    op.execute("DROP INDEX IF EXISTS idx_customer_business_settlement")
 
     # Step 3: 删除 customers.business_type 列
     op.drop_column("customers", "business_type")

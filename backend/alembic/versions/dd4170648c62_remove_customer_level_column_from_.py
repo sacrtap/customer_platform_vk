@@ -22,8 +22,9 @@ def upgrade() -> None:
     op.drop_index('idx_token_blacklist_jti', table_name='token_blacklist')
     op.drop_index('ix_token_blacklist_jti', table_name='token_blacklist')
     op.drop_table('token_blacklist')
-    op.drop_index('idx_customer_business_settlement', table_name='customers')
-    op.drop_index('idx_customer_manager_level', table_name='customers')
+    # 使用 IF EXISTS 避免索引已被其他迁移删除的错误
+    op.execute('DROP INDEX IF EXISTS idx_customer_business_settlement')
+    op.execute('DROP INDEX IF EXISTS idx_customer_manager_level')
     op.drop_index('ix_customers_business_type', table_name='customers')
     op.drop_index('ix_customers_customer_level', table_name='customers')
     op.drop_constraint('uq_customers_company_id', 'customers', type_='unique')
