@@ -35,11 +35,14 @@ sys.modules["aiosmtplib"] = MagicMock()
 from app.main import create_app  # noqa: E402
 from app.models.base import BaseModel  # noqa: E402
 
-# 测试数据库配置
-TEST_DATABASE_SYNC_URL = "postgresql://postgres:postgres@localhost:5432/customer_platform_test"
-TEST_DATABASE_ASYNC_URL = (
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/customer_platform_test"
-)
+# 测试数据库配置（从环境变量读取，CI环境使用不同的凭证）
+_TEST_DB_USER = os.environ.get("POSTGRES_USER", "postgres")
+_TEST_DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
+_TEST_DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
+_TEST_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
+
+TEST_DATABASE_SYNC_URL = f"postgresql://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
+TEST_DATABASE_ASYNC_URL = f"postgresql+asyncpg://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
 
 
 @pytest.fixture(scope="function")
