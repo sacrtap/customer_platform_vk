@@ -51,12 +51,12 @@ import { computed } from 'vue'
 
 // 统一的消费等级配置（从低到高）
 export const CONSUME_LEVELS = [
-  { value: 'E', label: 'E级', color: '#a855f7' },
-  { value: 'D', label: 'D级', color: '#f59e0b' },
-  { value: 'C', label: 'C级', color: '#3296f7' },
-  { value: 'B', label: 'B级', color: '#22c55e' },
-  { value: 'A', label: 'A级', color: '#d97706' },
-  { value: 'S', label: 'S级', color: '#ef4444' },
+  { value: 'C6', label: 'C6级', color: '#a855f7' },
+  { value: 'C5', label: 'C5级', color: '#f59e0b' },
+  { value: 'C4', label: 'C4级', color: '#3296f7' },
+  { value: 'C3', label: 'C3级', color: '#22c55e' },
+  { value: 'C2', label: 'C2级', color: '#d97706' },
+  { value: 'C1', label: 'C1级', color: '#ef4444' },
 ] as const
 
 export type ConsumeLevel = typeof CONSUME_LEVELS[number]['value']
