@@ -141,6 +141,8 @@ jobs:
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/Documents/github/customer_platform_vk
+            git fetch origin main
+            git reset --hard origin/main
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
             export DB_USER="${DB_USER}"
@@ -200,6 +202,8 @@ jobs:
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/Documents/github/customer_platform_vk
+            git fetch origin main
+            git reset --hard origin/main
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
             export DB_USER="${DB_USER}"
