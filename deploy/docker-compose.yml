@@ -42,6 +42,7 @@ services:
 
   # 应用服务
   app:
+    image: customer_platform_app:latest
     build:
       context: ../../backend
       dockerfile: ../deploy/docker/Containerfile
