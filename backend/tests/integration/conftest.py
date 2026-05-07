@@ -75,11 +75,15 @@ def sync_test_engine():
     # 创建所有表（只在 session 开始时执行一次）
     with engine.begin() as conn:
         BaseModel.metadata.create_all(conn)
-        # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
+        # 验证表是否正确创建
         from sqlalchemy import inspect
 
         inspector = inspect(conn)
-        if "invoices" in inspector.get_table_names():
+        tables = inspector.get_table_names()
+        print(f"✅ 已创建 {len(tables)} 个表: {tables[:5]}...")
+        
+        # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
+        if "invoices" in tables:
             columns = [col["name"] for col in inspector.get_columns("invoices")]
             if "cancelled_at" not in columns:
                 conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_at VARCHAR(50)"))
@@ -125,12 +129,14 @@ def test_user(sync_test_engine, worker_id):
             {"username": username},
         )
         if result.scalar() > 0:
+            print(f"✅ 测试用户已存在: {username}")
             # 已初始化，直接返回
             return {
                 "username": username,
                 "password": password,
             }
 
+        print(f"🔧 创建测试用户: {username}")
         # 清理旧数据（使用 DELETE 而非 TRUNCATE，避免并行死锁）
         # 按外键依赖顺序删除
         session.execute(text("DELETE FROM user_roles"))
@@ -146,7 +152,6 @@ def test_user(sync_test_engine, worker_id):
                 """
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            ON CONFLICT (name) DO NOTHING
             """
             ),
             {"name": "admin", "description": "系统管理员"},
