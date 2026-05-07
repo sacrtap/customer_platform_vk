@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_display_name: str = "客户运营中台 API"
     app_env: str = Field(default="development", description="应用环境：development/production")
     debug: bool = True
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # nosec B104 -- 开发环境默认值，生产环境通过环境变量覆盖
     port: int = 8000
 
     # 数据库配置

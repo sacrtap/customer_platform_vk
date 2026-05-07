@@ -325,7 +325,7 @@ jobs:
   performance-test:
     name: Performance Benchmark
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'performance' || github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.test_level == 'performance'
 
     services:
       postgres:
