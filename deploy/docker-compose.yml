@@ -44,8 +44,8 @@ services:
   app:
     image: customer_platform_app:latest
     build:
-      context: ../../backend
-      dockerfile: ../deploy/docker/Containerfile
+      context: ../backend
+      dockerfile: ./docker/Containerfile
     container_name: customer-platform-app
     restart: unless-stopped
     environment:
@@ -78,9 +78,10 @@ services:
 
   # 数据库迁移服务 (一次性运行)
   migrate:
+    image: customer_platform_app:latest
     build:
-      context: ../../backend
-      dockerfile: ../deploy/docker/Containerfile
+      context: ../backend
+      dockerfile: ./docker/Containerfile
     container_name: customer-platform-migrate
     environment:
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
@@ -93,9 +94,10 @@ services:
 
   # 创建测试数据服务 (一次性运行)
   seed:
+    image: customer_platform_app:latest
     build:
-      context: ../../backend
-      dockerfile: ../deploy/docker/Containerfile
+      context: ../backend
+      dockerfile: ./docker/Containerfile
     container_name: customer-platform-seed
     environment:
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}

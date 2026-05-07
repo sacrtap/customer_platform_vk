@@ -230,6 +230,7 @@ run_migrations() {
     sleep 5
     
     # 运行迁移服务
+    # migrate 服务使用 customer_platform_app:latest 镜像（远程部署时已预拉取）
     $COMPOSE_CMD -f $COMPOSE_FILE up migrate
     
     log_info "数据库迁移完成"
