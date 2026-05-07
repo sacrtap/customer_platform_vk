@@ -18,7 +18,7 @@
 - 是否结算 → is_settlement_enabled
 - 是否停用 → is_disabled
 - 备注 → notes
-- 客户消费等级 → consume_level（C2→A, C3→B, C4→C, C5→D, C6→E）
+- 客户消费等级 → consume_level（C2→C2, C3→C3, C4→C4, C5→C5, C6→C6，直接映射）
 - 月均拍摄量 → monthly_avg_shots
 - 月均拍摄量（测算） → monthly_avg_shots_estimated
 - 预估年消费 → estimated_annual_spend
@@ -91,13 +91,14 @@ COOPERATION_STATUS_MAP = {
     "暂停": "suspended",
 }
 
-# 消费等级映射
+# 消费等级映射（直接映射，C2→C2, C3→C3, etc.）
 CONSUME_LEVEL_MAP = {
-    "C2": "A",
-    "C3": "B",
-    "C4": "C",
-    "C5": "D",
-    "C6": "E",
+    "C1": "C1",
+    "C2": "C2",
+    "C3": "C3",
+    "C4": "C4",
+    "C5": "C5",
+    "C6": "C6",
 }
 
 
