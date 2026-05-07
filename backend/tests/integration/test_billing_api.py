@@ -42,6 +42,7 @@ async def test_customer(db_session, test_user, worker_id):
     避免多个 pytest-xdist worker 互相冲突。
     """
     import random
+
     # worker_id 由 pytest-xdist 提供（如 gw0, gw1），本地运行为 "master"
     wid = worker_id if worker_id != "master" else "local"
     customer_id = int(f"{hash(wid) % 10000:04d}{random.randint(1000, 9999)}")
@@ -526,7 +527,9 @@ async def test_pay_invoice_invalid_state(test_client, auth_token, test_customer)
 
 
 @pytest.mark.asyncio
-async def test_complete_invoice_insufficient_balance(test_client, auth_token, test_customer_with_balance):
+async def test_complete_invoice_insufficient_balance(
+    test_client, auth_token, test_customer_with_balance
+):
     """测试完成结算 - 余额不足"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer_with_balance["id"]

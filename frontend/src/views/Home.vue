@@ -412,7 +412,8 @@ const loadChartData = async () => {
     const res = await getDashboardChartData({ months: 12 })
     await nextTick()
     await initChart(
-      res.data.consumption_trend as Array<{ period: string; total_amount: number }>
+      (res as { data: { consumption_trend: Array<{ period: string; total_amount: number }> } }).data
+        .consumption_trend
     )
   } catch (error) {
     console.error('加载图表数据失败:', error)

@@ -77,7 +77,11 @@ async def test_upload_file_success(test_client, auth_token, monkeypatch):
     # Mock MIME type validation to accept our test content
     monkeypatch.setattr(
         "app.routes.files.validate_mime_type",
-        lambda body, name: (True, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ""),
+        lambda body, name: (
+            True,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "",
+        ),
     )
 
     file_content = b"PK\x03\x04test xlsx content"
@@ -123,7 +127,13 @@ async def test_upload_file_too_large(test_client, auth_token, monkeypatch):
     monkeypatch.setattr("app.routes.files.MAX_FILE_SIZE", 100)
 
     file_content = b"x" * 200
-    files = {"file": ("test.xlsx", file_content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+    files = {
+        "file": (
+            "test.xlsx",
+            file_content,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     request, response = await test_client.post(

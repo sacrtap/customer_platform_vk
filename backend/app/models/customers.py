@@ -64,8 +64,12 @@ class CustomerProfile(BaseModel):
     __tablename__ = "customer_profiles"
 
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True)
-    scale_level = Column(String(50))  # 客户规模等级: S/A/B/C/D/E (5000人/2000人/1000人/500人/100人/<100人)
-    consume_level = Column(String(50))  # 客户消费等级: C1/C2/C3/C4/C5/C6 (100万/50万/25万/12万/6万/6万以下)
+    scale_level = Column(
+        String(50)
+    )  # 客户规模等级: S/A/B/C/D/E (5000人/2000人/1000人/500人/100人/<100人)
+    consume_level = Column(
+        String(50)
+    )  # 客户消费等级: C1/C2/C3/C4/C5/C6 (100万/50万/25万/12万/6万/6万以下)
     industry = Column(String(100))
     is_real_estate = Column(Boolean, default=False)
     description = Column(Text)

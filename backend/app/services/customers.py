@@ -107,7 +107,13 @@ SETTLEMENT_TYPE_MAP = {"预付费": "prepaid", "后付费": "postpaid"}
 SETTLEMENT_TYPE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_TYPE_MAP.items()}
 
 # 结算周期转换
-SETTLEMENT_CYCLE_MAP = {"日结": "daily", "周结": "weekly", "月结": "monthly", "季结": "quarterly", "年结": "yearly"}
+SETTLEMENT_CYCLE_MAP = {
+    "日结": "daily",
+    "周结": "weekly",
+    "月结": "monthly",
+    "季结": "quarterly",
+    "年结": "yearly",
+}
 SETTLEMENT_CYCLE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_CYCLE_MAP.items()}
 
 

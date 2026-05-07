@@ -371,7 +371,9 @@ class TestPricingService_CreatePricingRule:
             await pricing_service.create_pricing_rule(rule_data)
 
     @pytest.mark.asyncio
-    async def test_create_pricing_rule_no_overlap_different_device(self, pricing_service, mock_db_session):
+    async def test_create_pricing_rule_no_overlap_different_device(
+        self, pricing_service, mock_db_session
+    ):
         """测试创建定价规则 - 不同设备类型不冲突"""
         existing_rule = PricingRule(
             id=1,

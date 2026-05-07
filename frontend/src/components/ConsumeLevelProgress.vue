@@ -59,8 +59,6 @@ const CONSUME_LEVELS = [
   { value: 'C1', label: 'C1级', color: '#ef4444' },
 ] as const
 
-type _ConsumeLevel = typeof CONSUME_LEVELS[number]['value']
-
 const props = defineProps<{
   currentLevel: string
 }>()

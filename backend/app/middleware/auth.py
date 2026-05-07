@@ -7,6 +7,7 @@ from functools import wraps
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.auth import AuthService
 from ..services import get_user_permissions
+
 # Lazy import to avoid capturing real permission_cache at module load time
 # Tests can mock app.cache.permissions.permission_cache before routes are loaded
 from ..services.token_blacklist import TokenBlacklistService

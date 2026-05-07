@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import create_engine
 from sqlalchemy import pool
 from alembic import context
 import sys
@@ -33,11 +33,12 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """在线模式 - 执行迁移到数据库"""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    # Alembic 不支持异步引擎，需将 asyncpg URL 转换为 psycopg2
+    sync_url = settings.database_url.replace(
+        "postgresql+asyncpg://", "postgresql+psycopg2://"
     )
+    connectable = create_engine(sync_url, poolclass=pool.NullPool)
+
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
