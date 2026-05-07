@@ -18,10 +18,19 @@ pytestmark = pytest.mark.xdist_group("db_models")
 @pytest.fixture(scope="function")
 async def async_engine():
     """创建异步测试数据库引擎（使用与 integration conftest 一致的配置）"""
-    from app.core.config import settings
+    import os
+    from app.config import settings
+
+    # 从环境变量覆盖数据库URL（CI环境需要）
+    db_user = os.environ.get("POSTGRES_USER", "postgres")
+    db_password = os.environ.get("POSTGRES_PASSWORD", "postgres")
+    db_host = os.environ.get("POSTGRES_HOST", "localhost")
+    db_name = os.environ.get("POSTGRES_DB", "customer_platform_test")
+    
+    test_db_url = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:5432/{db_name}"
 
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        test_db_url,
         echo=False,
         future=True,
     )
