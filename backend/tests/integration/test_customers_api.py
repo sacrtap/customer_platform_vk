@@ -484,7 +484,8 @@ async def test_download_import_template_field_structure(test_client, auth_header
     # 验证新增字段
     assert example[10] == "2024-01-15"  # first_payment_date
     assert example[12] == "active"  # cooperation_status
-    assert example[17] == "A"  # consume_level
+    assert example[16] == "C"  # scale_level
+    assert example[17] == "C2"  # consume_level
 
 
 @pytest.mark.asyncio
