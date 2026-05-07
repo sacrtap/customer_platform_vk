@@ -113,6 +113,7 @@ def test_user(sync_test_engine, worker_id):
     - 测试间数据隔离由 db_session 的事务回滚负责
     - 使用 DELETE + ON CONFLICT 替代 TRUNCATE，避免并行测试死锁
     """
+    import sys
     import bcrypt
 
     username = "admin"
@@ -128,15 +129,22 @@ def test_user(sync_test_engine, worker_id):
             text("SELECT COUNT(*) FROM users WHERE username = :username"),
             {"username": username},
         )
-        if result.scalar() > 0:
-            print(f"✅ 测试用户已存在: {username}")
+        count = result.scalar()
+        sys.stdout.write(f"[DEBUG] test_user: users表查询结果 count={count}\n")
+        sys.stdout.flush()
+        
+        if count > 0:
+            sys.stdout.write(f"[DEBUG] test_user: 用户已存在，返回 {username}\n")
+            sys.stdout.flush()
             # 已初始化，直接返回
             return {
                 "username": username,
                 "password": password,
             }
 
-        print(f"🔧 创建测试用户: {username}")
+        sys.stdout.write(f"[DEBUG] test_user: 开始创建用户 {username}\n")
+        sys.stdout.flush()
+        
         # 清理旧数据（使用 DELETE 而非 TRUNCATE，避免并行死锁）
         # 按外键依赖顺序删除
         session.execute(text("DELETE FROM user_roles"))
@@ -145,6 +153,8 @@ def test_user(sync_test_engine, worker_id):
         session.execute(text("DELETE FROM permissions"))
         session.execute(text("DELETE FROM users"))
         session.commit()
+        sys.stdout.write(f"[DEBUG] test_user: 清理旧数据完成\n")
+        sys.stdout.flush()
 
         # 创建管理员角色
         session.execute(
@@ -156,6 +166,8 @@ def test_user(sync_test_engine, worker_id):
             ),
             {"name": "admin", "description": "系统管理员"},
         )
+        sys.stdout.write(f"[DEBUG] test_user: 角色创建完成\n")
+        sys.stdout.flush()
 
         # 创建权限（细粒度权限，与 seed.py 定义一致）
         permissions = [
@@ -240,7 +252,6 @@ def test_user(sync_test_engine, worker_id):
                 """
             INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
             VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-            ON CONFLICT (username) DO NOTHING
             """
             ),
             {
@@ -251,12 +262,20 @@ def test_user(sync_test_engine, worker_id):
                 "is_active": True,
             },
         )
+        sys.stdout.write(f"[DEBUG] test_user: 用户插入完成\n")
+        sys.stdout.flush()
 
         # 获取用户 ID 并关联角色
         result = session.execute(
             text("SELECT id FROM users WHERE username = :username"), {"username": username}
         ).fetchone()
+        if result is None:
+            sys.stdout.write(f"[ERROR] test_user: 用户创建后查询不到!\n")
+            sys.stdout.flush()
+            raise Exception("用户创建后查询不到")
         user_id = result[0]
+        sys.stdout.write(f"[DEBUG] test_user: 用户ID={user_id}\n")
+        sys.stdout.flush()
 
         session.execute(
             text(
@@ -270,6 +289,8 @@ def test_user(sync_test_engine, worker_id):
         )
 
         session.commit()
+        sys.stdout.write(f"[DEBUG] test_user: 全部完成，返回用户信息\n")
+        sys.stdout.flush()
     finally:
         session.close()
 
