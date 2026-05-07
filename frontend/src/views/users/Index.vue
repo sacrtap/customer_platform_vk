@@ -340,8 +340,8 @@ const loadUsers = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    const data = res.data as any
-    users.value = (data.list as any[]).map((item: any) => ({
+    const data = res.data as { list?: User[]; total?: number }
+    users.value = (data.list as User[]).map((item: User) => ({
       ...item,
       roles: item.roles || [],
       role_ids: item.roles?.map((r: { id: number }) => r.id) || [],
@@ -357,7 +357,7 @@ const loadUsers = async () => {
 const loadRoles = async () => {
   try {
     const res = await getRoles({ page: 1, page_size: 100 })
-    availableRoles.value = (res.data as any).list || []
+    availableRoles.value = (res.data as { list?: Role[] }).list || []
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载角色列表失败')
   }

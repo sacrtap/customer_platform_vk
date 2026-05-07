@@ -41,7 +41,7 @@ test.describe('客户管理 CRUD', () => {
     await expect(tableHeader.first()).toBeVisible();
 
     // 验证操作按钮存在
-    const headerActions = page.locator('.arco-page-header-actions, .header-actions, [class*="header"] button');
+    const _headerActions = page.locator('.arco-page-header-actions, .header-actions, [class*="header"] button');
     const hasCreateBtn = await page.locator('button:has-text("新建客户")').first().isVisible({ timeout: 5000 }).catch(() => false);
     expect(hasCreateBtn).toBeTruthy();
 

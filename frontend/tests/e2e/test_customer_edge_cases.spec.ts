@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 import {
   uiLogin,
-  waitForMessage,
+  waitForMessage as _waitForMessage,
   waitForModal,
   closeModal,
   waitForTableLoaded,
@@ -12,8 +12,8 @@ import {
   apiCreateCustomer,
   apiDeleteCustomer,
   apiGetCustomers,
-  expectTableRowContains,
-  expectMessage,
+  expectTableRowContains as _expectTableRowContains,
+  expectMessage as _expectMessage,
 } from './test-helpers';
 
 /**
@@ -220,7 +220,7 @@ test.describe('客户管理边界/异常场景', () => {
 
     // 验证错误处理
     const errorMsg = page.locator('.arco-message-error');
-    const errorVisible = await errorMsg.first().isVisible({ timeout: 5000 }).catch(() => false);
+    const _errorVisible = await errorMsg.first().isVisible({ timeout: 5000 }).catch(() => false);
 
     // 取消路由拦截
     await page.unroute('**/api/v1/customers*');

@@ -1,9 +1,9 @@
 import { test, expect } from './fixtures';
 import {
   uiLogin,
-  waitForMessage,
-  waitForModal,
-  closeModal,
+  waitForMessage as _waitForMessage,
+  waitForModal as _waitForModal,
+  closeModal as _closeModal,
   waitForTableLoaded,
   generateTestCompanyId,
   generateTestCustomerName,
@@ -11,7 +11,7 @@ import {
   apiCreateCustomer,
   apiDeleteCustomer,
   apiRecharge,
-  expectTabExists,
+  expectTabExists as _expectTabExists,
   clickTab,
 } from './test-helpers';
 

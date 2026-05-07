@@ -346,8 +346,10 @@ import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 
+import type { ECharts } from 'echarts'
+
 // 懒加载 ECharts
-let echartsPromise: Promise<any> | null = null
+let echartsPromise: Promise<typeof import('echarts')> | null = null
 const loadEcharts = async () => {
   if (!echartsPromise) {
     echartsPromise = import('echarts')
@@ -358,7 +360,7 @@ const loadEcharts = async () => {
 
 const loading = ref(false)
 const chartRef = ref<HTMLElement>()
-let chartInstance: any = null
+let chartInstance: ECharts | null = null
 
 // 统计数据
 const stats = reactive({
@@ -410,7 +412,7 @@ const loadChartData = async () => {
     const res = await getDashboardChartData({ months: 12 })
     await nextTick()
     await initChart(
-      (res as any).data.consumption_trend as Array<{ period: string; total_amount: number }>
+      res.data.consumption_trend as Array<{ period: string; total_amount: number }>
     )
   } catch (error) {
     console.error('加载图表数据失败:', error)

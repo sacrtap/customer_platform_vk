@@ -50,7 +50,7 @@
 import { computed } from 'vue'
 
 // 统一的消费等级配置（从低到高）
-export const CONSUME_LEVELS = [
+const CONSUME_LEVELS = [
   { value: 'C6', label: 'C6级', color: '#a855f7' },
   { value: 'C5', label: 'C5级', color: '#f59e0b' },
   { value: 'C4', label: 'C4级', color: '#3296f7' },
@@ -59,7 +59,7 @@ export const CONSUME_LEVELS = [
   { value: 'C1', label: 'C1级', color: '#ef4444' },
 ] as const
 
-export type ConsumeLevel = typeof CONSUME_LEVELS[number]['value']
+type _ConsumeLevel = typeof CONSUME_LEVELS[number]['value']
 
 const props = defineProps<{
   currentLevel: string

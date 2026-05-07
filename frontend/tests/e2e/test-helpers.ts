@@ -1,4 +1,4 @@
-import { Page, expect, APIRequestContext } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 import * as http from 'http';
 
 /**
@@ -36,7 +36,7 @@ export function generateTestCustomerName(suffix: string = ''): string {
 // ===================== Node.js HTTP 工具 =====================
 
 /** 发起 HTTP 请求到后端 API */
-function apiRequest(method: string, path: string, body?: any, headers?: Record<string, string>): Promise<{ status: number; data: any }> {
+function apiRequest(method: string, path: string, body?: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; data: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
     const options: http.RequestOptions = {
       hostname: TEST_CONFIG.apiHost,
@@ -98,7 +98,7 @@ export async function apiCreateCustomer(token: string, data: {
   settlement_cycle?: string;
   is_key_customer?: boolean;
   manager_id?: number;
-}): Promise<any> {
+}): Promise<Record<string, unknown>> {
   const { status, data: response } = await apiRequest(
     'POST', `${TEST_CONFIG.apiBase}/customers`, data,
     { 'Authorization': `Bearer ${token}` }
@@ -119,7 +119,7 @@ export async function apiDeleteCustomer(token: string, customerId: number): Prom
 }
 
 /** 通过后端 API 获取客户列表 */
-export async function apiGetCustomers(token: string, params: Record<string, string> = {}): Promise<any> {
+export async function apiGetCustomers(token: string, params: Record<string, string> = {}): Promise<Record<string, unknown>> {
   const query = new URLSearchParams(params).toString();
   const path = `${TEST_CONFIG.apiBase}/customers${query ? '?' + query : ''}`;
   
@@ -131,7 +131,7 @@ export async function apiGetCustomers(token: string, params: Record<string, stri
 }
 
 /** 通过后端 API 给指定客户充值 */
-export async function apiRecharge(token: string, customerId: number, realAmount: number = 1000, bonusAmount: number = 0): Promise<any> {
+export async function apiRecharge(token: string, customerId: number, realAmount: number = 1000, bonusAmount: number = 0): Promise<Record<string, unknown>> {
   const { status, data: response } = await apiRequest(
     'POST', `${TEST_CONFIG.apiBase}/billing/recharge`,
     {
@@ -151,7 +151,7 @@ export async function apiRecharge(token: string, customerId: number, realAmount:
 }
 
 /** 通过后端 API 更新客户字段 */
-export async function apiUpdateCustomer(token: string, customerId: number, data: Record<string, any>): Promise<any> {
+export async function apiUpdateCustomer(token: string, customerId: number, data: Record<string, unknown>): Promise<Record<string, unknown>> {
   const { status, data: response } = await apiRequest(
     'PUT', `${TEST_CONFIG.apiBase}/customers/${customerId}`, data,
     { 'Authorization': `Bearer ${token}` }

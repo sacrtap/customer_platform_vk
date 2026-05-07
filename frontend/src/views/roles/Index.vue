@@ -297,7 +297,7 @@ const loadRoles = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    const data = res.data as any
+    const data = res.data as { list?: ApiRole[]; total?: number }
     roles.value = ((data.list as ApiRole[]) || []).map((item: ApiRole) => ({
       ...item,
       isSystem: item.isSystem || false,

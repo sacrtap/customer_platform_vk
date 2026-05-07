@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 import {
   uiLogin,
-  waitForMessage,
+  waitForMessage as _waitForMessage,
   waitForTableLoaded,
   generateTestCompanyId,
   generateTestCustomerName,
@@ -69,7 +69,7 @@ test.describe('客户筛选功能', () => {
   test('1. 关键词搜索 - 公司 ID', async ({ page }) => {
     const targetCompany = createdIds.length > 0
       ? await apiGetCustomers(authToken, {})
-        .then(r => r.data?.items?.find((c: any) => createdIds.includes(c.id))?.company_id)
+        .then(r => r.data?.items?.find((c: Record<string, unknown>) => createdIds.includes(c.id as number))?.company_id as string | undefined)
       : null;
 
     test.skip(!targetCompany, '无测试数据');
@@ -89,7 +89,7 @@ test.describe('客户筛选功能', () => {
   test('2. 关键词搜索 - 客户名称', async ({ page }) => {
     // 获取一个测试客户名称
     const customers = await apiGetCustomers(authToken);
-    const targetName = customers.data?.items?.find((c: any) => createdIds.includes(c.id))?.name;
+    const targetName = customers.data?.items?.find((c: Record<string, unknown>) => createdIds.includes(c.id as number))?.name as string | undefined;
     test.skip(!targetName, '无测试数据');
 
     const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
@@ -132,7 +132,7 @@ test.describe('客户筛选功能', () => {
       // 检查每行是否包含"正式账号"标签
       const firstRow = rows.first();
       const accountTypeTag = firstRow.locator('.arco-tag:has-text("正式")');
-      const tagVisible = await accountTypeTag.first().isVisible({ timeout: 3000 }).catch(() => false);
+      const _tagVisible = await accountTypeTag.first().isVisible({ timeout: 3000 }).catch(() => false);
       // 允许表格中不直接显示账号类型列，但至少结果不为空
       expect(rowCount).toBeGreaterThanOrEqual(0);
     }
