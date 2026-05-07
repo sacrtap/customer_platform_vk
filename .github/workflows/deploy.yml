@@ -23,6 +23,11 @@ on:
         required: false
         type: string
 
+# 允许写入packages权限（GHCR推送需要）
+permissions:
+  contents: read
+  packages: write
+
 env:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "18"

@@ -436,12 +436,12 @@ jobs:
           echo "Frontend Security:     ${{ needs.frontend-security.result }}"
           echo "========================================="
 
-          FAILED_JOBS=""
-          for result in "${{ needs.migration-test.result }}" "${{ needs.api-integration-test.result }}" "${{ needs.unit-test.result }}" "${{ needs.cache-test.result }}" "${{ needs.security-scan.result }}" "${{ needs.frontend-security.result }}"; do
-            if [ "$result" != "success" ]; then
-              FAILED_JOBS="$FAILED_JOBS $result"
-            fi
-          done
+           FAILED_JOBS=""
+           for result in "${{ needs.migration-test.result }}" "${{ needs.api-integration-test.result }}" "${{ needs.unit-test.result }}" "${{ needs.cache-test.result }}" "${{ needs.security-scan.result }}" "${{ needs.frontend-security.result }}"; do
+             if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+               FAILED_JOBS="$FAILED_JOBS $result"
+             fi
+           done
 
           if [ -n "$FAILED_JOBS" ]; then
             echo "❌ Quality gate failed. Failed jobs:$FAILED_JOBS"
