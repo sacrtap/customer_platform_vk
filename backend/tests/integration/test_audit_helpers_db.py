@@ -54,7 +54,10 @@ async def async_session(async_engine):
         # 测试前清理：只清理审计日志和测试用户，不 TRUNCATE users 表
         # 避免删除 test_user fixture 创建的全局 admin 用户
         await session.execute(text("DELETE FROM audit_logs"))
-        await session.execute(text("DELETE FROM users WHERE username LIKE 'test_%' OR username LIKE 'batch_%' OR username LIKE 'sensitive_%'"))
+        await session.execute(
+            text("DELETE FROM users WHERE username LIKE 'test_%' "
+                 "OR username LIKE 'batch_%' OR username LIKE 'sensitive_%'")
+        )
         await session.commit()
 
         try:
