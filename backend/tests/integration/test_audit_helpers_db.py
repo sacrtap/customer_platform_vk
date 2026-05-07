@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 from app.models.base import BaseModel
 from app.models.users import User
-from app.models.billing import AuditLog
 from app.utils.audit_helpers import (
     create_audit_entry,
     build_batch_audit_summary,
@@ -19,14 +18,13 @@ pytestmark = pytest.mark.xdist_group("db_models")
 async def async_engine():
     """创建异步测试数据库引擎（使用与 integration conftest 一致的配置）"""
     import os
-    from app.config import settings
 
     # 从环境变量覆盖数据库URL（CI环境需要）
     db_user = os.environ.get("POSTGRES_USER", "postgres")
     db_password = os.environ.get("POSTGRES_PASSWORD", "postgres")
     db_host = os.environ.get("POSTGRES_HOST", "localhost")
     db_name = os.environ.get("POSTGRES_DB", "customer_platform_test")
-    
+
     test_db_url = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:5432/{db_name}"
 
     engine = create_async_engine(
@@ -96,7 +94,8 @@ class TestCreateAuditEntry:
         assert audit.operation_type == "standard"
         assert audit.extra_metadata is None
 
-        # 验证数据已持久化
+        # 验证数据已持久化（先 flush 再 refresh）
+        await async_session.flush()
         await async_session.refresh(audit)
         assert audit.id is not None
 
@@ -130,7 +129,8 @@ class TestCreateAuditEntry:
         assert audit.extra_metadata["total_count"] == 10
         assert audit.extra_metadata["success_count"] == 8
 
-        # 验证数据已持久化
+        # 验证数据已持久化（先 flush 再 refresh）
+        await async_session.flush()
         await async_session.refresh(audit)
         assert audit.id is not None
 
@@ -159,6 +159,7 @@ class TestCreateAuditEntry:
         assert audit.operation_type == "sensitive"
         assert audit.action == "reset_password"
 
-        # 验证数据已持久化
+        # 验证数据已持久化（先 flush 再 refresh）
+        await async_session.flush()
         await async_session.refresh(audit)
         assert audit.id is not None

@@ -1,6 +1,5 @@
 """审计辅助函数单元测试（无数据库依赖）"""
 
-import pytest
 from app.utils.audit_helpers import (
     build_batch_audit_summary,
     mask_sensitive_data,

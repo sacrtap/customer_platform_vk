@@ -22,6 +22,11 @@ modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
 for mod in modules_to_clear:
     del sys.modules[mod]
 
+# 重置 lru_cache 确保 settings 单例使用新的环境变量
+import app.config  # noqa: E402
+app.config.get_settings.cache_clear()
+app.config.settings = app.config.get_settings()
+
 # 现在才导入应用代码
 import pytest  # noqa: E402
 from unittest.mock import MagicMock, patch  # noqa: E402
@@ -41,8 +46,12 @@ _TEST_DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
 _TEST_DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 _TEST_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
 
-TEST_DATABASE_SYNC_URL = f"postgresql://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
-TEST_DATABASE_ASYNC_URL = f"postgresql+asyncpg://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
+TEST_DATABASE_SYNC_URL = (
+    f"postgresql://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
+)
+TEST_DATABASE_ASYNC_URL = (
+    f"postgresql+asyncpg://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
+)
 
 
 @pytest.fixture(scope="function")
@@ -81,7 +90,7 @@ def sync_test_engine():
         inspector = inspect(conn)
         tables = inspector.get_table_names()
         print(f"✅ 已创建 {len(tables)} 个表: {tables[:5]}...")
-        
+
         # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
         if "invoices" in tables:
             columns = [col["name"] for col in inspector.get_columns("invoices")]
@@ -132,7 +141,7 @@ def test_user(sync_test_engine, worker_id):
         count = result.scalar()
         sys.stdout.write(f"[DEBUG] test_user: users表查询结果 count={count}\n")
         sys.stdout.flush()
-        
+
         if count > 0:
             sys.stdout.write(f"[DEBUG] test_user: 用户已存在，返回 {username}\n")
             sys.stdout.flush()
@@ -144,7 +153,7 @@ def test_user(sync_test_engine, worker_id):
 
         sys.stdout.write(f"[DEBUG] test_user: 开始创建用户 {username}\n")
         sys.stdout.flush()
-        
+
         # 清理旧数据（使用 DELETE 而非 TRUNCATE，避免并行死锁）
         # 按外键依赖顺序删除
         session.execute(text("DELETE FROM user_roles"))
@@ -153,7 +162,7 @@ def test_user(sync_test_engine, worker_id):
         session.execute(text("DELETE FROM permissions"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-        sys.stdout.write(f"[DEBUG] test_user: 清理旧数据完成\n")
+        sys.stdout.write("[DEBUG] test_user: 清理旧数据完成\n")
         sys.stdout.flush()
 
         # 创建管理员角色
@@ -166,7 +175,7 @@ def test_user(sync_test_engine, worker_id):
             ),
             {"name": "admin", "description": "系统管理员"},
         )
-        sys.stdout.write(f"[DEBUG] test_user: 角色创建完成\n")
+        sys.stdout.write("[DEBUG] test_user: 角色创建完成\n")
         sys.stdout.flush()
 
         # 创建权限（细粒度权限，与 seed.py 定义一致）
@@ -262,7 +271,7 @@ def test_user(sync_test_engine, worker_id):
                 "is_active": True,
             },
         )
-        sys.stdout.write(f"[DEBUG] test_user: 用户插入完成\n")
+        sys.stdout.write("[DEBUG] test_user: 用户插入完成\n")
         sys.stdout.flush()
 
         # 获取用户 ID 并关联角色
@@ -270,7 +279,7 @@ def test_user(sync_test_engine, worker_id):
             text("SELECT id FROM users WHERE username = :username"), {"username": username}
         ).fetchone()
         if result is None:
-            sys.stdout.write(f"[ERROR] test_user: 用户创建后查询不到!\n")
+            sys.stdout.write("[ERROR] test_user: 用户创建后查询不到!\n")
             sys.stdout.flush()
             raise Exception("用户创建后查询不到")
         user_id = result[0]
@@ -289,7 +298,7 @@ def test_user(sync_test_engine, worker_id):
         )
 
         session.commit()
-        sys.stdout.write(f"[DEBUG] test_user: 全部完成，返回用户信息\n")
+        sys.stdout.write("[DEBUG] test_user: 全部完成，返回用户信息\n")
         sys.stdout.flush()
     finally:
         session.close()
