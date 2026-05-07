@@ -97,11 +97,17 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' || github.event_name == 'workflow_run' }}
     environment:
       name: staging
-      url: http://staging.example.com
+      url: https://staging.jiazoushi.com
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
 
       - name: Deploy to staging server
         env:
@@ -115,18 +121,27 @@ jobs:
         run: |
           echo "🚀 部署到 Staging 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
-          
-          # 这里使用 SSH 连接到 staging 服务器执行部署
-          # 实际使用时需要配置 SSH 密钥和服务器信息
-          # 示例:
-          # echo "$SSH_PRIVATE_KEY" | ssh-add -
-          # ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} << 'EOF'
-          #   cd /opt/customer_platform
-          #   ./deploy/scripts/deploy.sh ${IMAGE_TAG}
-          # EOF
-          
-          echo "⚠️  请配置 SSH 密钥和服务器信息后启用实际部署"
-          echo "✅ Staging 部署流程已准备就绪"
+
+          # 设置 SSH 密钥
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+
+          # 通过 Cloudflare Tunnel 远程执行部署
+          # 使用 cloudflared access 作为 SSH 代理
+          ssh -i ~/.ssh/staging_key \
+              -o StrictHostKeyChecking=no \
+              -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+              ${SSH_USER}@${SSH_HOST} << EOF
+            cd ~/customer_platform_vk
+            export IMAGE_TAG=${IMAGE_TAG}
+            export DB_USER=${DB_USER}
+            export DB_PASSWORD=${DB_PASSWORD}
+            export JWT_SECRET=${JWT_SECRET}
+            ./deploy/scripts/deploy.sh ${IMAGE_TAG}
+          EOF
+
+          echo "✅ Staging 部署完成"
 
   # ============================================================
   # 部署到 Production 环境 (需要手动审批)
@@ -138,11 +153,17 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' }}
     environment:
       name: production
-      url: http://production.example.com
+      url: https://production.jiazoushi.com
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+          cloudflared --version
 
       - name: Deploy to production server
         env:
@@ -156,18 +177,26 @@ jobs:
         run: |
           echo "🚀 部署到 Production 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
-          
-          # 这里使用 SSH 连接到 production 服务器执行部署
-          # 实际使用时需要配置 SSH 密钥和服务器信息
-          # 示例:
-          # echo "$SSH_PRIVATE_KEY" | ssh-add -
-          # ssh -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} << 'EOF'
-          #   cd /opt/customer_platform
-          #   ./deploy/scripts/deploy.sh ${IMAGE_TAG}
-          # EOF
-          
-          echo "⚠️  请配置 SSH 密钥和服务器信息后启用实际部署"
-          echo "✅ Production 部署流程已准备就绪"
+
+          # 设置 SSH 密钥
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
+          chmod 600 ~/.ssh/production_key
+
+          # 通过 Cloudflare Tunnel 远程执行部署
+          ssh -i ~/.ssh/production_key \
+              -o StrictHostKeyChecking=no \
+              -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+              ${SSH_USER}@${SSH_HOST} << EOF
+            cd ~/customer_platform_vk
+            export IMAGE_TAG=${IMAGE_TAG}
+            export DB_USER=${DB_USER}
+            export DB_PASSWORD=${DB_PASSWORD}
+            export JWT_SECRET=${JWT_SECRET}
+            ./deploy/scripts/deploy.sh ${IMAGE_TAG}
+          EOF
+
+          echo "✅ Production 部署完成"
 
   # ============================================================
   # 部署后健康检查
@@ -182,24 +211,20 @@ jobs:
       - name: Run health check
         run: |
           echo "🔍 执行健康检查..."
-          
+
           # 根据部署的环境选择检查 URL
           if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
-            HEALTH_URL="http://staging.example.com/health"
+            HEALTH_URL="https://staging.jiazoushi.com/health"
           else
-            HEALTH_URL="http://production.example.com/health"
+            HEALTH_URL="https://production.jiazoushi.com/health"
           fi
-          
+
           echo "检查地址: ${HEALTH_URL}"
-          
-          # 实际部署时取消注释
-          # response=$(curl -s -o /dev/null -w "%{http_code}" ${HEALTH_URL})
-          # if [ "$response" == "200" ]; then
-          #   echo "✅ 健康检查通过"
-          # else
-          #   echo "❌ 健康检查失败 (HTTP ${response})"
-          #   exit 1
-          # fi
-          
-          echo "⚠️  请配置实际服务器地址后启用健康检查"
-          echo "✅ 健康检查流程已准备就绪"
+
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${HEALTH_URL})
+          if [ "$response" == "200" ]; then
+            echo "✅ 健康检查通过"
+          else
+            echo "❌ 健康检查失败 (HTTP ${response})"
+            exit 1
+          fi

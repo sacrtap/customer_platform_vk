@@ -303,10 +303,34 @@ tail -f /var/log/com.cloudflare.cloudflared.log
 
 ### 5.8 验证 Tunnel 连接
 
-在本地机器（非 macOS 服务器）测试通过 Tunnel 连接 SSH：
+⚠️ **重要**：Cloudflare Tunnel 不支持直接 SSH 连接，必须使用 `cloudflared access ssh` 作为代理。
+
+#### 方式一：使用 cloudflared access 代理（推荐）
 
 ```bash
-ssh -i ~/.ssh/staging_deploy_key <macOS用户名>@staging.yourdomain.com
+# 在本地机器测试
+ssh -i ~/.ssh/staging_deploy_key \
+    -o StrictHostKeyChecking=no \
+    -o ProxyCommand="cloudflared access ssh --hostname staging.yourdomain.com" \
+    <macOS用户名>@staging.yourdomain.com
+```
+
+#### 方式二：配置 SSH Config（更方便）
+
+编辑 `~/.ssh/config`，添加以下配置：
+
+```bash
+Host staging.yourdomain.com
+    HostName staging.yourdomain.com
+    User <macOS用户名>
+    IdentityFile ~/.ssh/staging_deploy_key
+    ProxyCommand cloudflared access ssh --hostname %h
+    StrictHostKeyChecking no
+```
+
+配置后可以直接使用：
+```bash
+ssh staging.yourdomain.com
 ```
 
 成功连接表示 Tunnel 配置完成。
@@ -336,6 +360,12 @@ cloudflared tunnel --config ~/.cloudflared/config.yml run staging-tunnel 2>&1 | 
 打开 `.github/workflows/deploy.yml`，找到 `deploy-staging` job 中的部署步骤，将注释的代码替换为实际执行逻辑：
 
 ```yaml
+- name: Install cloudflared
+  run: |
+    curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+    chmod +x /usr/local/bin/cloudflared
+    cloudflared --version
+
 - name: Deploy to staging server
   env:
     SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
@@ -355,8 +385,12 @@ cloudflared tunnel --config ~/.cloudflared/config.yml run staging-tunnel 2>&1 | 
     chmod 600 ~/.ssh/staging_key
 
     # 通过 Cloudflare Tunnel 远程执行部署
-    ssh -i ~/.ssh/staging_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} << EOF
-      cd ~/customer_platform
+    # ⚠️ 必须使用 cloudflared access 作为 SSH 代理
+    ssh -i ~/.ssh/staging_key \
+        -o StrictHostKeyChecking=no \
+        -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+        ${SSH_USER}@${SSH_HOST} << EOF
+      cd ~/customer_platform_vk
       export IMAGE_TAG=${IMAGE_TAG}
       export DB_USER=${DB_USER}
       export DB_PASSWORD=${DB_PASSWORD}
@@ -367,7 +401,9 @@ cloudflared tunnel --config ~/.cloudflared/config.yml run staging-tunnel 2>&1 | 
     echo "✅ Staging 部署完成"
 ```
 
-> **注意**：`cd ~/customer_platform` 路径请根据实际项目部署目录调整。
+> **注意**：
+> 1. `cd ~/customer_platform_vk` 路径请根据实际项目部署目录调整
+> 2. **必须使用 `cloudflared access ssh` 作为代理**，直接 SSH 连接会失败
 
 ### 6.2 更新健康检查 URL
 
@@ -434,7 +470,7 @@ curl http://staging.yourdomain.com/health
 | --------------------------------------- | --------------------------------------------------------- |
 | `cloudflared tunnel login` 无法打开浏览器 | macOS 无头服务器：使用 `cloudflared login` 手动复制 URL 到本地浏览器 |
 | SSH 连接失败（Connection refused）      | 确认 Tunnel 正在运行：`cloudflared tunnel info staging-tunnel` |
-| SSH 连接超时                            | 检查 DNS 解析：`dig staging.yourdomain.com`，确认 CNAME 指向正确 |
+| **SSH 连接超时或 `kex_exchange_identification` 错误** | **必须使用 `cloudflared access ssh` 作为代理，不能直接 SSH 连接** |
 | Tunnel 启动后立即退出                   | 检查 config.yml 格式，运行 `cloudflared tunnel ingress validate` 验证 |
 | Secret 未生效                           | 确认是在 Environment 级别添加的，不是 Repository 级别     |
 | 部署卡在 "Waiting for approval"         | 检查 Environment 是否设置了 Required reviewers，移除或添加审批人 |
@@ -531,14 +567,14 @@ ingress:
 
 - [ ] 启用 macOS 远程登录（系统设置 → 共享 → 远程登录）
 - [ ] 生成 SSH 密钥对并在服务器上配置公钥
-- [ ] 验证 SSH 密钥登录成功
+- [ ] 验证 SSH 密钥登录成功（localhost）
 - [ ] 安装 cloudflared（`brew install cloudflared`）
 - [ ] 登录 Cloudflare（`cloudflared tunnel login`）
 - [ ] 创建 Tunnel `staging-tunnel`
 - [ ] 配置 DNS 路由 `staging.yourdomain.com`
 - [ ] 创建并验证 Tunnel 配置文件（`config.yml`）
 - [ ] 安装 cloudflared 系统服务（`cloudflared service install`）
-- [ ] 验证 Tunnel 连接成功（`ssh user@staging.yourdomain.com`）
+- [ ] 验证 Tunnel 连接成功（使用 `cloudflared access ssh` 代理）
 
 ### GitHub 端
 

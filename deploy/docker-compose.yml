@@ -8,15 +8,15 @@ services:
     container_name: customer-platform-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: customer_platform
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB:-customer_platform}
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d customer_platform"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${POSTGRES_DB:-customer_platform}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,7 +48,7 @@ services:
     container_name: customer-platform-app
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-secret-change-in-production}
@@ -82,7 +82,7 @@ services:
       dockerfile: ../deploy/docker/Containerfile
     container_name: customer-platform-migrate
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
     depends_on:
       db:
         condition: service_healthy
@@ -97,7 +97,7 @@ services:
       dockerfile: ../deploy/docker/Containerfile
     container_name: customer-platform-seed
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/customer_platform
+      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
     depends_on:
       migrate:
         condition: service_completed_successfully
