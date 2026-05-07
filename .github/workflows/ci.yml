@@ -72,6 +72,9 @@ jobs:
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret-key-for-ci
           JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
