@@ -12,7 +12,9 @@ services:
       POSTGRES_USER: ${DB_USER:-user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18+ 要求挂载到 /var/lib/postgresql 而非 /var/lib/postgresql/data
+      # 这样数据会存储在 /var/lib/postgresql/data/18/main 子目录中
+      - postgres_data:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
