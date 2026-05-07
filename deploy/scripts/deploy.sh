@@ -261,6 +261,17 @@ start_services() {
     
     $COMPOSE_CMD -f $COMPOSE_FILE up -d app
     
+    # 等待应用启动
+    sleep 5
+    
+    # 检查应用容器状态
+    log_info "应用容器状态:"
+    $COMPOSE_CMD -f $COMPOSE_FILE ps app 2>&1
+    
+    # 打印应用日志
+    log_info "应用容器日志:"
+    $COMPOSE_CMD -f $COMPOSE_FILE logs app --tail=30 2>&1
+    
     log_info "服务启动完成"
 }
 
