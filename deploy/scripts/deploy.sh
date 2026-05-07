@@ -34,15 +34,16 @@ log_step() {
 }
 
 # 检查依赖
+CONTAINER_RUNTIME=""
+
 check_dependencies() {
     log_info "检查依赖..."
     
-    local container_runtime=""
     if command -v podman &> /dev/null; then
-        container_runtime="podman"
+        CONTAINER_RUNTIME="podman"
         log_info "检测到 Podman"
     elif command -v docker &> /dev/null; then
-        container_runtime="docker"
+        CONTAINER_RUNTIME="docker"
         log_info "检测到 Docker"
     else
         log_error "Podman 或 Docker 未安装，请先安装"
@@ -52,8 +53,8 @@ check_dependencies() {
     # 检查 docker-compose 或 docker compose
     if command -v docker-compose &> /dev/null; then
         COMPOSE_CMD="docker-compose"
-    elif $container_runtime compose &>/dev/null; then
-        COMPOSE_CMD="$container_runtime compose"
+    elif $CONTAINER_RUNTIME compose &>/dev/null; then
+        COMPOSE_CMD="$CONTAINER_RUNTIME compose"
     else
         log_error "docker-compose 未安装"
         exit 1
@@ -94,6 +95,57 @@ load_env() {
     fi
 }
 
+# 初始化服务器环境
+init_server() {
+    log_step "初始化服务器环境..."
+    
+    # 检查是否已有项目目录
+    if [ -f "deploy/docker-compose.yml" ]; then
+        log_warn "项目目录已存在，跳过初始化"
+        return 0
+    fi
+    
+    # 检查是否在项目根目录
+    if [ ! -d "deploy" ]; then
+        log_error "请在项目根目录运行此脚本"
+        exit 1
+    fi
+    
+    # 创建 .env 文件
+    if [ ! -f ".env" ]; then
+        log_info "创建 .env 配置文件..."
+        cat > .env << 'ENVEOF'
+# 数据库配置
+DB_USER=customer_platform
+DB_PASSWORD=CHANGE_ME_IN_PRODUCTION
+POSTGRES_DB=customer_platform
+
+# 安全密钥 (请生成随机密钥)
+JWT_SECRET=CHANGE_ME_IN_PRODUCTION
+WEBHOOK_SECRET=CHANGE_ME_IN_PRODUCTION
+
+# 应用配置
+APP_ENV=production
+DEBUG=false
+
+# 可选: SMTP 配置
+# SMTP_HOST=smtp.company.com
+# SMTP_PORT=587
+# SMTP_USERNAME=noreply@company.com
+# SMTP_PASSWORD=
+
+# 可选: 外部 API
+# EXTERNAL_API_BASE_URL=
+# EXTERNAL_API_TOKEN=
+ENVEOF
+        log_warn "⚠️  请编辑 .env 文件，修改默认配置（特别是密码和密钥）"
+        log_warn "生成随机密钥命令: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+    fi
+    
+    log_info "服务器初始化完成"
+    log_info "下一步: 编辑 .env 文件，然后运行 ./deploy/scripts/deploy.sh"
+}
+
 # 停止旧容器
 stop_containers() {
     log_info "停止旧容器..."
@@ -118,13 +170,13 @@ pull_remote_image() {
     local image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}:${image_tag}"
     log_step "从 GHCR 拉取镜像: ${image}"
     
-    docker pull "$image" || {
+    $CONTAINER_RUNTIME pull "$image" || {
         log_error "拉取远程镜像失败: ${image}"
         exit 1
     }
     
     # 重新打标签供 compose 使用
-    docker tag "$image" "customer_platform_app:latest"
+    $CONTAINER_RUNTIME tag "$image" "customer_platform_app:latest"
     log_info "远程镜像已拉取并标记为 customer_platform_app:latest"
 }
 
@@ -275,6 +327,7 @@ SKIP_MIGRATE=false
 CREATE_TEST_DATA=false
 CLEANUP=false
 USE_REMOTE_IMAGE=false
+INIT_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -302,6 +355,10 @@ while [[ $# -gt 0 ]]; do
             USE_REMOTE_IMAGE=true
             shift
             ;;
+        --init)
+            INIT_MODE=true
+            shift
+            ;;
         *)
             VERSION=$1
             shift
@@ -315,6 +372,12 @@ export CREATE_TEST_DATA
 
 # 主函数
 main() {
+    # 如果是初始化模式，只运行 init_server 然后退出
+    if [ "$INIT_MODE" = true ]; then
+        init_server
+        exit 0
+    fi
+    
     log_info "开始部署流程..."
     log_info "部署版本：$VERSION"
     
@@ -324,7 +387,7 @@ main() {
     stop_containers
     
     if [ "$USE_REMOTE_IMAGE" = true ]; then
-        pull_remote_image "${IMAGE_TAG:-latest}"
+        pull_remote_image "${VERSION}"
     elif [ "$SKIP_BUILD" = false ]; then
         pull_images
         build_images
