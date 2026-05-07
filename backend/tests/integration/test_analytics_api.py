@@ -42,26 +42,18 @@ def auth_token(test_client, db_session: Session, app):
     db_session.commit()
 
     # 确保超级管理员角色存在
-    db_session.execute(
-        text(
-            """
+    db_session.execute(text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """
-        )
-    )
+        """))
 
     # 确保需要的权限存在
-    db_session.execute(
-        text(
-            """
+    db_session.execute(text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('analytics:view', '查看分析', '查看所有分析报表', 'analytics', NOW())
         ON CONFLICT (code) DO NOTHING
-        """
-        )
-    )
+        """))
 
     # 获取角色 ID 和权限 ID
     result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))
@@ -72,25 +64,21 @@ def auth_token(test_client, db_session: Session, app):
 
     # 将权限关联到角色
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :perm_id)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        """
-        ),
+        """),
         {"role_id": role_id, "perm_id": perm_id},
     )
     db_session.commit()
 
     # 创建测试用户
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,
@@ -108,13 +96,11 @@ def auth_token(test_client, db_session: Session, app):
     user_id = result.scalar_one()
 
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        """
-        ),
+        """),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()

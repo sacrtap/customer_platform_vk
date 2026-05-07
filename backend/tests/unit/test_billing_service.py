@@ -12,7 +12,6 @@ from app.models.billing import (
     PricingRule,
 )
 
-
 # ==================== Fixtures ====================
 
 

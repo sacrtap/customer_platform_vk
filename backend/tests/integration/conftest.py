@@ -168,12 +168,10 @@ def test_user(sync_test_engine, worker_id):
 
         # 创建管理员角色
         session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "admin", "description": "系统管理员"},
         )
         sys.stdout.write("[DEBUG] test_user: 角色创建完成\n")
@@ -220,13 +218,11 @@ def test_user(sync_test_engine, worker_id):
         ]
         for perm_code, desc, module in permissions:
             session.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO permissions (code, name, description, module, created_at)
                 VALUES (:code, :name, :description, :module, NOW())
                 ON CONFLICT (code) DO NOTHING
-                """
-                ),
+                """),
                 {"code": perm_code, "name": desc, "description": desc, "module": module},
             )
 
@@ -246,24 +242,20 @@ def test_user(sync_test_engine, worker_id):
         # 创建角色权限关联
         for perm_id in perm_ids:
             session.execute(
-                text(
-                    """
+                text("""
                 INSERT INTO role_permissions (role_id, permission_id)
                 VALUES (:role_id, :permission_id)
                 ON CONFLICT (role_id, permission_id) DO NOTHING
-                """
-                ),
+                """),
                 {"role_id": role_id, "permission_id": perm_id},
             )
 
         # 创建用户
         session.execute(
-            text(
-                """
+            text("""
             INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
             VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-            """
-            ),
+            """),
             {
                 "username": username,
                 "password_hash": password_hash,
@@ -288,13 +280,11 @@ def test_user(sync_test_engine, worker_id):
         sys.stdout.flush()
 
         session.execute(
-            text(
-                """
+            text("""
             INSERT INTO user_roles (user_id, role_id)
             VALUES (:user_id, :role_id)
             ON CONFLICT (user_id, role_id) DO NOTHING
-            """
-            ),
+            """),
             {"user_id": user_id, "role_id": role_id},
         )
 

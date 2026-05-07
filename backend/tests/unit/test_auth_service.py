@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from app.services.auth import AuthService
 
-
 # ==================== Fixtures ====================
 
 

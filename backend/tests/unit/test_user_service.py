@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, AsyncMock
 from app.services.users import UserService
 from app.models.users import User, Role
 
-
 # ==================== Fixtures ====================
 
 

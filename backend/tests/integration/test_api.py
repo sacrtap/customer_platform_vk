@@ -36,12 +36,10 @@ async def test_login_success(test_client, db_session: AsyncSession):
         {"username": username},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,

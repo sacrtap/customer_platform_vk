@@ -8,7 +8,6 @@ from app.services.customers import CustomerService
 from app.models.customers import Customer, CustomerProfile
 from app.models.billing import CustomerBalance
 
-
 # ==================== Fixtures ====================
 
 

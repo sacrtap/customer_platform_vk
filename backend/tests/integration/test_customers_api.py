@@ -72,14 +72,12 @@ def customer_data(db_session):
 
     for cust in customers:
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO customers (company_id, name, account_type,
                 settlement_type, is_key_customer, email, created_at)
             VALUES (:company_id, :name, :account_type,
                 :settlement_type, :is_key_customer, :email, NOW())
-            """
-            ),
+            """),
             cust,
         )
 
@@ -537,12 +535,10 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
 
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,
@@ -554,12 +550,10 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
     # 创建只有 customers:view 权限的角色
     db_session.execute(text("DELETE FROM roles WHERE name = :role_name"), {"role_name": role_name})
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO roles (name, description, created_at)
         VALUES (:name, :description, NOW())
-        """
-        ),
+        """),
         {"name": role_name, "description": "仅查看角色"},
     )
     result = db_session.execute(
@@ -572,15 +566,11 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
     result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'customers:view'"))
     perm_row = result.fetchone()
     if perm_row is None:
-        db_session.execute(
-            text(
-                """
+        db_session.execute(text("""
             INSERT INTO permissions (code, name, description, module, created_at)
             VALUES ('customers:view', '查看客户', '查看客户列表和详情', 'customers', NOW())
             ON CONFLICT (code) DO NOTHING
-            """
-            )
-        )
+            """))
         db_session.commit()
         # 重新查询获取权限 ID
         perm_result = db_session.execute(
@@ -598,12 +588,10 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
         {"role_id": role_id},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES (:role_id, :permission_id)
-        """
-        ),
+        """),
         {"role_id": role_id, "permission_id": perm_id},
     )
 
@@ -619,12 +607,10 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
         {"user_id": user_id},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO user_roles (user_id, role_id)
         VALUES (:user_id, :role_id)
-        """
-        ),
+        """),
         {"user_id": user_id, "role_id": role_id},
     )
     db_session.commit()
@@ -1165,12 +1151,10 @@ async def test_customers_missing_permission(test_client, db_session):
     )
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,

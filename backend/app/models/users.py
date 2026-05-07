@@ -4,7 +4,6 @@ from sqlalchemy import Column, String, Boolean, ForeignKey, Table, Integer
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 
-
 # 用户 - 角色关联表
 user_roles = Table(
     "user_roles",

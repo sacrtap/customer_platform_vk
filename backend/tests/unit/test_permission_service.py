@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, AsyncMock
 
 from app.services.permissions import get_user_permissions
 
-
 # ==================== Fixtures ====================
 
 

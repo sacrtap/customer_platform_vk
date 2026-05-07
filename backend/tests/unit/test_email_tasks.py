@@ -12,7 +12,6 @@ sys.modules["aiosmtplib"] = MagicMock()
 from app.models.billing import SyncTaskLog  # noqa: E402
 from app.tasks.email_tasks import send_overdue_emails, _log_email_task  # noqa: E402
 
-
 # ==================== Fixtures ====================
 
 

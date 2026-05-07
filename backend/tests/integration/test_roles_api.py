@@ -62,12 +62,10 @@ class TestGetRoles:
         """TC-API-ROLE-005: 测试搜索功能"""
         # 创建测试角色
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "测试角色", "description": "用于测试的角色"},
         )
         db_session.commit()
@@ -107,12 +105,10 @@ class TestCreateRole:
     async def test_create_role_duplicate(self, test_client, auth_token, db_session):
         """TC-API-ROLE-005: 测试创建重复角色"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "重复角色", "description": "已有角色"},
         )
         db_session.commit()
@@ -170,12 +166,10 @@ class TestUpdateRole:
     async def test_update_role_success(self, test_client, auth_token, db_session):
         """TC-API-ROLE-002: 测试更新角色成功"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "待更新角色", "description": "原始描述"},
         )
         db_session.commit()
@@ -201,12 +195,10 @@ class TestUpdateRole:
     async def test_update_system_role_name(self, test_client, auth_token, db_session):
         """TC-API-ROLE-007: 测试编辑系统角色 - 名称保护"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, is_system, created_at)
             VALUES (:name, :description, :is_system, NOW())
-            """
-            ),
+            """),
             {"name": "系统管理员", "description": "系统角色", "is_system": True},
         )
         db_session.commit()
@@ -248,12 +240,10 @@ class TestAssignPermissions:
     async def test_assign_permissions_success(self, test_client, auth_token, db_session):
         """TC-API-ROLE-003: 测试分配权限成功"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "权限测试角色", "description": "测试角色"},
         )
         db_session.commit()
@@ -281,12 +271,10 @@ class TestAssignPermissions:
     async def test_assign_permissions_empty(self, test_client, auth_token, db_session):
         """TC-API-ROLE-015: 测试分配权限 - 空权限验证"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "空权限测试角色", "description": "测试角色"},
         )
         db_session.commit()
@@ -310,12 +298,10 @@ class TestAssignPermissions:
     async def test_assign_permissions_invalid_id(self, test_client, auth_token, db_session):
         """测试分配不存在的权限"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "无效权限测试角色", "description": "测试角色"},
         )
         db_session.commit()
@@ -345,12 +331,10 @@ class TestDeleteRole:
     async def test_delete_custom_role(self, test_client, auth_token, db_session):
         """TC-API-ROLE-008: 测试删除自定义角色"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
-            """
-            ),
+            """),
             {"name": "待删除角色", "description": "测试角色"},
         )
         db_session.commit()
@@ -374,12 +358,10 @@ class TestDeleteRole:
     async def test_delete_system_role(self, test_client, auth_token, db_session):
         """TC-API-ROLE-009: 测试删除系统角色 - 保护机制"""
         db_session.execute(
-            text(
-                """
+            text("""
             INSERT INTO roles (name, description, is_system, created_at)
             VALUES (:name, :description, :is_system, NOW())
-            """
-            ),
+            """),
             {"name": "待删除系统角色", "description": "系统角色", "is_system": True},
         )
         db_session.commit()

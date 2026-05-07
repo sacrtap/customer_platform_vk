@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 from app.services.dict_service import DictService
 from app.models.industry_type import IndustryType
 
-
 # ==================== Fixtures ====================
 
 

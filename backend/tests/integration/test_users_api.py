@@ -25,12 +25,10 @@ async def test_list_users_success(test_client, db_session, test_user):
         {"username": f"{username}%"},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": f"{username}_1",
             "password_hash": password_hash,
@@ -40,12 +38,10 @@ async def test_list_users_success(test_client, db_session, test_user):
         },
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": f"{username}_2",
             "password_hash": password_hash,
@@ -99,12 +95,10 @@ async def test_list_users_with_filter(test_client, db_session, test_user):
         {"username": f"{username}%"},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": f"{username}_active",
             "password_hash": password_hash,
@@ -114,12 +108,10 @@ async def test_list_users_with_filter(test_client, db_session, test_user):
         },
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": f"{username}_inactive",
             "password_hash": password_hash,
@@ -217,12 +209,10 @@ async def test_create_user_duplicate(test_client, db_session, test_user):
         {"username": username},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, is_active, created_at)
         VALUES (:username, :password_hash, :email, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,
@@ -276,12 +266,10 @@ async def test_update_user_success(test_client, db_session, test_user):
         {"username": username},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,
@@ -370,12 +358,10 @@ async def test_delete_user_success(test_client, db_session, test_user):
         {"username": username},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
         VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-        """
-        ),
+        """),
         {
             "username": username,
             "password_hash": password_hash,

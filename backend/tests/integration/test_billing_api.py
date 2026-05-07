@@ -54,15 +54,13 @@ async def test_customer(db_session, test_user, worker_id):
         {"id": customer_id},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO customers (id, company_id, name, account_type,
                                settlement_cycle, settlement_type,
                                created_at, updated_at)
         VALUES (:id, :company_id, :name, :account_type,
                 :cycle, :type, NOW(), NOW())
-        """
-        ),
+        """),
         {
             "id": customer_id,
             "company_id": company_id,
@@ -121,14 +119,12 @@ async def test_customer_with_balance(db_session, test_customer):
         {"cid": customer_id},
     )
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO customer_balances
             (customer_id, total_amount, real_amount, bonus_amount,
              used_total, used_real, used_bonus, created_at, updated_at)
         VALUES (:cid, :total, :real, :bonus, :used_total, :used_real, :used_bonus, NOW(), NOW())
-        """
-        ),
+        """),
         {
             "cid": customer_id,
             "total": 50000.00,
@@ -939,15 +935,13 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
 
     # 创建客户
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO customers (id, company_id, name, account_type,
                                manager_id, settlement_cycle, settlement_type,
                                created_at, updated_at)
         VALUES (:id, :company_id, :name, :account_type,
                 :manager_id, :cycle, :type, NOW(), NOW())
-        """
-        ),
+        """),
         {
             "id": customer_id,
             "company_id": company_id,
@@ -1028,15 +1022,13 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
 
     # 创建客户
     db_session.execute(
-        text(
-            """
+        text("""
         INSERT INTO customers (id, company_id, name, account_type,
                                manager_id, settlement_cycle, settlement_type,
                                created_at, updated_at)
         VALUES (:id, :company_id, :name, :account_type,
                 :manager_id, :cycle, :type, NOW(), NOW())
-        """
-        ),
+        """),
         {
             "id": customer_id,
             "company_id": company_id,

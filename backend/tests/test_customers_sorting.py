@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 from app.services.customers import CustomerService, ALLOWED_SORT_FIELDS, VALID_SORT_ORDERS
 from app.models.customers import Customer
 
-
 # ==================== MockDBSession 工具类 ====================
 # 注意：使用 MagicMock (非 AsyncMock) 因为 CustomerService 的 _is_async 检查
 # 会将非 AsyncSession 实例识别为同步模式，直接调用 execute() 而不 await

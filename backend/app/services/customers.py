@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 from ..models.customers import Customer, CustomerProfile
 from ..models.billing import CustomerBalance
 
-
 # 允许排序的字段白名单
 ALLOWED_SORT_FIELDS = {
     "id",

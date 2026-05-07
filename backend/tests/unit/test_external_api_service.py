@@ -7,7 +7,6 @@ import httpx
 
 from app.services.external_api import ExternalAPIClient
 
-
 # ==================== Fixtures ====================
 
 
