@@ -52,44 +52,11 @@ def upgrade() -> None:
         ["task_name"],
         unique=False,
     )
-    op.create_table(
-        "webhook_signatures",
-        sa.Column(
-            "signature", sa.String(length=64), nullable=False, comment="请求签名"
-        ),
-        sa.Column("timestamp", sa.DateTime(), nullable=False, comment="请求时间戳"),
-        sa.Column(
-            "endpoint", sa.String(length=100), nullable=False, comment="Webhook 端点"
-        ),
-        sa.Column("is_consumed", sa.Boolean(), nullable=True, comment="是否已使用"),
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
-        ),
-        sa.Column("deleted_at", sa.DateTime(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        "idx_webhook_sig_timestamp",
-        "webhook_signatures",
-        ["signature", "timestamp"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_webhook_signatures_signature"),
-        "webhook_signatures",
-        ["signature"],
-        unique=True,
-    )
-    op.create_index(
-        op.f("ix_webhook_signatures_timestamp"),
-        "webhook_signatures",
-        ["timestamp"],
-        unique=False,
-    )
+    # webhook_signatures 表已由 002_add_webhook_signatures.py 创建，此处跳过
+    # op.create_table(
+    #     "webhook_signatures",
+    #     ...
+    # )
     op.create_table(
         "audit_logs",
         sa.Column("user_id", sa.Integer(), nullable=True),
@@ -628,14 +595,15 @@ def downgrade() -> None:
     op.drop_index("idx_tag_type_category", table_name="tags")
     op.drop_table("tags")
     op.drop_table("audit_logs")
-    op.drop_index(
-        op.f("ix_webhook_signatures_timestamp"), table_name="webhook_signatures"
-    )
-    op.drop_index(
-        op.f("ix_webhook_signatures_signature"), table_name="webhook_signatures"
-    )
-    op.drop_index("idx_webhook_sig_timestamp", table_name="webhook_signatures")
-    op.drop_table("webhook_signatures")
+    # webhook_signatures 表由 002_add_webhook_signatures.py 管理，此处不删除
+    # op.drop_index(
+    #     op.f("ix_webhook_signatures_timestamp"), table_name="webhook_signatures"
+    # )
+    # op.drop_index(
+    #     op.f("ix_webhook_signatures_signature"), table_name="webhook_signatures"
+    # )
+    # op.drop_index("idx_webhook_sig_timestamp", table_name="webhook_signatures")
+    # op.drop_table("webhook_signatures")
     op.drop_index(op.f("ix_sync_task_logs_task_name"), table_name="sync_task_logs")
     op.drop_table("sync_task_logs")
     # ### end Alembic commands ###
