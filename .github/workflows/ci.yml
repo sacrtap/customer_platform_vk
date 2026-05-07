@@ -3,6 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/ci.yml'
+      - 'backend/requirements.txt'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
 
 env:
   PYTHON_VERSION: "3.12"
@@ -14,36 +21,11 @@ concurrency:
 
 jobs:
   # ============================================================
-  # Backend CI
+  # Backend CI - 快速检查（lint + 单元测试）
   # ============================================================
   backend-test:
-    name: Backend Tests
+    name: Backend Quick Check
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -69,47 +51,20 @@ jobs:
         run: |
           black backend/app/ backend/tests/ --check --diff
 
-      - name: Run tests with coverage
-        env:
-          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-          REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: test-secret-key-for-ci
-          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
-          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+      - name: Run unit tests only (fast)
         run: |
           cd backend
-          pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
-
-      - name: Upload coverage to GitHub
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-coverage
-          path: backend/coverage.xml
-          retention-days: 7
-
-      - name: Upload JUnit test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-junit
-          path: backend/junit.xml
-          retention-days: 7
-
-      - name: Upload coverage HTML report
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-coverage-html
-          path: backend/htmlcov/
-          retention-days: 7
+          pytest tests/unit/ -v --tb=short
 
   # ============================================================
-  # Frontend CI
+  # Frontend CI - 快速检查（lint + type check + build）
   # ============================================================
   frontend-check:
-    name: Frontend Build & Lint
+    name: Frontend Quick Check
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'frontend')
 
     steps:
       - name: Checkout code
@@ -142,13 +97,6 @@ jobs:
           cd frontend
           npm run build
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 7
-
   # ============================================================
   # Code Quality Summary
   # ============================================================
@@ -161,12 +109,12 @@ jobs:
     steps:
       - name: Check all jobs passed
         run: |
-          echo "Backend Tests: ${{ needs.backend-test.result }}"
-          echo "Frontend Check: ${{ needs.frontend-check.result }}"
+          echo "Backend Quick Check: ${{ needs.backend-test.result }}"
+          echo "Frontend Quick Check: ${{ needs.frontend-check.result }}"
 
           if [ "${{ needs.backend-test.result }}" != "success" ] || [ "${{ needs.frontend-check.result }}" != "success" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi
 
-          echo "✅ All quality checks passed"
+          echo "✅ All quick checks passed"

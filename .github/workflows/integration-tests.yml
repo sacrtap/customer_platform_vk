@@ -1,10 +1,18 @@
 name: Integration Tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/integration-tests.yml'
+      - 'backend/requirements.txt'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/integration-tests.yml'
+      - 'backend/requirements.txt'
   workflow_dispatch:
     inputs:
       test_level:
@@ -28,6 +36,7 @@ jobs:
   migration-test:
     name: Database Migration Test
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.test_level == 'full'
 
     services:
       postgres:
@@ -95,6 +104,7 @@ jobs:
   api-integration-test:
     name: API Integration Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.test_level == 'full'
 
     services:
       postgres:
@@ -179,6 +189,7 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event.inputs.test_level == 'full'
 
     steps:
       - name: Checkout code
@@ -207,6 +218,7 @@ jobs:
   cache-test:
     name: Cache Service Tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.test_level == 'full'
 
     services:
       redis:
@@ -248,6 +260,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.test_level == 'full'
 
     steps:
       - name: Checkout code
@@ -288,6 +301,7 @@ jobs:
   frontend-security:
     name: Frontend Security
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.test_level == 'full'
 
     steps:
       - name: Checkout code
