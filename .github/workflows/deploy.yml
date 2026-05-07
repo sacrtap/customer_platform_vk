@@ -136,13 +136,13 @@ jobs:
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/customer_platform_vk
-            export IMAGE_TAG=${IMAGE_TAG}
-            export GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
-            export DB_USER=${DB_USER}
-            export DB_PASSWORD=${DB_PASSWORD}
-            export JWT_SECRET=${JWT_SECRET}
-            export HEALTH_URL=${HEALTH_URL}
-            ./deploy/scripts/deploy.sh --use-remote-image ${IMAGE_TAG}
+            export IMAGE_TAG="${IMAGE_TAG}"
+            export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
+            export DB_USER="${DB_USER}"
+            export DB_PASSWORD="${DB_PASSWORD}"
+            export JWT_SECRET="${JWT_SECRET}"
+            export HEALTH_URL="${HEALTH_URL}"
+            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
           EOF
 
           echo "✅ Staging 部署完成"
@@ -195,13 +195,13 @@ jobs:
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
               ${SSH_USER}@${SSH_HOST} << EOF
             cd ~/customer_platform_vk
-            export IMAGE_TAG=${IMAGE_TAG}
-            export GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
-            export DB_USER=${DB_USER}
-            export DB_PASSWORD=${DB_PASSWORD}
-            export JWT_SECRET=${JWT_SECRET}
-            export HEALTH_URL=${HEALTH_URL}
-            ./deploy/scripts/deploy.sh --use-remote-image ${IMAGE_TAG}
+            export IMAGE_TAG="${IMAGE_TAG}"
+            export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
+            export DB_USER="${DB_USER}"
+            export DB_PASSWORD="${DB_PASSWORD}"
+            export JWT_SECRET="${JWT_SECRET}"
+            export HEALTH_URL="${HEALTH_URL}"
+            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
           EOF
 
           echo "✅ Production 部署完成"
