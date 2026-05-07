@@ -219,19 +219,22 @@ run_migrations() {
     
     # 先单独启动数据库，捕获错误日志
     log_info "启动数据库容器..."
-    $COMPOSE_CMD -f $COMPOSE_FILE up -d db 2>&1 || {
-        log_error "启动数据库容器失败"
-        $COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | tail -30
-        exit 1
-    }
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d db 2>&1
     
     # 等待数据库初始化
     sleep 5
     
-    # 检查容器是否还在运行
+    # 检查容器状态并打印日志
+    log_info "检查数据库容器状态..."
+    $COMPOSE_CMD -f $COMPOSE_FILE ps 2>&1
+    
+    # 无论容器是否运行，都打印日志以便诊断
+    log_info "数据库容器日志:"
+    $COMPOSE_CMD -f $COMPOSE_FILE logs db --tail=30 2>&1
+    
+    # 如果数据库容器已退出，失败
     if $COMPOSE_CMD -f $COMPOSE_FILE ps 2>&1 | grep "customer-platform-db" | grep -q "Exit\|Exited"; then
-        log_error "数据库容器已退出，打印日志:"
-        $COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | tail -50
+        log_error "数据库容器启动失败"
         exit 1
     fi
     
