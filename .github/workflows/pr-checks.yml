@@ -7,7 +7,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -76,7 +76,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:18
         env:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password

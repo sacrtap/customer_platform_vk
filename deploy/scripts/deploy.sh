@@ -38,14 +38,14 @@ check_dependencies() {
     log_info "检查依赖..."
     
     local container_runtime=""
-    if command -v docker &> /dev/null; then
-        container_runtime="docker"
-        log_info "检测到 Docker"
-    elif command -v podman &> /dev/null; then
+    if command -v podman &> /dev/null; then
         container_runtime="podman"
         log_info "检测到 Podman"
+    elif command -v docker &> /dev/null; then
+        container_runtime="docker"
+        log_info "检测到 Docker"
     else
-        log_error "Docker 或 Podman 未安装，请先安装"
+        log_error "Podman 或 Docker 未安装，请先安装"
         exit 1
     fi
     
