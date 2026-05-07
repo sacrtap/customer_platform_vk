@@ -112,6 +112,22 @@ build_images() {
     log_info "镜像构建完成"
 }
 
+# 拉取远程镜像
+pull_remote_image() {
+    local image_tag=$1
+    local image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}:${image_tag}"
+    log_step "从 GHCR 拉取镜像: ${image}"
+    
+    docker pull "$image" || {
+        log_error "拉取远程镜像失败: ${image}"
+        exit 1
+    }
+    
+    # 重新打标签供 compose 使用
+    docker tag "$image" "customer_platform_app:latest"
+    log_info "远程镜像已拉取并标记为 customer_platform_app:latest"
+}
+
 # 拉取基础镜像
 pull_images() {
     log_info "拉取基础镜像..."
@@ -157,23 +173,25 @@ start_services() {
 
 # 健康检查
 health_check() {
-    log_info "健康检查..."
+    local health_url="${HEALTH_URL:-http://localhost:8000/health}"
+    local max_retries="${HEALTH_MAX_RETRIES:-30}"
+    local retry_interval="${HEALTH_RETRY_INTERVAL:-2}"
     
-    max_retries=30
-    retry_count=0
+    log_info "健康检查: ${health_url}..."
     
+    local retry_count=0
     while [ $retry_count -lt $max_retries ]; do
-        if curl -s http://localhost:8000/health | grep -q '"healthy"'; then
+        if curl -sf "${health_url}" | grep -q '"healthy"'; then
             log_info "健康检查通过"
             return 0
         fi
         
         retry_count=$((retry_count + 1))
         log_warn "健康检查失败，重试 ${retry_count}/${max_retries}..."
-        sleep 2
+        sleep "$retry_interval"
     done
     
-    log_error "健康检查失败"
+    log_error "健康检查失败 (${health_url})"
     return 1
 }
 
@@ -239,6 +257,8 @@ show_help() {
     echo "  --skip-migrate   跳过数据库迁移"
     echo "  --test-data      创建测试数据"
     echo "  --cleanup        部署后清理未使用资源"
+    echo "  --use-remote-image  从 GHCR 拉取预构建镜像 (跳过本地构建)"
+    echo "  --init              初始化服务器环境 (首次部署)"
     echo ""
     echo "示例:"
     echo "  $0                    # 完整部署最新版本"
@@ -254,6 +274,7 @@ SKIP_BUILD=false
 SKIP_MIGRATE=false
 CREATE_TEST_DATA=false
 CLEANUP=false
+USE_REMOTE_IMAGE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -277,6 +298,10 @@ while [[ $# -gt 0 ]]; do
             CLEANUP=true
             shift
             ;;
+        --use-remote-image)
+            USE_REMOTE_IMAGE=true
+            shift
+            ;;
         *)
             VERSION=$1
             shift
@@ -298,7 +323,9 @@ main() {
     load_env
     stop_containers
     
-    if [ "$SKIP_BUILD" = false ]; then
+    if [ "$USE_REMOTE_IMAGE" = true ]; then
+        pull_remote_image "${IMAGE_TAG:-latest}"
+    elif [ "$SKIP_BUILD" = false ]; then
         pull_images
         build_images
     fi
