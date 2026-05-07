@@ -223,15 +223,9 @@ pull_images() {
 run_migrations() {
     log_step "运行数据库迁移..."
     
-    # 先启动数据库
-    $COMPOSE_CMD -f $COMPOSE_FILE up -d db redis
-    
-    log_info "等待数据库就绪..."
-    sleep 5
-    
-    # 运行迁移服务
-    # migrate 服务使用 customer_platform_app:latest 镜像（远程部署时已预拉取）
-    $COMPOSE_CMD -f $COMPOSE_FILE up migrate
+    # 一次性启动数据库和迁移服务，让 compose 管理依赖顺序
+    # --abort-on-container-exit 确保迁移失败时能感知
+    $COMPOSE_CMD -f $COMPOSE_FILE up --abort-on-container-exit migrate
     
     log_info "数据库迁移完成"
 }
