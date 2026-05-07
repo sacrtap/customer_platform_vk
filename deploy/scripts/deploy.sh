@@ -217,30 +217,7 @@ pull_images() {
 run_migrations() {
     log_step "运行数据库迁移..."
     
-    # 先单独启动数据库，捕获错误日志
-    log_info "启动数据库容器..."
-    $COMPOSE_CMD -f $COMPOSE_FILE up -d db 2>&1
-    
-    # 等待数据库初始化
-    sleep 5
-    
-    # 检查容器状态并打印日志
-    log_info "检查数据库容器状态..."
-    $COMPOSE_CMD -f $COMPOSE_FILE ps 2>&1
-    
-    # 无论容器是否运行，都打印日志以便诊断
-    log_info "数据库容器日志:"
-    $COMPOSE_CMD -f $COMPOSE_FILE logs db --tail=30 2>&1
-    
-    # 如果数据库容器已退出，失败
-    if $COMPOSE_CMD -f $COMPOSE_FILE ps 2>&1 | grep "customer-platform-db" | grep -q "Exit\|Exited"; then
-        log_error "数据库容器启动失败"
-        exit 1
-    fi
-    
-    log_info "数据库容器运行中，启动迁移服务..."
-    
-    # 运行迁移服务（compose 会自动等待 db healthcheck 通过）
+    # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
     $COMPOSE_CMD -f $COMPOSE_FILE up migrate
     
     log_info "数据库迁移完成"
@@ -260,17 +237,6 @@ start_services() {
     log_step "启动所有服务..."
     
     $COMPOSE_CMD -f $COMPOSE_FILE up -d app
-    
-    # 等待应用启动
-    sleep 5
-    
-    # 检查应用容器状态
-    log_info "应用容器状态:"
-    $COMPOSE_CMD -f $COMPOSE_FILE ps app 2>&1
-    
-    # 打印应用日志
-    log_info "应用容器日志:"
-    $COMPOSE_CMD -f $COMPOSE_FILE logs app --tail=30 2>&1
     
     log_info "服务启动完成"
 }
