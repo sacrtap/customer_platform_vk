@@ -4,7 +4,6 @@ import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from app.models.base import Base
-from app.models.billing import AuditLog
 from app.models.users import User
 from app.utils.audit_helpers import (
     create_audit_entry,
@@ -49,9 +48,7 @@ async def async_session(async_engine):
     每个测试开始前清理相关表数据，确保测试间数据隔离。
     注意：需要按外键依赖顺序删除（先删引用表，再删被引用表）。
     """
-    from sqlalchemy import delete, text
-    from app.models.billing import AuditLog
-    from app.models.users import User
+    from sqlalchemy import text
 
     async_session_maker = async_sessionmaker(
         async_engine, class_=AsyncSession, expire_on_commit=False

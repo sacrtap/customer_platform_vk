@@ -76,7 +76,8 @@ async def list_customers(request: Request):
     filters = {k: v for k, v in filters.items() if v is not None}
 
     # 尝试从缓存获取
-    cache_key = f"p{page}_ps{page_size}_sb{sort_by}_so{sort_order}_{hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()[:8]}"
+    filters_hash = hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()[:8]
+    cache_key = f"p{page}_ps{page_size}_sb{sort_by}_so{sort_order}_{filters_hash}"
     cached = await cache_service.get("customer_list", cache_key)
     if cached is not None:
         return json(cached)

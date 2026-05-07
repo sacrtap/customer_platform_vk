@@ -4,7 +4,7 @@ from typing import Optional, List, Tuple, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import OperationalError
 from tenacity import (
@@ -509,7 +509,16 @@ class InvoiceService:
 
         Returns:
             (items, total_amount)
-            items: [{"device_type": "N", "layer_type": "single", "quantity": 1234, "unit_price": 10.0, "subtotal": 12340.0, "pricing_rule_id": 2}]
+            items: [
+                {
+                    "device_type": "N",
+                    "layer_type": "single",
+                    "quantity": 1234,
+                    "unit_price": 10.0,
+                    "subtotal": 12340.0,
+                    "pricing_rule_id": 2,
+                }
+            ]
         """
         from sqlalchemy import func as sa_func
 
@@ -601,7 +610,6 @@ class InvoiceService:
 
             elif rule.pricing_type == "package":
                 # 包年结算：按包年固定费用
-                package_type = rule.package_type
                 package_limits = rule.package_limits or {}
                 # 简化实现：使用包年基础费用作为单价
                 base_fee = Decimal(str(package_limits.get("base_fee", 0)))

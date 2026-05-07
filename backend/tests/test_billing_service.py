@@ -1724,7 +1724,7 @@ class TestPricingService_CheckOverlap:
 
         from app.models.billing import PricingRule
 
-        existing_rule = PricingRule(
+        _existing_rule = PricingRule(  # noqa: F841
             id=1,
             customer_id=100,
             device_type="X",

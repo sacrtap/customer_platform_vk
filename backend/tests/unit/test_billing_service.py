@@ -3,14 +3,13 @@
 import pytest
 from decimal import Decimal
 from datetime import date
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 from app.services.billing import BalanceService, PricingService
 from app.models.billing import (
     CustomerBalance,
     RechargeRecord,
     PricingRule,
-    ConsumptionRecord,
 )
 
 
@@ -387,7 +386,7 @@ class TestPricingService_CreatePricingRule:
         mock_result.scalars.return_value.all.return_value = [existing_rule]
         mock_db_session.execute.return_value = mock_result
 
-        rule_data = {
+        _rule_data = {  # noqa: F841
             "customer_id": 100,
             "device_type": "sensor",  # 不同设备
             "layer_type": "living_room",

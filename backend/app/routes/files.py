@@ -164,8 +164,9 @@ async def upload_file(request):
         # ========== 步骤 3: 扩展名白名单验证 ==========
         if not allowed_extension(file.name):
             ext = get_file_extension(file.name)
+            user_info = getattr(request.ctx, "user", {}).get("user_id", "unknown")
             logger.warning(
-                f"安全拦截：拒绝不允许的扩展名 {ext}, 原始文件名：{file.name}, 用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
+                f"安全拦截：拒绝不允许的扩展名 {ext}, 原始文件名：{file.name}, 用户：{user_info}"
             )
             return json(
                 {
@@ -182,8 +183,9 @@ async def upload_file(request):
         # ========== 步骤 4: 文件大小限制验证 ==========
         file_size = len(file.body)
         if file_size > MAX_FILE_SIZE:
+            user_info = getattr(request.ctx, "user", {}).get("user_id", "unknown")
             logger.warning(
-                f"安全拦截：文件大小超限 {file_size} 字节，限制：{MAX_FILE_SIZE} 字节，用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
+                f"安全拦截：文件大小超限 {file_size} 字节，限制：{MAX_FILE_SIZE} 字节，用户：{user_info}"
             )
             return json(
                 {
@@ -200,8 +202,9 @@ async def upload_file(request):
         # ========== 步骤 5: MIME 类型验证（python-magic）==========
         is_valid_mime, detected_mime, mime_error = validate_mime_type(file.body, file.name)
         if not is_valid_mime:
+            user_info = getattr(request.ctx, "user", {}).get("user_id", "unknown")
             logger.warning(
-                f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{getattr(request.ctx, 'user', {}).get('user_id', 'unknown')}"
+                f"安全拦截：MIME 类型验证失败 - {mime_error}, 原始文件名：{file.name}, 用户：{user_info}"
             )
             return json(
                 {

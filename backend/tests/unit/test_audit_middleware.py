@@ -1,6 +1,5 @@
 """审计中间件单元测试"""
 
-import pytest
 from app.middleware.audit import (
     extract_record_id_from_path,
     extract_module_from_path,
