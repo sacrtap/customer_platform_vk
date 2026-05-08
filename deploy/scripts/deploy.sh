@@ -39,6 +39,10 @@ CONTAINER_RUNTIME=""
 check_dependencies() {
     log_info "检查依赖..."
     
+    # 非交互式 shell（如 SSH 远程执行）PATH 可能不完整
+    # 扩展 PATH 包含容器运行时常见安装路径
+    export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman"
+    
     if command -v podman &> /dev/null; then
         CONTAINER_RUNTIME="podman"
         log_info "检测到 Podman"
