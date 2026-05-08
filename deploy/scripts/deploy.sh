@@ -191,17 +191,30 @@ build_images() {
 # 拉取远程镜像
 pull_remote_image() {
     local image_tag=$1
-    local image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}:${image_tag}"
-    log_step "从 GHCR 拉取镜像: ${image}"
+    local backend_image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}:${image_tag}"
+    local frontend_image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}-frontend:${image_tag}"
     
-    $CONTAINER_RUNTIME pull "$image" || {
-        log_error "拉取远程镜像失败: ${image}"
+    log_step "从 GHCR 拉取后端镜像: ${backend_image}"
+    
+    $CONTAINER_RUNTIME pull "$backend_image" || {
+        log_error "拉取后端镜像失败: ${backend_image}"
         exit 1
     }
     
     # 重新打标签供 compose 使用
-    $CONTAINER_RUNTIME tag "$image" "customer_platform_app:latest"
-    log_info "远程镜像已拉取并标记为 customer_platform_app:latest"
+    $CONTAINER_RUNTIME tag "$backend_image" "customer_platform_app:latest"
+    log_info "后端镜像已拉取并标记为 customer_platform_app:latest"
+    
+    log_step "从 GHCR 拉取前端镜像: ${frontend_image}"
+    
+    $CONTAINER_RUNTIME pull "$frontend_image" || {
+        log_error "拉取前端镜像失败: ${frontend_image}"
+        exit 1
+    }
+    
+    # 重新打标签供 compose 使用
+    $CONTAINER_RUNTIME tag "$frontend_image" "customer_platform_frontend:latest"
+    log_info "前端镜像已拉取并标记为 customer_platform_frontend:latest"
 }
 
 # 拉取基础镜像

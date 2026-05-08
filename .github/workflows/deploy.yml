@@ -145,10 +145,6 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # 拉取前端镜像
-            docker pull ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG}
-            docker tag ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG} customer_platform_frontend:latest
-
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
             export DB_USER="${DB_USER}"
@@ -210,10 +206,6 @@ jobs:
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
-
-            # 拉取前端镜像
-            docker pull ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG}
-            docker tag ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG} customer_platform_frontend:latest
 
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
