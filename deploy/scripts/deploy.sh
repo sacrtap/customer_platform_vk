@@ -174,7 +174,29 @@ ENVEOF
 stop_containers() {
     log_info "停止旧容器..."
     
-    $COMPOSE_CMD -f $COMPOSE_FILE down 2>/dev/null || true
+    # 先尝试 compose down（添加 --remove-orphans 清理孤立容器）
+    log_info "执行 compose down..."
+    down_output=$($COMPOSE_CMD -f $COMPOSE_FILE down --remove-orphans 2>&1) || {
+        log_warn "compose down 返回非零退出码（可能无容器可停止）"
+        log_warn "down 输出: ${down_output}"
+    }
+    
+    # 强制移除可能残留的固定命名容器（针对 podman compose 的兼容性问题）
+    local fixed_containers=(
+        "customer-platform-db"
+        "customer-platform-redis"
+        "customer-platform-app"
+        "customer-platform-nginx"
+        "customer-platform-migrate"
+        "customer-platform-seed"
+    )
+    
+    for container_name in "${fixed_containers[@]}"; do
+        if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
+            log_warn "发现残留容器 ${container_name}，强制移除..."
+            $CONTAINER_RUNTIME rm -f "$container_name" 2>/dev/null || true
+        fi
+    done
     
     log_info "旧容器已停止"
 }
