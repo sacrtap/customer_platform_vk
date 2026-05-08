@@ -151,7 +151,8 @@ jobs:
             export DB_PASSWORD="${DB_PASSWORD}"
             export JWT_SECRET="${JWT_SECRET}"
             export HEALTH_URL="${HEALTH_URL}"
-            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
+            export CREATE_TEST_DATA=true
+            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}" --test-data
           EOF
 
           echo "✅ Staging 部署完成"
