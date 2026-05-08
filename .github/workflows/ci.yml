@@ -6,7 +6,9 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'deploy/**'
       - '.github/workflows/ci.yml'
+      - '.github/workflows/deploy.yml'
       - 'backend/requirements.txt'
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
