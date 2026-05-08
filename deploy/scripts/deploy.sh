@@ -40,11 +40,36 @@ check_dependencies() {
     log_info "检查依赖..."
     
     # 非交互式 shell（如 SSH 远程执行）PATH 可能不完整
-    # 扩展 PATH 包含容器运行时常见安装路径
-    export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman"
+    # 扩展 PATH 包含容器运行时常见安装路径（含 Homebrew Apple Silicon 路径）
+    export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman:/opt/homebrew/bin:/opt/homebrew/sbin"
     
-    if command -v podman &> /dev/null; then
-        CONTAINER_RUNTIME="podman"
+    # 检测容器运行时：不仅检查命令存在，还要验证 daemon 可用
+    detect_runtime() {
+        local runtime=$1
+        local cmd_path
+        
+        # 查找命令路径
+        cmd_path=$(command -v "$runtime" 2>/dev/null) || return 1
+        
+        # 验证 daemon 是否可用
+        if [ "$runtime" = "podman" ]; then
+            # Podman 无 daemon 模式，只需验证命令可执行
+            if [ -x "$cmd_path" ]; then
+                CONTAINER_RUNTIME="podman"
+                return 0
+            fi
+        elif [ "$runtime" = "docker" ]; then
+            # Docker 需要 daemon 运行
+            if docker info &>/dev/null; then
+                CONTAINER_RUNTIME="docker"
+                return 0
+            fi
+        fi
+        return 1
+    }
+    
+    # Podman 优先
+    if detect_runtime podman; then
         log_info "检测到 Podman"
         
         # 配置 Podman 使用文件式认证（避免 macOS keychain 问题）
@@ -56,11 +81,10 @@ check_dependencies() {
             fi
             log_info "已配置 Podman 使用文件式认证"
         fi
-    elif command -v docker &> /dev/null; then
-        CONTAINER_RUNTIME="docker"
+    elif detect_runtime docker; then
         log_info "检测到 Docker"
     else
-        log_error "Podman 或 Docker 未安装，请先安装"
+        log_error "Podman 或 Docker 未安装或 daemon 未运行，请先安装并启动"
         exit 1
     fi
     
