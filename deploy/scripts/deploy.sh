@@ -355,7 +355,7 @@ show_info() {
     echo "📌 测试数据:"
     if [ "${CREATE_TEST_DATA:-false}" = "true" ]; then
         echo "   管理员：admin / admin123"
-        echo "   测试客户：TEST001 (余额：11000)"
+        echo "   测试客户：公司ID 100001 (余额：11000)"
     else
         echo "   未创建测试数据 (设置 CREATE_TEST_DATA=true 启用)"
     fi

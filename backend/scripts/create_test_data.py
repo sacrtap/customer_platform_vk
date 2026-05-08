@@ -25,20 +25,19 @@ def create_test_data():
     # 使用同步引擎
     engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
-    with Session(engine) as session:
-        # 导入模型
-        from app.models.users import User
-        from app.models.customers import Customer
-        from app.models.billing import CustomerBalance
+    # 导入模型
+    from app.models.users import User
+    from app.models.customers import Customer, CustomerProfile
+    from app.models.billing import CustomerBalance
 
-        # 检查是否已存在测试用户
+    # ---- 步骤 1: 创建 admin 用户（独立事务） ----
+    with Session(engine) as session:
         result = session.execute(select(User).where(User.username == "admin"))
         admin = result.scalar_one_or_none()
 
         if admin:
-            print("⚠️  测试用户已存在，跳过创建")
+            print("⚠️  admin 用户已存在，跳过创建")
         else:
-            # 创建管理员用户
             print("创建管理员用户...")
             hashed = bcrypt.hashpw(b"admin123", bcrypt.gensalt())
             admin = User(
@@ -50,19 +49,22 @@ def create_test_data():
                 is_system=True,
             )
             session.add(admin)
+            session.commit()
             print("✅ 管理员用户已创建 (admin/admin123)")
 
-        # 检查是否已存在测试客户
-        result = session.execute(select(Customer).where(Customer.company_id == "TEST001"))
+    # ---- 步骤 2: 创建测试客户（独立事务） ----
+    with Session(engine) as session:
+        # company_id 是 Integer 类型，使用数字 ID
+        test_company_id = 100001
+        result = session.execute(select(Customer).where(Customer.company_id == test_company_id))
         customer = result.scalar_one_or_none()
 
         if customer:
             print("⚠️  测试客户已存在，跳过创建")
         else:
-            # 创建测试客户
             print("创建测试客户...")
             customer = Customer(
-                company_id="TEST001",
+                company_id=test_company_id,
                 name="测试客户公司",
                 account_type="formal",
                 email="test@customer.com",
@@ -71,9 +73,7 @@ def create_test_data():
             session.add(customer)
             session.flush()
 
-            # 创建客户画像（行业类型存在 profile 中）
-            from app.models.customers import CustomerProfile
-
+            # 创建客户画像
             profile = CustomerProfile(
                 customer_id=customer.id,
                 industry="A",
@@ -91,10 +91,10 @@ def create_test_data():
                 total_amount=11000.00,
             )
             session.add(balance)
+            session.commit()
             print("✅ 客户余额已创建 (实充：10000, 赠费：1000)")
 
-        session.commit()
-        print("\n✅ 测试数据创建成功!")
+    print("\n✅ 测试数据创建成功!")
 
 
 if __name__ == "__main__":
