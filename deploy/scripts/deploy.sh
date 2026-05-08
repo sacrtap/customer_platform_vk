@@ -40,8 +40,8 @@ check_dependencies() {
     log_info "检查依赖..."
     
     # 非交互式 shell（如 SSH 远程执行）PATH 可能不完整
-    # 扩展 PATH 包含容器运行时常见安装路径（含 Homebrew Apple Silicon 路径）
-    export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman:/opt/homebrew/bin:/opt/homebrew/sbin"
+    # 扩展 PATH 包含容器运行时常见安装路径（含 Homebrew Apple Silicon 路径和自定义 podman 路径）
+    export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/podman/bin"
     
     # 检测容器运行时：不仅检查命令存在，还要验证 daemon 可用
     detect_runtime() {
