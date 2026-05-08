@@ -131,29 +131,24 @@ jobs:
 
           # 通过 Cloudflare Tunnel 远程执行部署
           # 使用 cloudflared access 作为 SSH 代理
+          # 注意: 使用引号包裹 DEPLOY_SCRIPT 禁止本地变量展开，所有变量通过 env 传递
           ssh -i ~/.ssh/staging_key \
               -o StrictHostKeyChecking=no \
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-              ${SSH_USER}@${SSH_HOST} << EOF
+              ${SSH_USER}@${SSH_HOST} \
+              IMAGE_TAG="${IMAGE_TAG}" \
+              GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+              DB_USER="${DB_USER}" \
+              DB_PASSWORD="${DB_PASSWORD}" \
+              JWT_SECRET="${JWT_SECRET}" \
+              HEALTH_URL="${HEALTH_URL}" \
+              CREATE_TEST_DATA=true \
+              'bash -s' << 'DEPLOY_SCRIPT'
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
-
-            # 预清理：确保 deploy.sh 执行前无残留容器
-            podman compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
-            for c in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
-              podman ps -a --format '{{.Names}}' | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
-            done
-
-            export IMAGE_TAG="${IMAGE_TAG}"
-            export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
-            export DB_USER="${DB_USER}"
-            export DB_PASSWORD="${DB_PASSWORD}"
-            export JWT_SECRET="${JWT_SECRET}"
-            export HEALTH_URL="${HEALTH_URL}"
-            export CREATE_TEST_DATA=true
             ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}" --test-data
-          EOF
+          DEPLOY_SCRIPT
 
           echo "✅ Staging 部署完成"
 
@@ -203,25 +198,19 @@ jobs:
           ssh -i ~/.ssh/production_key \
               -o StrictHostKeyChecking=no \
               -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-              ${SSH_USER}@${SSH_HOST} << EOF
+              ${SSH_USER}@${SSH_HOST} \
+              IMAGE_TAG="${IMAGE_TAG}" \
+              GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+              DB_USER="${DB_USER}" \
+              DB_PASSWORD="${DB_PASSWORD}" \
+              JWT_SECRET="${JWT_SECRET}" \
+              HEALTH_URL="${HEALTH_URL}" \
+              'bash -s' << 'DEPLOY_SCRIPT'
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
-
-            # 预清理：确保 deploy.sh 执行前无残留容器
-            podman compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
-            for c in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
-              podman ps -a --format '{{.Names}}' | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
-            done
-
-            export IMAGE_TAG="${IMAGE_TAG}"
-            export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
-            export DB_USER="${DB_USER}"
-            export DB_PASSWORD="${DB_PASSWORD}"
-            export JWT_SECRET="${JWT_SECRET}"
-            export HEALTH_URL="${HEALTH_URL}"
             ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
-          EOF
+          DEPLOY_SCRIPT
 
           echo "✅ Production 部署完成"
 
