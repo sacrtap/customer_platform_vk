@@ -236,14 +236,14 @@ create_test_data() {
 start_services() {
     log_step "启动所有服务..."
     
-    $COMPOSE_CMD -f $COMPOSE_FILE up -d app
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d app nginx
     
     log_info "服务启动完成"
 }
 
 # 健康检查
 health_check() {
-    local health_url="${HEALTH_URL:-http://localhost:8000/health}"
+    local health_url="${HEALTH_URL:-http://localhost:8082/health}"
     local max_retries="${HEALTH_MAX_RETRIES:-30}"
     local retry_interval="${HEALTH_RETRY_INTERVAL:-2}"
     
@@ -283,8 +283,9 @@ show_info() {
     echo "========================================"
     echo ""
     echo "📌 服务地址:"
-    echo "   应用 API: http://localhost:8000"
-    echo "   健康检查：http://localhost:8000/health"
+    echo "   应用前端: http://localhost:8082"
+    echo "   应用 API: http://localhost:8082/api"
+    echo "   健康检查：http://localhost:8082/health"
     echo "   PostgreSQL: localhost:5432"
     echo "   Redis: localhost:6379"
     echo ""

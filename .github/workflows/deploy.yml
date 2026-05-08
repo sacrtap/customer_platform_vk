@@ -80,18 +80,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Upload frontend dist
-        uses: actions/upload-artifact@v4
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
         with:
-          name: frontend-dist
-          path: frontend/dist/
-          retention-days: 30
+          context: .
+          file: ./deploy/docker/frontend.Containerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}-frontend:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository }}-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # ============================================================
   # 部署到 Staging 环境
@@ -125,7 +125,7 @@ jobs:
           DB_USER: ${{ secrets.STAGING_DB_USER }}
           DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
-          HEALTH_URL: "http://localhost:8000/health"
+          HEALTH_URL: "http://localhost:8082/health"
         run: |
           echo "🚀 部署到 Staging 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
@@ -144,6 +144,11 @@ jobs:
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
+
+            # 拉取前端镜像
+            docker pull ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG}
+            docker tag ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG} customer_platform_frontend:latest
+
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
             export DB_USER="${DB_USER}"
@@ -187,7 +192,7 @@ jobs:
           DB_USER: ${{ secrets.PRODUCTION_DB_USER }}
           DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
-          HEALTH_URL: "http://localhost:8000/health"
+          HEALTH_URL: "http://localhost:8082/health"
         run: |
           echo "🚀 部署到 Production 环境..."
           echo "镜像标签: ${IMAGE_TAG}"
@@ -205,6 +210,11 @@ jobs:
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
+
+            # 拉取前端镜像
+            docker pull ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG}
+            docker tag ghcr.io/${GITHUB_REPOSITORY}-frontend:${IMAGE_TAG} customer_platform_frontend:latest
+
             export IMAGE_TAG="${IMAGE_TAG}"
             export GITHUB_REPOSITORY="${GITHUB_REPOSITORY}"
             export DB_USER="${DB_USER}"

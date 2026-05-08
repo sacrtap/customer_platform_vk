@@ -2,6 +2,21 @@
 # 用于本地开发和测试环境
 
 services:
+  # Nginx 前端服务 (统一入口)
+  nginx:
+    image: customer_platform_frontend:latest
+    build:
+      context: ..
+      dockerfile: ./deploy/docker/frontend.Containerfile
+    container_name: customer-platform-nginx
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    depends_on:
+      - app
+    networks:
+      - customer-platform-network
+
   # PostgreSQL 数据库
   db:
     image: postgres:18-alpine
@@ -65,8 +80,9 @@ services:
       DEBUG: ${DEBUG:-true}
     volumes:
       - app_uploads:/app/uploads
-    ports:
-      - "8000:8000"
+    # 后端不再对外暴露端口，只通过 Nginx 反向代理访问
+    # ports:
+    #   - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
