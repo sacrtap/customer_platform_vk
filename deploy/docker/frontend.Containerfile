@@ -2,7 +2,7 @@
 # 多阶段构建：Node.js 构建 + Nginx 生产
 
 # 阶段 1: 构建前端
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /build
 
