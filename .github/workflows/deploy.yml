@@ -142,7 +142,7 @@ jobs:
             # 预清理：确保 deploy.sh 执行前无残留容器
             podman compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
             for c in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
-              podman ps -a --format "{{.Names}}" | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
+              podman ps -a --format '{{.Names}}' | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
             done
 
             export IMAGE_TAG="${IMAGE_TAG}"
@@ -211,7 +211,7 @@ jobs:
             # 预清理：确保 deploy.sh 执行前无残留容器
             podman compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
             for c in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
-              podman ps -a --format "{{.Names}}" | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
+              podman ps -a --format '{{.Names}}' | grep -q "^\\$c$" && podman rm -f "\\$c" 2>/dev/null || true
             done
 
             export IMAGE_TAG="${IMAGE_TAG}"
