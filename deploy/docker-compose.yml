@@ -1,6 +1,8 @@
 # 客户运营中台 - Docker Compose 配置
 # 用于本地开发和测试环境
 
+name: customer_platform_vk
+
 services:
   # Nginx 前端服务 (统一入口)
   nginx:
