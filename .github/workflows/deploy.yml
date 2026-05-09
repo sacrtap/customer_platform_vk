@@ -80,6 +80,7 @@ jobs:
           context: .
           file: ./deploy/docker/frontend.Containerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ github.repository }}-frontend:${{ steps.tag.outputs.tag }}
             ghcr.io/${{ github.repository }}-frontend:latest
