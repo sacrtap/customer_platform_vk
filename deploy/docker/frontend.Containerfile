@@ -6,13 +6,13 @@ FROM node:22-alpine AS builder
 
 WORKDIR /build
 
-# 复制依赖文件并安装（仅生产依赖，跳过 devDependencies）
+# 复制依赖文件并安装（需要 devDependencies：vite、@vitejs/plugin-vue 等）
 COPY frontend/package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-# 复制源代码并构建（跳过 vue-tsc 类型检查，CI 已验证）
+# 复制源代码并构建（直接调用 vite，跳过 vue-tsc 类型检查，CI 已验证）
 COPY frontend/ ./
-RUN npx vite build
+RUN ./node_modules/.bin/vite build
 
 # 阶段 2: 生产镜像
 FROM nginx:alpine
