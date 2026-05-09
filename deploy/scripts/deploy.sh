@@ -286,15 +286,6 @@ run_migrations() {
     log_info "数据库迁移完成"
 }
 
-# 创建测试数据 (可选)
-create_test_data() {
-    if [ "${CREATE_TEST_DATA:-false}" = "true" ]; then
-        log_step "创建测试数据..."
-        $COMPOSE_CMD -f $COMPOSE_FILE up seed
-        log_info "测试数据创建完成"
-    fi
-}
-
 # 启动所有服务
 start_services() {
     log_step "启动所有服务..."
@@ -352,13 +343,9 @@ show_info() {
     echo "   PostgreSQL: localhost:5432"
     echo "   Redis: localhost:6379"
     echo ""
-    echo "📌 测试数据:"
-    if [ "${CREATE_TEST_DATA:-false}" = "true" ]; then
-        echo "   管理员：admin / admin123"
-        echo "   测试客户：公司ID 100001 (余额：11000)"
-    else
-        echo "   未创建测试数据 (设置 CREATE_TEST_DATA=true 启用)"
-    fi
+    echo "📌 种子数据:"
+    echo "   首次部署后自动创建 admin 账号 (admin/admin123)"
+    echo "   如需重置：SSH 运行 python scripts/seed.py --reset"
     echo ""
     echo "📌 常用命令:"
     echo "   查看日志：$COMPOSE_CMD -f $COMPOSE_FILE logs -f app"
@@ -389,7 +376,6 @@ show_help() {
     echo "  --help, -h       显示帮助"
     echo "  --skip-build     跳过镜像构建 (使用已有镜像)"
     echo "  --skip-migrate   跳过数据库迁移"
-    echo "  --test-data      创建测试数据"
     echo "  --cleanup        部署后清理未使用资源"
     echo "  --use-remote-image  从 GHCR 拉取预构建镜像 (跳过本地构建)"
     echo "  --init              初始化服务器环境 (首次部署)"
@@ -397,7 +383,6 @@ show_help() {
     echo "示例:"
     echo "  $0                    # 完整部署最新版本"
     echo "  $0 v1.0.0             # 部署指定版本"
-    echo "  $0 --test-data        # 部署并创建测试数据"
     echo "  $0 --skip-build       # 跳过构建 (快速部署)"
     echo "  $0 --cleanup v1.0.0   # 部署并清理"
     echo ""
@@ -406,7 +391,6 @@ show_help() {
 # 解析命令行参数
 SKIP_BUILD=false
 SKIP_MIGRATE=false
-CREATE_TEST_DATA=false
 CLEANUP=false
 USE_REMOTE_IMAGE=false
 INIT_MODE=false
@@ -423,10 +407,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-migrate)
             SKIP_MIGRATE=true
-            shift
-            ;;
-        --test-data)
-            CREATE_TEST_DATA=true
             shift
             ;;
         --cleanup)
@@ -450,7 +430,6 @@ done
 
 # 导出环境变量供 compose 使用
 export VERSION
-export CREATE_TEST_DATA
 
 # 主函数
 main() {
@@ -477,7 +456,6 @@ main() {
     
     if [ "$SKIP_MIGRATE" = false ]; then
         run_migrations
-        create_test_data
     fi
     
     start_services

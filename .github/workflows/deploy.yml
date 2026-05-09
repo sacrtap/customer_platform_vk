@@ -142,12 +142,11 @@ jobs:
               DB_PASSWORD="${DB_PASSWORD}" \
               JWT_SECRET="${JWT_SECRET}" \
               HEALTH_URL="${HEALTH_URL}" \
-              CREATE_TEST_DATA=true \
               'bash -s' << 'DEPLOY_SCRIPT'
             cd ~/Documents/github/customer_platform_vk
             git fetch origin main
             git reset --hard origin/main
-            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}" --test-data
+            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
           DEPLOY_SCRIPT
 
           echo "✅ Staging 部署完成"

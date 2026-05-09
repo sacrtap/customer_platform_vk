@@ -29,8 +29,6 @@ from sqlalchemy.orm import Session
 
 # 导入模型（在 sys.path 设置之后）
 from app.models.users import User, Role, Permission
-from app.models.billing import AuditLog
-from app.models.customers import Customer
 
 # 从环境变量读取数据库 URL，默认本地 PostgreSQL（无密码，使用当前系统用户）
 DATABASE_URL = os.getenv(
@@ -217,49 +215,6 @@ def seed(reset: bool = False):
         print("   登录密码: admin123")
         print(f"   角色: {SUPER_ADMIN_ROLE_NAME}")
         print(f"   权限数: {len(permissions)}")
-
-        # ---- 4. 创建测试客户和余额（可选，仅在没有测试客户时创建） ----
-        print("\n📋 步骤 4/4: 创建测试客户...")
-        test_company_id = 100001
-        result = session.execute(select(Customer).where(Customer.company_id == test_company_id))
-        test_customer = result.scalar_one_or_none()
-
-        if test_customer is None:
-            from app.models.billing import CustomerBalance
-
-            test_customer = Customer(
-                company_id=test_company_id,
-                name="测试客户公司",
-                account_type="formal",
-                email="test@customer.com",
-                is_key_customer=True,
-            )
-            session.add(test_customer)
-            session.flush()
-
-            # 创建客户画像
-            from app.models.customers import CustomerProfile
-
-            profile = CustomerProfile(
-                customer_id=test_customer.id,
-                industry="A",
-            )
-            session.add(profile)
-            session.flush()
-
-            # 创建客户余额
-            balance = CustomerBalance(
-                customer_id=test_customer.id,
-                real_amount=10000.00,
-                bonus_amount=1000.00,
-                total_amount=11000.00,
-            )
-            session.add(balance)
-            session.commit()
-            print("  ✅ 创建测试客户 (公司ID: 100001)")
-            print("  ✅ 创建客户余额 (实充：10000, 赠费：1000)")
-        else:
-            print("  ⏭️  测试客户已存在，跳过创建")
 
 
 if __name__ == "__main__":
