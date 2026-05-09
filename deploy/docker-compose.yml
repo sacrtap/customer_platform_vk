@@ -112,7 +112,8 @@ services:
       - customer-platform-network
     command: python -m alembic upgrade head
 
-  # 创建测试数据服务 (一次性运行)
+  # 种子数据服务 (一次性运行)
+  # 创建 admin 用户 + 权限定义 + 超级管理员角色 + 用户角色关联 + 测试客户 + 余额
   seed:
     image: customer_platform_app:latest
     build:
@@ -126,7 +127,7 @@ services:
         condition: service_completed_successfully
     networks:
       - customer-platform-network
-    command: python scripts/create_test_data.py
+    command: python scripts/seed.py
 
 networks:
   customer-platform-network:

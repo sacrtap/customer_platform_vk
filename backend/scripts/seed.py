@@ -116,9 +116,7 @@ ALL_PERMISSIONS = [
 SUPER_ADMIN_ROLE_NAME = "超级管理员"
 
 
-def get_or_create_permission(
-    session: Session, code: str, name: str, description: str, module: str
-):
+def get_or_create_permission(session: Session, code: str, name: str, description: str, module: str):
     """获取或创建权限记录"""
     result = session.execute(select(Permission).where(Permission.code == code))
     perm = result.scalar_one_or_none()
@@ -136,9 +134,7 @@ def seed(reset: bool = False):
     print(f"连接到数据库：{DATABASE_URL}")
 
     # 使用同步引擎
-    engine = create_engine(
-        DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    )
+    engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
     # 在 Session 创建前导入模型（避免在函数顶层引用）
     # 已在模块顶部导入
@@ -217,17 +213,58 @@ def seed(reset: bool = False):
 
         session.commit()
         print("\n✅ 种子数据初始化完成!")
-        print(f"   登录账号: admin")
-        print(f"   登录密码: admin123")
+        print("   登录账号: admin")
+        print("   登录密码: admin123")
         print(f"   角色: {SUPER_ADMIN_ROLE_NAME}")
         print(f"   权限数: {len(permissions)}")
+
+        # ---- 4. 创建测试客户和余额（可选，仅在没有测试客户时创建） ----
+        print("\n📋 步骤 4/4: 创建测试客户...")
+        test_company_id = 100001
+        result = session.execute(select(Customer).where(Customer.company_id == test_company_id))
+        test_customer = result.scalar_one_or_none()
+
+        if test_customer is None:
+            from app.models.billing import CustomerBalance
+
+            test_customer = Customer(
+                company_id=test_company_id,
+                name="测试客户公司",
+                account_type="formal",
+                email="test@customer.com",
+                is_key_customer=True,
+            )
+            session.add(test_customer)
+            session.flush()
+
+            # 创建客户画像
+            from app.models.customers import CustomerProfile
+
+            profile = CustomerProfile(
+                customer_id=test_customer.id,
+                industry="A",
+            )
+            session.add(profile)
+            session.flush()
+
+            # 创建客户余额
+            balance = CustomerBalance(
+                customer_id=test_customer.id,
+                real_amount=10000.00,
+                bonus_amount=1000.00,
+                total_amount=11000.00,
+            )
+            session.add(balance)
+            session.commit()
+            print("  ✅ 创建测试客户 (公司ID: 100001)")
+            print("  ✅ 创建客户余额 (实充：10000, 赠费：1000)")
+        else:
+            print("  ⏭️  测试客户已存在，跳过创建")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="初始化种子数据")
-    parser.add_argument(
-        "--reset", action="store_true", help="清空已有种子数据后重新创建"
-    )
+    parser.add_argument("--reset", action="store_true", help="清空已有种子数据后重新创建")
     args = parser.parse_args()
 
     try:
