@@ -284,6 +284,11 @@ run_migrations() {
     $COMPOSE_CMD -f $COMPOSE_FILE up migrate
     
     log_info "数据库迁移完成"
+    
+    # 运行种子数据（幂等，已存在则跳过）
+    log_step "初始化种子数据..."
+    $COMPOSE_CMD -f $COMPOSE_FILE up seed
+    log_info "种子数据初始化完成"
 }
 
 # 启动所有服务
