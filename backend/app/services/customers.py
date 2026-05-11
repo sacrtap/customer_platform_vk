@@ -18,7 +18,7 @@ ALLOWED_SORT_FIELDS = {
     "name",
     "created_at",
     "updated_at",
-    "industry",  # 行业类型 (CustomerProfile 表)
+    "industry_type_id",
     "settlement_type",  # 结算方式 (Customer 表)
     "manager_id",  # 运营经理 (Customer 表)
     "sales_manager_id",  # 商务经理 (Customer 表)
@@ -210,16 +210,18 @@ class CustomerService:
         if account_type := filters.get("account_type"):
             conditions.append(Customer.account_type == account_type)
 
-        # 行业筛选（使用 profile.industry，支持逗号分隔多选）
+        # 行业筛选（使用 profile.industry_type_id，JOIN IndustryType 表匹配名称）
         if industry := filters.get("industry"):
+            from ..models.industry_type import IndustryType
+
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            stmt = stmt.outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
             joined_profile = True
-            # 支持逗号分隔的多个行业类型
             industry_list = [i.strip() for i in industry.split(",") if i.strip()]
             if len(industry_list) == 1:
-                conditions.append(CustomerProfile.industry == industry_list[0])
+                conditions.append(IndustryType.name == industry_list[0])
             else:
-                conditions.append(CustomerProfile.industry.in_(industry_list))
+                conditions.append(IndustryType.name.in_(industry_list))
 
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
@@ -254,11 +256,10 @@ class CustomerService:
             raise ValueError(f"Invalid sort order: {sort_order}")
 
         # 动态排序
-        if sort_by == "industry":
-            # industry 字段在 CustomerProfile 表中,需要 join
+        if sort_by == "industry_type_id":
             if not joined_profile:
                 stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-            sort_column = CustomerProfile.industry
+            sort_column = CustomerProfile.industry_type_id
         else:
             sort_column = getattr(Customer, sort_by)
 
@@ -300,11 +301,11 @@ class CustomerService:
         balance = CustomerBalance(customer_id=customer.id)
         self.db.add(balance)
 
-        # 如果提供了 industry，创建 profile 记录
-        if data.get("industry"):
+        # 如果提供了 industry_type_id，创建 profile 记录
+        if data.get("industry_type_id"):
             profile = CustomerProfile(
                 customer_id=customer.id,
-                industry=data["industry"],
+                industry_type_id=data["industry_type_id"],
             )
             self.db.add(profile)
 
@@ -363,13 +364,13 @@ class CustomerService:
             if field in data:
                 setattr(customer, field, data[field])
 
-        # 如果提供了 industry，更新 profile
-        if "industry" in data:
+        # 如果提供了 industry_type_id，更新 profile
+        if "industry_type_id" in data:
             profile = await self.get_customer_profile(customer.id)
             if profile:
-                profile.industry = data["industry"]
+                profile.industry_type_id = data["industry_type_id"]
             else:
-                profile = CustomerProfile(customer_id=customer.id, industry=data["industry"])
+                profile = CustomerProfile(customer_id=customer.id, industry_type_id=data["industry_type_id"])
                 self.db.add(profile)
 
         await self.db.commit()
@@ -407,7 +408,7 @@ class CustomerService:
             updatable_fields = [
                 "scale_level",
                 "consume_level",
-                "industry",
+                "industry_type_id",
                 "is_real_estate",
                 "description",
                 # 新增字段
@@ -425,7 +426,7 @@ class CustomerService:
                 customer_id=customer_id,
                 scale_level=data.get("scale_level"),
                 consume_level=data.get("consume_level"),
-                industry=data.get("industry"),
+                industry_type_id=data.get("industry_type_id"),
                 is_real_estate=data.get("is_real_estate", False),
                 description=data.get("description"),
                 monthly_avg_shots=data.get("monthly_avg_shots"),
@@ -474,7 +475,7 @@ class CustomerService:
                 # Convert NaN to None for all optional fields
                 optional_fields = [
                     "account_type",
-                    "industry",
+                    "industry_type_id",
                     "price_policy",
                     "settlement_cycle",
                     "settlement_type",
@@ -613,7 +614,7 @@ class CustomerService:
                 # 暂存 profile 数据（等待 flush 后设置 customer_id）
                 profile_data = None
                 profile_fields = {
-                    "industry": data.get("industry"),
+                    "industry_type_id": data.get("industry_type_id"),
                     "consume_level": data.get("consume_level"),
                     "monthly_avg_shots": data.get("monthly_avg_shots"),
                     "monthly_avg_shots_estimated": data.get("monthly_avg_shots_estimated"),
@@ -674,7 +675,7 @@ class CustomerService:
                         pd = p_info["data"]
                         profile = CustomerProfile(
                             customer_id=customer_id,
-                            industry=pd.get("industry"),
+                            industry_type_id=pd.get("industry_type_id"),
                             consume_level=pd.get("consume_level"),
                             monthly_avg_shots=pd.get("monthly_avg_shots"),
                             monthly_avg_shots_estimated=pd.get("monthly_avg_shots_estimated"),
