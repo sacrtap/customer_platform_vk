@@ -155,7 +155,7 @@ class TestIndustryTypeService_SoftDelete:
     async def test_soft_deletes_industry_type(self, service, mock_db_session):
         """成功软删除行业类型"""
         mock_result = MagicMock()
-        mock_result.rowcount = 1
+        mock_result.scalar_one_or_none.return_value = IndustryType(id=1, name="项目", sort_order=1)
         mock_db_session.execute.return_value = mock_result
 
         result = await service.soft_delete(1)
@@ -167,7 +167,7 @@ class TestIndustryTypeService_SoftDelete:
     async def test_returns_false_for_not_found(self, service, mock_db_session):
         """不存在的 ID 返回 False"""
         mock_result = MagicMock()
-        mock_result.rowcount = 0
+        mock_result.scalar_one_or_none.return_value = None
         mock_db_session.execute.return_value = mock_result
 
         result = await service.soft_delete(999)
