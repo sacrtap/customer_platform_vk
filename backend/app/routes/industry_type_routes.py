@@ -6,6 +6,7 @@ from sanic.request import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..services.industry_type_service import IndustryTypeService
 from ..middleware.auth import auth_required
+from ..cache.base import cache_service
 
 industry_type_bp = Blueprint("industry_types", url_prefix="/api/v1/industry-types")
 
@@ -140,6 +141,9 @@ async def update_industry_type(request: Request, id: int):
             {"code": 409, "message": str(e)},
             status=409,
         )
+    finally:
+        # 行业类型名称变更后，清除客户列表缓存
+        await cache_service.invalidate_customer_cache()
 
 
 @industry_type_bp.delete("/<id:int>")
@@ -161,6 +165,9 @@ async def delete_industry_type(request: Request, id: int):
             {"code": 404, "message": "行业类型不存在"},
             status=404,
         )
+
+    # 行业类型删除后，清除客户列表缓存
+    await cache_service.invalidate_customer_cache()
 
     return json(
         {
