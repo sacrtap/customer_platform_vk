@@ -124,6 +124,7 @@ docs/_build/
 docs/data.xlsx
 docs/data_clean.xlsx
 docs/data_cleaned.xlsx
+data_clean_backup.xlsx
 /site
 
 # Context-Mode Test
