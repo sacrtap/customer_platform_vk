@@ -1,6 +1,6 @@
 """行业类型服务 - 行业类型 CRUD 操作"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.industry_type import IndustryType
@@ -73,7 +73,7 @@ class IndustryTypeService:
         stmt = (
             update(IndustryType)
             .where(IndustryType.id == id, IndustryType.deleted_at.is_(None))
-            .values(deleted_at=datetime.now(timezone.utc))
+            .values(deleted_at=datetime.utcnow())
         )
         result = await self.db_session.execute(stmt)
         await self.db_session.commit()

@@ -107,6 +107,7 @@ def create_app(
     from .routes.roles import roles_bp
     from .routes.permissions import permissions_bp
     from .routes.dict_routes import dict_bp
+    from .routes.industry_type_routes import industry_type_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)
@@ -123,6 +124,7 @@ def create_app(
     app.blueprint(roles_bp)
     app.blueprint(permissions_bp)
     app.blueprint(dict_bp)
+    app.blueprint(industry_type_bp)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
