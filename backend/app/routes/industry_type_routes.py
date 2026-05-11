@@ -57,7 +57,7 @@ async def create_industry_type(request: Request):
     db_session: AsyncSession = request.ctx.db_session
     service = IndustryTypeService(db_session)
 
-    data = request.json
+    data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
 
@@ -105,7 +105,7 @@ async def update_industry_type(request: Request, id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = IndustryTypeService(db_session)
 
-    data = request.json
+    data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
 

@@ -33,9 +33,12 @@ class IndustryTypeService:
 
     async def create(self, name: str, sort_order: int) -> IndustryType:
         """新增行业类型，校验名称唯一性"""
-        # 检查名称是否已存在
+        # 检查名称是否已存在（排除已删除记录）
         existing = await self.db_session.execute(
-            select(IndustryType).where(IndustryType.name == name)
+            select(IndustryType).where(
+                IndustryType.name == name,
+                IndustryType.deleted_at.is_(None),
+            )
         )
         if existing.scalar_one_or_none():
             raise ValueError(f"行业类型 '{name}' 已存在")
@@ -52,11 +55,12 @@ class IndustryTypeService:
         if industry_type is None:
             return None
 
-        # 检查名称是否已被其他记录使用
+        # 检查名称是否已被其他记录使用（排除已删除记录）
         existing = await self.db_session.execute(
             select(IndustryType).where(
                 IndustryType.name == name,
                 IndustryType.id != id,
+                IndustryType.deleted_at.is_(None),
             )
         )
         if existing.scalar_one_or_none():

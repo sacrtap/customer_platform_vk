@@ -105,7 +105,7 @@ class TestCreateIndustryType:
     async def test_prevents_duplicate_name(self, test_client, auth_headers):
         """测试重复名称返回 409"""
         name = unique_name("重复测试行业")
-        
+
         # 创建第一个
         _req, _ = await test_client.post(
             "/api/v1/industry-types",
@@ -202,7 +202,6 @@ class TestUpdateIndustryType:
             json={"name": unique_name("行业A"), "sort_order": 1},
             headers=auth_headers,
         )
-        id1 = resp1.json["data"]["id"]
 
         _req, resp2 = await test_client.post(
             "/api/v1/industry-types",
@@ -235,8 +234,9 @@ class TestDeleteIndustryType:
     async def test_deletes_success(self, test_client, auth_headers):
         """测试成功软删除"""
         import time
+
         unique_name = f"待删除_{int(time.time())}"
-        
+
         # 先创建一个
         _req, create_resp = await test_client.post(
             "/api/v1/industry-types",
@@ -255,9 +255,7 @@ class TestDeleteIndustryType:
         assert response.json["code"] == 0
 
         # 验证不再出现在列表中
-        _req, list_resp = await test_client.get(
-            "/api/v1/industry-types", headers=auth_headers
-        )
+        _req, list_resp = await test_client.get("/api/v1/industry-types", headers=auth_headers)
         ids = [item["id"] for item in list_resp.json["data"]]
         assert industry_id not in ids
 
