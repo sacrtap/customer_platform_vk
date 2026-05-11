@@ -311,6 +311,7 @@ async def add_customer_tag(request: Request, customer_id: int, tag_id: int):
         auto_commit=True,
     )
 
+    await cache_service.invalidate_customer_cache()
     return json({"code": 0, "message": "添加成功"})
 
 
@@ -345,9 +346,9 @@ async def remove_customer_tag(request: Request, customer_id: int, tag_id: int):
         auto_commit=True,
     )
 
-    # 清除缓存
+    # 清除缓存（标签变更会影响客户列表筛选结果）
     await cache_service.invalidate_tag_cache()
-
+    await cache_service.invalidate_customer_cache()
     return json({"code": 0, "message": "移除成功"})
 
 
@@ -379,8 +380,9 @@ async def batch_add_customer_tags(request: Request):
     success_count, error_count = await service.batch_add_customer_tags(customer_ids, tag_ids)
 
     # 清除缓存
+    # 清除缓存（标签变更会影响客户列表筛选结果）
     await cache_service.invalidate_tag_cache()
-
+    await cache_service.invalidate_customer_cache()
     # 记录批量操作审计日志
     summary = build_batch_audit_summary(
         operation="batch_add_tags",
@@ -441,9 +443,9 @@ async def batch_remove_customer_tags(request: Request):
 
     removed_count = await service.batch_remove_customer_tags(customer_ids, tag_ids)
 
-    # 清除缓存
+    # 清除缓存（标签变更会影响客户列表筛选结果）
     await cache_service.invalidate_tag_cache()
-
+    await cache_service.invalidate_customer_cache()
     # 记录批量操作审计日志
     summary = build_batch_audit_summary(
         operation="batch_remove_tags",

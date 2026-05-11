@@ -48,7 +48,7 @@ async def list_customers(request: Request):
     page_size = min(page_size, 100)
 
     # 排序参数
-    sort_by = request.args.get("sort_by", "id")
+    sort_by = request.args.get("sort_by", "company_id")
     sort_order = request.args.get("sort_order", "asc")
 
     # 构建筛选条件
@@ -75,14 +75,20 @@ async def list_customers(request: Request):
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
 
-    # 尝试从缓存获取（MD5 仅用于缓存键生成，不用于安全目的）
+    # 构建缓存键
     filters_hash = hashlib.md5(
         str(sorted(filters.items())).encode(), usedforsecurity=False
     ).hexdigest()[:8]
     cache_key = f"p{page}_ps{page_size}_sb{sort_by}_so{sort_order}_{filters_hash}"
-    cached = await cache_service.get("customer_list", cache_key)
-    if cached is not None:
-        return json(cached)
+
+    # 检查是否强制刷新（跳过缓存）
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+
+    # 尝试从缓存获取
+    if not force_refresh:
+        cached = await cache_service.get("customer_list", cache_key)
+        if cached is not None:
+            return json(cached)
 
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)

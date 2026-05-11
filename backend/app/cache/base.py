@@ -161,7 +161,10 @@ class CacheService:
         """
         if customer_id:
             await self.delete("customer_detail", customer_id)
-        await self.invalidate_pattern("cache:customer_list:*")
+            logger.info(f"已清除客户详情缓存: customer_id={customer_id}")
+        cleared = await self.invalidate_pattern("cache:customer_list:*")
+        if cleared:
+            logger.info("已清除所有客户列表缓存")
         return True
 
     async def invalidate_tag_cache(self) -> bool:

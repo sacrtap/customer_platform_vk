@@ -60,6 +60,29 @@
           </template>
           导出
         </a-button>
+        <a-button @click="handleRefresh" :loading="loading">
+          <template #icon>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
+              />
+              <path
+                d="M8 1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 1z"
+              />
+              <path
+                d="M8 5.5L5.5 3H10.5L8 5.5z"
+              />
+            </svg>
+          </template>
+          刷新
+        </a-button>
       </div>
     </div>
 
@@ -548,7 +571,7 @@ const customers = ref<Customer[]>([])
 
 // 排序状态
 const sortState = reactive({
-  sort_by: 'id',
+  sort_by: 'company_id',
   sort_order: 'ascend' as 'ascend' | 'descend' | '',
 })
 
@@ -669,6 +692,53 @@ const handleReset = () => {
   advancedFilters.tag_ids = []
   pagination.current = 1
   loadCustomers()
+}
+
+// 刷新（强制跳过缓存）
+const handleRefresh = async () => {
+  loading.value = true
+  try {
+    // 将前端的 ascend/descend 转换为后端期望的 asc/desc
+    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+
+    const params: {
+      page: number
+      page_size: number
+      keyword?: string
+      account_type?: string
+      industry?: string
+      manager_id?: number
+      sales_manager_id?: number
+      is_key_customer?: boolean
+      settlement_type?: string
+      sort_by: string
+      sort_order: 'asc' | 'desc'
+      force_refresh?: boolean
+    } = {
+      page: pagination.current,
+      page_size: pagination.pageSize,
+      sort_by: sortState.sort_by,
+      sort_order: backendSortOrder,
+      force_refresh: true, // 强制刷新，跳过缓存
+    }
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+
+    const res = await getCustomers(params)
+    customers.value = res.data.list || []
+    pagination.total = res.data.total || 0
+    pagination.current = res.data.page || 1
+    Message.success('已刷新')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '刷新失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 // 分页变化
