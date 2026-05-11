@@ -11,6 +11,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 from ..services.billing import BalanceService, PricingService, InvoiceService
+from ..models.industry_type import IndustryType
 from ..middleware.auth import get_current_user, require_permission, auth_required
 from ..cache.base import cache_service
 from ..utils.audit_helpers import create_audit_entry
@@ -94,10 +95,12 @@ async def get_balances(request: Request):
     if account_type:
         base_stmt = base_stmt.where(Customer.account_type == account_type)
     if industry:
-        # 多选逗号分隔，使用 IN 查询
+        # 多选逗号分隔，使用 IN 查询（JOIN IndustryType 按名称过滤）
         industry_list = [i.strip() for i in industry.split(",") if i.strip()]
         if industry_list:
-            base_stmt = base_stmt.where(CustomerProfile.industry.in_(industry_list))
+            base_stmt = base_stmt.outerjoin(
+                IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+            ).where(IndustryType.name.in_(industry_list))
     if manager_id:
         base_stmt = base_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:
@@ -169,7 +172,9 @@ async def get_balances(request: Request):
     if industry:
         industry_list = [i.strip() for i in industry.split(",") if i.strip()]
         if industry_list:
-            count_stmt = count_stmt.where(CustomerProfile.industry.in_(industry_list))
+            count_stmt = count_stmt.outerjoin(
+                IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+            ).where(IndustryType.name.in_(industry_list))
     if manager_id:
         count_stmt = count_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:

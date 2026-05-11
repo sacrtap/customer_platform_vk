@@ -154,7 +154,10 @@ class CustomerService:
         """根据 ID 获取客户"""
         result = await self.db.execute(
             select(Customer)
-            .options(selectinload(Customer.profile), selectinload(Customer.balance))
+            .options(
+                selectinload(Customer.profile).selectinload(CustomerProfile.industry_type),
+                selectinload(Customer.balance),
+            )
             .where(Customer.id == customer_id, Customer.deleted_at.is_(None))
         )
         return result.scalar_one_or_none()
@@ -270,7 +273,10 @@ class CustomerService:
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         # 加载关联数据
-        stmt = stmt.options(selectinload(Customer.profile), selectinload(Customer.balance))
+        stmt = stmt.options(
+            selectinload(Customer.profile).selectinload(CustomerProfile.industry_type),
+            selectinload(Customer.balance),
+        )
 
         if self._is_async:
             result = await self.db.execute(stmt)

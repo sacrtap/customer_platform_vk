@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import select, func, and_, or_, extract, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.customers import Customer, CustomerProfile
+from ..models.industry_type import IndustryType
 from ..models.billing import (
     DailyUsage,
     ConsumptionRecord,
@@ -437,12 +438,13 @@ class AnalyticsService:
         """获取行业分布"""
         stmt = (
             select(
-                CustomerProfile.industry,
+                IndustryType.name,
                 func.count(CustomerProfile.id).label("count"),
             )
             .join(Customer, CustomerProfile.customer_id == Customer.id)
+            .outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
             .where(Customer.deleted_at.is_(None))
-            .group_by(CustomerProfile.industry)
+            .group_by(IndustryType.name)
             .order_by(func.count(CustomerProfile.id).desc())
         )
 
@@ -451,7 +453,7 @@ class AnalyticsService:
 
         return [
             {
-                "industry": row.industry or "未分类",
+                "industry": row.name or "未分类",
                 "count": row.count,
                 "percentage": round(row.count / total * 100, 2) if total > 0 else 0,
             }
