@@ -104,7 +104,11 @@ async def list_customers(request: Request):
                     "company_id": c.company_id,
                     "name": c.name,
                     "account_type": c.account_type,
-                    "industry": c.profile.industry if c.profile else None,
+                    "industry": (
+                        c.profile.industry_type.name
+                        if (c.profile and c.profile.industry_type)
+                        else None
+                    ),
                     "price_policy": convert_price_policy_to_display(c.price_policy),
                     "manager_id": c.manager_id,
                     "sales_manager_id": c.sales_manager_id,
@@ -151,7 +155,11 @@ async def get_customer(request: Request, customer_id: int):
         "company_id": customer.company_id,
         "name": customer.name,
         "account_type": customer.account_type,
-        "industry": customer.profile.industry if customer.profile else None,
+        "industry": (
+            customer.profile.industry_type.name
+            if customer.profile and customer.profile.industry_type
+            else None
+        ),
         "price_policy": convert_price_policy_to_display(customer.price_policy),
         "manager_id": customer.manager_id,
         "settlement_cycle": customer.settlement_cycle,
@@ -179,7 +187,10 @@ async def get_customer(request: Request, customer_id: int):
             "id": customer.profile.id,
             "scale_level": customer.profile.scale_level,
             "consume_level": customer.profile.consume_level,
-            "industry": customer.profile.industry,
+            "industry_type_id": customer.profile.industry_type_id,
+            "industry": (
+                customer.profile.industry_type.name if customer.profile.industry_type else None
+            ),
             "is_real_estate": customer.profile.is_real_estate,
             "description": customer.profile.description,
             "monthly_avg_shots": customer.profile.monthly_avg_shots,
@@ -259,6 +270,19 @@ async def create_customer(request: Request):
         if not re.match(email_pattern, email):
             return json({"code": 40002, "message": "邮箱格式不正确"}, status=400)
 
+    # industry_type_id 存在性验证
+    industry_type_id = data.get("industry_type_id")
+    if industry_type_id is not None:
+        from ..models.industry_type import IndustryType
+        from sqlalchemy import select
+
+        db_session: AsyncSession = request.ctx.db_session
+        result = await db_session.execute(
+            select(IndustryType).where(IndustryType.id == industry_type_id)
+        )
+        if not result.scalar_one_or_none():
+            return json({"code": 40004, "message": "行业类型不存在"}, status=400)
+
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
@@ -315,6 +339,19 @@ async def update_customer(request: Request, customer_id: int):
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
             return json({"code": 40002, "message": "邮箱格式不正确"}, status=400)
+
+    # industry_type_id 存在性验证
+    industry_type_id = data.get("industry_type_id")
+    if industry_type_id is not None:
+        from ..models.industry_type import IndustryType
+        from sqlalchemy import select
+
+        db_session: AsyncSession = request.ctx.db_session
+        result = await db_session.execute(
+            select(IndustryType).where(IndustryType.id == industry_type_id)
+        )
+        if not result.scalar_one_or_none():
+            return json({"code": 40004, "message": "行业类型不存在"}, status=400)
 
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
@@ -390,7 +427,8 @@ async def get_profile(request: Request, customer_id: int):
                 "id": profile.id,
                 "scale_level": profile.scale_level,
                 "consume_level": profile.consume_level,
-                "industry": profile.industry,
+                "industry_type_id": profile.industry_type_id,
+                "industry": profile.industry_type.name if profile.industry_type else None,
                 "is_real_estate": profile.is_real_estate,
                 "description": profile.description,
                 "monthly_avg_shots": profile.monthly_avg_shots,
@@ -444,7 +482,8 @@ async def update_profile(request: Request, customer_id: int):
                 "id": profile.id,
                 "scale_level": profile.scale_level,
                 "consume_level": profile.consume_level,
-                "industry": profile.industry,
+                "industry_type_id": profile.industry_type_id,
+                "industry": profile.industry_type.name if profile.industry_type else None,
                 "is_real_estate": profile.is_real_estate,
                 "description": profile.description,
                 "monthly_avg_shots": profile.monthly_avg_shots,
@@ -519,6 +558,26 @@ async def import_customers(request: Request):
 
         # 转换数据为字典列表
         customers_data = df.to_dict(orient="records")
+
+        # 初始化错误列表
+        errors = []
+
+        # 处理 industry 列：将行业类型名称转换为 industry_type_id
+        from ..models.industry_type import IndustryType
+        from sqlalchemy import select
+
+        db_session: AsyncSession = request.ctx.db_session
+        industry_result = await db_session.execute(select(IndustryType))
+        industry_map = {it.name: it.id for it in industry_result.scalars().all()}
+
+        for row in customers_data:
+            industry_name = row.get("industry")
+            if industry_name:
+                if industry_name not in industry_map:
+                    errors.append(f"行业类型 '{industry_name}' 不存在")
+                    continue
+                row["industry_type_id"] = industry_map[industry_name]
+                del row["industry"]
 
         # 处理 is_key_customer 列
         for row in customers_data:
@@ -737,7 +796,11 @@ async def export_customers(request: Request):
                 "company_id": c.company_id,
                 "name": c.name,
                 "account_type": c.account_type,
-                "industry": c.profile.industry if c.profile else None,
+                "industry": (
+                    c.profile.industry_type.name
+                    if (c.profile and c.profile.industry_type)
+                    else None
+                ),
                 "price_policy": convert_price_policy_to_display(c.price_policy),
                 "settlement_cycle": c.settlement_cycle,
                 "settlement_type": convert_settlement_type_to_display(c.settlement_type),
