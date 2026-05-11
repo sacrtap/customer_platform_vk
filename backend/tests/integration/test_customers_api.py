@@ -14,10 +14,11 @@ Customers API 集成测试
 10. GET /api/v1/customers/import-template - 下载导入模板
 """
 
+import io
+
+import bcrypt
 import pytest
 from sqlalchemy import text
-import bcrypt
-import io
 
 
 @pytest.fixture
@@ -577,11 +578,13 @@ async def test_download_import_template_no_import_permission(test_client, db_ses
     result = db_session.execute(text("SELECT id FROM permissions WHERE code = 'customers:view'"))
     perm_row = result.fetchone()
     if perm_row is None:
-        db_session.execute(text("""
+        db_session.execute(
+            text("""
             INSERT INTO permissions (code, name, description, module, created_at)
             VALUES ('customers:view', '查看客户', '查看客户列表和详情', 'customers', NOW())
             ON CONFLICT (code) DO NOTHING
-            """))
+            """)
+        )
         db_session.commit()
         # 重新查询获取权限 ID
         perm_result = db_session.execute(

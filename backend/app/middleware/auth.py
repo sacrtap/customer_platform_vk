@@ -1,12 +1,14 @@
 """认证中间件"""
 
-from sanic import Sanic
-from sanic.response import json
-from sanic.request import Request
 from functools import wraps
+
+from sanic import Sanic
+from sanic.request import Request
+from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..services.auth import AuthService
+
 from ..services import get_user_permissions
+from ..services.auth import AuthService
 
 # Lazy import to avoid capturing real permission_cache at module load time
 # Tests can mock app.cache.permissions.permission_cache before routes are loaded

@@ -7,8 +7,9 @@ Audit Logs API 集成测试
 3. GET /api/v1/audit-logs/modules - 获取模块列表
 """
 
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 
 
 @pytest.fixture

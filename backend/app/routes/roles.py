@@ -2,11 +2,12 @@
 """角色管理路由"""
 
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
+from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..middleware.auth import auth_required, require_permission
 from ..services.roles import RoleService
-from ..middleware.auth import require_permission, auth_required
 
 roles_bp = Blueprint("roles", url_prefix="/api/v1/roles")
 

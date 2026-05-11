@@ -1,9 +1,11 @@
 """行业类型管理服务"""
 
-from typing import Optional
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..models.industry_type import IndustryType
 
 

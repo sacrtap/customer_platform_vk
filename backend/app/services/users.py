@@ -1,12 +1,14 @@
 """用户管理服务"""
 
-from sqlalchemy import select, func
+from typing import List, Optional, Union
+
+import bcrypt
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from typing import Optional, List, Union
-from ..models.users import User, Role
-import bcrypt
+
+from ..models.users import Role, User
 
 
 class UserService:

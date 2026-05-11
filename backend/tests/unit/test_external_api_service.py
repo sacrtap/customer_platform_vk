@@ -1,9 +1,10 @@
 """External API Service 单元测试"""
 
-import pytest
 from datetime import date
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
 
 from app.services.external_api import ExternalAPIClient
 

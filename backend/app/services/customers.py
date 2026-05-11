@@ -2,14 +2,15 @@
 
 import math
 import re
-from datetime import datetime, date
-from typing import Optional, List, Tuple, Union, Any
+from datetime import date, datetime
+from typing import Any, List, Optional, Tuple, Union
+
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
-from sqlalchemy import select, func, and_, or_, cast, String
-from sqlalchemy.orm import selectinload
-from ..models.customers import Customer, CustomerProfile
+from sqlalchemy.orm import Session, selectinload
+
 from ..models.billing import CustomerBalance
+from ..models.customers import Customer, CustomerProfile
 
 # 允许排序的字段白名单
 ALLOWED_SORT_FIELDS = {
@@ -414,8 +415,9 @@ class CustomerService:
         # 处理 industry 字段：将行业类型名称转换为 industry_type_id
         industry_name = data.get("industry")
         if industry_name is not None:
-            from ..models.industry_type import IndustryType
             from sqlalchemy import select
+
+            from ..models.industry_type import IndustryType
 
             result = await self.db.execute(
                 select(IndustryType).where(IndustryType.name == industry_name)

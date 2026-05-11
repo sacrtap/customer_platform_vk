@@ -1,11 +1,12 @@
 """字典数据路由"""
 
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
+from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..services.dict_service import DictService
+
 from ..middleware.auth import auth_required
+from ..services.dict_service import DictService
 
 dict_bp = Blueprint("dicts", url_prefix="/api/v1/dicts")
 

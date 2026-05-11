@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Token 黑名单模型"""
 
-from sqlalchemy import Column, Integer, String, DateTime, Index
+from sqlalchemy import Column, DateTime, Index, Integer, String
 from sqlalchemy.sql import func
+
 from .base import BaseModel
 
 

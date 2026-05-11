@@ -1,7 +1,8 @@
 """用户与权限模型"""
 
-from sqlalchemy import Column, String, Boolean, ForeignKey, Table, Integer
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 # 用户 - 角色关联表

@@ -29,6 +29,13 @@ env:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "22"
 
+# 可复用的数据库清理步骤
+x-db-cleanup-step: &db-cleanup
+  run: |
+    # Drop and recreate database to ensure clean state
+    PGPASSWORD=test_password psql -h localhost -U test_user -d postgres -c "DROP DATABASE IF EXISTS ${DB_NAME};"
+    PGPASSWORD=test_password psql -h localhost -U test_user -d postgres -c "CREATE DATABASE ${DB_NAME};"
+
 jobs:
   # ============================================================
   # 数据库迁移测试
@@ -70,6 +77,8 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Clean database before migration
+        env:
+          DB_NAME: test_db
         run: |
           # Drop and recreate test_db to ensure clean state
           PGPASSWORD=test_password psql -h localhost -U test_user -d postgres -c "DROP DATABASE IF EXISTS test_db;"
@@ -148,6 +157,8 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Clean database before migration
+        env:
+          DB_NAME: customer_platform_test
         run: |
           # Drop and recreate customer_platform_test to ensure clean state
           PGPASSWORD=test_password psql -h localhost -U test_user -d postgres -c "DROP DATABASE IF EXISTS customer_platform_test;"
@@ -383,6 +394,8 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Clean database before migration
+        env:
+          DB_NAME: customer_platform_test
         run: |
           # Drop and recreate customer_platform_test to ensure clean state
           PGPASSWORD=test_password psql -h localhost -U test_user -d postgres -c "DROP DATABASE IF EXISTS customer_platform_test;"

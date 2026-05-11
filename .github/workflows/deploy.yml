@@ -24,7 +24,8 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "18"
+  NODE_VERSION: "22"
+  DEPLOY_DIR: "~/Documents/github/customer_platform_vk"
 
 jobs:
   # ============================================================
@@ -71,8 +72,12 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.tag.outputs.tag }}
             ghcr.io/${{ github.repository }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -84,8 +89,12 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}-frontend:${{ steps.tag.outputs.tag }}
             ghcr.io/${{ github.repository }}-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository }}-frontend:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=ghcr.io/${{ github.repository }}-frontend:buildcache,mode=max
 
   # ============================================================
   # 部署到 Staging 环境
@@ -142,8 +151,9 @@ jobs:
               DB_PASSWORD="${DB_PASSWORD}" \
               JWT_SECRET="${JWT_SECRET}" \
               HEALTH_URL="${HEALTH_URL}" \
+              DEPLOY_DIR="${DEPLOY_DIR}" \
               'bash -s' << 'DEPLOY_SCRIPT'
-            cd ~/Documents/github/customer_platform_vk
+            cd "${DEPLOY_DIR}"
             git fetch origin main
             git reset --hard origin/main
             ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
@@ -204,8 +214,9 @@ jobs:
               DB_PASSWORD="${DB_PASSWORD}" \
               JWT_SECRET="${JWT_SECRET}" \
               HEALTH_URL="${HEALTH_URL}" \
+              DEPLOY_DIR="${DEPLOY_DIR}" \
               'bash -s' << 'DEPLOY_SCRIPT'
-            cd ~/Documents/github/customer_platform_vk
+            cd "${DEPLOY_DIR}"
             git fetch origin main
             git reset --hard origin/main
             ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"

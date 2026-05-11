@@ -1,12 +1,13 @@
 """Customer Service 单元测试"""
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
-from app.services.customers import CustomerService
-from app.models.customers import Customer, CustomerProfile
+import pytest
+
 from app.models.billing import CustomerBalance
+from app.models.customers import Customer, CustomerProfile
+from app.services.customers import CustomerService
 
 # ==================== Fixtures ====================
 

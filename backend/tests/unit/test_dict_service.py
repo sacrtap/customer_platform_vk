@@ -1,9 +1,11 @@
 """DictService 单元测试"""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.services.dict_service import DictService
+
+import pytest
+
 from app.models.industry_type import IndustryType
+from app.services.dict_service import DictService
 
 # ==================== Fixtures ====================
 

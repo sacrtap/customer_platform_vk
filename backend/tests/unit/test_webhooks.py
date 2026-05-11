@@ -3,18 +3,19 @@ Webhook 路由单元测试
 测试覆盖率目标：85%+
 """
 
-import pytest
-import hmac
 import hashlib
+import hmac
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.routes.webhooks import (
-    verify_timestamp_window,
+    WEBHOOK_TIMESTAMP_WINDOW,
     check_signature_not_used,
     record_webhook_signature,
+    verify_timestamp_window,
     verify_webhook_signature,
-    WEBHOOK_TIMESTAMP_WINDOW,
 )
 
 # ============================================================================

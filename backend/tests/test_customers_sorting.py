@@ -6,11 +6,12 @@
 3. 无效排序参数错误处理
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from app.services.customers import CustomerService, ALLOWED_SORT_FIELDS, VALID_SORT_ORDERS
+import pytest
+
 from app.models.customers import Customer
+from app.services.customers import ALLOWED_SORT_FIELDS, VALID_SORT_ORDERS, CustomerService
 
 # ==================== MockDBSession 工具类 ====================
 # 注意：使用 MagicMock (非 AsyncMock) 因为 CustomerService 的 _is_async 检查
@@ -470,9 +471,9 @@ class TestSortEdgeCases:
         for field in ALLOWED_SORT_FIELDS:
             # industry 字段在 CustomerProfile 表中
             if field == "industry":
-                assert hasattr(
-                    CustomerProfile, field
-                ), f"{field} is not a valid CustomerProfile attribute"
+                assert hasattr(CustomerProfile, field), (
+                    f"{field} is not a valid CustomerProfile attribute"
+                )
             else:
                 # 其他字段在 Customer 表中
                 assert hasattr(Customer, field), f"{field} is not a valid Customer attribute"

@@ -1,11 +1,13 @@
 """标签管理服务"""
 
-from typing import Optional, List, Tuple
 from datetime import datetime
+from typing import List, Optional, Tuple
+
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from ..models.tags import Tag, CustomerTag, ProfileTag
+
 from ..models.customers import Customer, CustomerProfile
+from ..models.tags import CustomerTag, ProfileTag, Tag
 
 
 class TagService:

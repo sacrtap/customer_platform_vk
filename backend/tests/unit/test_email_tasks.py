@@ -1,16 +1,17 @@
 """Email Tasks 单元测试 - 逾期提醒邮件任务"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+import sys
 from datetime import date, datetime
 from decimal import Decimal
-import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
 from app.models.billing import SyncTaskLog  # noqa: E402
-from app.tasks.email_tasks import send_overdue_emails, _log_email_task  # noqa: E402
+from app.tasks.email_tasks import _log_email_task, send_overdue_emails  # noqa: E402
 
 # ==================== Fixtures ====================
 

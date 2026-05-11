@@ -1,12 +1,13 @@
 """行业类型管理路由"""
 
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
+from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..services.industry_type_service import IndustryTypeService
-from ..middleware.auth import auth_required
+
 from ..cache.base import cache_service
+from ..middleware.auth import auth_required
+from ..services.industry_type_service import IndustryTypeService
 
 industry_type_bp = Blueprint("industry_types", url_prefix="/api/v1/industry-types")
 

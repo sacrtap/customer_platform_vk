@@ -1,6 +1,7 @@
 """行业类型字典模型"""
 
-from sqlalchemy import Column, String, Integer
+from sqlalchemy import Column, Integer, String
+
 from .base import BaseModel
 
 

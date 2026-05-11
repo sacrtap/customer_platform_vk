@@ -1,19 +1,22 @@
 """结算管理路由"""
 
-from sanic import Blueprint
-from sanic.response import json, file as response_file
-from sanic.request import Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
+
 from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from ..services.billing import BalanceService, PricingService, InvoiceService
-from ..models.industry_type import IndustryType
-from ..middleware.auth import get_current_user, require_permission, auth_required
+from sanic import Blueprint
+from sanic.request import Request
+from sanic.response import file as response_file
+from sanic.response import json
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..cache.base import cache_service
+from ..middleware.auth import auth_required, get_current_user, require_permission
+from ..models.industry_type import IndustryType
+from ..services.billing import BalanceService, InvoiceService, PricingService
 from ..utils.audit_helpers import create_audit_entry
 
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
@@ -29,9 +32,10 @@ async def get_balances(request: Request):
     """获取余额列表（支持服务端筛选、排序和分页）"""
     db: AsyncSession = request.ctx.db_session
 
-    from ..models.billing import CustomerBalance, RechargeRecord
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
     from sqlalchemy.orm import selectinload
+
+    from ..models.billing import CustomerBalance, RechargeRecord
     from ..models.customers import Customer, CustomerProfile
 
     # 分页参数
@@ -502,8 +506,9 @@ async def get_recharge_records(request: Request):
 async def get_consumption_records(request: Request):
     """获取消费记录列表"""
     db: AsyncSession = request.ctx.db_session
-    from ..models.billing import ConsumptionRecord
     from sqlalchemy import select
+
+    from ..models.billing import ConsumptionRecord
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     page = int(request.args.get("page", 1))
@@ -1242,10 +1247,11 @@ async def export_invoices(request: Request):
     响应:
     - Excel 文件下载
     """
-    from ..models.billing import Invoice, InvoiceStatus
-    from ..models.customers import Customer
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
+
+    from ..models.billing import Invoice, InvoiceStatus
+    from ..models.customers import Customer
 
     # 获取数据库会话
     db: AsyncSession = request.ctx.db_session

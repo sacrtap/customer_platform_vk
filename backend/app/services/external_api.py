@@ -2,10 +2,11 @@
 外部 API 客户端 - 用于同步业务系统数据
 """
 
-import httpx
 import logging
-from typing import Optional, Dict, Any
 from datetime import date
+from typing import Any, Dict, Optional
+
+import httpx
 
 from ..config import settings
 

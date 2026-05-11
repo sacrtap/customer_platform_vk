@@ -4,8 +4,9 @@
 """
 
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ============================================================================
 # 测试余额预警检查任务 (balance_check.py)

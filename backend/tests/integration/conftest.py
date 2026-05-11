@@ -10,8 +10,8 @@
 # ============================================================
 # 必须在导入 ANY 应用代码之前设置环境变量
 # ============================================================
-import sys
 import os
+import sys
 
 # 强制设置固定的 JWT_SECRET 和 WEBHOOK_SECRET
 os.environ["JWT_SECRET"] = "integration_test_jwt_secret_key_fixed_12345678"
@@ -29,11 +29,12 @@ app.config.get_settings.cache_clear()
 app.config.settings = app.config.get_settings()
 
 # 现在才导入应用代码
-import pytest  # noqa: E402
 from unittest.mock import MagicMock, patch  # noqa: E402
+
+import pytest  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
@@ -124,6 +125,7 @@ def test_user(sync_test_engine, worker_id):
     - 使用 DELETE + ON CONFLICT 替代 TRUNCATE，避免并行测试死锁
     """
     import sys
+
     import bcrypt
 
     username = "admin"
@@ -382,6 +384,7 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
 async def mock_cache():
     """Mock 缓存服务，避免依赖 Redis"""
     from unittest.mock import AsyncMock, MagicMock
+
     from app.cache import base, permissions
 
     # Mock 缓存服务（所有方法都使用 AsyncMock）

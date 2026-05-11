@@ -1,7 +1,8 @@
 """标签管理模型"""
 
-from sqlalchemy import Column, String, Integer, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 

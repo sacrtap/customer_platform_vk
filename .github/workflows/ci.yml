@@ -45,13 +45,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Run linting (flake8)
+      - name: Run linting and formatting check (ruff)
         run: |
-          flake8 backend/app/ backend/tests/ --max-line-length=120 --extend-ignore=E203
-
-      - name: Run code formatting check (black)
-        run: |
-          black backend/app/ backend/tests/ --check --diff
+          cd backend
+          ruff check app/ tests/
+          ruff format app/ tests/ --check
 
       - name: Run unit tests only (fast)
         run: |
@@ -64,9 +62,6 @@ jobs:
   frontend-check:
     name: Frontend Quick Check
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'push' ||
-      contains(github.event.pull_request.labels.*.name, 'frontend')
 
     steps:
       - name: Checkout code

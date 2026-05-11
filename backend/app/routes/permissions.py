@@ -2,12 +2,13 @@
 """权限管理路由"""
 
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from sanic.response import json
 from sqlalchemy import select
-from ..models.users import Permission
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..middleware.auth import require_permission
+from ..models.users import Permission
 
 permissions_bp = Blueprint("permissions", url_prefix="/api/v1/permissions")
 

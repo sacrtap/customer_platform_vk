@@ -3,6 +3,7 @@ APScheduler 任务调度器
 """
 
 import logging
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -27,11 +28,11 @@ def init_scheduler(app):
         session_factory = app.ctx.async_session_maker
 
         # 导入任务函数
-        from .usage_sync import sync_daily_usage
-        from .invoice_generator import generate_monthly_invoices
         from .balance_check import check_balance_warning
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
+        from .invoice_generator import generate_monthly_invoices
+        from .usage_sync import sync_daily_usage
         from .webhook_cleanup import cleanup_webhook_signatures
 
         # 添加定时任务 - 使用 lambda 传递 session

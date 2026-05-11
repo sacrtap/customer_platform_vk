@@ -4,7 +4,7 @@
 
 from sanic import Blueprint
 from sanic.response import json
-from sqlalchemy import select, func, desc
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import auth_required

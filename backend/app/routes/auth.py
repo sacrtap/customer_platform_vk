@@ -1,19 +1,21 @@
 """认证相关路由"""
 
-from sanic import Blueprint
-from sanic.response import json
-from sanic.request import Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
-import jwt
 import uuid
-from ..services.auth import AuthService
-from ..services.users import UserService
-from ..services.permissions import get_user_permissions
-from ..middleware.auth import get_current_user
+from datetime import datetime, timedelta
+
+import jwt
+from sanic import Blueprint
+from sanic.request import Request
+from sanic.response import json
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..cache.permissions import permission_cache
-from ..services.token_blacklist import TokenBlacklistService
 from ..config import settings
+from ..middleware.auth import get_current_user
+from ..services.auth import AuthService
+from ..services.permissions import get_user_permissions
+from ..services.token_blacklist import TokenBlacklistService
+from ..services.users import UserService
 
 auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
 

@@ -424,8 +424,8 @@ source .venv/bin/activate  # macOS/Linux
 # .venv\Scripts\activate   # Windows
 
 # 代码格式化
-black app/ tests/
-flake8 app/ tests/
+ruff format app/ tests/
+ruff check app/ tests/
 
 # 数据库迁移
 python -m alembic revision --autogenerate -m "描述"

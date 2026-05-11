@@ -1,17 +1,18 @@
 """客户信息与画像模型"""
 
 from sqlalchemy import (
-    Column,
-    String,
     Boolean,
-    Integer,
-    ForeignKey,
-    Text,
-    Index,
+    Column,
     Date,
+    ForeignKey,
+    Index,
+    Integer,
     Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 

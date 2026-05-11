@@ -1,6 +1,7 @@
 """Webhook 相关模型"""
 
-from sqlalchemy import Column, String, DateTime, Boolean, Index
+from sqlalchemy import Boolean, Column, DateTime, Index, String
+
 from .base import BaseModel
 
 

@@ -1,13 +1,13 @@
 """审计辅助函数集成测试（需要数据库）"""
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.models.base import BaseModel
 from app.models.users import User
 from app.utils.audit_helpers import (
-    create_audit_entry,
     build_batch_audit_summary,
+    create_audit_entry,
 )
 
 # 使用 xdist_group 标记，确保数据库操作测试串行执行

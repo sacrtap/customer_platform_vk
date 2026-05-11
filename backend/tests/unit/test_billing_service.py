@@ -1,16 +1,17 @@
 """Billing Service 单元测试 - 余额扣款与定价规则"""
 
-import pytest
-from decimal import Decimal
 from datetime import date
-from unittest.mock import MagicMock, AsyncMock
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
-from app.services.billing import BalanceService, PricingService
+import pytest
+
 from app.models.billing import (
     CustomerBalance,
-    RechargeRecord,
     PricingRule,
+    RechargeRecord,
 )
+from app.services.billing import BalanceService, PricingService
 
 # ==================== Fixtures ====================
 

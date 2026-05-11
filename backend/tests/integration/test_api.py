@@ -5,8 +5,8 @@
 所有测试函数使用异步方式
 """
 
-import pytest
 import bcrypt
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

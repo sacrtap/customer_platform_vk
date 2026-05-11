@@ -1,24 +1,25 @@
 """客户管理路由"""
 
+import hashlib
+import io
+import math
+import re
+from datetime import datetime
+
+import pandas as pd
 from sanic import Blueprint
-from sanic.response import json, raw
 from sanic.request import Request
+from sanic.response import json, raw
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..cache.base import cache_service
+from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..services.customers import (
     CustomerService,
     convert_price_policy_to_display,
     convert_settlement_type_to_display,
 )
-from ..cache.base import cache_service
-from ..middleware.auth import auth_required, require_permission, get_current_user
-import pandas as pd
-import io
-import math
-from datetime import datetime
-import hashlib
-import re
-
-from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
+from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 
@@ -279,8 +280,9 @@ async def create_customer(request: Request):
     # industry_type_id 存在性验证
     industry_type_id = data.get("industry_type_id")
     if industry_type_id is not None:
-        from ..models.industry_type import IndustryType
         from sqlalchemy import select
+
+        from ..models.industry_type import IndustryType
 
         db_session: AsyncSession = request.ctx.db_session
         result = await db_session.execute(
@@ -349,8 +351,9 @@ async def update_customer(request: Request, customer_id: int):
     # industry_type_id 存在性验证
     industry_type_id = data.get("industry_type_id")
     if industry_type_id is not None:
-        from ..models.industry_type import IndustryType
         from sqlalchemy import select
+
+        from ..models.industry_type import IndustryType
 
         db_session: AsyncSession = request.ctx.db_session
         result = await db_session.execute(
@@ -569,8 +572,9 @@ async def import_customers(request: Request):
         errors = []
 
         # 处理 industry 列：将行业类型名称转换为 industry_type_id
-        from ..models.industry_type import IndustryType
         from sqlalchemy import select
+
+        from ..models.industry_type import IndustryType
 
         db_session: AsyncSession = request.ctx.db_session
         industry_result = await db_session.execute(select(IndustryType))

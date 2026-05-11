@@ -1,7 +1,8 @@
 """Permission Service 单元测试"""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from app.services.permissions import get_user_permissions
 

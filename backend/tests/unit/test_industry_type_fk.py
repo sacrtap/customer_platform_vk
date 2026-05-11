@@ -1,7 +1,9 @@
 """行业类型外键关联集成测试"""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+
 from app.models.customers import Customer, CustomerProfile
 from app.models.industry_type import IndustryType
 from app.services.customers import CustomerService

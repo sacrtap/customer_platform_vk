@@ -5,11 +5,12 @@ P6-4: 余额预警检查任务
 
 import logging
 from datetime import datetime
+
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.customers import Customer
 from ..models.billing import CustomerBalance
+from ..models.customers import Customer
 
 logger = logging.getLogger(__name__)
 

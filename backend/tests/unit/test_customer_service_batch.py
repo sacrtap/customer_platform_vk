@@ -8,8 +8,9 @@
 3. 批量创建 CustomerBalance 对象
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 

@@ -1,12 +1,14 @@
 """客户分析 API 路由"""
 
+from datetime import datetime
+
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
-from datetime import datetime
+
+from ..cache.base import cache_service
 from ..middleware.auth import auth_required
 from ..services.analytics import AnalyticsService
-from ..cache.base import cache_service
 
 analytics = Blueprint("analytics", url_prefix="/api/v1/analytics")
 
@@ -245,6 +247,7 @@ async def get_inactive_list(request: Request):
 async def get_customer_health_score(request: Request, customer_id: int):
     """获取客户健康度评分"""
     from sqlalchemy import select as sa_select
+
     from ..models.customers import Customer
 
     db_session = request.ctx.db_session

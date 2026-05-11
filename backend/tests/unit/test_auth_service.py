@@ -1,9 +1,10 @@
 """Auth Service 单元测试"""
 
-import pytest
 from datetime import timedelta
-import jwt
 from unittest.mock import patch
+
+import jwt
+import pytest
 
 from app.services.auth import AuthService
 

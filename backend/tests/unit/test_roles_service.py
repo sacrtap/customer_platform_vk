@@ -1,10 +1,11 @@
 """Roles Service 单元测试"""
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from app.models.users import Permission, Role
 from app.services.roles import RoleService
-from app.models.users import Role, Permission
 
 # ==================== Fixtures ====================
 

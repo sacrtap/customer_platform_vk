@@ -1,9 +1,11 @@
 """权限服务"""
 
+from typing import Set
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Set
-from ..models.users import User, Role, Permission, user_roles, role_permissions
+
+from ..models.users import Permission, Role, User, role_permissions, user_roles
 
 
 async def get_user_permissions(session: AsyncSession, user_id: int) -> Set[str]:

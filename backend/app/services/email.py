@@ -2,14 +2,15 @@
 邮件服务 - SMTP 邮件发送
 """
 
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from typing import List, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 import os
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import List, Optional
+
+import aiosmtplib
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..config import settings
 

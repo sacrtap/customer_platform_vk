@@ -1,8 +1,9 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field
-from functools import lru_cache
 import os
 import secrets
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -51,7 +52,7 @@ class Settings(BaseSettings):
 
     # Webhook 配置 - 生产环境必须从环境变量读取
     webhook_secret: str = Field(
-        default_factory=lambda: (os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32)),
+        default_factory=lambda: os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32),
         description="Webhook 签名密钥，生产环境必须设置 WEBHOOK_SECRET 环境变量",
     )
 

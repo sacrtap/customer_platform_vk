@@ -1,18 +1,20 @@
 """用户管理路由"""
 
+from io import BytesIO
+
+import openpyxl
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
+from sanic.response import json
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..services.users import UserService
-from ..middleware.auth import get_current_user, require_permission, auth_required
+
 from ..cache.permissions import permission_cache
+from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..models.billing import AuditLog
 from ..models.users import Role
-from sqlalchemy import select
-import openpyxl
-from io import BytesIO
-from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
+from ..services.users import UserService
+from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 users_bp = Blueprint("users", url_prefix="/api/v1/users")
 

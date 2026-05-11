@@ -19,12 +19,13 @@ Analytics API 集成测试
 15. GET /api/v1/analytics/prediction/monthly - 预测月度回款
 """
 
-import pytest
+from datetime import datetime, timedelta, timezone
+
 import bcrypt
+import jwt
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta, timezone
-import jwt
 
 
 @pytest.fixture(scope="function")
@@ -42,18 +43,22 @@ def auth_token(test_client, db_session: Session, app):
     db_session.commit()
 
     # 确保超级管理员角色存在
-    db_session.execute(text("""
+    db_session.execute(
+        text("""
         INSERT INTO roles (name, description, is_system, created_at)
         VALUES ('超级管理员', '拥有系统所有权限', true, NOW())
         ON CONFLICT (name) DO NOTHING
-        """))
+        """)
+    )
 
     # 确保需要的权限存在
-    db_session.execute(text("""
+    db_session.execute(
+        text("""
         INSERT INTO permissions (code, name, description, module, created_at)
         VALUES ('analytics:view', '查看分析', '查看所有分析报表', 'analytics', NOW())
         ON CONFLICT (code) DO NOTHING
-        """))
+        """)
+    )
 
     # 获取角色 ID 和权限 ID
     result = db_session.execute(text("SELECT id FROM roles WHERE name = '超级管理员'"))

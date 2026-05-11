@@ -1,20 +1,22 @@
 """结算与余额模型"""
 
+from enum import Enum
+
 from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    Integer,
-    ForeignKey,
-    Text,
     DECIMAL,
-    Date,
     JSON,
+    Boolean,
+    Column,
+    Date,
+    ForeignKey,
     Index,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from .base import BaseModel
-from enum import Enum
 
 
 class InvoiceStatus(str, Enum):

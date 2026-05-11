@@ -1,7 +1,8 @@
 """文件管理模型"""
 
-from sqlalchemy import Column, String, Integer, BigInteger, ForeignKey
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
+
 from .base import BaseModel
 
 

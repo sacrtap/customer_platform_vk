@@ -1,23 +1,25 @@
 """客户分析服务"""
 
-from datetime import datetime, date
 from calendar import monthrange
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import select, func, and_, or_, extract, case
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import and_, case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..models.customers import Customer, CustomerProfile
-from ..models.industry_type import IndustryType
+
 from ..models.billing import (
-    DailyUsage,
     ConsumptionRecord,
+    CustomerBalance,
+    DailyUsage,
     Invoice,
     InvoiceItem,
-    CustomerBalance,
     PricingRule,
     RechargeRecord,
 )
+from ..models.customers import Customer, CustomerProfile
+from ..models.industry_type import IndustryType
 from ..models.users import User
-from typing import Dict, List, Any, Optional
 
 
 class AnalyticsService:

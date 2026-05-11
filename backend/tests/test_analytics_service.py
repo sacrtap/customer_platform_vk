@@ -10,10 +10,11 @@
 6. 首页仪表盘 - get_dashboard_stats, get_dashboard_chart_data
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from decimal import Decimal
 from datetime import date, datetime
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class MockDBSession:

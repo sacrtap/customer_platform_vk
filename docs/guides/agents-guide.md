@@ -47,7 +47,7 @@ pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-u
 cd backend && source .venv/bin/activate
 
 # 格式化 + 检查
-black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
+ruff format app/ tests/ && ruff check app/ tests/
 ```
 
 #### 数据库迁移
@@ -254,8 +254,8 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 2. **开发并通过测试**
    ```bash
    # 后端
-   make test-parallel
-   black app/ tests/ && flake8 app/ tests/
+    make test-parallel
+    ruff format app/ tests/ && ruff check app/ tests/
    
    # 前端
    npm run type-check
@@ -402,7 +402,7 @@ cd frontend && npm run dev
 cd backend && make test-parallel
 
 # 4. 代码检查
-cd backend && black app/ tests/ && flake8 app/ tests/
+cd backend && ruff format app/ tests/ && ruff check app/ tests/
 cd frontend && npm run lint && npm run type-check
 ```
 
@@ -413,7 +413,7 @@ cd backend && make test-parallel
 cd frontend && npm run test:e2e
 
 # 2. 代码质量
-cd backend && black app/ tests/ && flake8 app/ tests/
+cd backend && ruff format app/ tests/ && ruff check app/ tests/
 cd frontend && npm run lint && npm run format && npm run type-check
 
 # 3. 提交

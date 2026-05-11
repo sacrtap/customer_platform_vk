@@ -49,13 +49,11 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Python linting (flake8)
+      - name: Python linting and formatting (ruff)
         run: |
-          flake8 backend/app/ backend/tests/ --max-line-length=120 --extend-ignore=E203
-
-      - name: Python formatting (black)
-        run: |
-          black backend/app/ backend/tests/ --check --diff
+          cd backend
+          ruff check app/ tests/
+          ruff format app/ tests/ --check
 
       - name: Frontend linting
         run: |

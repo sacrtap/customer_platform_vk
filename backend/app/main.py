@@ -1,18 +1,20 @@
+from typing import Union
+
 from sanic import Sanic
 from sanic.response import json
 from sanic_cors import CORS
+from sqlalchemy import Engine
 from sqlalchemy.ext.asyncio import (
-    create_async_engine,
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    AsyncEngine,
+    create_async_engine,
 )
-from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Union
+
 from .config import settings
-from .middleware.auth import auth_middleware
 from .middleware.audit import audit_middleware
+from .middleware.auth import auth_middleware
 
 
 def create_app(
@@ -93,21 +95,20 @@ def create_app(
     audit_middleware(app)
 
     # 注册路由蓝图
-    from .routes.auth import auth_bp
-    from .routes.users import users_bp
-    from .routes.customers import customers_bp
-    from .routes.billing import billing_bp
-    from .routes.tags import tags_bp, customer_tags_bp, profile_tags_bp
     from .routes.analytics import analytics
-    from .routes.files import files_bp
-    from .routes.webhooks import webhooks_bp
-    from .routes.sync_logs import sync_logs_bp
     from .routes.audit_logs import audit_logs_bp
-
-    from .routes.roles import roles_bp
-    from .routes.permissions import permissions_bp
+    from .routes.auth import auth_bp
+    from .routes.billing import billing_bp
+    from .routes.customers import customers_bp
     from .routes.dict_routes import dict_bp
+    from .routes.files import files_bp
     from .routes.industry_type_routes import industry_type_bp
+    from .routes.permissions import permissions_bp
+    from .routes.roles import roles_bp
+    from .routes.sync_logs import sync_logs_bp
+    from .routes.tags import customer_tags_bp, profile_tags_bp, tags_bp
+    from .routes.users import users_bp
+    from .routes.webhooks import webhooks_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)

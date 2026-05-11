@@ -27,7 +27,7 @@
 **入口点**:
 - 后端: `backend/app/main.py` (Sanic 应用，通过 uvicorn ASGI 启动)
 - 前端: `frontend/src/main.ts`
-- Alembic: `backend/alembic/` (migrations 被 black 排除)
+- Alembic: `backend/alembic/` (migrations 被 ruff 排除)
 
 ---
 
@@ -44,7 +44,7 @@ cd frontend && npm run dev  # http://localhost:5173
 cd backend && make test-parallel  # 并行测试（推荐）
 
 # 代码检查
-cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
+cd backend && ruff format app/ tests/ && ruff check app/ tests/
 ```
 
 > 完整命令清单、环境变量配置、虚拟环境初始化、Git 工作流 → 详见 [docs/guides/agents-guide.md](docs/guides/agents-guide.md)
@@ -77,12 +77,12 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 
 ### 2. 代码格式化工具升级规则
 
-**问题案例**：升级 black 24→26 后，27 个文件格式不符合新规则，CI 失败
+**问题案例**：升级 ruff 后，文件格式不符合新规则，CI 失败
 
 **必须遵守**：
-- 升级 `black`/`prettier` 等格式化工具后，必须立即运行格式化命令修复全项目
+- 升级 `ruff`/`prettier` 等格式化工具后，必须立即运行格式化命令修复全项目
 - 不要假设"格式规则没变"——主版本升级通常有新规则
-- 提交前必须在本地运行 `black --check` 验证
+- 提交前必须在本地运行 `ruff format --check` 验证
 
 ### 3. 安全扫描修复规则
 
@@ -98,9 +98,9 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 **问题案例**：test_audit_helpers_db.py 第 57 行 143 字符超过 120 限制
 
 **必须遵守**：
-- 编写代码时严格遵守 `flake8 max-line-length=120` 限制
+- 编写代码时严格遵守 `ruff line-length=100` 限制
 - 长字符串/SQL 语句必须拆分到多行
-- 提交前必须运行 `flake8` 和 `black` 双重检查
+- 提交前必须运行 `ruff check` 和 `ruff format --check` 验证
 
 ### 5. 提交前完整验证清单
 
@@ -111,8 +111,8 @@ cd backend && black app/ tests/ && flake8 app/ tests/ --max-line-length=120 --ex
 ```bash
 # 后端检查
 cd backend && source .venv/bin/activate
-flake8 app/ tests/ --max-line-length=120 --extend-ignore=E203
-black app/ tests/ --check
+ruff check app/ tests/
+ruff format app/ tests/ --check
 safety check -r requirements.txt
 pytest tests/unit/ -v --tb=short
 
@@ -122,7 +122,7 @@ npm audit --audit-level=high
 npm run build
 ```
 
-**记忆口诀**：提交前跑四件套 — flake8、black、safety、pytest
+**记忆口诀**：提交前跑四件套 — ruff check、ruff format、safety、pytest
 
 ---
 
@@ -158,9 +158,8 @@ npm run build
 
 | 后端 Python                                  | 前端 TypeScript                              |
 | -------------------------------------------- | -------------------------------------------- |
-| `black` line-length=100, 排除 `migrations/`  | 禁止 `any`，`strict: true`                   |
-| `flake8` max-line-length=120, 忽略 E203      | `noUnusedLocals` + `noUnusedParameters` 开启 |
-| 所有函数必须有类型注解                       | 路径别名 `@/*` → `src/*`                     |
+| `ruff` line-length=100, 排除 `migrations/`   | 禁止 `any`，`strict: true`                   |
+| 所有函数必须有类型注解                       | `noUnusedLocals` + `noUnusedParameters` 开启 |
 | 类 `PascalCase` / 函数 `snake_case`          | 组件 `PascalCase` / 变量 `camelCase`         |
 
 ---

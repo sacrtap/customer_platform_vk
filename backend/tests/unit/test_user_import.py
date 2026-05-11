@@ -1,7 +1,8 @@
 """用户批量导入功能测试"""
 
-import openpyxl
 from io import BytesIO
+
+import openpyxl
 
 
 class TestUserImportValidation:

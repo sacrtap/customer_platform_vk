@@ -8,8 +8,8 @@ Auth API 集成测试
 4. /api/v1/auth/me - 获取当前用户信息
 """
 
-import pytest
 import bcrypt
+import pytest
 from sqlalchemy import text
 
 

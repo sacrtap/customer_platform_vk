@@ -1,10 +1,11 @@
 """User Service 单元测试"""
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from app.models.users import Role, User
 from app.services.users import UserService
-from app.models.users import User, Role
 
 # ==================== Fixtures ====================
 

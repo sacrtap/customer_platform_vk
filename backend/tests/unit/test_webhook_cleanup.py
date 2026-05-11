@@ -3,9 +3,10 @@ Webhook Cleanup Tasks 单元测试
 测试覆盖率目标：80%+
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class TestCleanupWebhookSignatures:
@@ -167,8 +168,9 @@ class TestCleanupWebhookSignatures:
     @pytest.mark.asyncio
     async def test_cleanup_delete_query_parameters(self, mock_session, mock_datetime, caplog):
         """测试删除查询参数正确性"""
-        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
         from sqlalchemy.sql.dml import Delete
+
+        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
         expired_sig = MagicMock()
         expired_sig.signature = "sig_expired"
@@ -190,8 +192,9 @@ class TestCleanupWebhookSignatures:
     @pytest.mark.asyncio
     async def test_cleanup_logs_info_message(self, mock_session, mock_datetime, caplog):
         """测试日志记录信息"""
-        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
         import logging
+
+        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
         expired_sig = MagicMock()
         expired_sig.signature = "sig_expired"
@@ -210,8 +213,9 @@ class TestCleanupWebhookSignatures:
     @pytest.mark.asyncio
     async def test_cleanup_logs_debug_when_no_records(self, mock_session, mock_datetime, caplog):
         """测试无记录时的调试日志"""
-        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
         import logging
+
+        from app.tasks.webhook_cleanup import cleanup_webhook_signatures
 
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []

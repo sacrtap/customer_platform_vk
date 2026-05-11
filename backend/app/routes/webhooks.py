@@ -3,17 +3,18 @@ P6-8: 客户确认 Webhook 接口
 接收外部系统回调，处理客户确认结算单操作
 """
 
-import hmac
 import hashlib
+import hmac
 import logging
 from datetime import datetime
+
 from sanic import Blueprint
 from sanic.response import json
 from sqlalchemy import select
 
+from ..config import settings
 from ..models.billing import Invoice, InvoiceStatus
 from ..models.webhooks import WebhookSignature
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 

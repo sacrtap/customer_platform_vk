@@ -1,8 +1,10 @@
 """Token 黑名单服务"""
 
 from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..models.token_blacklist import TokenBlacklist
 
 

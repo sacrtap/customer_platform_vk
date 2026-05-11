@@ -10,9 +10,10 @@
 Web UI: http://localhost:8089
 """
 
-from locust import HttpUser, task, between, events
 import random
 from datetime import datetime
+
+from locust import HttpUser, between, events, task
 
 
 class CustomerPlatformUser(HttpUser):

@@ -2,11 +2,11 @@
 客户运营中台 - Redis 缓存服务单元测试
 """
 
-import pytest
 import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
 import pytest_asyncio
 
 from app.cache.base import CacheService
@@ -234,7 +234,7 @@ class TestSet:
         self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
     ):
         """测试复杂数据的 JSON 序列化"""
-        from datetime import datetime, date
+        from datetime import date, datetime
 
         test_data = {
             "datetime_field": datetime(2024, 1, 1, 12, 0, 0),

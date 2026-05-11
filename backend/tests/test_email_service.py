@@ -2,8 +2,9 @@
 邮件服务测试
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.email import EmailService, email_service, get_email_service
 

@@ -1,11 +1,12 @@
 """角色管理服务"""
 
 from typing import List, Optional, Tuple
-from sqlalchemy import select, func
+
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from ..models.users import Role, Permission, role_permissions
-from sqlalchemy import delete
+
+from ..models.users import Permission, Role, role_permissions
 
 
 class RoleService:

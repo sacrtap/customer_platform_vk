@@ -1,7 +1,8 @@
 """基础模型定义"""
 
-from sqlalchemy import Column, Integer, DateTime
+from sqlalchemy import Column, DateTime, Integer
 from sqlalchemy.sql import func
+
 from . import Base
 
 

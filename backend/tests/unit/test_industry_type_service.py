@@ -1,9 +1,11 @@
 """行业类型服务单元测试"""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.services.industry_type_service import IndustryTypeService
+
+import pytest
+
 from app.models.industry_type import IndustryType
+from app.services.industry_type_service import IndustryTypeService
 
 
 @pytest.fixture

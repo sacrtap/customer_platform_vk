@@ -3,8 +3,9 @@
 测试 API 响应时间和并发能力
 """
 
-from locust import HttpUser, task, between, events
 import random
+
+from locust import HttpUser, between, events, task
 
 
 class CustomerPlatformUser(HttpUser):

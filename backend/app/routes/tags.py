@@ -1,14 +1,15 @@
 """标签管理路由"""
 
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from sanic.response import json
 from sqlalchemy.exc import IntegrityError
-from ..services.tags import TagService
-from ..middleware.auth import auth_required, require_permission, get_current_user
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..cache.base import cache_service
-from ..utils.audit_helpers import create_audit_entry, build_batch_audit_summary
+from ..middleware.auth import auth_required, get_current_user, require_permission
+from ..services.tags import TagService
+from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 tags_bp = Blueprint("tags", url_prefix="/api/v1/tags")
 

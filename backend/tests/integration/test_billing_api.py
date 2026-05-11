@@ -13,8 +13,9 @@ Billing API 集成测试
 9. POST /api/v1/billing/invoices/:id/complete - 完成结算
 """
 
-import pytest
 import uuid
+
+import pytest
 from sqlalchemy import text
 
 

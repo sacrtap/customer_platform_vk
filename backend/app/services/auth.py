@@ -1,9 +1,11 @@
 """JWT 认证服务"""
 
-import jwt
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
+import jwt
+
 from ..config import settings
 
 

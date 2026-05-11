@@ -5,7 +5,8 @@ P6-8: Webhook 签名清理任务
 
 import logging
 from datetime import datetime, timedelta
-from sqlalchemy import select, delete
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.webhooks import WebhookSignature

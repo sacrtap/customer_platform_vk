@@ -8,20 +8,21 @@ P6-9: 文件管理 API（安全增强版）
 - 随机文件名存储
 """
 
-import uuid
-import logging
-import magic
 import hashlib
+import logging
+import uuid
 from datetime import datetime
 from pathlib import Path
+
+import magic
 from sanic import Blueprint
-from sanic.response import json
 from sanic.request import Request
-from sqlalchemy import select, func, and_
+from sanic.response import json
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..middleware.auth import auth_required, require_permission, get_current_user
 from ..config import settings
+from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..models.billing import AuditLog
 from ..models.files import File
 

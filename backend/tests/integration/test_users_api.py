@@ -8,8 +8,8 @@ Users API 集成测试
 4. DELETE /api/v1/users/:id - 删除用户成功
 """
 
-import pytest
 import bcrypt
+import pytest
 from sqlalchemy import text
 
 
