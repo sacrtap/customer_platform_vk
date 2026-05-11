@@ -740,7 +740,7 @@ const profile = ref<CustomerProfile>({
   customer_id: 0,
   scale_level: null,
   consume_level: null,
-  industry: null,
+  industry_type_id: null,
   is_real_estate: false,
   description: null,
   created_at: '',

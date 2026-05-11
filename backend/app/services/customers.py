@@ -370,7 +370,9 @@ class CustomerService:
             if profile:
                 profile.industry_type_id = data["industry_type_id"]
             else:
-                profile = CustomerProfile(customer_id=customer.id, industry_type_id=data["industry_type_id"])
+                profile = CustomerProfile(
+                    customer_id=customer.id, industry_type_id=data["industry_type_id"]
+                )
                 self.db.add(profile)
 
         await self.db.commit()
@@ -403,6 +405,27 @@ class CustomerService:
         """创建或更新客户画像"""
         profile = await self.get_customer_profile(customer_id)
 
+        # 处理 industry 字段：将行业类型名称转换为 industry_type_id
+        industry_name = data.get("industry")
+        if industry_name is not None:
+            from ..models.industry_type import IndustryType
+            from sqlalchemy import select
+
+            result = await self.db.execute(
+                select(IndustryType).where(IndustryType.name == industry_name)
+            )
+            industry_type = result.scalar_one_or_none()
+            if industry_type:
+                # 设置 industry_type_id
+                data["industry_type_id"] = industry_type.id
+                # 设置 industry_type 关联，避免懒加载问题
+                if profile:
+                    profile.industry_type = industry_type
+                else:
+                    # 如果 profile 不存在，创建新画像时设置 industry_type 关联
+                    pass
+            # 如果行业类型不存在，不设置 industry_type_id（保持为 None）
+
         if profile:
             # 更新现有画像
             updatable_fields = [
@@ -434,6 +457,9 @@ class CustomerService:
                 estimated_annual_spend=data.get("estimated_annual_spend"),
                 actual_annual_spend_2025=data.get("actual_annual_spend_2025"),
             )
+            # 如果有 industry_type，设置关联（避免懒加载问题）
+            if industry_name is not None and industry_type:
+                profile.industry_type = industry_type
             self.db.add(profile)
 
         await self.db.commit()

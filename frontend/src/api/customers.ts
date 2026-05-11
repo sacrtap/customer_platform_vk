@@ -46,7 +46,7 @@ export function updateCustomer(
     company_id?: number // 公司 ID 可编辑
     name?: string
     account_type?: string
-    industry?: string
+    industry_type_id?: number | null
     price_policy?: PricePolicy | string
     manager_id?: number
     settlement_cycle?: string
@@ -82,7 +82,7 @@ export function updateProfile(
   data: {
     scale_level?: string
     consume_level?: string
-    industry?: string
+    industry_type_id?: number | null
     is_real_estate?: boolean
     description?: string
     monthly_avg_shots?: number

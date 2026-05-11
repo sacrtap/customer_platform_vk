@@ -43,6 +43,17 @@ def customer_data(db_session):
     db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.commit()
 
+    # 创建行业类型记录（用于测试 industry 字段）
+    db_session.execute(text("TRUNCATE industry_types CASCADE"))
+    db_session.execute(
+        text("""
+        INSERT INTO industry_types (name, sort_order, created_at)
+        VALUES (:name, :sort_order, NOW())
+        """),
+        {"name": "互联网", "sort_order": 1},
+    )
+    db_session.commit()
+
     customers = [
         {
             "company_id": 1001,

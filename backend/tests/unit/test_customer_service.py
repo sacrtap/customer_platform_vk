@@ -621,7 +621,7 @@ class TestCustomerService_Integration:
             customer_id=customer_id,
             scale_level="medium",
             consume_level="high",
-            industry="technology",
+            industry_type_id=1,
         )
         balance = CustomerBalance(
             customer_id=customer_id,

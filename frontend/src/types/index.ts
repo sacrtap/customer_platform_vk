@@ -111,6 +111,9 @@ export interface Customer {
   is_settlement_enabled: boolean | null
   is_disabled: boolean | null
   notes: string | null
+  // 可选关联对象（详情接口返回）
+  profile?: CustomerProfile
+  balance?: Balance
 }
 
 /** 客户画像 */

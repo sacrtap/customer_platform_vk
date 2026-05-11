@@ -70,7 +70,9 @@ class CustomerProfile(BaseModel):
     consume_level = Column(
         String(50)
     )  # 客户消费等级: C1/C2/C3/C4/C5/C6 (100万/50万/25万/12万/6万/6万以下)
-    industry_type_id = Column(Integer, ForeignKey("industry_types.id", ondelete="SET NULL"), nullable=True)
+    industry_type_id = Column(
+        Integer, ForeignKey("industry_types.id", ondelete="SET NULL"), nullable=True
+    )
     is_real_estate = Column(Boolean, default=False)
     description = Column(Text)
 
