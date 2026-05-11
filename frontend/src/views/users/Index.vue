@@ -201,7 +201,7 @@ interface User {
   real_name: string | null
   is_active: boolean
   is_system: boolean
-  roles: string[]
+  roles: Array<{ id: number; name: string }>
   role_ids: number[]
   created_at: string
 }
@@ -348,7 +348,7 @@ const loadUsers = async () => {
       real_name: item.real_name,
       is_active: item.is_active,
       is_system: item.is_system,
-      roles: item.roles?.map((r) => r.name) || [],
+      roles: item.roles || [],
       role_ids: item.roles?.map((r) => r.id) || [],
       created_at: item.created_at,
     }))
