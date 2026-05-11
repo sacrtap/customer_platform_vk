@@ -1,6 +1,12 @@
 """行业类型路由集成测试"""
 
 import pytest
+import time
+
+
+def unique_name(prefix: str) -> str:
+    """生成唯一的行业类型名称"""
+    return f"{prefix}_{int(time.time())}"
 
 
 @pytest.fixture
@@ -55,15 +61,16 @@ class TestCreateIndustryType:
     @pytest.mark.asyncio
     async def test_creates_success(self, test_client, auth_headers):
         """测试成功创建行业类型"""
+        name = unique_name("测试行业")
         _req, response = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "测试行业", "sort_order": 100},
+            json={"name": name, "sort_order": 100},
             headers=auth_headers,
         )
         assert response.status == 201
         data = response.json
         assert data["code"] == 0
-        assert data["data"]["name"] == "测试行业"
+        assert data["data"]["name"] == name
         assert data["data"]["sort_order"] == 100
         assert "id" in data["data"]
 
@@ -73,7 +80,7 @@ class TestCreateIndustryType:
         # 缺少 sort_order
         _req, response = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "测试行业"},
+            json={"name": unique_name("测试行业")},
             headers=auth_headers,
         )
         assert response.status == 422
@@ -97,17 +104,19 @@ class TestCreateIndustryType:
     @pytest.mark.asyncio
     async def test_prevents_duplicate_name(self, test_client, auth_headers):
         """测试重复名称返回 409"""
+        name = unique_name("重复测试行业")
+
         # 创建第一个
         _req, _ = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "重复测试行业", "sort_order": 1},
+            json={"name": name, "sort_order": 1},
             headers=auth_headers,
         )
 
         # 尝试创建同名
         _req, response = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "重复测试行业", "sort_order": 2},
+            json={"name": name, "sort_order": 2},
             headers=auth_headers,
         )
         assert response.status == 409
@@ -129,21 +138,22 @@ class TestUpdateIndustryType:
         # 先创建一个
         _req, create_resp = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "原始名称", "sort_order": 1},
+            json={"name": unique_name("原始名称"), "sort_order": 1},
             headers=auth_headers,
         )
+        assert create_resp.status == 201, f"创建失败: {create_resp.json}"
         industry_id = create_resp.json["data"]["id"]
 
         # 更新
         _req, response = await test_client.put(
             f"/api/v1/industry-types/{industry_id}",
-            json={"name": "新名称", "sort_order": 2},
+            json={"name": unique_name("新名称"), "sort_order": 2},
             headers=auth_headers,
         )
         assert response.status == 200
         data = response.json
         assert data["code"] == 0
-        assert data["data"]["name"] == "新名称"
+        assert data["data"]["name"].startswith("新名称")
         assert data["data"]["sort_order"] == 2
 
     @pytest.mark.asyncio
@@ -151,7 +161,7 @@ class TestUpdateIndustryType:
         """测试不存在的 ID 返回 404"""
         _req, response = await test_client.put(
             "/api/v1/industry-types/99999",
-            json={"name": "新名称", "sort_order": 1},
+            json={"name": unique_name("新名称"), "sort_order": 1},
             headers=auth_headers,
         )
         assert response.status == 404
@@ -162,7 +172,7 @@ class TestUpdateIndustryType:
         # 先创建一个
         _req, create_resp = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "原始名称", "sort_order": 1},
+            json={"name": unique_name("更新测试"), "sort_order": 1},
             headers=auth_headers,
         )
         industry_id = create_resp.json["data"]["id"]
@@ -170,33 +180,41 @@ class TestUpdateIndustryType:
         # 缺少 sort_order
         _req, response = await test_client.put(
             f"/api/v1/industry-types/{industry_id}",
-            json={"name": "新名称"},
+            json={"name": unique_name("新名称")},
+            headers=auth_headers,
+        )
+        assert response.status == 422
+
+        # 缺少 name
+        _req, response = await test_client.put(
+            f"/api/v1/industry-types/{industry_id}",
+            json={"sort_order": 2},
             headers=auth_headers,
         )
         assert response.status == 422
 
     @pytest.mark.asyncio
-    async def test_prevents_duplicate_name(self, test_client, auth_headers):
+    async def test_prevents_duplicate_name_on_update(self, test_client, auth_headers):
         """测试更新时重复名称返回 409"""
-        # 创建两个行业类型
+        # 创建两个
         _req, resp1 = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "行业A", "sort_order": 1},
+            json={"name": unique_name("行业A"), "sort_order": 1},
             headers=auth_headers,
         )
-        id_a = resp1.json["data"]["id"]
 
         _req, resp2 = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "行业B", "sort_order": 2},
+            json={"name": unique_name("行业B"), "sort_order": 2},
             headers=auth_headers,
         )
-        id_b = resp2.json["data"]["id"]
+        id2 = resp2.json["data"]["id"]
 
-        # 尝试将行业A更新为行业B的名称
+        # 尝试将第二个更新为第一个的名称
+        name1 = resp1.json["data"]["name"]
         _req, response = await test_client.put(
-            f"/api/v1/industry-types/{id_a}",
-            json={"name": "行业B", "sort_order": 3},
+            f"/api/v1/industry-types/{id2}",
+            json={"name": name1, "sort_order": 3},
             headers=auth_headers,
         )
         assert response.status == 409
@@ -215,12 +233,17 @@ class TestDeleteIndustryType:
     @pytest.mark.asyncio
     async def test_deletes_success(self, test_client, auth_headers):
         """测试成功软删除"""
+        import time
+
+        unique_name = f"待删除_{int(time.time())}"
+
         # 先创建一个
         _req, create_resp = await test_client.post(
             "/api/v1/industry-types",
-            json={"name": "待删除", "sort_order": 1},
+            json={"name": unique_name, "sort_order": 1},
             headers=auth_headers,
         )
+        assert create_resp.status == 201, f"创建失败: {create_resp.json}"
         industry_id = create_resp.json["data"]["id"]
 
         # 删除
@@ -232,9 +255,7 @@ class TestDeleteIndustryType:
         assert response.json["code"] == 0
 
         # 验证不再出现在列表中
-        _req, list_resp = await test_client.get(
-            "/api/v1/industry-types", headers=auth_headers
-        )
+        _req, list_resp = await test_client.get("/api/v1/industry-types", headers=auth_headers)
         ids = [item["id"] for item in list_resp.json["data"]]
         assert industry_id not in ids
 

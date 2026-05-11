@@ -129,6 +129,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/system/AuditLogs.vue'),
             meta: { requiresPermission: 'system:view' },
           },
+          {
+            path: 'industry-types',
+            name: 'IndustryTypes',
+            component: () => import('@/views/system/IndustryTypes.vue'),
+            meta: { requiresPermission: 'industry_types:manage' },
+          },
         ],
       },
     ],
