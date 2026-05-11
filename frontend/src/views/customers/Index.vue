@@ -323,16 +323,16 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item field="industry" label="行业类型">
+            <a-form-item field="industry_type_id" label="行业类型">
               <a-select
-                v-model="customerForm.industry"
+                v-model="customerForm.industry_type_id"
                 placeholder="请选择行业类型"
                 allow-clear
               >
                 <a-option
                   v-for="item in industryTypes"
                   :key="item.id"
-                  :value="item.name"
+                  :value="item.id"
                 >
                   {{ item.name }}
                 </a-option>
@@ -786,7 +786,7 @@ const customerForm = reactive({
   name: '',
   email: '',
   account_type: undefined as string | undefined,
-  industry: undefined as string | undefined,
+  industry_type_id: null as number | null,
   settlement_type: undefined as string | undefined,
   settlement_cycle: undefined as string | undefined,
   is_key_customer: false,
@@ -809,7 +809,7 @@ const openCreateModal = () => {
     name: '',
     email: '',
     account_type: undefined,
-    industry: undefined,
+    industry_type_id: null,
     settlement_type: undefined,
     settlement_cycle: undefined,
     is_key_customer: false,
@@ -828,7 +828,7 @@ const openEditModal = (record: Customer) => {
     name: record.name,
     email: record.email || '',
     account_type: record.account_type,
-    industry: record.industry,
+    industry_type_id: record.profile?.industry_type_id ?? null,
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,
@@ -857,7 +857,7 @@ const handleCustomerSubmit = async () => {
       name: customerForm.name,
       email: customerForm.email || undefined,
       account_type: customerForm.account_type,
-      industry: customerForm.industry,
+      industry_type_id: customerForm.industry_type_id,
       settlement_type: customerForm.settlement_type,
       settlement_cycle: customerForm.settlement_cycle,
       is_key_customer: customerForm.is_key_customer,

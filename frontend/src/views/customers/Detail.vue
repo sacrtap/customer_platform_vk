@@ -393,9 +393,9 @@
                 </a-select>
               </a-form-item>
 
-              <a-form-item field="industry" label="行业类型">
-                <a-select v-model="editForm.industry" placeholder="请选择行业类型" allow-clear :loading="industryTypesLoading">
-                  <a-option v-for="type in industryTypes" :key="type.name" :value="type.name">
+              <a-form-item field="industry_type_id" label="行业类型">
+                <a-select v-model="editForm.industry_type_id" placeholder="请选择行业类型" allow-clear :loading="industryTypesLoading">
+                  <a-option v-for="type in industryTypes" :key="type.id" :value="type.id">
                     {{ type.name }}
                   </a-option>
                 </a-select>
@@ -680,7 +680,7 @@ interface EditForm {
   company_id: number
   email: string
   account_type?: string
-  industry?: string
+  industry_type_id?: number | null
   price_policy?: string
   settlement_type?: string
   settlement_cycle?: string
@@ -858,7 +858,7 @@ const editForm = ref<EditForm>({
   company_id: 0,
   email: '',
   account_type: undefined,
-  industry: undefined,
+  industry_type_id: null,
   price_policy: undefined,
   settlement_type: undefined,
   settlement_cycle: undefined,
@@ -1040,7 +1040,7 @@ const openEditModal = () => {
     company_id: Number(customer.value.company_id) || 0,
     email: customer.value.email || '',
     account_type: customer.value.account_type || undefined,
-    industry: customer.value.industry || undefined,
+    industry_type_id: profile.value.industry_type_id ?? null,
     price_policy: customer.value.price_policy || undefined,
     settlement_type: customer.value.settlement_type || undefined,
     settlement_cycle: customer.value.settlement_cycle || undefined,
@@ -1112,7 +1112,7 @@ const handleEditSubmit = async () => {
         name: editForm.value.name,
         email: editForm.value.email || undefined,
         account_type: editForm.value.account_type || undefined,
-        industry: editForm.value.industry || undefined,
+        industry_type_id: editForm.value.industry_type_id ?? undefined,
         price_policy: editForm.value.price_policy || undefined,
         settlement_type: editForm.value.settlement_type,
         settlement_cycle: editForm.value.settlement_cycle || undefined,
@@ -1130,6 +1130,7 @@ const handleEditSubmit = async () => {
       updateProfile(customerId.value, {
         scale_level: editForm.value.scale_level || undefined,
         consume_level: editForm.value.consume_level || undefined,
+        industry_type_id: editForm.value.industry_type_id ?? undefined,
       }),
     ])
     Message.success('更新成功')
