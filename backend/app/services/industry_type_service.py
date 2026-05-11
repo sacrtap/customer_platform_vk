@@ -1,8 +1,7 @@
 """行业类型服务 - 行业类型 CRUD 操作"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.industry_type import IndustryType
 
@@ -34,6 +33,13 @@ class IndustryTypeService:
 
     async def create(self, name: str, sort_order: int) -> IndustryType:
         """新增行业类型，校验名称唯一性"""
+        # 检查名称是否已存在
+        existing = await self.db_session.execute(
+            select(IndustryType).where(IndustryType.name == name)
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError(f"行业类型 '{name}' 已存在")
+
         industry_type = IndustryType(name=name, sort_order=sort_order)
         self.db_session.add(industry_type)
         await self.db_session.commit()
@@ -45,6 +51,17 @@ class IndustryTypeService:
         industry_type = await self.get_by_id(id)
         if industry_type is None:
             return None
+
+        # 检查名称是否已被其他记录使用
+        existing = await self.db_session.execute(
+            select(IndustryType).where(
+                IndustryType.name == name,
+                IndustryType.id != id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError(f"行业类型 '{name}' 已存在")
+
         industry_type.name = name
         industry_type.sort_order = sort_order
         await self.db_session.commit()
@@ -56,7 +73,7 @@ class IndustryTypeService:
         stmt = (
             update(IndustryType)
             .where(IndustryType.id == id, IndustryType.deleted_at.is_(None))
-            .values(deleted_at=datetime.utcnow())
+            .values(deleted_at=datetime.now(timezone.utc))
         )
         result = await self.db_session.execute(stmt)
         await self.db_session.commit()

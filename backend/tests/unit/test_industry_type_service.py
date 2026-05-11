@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.industry_type_service import IndustryTypeService
 from app.models.industry_type import IndustryType
 
@@ -69,9 +68,7 @@ class TestIndustryTypeService_GetById:
     async def test_returns_industry_type(self, service, mock_db_session):
         """返回指定 ID 的行业类型"""
         mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = IndustryType(
-            id=1, name="项目", sort_order=1
-        )
+        mock_result.scalar_one_or_none.return_value = IndustryType(id=1, name="项目", sort_order=1)
         mock_db_session.execute.return_value = mock_result
 
         result = await service.get_by_id(1)
@@ -98,6 +95,10 @@ class TestIndustryTypeService_Create:
     @pytest.mark.asyncio
     async def test_creates_industry_type(self, service, mock_db_session):
         """成功创建行业类型"""
+        # Mock the name uniqueness check to return None (no existing record)
+        mock_existing = MagicMock()
+        mock_existing.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_existing
         mock_db_session.refresh = AsyncMock()
 
         result = await service.create("测试行业", 10)
@@ -115,11 +116,17 @@ class TestIndustryTypeService_Update:
     @pytest.mark.asyncio
     async def test_updates_industry_type(self, service, mock_db_session):
         """成功更新行业类型"""
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = IndustryType(
+        # Mock get_by_id result (existing industry type)
+        mock_get_result = MagicMock()
+        mock_get_result.scalar_one_or_none.return_value = IndustryType(
             id=1, name="旧名称", sort_order=1
         )
-        mock_db_session.execute.return_value = mock_result
+        # Mock name uniqueness check (no existing record with new name)
+        mock_check_result = MagicMock()
+        mock_check_result.scalar_one_or_none.return_value = None
+
+        # Set up execute to return different results based on call order
+        mock_db_session.execute.side_effect = [mock_get_result, mock_check_result]
         mock_db_session.refresh = AsyncMock()
 
         result = await service.update(1, "新名称", 5)
