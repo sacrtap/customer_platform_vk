@@ -386,6 +386,13 @@
                 @click="$router.push('/system/audit-logs')"
                 >审计日志</a
               >
+              <a
+                v-if="can('industry_types:manage')"
+                class="nav-subitem"
+                :class="{ active: $route.name === 'IndustryTypes' }"
+                @click="$router.push('/system/industry-types')"
+                >行业类型</a
+              >
             </div>
           </div>
           <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
@@ -402,6 +409,13 @@
               :class="{ active: $route.name === 'AuditLogs' }"
               @click="$router.push('/system/audit-logs')"
               >审计日志</a
+            >
+            <a
+              v-if="can('industry_types:manage')"
+              class="nav-subitem"
+              :class="{ active: $route.name === 'IndustryTypes' }"
+              @click="$router.push('/system/industry-types')"
+              >行业类型</a
             >
           </div>
         </div>
