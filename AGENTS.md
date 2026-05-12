@@ -143,9 +143,26 @@ npm run build
 
 **显式声明格式**: 加载技能后，第一句话必须说明 "正在使用 [技能名] 来 [目的]"
 
-**subagent-driven模型下的subagent派遣规则**:
-- 在派遣任何任务给到 subagent 前，优先查看 `.opencode/agents/` 目录（项目级）或 `~/.config/opencode/agents/`（全局）下已有的subagent
-- 根据任务类型和内容，派遣最匹配的 subagent 执行
+**subagent-driven-development模式下的subagent派遣规则**:
+
+⚠️ **禁止统一使用 `general` subagent！必须根据任务类型选择最匹配的专用 subagent。**
+
+在派遣任何任务给到 subagent 前：
+1. 优先查看 `~/.config/opencode/agents/`（全局）下已有的 subagent
+2. 根据任务类型派遣最匹配的 subagent：
+
+| 任务类型           | 推荐 subagent           |
+| ------------------ | ----------------------- |
+| 后端开发/API/路由  | `backend-architect`       |
+| 前端组件/页面/样式 | `frontend-developer`      |
+| 单元测试/集成测试  | `api-tester` / `qa-engineer` |
+| 代码审查           | `code-reviewer`           |
+| 依赖/部署/CI       | `devops-automator`        |
+| 数据库/迁移        | `database-optimizer`      |
+| 文档编写           | `technical-writer`        |
+| 通用/简单任务       | `general`                 |
+
+3. 根据任务类型和内容，派遣最匹配的 subagent 执行
 
 **禁止跳过流程**:
 - 新功能不得跳过 brainstorming 直接写代码
