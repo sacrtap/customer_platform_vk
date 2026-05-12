@@ -24,22 +24,19 @@
             </div>
           </div>
           <div class="avatar-actions">
-            <a-button type="primary" size="small" @click="showAvatarUrlInput">
+          <a-upload
+            :show-file-list="false"
+            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+            :custom-request="handleAvatarUpload"
+          >
+            <a-button type="primary" size="small" :loading="avatarUploading">
               更换头像
             </a-button>
+          </a-upload>
             <a-button v-if="formData.avatar_url" size="small" @click="removeAvatar">
               移除
             </a-button>
           </div>
-          <a-input
-            v-if="avatarUrlInputVisible"
-            v-model="avatarUrlInput"
-            placeholder="输入头像图片 URL"
-            size="small"
-            class="avatar-url-input"
-            @blur="handleAvatarUrlConfirm"
-            @press-enter="handleAvatarUrlConfirm"
-          />
         </div>
 
         <!-- 右侧：表单区域 -->
@@ -143,7 +140,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
-import { getProfile, updateProfile, changePassword, type UserProfile } from '@/api/users'
+import type { RequestOption } from '@arco-design/web-vue/es/upload/interfaces'
+import { getProfile, updateProfile, changePassword, uploadAvatar, type UserProfile } from '@/api/users'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -162,9 +160,6 @@ const formData = reactive({
   real_name: '',
   last_login_at: '',
 })
-
-const avatarUrlInputVisible = ref(false)
-const avatarUrlInput = ref('')
 
 // 修改密码相关
 const changePasswordVisible = ref(false)
@@ -246,18 +241,56 @@ const loadProfile = async () => {
   }
 }
 
-const showAvatarUrlInput = () => {
-  avatarUrlInputVisible.value = true
-  avatarUrlInput.value = formData.avatar_url || ''
+const avatarUploading = ref(false)
+
+const handleAvatarUpload = async (option: RequestOption) => {
+  const { fileItem } = option
+  const file = fileItem.file as File
+
+  // 前端校验
+  const allowedTypes = ['image/jpeg', 'image/png']
+  if (!allowedTypes.includes(file.type)) {
+    Message.error('仅支持 JPG/PNG 格式的图片')
+    return
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    Message.error('图片大小不能超过 2MB')
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const res = await uploadAvatar(file)
+    const newAvatarUrl = res.data.avatar_url
+    formData.avatar_url = newAvatarUrl
+
+    // 同步更新 store
+    userStore.setUserInfo({
+      ...userStore.userInfo!,
+      avatar_url: newAvatarUrl,
+    })
+
+    Message.success('头像上传成功')
+  } catch (error) {
+    Message.error((error as Error)?.message || '头像上传失败')
+  } finally {
+    avatarUploading.value = false
+  }
 }
 
-const handleAvatarUrlConfirm = () => {
-  formData.avatar_url = avatarUrlInput.value
-  avatarUrlInputVisible.value = false
-}
-
-const removeAvatar = () => {
-  formData.avatar_url = ''
+const removeAvatar = async () => {
+  try {
+    await updateProfile({ avatar_url: '' })
+    formData.avatar_url = ''
+    userStore.setUserInfo({
+      ...userStore.userInfo!,
+      avatar_url: '',
+    })
+    Message.success('头像已移除')
+  } catch (error) {
+    Message.error('移除头像失败')
+  }
 }
 
 const handleSubmit = async () => {
@@ -387,10 +420,6 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
-}
-
-.avatar-url-input {
-  width: 100%;
 }
 
 /* 右侧：表单区域 */
