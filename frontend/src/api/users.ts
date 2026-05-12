@@ -170,3 +170,16 @@ export function updateProfile(data: UpdateProfileData) {
 export function changePassword(data: ChangePasswordData) {
   return api.put('/users/password', data)
 }
+
+/**
+ * 上传用户头像
+ */
+export function uploadAvatar(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/users/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
