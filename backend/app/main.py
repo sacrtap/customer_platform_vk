@@ -94,6 +94,9 @@ def create_app(
     # 注册审计日志中间件
     audit_middleware(app)
 
+    # 注册静态文件服务（上传文件目录）
+    app.static("/uploads/", settings.file_storage_path, name="uploads")
+
     # 注册路由蓝图
     from .routes.analytics import analytics
     from .routes.audit_logs import audit_logs_bp
