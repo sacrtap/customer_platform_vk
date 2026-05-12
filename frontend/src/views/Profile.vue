@@ -1,24 +1,20 @@
 <template>
   <div class="profile-page">
     <div class="profile-card">
+      <!-- 页面标题 -->
       <div class="profile-header">
         <h1 class="profile-title">个人信息</h1>
       </div>
 
+      <!-- 加载状态 -->
       <div v-if="loading" class="profile-loading">
         <a-spin size="large" />
       </div>
 
-      <a-form
-        v-else
-        ref="formRef"
-        layout="vertical"
-        :model="formData"
-        :rules="rules"
-        @submit="handleSubmit"
-      >
-        <!-- 头像区域 -->
-        <div class="avatar-section">
+      <!-- 主内容区：左右分栏 -->
+      <div v-else class="profile-content">
+        <!-- 左侧：头像区域 -->
+        <div class="avatar-sidebar">
           <div class="avatar-wrapper">
             <div v-if="formData.avatar_url" class="avatar-preview">
               <img :src="formData.avatar_url" alt="头像" />
@@ -28,7 +24,9 @@
             </div>
           </div>
           <div class="avatar-actions">
-            <a-button type="primary" size="small" @click="showAvatarUrlInput"> 更换头像 </a-button>
+            <a-button type="primary" size="small" @click="showAvatarUrlInput">
+              更换头像
+            </a-button>
             <a-button v-if="formData.avatar_url" size="small" @click="removeAvatar">
               移除
             </a-button>
@@ -38,36 +36,105 @@
             v-model="avatarUrlInput"
             placeholder="输入头像图片 URL"
             size="small"
-            style="margin-top: 8px; max-width: 300px"
+            class="avatar-url-input"
             @blur="handleAvatarUrlConfirm"
             @press-enter="handleAvatarUrlConfirm"
           />
         </div>
 
-        <!-- 表单字段 -->
-        <a-form-item label="用户名" field="username">
-          <a-input v-model="formData.username" disabled />
-        </a-form-item>
+        <!-- 右侧：表单区域 -->
+        <div class="form-section">
+          <a-form
+            ref="formRef"
+            layout="vertical"
+            :model="formData"
+            :rules="rules"
+            @submit="handleSubmit"
+          >
+            <a-form-item label="用户名" field="username">
+              <a-input v-model="formData.username" disabled />
+            </a-form-item>
 
-        <a-form-item label="邮箱" field="email">
-          <a-input v-model="formData.email" placeholder="请输入邮箱" />
-        </a-form-item>
+            <a-form-item label="邮箱" field="email">
+              <a-input v-model="formData.email" placeholder="请输入邮箱" />
+            </a-form-item>
 
-        <a-form-item label="手机号" field="phone">
-          <a-input v-model="formData.phone" placeholder="请输入手机号" />
-        </a-form-item>
+            <a-form-item label="手机号" field="phone">
+              <a-input v-model="formData.phone" placeholder="请输入手机号" />
+            </a-form-item>
 
-        <a-form-item label="最后登录时间">
-          <a-input :model-value="formatLastLogin()" disabled />
-        </a-form-item>
+            <a-form-item label="最后登录时间">
+              <a-input :model-value="formatLastLogin()" disabled />
+            </a-form-item>
 
-        <!-- 操作按钮 -->
-        <div class="form-actions">
-          <a-button type="primary" html-type="submit" :loading="submitLoading"> 保存 </a-button>
-          <a-button @click="handleCancel">取消</a-button>
+            <!-- 操作按钮 -->
+            <div class="form-actions">
+              <a-button type="primary" html-type="submit" :loading="submitLoading">
+                保存
+              </a-button>
+              <a-button @click="handleCancel">取消</a-button>
+            </div>
+          </a-form>
         </div>
-      </a-form>
+      </div>
     </div>
+
+    <!-- 修改密码对话框（保留原有功能） -->
+    <a-modal
+      v-model:visible="changePasswordVisible"
+      title="修改密码"
+      :mask-closable="false"
+      @ok="handleChangePassword"
+      @cancel="changePasswordVisible = false"
+    >
+      <a-form ref="changePasswordFormRef" :model="changePasswordForm" layout="vertical">
+        <a-form-item
+          label="当前密码"
+          field="current_password"
+          :rules="[{ required: true, message: '请输入当前密码' }]"
+        >
+          <a-input-password
+            v-model="changePasswordForm.current_password"
+            placeholder="请输入当前密码"
+            size="large"
+          />
+        </a-form-item>
+        <a-form-item
+          label="新密码"
+          field="new_password"
+          :rules="[
+            { required: true, message: '请输入新密码' },
+            { minLength: 6, message: '密码长度不能少于 6 位' },
+          ]"
+        >
+          <a-input-password
+            v-model="changePasswordForm.new_password"
+            placeholder="请输入新密码（至少 6 位）"
+            size="large"
+          />
+        </a-form-item>
+        <a-form-item
+          label="确认新密码"
+          field="confirm_password"
+          :rules="[
+            { required: true, message: '请再次输入新密码' },
+            { validator: validateConfirmPassword, message: '两次输入的密码不一致' },
+          ]"
+        >
+          <a-input-password
+            v-model="changePasswordForm.confirm_password"
+            placeholder="请再次输入新密码"
+            size="large"
+          />
+        </a-form-item>
+      </a-form>
+      <template #footer>
+        <a-button @click="changePasswordVisible = false">取消</a-button>
+        <a-button type="primary" :loading="changePasswordLoading" @click="handleChangePassword">
+          确认修改
+        </a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
@@ -76,7 +143,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
-import { getProfile, updateProfile, type UserProfile } from '@/api/users'
+import { getProfile, updateProfile, changePassword, type UserProfile } from '@/api/users'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -98,6 +165,46 @@ const formData = reactive({
 
 const avatarUrlInputVisible = ref(false)
 const avatarUrlInput = ref('')
+
+// 修改密码相关
+const changePasswordVisible = ref(false)
+const changePasswordFormRef = ref<FormInstance>()
+const changePasswordForm = reactive({
+  current_password: '',
+  new_password: '',
+  confirm_password: '',
+})
+const changePasswordLoading = ref(false)
+
+const validateConfirmPassword = (_value: string, callback: (error?: string) => void) => {
+  if (changePasswordForm.confirm_password !== changePasswordForm.new_password) {
+    callback('两次输入的密码不一致')
+  } else {
+    callback()
+  }
+}
+
+const handleChangePassword = async () => {
+  if (!changePasswordFormRef.value) return
+  try {
+    await changePasswordFormRef.value.validate()
+  } catch {
+    return
+  }
+  changePasswordLoading.value = true
+  try {
+    await changePassword({
+      current_password: changePasswordForm.current_password,
+      new_password: changePasswordForm.new_password,
+    })
+    Message.success('密码修改成功')
+    changePasswordVisible.value = false
+  } catch (error) {
+    Message.error((error as Error)?.message || '密码修改失败')
+  } finally {
+    changePasswordLoading.value = false
+  }
+}
 
 const rules = {
   email: [{ type: 'email', message: '邮箱格式不正确' }],
@@ -197,7 +304,7 @@ onMounted(() => {
 
 <style scoped>
 .profile-page {
-  max-width: 600px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -210,7 +317,7 @@ onMounted(() => {
 }
 
 .profile-header {
-  padding: 24px;
+  padding: 24px 32px;
   border-bottom: 1px solid var(--neutral-2, #eef0f3);
 }
 
@@ -222,23 +329,33 @@ onMounted(() => {
 }
 
 .profile-loading {
-  padding: 60px 0;
+  padding: 80px 0;
   display: flex;
   justify-content: center;
 }
 
-.avatar-section {
-  padding: 24px;
+/* 主内容区：左右分栏 */
+.profile-content {
+  display: flex;
+  min-height: 400px;
+}
+
+/* 左侧：头像侧边栏 */
+.avatar-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 32px 24px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  border-bottom: 1px solid var(--neutral-2, #eef0f3);
+  align-items: center;
+  gap: 16px;
+  border-right: 1px solid var(--neutral-2, #eef0f3);
+  background: var(--neutral-1, #f7f8fa);
 }
 
 .avatar-wrapper {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
 }
 
 .avatar-preview {
@@ -249,6 +366,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .avatar-preview img {
@@ -261,17 +379,59 @@ onMounted(() => {
   background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
   color: white;
   font-weight: 600;
-  font-size: 32px;
+  font-size: 40px;
 }
 
 .avatar-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.avatar-url-input {
+  width: 100%;
+}
+
+/* 右侧：表单区域 */
+.form-section {
+  flex: 1;
+  padding: 32px;
+}
+
+:deep(.arco-form-item) {
+  margin-bottom: 24px;
+}
+
+:deep(.arco-form-item:last-child) {
+  margin-bottom: 0;
 }
 
 .form-actions {
   display: flex;
   gap: 12px;
-  padding: 0 24px 24px;
+  padding-top: 8px;
+}
+
+/* 响应式：小屏幕下改为上下布局 */
+@media (max-width: 768px) {
+  .profile-page {
+    max-width: 100%;
+  }
+
+  .profile-content {
+    flex-direction: column;
+  }
+
+  .avatar-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--neutral-2, #eef0f3);
+    padding: 24px;
+  }
+
+  .form-section {
+    padding: 24px;
+  }
 }
 </style>
