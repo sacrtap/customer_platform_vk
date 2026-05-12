@@ -198,6 +198,8 @@ onMounted(() => {
 <style scoped>
 .profile-page {
   max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .profile-card {
@@ -270,9 +272,19 @@ onMounted(() => {
 
 :deep(.arco-form) {
   padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+}
+
+:deep(.arco-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.arco-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+:deep(.arco-input-wrapper),
+:deep(.arco-input) {
+  width: 100%;
 }
 
 .form-actions {
