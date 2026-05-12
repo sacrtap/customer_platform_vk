@@ -602,7 +602,7 @@ async def update_profile(request: Request):
 
     # 手机号格式验证
     phone = data.get("phone")
-    if phone and not phone.isdigit():
+    if phone and (not phone.isdigit() or len(phone) != 11):
         return json({"code": 40002, "message": "手机号格式不正确"}, status=400)
 
     profile = await service.update_profile(
@@ -615,6 +615,7 @@ async def update_profile(request: Request):
     if not profile:
         return json({"code": 40401, "message": "用户不存在"}, status=404)
 
+    await db_session.commit()
     return json({"code": 0, "message": "更新成功", "data": profile})
 
 
@@ -643,6 +644,8 @@ async def change_password(request: Request):
     if not success:
         status_code = 400 if "密码" in message else 404
         return json({"code": 40002, "message": message}, status=status_code)
+
+    await db_session.commit()
 
     # 记录敏感操作审计日志
     await create_audit_entry(

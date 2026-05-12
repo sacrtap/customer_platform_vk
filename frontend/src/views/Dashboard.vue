@@ -786,6 +786,7 @@ onMounted(() => {
 const pageTitle = computed(() => {
   const routeMap: Record<string, string> = {
     Home: '仪表盘',
+    Profile: '个人信息',
     Customers: '客户管理',
     CustomerDetail: '客户详情',
     Balance: '余额管理',
