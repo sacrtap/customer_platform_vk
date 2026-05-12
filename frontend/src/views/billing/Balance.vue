@@ -42,7 +42,7 @@
             <a-form-item label="充值时间">
               <a-range-picker
                 v-model="filters.recharge_date"
-                placeholder="['开始日期', '结束日期']"
+                :placeholder="['开始日期', '结束日期']"
                 style="width: 100%"
                 format="YYYY-MM-DD"
               />
