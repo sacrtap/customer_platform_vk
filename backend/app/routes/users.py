@@ -701,21 +701,21 @@ async def upload_avatar(request: Request):
     """
     # 步骤 1: 检查文件是否存在
     if not request.files or "file" not in request.files:
-        return json({"code": 400, "message": "未找到上传文件"}, status=400)
+        return json({"code": 40001, "message": "未找到上传文件"}, status=400)
 
     file_list = request.files["file"]
     file = file_list[0] if isinstance(file_list, list) else file_list
 
     # 步骤 2: 检查文件名
     if not file.name:
-        return json({"code": 400, "message": "文件名不能为空"}, status=400)
+        return json({"code": 40002, "message": "文件名不能为空"}, status=400)
 
     # 步骤 3: 扩展名白名单
     ext = Path(file.name).suffix.lower()
     if ext not in ALLOWED_AVATAR_EXTENSIONS:
         return json(
             {
-                "code": 400,
+                "code": 40003,
                 "message": f"不支持的文件类型：{ext}，仅支持 .jpg/.jpeg/.png",
             },
             status=400,
@@ -726,7 +726,7 @@ async def upload_avatar(request: Request):
     if file_size > AVATAR_MAX_SIZE:
         return json(
             {
-                "code": 400,
+                "code": 40004,
                 "message": f"文件大小超过限制 ({AVATAR_MAX_SIZE / 1024 / 1024}MB)",
             },
             status=400,
@@ -737,12 +737,12 @@ async def upload_avatar(request: Request):
         detected_mime = magic.from_buffer(file.body, mime=True)
         if detected_mime not in ALLOWED_AVATAR_MIME_TYPES:
             return json(
-                {"code": 400, "message": f"不允许的文件类型：{detected_mime}"},
+                {"code": 40005, "message": f"不允许的文件类型：{detected_mime}"},
                 status=400,
             )
     except Exception as e:
         logger.error(f"MIME 类型检测失败：{str(e)}")
-        return json({"code": 500, "message": "文件类型检测失败"}, status=500)
+        return json({"code": 50001, "message": "文件类型检测失败"}, status=500)
 
     # 步骤 6: 使用 Pillow 处理图片（验证 + 压缩）
     try:
@@ -774,7 +774,10 @@ async def upload_avatar(request: Request):
 
     except Exception as e:
         logger.error(f"图片处理失败：{str(e)}")
-        return json({"code": 400, "message": "图片处理失败，请上传有效的图片文件"}, status=400)
+        return json(
+            {"code": 40006, "message": "图片处理失败，请上传有效的图片文件"},
+            status=400,
+        )
 
     # 步骤 7: 删除旧头像文件
     current_user = get_current_user(request)
@@ -785,13 +788,17 @@ async def upload_avatar(request: Request):
     user = user_result.scalar_one_or_none()
 
     if user and user.avatar_url:
-        old_path = Path(settings.file_storage_path) / user.avatar_url.lstrip("/")
-        try:
-            if old_path.exists():
-                old_path.unlink()
-                logger.info(f"旧头像已删除：{old_path}")
-        except Exception as e:
-            logger.warning(f"删除旧头像失败：{str(e)}")
+        old_path = (Path(settings.file_storage_path) / user.avatar_url.lstrip("/")).resolve()
+        storage_root = Path(settings.file_storage_path).resolve()
+        if str(old_path).startswith(str(storage_root)):
+            try:
+                if old_path.exists():
+                    old_path.unlink()
+                    logger.info(f"旧头像已删除：{old_path}")
+            except Exception as e:
+                logger.warning(f"删除旧头像失败：{str(e)}")
+        else:
+            logger.warning(f"旧头像路径非法：{old_path}")
 
     # 步骤 8: 生成文件名并保存
     avatar_dir = Path(settings.file_storage_path) / AVATAR_SUBDIR
@@ -810,4 +817,4 @@ async def upload_avatar(request: Request):
 
     logger.info(f"头像上传成功：用户 {user_id}, 路径 {avatar_url}")
 
-    return json({"code": 0, "data": {"avatar_url": avatar_url}})
+    return json({"code": 0, "message": "success", "data": {"avatar_url": avatar_url}})

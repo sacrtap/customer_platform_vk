@@ -1,6 +1,7 @@
 """头像上传接口单元测试"""
 
 import io
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,7 +15,6 @@ def mock_request():
     """模拟请求对象"""
     request = MagicMock()
     request.ctx = MagicMock()
-    request.ctx.user = {"user_id": 1}
     request.ctx.db_session = AsyncMock()
     request.ctx.db_session.commit = AsyncMock()
     request.ip = "127.0.0.1"
@@ -35,12 +35,15 @@ def create_test_image(width, height, format="JPEG"):
     buffer = io.BytesIO()
     if format == "JPEG":
         img.save(buffer, format="JPEG")
-        buffer.name = "test.jpg"
     else:
         img.save(buffer, format="PNG")
-        buffer.name = "test.png"
     buffer.seek(0)
     return buffer
+
+
+def parse_response(response):
+    """解析 Sanic 响应体"""
+    return json.loads(response.body)
 
 
 class TestUploadAvatar:
@@ -51,9 +54,7 @@ class TestUploadAvatar:
         """测试成功上传小尺寸图片"""
         with patch("app.routes.users.settings") as mock_settings:
             mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
 
-            # Mock db_session.execute to return a user with no avatar
             mock_result = MagicMock()
             mock_result.scalar_one_or_none = MagicMock(
                 return_value=MagicMock(id=1, avatar_url=None)
@@ -70,67 +71,54 @@ class TestUploadAvatar:
             response = await upload_avatar(mock_request)
 
             assert response.status == 200
-            data = response.body
-            import json
-
-            json_data = json.loads(data)
-            assert json_data["code"] == 0
-            assert "avatar_url" in json_data["data"]
-            assert json_data["data"]["avatar_url"].startswith("/uploads/avatars/")
+            data = parse_response(response)
+            assert data["code"] == 0
+            assert data["message"] == "success"
+            assert "avatar_url" in data["data"]
+            assert data["data"]["avatar_url"].startswith("/uploads/avatars/")
 
     @pytest.mark.asyncio
     async def test_upload_rejects_invalid_extension(self, mock_request, temp_uploads):
         """测试拒绝非图片格式"""
-        with patch("app.routes.users.settings") as mock_settings:
-            mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
+        mock_file = MagicMock()
+        mock_file.name = "test.gif"
+        mock_file.body = b"fake gif content"
+        mock_file.type = "image/gif"
+        mock_request.files = {"file": [mock_file]}
 
-            mock_file = MagicMock()
-            mock_file.name = "test.gif"
-            mock_file.body = b"fake gif content"
-            mock_file.type = "image/gif"
-            mock_request.files = {"file": [mock_file]}
+        response = await upload_avatar(mock_request)
 
-            response = await upload_avatar(mock_request)
-
-            assert response.status == 400
-            import json
-
-            json_data = json.loads(response.body)
-            assert json_data["code"] == 400
+        assert response.status == 400
+        data = parse_response(response)
+        assert data["code"] == 40003
 
     @pytest.mark.asyncio
     async def test_upload_rejects_oversized_file(self, mock_request, temp_uploads):
         """测试拒绝超大文件"""
-        with patch("app.routes.users.settings") as mock_settings:
-            mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
+        mock_file = MagicMock()
+        mock_file.name = "test.jpg"
+        mock_file.body = b"x" * (3 * 1024 * 1024)  # 3MB
+        mock_file.type = "image/jpeg"
+        mock_request.files = {"file": [mock_file]}
 
-            mock_file = MagicMock()
-            mock_file.name = "test.jpg"
-            mock_file.body = b"x" * (3 * 1024 * 1024)  # 3MB
-            mock_file.type = "image/jpeg"
-            mock_request.files = {"file": [mock_file]}
+        response = await upload_avatar(mock_request)
 
-            response = await upload_avatar(mock_request)
-
-            assert response.status == 400
+        assert response.status == 400
+        data = parse_response(response)
+        assert data["code"] == 40004
 
     @pytest.mark.asyncio
     async def test_upload_compresses_large_image(self, mock_request, temp_uploads):
         """测试大尺寸图片自动压缩"""
         with patch("app.routes.users.settings") as mock_settings:
             mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
 
-            # Mock db_session.execute to return a user with no avatar
             mock_result = MagicMock()
             mock_result.scalar_one_or_none = MagicMock(
                 return_value=MagicMock(id=1, avatar_url=None)
             )
             mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_result)
 
-            # 创建 2000x1500 的图片（超过 1024 限制）
             img_buffer = create_test_image(2000, 1500)
             mock_file = MagicMock()
             mock_file.name = "large.jpg"
@@ -141,12 +129,8 @@ class TestUploadAvatar:
             response = await upload_avatar(mock_request)
 
             assert response.status == 200
-            # 验证保存的图片尺寸被压缩
-            import json
-
-            json_data = json.loads(response.body)
-            avatar_url = json_data["data"]["avatar_url"]
-            # avatar_url is /uploads/avatars/filename, extract filename
+            data = parse_response(response)
+            avatar_url = data["data"]["avatar_url"]
             filename = avatar_url.split("/")[-1]
             saved_path = temp_uploads / filename
             with Image.open(saved_path) as img:
@@ -158,9 +142,7 @@ class TestUploadAvatar:
         """测试 PNG 格式上传"""
         with patch("app.routes.users.settings") as mock_settings:
             mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
 
-            # Mock db_session.execute to return a user with no avatar
             mock_result = MagicMock()
             mock_result.scalar_one_or_none = MagicMock(
                 return_value=MagicMock(id=1, avatar_url=None)
@@ -177,10 +159,8 @@ class TestUploadAvatar:
             response = await upload_avatar(mock_request)
 
             assert response.status == 200
-            import json
-
-            json_data = json.loads(response.body)
-            assert json_data["data"]["avatar_url"].endswith(".png")
+            data = parse_response(response)
+            assert data["data"]["avatar_url"].endswith(".png")
 
     @pytest.mark.asyncio
     async def test_upload_no_file(self, mock_request):
@@ -188,21 +168,23 @@ class TestUploadAvatar:
         mock_request.files = {}
         response = await upload_avatar(mock_request)
         assert response.status == 400
+        data = parse_response(response)
+        assert data["code"] == 40001
 
     @pytest.mark.asyncio
-    async def test_upload_deletes_old_avatar(self, mock_request, temp_uploads):
+    async def test_upload_deletes_old_avatar(self, mock_request, tmp_path):
         """测试上传新头像时删除旧头像文件"""
-        # 创建旧头像文件（在实现代码期望的路径位置）
-        old_file_path = temp_uploads.parent / "uploads" / "avatars"
-        old_file_path.mkdir(parents=True, exist_ok=True)
-        old_file = old_file_path / "1_old_avatar.jpg"
+        storage_root = tmp_path / "storage"
+        avatars_dir = storage_root / "uploads" / "avatars"
+        avatars_dir.mkdir(parents=True)
+
+        # 创建旧头像文件
+        old_file = avatars_dir / "1_old_avatar.jpg"
         old_file.write_bytes(b"old avatar data")
 
         with patch("app.routes.users.settings") as mock_settings:
-            mock_settings.file_storage_path = str(temp_uploads.parent)
-            mock_settings.max_file_size = 2 * 1024 * 1024
+            mock_settings.file_storage_path = str(storage_root)
 
-            # 模拟用户已有旧头像
             mock_request.ctx.db_session.execute = AsyncMock()
             mock_result = MagicMock()
             mock_result.scalar_one_or_none = MagicMock(
@@ -220,4 +202,19 @@ class TestUploadAvatar:
             response = await upload_avatar(mock_request)
 
             assert response.status == 200
-            assert not old_file.exists()  # 旧文件应被删除
+            assert not old_file.exists()
+
+    @pytest.mark.asyncio
+    async def test_upload_rejects_mime_mismatch(self, mock_request, temp_uploads):
+        """测试拒绝扩展名与 MIME 不匹配的文件"""
+        mock_file = MagicMock()
+        mock_file.name = "fake.jpg"
+        mock_file.body = b"this is not a real jpeg, just plain text"
+        mock_file.type = "text/plain"
+        mock_request.files = {"file": [mock_file]}
+
+        response = await upload_avatar(mock_request)
+
+        assert response.status == 400
+        data = parse_response(response)
+        assert data["code"] == 40005
