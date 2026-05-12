@@ -204,3 +204,83 @@ class UserService:
         if not user:
             return []
         return user.roles
+
+    async def get_profile(self, user_id: int) -> Optional[dict]:
+        """获取用户个人信息"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return None
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "phone": user.phone,
+            "avatar_url": user.avatar_url,
+            "real_name": user.real_name,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "roles": [r.name for r in user.roles],
+        }
+
+    async def update_profile(
+        self,
+        user_id: int,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        avatar_url: Optional[str] = None,
+        real_name: Optional[str] = None,
+    ) -> Optional[dict]:
+        """更新用户个人信息"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return None
+
+        if email is not None:
+            user.email = email
+        if phone is not None:
+            user.phone = phone
+        if avatar_url is not None:
+            user.avatar_url = avatar_url
+        if real_name is not None:
+            user.real_name = real_name
+
+        await self.session.flush()
+        await self.session.refresh(user)
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "phone": user.phone,
+            "avatar_url": user.avatar_url,
+            "real_name": user.real_name,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "roles": [r.name for r in user.roles],
+        }
+
+    async def change_password(
+        self, user_id: int, current_password: str, new_password: str
+    ) -> tuple[bool, str]:
+        """修改密码
+
+        Returns:
+            (success, message)
+        """
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return False, "用户不存在"
+
+        # 验证当前密码
+        if not self.verify_password(current_password, user.password_hash):
+            return False, "当前密码不正确"
+
+        # 密码强度检查
+        if len(new_password) < 6:
+            return False, "密码长度不能少于 6 位"
+
+        user.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
+            "utf-8"
+        )
+
+        await self.session.flush()
+        return True, "密码修改成功"
