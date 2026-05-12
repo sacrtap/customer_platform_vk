@@ -1,6 +1,6 @@
 """用户与权限模型"""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel
@@ -39,6 +39,9 @@ class User(BaseModel):
     real_name = Column(String(50))
     is_active = Column(Boolean, default=True)
     is_system = Column(Boolean, default=False)
+    phone = Column(String(20))
+    avatar_url = Column(String(500))
+    last_login_at = Column(DateTime)
 
     # 关联
     roles = relationship("Role", secondary=user_roles, back_populates="users")
