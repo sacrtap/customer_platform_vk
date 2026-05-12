@@ -123,3 +123,50 @@ export function resetPassword(id: number, newPassword: string) {
 export function getManagers(params?: { page?: number; page_size?: number }) {
   return api.get('/users', { params: { ...params, page_size: params?.page_size || 100 } })
 }
+
+/** 个人信息数据类型 */
+export interface UserProfile {
+  id: number
+  username: string
+  email: string | null
+  phone: string | null
+  avatar_url: string | null
+  real_name: string | null
+  last_login_at: string | null
+  roles: string[]
+}
+
+/** 更新个人信息请求数据 */
+export interface UpdateProfileData {
+  email?: string
+  phone?: string
+  avatar_url?: string
+  real_name?: string
+}
+
+/** 修改密码请求数据 */
+export interface ChangePasswordData {
+  current_password: string
+  new_password: string
+}
+
+/**
+ * 获取当前用户个人信息
+ */
+export function getProfile() {
+  return api.get('/users/profile')
+}
+
+/**
+ * 更新当前用户个人信息
+ */
+export function updateProfile(data: UpdateProfileData) {
+  return api.put('/users/profile', data)
+}
+
+/**
+ * 修改当前用户密码
+ */
+export function changePassword(data: ChangePasswordData) {
+  return api.put('/users/password', data)
+}
