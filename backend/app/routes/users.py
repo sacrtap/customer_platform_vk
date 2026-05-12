@@ -1,8 +1,13 @@
 """用户管理路由"""
 
+import io
+import logging
+import uuid
 from io import BytesIO
+from pathlib import Path
 
 import openpyxl
+from PIL import Image
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
@@ -10,9 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.permissions import permission_cache
+from ..config import settings
 from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..models.billing import AuditLog
-from ..models.users import Role
+from ..models.users import Role, User
 from ..services.users import UserService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
@@ -663,3 +669,147 @@ async def change_password(request: Request):
     )
 
     return json({"code": 0, "message": message})
+
+
+# 头像专用配置
+AVATAR_MAX_SIZE = 2 * 1024 * 1024  # 2MB
+AVATAR_MAX_DIMENSION = 1024  # 最大宽高
+AVATAR_SUBDIR = "avatars"
+
+ALLOWED_AVATAR_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+ALLOWED_AVATAR_MIME_TYPES = {"image/jpeg", "image/png"}
+
+
+@users_bp.post("/avatar")
+@auth_required
+async def upload_avatar(request: Request):
+    """
+    上传用户头像
+
+    Request:
+        multipart/form-data with field 'file'
+
+    Response:
+        {
+            "code": 0,
+            "data": {
+                "avatar_url": "/uploads/avatars/1_uuid.jpg"
+            }
+        }
+    """
+    logger = logging.getLogger(__name__)
+
+    # 步骤 1: 检查文件是否存在
+    if not request.files or "file" not in request.files:
+        return json({"code": 400, "message": "未找到上传文件"}, status=400)
+
+    file_list = request.files["file"]
+    file = file_list[0] if isinstance(file_list, list) else file_list
+
+    # 步骤 2: 检查文件名
+    if not file.name:
+        return json({"code": 400, "message": "文件名不能为空"}, status=400)
+
+    # 步骤 3: 扩展名白名单
+    ext = Path(file.name).suffix.lower()
+    if ext not in ALLOWED_AVATAR_EXTENSIONS:
+        return json(
+            {
+                "code": 400,
+                "message": f"不支持的文件类型：{ext}，仅支持 .jpg/.jpeg/.png",
+            },
+            status=400,
+        )
+
+    # 步骤 4: 文件大小检查
+    file_size = len(file.body)
+    if file_size > AVATAR_MAX_SIZE:
+        return json(
+            {
+                "code": 400,
+                "message": f"文件大小超过限制 ({AVATAR_MAX_SIZE / 1024 / 1024}MB)",
+            },
+            status=400,
+        )
+
+    # 步骤 5: MIME 类型验证
+    try:
+        import magic
+
+        detected_mime = magic.from_buffer(file.body, mime=True)
+        if detected_mime not in ALLOWED_AVATAR_MIME_TYPES:
+            return json(
+                {"code": 400, "message": f"不允许的文件类型：{detected_mime}"},
+                status=400,
+            )
+    except Exception as e:
+        logger.error(f"MIME 类型检测失败：{str(e)}")
+        return json({"code": 500, "message": "文件类型检测失败"}, status=500)
+
+    # 步骤 6: 使用 Pillow 处理图片（验证 + 压缩）
+    try:
+        img = Image.open(io.BytesIO(file.body))
+        img.verify()
+        # 重新打开（verify 后图片已消耗）
+        img = Image.open(io.BytesIO(file.body))
+
+        # 转换为 RGB（处理 RGBA/P 模式）
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+            ext = ".jpg"  # 转换后使用 JPEG 格式
+
+        # 等比缩放：最大边不超过 AVATAR_MAX_DIMENSION
+        width, height = img.size
+        if width > AVATAR_MAX_DIMENSION or height > AVATAR_MAX_DIMENSION:
+            ratio = AVATAR_MAX_DIMENSION / max(width, height)
+            new_width = int(width * ratio)
+            new_height = int(height * ratio)
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+
+        # 保存到内存 buffer
+        output_buffer = io.BytesIO()
+        if ext == ".png":
+            img.save(output_buffer, format="PNG", optimize=True)
+        else:
+            img.save(output_buffer, format="JPEG", quality=85, optimize=True)
+        processed_data = output_buffer.getvalue()
+
+    except Exception as e:
+        logger.error(f"图片处理失败：{str(e)}")
+        return json({"code": 400, "message": "图片处理失败，请上传有效的图片文件"}, status=400)
+
+    # 步骤 7: 删除旧头像文件
+    current_user = get_current_user(request)
+    user_id = current_user.get("user_id")
+
+    db_session = request.ctx.db_session
+    user_result = await db_session.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+
+    if user and user.avatar_url:
+        old_path = Path(settings.file_storage_path) / user.avatar_url.lstrip("/")
+        try:
+            if old_path.exists():
+                old_path.unlink()
+                logger.info(f"旧头像已删除：{old_path}")
+        except Exception as e:
+            logger.warning(f"删除旧头像失败：{str(e)}")
+
+    # 步骤 8: 生成文件名并保存
+    avatar_dir = Path(settings.file_storage_path) / AVATAR_SUBDIR
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+
+    stored_filename = f"{user_id}_{uuid.uuid4().hex[:8]}{ext}"
+    file_path = avatar_dir / stored_filename
+
+    with open(file_path, "wb") as f:
+        f.write(processed_data)
+
+    # 步骤 9: 更新用户 avatar_url
+    avatar_url = f"/uploads/{AVATAR_SUBDIR}/{stored_filename}"
+    user.avatar_url = avatar_url
+    await db_session.commit()
+
+    logger.info(f"头像上传成功：用户 {user_id}, 路径 {avatar_url}")
+
+    return json({"code": 0, "data": {"avatar_url": avatar_url}})
