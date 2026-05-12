@@ -198,10 +198,7 @@ onMounted(() => {
 <style scoped>
 .profile-page {
   max-width: 600px;
-  width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
-  box-sizing: border-box;
 }
 
 .profile-card {
@@ -210,8 +207,6 @@ onMounted(() => {
   border: 1px solid var(--neutral-2, #eef0f3);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .profile-header {
@@ -274,38 +269,9 @@ onMounted(() => {
   gap: 8px;
 }
 
-:deep(.arco-form) {
-  padding: 24px;
-}
-
-:deep(.arco-form-item) {
-  margin-bottom: 20px;
-}
-
-:deep(.arco-form-item:last-child) {
-  margin-bottom: 0;
-}
-
-/* 确保表单项内容区域宽度正确 */
-:deep(.arco-form-item-content) {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 确保输入框占满容器 */
-:deep(.arco-input-wrapper) {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-:deep(.arco-input) {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 .form-actions {
   display: flex;
   gap: 12px;
-  padding-top: 8px;
+  padding: 0 24px 24px;
 }
 </style>
