@@ -61,6 +61,9 @@ export interface User {
   is_system: boolean
   roles: string[]
   created_at: string
+  phone?: string | null
+  avatar_url?: string | null
+  last_login_at?: string | null
 }
 
 /** 角色 */

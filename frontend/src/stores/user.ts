@@ -5,6 +5,11 @@ export interface UserInfo {
   id: number
   username: string
   roles: string[]
+  email?: string
+  phone?: string
+  avatar_url?: string
+  real_name?: string
+  last_login_at?: string
 }
 
 export const useUserStore = defineStore('user', () => {
