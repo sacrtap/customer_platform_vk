@@ -44,6 +44,8 @@ withDefaults(
     variant: 'default',
     layout: 'default',
     icon: true,
+    subtitle: '',
+    valueClass: '',
   }
 )
 </script>
