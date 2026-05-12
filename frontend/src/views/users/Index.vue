@@ -340,7 +340,19 @@ const loadUsers = async () => {
       page_size: pagination.pageSize,
       keyword: searchKeyword.value || undefined,
     })
-    const data = res.data as { list?: Array<{ id: number; username: string; email: string | null; real_name: string | null; is_active: boolean; is_system: boolean; roles?: Array<{ id: number; name: string }>; created_at: string }>; total?: number }
+    const data = res.data as {
+      list?: Array<{
+        id: number
+        username: string
+        email: string | null
+        real_name: string | null
+        is_active: boolean
+        is_system: boolean
+        roles?: Array<{ id: number; name: string }>
+        created_at: string
+      }>
+      total?: number
+    }
     users.value = (data.list || []).map((item) => ({
       id: item.id,
       username: item.username,

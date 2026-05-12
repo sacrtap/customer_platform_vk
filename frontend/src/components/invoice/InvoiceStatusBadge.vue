@@ -5,11 +5,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 const props = defineProps<{
-  status: string;
-}>();
+  status: string
+}>()
 
 const statusMap: Record<string, { text: string; color: string }> = {
   draft: { text: '草稿', color: 'gray' },
@@ -18,9 +18,9 @@ const statusMap: Record<string, { text: string; color: string }> = {
   paid: { text: '已付款', color: 'green' },
   completed: { text: '已完成', color: 'arcoblue' },
   cancelled: { text: '已取消', color: 'red' },
-};
+}
 
 const statusConfig = computed(() => {
-  return statusMap[props.status] || { text: props.status, color: 'gray' };
-});
+  return statusMap[props.status] || { text: props.status, color: 'gray' }
+})
 </script>

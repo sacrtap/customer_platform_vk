@@ -36,11 +36,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="客户">
-          <CustomerAutoComplete
-            v-model="customerId"
-            placeholder="请输入客户名称搜索"
-            width="200"
-          />
+          <CustomerAutoComplete v-model="customerId" placeholder="请输入客户名称搜索" width="200" />
         </a-form-item>
         <a-form-item>
           <a-space>

@@ -64,26 +64,26 @@ const getCurrentLevelInfo = (amount: number) => {
 const indicatorPosition = computed(() => {
   const levelInfo = getCurrentLevelInfo(props.currentAmount)
   const levelIndex = levelInfo.index
-  
+
   if (levelIndex < 0) return 0
   if (levelIndex >= levels.length - 1) {
     return 100
   }
-  
+
   // 6 个等级，5 个间隔，每个间隔占 20%（100/5=20）
   const segmentWidth = 100 / (levels.length - 1)
-  
+
   // 当前等级的阈值
   const currentThreshold = levelThresholds[levels[levelIndex] as keyof typeof levelThresholds]
   // 下一等级的阈值
   const nextLevel = levels[levelIndex + 1]
   const nextThreshold = levelThresholds[nextLevel as keyof typeof levelThresholds]
-  
+
   // 在当前等级段内的进度百分比
   const range = nextThreshold - currentThreshold
   const progress = props.currentAmount - currentThreshold
   const segmentProgress = Math.min(Math.max(progress / range, 0), 1)
-  
+
   // 游标位置 = 已完成的段数 + 当前段内的进度
   return (levelIndex + segmentProgress) * segmentWidth
 })
@@ -91,7 +91,7 @@ const indicatorPosition = computed(() => {
 const amountToNextLevel = computed(() => {
   const levelInfo = getCurrentLevelInfo(props.currentAmount)
   const levelIndex = levelInfo.index
-  
+
   if (levelIndex >= levels.length - 1) {
     return 0
   }
@@ -102,7 +102,7 @@ const amountToNextLevel = computed(() => {
 
 const getSegmentClass = (index: number) => {
   const currentLevelIndex = getCurrentLevelInfo(props.currentAmount).index
-  
+
   // 当前等级所在的 segment
   if (index === currentLevelIndex) {
     return 'current'

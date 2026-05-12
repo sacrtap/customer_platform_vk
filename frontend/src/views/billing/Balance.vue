@@ -58,11 +58,7 @@
                 :max-tag-count="1"
                 :max-tag-placeholder="(count: number) => `+${count}`"
               >
-                <a-option
-                  v-for="item in industryTypes"
-                  :key="item.id"
-                  :value="item.name"
-                >
+                <a-option v-for="item in industryTypes" :key="item.id" :value="item.name">
                   {{ item.name }}
                 </a-option>
               </a-select>
@@ -388,11 +384,43 @@ const sortState = reactive({
 
 // 表格列定义
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 100, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'customer_name', width: 200, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '余额', dataIndex: 'total_amount', slotName: 'balance', width: 280, sortable: { sortDirections: ['ascend', 'descend'] } },
-  { title: '已消耗', dataIndex: 'used_total', slotName: 'used', width: 200, sortable: { sortDirections: ['ascend', 'descend'] } },
-  { title: '最新充值时间', dataIndex: 'last_recharge_at', slotName: 'last_recharge_at', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  {
+    title: '公司 ID',
+    dataIndex: 'company_id',
+    width: 100,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 200,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '余额',
+    dataIndex: 'total_amount',
+    slotName: 'balance',
+    width: 280,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
+  {
+    title: '已消耗',
+    dataIndex: 'used_total',
+    slotName: 'used',
+    width: 200,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
+  {
+    title: '最新充值时间',
+    dataIndex: 'last_recharge_at',
+    slotName: 'last_recharge_at',
+    width: 180,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
   { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
@@ -432,7 +460,12 @@ const loadBalances = async () => {
   loading.value = true
   try {
     // 将前端的 ascend/descend 转换为后端期望的 asc/desc
-    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+    const backendSortOrder =
+      sortState.sort_order === 'ascend'
+        ? 'asc'
+        : sortState.sort_order === 'descend'
+          ? 'desc'
+          : 'asc'
 
     const params: {
       page: number
@@ -456,7 +489,8 @@ const loadBalances = async () => {
     }
     if (filters.customer_id) params.customer_id = filters.customer_id
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.industry && filters.industry.length > 0)
+      params.industry = filters.industry.join(',')
     if (filters.recharge_date && filters.recharge_date.length === 2) {
       params.recharge_date_from = filters.recharge_date[0]
       params.recharge_date_to = filters.recharge_date[1]
@@ -556,7 +590,7 @@ const handleRecharge = async () => {
     const customerId = res.data.customer_id
     const balanceData = res.data.balance
     if (balanceData) {
-      const targetIndex = balances.value.findIndex(b => b.customer_id === customerId)
+      const targetIndex = balances.value.findIndex((b) => b.customer_id === customerId)
       if (targetIndex !== -1) {
         balances.value[targetIndex] = {
           ...balances.value[targetIndex],

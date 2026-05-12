@@ -50,9 +50,7 @@
               content="确认删除该行业类型？删除后不会影响已关联的客户记录。"
               @ok="handleDelete(record.id)"
             >
-              <a-button type="text" size="small" status="danger">
-                删除
-              </a-button>
+              <a-button type="text" size="small" status="danger"> 删除 </a-button>
             </a-popconfirm>
           </a-space>
         </template>

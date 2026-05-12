@@ -33,11 +33,7 @@
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
-      <StatCard
-        title="客户总数"
-        :value="formatNumber(stats.totalCustomers)"
-        variant="primary"
-      >
+      <StatCard title="客户总数" :value="formatNumber(stats.totalCustomers)" variant="primary">
         <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -129,11 +125,7 @@
         </template>
       </StatCard>
 
-      <StatCard
-        title="待确认账单"
-        :value="stats.pendingConfirmation"
-        variant="warning"
-      >
+      <StatCard title="待确认账单" :value="stats.pendingConfirmation" variant="warning">
         <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -177,11 +169,7 @@
         </template>
       </StatCard>
 
-      <StatCard
-        title="总余额"
-        :value="formatCurrencyWan(stats.totalBalance)"
-        variant="danger"
-      >
+      <StatCard title="总余额" :value="formatCurrencyWan(stats.totalBalance)" variant="danger">
         <template #icon>
           <svg
             xmlns="http://www.w3.org/2000/svg"

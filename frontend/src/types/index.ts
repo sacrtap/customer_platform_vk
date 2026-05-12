@@ -125,8 +125,8 @@ export interface CustomerProfile {
   customer_id: number
   scale_level: string | null
   consume_level: string | null
-  industry_type_id: number | null  // 新增：行业类型外键 ID
-  industry?: string  // 保留：行业类型名称（向后兼容，用于显示）
+  industry_type_id: number | null // 新增：行业类型外键 ID
+  industry?: string // 保留：行业类型名称（向后兼容，用于显示）
   is_real_estate: boolean
   description: string | null
   created_at: string

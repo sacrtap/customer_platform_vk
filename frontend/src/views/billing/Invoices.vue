@@ -9,17 +9,35 @@
       <div class="header-actions">
         <a-button v-if="can('billing:edit')" type="primary" @click="showGenerateModal">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+              />
             </svg>
           </template>
           生成结算单
         </a-button>
         <a-button v-if="can('billing:view')" @click="handleExport">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
+              />
+              <path
+                d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"
+              />
             </svg>
           </template>
           导出
@@ -89,7 +107,10 @@
           <span class="amount">{{ formatCurrency(record.total_amount) }}</span>
         </template>
         <template #discount="{ record }">
-          <span v-if="record.discount_amount && record.discount_amount > 0" class="amount text-danger">
+          <span
+            v-if="record.discount_amount && record.discount_amount > 0"
+            class="amount text-danger"
+          >
             -{{ formatCurrency(record.discount_amount) }}
           </span>
           <span v-else class="text-muted">-</span>
@@ -106,10 +127,10 @@
         <template #action="{ record }">
           <a-space>
             <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
-            <a-button 
-              v-if="record.status === 'draft'" 
-              type="primary" 
-              size="small" 
+            <a-button
+              v-if="record.status === 'draft'"
+              type="primary"
+              size="small"
               @click="handleSubmit(record)"
             >
               提交
@@ -117,47 +138,45 @@
             <a-dropdown>
               <a-button type="text" size="small">更多</a-button>
               <template #content>
-                <a-doption 
-                  v-if="record.status === 'draft' && can('billing:edit') && record.total_amount > 0" 
+                <a-doption
+                  v-if="record.status === 'draft' && can('billing:edit') && record.total_amount > 0"
                   @click="showDiscountModal(record)"
                 >
                   申请折扣
                 </a-doption>
-                <a-doption 
-                  v-if="record.status === 'pending_customer' && can('billing:confirm')" 
+                <a-doption
+                  v-if="record.status === 'pending_customer' && can('billing:confirm')"
                   @click="handleConfirm(record)"
                 >
                   确认结算单
                 </a-doption>
-                <a-doption 
-                  v-if="record.status === 'pending_customer' && can('billing:edit')" 
-                  style="color: #ff4d4f" 
+                <a-doption
+                  v-if="record.status === 'pending_customer' && can('billing:edit')"
+                  style="color: #ff4d4f"
                   @click="handleCancel(record)"
                 >
                   取消结算单
                 </a-doption>
-                <a-doption 
-                  v-if="record.status === 'customer_confirmed' && can('billing:pay')" 
+                <a-doption
+                  v-if="record.status === 'customer_confirmed' && can('billing:pay')"
                   @click="showPayModal(record)"
                 >
                   标记付款
                 </a-doption>
-                <a-doption 
-                  v-if="record.status === 'paid' && can('billing:pay')" 
+                <a-doption
+                  v-if="record.status === 'paid' && can('billing:pay')"
                   @click="handleComplete(record)"
                 >
                   完成结算
                 </a-doption>
-                <a-doption 
-                  v-if="record.status === 'draft' && can('billing:delete')" 
-                  style="color: #ff4d4f" 
+                <a-doption
+                  v-if="record.status === 'draft' && can('billing:delete')"
+                  style="color: #ff4d4f"
                   @click="handleDelete(record)"
                 >
                   删除
                 </a-doption>
-                <a-doption @click="handleExportSingle(record)">
-                  导出结算单
-                </a-doption>
+                <a-doption @click="handleExportSingle(record)"> 导出结算单 </a-doption>
               </template>
             </a-dropdown>
           </a-space>
@@ -169,12 +188,7 @@
     </div>
 
     <!-- 结算单详情 Drawer -->
-    <a-drawer
-      v-model:visible="drawerVisible"
-      title="结算单详情"
-      width="720px"
-      unmount-on-close
-    >
+    <a-drawer v-model:visible="drawerVisible" title="结算单详情" width="720px" unmount-on-close>
       <template v-if="selectedInvoice">
         <div class="drawer-content">
           <!-- 详情头部 -->
@@ -194,13 +208,19 @@
               </a-link>
             </a-descriptions-item>
             <a-descriptions-item label="结算周期">
-              {{ formatDate(selectedInvoice.period_start) }} ~ {{ formatDate(selectedInvoice.period_end) }}
+              {{ formatDate(selectedInvoice.period_start) }} ~
+              {{ formatDate(selectedInvoice.period_end) }}
             </a-descriptions-item>
             <a-descriptions-item label="总金额">
               {{ formatCurrency(selectedInvoice.total_amount) }}
             </a-descriptions-item>
-            <a-descriptions-item v-if="selectedInvoice.discount_amount && selectedInvoice.discount_amount > 0" label="折扣金额">
-              <span class="text-danger">-{{ formatCurrency(selectedInvoice.discount_amount) }}</span>
+            <a-descriptions-item
+              v-if="selectedInvoice.discount_amount && selectedInvoice.discount_amount > 0"
+              label="折扣金额"
+            >
+              <span class="text-danger"
+                >-{{ formatCurrency(selectedInvoice.discount_amount) }}</span
+              >
             </a-descriptions-item>
             <a-descriptions-item v-if="selectedInvoice.discount_reason" label="折扣原因" :span="2">
               {{ selectedInvoice.discount_reason }}
@@ -215,7 +235,11 @@
             <div class="section-header">
               <h3>结算明细</h3>
               <a-button
-                v-if="can('billing:edit') && selectedInvoice.status === 'draft' && (!selectedInvoice.items || selectedInvoice.items.length === 0)"
+                v-if="
+                  can('billing:edit') &&
+                  selectedInvoice.status === 'draft' &&
+                  (!selectedInvoice.items || selectedInvoice.items.length === 0)
+                "
                 type="primary"
                 size="small"
                 :loading="calculating"
@@ -237,7 +261,9 @@
                 </a-tag>
               </template>
               <template #subtotal="{ record }">
-                <span class="amount">{{ formatCurrency(record.subtotal || record.quantity * record.unit_price) }}</span>
+                <span class="amount">{{
+                  formatCurrency(record.subtotal || record.quantity * record.unit_price)
+                }}</span>
               </template>
               <template #empty>
                 <a-empty description="暂无结算明细，草稿状态下可自动生成" />
@@ -256,7 +282,11 @@
                 提交结算单
               </a-button>
               <a-button
-                v-if="can('billing:edit') && selectedInvoice.status === 'draft' && selectedInvoice.total_amount > 0"
+                v-if="
+                  can('billing:edit') &&
+                  selectedInvoice.status === 'draft' &&
+                  selectedInvoice.total_amount > 0
+                "
                 @click="showDiscountModal(selectedInvoice)"
               >
                 申请折扣
@@ -437,14 +467,45 @@ const sortState = reactive({
 
 // 表格列定义
 const columns = [
-  { title: '结算单号', dataIndex: 'invoice_no', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'customer_name', width: 180, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
+  {
+    title: '结算单号',
+    dataIndex: 'invoice_no',
+    width: 180,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 180,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
   { title: '结算周期', slotName: 'period', width: 220, ellipsis: true, tooltip: true },
-  { title: '总金额', slotName: 'totalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
+  {
+    title: '总金额',
+    slotName: 'totalAmount',
+    width: 140,
+    align: 'right' as const,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
   { title: '折扣', slotName: 'discount', width: 120, align: 'right' as const },
-  { title: '折后金额', slotName: 'finalAmount', width: 140, align: 'right' as const, sortable: { sortDirections: ['ascend', 'descend'] } },
+  {
+    title: '折后金额',
+    slotName: 'finalAmount',
+    width: 140,
+    align: 'right' as const,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
   { title: '状态', slotName: 'status', width: 130 },
-  { title: '创建时间', slotName: 'createdAt', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  {
+    title: '创建时间',
+    slotName: 'createdAt',
+    width: 180,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
   { title: '操作', slotName: 'action', width: 180, fixed: 'right' as const },
 ]
 
@@ -490,7 +551,12 @@ async function loadData() {
       page: pagination.current,
       page_size: pagination.pageSize,
       sort_by: sortState.sort_by,
-      sort_order: sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc',
+      sort_order:
+        sortState.sort_order === 'ascend'
+          ? 'asc'
+          : sortState.sort_order === 'descend'
+            ? 'desc'
+            : 'asc',
     }
     if (filters.customer_id) params.customer_id = filters.customer_id
     if (filters.status) params.status = filters.status

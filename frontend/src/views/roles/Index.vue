@@ -241,7 +241,6 @@ interface PermissionTreeNode {
   children?: PermissionTreeNode[]
 }
 
-
 // 模块英文标识到中文名称的映射（与侧边栏菜单保持一致）
 const MODULE_NAME_MAP: Record<string, string> = {
   customers: '客户管理',

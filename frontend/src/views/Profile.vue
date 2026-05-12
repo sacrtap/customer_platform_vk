@@ -28,9 +28,7 @@
             </div>
           </div>
           <div class="avatar-actions">
-            <a-button type="primary" size="small" @click="showAvatarUrlInput">
-              更换头像
-            </a-button>
+            <a-button type="primary" size="small" @click="showAvatarUrlInput"> 更换头像 </a-button>
             <a-button v-if="formData.avatar_url" size="small" @click="removeAvatar">
               移除
             </a-button>
@@ -40,7 +38,7 @@
             v-model="avatarUrlInput"
             placeholder="输入头像图片 URL"
             size="small"
-            style="margin-top: 8px; max-width: 300px;"
+            style="margin-top: 8px; max-width: 300px"
             @blur="handleAvatarUrlConfirm"
             @press-enter="handleAvatarUrlConfirm"
           />
@@ -65,9 +63,7 @@
 
         <!-- 操作按钮 -->
         <div class="form-actions">
-          <a-button type="primary" html-type="submit" :loading="submitLoading">
-            保存
-          </a-button>
+          <a-button type="primary" html-type="submit" :loading="submitLoading"> 保存 </a-button>
           <a-button @click="handleCancel">取消</a-button>
         </div>
       </a-form>
@@ -104,9 +100,7 @@ const avatarUrlInputVisible = ref(false)
 const avatarUrlInput = ref('')
 
 const rules = {
-  email: [
-    { type: 'email', message: '邮箱格式不正确' },
-  ],
+  email: [{ type: 'email', message: '邮箱格式不正确' }],
   phone: [
     {
       pattern: /^\d{11}$/,

@@ -187,7 +187,7 @@
                   <span class="metric-label">规模等级</span>
                   <span class="metric-value">{{ profile.scale_level || '-' }}</span>
                 </div>
-                
+
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
                 </div>
@@ -201,7 +201,11 @@
                 </div>
                 <div v-else class="metric-card warning">
                   <span class="metric-label">预估年消费</span>
-                  <span class="metric-value">{{ profile.estimated_annual_spend ? formatCurrency(Number(profile.estimated_annual_spend)) : '-' }}</span>
+                  <span class="metric-value">{{
+                    profile.estimated_annual_spend
+                      ? formatCurrency(Number(profile.estimated_annual_spend))
+                      : '-'
+                  }}</span>
                 </div>
               </div>
 
@@ -228,7 +232,11 @@
                 </div>
                 <div v-else class="metric-card">
                   <span class="metric-label">25年实际消费</span>
-                  <span class="metric-value">{{ profile.actual_annual_spend_2025 ? formatCurrency(Number(profile.actual_annual_spend_2025)) : '-' }}</span>
+                  <span class="metric-value">{{
+                    profile.actual_annual_spend_2025
+                      ? formatCurrency(Number(profile.actual_annual_spend_2025))
+                      : '-'
+                  }}</span>
                 </div>
               </div>
 
@@ -248,7 +256,7 @@
                     />
                   </div>
                 </div>
-                
+
                 <div class="chart-panel">
                   <h4 class="chart-title">消费等级进度</h4>
                   <p class="chart-description">当前消费等级升级进度</p>
@@ -394,7 +402,12 @@
               </a-form-item>
 
               <a-form-item field="industry_type_id" label="行业类型">
-                <a-select v-model="editForm.industry_type_id" placeholder="请选择行业类型" allow-clear :loading="industryTypesLoading">
+                <a-select
+                  v-model="editForm.industry_type_id"
+                  placeholder="请选择行业类型"
+                  allow-clear
+                  :loading="industryTypesLoading"
+                >
                   <a-option v-for="type in industryTypes" :key="type.id" :value="type.id">
                     {{ type.name }}
                   </a-option>
@@ -403,7 +416,11 @@
 
               <a-form-item field="price_policy" label="计费模式">
                 <a-select v-model="editForm.price_policy" placeholder="请选择计费模式" allow-clear>
-                  <a-option v-for="option in pricePolicyOptions" :key="option.value" :value="option.value">
+                  <a-option
+                    v-for="option in pricePolicyOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
                     {{ option.label }}
                   </a-option>
                 </a-select>
@@ -426,7 +443,11 @@
               </a-form-item>
 
               <a-form-item field="settlement_cycle" label="结算周期">
-                <a-select v-model="editForm.settlement_cycle" placeholder="请选择结算周期" allow-clear>
+                <a-select
+                  v-model="editForm.settlement_cycle"
+                  placeholder="请选择结算周期"
+                  allow-clear
+                >
                   <a-option value="daily">日结</a-option>
                   <a-option value="weekly">周结</a-option>
                   <a-option value="monthly">月结</a-option>
@@ -435,7 +456,11 @@
               </a-form-item>
 
               <a-form-item field="cooperation_status" label="合作状态">
-                <a-select v-model="editForm.cooperation_status" placeholder="请选择合作状态" allow-clear>
+                <a-select
+                  v-model="editForm.cooperation_status"
+                  placeholder="请选择合作状态"
+                  allow-clear
+                >
                   <a-option value="active">合作中</a-option>
                   <a-option value="suspended">暂停</a-option>
                   <a-option value="terminated">终止</a-option>
@@ -444,7 +469,11 @@
               </a-form-item>
 
               <a-form-item field="erp_system" label="所属 ERP">
-                <a-input v-model="editForm.erp_system" placeholder="请输入所属 ERP 系统" allow-clear />
+                <a-input
+                  v-model="editForm.erp_system"
+                  placeholder="请输入所属 ERP 系统"
+                  allow-clear
+                />
               </a-form-item>
 
               <a-form-item field="manager_id" label="运营经理">
@@ -582,7 +611,13 @@ import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { getCustomer, updateCustomer, getProfile, updateProfile, getIndustryTypes } from '@/api/customers'
+import {
+  getCustomer,
+  updateCustomer,
+  getProfile,
+  updateProfile,
+  getIndustryTypes,
+} from '@/api/customers'
 import {
   getCustomerBalance,
   getInvoices,
@@ -650,12 +685,12 @@ const markChartForRender = (chartId: string): void => {
 const handleTabChange = (tabKey: string): void => {
   if (!loadedTabs.value.has(tabKey)) {
     loadedTabs.value.add(tabKey)
-    
+
     // 延迟加载图表，避免标签页切换卡顿
     if (tabLoadTimer) {
       clearTimeout(tabLoadTimer)
     }
-    
+
     tabLoadTimer = setTimeout(() => {
       if (tabKey === 'profile') {
         markChartForRender('health')
@@ -880,19 +915,13 @@ const editForm = ref<EditForm>({
 
 // 编辑表单验证规则
 const editFormRules = {
-  company_id: [
-    { required: true, message: '公司 ID 不能为空', trigger: ['blur', 'change'] },
-  ],
+  company_id: [{ required: true, message: '公司 ID 不能为空', trigger: ['blur', 'change'] }],
   name: [
     { required: true, message: '客户名称不能为空', trigger: ['blur', 'change'] },
     { maxLength: 200, message: '客户名称不能超过 200 个字符', trigger: ['blur', 'change'] },
   ],
-  email: [
-    { type: 'email', message: '邮箱格式不正确', trigger: ['blur', 'change'] },
-  ],
-  settlement_type: [
-    { required: true, message: '请选择结算方式', trigger: ['blur', 'change'] },
-  ],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: ['blur', 'change'] }],
+  settlement_type: [{ required: true, message: '请选择结算方式', trigger: ['blur', 'change'] }],
 }
 
 // 加载数据 - 优化版：支持 Pinia 缓存和并行加载
@@ -909,13 +938,13 @@ const loadCustomerData = async () => {
     invoices.value = cached.invoices
     healthScore.value = cached.healthScore
     balanceTrend.value = cached.balanceTrend
-    
+
     loading.value = false
     profileLoading.value = false
     balanceLoading.value = false
     healthScoreLoading.value = false
     balanceTrendLoading.value = false
-    
+
     // 模拟用量分布数据
     usageDistribution.value = [
       { device_type: 'iOS', quantity: 45000, percentage: 45 },
@@ -928,7 +957,7 @@ const loadCustomerData = async () => {
   }
 
   loading.value = true
-  
+
   // 性能优化: 分阶段加载数据 - 先加载关键数据
   try {
     // 第一阶段: 加载基础信息（快速显示）
@@ -1640,7 +1669,9 @@ onUnmounted(() => {
 
 .balance-card:hover {
   transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(3, 105, 161, 0.2), 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 20px 40px rgba(3, 105, 161, 0.2),
+    0 8px 16px rgba(0, 0, 0, 0.1);
   border-color: var(--primary-6);
   background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
 }
@@ -1756,7 +1787,7 @@ onUnmounted(() => {
 
 /* 主色指标卡片 - 规模等级 */
 .metric-card.primary {
-  background: linear-gradient(135deg, #0369A1 0%, #0EA5E9 100%);
+  background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -1778,7 +1809,7 @@ onUnmounted(() => {
 
 /* 成功色指标卡片 - 消费等级 */
 .metric-card.success {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -1800,7 +1831,7 @@ onUnmounted(() => {
 
 /* 警告色指标卡片 - 预估年消费 */
 .metric-card.warning {
-  background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -1901,7 +1932,7 @@ onUnmounted(() => {
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .charts-grid {
     grid-template-columns: 1fr;
   }
@@ -1912,29 +1943,29 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
     gap: 10px;
   }
-  
+
   .metric-card {
     padding: 14px 16px;
     min-height: 64px;
   }
-  
+
   .metric-card .metric-value {
     font-size: 16px;
   }
-  
+
   .metric-card.primary .metric-value,
   .metric-card.success .metric-value {
     font-size: 18px;
   }
-  
+
   .charts-grid {
     gap: 16px;
   }
-  
+
   .chart-panel {
     padding: 16px;
   }
-  
+
   .chart-content {
     min-height: 200px;
   }
@@ -1946,7 +1977,7 @@ onUnmounted(() => {
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .metric-card .metric-value {
     font-size: 18px;
   }
@@ -1958,7 +1989,7 @@ onUnmounted(() => {
   .chart-panel {
     transition: none;
   }
-  
+
   .metric-card:hover {
     transform: none;
   }

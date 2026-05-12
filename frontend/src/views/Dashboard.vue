@@ -158,7 +158,6 @@
             >
           </div>
 
-
           <div
             class="nav-item nav-item-wrapper"
             :class="{
@@ -540,24 +539,163 @@
 
           <div class="header-divider"></div>
 
-          <!-- 退出 -->
-          <ActionButton label="退出登录" @click="handleLogout">
-            <svg
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
-          </ActionButton>
+          <!-- 我的 - 用户头像 + 下拉菜单 -->
+          <a-popover
+            trigger="click"
+            position="br"
+            :content-style="{ padding: 0, borderRadius: '12px' }"
+            :arrow-style="{ display: 'none' }"
+          >
+            <div class="user-avatar-btn">
+              <div v-if="userStore.userInfo?.avatar_url" class="user-avatar-img">
+                <img :src="userStore.userInfo.avatar_url" :alt="userStore.userInfo.username" />
+              </div>
+              <div v-else class="user-avatar-text">
+                {{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}
+              </div>
+            </div>
+
+            <template #content>
+              <div class="user-dropdown">
+                <div class="dropdown-header">
+                  <div v-if="userStore.userInfo?.avatar_url" class="dropdown-avatar-img">
+                    <img :src="userStore.userInfo.avatar_url" :alt="userStore.userInfo.username" />
+                  </div>
+                  <div v-else class="dropdown-avatar">
+                    {{ userStore.userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}
+                  </div>
+                  <div class="dropdown-user-info">
+                    <div class="dropdown-user-name">
+                      {{ userStore.userInfo?.username || '用户' }}
+                    </div>
+                    <div class="dropdown-user-role">
+                      {{ userStore.userInfo?.roles?.[0] || '运营经理' }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="dropdown-menu">
+                  <div class="dropdown-item" @click="goToProfile">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                    个人信息
+                  </div>
+                  <div class="dropdown-item" @click="showChangePasswordModal">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      />
+                    </svg>
+                    修改密码
+                  </div>
+                </div>
+
+                <div class="dropdown-divider"></div>
+
+                <div class="dropdown-menu">
+                  <div class="dropdown-item danger" @click="handleLogout">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                      />
+                    </svg>
+                    退出登录
+                  </div>
+                </div>
+              </div>
+            </template>
+          </a-popover>
         </div>
+
+        <!-- 修改密码对话框 -->
+        <a-modal
+          v-model:visible="changePasswordVisible"
+          title="修改密码"
+          :mask-closable="false"
+          @ok="handleChangePassword"
+          @cancel="changePasswordVisible = false"
+        >
+          <a-form ref="changePasswordFormRef" :model="changePasswordForm" layout="vertical">
+            <a-form-item
+              label="当前密码"
+              field="current_password"
+              :rules="[{ required: true, message: '请输入当前密码' }]"
+            >
+              <a-input-password
+                v-model="changePasswordForm.current_password"
+                placeholder="请输入当前密码"
+                size="large"
+              />
+            </a-form-item>
+            <a-form-item
+              label="新密码"
+              field="new_password"
+              :rules="[
+                { required: true, message: '请输入新密码' },
+                { minLength: 6, message: '密码长度不能少于 6 位' },
+              ]"
+            >
+              <a-input-password
+                v-model="changePasswordForm.new_password"
+                placeholder="请输入新密码（至少 6 位）"
+                size="large"
+              />
+            </a-form-item>
+            <a-form-item
+              label="确认新密码"
+              field="confirm_password"
+              :rules="[
+                { required: true, message: '请再次输入新密码' },
+                { validator: validateConfirmPassword, message: '两次输入的密码不一致' },
+              ]"
+            >
+              <a-input-password
+                v-model="changePasswordForm.confirm_password"
+                placeholder="请再次输入新密码"
+                size="large"
+              />
+            </a-form-item>
+          </a-form>
+          <template #footer>
+            <a-button @click="changePasswordVisible = false">取消</a-button>
+            <a-button type="primary" :loading="changePasswordLoading" @click="handleChangePassword"
+              >确认修改</a-button
+            >
+          </template>
+        </a-modal>
       </header>
 
       <!-- 页面内容 -->
@@ -569,10 +707,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
+import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { changePassword } from '@/api/users'
 import ActionButton from '@/components/ActionButton.vue'
 
 const router = useRouter()
@@ -681,6 +821,56 @@ const handleLogout = () => {
   userStore.logout()
   Message.success('已退出登录')
   router.push('/login')
+}
+
+const changePasswordVisible = ref(false)
+const changePasswordFormRef = ref<FormInstance>()
+const changePasswordForm = reactive({
+  current_password: '',
+  new_password: '',
+  confirm_password: '',
+})
+const changePasswordLoading = ref(false)
+
+const validateConfirmPassword = (_value: string, callback: (error?: string) => void) => {
+  if (changePasswordForm.confirm_password !== changePasswordForm.new_password) {
+    callback('两次输入的密码不一致')
+  } else {
+    callback()
+  }
+}
+
+const showChangePasswordModal = () => {
+  changePasswordVisible.value = true
+  changePasswordForm.current_password = ''
+  changePasswordForm.new_password = ''
+  changePasswordForm.confirm_password = ''
+}
+
+const handleChangePassword = async () => {
+  if (!changePasswordFormRef.value) return
+  try {
+    await changePasswordFormRef.value.validate()
+  } catch {
+    return
+  }
+  changePasswordLoading.value = true
+  try {
+    await changePassword({
+      current_password: changePasswordForm.current_password,
+      new_password: changePasswordForm.new_password,
+    })
+    Message.success('密码修改成功')
+    changePasswordVisible.value = false
+  } catch (error) {
+    Message.error((error as Error)?.message || '密码修改失败')
+  } finally {
+    changePasswordLoading.value = false
+  }
+}
+
+const goToProfile = () => {
+  router.push('/profile')
 }
 </script>
 
@@ -1378,5 +1568,142 @@ const handleLogout = () => {
     margin-left: 0;
     width: 100%;
   }
+}
+
+/* 用户头像按钮 */
+.user-avatar-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.user-avatar-btn:hover {
+  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.2);
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+}
+
+.user-avatar-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-avatar-text {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  border-radius: 50%;
+}
+
+/* 下拉菜单 */
+.user-dropdown {
+  width: 240px;
+}
+
+.dropdown-header {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--neutral-1);
+  border-bottom: 1px solid var(--neutral-2);
+}
+
+.dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.dropdown-avatar-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.dropdown-avatar-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dropdown-user-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.dropdown-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neutral-10);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-user-role {
+  font-size: 12px;
+  color: var(--neutral-5);
+  margin-top: 2px;
+}
+
+.dropdown-menu {
+  padding: 8px;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--neutral-9);
+  font-size: 14px;
+  transition: background-color var(--transition-fast);
+}
+
+.dropdown-item:hover {
+  background: var(--neutral-1);
+}
+
+.dropdown-item.danger {
+  color: var(--danger-6);
+}
+
+.dropdown-item.danger:hover {
+  background: var(--danger-1);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--neutral-2);
+  margin: 0 8px;
 }
 </style>

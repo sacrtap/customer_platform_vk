@@ -60,7 +60,7 @@
           </template>
           导出
         </a-button>
-        <a-button @click="handleRefresh" :loading="loading">
+        <a-button :loading="loading" @click="handleRefresh">
           <template #icon>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -73,12 +73,8 @@
                 fill-rule="evenodd"
                 d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
               />
-              <path
-                d="M8 1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 1z"
-              />
-              <path
-                d="M8 5.5L5.5 3H10.5L8 5.5z"
-              />
+              <path d="M8 1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 1z" />
+              <path d="M8 5.5L5.5 3H10.5L8 5.5z" />
             </svg>
           </template>
           刷新
@@ -92,7 +88,11 @@
         <a-row :gutter="16">
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="关键词">
-              <a-input v-model="filters.keyword" placeholder="公司名称/公司 ID" @press-enter="handleSearch">
+              <a-input
+                v-model="filters.keyword"
+                placeholder="公司名称/公司 ID"
+                @press-enter="handleSearch"
+              >
                 <template #prefix>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -127,11 +127,7 @@
                 :max-tag-count="1"
                 :max-tag-placeholder="(count: number) => `+${count}`"
               >
-                <a-option
-                  v-for="item in industryTypes"
-                  :key="item.id"
-                  :value="item.name"
-                >
+                <a-option v-for="item in industryTypes" :key="item.id" :value="item.name">
                   {{ item.name }}
                 </a-option>
               </a-select>
@@ -274,12 +270,21 @@
         <template #action="{ record }">
           <a-space>
             <a-button type="primary" size="small" @click="viewCustomer(record.id)">查看</a-button>
-            <a-button v-if="can('customers:edit')" type="text" size="small" @click="openEditModal(record)">编辑</a-button>
+            <a-button
+              v-if="can('customers:edit')"
+              type="text"
+              size="small"
+              @click="openEditModal(record)"
+              >编辑</a-button
+            >
             <a-dropdown>
               <a-button type="text" size="small">更多</a-button>
               <template #content>
                 <a-doption @click="viewProfile(record.id)">画像</a-doption>
-                <a-doption v-if="can('customers:delete')" style="color: #ff4d4f" @click="() => handleDelete(record.id)"
+                <a-doption
+                  v-if="can('customers:delete')"
+                  style="color: #ff4d4f"
+                  @click="() => handleDelete(record.id)"
                   >删除</a-doption
                 >
               </template>
@@ -289,7 +294,9 @@
         <template #empty>
           <EmptyState title="暂无客户数据" description="点击「新建客户」添加第一个客户">
             <template #action>
-              <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">新建客户</a-button>
+              <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal"
+                >新建客户</a-button
+              >
             </template>
           </EmptyState>
         </template>
@@ -315,10 +322,7 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item field="company_id" label="公司 ID" required>
-              <a-input
-                v-model="customerForm.company_id"
-                placeholder="请输入公司 ID"
-              />
+              <a-input v-model="customerForm.company_id" placeholder="请输入公司 ID" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
@@ -352,11 +356,7 @@
                 placeholder="请选择行业类型"
                 allow-clear
               >
-                <a-option
-                  v-for="item in industryTypes"
-                  :key="item.id"
-                  :value="item.id"
-                >
+                <a-option v-for="item in industryTypes" :key="item.id" :value="item.id">
                   {{ item.name }}
                 </a-option>
               </a-select>
@@ -444,10 +444,20 @@
           <template #action>
             <a-button type="text" size="small" @click="downloadTemplate">
               <template #icon>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
               </template>
               下载模板
@@ -455,7 +465,13 @@
           </template>
         </a-alert>
 
-        <div class="upload-area" @click="triggerFileInput" @drop.prevent="handleFileDrop" @dragover.prevent @dragenter.prevent>
+        <div
+          class="upload-area"
+          @click="triggerFileInput"
+          @drop.prevent="handleFileDrop"
+          @dragover.prevent
+          @dragenter.prevent
+        >
           <input
             ref="fileInputRef"
             type="file"
@@ -465,10 +481,20 @@
           />
           <div v-if="!importFile" class="upload-placeholder">
             <div class="upload-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </div>
             <div class="upload-text-primary">点击或拖拽文件到此处</div>
@@ -476,12 +502,22 @@
           </div>
           <div v-else class="file-selected">
             <div class="file-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
               </svg>
             </div>
             <div class="file-info">
@@ -489,9 +525,19 @@
               <div class="file-size">{{ formatFileSize(importFile.size) }}</div>
             </div>
             <div class="file-remove" @click.stop="removeFile">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </div>
           </div>
@@ -499,10 +545,20 @@
 
         <div class="import-tips">
           <div class="tips-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
             导入须知
           </div>
@@ -584,13 +640,65 @@ const pagination = reactive({
 })
 
 const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 100, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '客户名称', dataIndex: 'name', slotName: 'name', width: 220, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '行业类型', dataIndex: 'industry', width: 120, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '结算方式', dataIndex: 'settlement_type', slotName: 'settlementType', width: 120, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '商务经理', dataIndex: 'sales_manager_id', slotName: 'salesManager', width: 130, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '运营经理', dataIndex: 'manager_id', slotName: 'manager', width: 130, sortable: { sortDirections: ['ascend', 'descend'] }, ellipsis: true, tooltip: true },
-  { title: '创建时间', dataIndex: 'created_at', slotName: 'createdAt', width: 180, sortable: { sortDirections: ['ascend', 'descend'] } },
+  {
+    title: '公司 ID',
+    dataIndex: 'company_id',
+    width: 100,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '客户名称',
+    dataIndex: 'name',
+    slotName: 'name',
+    width: 220,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '行业类型',
+    dataIndex: 'industry',
+    width: 120,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '结算方式',
+    dataIndex: 'settlement_type',
+    slotName: 'settlementType',
+    width: 120,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '商务经理',
+    dataIndex: 'sales_manager_id',
+    slotName: 'salesManager',
+    width: 130,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '运营经理',
+    dataIndex: 'manager_id',
+    slotName: 'manager',
+    width: 130,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+    ellipsis: true,
+    tooltip: true,
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'created_at',
+    slotName: 'createdAt',
+    width: 180,
+    sortable: { sortDirections: ['ascend', 'descend'] },
+  },
   { title: '操作', slotName: 'action', width: 180, fixed: 'right' as const },
 ]
 
@@ -609,14 +717,14 @@ const getSettlementTypeName = (type: string | undefined): string => {
 // 获取运营经理显示名称
 const getManagerName = (managerId: number | null | undefined): string => {
   if (!managerId) return '-'
-  const manager = managers.value.find(m => m.id === managerId)
+  const manager = managers.value.find((m) => m.id === managerId)
   return manager ? ((manager.real_name || manager.username) as string) : '-'
 }
 
 // 获取商务经理显示名称
 const getSalesManagerName = (managerId: number | null | undefined): string => {
   if (!managerId) return '-'
-  const manager = managers.value.find(m => m.id === managerId)
+  const manager = managers.value.find((m) => m.id === managerId)
   return manager ? ((manager.real_name || manager.username) as string) : '-'
 }
 
@@ -639,7 +747,12 @@ const loadCustomers = async () => {
   loading.value = true
   try {
     // 将前端的 ascend/descend 转换为后端期望的 asc/desc
-    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+    const backendSortOrder =
+      sortState.sort_order === 'ascend'
+        ? 'asc'
+        : sortState.sort_order === 'descend'
+          ? 'desc'
+          : 'asc'
 
     const params: {
       page: number
@@ -661,7 +774,8 @@ const loadCustomers = async () => {
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.industry && filters.industry.length > 0)
+      params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -699,7 +813,12 @@ const handleRefresh = async () => {
   loading.value = true
   try {
     // 将前端的 ascend/descend 转换为后端期望的 asc/desc
-    const backendSortOrder = sortState.sort_order === 'ascend' ? 'asc' : sortState.sort_order === 'descend' ? 'desc' : 'asc'
+    const backendSortOrder =
+      sortState.sort_order === 'ascend'
+        ? 'asc'
+        : sortState.sort_order === 'descend'
+          ? 'desc'
+          : 'asc'
 
     const params: {
       page: number
@@ -723,7 +842,8 @@ const handleRefresh = async () => {
     }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.industry && filters.industry.length > 0)
+      params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -819,7 +939,8 @@ const handleExport = async () => {
     const params: Record<string, unknown> = {}
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
-    if (filters.industry && filters.industry.length > 0) params.industry = filters.industry.join(',')
+    if (filters.industry && filters.industry.length > 0)
+      params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
@@ -997,7 +1118,7 @@ const validateAndSetFile = (file: File) => {
     'application/vnd.ms-excel',
   ]
   const allowedExtensions = ['.xlsx', '.xls']
-  const hasValidExtension = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+  const hasValidExtension = allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
   const hasValidType = allowedTypes.includes(file.type)
 
   if (!hasValidType && !hasValidExtension) {
@@ -1055,7 +1176,11 @@ const handleImportSubmit = async () => {
 
     if (error_count > 0) {
       // 有错误：展示详情
-      const errorList = errors?.slice(0, 10).map((e: string) => `• ${e}`).join('\n') || ''
+      const errorList =
+        errors
+          ?.slice(0, 10)
+          .map((e: string) => `• ${e}`)
+          .join('\n') || ''
       const moreMsg = error_count > 10 ? `\n... 还有 ${error_count - 10} 条错误` : ''
       Message.warning({
         content: `导入完成：成功 ${success_count} 条，失败 ${error_count} 条\n${errorList}${moreMsg}`,

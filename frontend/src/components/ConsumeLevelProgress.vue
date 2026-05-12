@@ -66,7 +66,7 @@ const props = defineProps<{
 // 组件内部自动计算进度
 const progress = computed(() => {
   const level = props.currentLevel
-  const index = CONSUME_LEVELS.findIndex(l => l.value === level)
+  const index = CONSUME_LEVELS.findIndex((l) => l.value === level)
   if (index < 0) return 0
   // 游标在每个等级段的中间位置
   return Math.round(((index + 0.5) / CONSUME_LEVELS.length) * 100)
@@ -74,10 +74,10 @@ const progress = computed(() => {
 
 const levels = CONSUME_LEVELS
 
-const segments = CONSUME_LEVELS.map(l => ({ level: l.value }))
+const segments = CONSUME_LEVELS.map((l) => ({ level: l.value }))
 
-const currentLevelIndex = computed(() => 
-  CONSUME_LEVELS.findIndex(l => l.value === props.currentLevel)
+const currentLevelIndex = computed(() =>
+  CONSUME_LEVELS.findIndex((l) => l.value === props.currentLevel)
 )
 
 const nextLevel = computed(() => {
@@ -86,7 +86,7 @@ const nextLevel = computed(() => {
 })
 
 const getLevelLabel = (level: string) => {
-  return CONSUME_LEVELS.find(l => l.value === level)?.label || level
+  return CONSUME_LEVELS.find((l) => l.value === level)?.label || level
 }
 </script>
 
@@ -213,7 +213,15 @@ const getLevelLabel = (level: string) => {
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, #a855f7 0%, #f59e0b 16%, #3296f7 33%, #22c55e 50%, #d97706 66%, #ef4444 100%);
+  background: linear-gradient(
+    90deg,
+    #a855f7 0%,
+    #f59e0b 16%,
+    #3296f7 33%,
+    #22c55e 50%,
+    #d97706 66%,
+    #ef4444 100%
+  );
   transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 6px;
 }
