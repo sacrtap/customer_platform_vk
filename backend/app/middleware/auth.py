@@ -33,6 +33,10 @@ def auth_middleware(app: Sanic):
             if request.path in skip_paths or request.path == "/":
                 return
 
+            # 前缀匹配跳过路径（静态文件等）
+            if request.path.startswith("/uploads/"):
+                return
+
             # 获取 Authorization Header (Sanic 将 headers 转为小写)
             auth_header = request.headers.get("authorization")
 
