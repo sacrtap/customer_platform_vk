@@ -243,39 +243,52 @@ const loadProfile = async () => {
 
 const avatarUploading = ref(false)
 
-const handleAvatarUpload = async (option: RequestOption) => {
-  const { fileItem } = option
+const handleAvatarUpload = (option: RequestOption) => {
+  const { fileItem, onSuccess, onError } = option
   const file = fileItem.file as File
 
   // 前端校验
   const allowedTypes = ['image/jpeg', 'image/png']
   if (!allowedTypes.includes(file.type)) {
     Message.error('仅支持 JPG/PNG 格式的图片')
+    onError(new Error('不支持的文件格式'))
     return
   }
 
   if (file.size > 2 * 1024 * 1024) {
     Message.error('图片大小不能超过 2MB')
+    onError(new Error('文件大小超过限制'))
     return
   }
 
   avatarUploading.value = true
-  try {
-    const res = await uploadAvatar(file)
-    const newAvatarUrl = res.data.avatar_url
-    formData.avatar_url = newAvatarUrl
 
-    // 同步更新 store
-    userStore.setUserInfo({
-      ...userStore.userInfo!,
-      avatar_url: newAvatarUrl,
+  uploadAvatar(file)
+    .then((res) => {
+      const newAvatarUrl = res.data.avatar_url
+      formData.avatar_url = newAvatarUrl
+
+      // 同步更新 store
+      userStore.setUserInfo({
+        ...userStore.userInfo!,
+        avatar_url: newAvatarUrl,
+      })
+
+      Message.success('头像上传成功')
+      onSuccess(res)
+    })
+    .catch((error) => {
+      Message.error((error as Error)?.message || '头像上传失败')
+      onError(error)
+    })
+    .finally(() => {
+      avatarUploading.value = false
     })
 
-    Message.success('头像上传成功')
-  } catch (error) {
-    Message.error((error as Error)?.message || '头像上传失败')
-  } finally {
-    avatarUploading.value = false
+  return {
+    abort() {
+      // 当前实现不支持取消
+    },
   }
 }
 
