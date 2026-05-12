@@ -409,3 +409,37 @@ async def test_delete_user_success(test_client, db_session, test_user):
             {"username": username},
         )
         db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_upload_avatar_success(test_client, test_user):
+    """测试头像上传成功"""
+    import io
+
+    from PIL import Image
+
+    # 创建测试图片
+    img = Image.new("RGB", (200, 200), color="blue")
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG")
+    buffer.seek(0)
+
+    # 登录
+    _, login_resp = await test_client.post(
+        "/api/v1/auth/login",
+        json={"username": test_user["username"], "password": test_user["password"]},
+    )
+    token = login_resp.json["data"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 上传头像
+    _, response = await test_client.post(
+        "/api/v1/users/avatar",
+        headers=headers,
+        files={"file": ("test.jpg", buffer, "image/jpeg")},
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["avatar_url"].startswith("/uploads/avatars/")
