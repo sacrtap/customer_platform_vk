@@ -563,3 +563,100 @@ async def import_users(
         # 回滚事务（如果有的话）
         await db_session.rollback()
         return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+
+
+@users_bp.get("/profile")
+@auth_required
+async def get_profile(request: Request):
+    """获取当前登录用户的个人信息"""
+    current_user = get_current_user(request)
+    if not current_user:
+        return json({"code": 40101, "message": "未登录"}, status=401)
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+
+    profile = await service.get_profile(current_user["user_id"])
+    if not profile:
+        return json({"code": 40401, "message": "用户不存在"}, status=404)
+
+    return json({"code": 0, "message": "success", "data": profile})
+
+
+@users_bp.put("/profile")
+@auth_required
+async def update_profile(request: Request):
+    """更新当前登录用户的个人信息"""
+    current_user = get_current_user(request)
+    if not current_user:
+        return json({"code": 40101, "message": "未登录"}, status=401)
+
+    data = request.json
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+
+    # 邮箱格式验证
+    email = data.get("email")
+    if email and "@" not in email:
+        return json({"code": 40001, "message": "邮箱格式不正确"}, status=400)
+
+    # 手机号格式验证
+    phone = data.get("phone")
+    if phone and not phone.isdigit():
+        return json({"code": 40002, "message": "手机号格式不正确"}, status=400)
+
+    profile = await service.update_profile(
+        current_user["user_id"],
+        email=email,
+        phone=phone,
+        avatar_url=data.get("avatar_url"),
+        real_name=data.get("real_name"),
+    )
+    if not profile:
+        return json({"code": 40401, "message": "用户不存在"}, status=404)
+
+    return json({"code": 0, "message": "更新成功", "data": profile})
+
+
+@users_bp.put("/password")
+@auth_required
+async def change_password(request: Request):
+    """修改当前登录用户的密码"""
+    current_user = get_current_user(request)
+    if not current_user:
+        return json({"code": 40101, "message": "未登录"}, status=401)
+
+    data = request.json
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    if not current_password or not new_password:
+        return json({"code": 40001, "message": "当前密码和新密码不能为空"}, status=400)
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+
+    success, message = await service.change_password(
+        current_user["user_id"], current_password, new_password
+    )
+
+    if not success:
+        status_code = 400 if "密码" in message else 404
+        return json({"code": 40002, "message": message}, status=status_code)
+
+    # 记录敏感操作审计日志
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id"),
+        action="change_password",
+        module="users",
+        record_id=current_user["user_id"],
+        record_type="user",
+        operation_type="sensitive",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json({"code": 0, "message": message})
