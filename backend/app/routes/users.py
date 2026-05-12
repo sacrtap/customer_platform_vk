@@ -1,11 +1,11 @@
 """用户管理路由"""
 
-import io
 import logging
 import uuid
 from io import BytesIO
 from pathlib import Path
 
+import magic
 import openpyxl
 from PIL import Image
 from sanic import Blueprint
@@ -679,6 +679,8 @@ AVATAR_SUBDIR = "avatars"
 ALLOWED_AVATAR_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 ALLOWED_AVATAR_MIME_TYPES = {"image/jpeg", "image/png"}
 
+logger = logging.getLogger(__name__)
+
 
 @users_bp.post("/avatar")
 @auth_required
@@ -697,8 +699,6 @@ async def upload_avatar(request: Request):
             }
         }
     """
-    logger = logging.getLogger(__name__)
-
     # 步骤 1: 检查文件是否存在
     if not request.files or "file" not in request.files:
         return json({"code": 400, "message": "未找到上传文件"}, status=400)
@@ -734,8 +734,6 @@ async def upload_avatar(request: Request):
 
     # 步骤 5: MIME 类型验证
     try:
-        import magic
-
         detected_mime = magic.from_buffer(file.body, mime=True)
         if detected_mime not in ALLOWED_AVATAR_MIME_TYPES:
             return json(
@@ -748,10 +746,10 @@ async def upload_avatar(request: Request):
 
     # 步骤 6: 使用 Pillow 处理图片（验证 + 压缩）
     try:
-        img = Image.open(io.BytesIO(file.body))
+        img = Image.open(BytesIO(file.body))
         img.verify()
         # 重新打开（verify 后图片已消耗）
-        img = Image.open(io.BytesIO(file.body))
+        img = Image.open(BytesIO(file.body))
 
         # 转换为 RGB（处理 RGBA/P 模式）
         if img.mode in ("RGBA", "P", "LA"):
@@ -767,7 +765,7 @@ async def upload_avatar(request: Request):
             img = img.resize((new_width, new_height), Image.LANCZOS)
 
         # 保存到内存 buffer
-        output_buffer = io.BytesIO()
+        output_buffer = BytesIO()
         if ext == ".png":
             img.save(output_buffer, format="PNG", optimize=True)
         else:
