@@ -7,6 +7,7 @@ import jwt
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.permissions import permission_cache
@@ -50,6 +51,10 @@ async def login(request: Request):
 
     if not user.is_active:
         return json({"code": 40102, "message": "账号已被禁用"}, status=401)
+
+    # 更新最后登录时间
+    user.last_login_at = func.now()
+    await session.commit()
 
     roles = [role.name for role in user.roles]
 
