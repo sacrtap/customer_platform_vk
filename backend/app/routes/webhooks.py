@@ -196,7 +196,10 @@ async def invoice_confirmation(request):
 
         if not signature or not timestamp:
             logger.warning("Webhook 请求缺少签名或时间戳")
-            return json({"code": ErrorCodes.BAD_REQUEST, "message": "缺少签名或时间戳", "data": None}, status=401)
+            return json(
+                {"code": ErrorCodes.BAD_REQUEST, "message": "缺少签名或时间戳", "data": None},
+                status=401,
+            )
 
         # 获取数据库会话
         db_session = request.ctx.db_session
