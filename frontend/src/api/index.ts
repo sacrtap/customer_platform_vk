@@ -70,6 +70,13 @@ async function doRefreshToken(): Promise<string> {
   throw new Error('Refresh token failed')
 }
 
+// 不需要尝试刷新 token 的端点
+const skipRefreshEndpoints = [
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+]
+
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -105,12 +112,16 @@ service.interceptors.response.use(
 
     // HTTP 401 响应
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      // 登录接口不应该尝试刷新 token
-      if (originalRequest.url?.includes('/auth/login')) {
+      // 检查是否是应该跳过刷新 token 的端点
+      const shouldSkipRefresh = skipRefreshEndpoints.some(endpoint =>
+        originalRequest.url?.includes(endpoint)
+      )
+
+      if (shouldSkipRefresh) {
         // 直接返回后端错误信息
         return Promise.reject({
           code: error.response.data?.code || 40101,
-          message: error.response.data?.message || '用户名或密码错误',
+          message: error.response.data?.message || '请求失败',
           category: ErrorCategory.AUTH_ERROR,
         })
       }

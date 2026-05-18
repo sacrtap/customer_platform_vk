@@ -295,7 +295,9 @@ const handleForgotPassword = async () => {
     forgotForm.username = ''
     forgotForm.email = ''
   } catch (error) {
-    Message.error((error as Error).message || '发送失败，请稍后重试')
+    // 使用后端返回的具体错误信息
+    const errorMessage = (error as Error)?.message
+    Message.error(errorMessage || '发送失败，请稍后重试')
   } finally {
     forgotLoading.value = false
   }

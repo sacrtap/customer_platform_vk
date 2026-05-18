@@ -138,7 +138,9 @@ const handleSubmit = async () => {
       router.push('/login')
     }, 2000)
   } catch (err: unknown) {
-    Message.error((err as Error)?.message || '重置失败')
+    // 使用后端返回的具体错误信息
+    const errorMessage = (err as Error)?.message
+    Message.error(errorMessage || '重置失败')
   } finally {
     loading.value = false
   }
