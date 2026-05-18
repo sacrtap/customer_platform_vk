@@ -13,6 +13,7 @@ from sanic.response import json
 from sqlalchemy import select
 
 from ..config import settings
+from ..constants import ErrorCodes
 from ..models.billing import Invoice, InvoiceStatus
 from ..models.webhooks import WebhookSignature
 
@@ -195,26 +196,33 @@ async def invoice_confirmation(request):
 
         if not signature or not timestamp:
             logger.warning("Webhook 请求缺少签名或时间戳")
-            return json({"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401)
+            return json({"code": ErrorCodes.BAD_REQUEST, "message": "缺少签名或时间戳", "data": None}, status=401)
 
         # 获取数据库会话
         db_session = request.ctx.db_session
 
         # 1. 验证时间戳窗口（防止旧请求重放）
         if not verify_timestamp_window(timestamp):
-            return json({"code": 403, "message": "请求时间戳过期", "data": None}, status=403)
+            logger.warning(f"结算单确认回调 - 时间戳过期 | 时间戳：{timestamp}")
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "请求时间戳过期", "data": None},
+                status=403,
+            )
 
         # 2. 检查签名是否已被使用（防止重放攻击）
         if not await check_signature_not_used(db_session, signature):
+            logger.warning(f"结算单确认回调 - 签名重放 | 签名：{signature[:16]}...")
             return json(
-                {"code": 403, "message": "签名已使用，拒绝重放请求", "data": None},
+                {"code": ErrorCodes.FORBIDDEN, "message": "签名已使用，拒绝重放请求", "data": None},
                 status=403,
             )
 
         # 3. 验证签名
         if not verify_webhook_signature(request.body, signature, timestamp):
-            logger.warning("Webhook 签名验证失败")
-            return json({"code": 403, "message": "签名验证失败", "data": None}, status=403)
+            logger.warning(f"结算单确认回调 - 签名验证失败 | 签名：{signature[:16]}...")
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "签名验证失败", "data": None}, status=403
+            )
 
         # 解析请求体
         data = request.json
@@ -225,10 +233,11 @@ async def invoice_confirmation(request):
         remarks = data.get("remarks", "")
 
         if not invoice_no:
-            return json({"code": 400, "message": "缺少结算单号", "data": None}, status=400)
-
-        # 获取数据库会话
-        db_session = request.ctx.db_session
+            logger.warning(f"结算单确认回调 - 缺少结算单号 | 请求数据：{data}")
+            return json(
+                {"code": ErrorCodes.BAD_REQUEST, "message": "缺少结算单号", "data": None},
+                status=400,
+            )
 
         # 查找结算单
         result = await db_session.execute(
@@ -237,18 +246,24 @@ async def invoice_confirmation(request):
         invoice = result.scalar_one_or_none()
 
         if not invoice:
-            logger.warning(f"结算单不存在：{invoice_no}")
+            logger.warning(f"结算单确认回调 - 结算单不存在 | 单号：{invoice_no}")
             return json(
-                {"code": 404, "message": f"结算单不存在：{invoice_no}", "data": None},
+                {
+                    "code": ErrorCodes.NOT_FOUND,
+                    "message": f"结算单不存在：{invoice_no}",
+                    "data": None,
+                },
                 status=404,
             )
 
         # 检查结算单状态
         if invoice.status != InvoiceStatus.PENDING_CUSTOMER:
-            logger.warning(f"结算单状态不正确：{invoice_no}, 当前状态：{invoice.status}")
+            logger.warning(
+                f"结算单确认回调 - 状态不正确 | 单号：{invoice_no}, 状态：{invoice.status}"
+            )
             return json(
                 {
-                    "code": 400,
+                    "code": ErrorCodes.BAD_REQUEST,
                     "message": f"结算单状态不正确，当前状态：{invoice.status.value}",
                     "data": None,
                 },
@@ -288,7 +303,10 @@ async def invoice_confirmation(request):
 
     except Exception as e:
         logger.error(f"❌ 结算单确认回调处理失败：{str(e)}")
-        return json({"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500)
+        return json(
+            {"code": ErrorCodes.INTERNAL_ERROR, "message": f"处理失败：{str(e)}", "data": None},
+            status=500,
+        )
 
 
 @webhooks_bp.post("/payment-notify")
@@ -317,25 +335,37 @@ async def payment_notify(request):
         timestamp = request.headers.get("X-Webhook-Timestamp")
 
         if not signature or not timestamp:
-            return json({"code": 401, "message": "缺少签名或时间戳", "data": None}, status=401)
+            logger.warning("付款通知回调 - 缺少签名或时间戳")
+            return json(
+                {"code": ErrorCodes.BAD_REQUEST, "message": "缺少签名或时间戳", "data": None},
+                status=401,
+            )
 
         # 获取数据库会话
         db_session = request.ctx.db_session
 
         # 1. 验证时间戳窗口（防止旧请求重放）
         if not verify_timestamp_window(timestamp):
-            return json({"code": 403, "message": "请求时间戳过期", "data": None}, status=403)
+            logger.warning(f"付款通知回调 - 时间戳过期 | 时间戳：{timestamp}")
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "请求时间戳过期", "data": None},
+                status=403,
+            )
 
         # 2. 检查签名是否已被使用（防止重放攻击）
         if not await check_signature_not_used(db_session, signature):
+            logger.warning(f"付款通知回调 - 签名重放 | 签名：{signature[:16]}...")
             return json(
-                {"code": 403, "message": "签名已使用，拒绝重放请求", "data": None},
+                {"code": ErrorCodes.FORBIDDEN, "message": "签名已使用，拒绝重放请求", "data": None},
                 status=403,
             )
 
         # 3. 验证签名
         if not verify_webhook_signature(request.body, signature, timestamp):
-            return json({"code": 403, "message": "签名验证失败", "data": None}, status=403)
+            logger.warning(f"付款通知回调 - 签名验证失败 | 签名：{signature[:16]}...")
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "签名验证失败", "data": None}, status=403
+            )
 
         # 解析请求体
         data = request.json
@@ -345,7 +375,13 @@ async def payment_notify(request):
         transaction_id = data.get("transaction_id")
 
         if not invoice_no or not payment_amount:
-            return json({"code": 400, "message": "缺少必要参数", "data": None}, status=400)
+            logger.warning(
+                f"付款通知回调 - 缺少必要参数 | invoice_no={invoice_no}, payment_amount={payment_amount}"
+            )
+            return json(
+                {"code": ErrorCodes.BAD_REQUEST, "message": "缺少必要参数", "data": None},
+                status=400,
+            )
 
         # 查找结算单
         result = await db_session.execute(
@@ -354,8 +390,13 @@ async def payment_notify(request):
         invoice = result.scalar_one_or_none()
 
         if not invoice:
+            logger.warning(f"付款通知回调 - 结算单不存在 | 单号：{invoice_no}")
             return json(
-                {"code": 404, "message": f"结算单不存在：{invoice_no}", "data": None},
+                {
+                    "code": ErrorCodes.NOT_FOUND,
+                    "message": f"结算单不存在：{invoice_no}",
+                    "data": None,
+                },
                 status=404,
             )
 
@@ -364,9 +405,12 @@ async def payment_notify(request):
             InvoiceStatus.CUSTOMER_CONFIRMED,
             InvoiceStatus.PENDING_CUSTOMER,
         ]:
+            logger.warning(
+                f"付款通知回调 - 状态不正确 | 单号：{invoice_no}, 状态：{invoice.status}"
+            )
             return json(
                 {
-                    "code": 400,
+                    "code": ErrorCodes.BAD_REQUEST,
                     "message": f"结算单状态不正确，当前状态：{invoice.status.value}",
                     "data": None,
                 },
@@ -412,4 +456,7 @@ async def payment_notify(request):
 
     except Exception as e:
         logger.error(f"❌ 付款通知处理失败：{str(e)}")
-        return json({"code": 500, "message": f"处理失败：{str(e)}", "data": None}, status=500)
+        return json(
+            {"code": ErrorCodes.INTERNAL_ERROR, "message": f"处理失败：{str(e)}", "data": None},
+            status=500,
+        )
