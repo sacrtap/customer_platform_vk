@@ -7,6 +7,7 @@ from sanic.request import Request
 from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..constants import ErrorCodes
 from ..services import get_user_permissions
 from ..services.auth import AuthService
 
@@ -41,7 +42,9 @@ def auth_middleware(app: Sanic):
             auth_header = request.headers.get("authorization")
 
             if not auth_header or not auth_header.lower().startswith("bearer "):
-                return json({"code": 40101, "message": "缺少认证 Token"}, status=401)
+                return json(
+                    {"code": ErrorCodes.UNAUTHORIZED, "message": "缺少认证 Token"}, status=401
+                )
 
             token = auth_header.split(" ")[1]
 
@@ -49,10 +52,15 @@ def auth_middleware(app: Sanic):
                 payload = AuthService.verify_token(token)
             except Exception as e:
                 app.logger.warning(f"Token verification failed: {e}")
-                return json({"code": 40102, "message": f"Token 验证失败：{str(e)}"}, status=401)
+                return json(
+                    {"code": ErrorCodes.TOKEN_INVALID, "message": f"Token 验证失败：{str(e)}"},
+                    status=401,
+                )
 
             if not payload:
-                return json({"code": 40102, "message": "Token 无效或已过期"}, status=401)
+                return json(
+                    {"code": ErrorCodes.TOKEN_INVALID, "message": "Token 无效或已过期"}, status=401
+                )
 
             # 检查 Token 是否在黑名单中
             jti = payload.get("jti")
@@ -61,17 +69,18 @@ def auth_middleware(app: Sanic):
                 is_blacklisted = await blacklist_service.is_blacklisted(jti)
                 if is_blacklisted:
                     app.logger.info(f"Blacklisted token used: {jti}")
-                    return json({"code": 40103, "message": "Token 已失效"}, status=401)
+                    return json(
+                        {"code": ErrorCodes.TOKEN_BLACKLISTED, "message": "Token 已失效"},
+                        status=401,
+                    )
 
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload
-            print(f"[AUTH DEBUG] User set in request.ctx: {payload}")
         except Exception as e:
-            print(f"[AUTH DEBUG] Unexpected error in middleware: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return json({"code": 50000, "message": f"中间件错误：{str(e)}"}, status=500)
+            app.logger.error(f"认证中间件异常：{e}")
+            return json(
+                {"code": ErrorCodes.INTERNAL_ERROR, "message": f"中间件错误：{str(e)}"}, status=500
+            )
 
 
 def get_current_user(request: Request) -> dict | None:
@@ -93,7 +102,7 @@ def require_permission(permission_code: str):
             user = get_current_user(request)
 
             if not user:
-                return json({"code": 40101, "message": "未认证"}, status=401)
+                return json({"code": ErrorCodes.UNAUTHORIZED, "message": "未认证"}, status=401)
 
             # Lazy import to support test mocking
             from ..cache.permissions import permission_cache
@@ -111,7 +120,7 @@ def require_permission(permission_code: str):
 
             # 校验权限（支持通配符匹配）
             if not _check_permission(user_permissions, permission_code):
-                return json({"code": 40301, "message": "权限不足"}, status=403)
+                return json({"code": ErrorCodes.FORBIDDEN, "message": "权限不足"}, status=403)
 
             return await f(request, *args, **kwargs)
 
@@ -170,7 +179,7 @@ def auth_required(f):
         user = get_current_user(request)
 
         if not user:
-            return json({"code": 40101, "message": "未认证"}, status=401)
+            return json({"code": ErrorCodes.UNAUTHORIZED, "message": "未认证"}, status=401)
 
         return await f(request, *args, **kwargs)
 
