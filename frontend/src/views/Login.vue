@@ -197,6 +197,7 @@ import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import api from '@/api'
+import { handleError } from '@/utils/errorHandler'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -255,10 +256,8 @@ const handleSubmit = async () => {
     userStore.setPermissions(res.data.permissions || [])
     Message.success('登录成功')
     router.push('/')
-  } catch (err: unknown) {
-    // 优先使用后端返回的错误信息（如"用户名或密码错误"）
-    const errorMessage = (err as Error)?.message
-    Message.error(errorMessage || '账号或密码错误')
+  } catch (error) {
+    handleError(error, '账号或密码错误')
   } finally {
     loading.value = false
   }
@@ -295,9 +294,7 @@ const handleForgotPassword = async () => {
     forgotForm.username = ''
     forgotForm.email = ''
   } catch (error) {
-    // 使用后端返回的具体错误信息
-    const errorMessage = (error as Error)?.message
-    Message.error(errorMessage || '发送失败，请稍后重试')
+    handleError(error, '发送失败，请稍后重试')
   } finally {
     forgotLoading.value = false
   }

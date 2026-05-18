@@ -579,6 +579,7 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { handleError } from '@/utils/errorHandler'
 import {
   getCustomers,
   deleteCustomer,
@@ -786,7 +787,7 @@ const loadCustomers = async () => {
     pagination.total = res.data.total || 0
     pagination.current = res.data.page || 1
   } catch (error: unknown) {
-    Message.error((error as Error).message || '客户列表加载失败')
+    handleError(error, '客户列表加载失败')
   } finally {
     loading.value = false
   }
@@ -855,7 +856,7 @@ const handleRefresh = async () => {
     pagination.current = res.data.page || 1
     Message.success('已刷新')
   } catch (error: unknown) {
-    Message.error((error as Error).message || '刷新失败')
+    handleError(error, '刷新失败')
   } finally {
     loading.value = false
   }
@@ -885,7 +886,7 @@ const handleDelete = async (id: number) => {
         Message.success('删除成功')
         loadCustomers()
       } catch (error: unknown) {
-        Message.error((error as Error).message || '删除失败')
+        handleError(error, '删除失败')
       }
     },
   })
@@ -961,7 +962,7 @@ const handleExport = async () => {
 
     Message.success('导出成功')
   } catch (error: unknown) {
-    Message.error((error as Error).message || '导出失败')
+    handleError(error, '导出失败')
   }
 }
 
@@ -1066,7 +1067,7 @@ const handleCustomerSubmit = async () => {
     loadCustomers()
     return true
   } catch (error: unknown) {
-    Message.error((error as Error).message || '操作失败')
+    handleError(error, '操作失败')
     return false
   } finally {
     customerModalLoading.value = false
@@ -1158,7 +1159,7 @@ const downloadTemplate = async () => {
     window.URL.revokeObjectURL(url)
     Message.success('模板下载成功')
   } catch (error: unknown) {
-    Message.error((error as Error).message || '下载失败')
+    handleError(error, '下载失败')
   }
 }
 
@@ -1192,7 +1193,7 @@ const handleImportSubmit = async () => {
     loadCustomers()
     return true
   } catch (error: unknown) {
-    Message.error((error as Error).message || '导入失败')
+    handleError(error, '导入失败')
     return false
   } finally {
     importLoading.value = false

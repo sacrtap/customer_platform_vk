@@ -154,6 +154,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { handleError } from '@/utils/errorHandler'
 import {
   getRoles,
   getRole,
@@ -303,7 +304,7 @@ const loadRoles = async () => {
     }))
     pagination.total = (data.total as number) || 0
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载角色列表失败')
+    handleError(error, '加载角色列表失败')
   } finally {
     loading.value = false
   }
@@ -314,7 +315,7 @@ const loadPermissions = async () => {
     const res = await getPermissions()
     allPermissions.value = res.data || []
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载权限列表失败')
+    handleError(error, '加载权限列表失败')
   }
 }
 
@@ -385,7 +386,7 @@ const handleRoleSubmit = async () => {
     loadRoles()
     return true
   } catch (error: unknown) {
-    Message.error((error as Error).message || '角色创建或更新失败')
+    handleError(error, '角色创建或更新失败')
     return false
   } finally {
     submitting.value = false
@@ -398,7 +399,7 @@ const handleDelete = async (id: number) => {
     Message.success('删除成功')
     loadRoles()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '角色删除失败')
+    handleError(error, '角色删除失败')
   }
 }
 
@@ -411,7 +412,7 @@ const handlePermissionConfig = async (record: Role) => {
     const roleData = res.data as ApiRole
     selectedPermissionIds.value = roleData.permissions?.map((p) => p.id) || []
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载角色权限失败')
+    handleError(error, '加载角色权限失败')
   }
 
   permissionModalVisible.value = true
@@ -438,7 +439,7 @@ const handlePermissionSubmit = async () => {
     loadRoles()
     return true
   } catch (error: unknown) {
-    Message.error((error as Error).message || '权限配置失败')
+    handleError(error, '权限配置失败')
     return false
   } finally {
     savingPermissions.value = false

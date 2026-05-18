@@ -178,6 +178,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { handleError } from '@/utils/errorHandler'
 import {
   getUsers,
   createUser,
@@ -366,7 +367,7 @@ const loadUsers = async () => {
     }))
     pagination.total = (data.total as number) || 0
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载用户列表失败')
+    handleError(error, '加载用户列表失败')
   } finally {
     loading.value = false
   }
@@ -377,7 +378,7 @@ const loadRoles = async () => {
     const res = await getRoles({ page: 1, page_size: 100 })
     availableRoles.value = (res.data as { list?: Role[] }).list || []
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载角色列表失败')
+    handleError(error, '加载角色列表失败')
   }
 }
 
@@ -470,7 +471,7 @@ const handleUserSubmit = async () => {
     userModalVisible.value = false
     loadUsers()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '用户创建或更新失败')
+    handleError(error, '用户创建或更新失败')
   } finally {
     submitting.value = false
   }
@@ -482,7 +483,7 @@ const handleDelete = async (id: number) => {
     Message.success('删除成功')
     loadUsers()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '用户删除失败')
+    handleError(error, '用户删除失败')
   }
 }
 
@@ -524,7 +525,7 @@ const handlePasswordSubmit = async () => {
     Message.success('密码重置成功')
     return true // 允许模态框关闭
   } catch (error: unknown) {
-    Message.error((error as Error).message || '密码重置失败')
+    handleError(error, '密码重置失败')
     return false // 阻止模态框关闭
   } finally {
     resettingPassword.value = false
