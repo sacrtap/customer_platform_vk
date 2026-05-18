@@ -711,6 +711,7 @@ import { ref, computed, watch, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
+import { handleError } from '@/utils/errorHandler'
 import { useUserStore } from '@/stores/user'
 import { changePassword } from '@/api/users'
 import ActionButton from '@/components/ActionButton.vue'
@@ -864,7 +865,7 @@ const handleChangePassword = async () => {
     Message.success('密码修改成功')
     changePasswordVisible.value = false
   } catch (error) {
-    Message.error((error as Error)?.message || '密码修改失败')
+    handleError(error)
   } finally {
     changePasswordLoading.value = false
   }
