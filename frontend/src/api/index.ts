@@ -105,6 +105,16 @@ service.interceptors.response.use(
 
     // HTTP 401 响应
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      // 登录接口不应该尝试刷新 token
+      if (originalRequest.url?.includes('/auth/login')) {
+        // 直接返回后端错误信息
+        return Promise.reject({
+          code: error.response.data?.code || 40101,
+          message: error.response.data?.message || '用户名或密码错误',
+          category: ErrorCategory.AUTH_ERROR,
+        })
+      }
+
       if (isRefreshing) {
         // 正在刷新，将请求加入等待队列
         return new Promise((resolve) => {
