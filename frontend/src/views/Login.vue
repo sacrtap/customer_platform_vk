@@ -256,7 +256,9 @@ const handleSubmit = async () => {
     Message.success('登录成功')
     router.push('/')
   } catch (err: unknown) {
-    Message.error((err as Error)?.message || '登录失败')
+    // 优先使用后端返回的错误信息（如"用户名或密码错误"）
+    const errorMessage = (err as Error)?.message
+    Message.error(errorMessage || '账号或密码错误')
   } finally {
     loading.value = false
   }

@@ -385,7 +385,7 @@ const handleRoleSubmit = async () => {
     loadRoles()
     return true
   } catch (error: unknown) {
-    Message.error((error as Error).message || '操作失败')
+    Message.error((error as Error).message || '角色创建或更新失败')
     return false
   } finally {
     submitting.value = false
@@ -398,7 +398,7 @@ const handleDelete = async (id: number) => {
     Message.success('删除成功')
     loadRoles()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '删除失败')
+    Message.error((error as Error).message || '角色删除失败')
   }
 }
 

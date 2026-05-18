@@ -470,7 +470,7 @@ const handleUserSubmit = async () => {
     userModalVisible.value = false
     loadUsers()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '操作失败')
+    Message.error((error as Error).message || '用户创建或更新失败')
   } finally {
     submitting.value = false
   }
@@ -482,7 +482,7 @@ const handleDelete = async (id: number) => {
     Message.success('删除成功')
     loadUsers()
   } catch (error: unknown) {
-    Message.error((error as Error).message || '删除失败')
+    Message.error((error as Error).message || '用户删除失败')
   }
 }
 

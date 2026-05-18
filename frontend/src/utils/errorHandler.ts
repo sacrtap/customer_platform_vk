@@ -48,7 +48,9 @@ export function getUserFriendlyMessage(
   // 对于系统级错误，使用统一的友好提示
   switch (category) {
     case ErrorCategory.AUTH_ERROR:
-      return '登录已过期，请重新登录'
+      // 优先使用后端返回的具体信息（如"用户名或密码错误"）
+      // 其他情况（如 token 过期）显示通用提示
+      return backendMessage || '登录已过期，请重新登录'
     case ErrorCategory.FORBIDDEN_ERROR:
       return '您没有执行此操作的权限'
     case ErrorCategory.NOT_FOUND_ERROR:

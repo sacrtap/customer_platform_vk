@@ -786,7 +786,7 @@ const loadCustomers = async () => {
     pagination.total = res.data.total || 0
     pagination.current = res.data.page || 1
   } catch (error: unknown) {
-    Message.error((error as Error).message || '加载失败')
+    Message.error((error as Error).message || '客户列表加载失败')
   } finally {
     loading.value = false
   }

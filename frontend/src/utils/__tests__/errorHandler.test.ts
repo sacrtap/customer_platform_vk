@@ -49,8 +49,13 @@ describe('getUserFriendlyMessage', () => {
     expect(msg).toBe('请求参数有误，请检查后重试')
   })
 
-  it('should return fixed message for AUTH_ERROR', () => {
+  it('should return backend message for AUTH_ERROR', () => {
     const msg = getUserFriendlyMessage(40101, 'Token 无效')
+    expect(msg).toBe('Token 无效')
+  })
+
+  it('should return default message for AUTH_ERROR without backend message', () => {
+    const msg = getUserFriendlyMessage(40101, '')
     expect(msg).toBe('登录已过期，请重新登录')
   })
 

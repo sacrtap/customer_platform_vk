@@ -195,7 +195,7 @@ const handleChangePassword = async () => {
     Message.success('密码修改成功')
     changePasswordVisible.value = false
   } catch (error) {
-    Message.error((error as Error)?.message || '密码修改失败')
+    Message.error((error as Error)?.message || '密码修改失败，请检查原密码是否正确')
   } finally {
     changePasswordLoading.value = false
   }
@@ -333,7 +333,7 @@ const handleSubmit = async () => {
       avatar_url: formData.avatar_url,
     })
   } catch (error) {
-    Message.error((error as Error)?.message || '保存失败')
+    Message.error((error as Error)?.message || '个人信息保存失败，请稍后重试')
   } finally {
     submitLoading.value = false
   }
