@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import router from '@/router'
+import { getErrorCategory, ErrorCategory } from '@/utils/errorHandler'
 
 const service: AxiosInstance = axios.create({
   baseURL: '/api/v1',
@@ -78,12 +79,24 @@ service.interceptors.response.use(
     }
     const res = response.data
     if (res.code !== 0) {
-      // 业务错误码 40101/40102 表示 token 无效或过期
-      if (res.code === 40101 || res.code === 40102) {
-        // 不立即跳转，让调用方决定是否刷新
-        return Promise.reject(new Error(res.message || 'Token expired'))
+      // 业务错误
+      const category = getErrorCategory(res.code)
+
+      // 认证错误：让调用方处理（通常会触发刷新或跳转登录）
+      if (category === ErrorCategory.AUTH_ERROR) {
+        return Promise.reject({
+          code: res.code,
+          message: res.message || '认证失败',
+          category,
+        })
       }
-      return Promise.reject(new Error(res.message || 'Error'))
+
+      // 其他业务错误：带上错误分类信息返回
+      return Promise.reject({
+        code: res.code,
+        message: res.message || '操作失败',
+        category,
+      })
     }
     return res
   },
@@ -120,11 +133,24 @@ service.interceptors.response.use(
       }
     }
 
-    // 提取后端返回的错误信息
-    if (error.response && error.response.data && error.response.data.message) {
-      return Promise.reject(new Error(error.response.data.message))
+    // 网络错误或 HTTP 错误
+    if (!error.response) {
+      return Promise.reject({
+        code: 'NETWORK_ERROR',
+        message: '网络连接失败',
+        category: ErrorCategory.SERVER_ERROR,
+      })
     }
-    return Promise.reject(error)
+
+    // 提取后端返回的错误信息
+    const backendMessage = error.response.data?.message || '请求失败'
+    const code = error.response.data?.code || error.response.status * 100
+
+    return Promise.reject({
+      code,
+      message: backendMessage,
+      category: getErrorCategory(typeof code === 'number' ? code : 50000),
+    })
   }
 )
 
