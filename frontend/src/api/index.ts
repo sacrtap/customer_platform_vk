@@ -143,7 +143,10 @@ service.interceptors.response.use(
     }
 
     // 提取后端返回的错误信息
-    const backendMessage = error.response.data?.message || '请求失败'
+    // 优先使用 response.data.message，其次是 statusText
+    const backendMessage = error.response.data?.message || 
+                           error.response.statusText || 
+                           '请求失败'
     const code = error.response.data?.code || error.response.status * 100
 
     return Promise.reject({
