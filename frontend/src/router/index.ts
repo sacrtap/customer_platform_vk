@@ -141,6 +141,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/system/IndustryTypes.vue'),
             meta: { requiresPermission: 'industry_types:manage' },
           },
+          {
+            path: 'database-management',
+            name: 'DatabaseManagement',
+            component: () => import('@/views/system/DatabaseManagement.vue'),
+            meta: { requiresPermission: 'system:database_clear' },
+          },
         ],
       },
     ],

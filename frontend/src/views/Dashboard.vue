@@ -385,14 +385,21 @@
                 @click="$router.push('/system/audit-logs')"
                 >审计日志</a
               >
-              <a
-                v-if="can('industry_types:manage')"
-                class="nav-subitem"
-                :class="{ active: $route.name === 'IndustryTypes' }"
-                @click="$router.push('/system/industry-types')"
-                >行业类型</a
-              >
-            </div>
+                <a
+                  v-if="can('industry_types:manage')"
+                  class="nav-subitem"
+                  :class="{ active: $route.name === 'IndustryTypes' }"
+                  @click="$router.push('/system/industry-types')"
+                  >行业类型</a
+                >
+                <a
+                  v-if="can('system:database_clear')"
+                  class="nav-subitem"
+                  :class="{ active: $route.name === 'DatabaseManagement' }"
+                  @click="$router.push('/system/database-management')"
+                  >数据库管理</a
+                >
+              </div>
           </div>
           <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
             <a
@@ -409,14 +416,21 @@
               @click="$router.push('/system/audit-logs')"
               >审计日志</a
             >
-            <a
-              v-if="can('industry_types:manage')"
-              class="nav-subitem"
-              :class="{ active: $route.name === 'IndustryTypes' }"
-              @click="$router.push('/system/industry-types')"
-              >行业类型</a
-            >
-          </div>
+              <a
+                v-if="can('industry_types:manage')"
+                class="nav-subitem"
+                :class="{ active: $route.name === 'IndustryTypes' }"
+                @click="$router.push('/system/industry-types')"
+                >行业类型</a
+              >
+              <a
+                v-if="can('system:database_clear')"
+                class="nav-subitem"
+                :class="{ active: $route.name === 'DatabaseManagement' }"
+                @click="$router.push('/system/database-management')"
+                >数据库管理</a
+              >
+            </div>
         </div>
       </nav>
 
