@@ -43,15 +43,6 @@ def mock_scalar_result():
     return result
 
 
-@pytest.fixture
-def mock_permission_cache():
-    """Mock 权限缓存，返回所需权限"""
-    mock_cache = AsyncMock()
-    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear", "system:manage"})
-    mock_cache.set_permissions = AsyncMock(return_value=True)
-    return mock_cache
-
-
 # ==================== Test Clear Customer Data ====================
 
 
@@ -59,9 +50,7 @@ class TestClearCustomerData:
     """清空客户数据路由测试"""
 
     @pytest.mark.asyncio
-    async def test_clear_customer_data_success(
-        self, mock_request, mock_scalar_result, mock_permission_cache
-    ):
+    async def test_clear_customer_data_success(self, mock_request, mock_scalar_result):
         """测试成功清空客户数据"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
 
@@ -70,10 +59,8 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ) as mock_audit:
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     response = await clear_customer_data(mock_request)
 
         assert response.status == 200
@@ -89,11 +76,10 @@ class TestClearCustomerData:
         assert call_kwargs["action"] == "database_clear"
         assert call_kwargs["module"] == "system"
         assert call_kwargs["auto_commit"] is False
+        assert call_kwargs["operation_type"] == "sensitive"
 
     @pytest.mark.asyncio
-    async def test_clear_customer_data_rollback_on_error(
-        self, mock_request, mock_scalar_result, mock_permission_cache
-    ):
+    async def test_clear_customer_data_rollback_on_error(self, mock_request, mock_scalar_result):
         """测试异常时事务回滚
 
         count 查询成功（返回非零），DELETE 阶段抛出异常触发回滚。
@@ -111,10 +97,8 @@ class TestClearCustomerData:
                 "app.routes.database_management.logger",
                 spec=logging.Logger,
             ) as mock_logger:
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     response = await clear_customer_data(mock_request)
 
         assert response.status == 500
@@ -128,9 +112,7 @@ class TestClearCustomerData:
         mock_logger.exception.assert_called_once_with("数据库清空失败")
 
     @pytest.mark.asyncio
-    async def test_clear_customer_data_zero_customers(
-        self, mock_request, mock_scalar_result, mock_permission_cache
-    ):
+    async def test_clear_customer_data_zero_customers(self, mock_request, mock_scalar_result):
         """测试没有客户数据时清空"""
         mock_scalar_result.scalar = MagicMock(return_value=0)
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -139,10 +121,8 @@ class TestClearCustomerData:
             "app.routes.database_management.create_audit_entry",
             new_callable=AsyncMock,
         ) as mock_audit:
-            with patch(
-                "app.cache.permissions.permission_cache",
-                mock_permission_cache,
-            ):
+            with patch("app.cache.permissions.permission_cache") as mock_cache:
+                mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                 response = await clear_customer_data(mock_request)
 
         assert response.status == 200
@@ -155,9 +135,7 @@ class TestClearCustomerData:
         mock_audit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_clear_customer_data_uses_x_real_ip(
-        self, mock_request, mock_scalar_result, mock_permission_cache
-    ):
+    async def test_clear_customer_data_uses_x_real_ip(self, mock_request, mock_scalar_result):
         """测试使用 x-real-ip 头记录 IP"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
         mock_request.headers = {"x-real-ip": "10.0.0.1"}
@@ -167,10 +145,8 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ) as mock_audit:
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         call_kwargs = mock_audit.call_args[1]
@@ -178,7 +154,7 @@ class TestClearCustomerData:
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_fallback_to_x_forwarded_for(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试 x-real-ip 不存在时回退到 x-forwarded-for"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -189,10 +165,8 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ) as mock_audit:
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         call_kwargs = mock_audit.call_args[1]
@@ -200,7 +174,7 @@ class TestClearCustomerData:
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_fallback_to_request_ip(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试两个 IP 头都不存在时使用 request.ip"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -212,10 +186,8 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ) as mock_audit:
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         call_kwargs = mock_audit.call_args[1]
@@ -223,7 +195,7 @@ class TestClearCustomerData:
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_commit_called_on_success(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试成功时调用 commit"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -233,17 +205,15 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ):
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         mock_request.ctx.db_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_rollback_not_called_on_success(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试成功时不调用 rollback"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -253,17 +223,15 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ):
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         mock_request.ctx.db_session.rollback.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_commit_not_called_on_error(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试失败时不调用 commit
 
@@ -281,17 +249,15 @@ class TestClearCustomerData:
                 "app.routes.database_management.logger",
                 spec=logging.Logger,
             ):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         mock_request.ctx.db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_clear_customer_data_audit_changes_payload(
-        self, mock_request, mock_scalar_result, mock_permission_cache
+        self, mock_request, mock_scalar_result
     ):
         """测试审计日志的 changes 参数包含正确的删除信息"""
         mock_request.ctx.db_session.execute = AsyncMock(return_value=mock_scalar_result)
@@ -301,10 +267,8 @@ class TestClearCustomerData:
             new_callable=AsyncMock,
         ) as mock_audit:
             with patch("app.routes.database_management.logger"):
-                with patch(
-                    "app.cache.permissions.permission_cache",
-                    mock_permission_cache,
-                ):
+                with patch("app.cache.permissions.permission_cache") as mock_cache:
+                    mock_cache.get_permissions = AsyncMock(return_value={"system:database_clear"})
                     await clear_customer_data(mock_request)
 
         call_kwargs = mock_audit.call_args[1]
@@ -314,3 +278,33 @@ class TestClearCustomerData:
         assert "customers" in changes["tables_affected"]
         assert "customer_profiles" in changes["tables_affected"]
         assert "invoices" in changes["tables_affected"]
+
+    @pytest.mark.asyncio
+    async def test_clear_customer_data_unauthenticated(self):
+        """测试未认证时返回 401"""
+        request = MagicMock()
+        request.ctx = MagicMock()
+        request.ctx.user = None  # No user
+
+        response = await clear_customer_data(request)
+        assert response.status == 401
+        body = parse_response_body(response)
+        assert body["code"] == 40101
+        assert "未认证" in body["message"]
+
+    @pytest.mark.asyncio
+    async def test_clear_customer_data_unauthorized(self):
+        """测试无权限时返回 403"""
+        request = MagicMock()
+        request.ctx = MagicMock()
+        request.ctx.user = {"user_id": 1}
+        request.ctx.db_session = AsyncMock()
+
+        with patch("app.cache.permissions.permission_cache") as mock_cache:
+            mock_cache.get_permissions = AsyncMock(return_value=set())
+            response = await clear_customer_data(request)
+
+        assert response.status == 403
+        body = parse_response_body(response)
+        assert body["code"] == 40301
+        assert "权限不足" in body["message"]
