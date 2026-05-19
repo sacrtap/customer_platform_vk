@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import auth_required, require_permission
+from ..models.customers import Customer
 from ..utils.audit_helpers import create_audit_entry
 
 database_bp = Blueprint("database_management", url_prefix="/api/v1/system/database")
@@ -42,8 +43,40 @@ async def clear_customer_data(request: Request):
     user = request.ctx.user
 
     # 统计即将删除的客户数量
-    count_result = await db_session.execute(select(func.count()).select_from("customers"))
+    count_result = await db_session.execute(select(func.count(Customer.id)))
     customer_count = count_result.scalar() or 0
+
+    # 快捷返回：如果无数据则直接返回
+    if customer_count == 0:
+        return json({"code": 0, "message": "无数据可清空", "data": {"deleted_count": 0}})
+
+    # 创建审计日志条目（在事务中，不自动提交）
+    user_id = user.get("user_id")
+    if user_id:
+        await create_audit_entry(
+            db_session=db_session,
+            user_id=user_id,
+            action="database_clear",
+            module="system",
+            changes={
+                "deleted_count": customer_count,
+                "tables_affected": [
+                    "customers",
+                    "customer_profiles",
+                    "customer_balances",
+                    "customer_tags",
+                    "profile_tags",
+                    "invoices",
+                    "invoice_items",
+                    "consumption_records",
+                    "daily_usage",
+                    "pricing_rules",
+                    "recharge_records",
+                ],
+            },
+            operation_type="sensitive",
+            auto_commit=False,
+        )
 
     try:
         # 按依赖顺序删除
@@ -113,47 +146,20 @@ async def clear_customer_data(request: Request):
         # 提交事务
         await db_session.commit()
 
-        # 记录审计日志
-        user_id = user.get("user_id")
-        if user_id:
-            await create_audit_entry(
-                db_session=db_session,
-                user_id=user_id,
-                action="database_clear",
-                module="system",
-                changes={
-                    "deleted_count": customer_count,
-                    "tables_affected": [
-                        "customers",
-                        "customer_profiles",
-                        "customer_balances",
-                        "customer_tags",
-                        "profile_tags",
-                        "invoices",
-                        "invoice_items",
-                        "consumption_records",
-                        "daily_usage",
-                        "pricing_rules",
-                        "recharge_records",
-                    ],
-                },
-                operation_type="sensitive",
-            )
-            await db_session.commit()
-
         return json(
             {
-                "code": 200,
+                "code": 0,
                 "message": f"成功清空 {customer_count} 条客户数据",
                 "data": {"deleted_count": customer_count},
-            }
+            },
+            status=200,
         )
 
     except Exception as e:
         await db_session.rollback()
         return json(
             {
-                "code": 50001,
+                "code": 500,
                 "message": f"数据清空失败: {str(e)}",
             },
             status=500,
