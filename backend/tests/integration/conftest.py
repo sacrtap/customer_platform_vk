@@ -168,11 +168,12 @@ def test_user(sync_test_engine, worker_id):
         sys.stdout.write("[DEBUG] test_user: 清理旧数据完成\n")
         sys.stdout.flush()
 
-        # 创建管理员角色
+        # 创建管理员角色（ON CONFLICT 防止并行 worker 竞态）
         session.execute(
             text("""
             INSERT INTO roles (name, description, created_at)
             VALUES (:name, :description, NOW())
+            ON CONFLICT (name) DO NOTHING
             """),
             {"name": "admin", "description": "系统管理员"},
         )
@@ -252,11 +253,12 @@ def test_user(sync_test_engine, worker_id):
                 {"role_id": role_id, "permission_id": perm_id},
             )
 
-        # 创建用户
+        # 创建用户（ON CONFLICT 防止并行 worker 竞态）
         session.execute(
             text("""
             INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
             VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
+            ON CONFLICT (username) DO NOTHING
             """),
             {
                 "username": username,

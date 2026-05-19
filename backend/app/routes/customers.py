@@ -17,6 +17,7 @@ from ..middleware.auth import auth_required, get_current_user, require_permissio
 from ..services.customers import (
     CustomerService,
     convert_price_policy_to_display,
+    convert_settlement_cycle_to_display,
     convert_settlement_type_to_display,
 )
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
@@ -803,6 +804,7 @@ async def export_customers(request: Request):
     for c in customers:
         data.append(
             {
+                # === 基础字段（9个） ===
                 "company_id": c.company_id,
                 "name": c.name,
                 "account_type": c.account_type,
@@ -812,10 +814,42 @@ async def export_customers(request: Request):
                     else None
                 ),
                 "price_policy": convert_price_policy_to_display(c.price_policy),
-                "settlement_cycle": c.settlement_cycle,
                 "settlement_type": convert_settlement_type_to_display(c.settlement_type),
+                "settlement_cycle": convert_settlement_cycle_to_display(c.settlement_cycle),
                 "is_key_customer": "是" if c.is_key_customer else "否",
                 "email": c.email,
+                # === 扩展字段（13个） ===
+                "erp_system": c.erp_system,
+                "first_payment_date": (
+                    c.first_payment_date.strftime("%Y-%m-%d") if c.first_payment_date else None
+                ),
+                "onboarding_date": (
+                    c.onboarding_date.strftime("%Y-%m-%d") if c.onboarding_date else None
+                ),
+                "cooperation_status": c.cooperation_status,
+                "is_settlement_enabled": ("是" if c.is_settlement_enabled else "否")
+                if c.is_settlement_enabled is not None
+                else None,
+                "is_disabled": ("是" if c.is_disabled else "否")
+                if c.is_disabled is not None
+                else None,
+                "notes": c.notes,
+                "scale_level": c.profile.scale_level if c.profile else None,
+                "consume_level": c.profile.consume_level if c.profile else None,
+                "monthly_avg_shots": c.profile.monthly_avg_shots if c.profile else None,
+                "monthly_avg_shots_estimated": (
+                    c.profile.monthly_avg_shots_estimated if c.profile else None
+                ),
+                "estimated_annual_spend": (
+                    float(c.profile.estimated_annual_spend)
+                    if (c.profile and c.profile.estimated_annual_spend)
+                    else None
+                ),
+                "actual_annual_spend_2025": (
+                    float(c.profile.actual_annual_spend_2025)
+                    if (c.profile and c.profile.actual_annual_spend_2025)
+                    else None
+                ),
             }
         )
 
