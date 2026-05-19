@@ -32,6 +32,7 @@ opencode.json
 
 # bmad配置
 _bmad/
+.agents/
 
 # 大型二进制/媒体文件
 *.png

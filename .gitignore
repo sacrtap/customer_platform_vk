@@ -84,11 +84,14 @@ dump.rdb
 graphify-out/
 
 # OpenCode
+.opencode/
 .opencode/node_modules/
 opencode.json
 
 # bmad
 _bmad/
+_bmad-output/
+.agents/
 
 # Cache
 .cache/
