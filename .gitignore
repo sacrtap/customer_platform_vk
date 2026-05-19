@@ -87,6 +87,9 @@ graphify-out/
 .opencode/node_modules/
 opencode.json
 
+# bmad
+_bmad/
+
 # Cache
 .cache/
 *.cache

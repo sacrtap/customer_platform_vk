@@ -30,6 +30,9 @@ graphify-out/
 .opencode/
 opencode.json
 
+# bmad配置
+_bmad/
+
 # 大型二进制/媒体文件
 *.png
 *.jpg
