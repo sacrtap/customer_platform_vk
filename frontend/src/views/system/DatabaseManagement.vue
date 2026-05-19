@@ -21,14 +21,14 @@
       <a-descriptions :column="1" bordered style="margin-bottom: 24px">
         <a-descriptions-item label="操作名称">清空客户数据</a-descriptions-item>
         <a-descriptions-item label="影响范围">
-          customers、customer_profiles、customer_balances、customer_tags、profile_tags、
-          invoices、invoice_items、consumption_records、daily_usage、pricing_rules、recharge_records
+          {{ AFFECTED_TABLES.join('、') }}
         </a-descriptions-item>
         <a-descriptions-item label="权限要求">需具备「数据清空」权限</a-descriptions-item>
       </a-descriptions>
 
       <a-space>
         <a-button
+          v-if="can('system:database_clear')"
           status="danger"
           :loading="clearing"
           @click="handleClearConfirm"
@@ -53,6 +53,24 @@
 import { ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
+
+const AFFECTED_TABLES = [
+  'customers',
+  'customer_profiles',
+  'customer_balances',
+  'customer_tags',
+  'profile_tags',
+  'invoices',
+  'invoice_items',
+  'consumption_records',
+  'daily_usage',
+  'pricing_rules',
+  'recharge_records',
+] as const
 
 const clearing = ref(false)
 const lastResult = ref<{ success: boolean; message: string } | null>(null)
@@ -80,26 +98,25 @@ const handleClearConfirm = () => {
         const response = await service.post<ClearResponse>('/system/database/clear')
         const { data } = response
         if (data.code === 0) {
-          lastResult.value = {
-            success: true,
-            message: data.message || `成功清空 ${data.data?.deleted_count || 0} 条客户数据`,
-          }
-          Message.success(lastResult.value.message)
+          const msg = data.message || `成功清空 ${data.data?.deleted_count || 0} 条客户数据`
+          Message.success(msg)
+          lastResult.value = { success: true, message: msg }
         } else {
-          const msg = data.message || '数据清空失败'
-          lastResult.value = { success: false, message: msg }
+          const msg = data.message || '数据清空失败，请稍后重试'
           Message.error(msg)
+          lastResult.value = { success: false, message: msg }
         }
       } catch (error: unknown) {
         const msg =
-          error instanceof Error ? error.message : '数据清空失败，请稍后重试'
-        lastResult.value = { success: false, message: msg }
+          error instanceof Error && 'response' in error
+            ? (error as any).response?.data?.message || '数据清空失败，请稍后重试'
+            : '数据清空失败，请稍后重试'
         Message.error(msg)
+        lastResult.value = { success: false, message: msg }
       } finally {
         clearing.value = false
       }
-      // Modal 的 onBeforeOk 返回 false 阻止关闭（让用户看到结果）
-      return false
+      return true
     },
   })
 }
