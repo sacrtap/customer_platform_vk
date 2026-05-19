@@ -3,6 +3,8 @@
 提供数据库数据清空等管理功能。
 """
 
+import logging
+
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
@@ -12,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..middleware.auth import auth_required, require_permission
 from ..models.customers import Customer
 from ..utils.audit_helpers import create_audit_entry
+
+logger = logging.getLogger(__name__)
 
 database_bp = Blueprint("database_management", url_prefix="/api/v1/system/database")
 
@@ -51,32 +55,34 @@ async def clear_customer_data(request: Request):
         return json({"code": 0, "message": "无数据可清空", "data": {"deleted_count": 0}})
 
     # 创建审计日志条目（在事务中，不自动提交）
-    user_id = user.get("user_id")
-    if user_id:
-        await create_audit_entry(
-            db_session=db_session,
-            user_id=user_id,
-            action="database_clear",
-            module="system",
-            changes={
-                "deleted_count": customer_count,
-                "tables_affected": [
-                    "customers",
-                    "customer_profiles",
-                    "customer_balances",
-                    "customer_tags",
-                    "profile_tags",
-                    "invoices",
-                    "invoice_items",
-                    "consumption_records",
-                    "daily_usage",
-                    "pricing_rules",
-                    "recharge_records",
-                ],
-            },
-            operation_type="sensitive",
-            auto_commit=False,
-        )
+    user_id = user["user_id"]
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=user_id,
+        action="database_clear",
+        module="system",
+        changes={
+            "deleted_count": customer_count,
+            "tables_affected": [
+                "customers",
+                "customer_profiles",
+                "customer_balances",
+                "customer_tags",
+                "profile_tags",
+                "invoices",
+                "invoice_items",
+                "consumption_records",
+                "daily_usage",
+                "pricing_rules",
+                "recharge_records",
+            ],
+        },
+        operation_type="sensitive",
+        auto_commit=False,
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+    )
 
     try:
         # 按依赖顺序删除
@@ -156,6 +162,7 @@ async def clear_customer_data(request: Request):
         )
 
     except Exception as e:
+        logger.exception("数据库清空失败")
         await db_session.rollback()
         return json(
             {
