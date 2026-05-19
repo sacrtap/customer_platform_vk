@@ -102,10 +102,10 @@ def create_app(
     from .routes.audit_logs import audit_logs_bp
     from .routes.auth import auth_bp
     from .routes.billing import billing_bp
-from .routes.customers import customers_bp
-from .routes.database_management import database_bp
-from .routes.dict_routes import dict_bp
-from .routes.files import files_bp
+    from .routes.customers import customers_bp
+    from .routes.database_management import database_bp
+    from .routes.dict_routes import dict_bp
+    from .routes.files import files_bp
     from .routes.industry_type_routes import industry_type_bp
     from .routes.permissions import permissions_bp
     from .routes.roles import roles_bp
@@ -128,9 +128,9 @@ from .routes.files import files_bp
     app.blueprint(audit_logs_bp)
     app.blueprint(roles_bp)
     app.blueprint(permissions_bp)
-app.blueprint(dict_bp)
-app.blueprint(industry_type_bp)
-app.blueprint(database_bp)
+    app.blueprint(dict_bp)
+    app.blueprint(industry_type_bp)
+    app.blueprint(database_bp)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
