@@ -90,9 +90,9 @@ const handleClearConfirm = () => {
           lastResult.value = { success: false, message: msg }
           Message.error(msg)
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         const msg =
-          error.response?.data?.message || '数据清空失败，请稍后重试'
+          error instanceof Error ? error.message : '数据清空失败，请稍后重试'
         lastResult.value = { success: false, message: msg }
         Message.error(msg)
       } finally {
