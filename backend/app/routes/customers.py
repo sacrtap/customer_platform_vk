@@ -628,6 +628,9 @@ async def import_customers(request: Request):
             user_id=current_user.get("user_id") if current_user else None,
             action="batch_create",
             module="customers",
+            record_id=None,  # 批量操作
+            record_type="customer",
+            changes={"after": {"count": success_count}},
             operation_type="batch",
             extra_metadata=summary,
             ip_address=request.headers.get(

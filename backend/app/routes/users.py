@@ -266,6 +266,10 @@ async def reset_password(request: Request, user_id: int):
         module="users",
         record_id=user_id,
         record_type="user",
+        changes={
+            "before": {"password_hash": "***MASKED***"},
+            "after": {"password_hash": "***RESET***"},
+        },
         operation_type="sensitive",
         ip_address=request.headers.get(
             "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
@@ -543,6 +547,9 @@ async def import_users(
             user_id=current_user.get("user_id") if current_user else None,
             action="batch_create",
             module="users",
+            record_id=None,  # 批量操作
+            record_type="user",
+            changes={"after": {"count": imported_count}},
             operation_type="batch",
             extra_metadata=summary,
             ip_address=request.headers.get(

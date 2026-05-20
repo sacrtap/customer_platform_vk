@@ -73,10 +73,23 @@ def audit_middleware(app: Sanic):
                 # Webhook 外部回调（无认证用户，审计无意义）
                 "/api/v1/webhooks/invoice-confirmation",
                 "/api/v1/webhooks/payment-notify",
+                # Files 模块手动审计
+                "/api/v1/files/",
+                # Billing 模块手动审计（充值）
+                "/api/v1/billing/recharge",
+                # Database 模块手动审计（database_clear）
+                "/api/v1/system/database/clear",
             ]
 
             if request.path in skip_paths:
                 return
+
+            # Billing 发票动作端点：只跳过状态变更端点
+            # 生成/折扣/删除保持中间件自动审计
+            if request.path.startswith("/api/v1/billing/invoices/"):
+                action_endpoints = ("/submit", "/confirm", "/pay", "/complete", "/cancel")
+                if any(request.path.endswith(action) for action in action_endpoints):
+                    return
 
             # 跳过有手动审计日志的模块（files 路由内已自行记录）
             if request.path.startswith("/api/v1/files/"):

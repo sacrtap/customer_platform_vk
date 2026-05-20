@@ -91,6 +91,8 @@ async def list_audit_logs(request: Request):
             "record_type": row.AuditLog.record_type,
             "changes": row.AuditLog.changes,
             "ip_address": row.AuditLog.ip_address,
+            "operation_type": row.AuditLog.operation_type,
+            "extra_metadata": row.AuditLog.extra_metadata,
             "created_at": row.AuditLog.created_at.isoformat() if row.AuditLog.created_at else None,
         }
         for row in rows

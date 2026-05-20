@@ -252,13 +252,14 @@ async def upload_file(request):
             file_hash=file_hash,
         )
         db_session.add(file_record)
+        await db_session.flush()  # 获取 file_record.id 但不提交
 
-        # 记录审计日志
+        # 记录审计日志（flush 后可以获取到 ID）
         audit_log = AuditLog(
             user_id=user_id,
             action="create",
             module="files",
-            record_id=None,  # 将在 flush 后获取
+            record_id=file_record.id,
             record_type="file",
             changes={
                 "after": {
@@ -271,7 +272,7 @@ async def upload_file(request):
         )
         db_session.add(audit_log)
 
-        # 提交事务以获取 file_record.id
+        # 提交事务
         await db_session.commit()
 
         # ========== 步骤 9: 构建响应数据 ==========

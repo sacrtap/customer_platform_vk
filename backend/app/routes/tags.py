@@ -397,6 +397,11 @@ async def batch_add_customer_tags(request: Request):
         user_id=current_user.get("user_id") if current_user else None,
         action="batch_add_tags",
         module="customer-tags",
+        record_id=None,  # 批量操作
+        record_type="customer-tag",
+        changes={
+            "after": {"success_count": success_count, "error_count": error_count},
+        },
         operation_type="batch",
         extra_metadata=summary,
         ip_address=request.headers.get(
@@ -460,6 +465,11 @@ async def batch_remove_customer_tags(request: Request):
         user_id=current_user.get("user_id") if current_user else None,
         action="batch_remove_tags",
         module="customer-tags",
+        record_id=None,  # 批量操作
+        record_type="customer-tag",
+        changes={
+            "after": {"removed_count": removed_count},
+        },
         operation_type="batch",
         extra_metadata=summary,
         ip_address=request.headers.get(

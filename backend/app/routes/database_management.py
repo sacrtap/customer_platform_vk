@@ -62,8 +62,11 @@ async def clear_customer_data(request: Request):
         user_id=user_id,
         action="database_clear",
         module="system",
+        record_id=None,  # 批量操作，无单一记录 ID
+        record_type="database",  # 标识操作类型
         changes={
-            "deleted_count": customer_count,
+            "before": {"customer_count": customer_count},
+            "after": {"customer_count": 0},
             "tables_affected": [
                 "customers",
                 "customer_profiles",

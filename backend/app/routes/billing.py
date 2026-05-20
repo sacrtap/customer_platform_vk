@@ -383,6 +383,9 @@ async def recharge(request: Request):
 
     balance_service = BalanceService(db)
 
+    # 获取充值前余额
+    balance_before = await balance_service.get_balance_by_customer_id(customer_id)
+
     record = await balance_service.recharge(
         customer_id=customer_id,
         real_amount=real_amount,
@@ -398,7 +401,7 @@ async def recharge(request: Request):
     await cache_service.invalidate_customer_cache(customer_id)
 
     # 获取充值后的余额（用于返回给前端局部更新）
-    balance = await balance_service.get_balance_by_customer_id(customer_id)
+    balance_after = await balance_service.get_balance_by_customer_id(customer_id)
 
     # 记录充值审计日志
     await create_audit_entry(
@@ -409,9 +412,17 @@ async def recharge(request: Request):
         record_id=record.id,
         record_type="recharge",
         changes={
+            "before": {
+                "real_amount": float(balance_before.real_amount) if balance_before else 0,
+                "bonus_amount": float(balance_before.bonus_amount) if balance_before else 0,
+            },
+            "after": {
+                "real_amount": float(balance_after.real_amount) if balance_after else 0,
+                "bonus_amount": float(balance_after.bonus_amount) if balance_after else 0,
+                "recharge_real": float(real_amount),
+                "recharge_bonus": float(bonus_amount),
+            },
             "customer_id": customer_id,
-            "real_amount": float(real_amount),
-            "bonus_amount": float(bonus_amount),
         },
         operation_type="standard",
         ip_address=request.headers.get(
@@ -433,20 +444,20 @@ async def recharge(request: Request):
                 # 充值后的完整余额信息（用于前端局部更新）
                 "balance": {
                     "total_amount": (
-                        float(balance.total_amount) if balance and balance.total_amount else 0
+                        float(balance_after.total_amount) if balance_after and balance_after.total_amount else 0
                     ),
                     "real_amount": (
-                        float(balance.real_amount) if balance and balance.real_amount else 0
+                        float(balance_after.real_amount) if balance_after and balance_after.real_amount else 0
                     ),
                     "bonus_amount": (
-                        float(balance.bonus_amount) if balance and balance.bonus_amount else 0
+                        float(balance_after.bonus_amount) if balance_after and balance_after.bonus_amount else 0
                     ),
                     "used_total": (
-                        float(balance.used_total) if balance and balance.used_total else 0
+                        float(balance_after.used_total) if balance_after and balance_after.used_total else 0
                     ),
-                    "used_real": float(balance.used_real) if balance and balance.used_real else 0,
+                    "used_real": float(balance_after.used_real) if balance_after and balance_after.used_real else 0,
                     "used_bonus": (
-                        float(balance.used_bonus) if balance and balance.used_bonus else 0
+                        float(balance_after.used_bonus) if balance_after and balance_after.used_bonus else 0
                     ),
                 },
             },
@@ -1118,6 +1129,10 @@ async def submit_invoice(request: Request, invoice_id: int):
     user = get_current_user(request)
     invoice_service = InvoiceService(db)
 
+    # 获取提交前状态
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    status_before = invoice_before.status if invoice_before else None
+
     success, message = await invoice_service.submit_invoice(
         invoice_id=invoice_id,
         approver_id=user["user_id"] if user else 1,
@@ -1126,8 +1141,30 @@ async def submit_invoice(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 获取提交后状态
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
     # 结算单提交后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="submit",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": message})
 
@@ -1138,15 +1175,42 @@ async def submit_invoice(request: Request, invoice_id: int):
 async def confirm_invoice(request: Request, invoice_id: int):
     """客户确认结算单"""
     db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
     invoice_service = InvoiceService(db)
+
+    # 获取确认前状态
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.confirm_invoice(invoice_id=invoice_id)
 
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 获取确认后状态
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
     # 结算单确认后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="confirm",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": message})
 
@@ -1157,8 +1221,13 @@ async def confirm_invoice(request: Request, invoice_id: int):
 async def pay_invoice(request: Request, invoice_id: int):
     """确认付款"""
     db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
     data = request.json or {}
     invoice_service = InvoiceService(db)
+
+    # 获取付款前状态
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.pay_invoice(
         invoice_id=invoice_id,
@@ -1168,8 +1237,33 @@ async def pay_invoice(request: Request, invoice_id: int):
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 获取付款后状态
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
     # 结算单付款后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="pay",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before, "payment_proof": None},
+            "after": {
+                "status": invoice_after.status if invoice_after else None,
+                "payment_proof": data.get("payment_proof"),
+            },
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": message})
 
@@ -1180,15 +1274,42 @@ async def pay_invoice(request: Request, invoice_id: int):
 async def complete_invoice(request: Request, invoice_id: int):
     """完成结算（扣款）"""
     db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
     invoice_service = InvoiceService(db)
+
+    # 获取完成前状态
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.complete_invoice(invoice_id=invoice_id)
 
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 获取完成后状态
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
     # 结算单完成后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="complete",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": message})
 
@@ -1199,15 +1320,42 @@ async def complete_invoice(request: Request, invoice_id: int):
 async def cancel_invoice_route(request: Request, invoice_id: int):
     """取消结算单"""
     db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
     invoice_service = InvoiceService(db)
+
+    # 获取取消前状态
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.cancel_invoice(invoice_id=invoice_id)
 
     if not success:
         return json({"code": 40001, "message": message}, status=400)
 
+    # 获取取消后状态
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
     # 结算单取消后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 记录审计日志
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="cancel",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     return json({"code": 0, "message": message})
 

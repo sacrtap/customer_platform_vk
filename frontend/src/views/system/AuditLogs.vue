@@ -88,7 +88,7 @@
         @page-size-change="onPageSizeChange"
       >
         <template #action="{ record }">
-          <a-tag color="blue">{{ formatAction(record.action) }}</a-tag>
+          <a-tag color="blue">{{ record.action }}</a-tag>
         </template>
         <template #module="{ record }">
           <a-tag>{{ record.module }}</a-tag>
@@ -97,6 +97,9 @@
           <span v-if="record.record_type && record.record_id">
             {{ record.record_type }}#{{ record.record_id }}
           </span>
+          <span v-else-if="record.module" class="text-gray">
+            {{ record.module }}<span v-if="record.operation_type === 'batch'"> (批量)</span>
+          </span>
           <span v-else class="text-gray">-</span>
         </template>
         <template #changes="{ record }">
@@ -104,13 +107,21 @@
             <a-button type="text" size="small">查看详情</a-button>
             <template #content>
               <div class="changes-content">
-                <div v-if="record.changes.before" class="change-section">
-                  <strong>修改前:</strong>
-                  <pre>{{ JSON.stringify(record.changes.before, null, 2) }}</pre>
+                <!-- 批量操作摘要 -->
+                <div v-if="record.operation_type === 'batch' && record.extra_metadata" class="batch-summary">
+                  <strong>操作摘要:</strong>
+                  <pre>{{ JSON.stringify(record.extra_metadata, null, 2) }}</pre>
                 </div>
-                <div v-if="record.changes.after" class="change-section">
-                  <strong>修改后:</strong>
-                  <pre>{{ JSON.stringify(record.changes.after, null, 2) }}</pre>
+                <!-- 标准变更 -->
+                <div v-else>
+                  <div v-if="record.changes.before" class="change-section">
+                    <strong>修改前:</strong>
+                    <pre>{{ JSON.stringify(record.changes.before, null, 2) }}</pre>
+                  </div>
+                  <div v-if="record.changes.after" class="change-section">
+                    <strong>修改后:</strong>
+                    <pre>{{ JSON.stringify(record.changes.after, null, 2) }}</pre>
+                  </div>
                 </div>
               </div>
             </template>
@@ -144,6 +155,8 @@ interface AuditLog {
   changes: { before?: Record<string, unknown>; after?: Record<string, unknown> } | null
   ip_address: string | null
   created_at: string | null
+  operation_type: string | null  // standard/batch/relation/sensitive
+  extra_metadata: Record<string, unknown> | null
 }
 
 const logs = ref<AuditLog[]>([])
@@ -251,23 +264,6 @@ const formatDate = (dateStr: string | null) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
-const formatAction = (action: string) => {
-  const actionMap: Record<string, string> = {
-    create: '创建',
-    update: '更新',
-    delete: '删除',
-    login: '登录',
-    logout: '登出',
-    recharge: '充值',
-    deduct: '扣款',
-    submit: '提交',
-    confirm: '确认',
-    pay: '付款',
-    complete: '完成',
-  }
-  return actionMap[action] || action
-}
-
 onMounted(() => {
   fetchLogs()
   fetchActions()
@@ -345,6 +341,10 @@ onMounted(() => {
   max-width: 400px;
   max-height: 300px;
   overflow: auto;
+}
+
+.batch-summary {
+  margin-bottom: 12px;
 }
 
 .change-section {
