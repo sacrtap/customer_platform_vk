@@ -273,7 +273,8 @@ class TestClearCustomerData:
 
         call_kwargs = mock_audit.call_args[1]
         changes = call_kwargs["changes"]
-        assert changes["deleted_count"] == 5
+        assert changes["before"]["customer_count"] == 5
+        assert changes["after"]["customer_count"] == 0
         assert len(changes["tables_affected"]) == 11
         assert "customers" in changes["tables_affected"]
         assert "customer_profiles" in changes["tables_affected"]
