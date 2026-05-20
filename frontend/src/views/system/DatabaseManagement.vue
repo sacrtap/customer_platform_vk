@@ -55,6 +55,7 @@ import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'
 import { handleError } from '@/utils/errorHandler'
 import { useUserStore } from '@/stores/user'
+import type { ApiResponse } from '@/types'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -76,12 +77,8 @@ const AFFECTED_TABLES = [
 const clearing = ref(false)
 const lastResult = ref<{ success: boolean; message: string } | null>(null)
 
-interface ClearResponse {
-  code: number
-  message: string
-  data: {
-    deleted_count: number
-  }
+interface ClearData {
+  deleted_count: number
 }
 
 const handleClearConfirm = () => {
@@ -96,9 +93,10 @@ const handleClearConfirm = () => {
     onBeforeOk: async () => {
       clearing.value = true
       try {
-        const res = await service.post<ClearResponse>('/system/database/clear')
-        // 拦截器在 code === 0 时直接返回 response.data（即 { code, message, data }）
-        // 所以 res 就是业务数据，不需要再访问 res.data
+        // 拦截器已返回 ApiResponse 格式（不是 AxiosResponse），res 即 { code, message, data }
+        const res = (await service.post<ClearData>(
+          '/system/database/clear'
+        )) as unknown as ApiResponse<ClearData>
         if (res.code === 0) {
           const deletedCount = res.data?.deleted_count ?? 0
           const msg = res.message || `成功清空 ${deletedCount} 条客户数据`

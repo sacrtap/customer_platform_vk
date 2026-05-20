@@ -444,20 +444,32 @@ async def recharge(request: Request):
                 # 充值后的完整余额信息（用于前端局部更新）
                 "balance": {
                     "total_amount": (
-                        float(balance_after.total_amount) if balance_after and balance_after.total_amount else 0
+                        float(balance_after.total_amount)
+                        if balance_after and balance_after.total_amount
+                        else 0
                     ),
                     "real_amount": (
-                        float(balance_after.real_amount) if balance_after and balance_after.real_amount else 0
+                        float(balance_after.real_amount)
+                        if balance_after and balance_after.real_amount
+                        else 0
                     ),
                     "bonus_amount": (
-                        float(balance_after.bonus_amount) if balance_after and balance_after.bonus_amount else 0
+                        float(balance_after.bonus_amount)
+                        if balance_after and balance_after.bonus_amount
+                        else 0
                     ),
                     "used_total": (
-                        float(balance_after.used_total) if balance_after and balance_after.used_total else 0
+                        float(balance_after.used_total)
+                        if balance_after and balance_after.used_total
+                        else 0
                     ),
-                    "used_real": float(balance_after.used_real) if balance_after and balance_after.used_real else 0,
+                    "used_real": float(balance_after.used_real)
+                    if balance_after and balance_after.used_real
+                    else 0,
                     "used_bonus": (
-                        float(balance_after.used_bonus) if balance_after and balance_after.used_bonus else 0
+                        float(balance_after.used_bonus)
+                        if balance_after and balance_after.used_bonus
+                        else 0
                     ),
                 },
             },
