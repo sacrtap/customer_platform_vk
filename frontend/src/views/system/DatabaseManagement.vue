@@ -96,14 +96,15 @@ const handleClearConfirm = () => {
       clearing.value = true
       try {
         const res = await service.post<ClearResponse>('/system/database/clear')
-        // 拦截器返回 res.data = { code: 0, message: "...", data: { deleted_count: N } }
-        if (res.data.code === 0) {
-          const deletedCount = res.data.data?.deleted_count ?? 0
-          const msg = res.data.message || `成功清空 ${deletedCount} 条客户数据`
+        // 拦截器返回 response.data，TS 类型推断为 AxiosResponse，但运行时 res.data 是业务数据
+        const result = res.data as ClearResponse
+        if (result.code === 0) {
+          const deletedCount = result.data?.deleted_count ?? 0
+          const msg = result.message || `成功清空 ${deletedCount} 条客户数据`
           Message.success(msg)
           lastResult.value = { success: true, message: msg }
         } else {
-          const msg = res.data.message || '数据清空失败，请稍后重试'
+          const msg = result.message || '数据清空失败，请稍后重试'
           Message.error(msg)
           lastResult.value = { success: false, message: msg }
         }
