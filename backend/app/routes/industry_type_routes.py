@@ -6,7 +6,7 @@ from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required
+from ..middleware.auth import auth_required, require_permission
 from ..services.industry_type_service import IndustryTypeService
 
 industry_type_bp = Blueprint("industry_types", url_prefix="/api/v1/industry-types")
@@ -45,6 +45,7 @@ async def get_industry_types(request: Request):
 
 @industry_type_bp.post("")
 @auth_required
+@require_permission("industry_types:manage")
 async def create_industry_type(request: Request):
     """
     新增行业类型
@@ -93,6 +94,7 @@ async def create_industry_type(request: Request):
 
 @industry_type_bp.put("/<id:int>")
 @auth_required
+@require_permission("industry_types:manage")
 async def update_industry_type(request: Request, id: int):
     """
     更新行业类型
@@ -149,6 +151,7 @@ async def update_industry_type(request: Request, id: int):
 
 @industry_type_bp.delete("/<id:int>")
 @auth_required
+@require_permission("industry_types:manage")
 async def delete_industry_type(request: Request, id: int):
     """
     软删除行业类型
