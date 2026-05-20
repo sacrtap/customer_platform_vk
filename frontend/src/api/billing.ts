@@ -107,6 +107,7 @@ export interface PricingRule {
 
 export function getPricingRules(params?: {
   customer_id?: number
+  keyword?: string
   device_type?: string
   layer_type?: string
   pricing_type?: string
@@ -193,6 +194,7 @@ export interface Invoice {
 
 export function getInvoices(params?: {
   customer_id?: number
+  keyword?: string
   status?: string
   page?: number
   page_size?: number

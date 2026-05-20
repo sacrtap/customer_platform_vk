@@ -51,9 +51,9 @@
         <a-row :gutter="16">
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="客户">
-              <CustomerAutoComplete
-                v-model="filters.customer_id"
-                placeholder="请输入客户名称"
+              <KeywordAutoComplete
+                v-model="filters.keyword"
+                placeholder="公司名称/公司 ID"
                 :width="'100%'"
               />
             </a-form-item>
@@ -427,6 +427,7 @@ import {
 } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 import InvoiceTimeline from '@/components/invoice/InvoiceTimeline.vue'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
@@ -438,7 +439,7 @@ const can = (permission: string) => userStore.hasPermission(permission)
 
 // 筛选条件
 const filters = reactive({
-  customer_id: undefined as number | undefined,
+  keyword: '',
   status: undefined as string | undefined,
 })
 
@@ -558,7 +559,7 @@ async function loadData() {
             ? 'desc'
             : 'asc',
     }
-    if (filters.customer_id) params.customer_id = filters.customer_id
+    if (filters.keyword) params.keyword = filters.keyword
     if (filters.status) params.status = filters.status
 
     const res = await getInvoices(params)
@@ -580,7 +581,7 @@ function handleSearch() {
 
 // 重置
 function handleReset() {
-  filters.customer_id = undefined
+  filters.keyword = ''
   filters.status = undefined
   pagination.current = 1
   loadData()

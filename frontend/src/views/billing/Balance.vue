@@ -31,9 +31,9 @@
         <a-row :gutter="16">
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="客户">
-              <CustomerAutoComplete
-                v-model="filters.customer_id"
-                placeholder="请输入客户名称搜索"
+              <KeywordAutoComplete
+                v-model="filters.keyword"
+                placeholder="公司名称/公司 ID"
                 width="100%"
               />
             </a-form-item>
@@ -317,6 +317,7 @@ import { getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
 import type { IndustryType } from '@/types'
@@ -340,7 +341,7 @@ const can = (permission: string) => userStore.hasPermission(permission)
 
 // 默认筛选值（工厂函数，确保每次调用返回新引用）
 const createDefaultFilters = () => ({
-  customer_id: undefined as number | undefined,
+  keyword: '',
   recharge_date: [] as string[],
   industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
   account_type: '正式账号',
@@ -470,7 +471,7 @@ const loadBalances = async () => {
     const params: {
       page: number
       page_size: number
-      customer_id?: number
+      keyword?: string
       account_type?: string
       industry?: string
       manager_id?: number
@@ -487,7 +488,7 @@ const loadBalances = async () => {
       sort_by: sortState.sort_by,
       sort_order: backendSortOrder,
     }
-    if (filters.customer_id) params.customer_id = filters.customer_id
+    if (filters.keyword) params.keyword = filters.keyword
     if (filters.account_type) params.account_type = filters.account_type
     if (filters.industry && filters.industry.length > 0)
       params.industry = filters.industry.join(',')

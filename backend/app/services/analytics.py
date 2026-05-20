@@ -31,7 +31,11 @@ class AnalyticsService:
     # ========== 消耗分析 ==========
 
     async def get_consumption_trend(
-        self, start_date: date, end_date: date, customer_id: Optional[int] = None
+        self,
+        start_date: date,
+        end_date: date,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """获取消耗趋势（月度）"""
         # 按月份聚合消耗金额
@@ -39,16 +43,19 @@ class AnalyticsService:
             extract("year", Invoice.period_start).label("year"),
             extract("month", Invoice.period_start).label("month"),
             func.sum(Invoice.total_amount).label("total_amount"),
-        ).where(
+        ).join(Customer, Invoice.customer_id == Customer.id).where(
             and_(
                 Invoice.period_start >= start_date,
                 Invoice.period_end <= end_date,
                 Invoice.status != "cancelled",
+                Customer.deleted_at.is_(None),
             )
         )
 
         if customer_id:
             stmt = stmt.where(Invoice.customer_id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
 
         stmt = stmt.group_by(
             extract("year", Invoice.period_start),
@@ -175,7 +182,11 @@ class AnalyticsService:
     # ========== 回款分析 ==========
 
     async def get_payment_analysis(
-        self, start_date: date, end_date: date, customer_id: Optional[int] = None
+        self,
+        start_date: date,
+        end_date: date,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
     ) -> Dict[str, Any]:
         """获取回款分析数据"""
         # 总结算金额
@@ -183,29 +194,37 @@ class AnalyticsService:
             func.sum(Invoice.total_amount).label("total_invoiced"),
             func.sum(Invoice.discount_amount).label("total_discount"),
             func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_final"),
-        ).where(
+        ).join(Customer, Invoice.customer_id == Customer.id).where(
             and_(
                 Invoice.period_start >= start_date,
                 Invoice.period_end <= end_date,
                 Invoice.status != "cancelled",
+                Customer.deleted_at.is_(None),
             )
         )
 
         if customer_id:
             invoice_stmt = invoice_stmt.where(Invoice.customer_id == customer_id)
-
-        invoice_result = (await self.db.execute(invoice_stmt)).first()
+        if keyword:
+            invoice_stmt = invoice_stmt.where(Customer.name.ilike(f"%{keyword}%"))
 
         # 已回款金额
-        payment_stmt = select(func.sum(RechargeRecord.real_amount).label("total_paid")).where(
+        payment_stmt = select(func.sum(RechargeRecord.real_amount).label("total_paid")).join(
+            Customer, RechargeRecord.customer_id == Customer.id
+        ).where(
             and_(
                 RechargeRecord.created_at >= datetime.combine(start_date, datetime.min.time()),
                 RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
+                Customer.deleted_at.is_(None),
             )
         )
 
         if customer_id:
             payment_stmt = payment_stmt.where(RechargeRecord.customer_id == customer_id)
+        if keyword:
+            payment_stmt = payment_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+        invoice_result = (await self.db.execute(invoice_stmt)).first()
 
         payment_result = (await self.db.execute(payment_stmt)).first()
 
@@ -539,7 +558,11 @@ class AnalyticsService:
     # ========== 预测回款 ==========
 
     async def predict_monthly_payment(
-        self, year: int, month: int, customer_id: Optional[int] = None
+        self,
+        year: int,
+        month: int,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """预测月度回款"""
         from calendar import monthrange
@@ -573,6 +596,8 @@ class AnalyticsService:
 
         if customer_id:
             stmt = stmt.where(Customer.id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
 
         result = (await self.db.execute(stmt)).all()
 

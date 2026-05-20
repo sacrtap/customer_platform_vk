@@ -20,6 +20,7 @@ async def get_consumption_trend(request: Request):
     start_date_str = request.args.get("start_date")
     end_date_str = request.args.get("end_date")
     customer_id = request.args.get("customer_id")
+    keyword = request.args.get("keyword")
 
     if not start_date_str or not end_date_str:
         # 默认最近 6 个月
@@ -31,7 +32,7 @@ async def get_consumption_trend(request: Request):
         start_date = datetime.fromisoformat(start_date_str).date()
         end_date = datetime.fromisoformat(end_date_str).date()
 
-    cid = customer_id or "all"
+    cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}"
     cached = await cache_service.get("analytics_consumption_trend", cache_key)
     if cached is not None:
@@ -41,7 +42,10 @@ async def get_consumption_trend(request: Request):
     service = AnalyticsService(db_session)
 
     trend = await service.get_consumption_trend(
-        start_date, end_date, int(customer_id) if customer_id else None
+        start_date,
+        end_date,
+        int(customer_id) if customer_id else None,
+        keyword,
     )
 
     result = {"code": 0, "message": "success", "data": trend}
@@ -123,6 +127,7 @@ async def get_payment_analysis(request: Request):
     start_date_str = request.args.get("start_date")
     end_date_str = request.args.get("end_date")
     customer_id = request.args.get("customer_id")
+    keyword = request.args.get("keyword")
 
     if not start_date_str or not end_date_str:
         from dateutil.relativedelta import relativedelta
@@ -133,7 +138,7 @@ async def get_payment_analysis(request: Request):
         start_date = datetime.fromisoformat(start_date_str).date()
         end_date = datetime.fromisoformat(end_date_str).date()
 
-    cid = customer_id or "all"
+    cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}"
     cached = await cache_service.get("analytics_payment_analysis", cache_key)
     if cached is not None:
@@ -143,7 +148,10 @@ async def get_payment_analysis(request: Request):
     service = AnalyticsService(db_session)
 
     analysis = await service.get_payment_analysis(
-        start_date, end_date, int(customer_id) if customer_id else None
+        start_date,
+        end_date,
+        int(customer_id) if customer_id else None,
+        keyword,
     )
 
     result = {"code": 0, "message": "success", "data": analysis}
@@ -351,8 +359,9 @@ async def predict_monthly_payment(request: Request):
     year = int(request.args.get("year", datetime.utcnow().year))
     month = int(request.args.get("month", datetime.utcnow().month))
     customer_id = request.args.get("customer_id")
+    keyword = request.args.get("keyword")
 
-    cid = customer_id or "all"
+    cid = keyword or customer_id or "all"
     cache_key = f"{year}:{month}:{cid}"
     cached = await cache_service.get("analytics_prediction", cache_key)
     if cached is not None:
@@ -362,7 +371,7 @@ async def predict_monthly_payment(request: Request):
     service = AnalyticsService(db_session)
 
     predictions = await service.predict_monthly_payment(
-        year, month, int(customer_id) if customer_id else None
+        year, month, int(customer_id) if customer_id else None, keyword
     )
 
     result = {"code": 0, "message": "success", "data": predictions}

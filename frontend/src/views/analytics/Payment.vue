@@ -31,7 +31,7 @@
           />
         </a-form-item>
         <a-form-item label="客户">
-          <CustomerAutoComplete v-model="customerId" placeholder="请输入客户名称搜索" width="200" />
+          <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" width="200" />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -102,18 +102,17 @@ import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { getPaymentAnalysis, getInvoiceStatusStats } from '@/api/analytics'
 
-import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
 
 const filters = reactive({
   start_date: '',
   end_date: '',
-  customer_id: undefined as number | undefined,
+  keyword: '',
 })
 
 const timeRange = ref('3month')
 const dateRange = ref<[Date, Date] | null>(null)
-const customerId = ref<number | undefined>(undefined)
 
 const comparisonChartRef = ref<HTMLElement>()
 const statusChartRef = ref<HTMLElement>()
@@ -168,10 +167,9 @@ const handleDateRangeChange = (dates: [Date, Date] | null) => {
 const handleReset = () => {
   timeRange.value = '3month'
   dateRange.value = null
-  customerId.value = undefined
+  filters.keyword = ''
   filters.start_date = ''
   filters.end_date = ''
-  filters.customer_id = undefined
   handleTimeRangeChange()
 }
 
@@ -190,7 +188,7 @@ const loadPaymentData = async () => {
   const res = await getPaymentAnalysis({
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
-    customer_id: filters.customer_id,
+    keyword: filters.keyword || undefined,
   })
   const data = res.data || {}
   totalInvoiced.value = data.total_invoiced || 0

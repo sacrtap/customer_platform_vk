@@ -36,7 +36,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="客户">
-          <CustomerAutoComplete v-model="customerId" placeholder="请输入客户名称搜索" width="200" />
+          <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" width="200" />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -132,7 +132,7 @@ import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
 
-import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
 
 const router = useRouter()
@@ -140,12 +140,11 @@ const router = useRouter()
 const filters = reactive({
   year: new Date().getFullYear(),
   month: undefined as number | undefined,
-  customer_id: undefined as number | undefined,
+  keyword: '',
 })
 
 const selectedYear = ref(new Date())
 const selectedMonth = ref<number | undefined>(undefined)
-const customerId = ref<number | undefined>(undefined)
 
 const forecastChartRef = ref<HTMLElement>()
 let forecastChart: ECharts | null = null
@@ -186,10 +185,9 @@ const columns = [
 const handleReset = () => {
   selectedYear.value = new Date()
   selectedMonth.value = undefined
-  customerId.value = undefined
+  filters.keyword = ''
   filters.year = new Date().getFullYear()
   filters.month = undefined
-  filters.customer_id = undefined
   loadData()
 }
 
@@ -199,7 +197,6 @@ const loadData = async () => {
   try {
     filters.year = selectedYear.value?.getFullYear() || new Date().getFullYear()
     filters.month = selectedMonth.value
-    filters.customer_id = customerId.value
 
     await loadPredictionData()
   } catch (error: unknown) {
@@ -214,7 +211,7 @@ const loadPredictionData = async () => {
   const res = await getMonthlyPrediction({
     year: filters.year,
     month: filters.month,
-    customer_id: filters.customer_id,
+    keyword: filters.keyword || undefined,
   })
 
   predictionList.value = res.data || []

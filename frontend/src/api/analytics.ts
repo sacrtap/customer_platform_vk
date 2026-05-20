@@ -13,6 +13,7 @@ export function getConsumptionTrend(params?: {
   start_date?: string
   end_date?: string
   customer_id?: number
+  keyword?: string
 }) {
   return api.get('/analytics/consumption/trend', { params })
 }
@@ -42,6 +43,7 @@ export function getDeviceDistribution(params?: {
   start_date?: string
   end_date?: string
   customer_id?: number
+  keyword?: string
 }) {
   return api.get('/analytics/consumption/device-distribution', { params })
 }
@@ -61,6 +63,7 @@ export function getPaymentAnalysis(params?: {
   start_date?: string
   end_date?: string
   customer_id?: number
+  keyword?: string
 }) {
   return api.get('/analytics/payment/analysis', { params })
 }
@@ -176,6 +179,7 @@ export function getMonthlyPrediction(params?: {
   year?: number
   month?: number
   customer_id?: number
+  keyword?: string
 }) {
   return api.get('/analytics/prediction/monthly', { params })
 }

@@ -599,12 +599,14 @@ async def get_pricing_rules(request: Request):
 
     # 筛选参数
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+    keyword = request.args.get("keyword")  # 客户名称模糊搜索
     device_type = request.args.get("device_type")
     layer_type = request.args.get("layer_type")
     pricing_type = request.args.get("pricing_type")
 
     rules, total = await pricing_service.get_pricing_rules(
         customer_id=customer_id,
+        keyword=keyword,
         device_type=device_type,
         layer_type=layer_type,
         pricing_type=pricing_type,
@@ -849,12 +851,14 @@ async def get_invoices(request: Request):
     invoice_service = InvoiceService(db)
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+    keyword = request.args.get("keyword")  # 客户名称模糊搜索
     status = request.args.get("status")
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
     invoices, total = await invoice_service.get_invoices(
         customer_id=customer_id,
+        keyword=keyword,
         status=status,
         page=page,
         page_size=page_size,

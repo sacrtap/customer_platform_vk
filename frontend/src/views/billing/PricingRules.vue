@@ -14,9 +14,9 @@
       <!-- 筛选区域 -->
       <a-form :model="filters" layout="inline" class="filter-form">
         <a-form-item label="客户">
-          <CustomerAutoComplete
-            v-model="filters.customer_id"
-            placeholder="请输入客户名称搜索"
+          <KeywordAutoComplete
+            v-model="filters.keyword"
+            placeholder="公司名称/公司 ID"
             width="200"
           />
         </a-form-item>
@@ -244,6 +244,7 @@ import { Message } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 const userStore = useUserStore()
@@ -286,7 +287,7 @@ const pagination = reactive({
 })
 
 const filters = reactive({
-  customer_id: undefined as number | undefined,
+  keyword: '',
   device_type: undefined as string | undefined,
   pricing_type: undefined as string | undefined,
 })
@@ -325,7 +326,7 @@ const fetchData = async () => {
       page: pagination.current,
       page_size: pagination.pageSize,
     }
-    if (filters.customer_id) params.customer_id = filters.customer_id
+    if (filters.keyword) params.keyword = filters.keyword
     if (filters.device_type) params.device_type = filters.device_type
     if (filters.pricing_type) params.pricing_type = filters.pricing_type
 
@@ -346,7 +347,7 @@ const handleSearch = () => {
 }
 
 const handleReset = () => {
-  filters.customer_id = undefined
+  filters.keyword = ''
   filters.device_type = undefined
   filters.pricing_type = undefined
   pagination.current = 1

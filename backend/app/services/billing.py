@@ -25,6 +25,7 @@ from ..models.billing import (
     PricingRule,
     RechargeRecord,
 )
+from ..models.customers import Customer
 
 
 class BalanceService:
@@ -231,6 +232,7 @@ class PricingService:
     async def get_pricing_rules(
         self,
         customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
         device_type: Optional[str] = None,
         layer_type: Optional[str] = None,
         pricing_type: Optional[str] = None,
@@ -243,11 +245,13 @@ class PricingService:
         base_stmt = (
             select(PricingRule)
             .join(Customer, PricingRule.customer_id == Customer.id, isouter=True)
-            .where(PricingRule.deleted_at.is_(None))
+            .where(PricingRule.deleted_at.is_(None), Customer.deleted_at.is_(None))
         )
 
         if customer_id:
             base_stmt = base_stmt.where(PricingRule.customer_id == customer_id)
+        if keyword:
+            base_stmt = base_stmt.where(Customer.name.ilike(f"%{keyword}%"))
         if device_type:
             base_stmt = base_stmt.where(PricingRule.device_type == device_type)
         if layer_type:
@@ -737,6 +741,7 @@ class InvoiceService:
     async def get_invoices(
         self,
         customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
         status: Optional[str] = None,
         period_start: Optional[date] = None,
         period_end: Optional[date] = None,
@@ -747,11 +752,14 @@ class InvoiceService:
         stmt = (
             select(Invoice)
             .options(selectinload(Invoice.items), selectinload(Invoice.customer))
-            .where(Invoice.deleted_at.is_(None))
+            .join(Customer, Invoice.customer_id == Customer.id)
+            .where(Invoice.deleted_at.is_(None), Customer.deleted_at.is_(None))
         )
 
         if customer_id:
             stmt = stmt.where(Invoice.customer_id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
         if status:
             stmt = stmt.where(Invoice.status == status)
         if period_start:

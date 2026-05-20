@@ -88,25 +88,11 @@
         <a-row :gutter="16">
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="关键词">
-              <a-input
+              <KeywordAutoComplete
                 v-model="filters.keyword"
                 placeholder="公司名称/公司 ID"
                 @press-enter="handleSearch"
-              >
-                <template #prefix>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path
-                      d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"
-                    />
-                  </svg>
-                </template>
-              </a-input>
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
@@ -593,6 +579,7 @@ import {
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import EmptyState from '@/components/EmptyState.vue'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatDateTime } from '@/utils/formatters'
 import type { ImportResult, IndustryType, Customer } from '@/types'
 
