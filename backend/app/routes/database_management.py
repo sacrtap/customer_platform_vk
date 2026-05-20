@@ -8,7 +8,7 @@ import logging
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import auth_required, require_permission
@@ -88,66 +88,70 @@ async def clear_customer_data(request: Request):
         # 按依赖顺序删除
         # 1. 画像标签关联（通过 profile 关联到 customer）
         await db_session.execute(
-            """
+            text(
+                """
             DELETE FROM profile_tags
             WHERE profile_id IN (
                 SELECT id FROM customer_profiles WHERE customer_id IN (SELECT id FROM customers)
             )
             """
+            )
         )
 
         # 2. 客户标签关联
         await db_session.execute(
-            "DELETE FROM customer_tags WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM customer_tags WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 3. 结算单明细
         await db_session.execute(
-            """
+            text(
+                """
             DELETE FROM invoice_items
             WHERE invoice_id IN (
                 SELECT id FROM invoices WHERE customer_id IN (SELECT id FROM customers)
             )
             """
+            )
         )
 
         # 4. 消费流水
         await db_session.execute(
-            "DELETE FROM consumption_records WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM consumption_records WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 5. 每日用量
         await db_session.execute(
-            "DELETE FROM daily_usage WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM daily_usage WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 6. 充值记录
         await db_session.execute(
-            "DELETE FROM recharge_records WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM recharge_records WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 7. 计费规则
         await db_session.execute(
-            "DELETE FROM pricing_rules WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM pricing_rules WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 8. 结算单
         await db_session.execute(
-            "DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 9. 客户余额（有 ondelete=CASCADE，但显式删除更安全）
         await db_session.execute(
-            "DELETE FROM customer_balances WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM customer_balances WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 10. 客户画像
         await db_session.execute(
-            "DELETE FROM customer_profiles WHERE customer_id IN (SELECT id FROM customers)"
+            text("DELETE FROM customer_profiles WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 11. 客户主表
-        await db_session.execute("DELETE FROM customers")
+        await db_session.execute(text("DELETE FROM customers"))
 
         # 提交事务
         await db_session.commit()
