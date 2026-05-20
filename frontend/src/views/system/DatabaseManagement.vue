@@ -107,10 +107,12 @@ const handleClearConfirm = () => {
           lastResult.value = { success: false, message: msg }
         }
       } catch (error: unknown) {
+        // Axios 拦截器 reject 的是普通对象 { code, message, category }
+        // 也可能是标准 Error 或网络错误
         const msg =
-          error instanceof Error && 'response' in error
-            ? (error as any).response?.data?.message || '数据清空失败，请稍后重试'
-            : '数据清空失败，请稍后重试'
+          (error as Record<string, unknown>)?.message as string ||
+          (error instanceof Error ? error.message : null) ||
+          '数据清空失败，请稍后重试'
         Message.error(msg)
         lastResult.value = { success: false, message: msg }
       } finally {
