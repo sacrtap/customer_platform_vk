@@ -95,14 +95,15 @@ const handleClearConfirm = () => {
     onBeforeOk: async () => {
       clearing.value = true
       try {
-        const response = await service.post<ClearResponse>('/system/database/clear')
-        const { data } = response
-        if (data.code === 0) {
-          const msg = data.message || `成功清空 ${data.data?.deleted_count || 0} 条客户数据`
+        const res = await service.post<ClearResponse>('/system/database/clear')
+        // 拦截器返回 res.data = { code: 0, message: "...", data: { deleted_count: N } }
+        if (res.data.code === 0) {
+          const deletedCount = res.data.data?.deleted_count ?? 0
+          const msg = res.data.message || `成功清空 ${deletedCount} 条客户数据`
           Message.success(msg)
           lastResult.value = { success: true, message: msg }
         } else {
-          const msg = data.message || '数据清空失败，请稍后重试'
+          const msg = res.data.message || '数据清空失败，请稍后重试'
           Message.error(msg)
           lastResult.value = { success: false, message: msg }
         }
