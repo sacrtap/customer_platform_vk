@@ -53,6 +53,7 @@
 import { ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'
+import { handleError } from '@/utils/errorHandler'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
@@ -96,27 +97,22 @@ const handleClearConfirm = () => {
       clearing.value = true
       try {
         const res = await service.post<ClearResponse>('/system/database/clear')
-        // 拦截器返回 response.data，TS 类型推断为 AxiosResponse，但运行时 res.data 是业务数据
-        const result = res.data as ClearResponse
-        if (result.code === 0) {
-          const deletedCount = result.data?.deleted_count ?? 0
-          const msg = result.message || `成功清空 ${deletedCount} 条客户数据`
+        // 拦截器在 code === 0 时直接返回 response.data（即 { code, message, data }）
+        // 所以 res 就是业务数据，不需要再访问 res.data
+        if (res.code === 0) {
+          const deletedCount = res.data?.deleted_count ?? 0
+          const msg = res.message || `成功清空 ${deletedCount} 条客户数据`
           Message.success(msg)
           lastResult.value = { success: true, message: msg }
         } else {
-          const msg = result.message || '数据清空失败，请稍后重试'
+          const msg = res.message || '数据清空失败：请稍后重试'
           Message.error(msg)
           lastResult.value = { success: false, message: msg }
         }
-      } catch (error: unknown) {
-        // Axios 拦截器 reject 的是普通对象 { code, message, category }
-        // 也可能是标准 Error 或网络错误
-        const msg =
-          (error as Record<string, unknown>)?.message as string ||
-          (error instanceof Error ? error.message : null) ||
-          '数据清空失败，请稍后重试'
-        Message.error(msg)
-        lastResult.value = { success: false, message: msg }
+      } catch (error) {
+        // Axios 拦截器 reject 的是 AppError { code, message, category }
+        handleError(error, '数据清空失败')
+        lastResult.value = { success: false, message: '数据清空失败' }
       } finally {
         clearing.value = false
       }

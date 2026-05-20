@@ -11,6 +11,7 @@ from sanic.response import json
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission
 from ..models.customers import Customer
 from ..utils.audit_helpers import create_audit_entry
@@ -152,6 +153,9 @@ async def clear_customer_data(request: Request):
 
         # 11. 客户主表
         await db_session.execute(text("DELETE FROM customers"))
+
+        # 清除客户相关 Redis 缓存
+        await cache_service.invalidate_customer_cache()
 
         # 提交事务
         await db_session.commit()

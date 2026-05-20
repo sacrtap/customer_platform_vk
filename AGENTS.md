@@ -124,6 +124,18 @@ npm run build
 
 **记忆口诀**：提交前跑四件套 — ruff check、ruff format、safety、pytest
 
+### 6. 前端 Axios 响应数据处理规则
+
+**问题案例**：数据库管理页面误将拦截器返回的业务数据再次访问 `.data`（如 `res.data.code`），导致 `code` 为 `undefined`，成功响应被误判为失败
+
+**必须遵守**：
+- Axios 响应拦截器在 code === 0 时返回 `response.data`，即 `service.post/get` 直接返回 `{ code: number, message: string, data: { ... } }`
+- **直接使用** `res.code`、`res.message`、`res.data` 访问，**不要**再次 `const data = res.data`
+- 拦截器失败时 reject `AppError { code, message, category }`，应使用 `handleError(error, fallbackMsg)` 统一处理
+- 所有 `service.post/get/put/delete` 调用均遵循此模式
+
+**记忆口诀**：拦截器已拆包，`res` 直接拿（`res.code` / `res.message` / `res.data`）
+
 ---
 
 ## Superpowers 流程入口规则
