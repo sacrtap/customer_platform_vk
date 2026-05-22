@@ -1,0 +1,15 @@
+{
+  "include": [
+    "backend"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "backend/.venv",
+    "backend/alembic/versions"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend"
+    }
+  ]
+}
