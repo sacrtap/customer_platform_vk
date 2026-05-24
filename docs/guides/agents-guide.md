@@ -338,22 +338,22 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 
 ---
 
-## 8. 测试数据库
+## 7. 测试数据库
 
-### 8.1 测试数据库配置
+### 7.1 测试数据库配置
 
 - **数据库名**: `customer_platform_test`
 - **创建命令**: `createdb -U postgres customer_platform_test`
 - **删除命令**: `dropdb -U postgres customer_platform_test`
 - **重置命令**: `dropdb -U postgres customer_platform_test && createdb -U postgres customer_platform_test`
 
-### 8.2 测试环境
+### 7.2 测试环境
 
 - **测试配置**: 见 `backend/tests/conftest.py`
 - **测试数据**: 运行 `python scripts/create_test_data.py` 创建测试数据
 - **测试隔离**: 每个测试用例在独立事务中运行，测试后自动回滚
 
-### 8.3 常见问题
+### 7.3 常见问题
 
 | 问题                      | 解决方案                                          |
 | ------------------------- | ------------------------------------------------- |
@@ -364,9 +364,9 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 
 ---
 
-## 9. 依赖版本
+## 8. 依赖版本
 
-### 9.1 后端依赖
+### 8.1 后端依赖
 
 | 依赖           | 版本要求          | 说明                          |
 | -------------- | ----------------- | ----------------------------- |
@@ -376,7 +376,7 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 | PostgreSQL     | 18 (Docker)       | 生产/开发数据库               |
 | Redis          | 7 (Docker)        | 缓存/会话存储                 |
 
-### 9.2 前端依赖
+### 8.2 前端依赖
 
 | 依赖             | 版本    | 说明               |
 | ---------------- | ------- | ------------------ |
@@ -388,7 +388,7 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 
 ---
 
-## 10. 快速参考卡片
+## 9. 快速参考卡片
 
 ### 日常开发
 ```bash
