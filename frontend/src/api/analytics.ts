@@ -163,6 +163,15 @@ export function getRealEstateStats() {
   return api.get('/analytics/profile/real-estate')
 }
 
+export interface RealEstateIndustryItem {
+  industry: string
+  count: number
+}
+
+export function getRealEstateIndustryStats() {
+  return api.get('/analytics/profile/real-estate-industry')
+}
+
 // ==================== 预测回款 ====================
 
 export interface PaymentPrediction {

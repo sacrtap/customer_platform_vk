@@ -75,6 +75,7 @@ import {
   getScaleStats,
   getConsumeLevelStats,
   getRealEstateStats,
+  getRealEstateIndustryStats,
 } from '@/api/analytics'
 
 interface IndustryData {
@@ -92,9 +93,9 @@ interface ConsumeLevelData {
   count: number
 }
 
-interface RealEstateData {
-  real_estate_customers: number
-  non_real_estate_customers: number
+interface RealEstateIndustryData {
+  industry: string
+  count: number
 }
 
 const industryChartRef = ref<HTMLElement>()
@@ -111,9 +112,7 @@ let realEstateChart: ECharts | null = null
 const totalCustomers = ref(0)
 const industryCount = ref(0)
 const realEstateCustomers = ref(0)
-const nonRealEstateCustomers = ref(0)
 const realEstateRate = ref(0)
-const nonRealEstateRate = ref(0)
 const dataCompleteRate = ref(0)
 
 // 加载数据
@@ -153,17 +152,20 @@ const loadConsumeLevelData = async () => {
 
 // 加载房产客户统计
 const loadRealEstateData = async () => {
-  const res = await getRealEstateStats()
-  const data = res.data || {}
-  realEstateCustomers.value = data.real_estate_customers || 0
-  nonRealEstateCustomers.value = data.non_real_estate_customers || 0
-  realEstateRate.value = data.real_estate_percentage || 0
-  nonRealEstateRate.value = 100 - realEstateRate.value
+  // 统计卡片数据：调用 getRealEstateStats
+  const statsRes = await getRealEstateStats()
+  const stats = statsRes.data || {}
+  realEstateCustomers.value = stats.real_estate_customers || 0
+  realEstateRate.value = stats.real_estate_percentage || 0
   dataCompleteRate.value =
     Math.round(
       ((totalCustomers.value > 0 ? realEstateCustomers.value : 0) / totalCustomers.value) * 100
     ) || 85
-  initRealEstateChart(data)
+
+  // 饼图数据：调用 getRealEstateIndustryStats
+  const industryRes = await getRealEstateIndustryStats()
+  const industryData = industryRes.data || []
+  initRealEstateChart(industryData)
 }
 
 // 初始化行业分布图表
@@ -363,8 +365,8 @@ const initConsumeLevelChart = (data: ConsumeLevelData[]) => {
   consumeLevelChart.setOption(option)
 }
 
-// 初始化房产客户图表
-const initRealEstateChart = (data: RealEstateData) => {
+// 初始化房产客户行业分布图表
+const initRealEstateChart = (data: RealEstateIndustryData[]) => {
   if (!realEstateChartRef.value) return
 
   if (realEstateChart) {
@@ -373,10 +375,13 @@ const initRealEstateChart = (data: RealEstateData) => {
 
   realEstateChart = echarts.init(realEstateChartRef.value)
 
+  // 橙色系配色，区别于行业分布图的蓝色系
+  const colors = ['#f97316', '#fb923c', '#fdba74', '#fed7aa', '#ffedd5']
+
   const option = {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
+      formatter: '{b}: {c} 家 ({d}%)',
     },
     legend: {
       orient: 'vertical',
@@ -388,7 +393,7 @@ const initRealEstateChart = (data: RealEstateData) => {
     },
     series: [
       {
-        name: '房产客户',
+        name: '房产行业',
         type: 'pie',
         radius: ['40%', '70%'],
         center: ['35%', '50%'],
@@ -413,18 +418,15 @@ const initRealEstateChart = (data: RealEstateData) => {
         labelLine: {
           show: false,
         },
-        data: [
-          {
-            name: '房产客户',
-            value: data.real_estate_customers || 0,
-            itemStyle: { color: '#f97316' },
-          },
-          {
-            name: '非房产客户',
-            value: data.non_real_estate_customers || 0,
-            itemStyle: { color: '#9ca3af' },
-          },
-        ],
+        data: data.length > 0
+          ? data.map((item, index) => ({
+              name: item.industry || '其他',
+              value: item.count,
+              itemStyle: {
+                color: colors[index % colors.length],
+              },
+            }))
+          : [{ name: '暂无数据', value: 0, itemStyle: { color: '#e5e7eb' } }],
       },
     ],
   }
