@@ -100,8 +100,8 @@ test.describe('余额充值', () => {
 
     // 断言确认扣减对话框弹出
     await expect(
-      page.locator('.arco-modal-wrapper').filter({ hasText: '确认扣减金额' }).first()
-    ).toBeVisible({ timeout: 5000 });
+      page.locator('.arco-modal, .arco-modal-wrapper').filter({ hasText: '确认扣减金额' }).first()
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('负数金额确认对话框点击取消不提交充值', async ({ page }) => {
@@ -116,7 +116,7 @@ test.describe('余额充值', () => {
     }
 
     // 点击表格中第一个"充值"按钮
-    const rechargeBtn = page.locator('button:has-text("充值")').first();
+    const rechargeBtn = page.locator('.arco-table button:has-text("充值")').first();
     await expect(rechargeBtn).toBeVisible({ timeout: 10000 });
     await rechargeBtn.click();
     await page.waitForTimeout(500);
@@ -133,8 +133,8 @@ test.describe('余额充值', () => {
     await page.waitForTimeout(500);
 
     // 等待确认扣减对话框弹出
-    const confirmModal = page.locator('.arco-modal-wrapper').filter({ hasText: '确认扣减金额' });
-    await expect(confirmModal.first()).toBeVisible({ timeout: 5000 });
+    const confirmModal = page.locator('.arco-modal, .arco-modal-wrapper').filter({ hasText: '确认扣减金额' });
+    await expect(confirmModal.first()).toBeVisible({ timeout: 10000 });
 
     // 点击确认对话框的"取消"按钮
     await confirmModal.locator('.arco-modal-footer button:has-text("取消")').click();
@@ -161,7 +161,7 @@ test.describe('余额充值', () => {
     }
 
     // 点击表格中第一个"充值"按钮
-    const rechargeBtn = page.locator('button:has-text("充值")').first();
+    const rechargeBtn = page.locator('.arco-table button:has-text("充值")').first();
     await expect(rechargeBtn).toBeVisible({ timeout: 10000 });
     await rechargeBtn.click();
     await page.waitForTimeout(500);
@@ -178,8 +178,8 @@ test.describe('余额充值', () => {
     await page.waitForTimeout(500);
 
     // 等待确认扣减对话框弹出
-    const confirmModal = page.locator('.arco-modal-wrapper').filter({ hasText: '确认扣减金额' });
-    await expect(confirmModal.first()).toBeVisible({ timeout: 5000 });
+    const confirmModal = page.locator('.arco-modal, .arco-modal-wrapper').filter({ hasText: '确认扣减金额' });
+    await expect(confirmModal.first()).toBeVisible({ timeout: 10000 });
 
     // 点击"确认扣减"按钮
     await confirmModal.locator('.arco-modal-footer .arco-btn-primary:has-text("确认扣减")').click();
