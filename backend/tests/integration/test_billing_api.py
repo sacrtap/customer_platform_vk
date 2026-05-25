@@ -252,7 +252,7 @@ async def test_recharge_missing_customer_id(test_client, auth_token):
 
 @pytest.mark.asyncio
 async def test_recharge_zero_amount(test_client, auth_token, test_customer):
-    """测试充值 API - 金额为 0"""
+    """测试充值 API - 金额不能为 0"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer["id"]
 
@@ -268,6 +268,81 @@ async def test_recharge_zero_amount(test_client, auth_token, test_customer):
     assert response.status == 400
     data = response.json
     assert data["code"] == 40001
+
+
+@pytest.mark.asyncio
+async def test_recharge_negative_amount_no_bonus(test_client, auth_token, test_customer):
+    """测试充值 API - 负数金额，赠送为 0"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    request, response = await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": -5000.00,
+            "bonus_amount": 0,
+            "remark": "测试负数充值-无赠送",
+        },
+        headers=headers,
+    )
+
+    assert response.status == 201
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["real_amount"] == -5000.00
+    assert data["data"]["bonus_amount"] == 0
+    assert data["data"]["total_amount"] == -5000.00
+
+
+@pytest.mark.asyncio
+async def test_recharge_negative_amount_negative_bonus(test_client, auth_token, test_customer):
+    """测试充值 API - 负数金额，赠送也为负数"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    request, response = await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": -5000.00,
+            "bonus_amount": -1000.00,
+            "remark": "测试负数充值-赠送也为负数",
+        },
+        headers=headers,
+    )
+
+    assert response.status == 201
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["real_amount"] == -5000.00
+    assert data["data"]["bonus_amount"] == -1000.00
+    assert data["data"]["total_amount"] == -6000.00
+
+
+@pytest.mark.asyncio
+async def test_recharge_negative_amount_positive_bonus(test_client, auth_token, test_customer):
+    """测试充值 API - 负数金额，赠送为正数"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    request, response = await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": -5000.00,
+            "bonus_amount": 1000.00,
+            "remark": "测试负数充值-赠送为正数",
+        },
+        headers=headers,
+    )
+
+    assert response.status == 201
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["real_amount"] == -5000.00
+    assert data["data"]["bonus_amount"] == 1000.00
+    assert data["data"]["total_amount"] == -4000.00
 
 
 # ==================== 结算单管理测试 ====================
