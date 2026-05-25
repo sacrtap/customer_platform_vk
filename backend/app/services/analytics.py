@@ -492,28 +492,42 @@ class AnalyticsService:
         ]
 
     async def get_scale_level_stats(self) -> List[Dict[str, Any]]:
-        """获取客户规模等级统计"""
+        """获取客户规模等级统计
+
+        将非标准值（NULL 或不在 S/A/B/C/D/E 中的旧值）归类为"未分类"，
+        并按 S→A→B→C→D→E→未分类 的固定顺序返回。
+        """
+        valid_levels = ["S", "A", "B", "C", "D", "E"]
+        normalized_level = case(
+            (CustomerProfile.scale_level.in_(valid_levels), CustomerProfile.scale_level),
+            else_="未分类",
+        ).label("scale_level")
+
         stmt = (
             select(
-                CustomerProfile.scale_level,
+                normalized_level,
                 func.count(CustomerProfile.id).label("count"),
             )
             .join(Customer, CustomerProfile.customer_id == Customer.id)
             .where(Customer.deleted_at.is_(None))
-            .group_by(CustomerProfile.scale_level)
-            .order_by(func.count(CustomerProfile.id).desc())
+            .group_by(normalized_level)
         )
 
         result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)
 
+        # 构建 level -> count 映射，按固定顺序输出
+        count_map = {row.scale_level: row.count for row in result}
+        ordered_levels = valid_levels + ["未分类"]
+
         return [
             {
-                "scale_level": row.scale_level or "未分类",
-                "count": row.count,
-                "percentage": round(row.count / total * 100, 2) if total > 0 else 0,
+                "scale_level": level,
+                "count": count_map.get(level, 0),
+                "percentage": round(count_map.get(level, 0) / total * 100, 2) if total > 0 else 0,
             }
-            for row in result
+            for level in ordered_levels
+            if count_map.get(level, 0) > 0  # 隐藏 count=0 的分类
         ]
 
     async def get_consume_level_stats(self) -> List[Dict[str, Any]]:
@@ -564,6 +578,37 @@ class AnalyticsService:
             "non_real_estate_customers": total - real_estate,
             "real_estate_percentage": round(real_estate / total * 100, 2) if total > 0 else 0,
         }
+
+    async def get_real_estate_industry_stats(self) -> List[Dict[str, Any]]:
+        """获取房产客户行业子分类统计"""
+        stmt = (
+            select(
+                IndustryType.name,
+                func.count(CustomerProfile.id).label("count"),
+            )
+            .join(Customer, CustomerProfile.customer_id == Customer.id)
+            .outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    CustomerProfile.is_real_estate,
+                )
+            )
+            .group_by(IndustryType.name)
+            .order_by(func.count(CustomerProfile.id).desc())
+        )
+
+        result = (await self.db.execute(stmt)).all()
+        total = sum(row.count for row in result)
+
+        return [
+            {
+                "industry": row.name or "未分类",
+                "count": row.count,
+                "percentage": round(row.count / total * 100, 2) if total > 0 else 0,
+            }
+            for row in result
+        ]
 
     # ========== 预测回款 ==========
 

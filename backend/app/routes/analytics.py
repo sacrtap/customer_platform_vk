@@ -352,6 +352,24 @@ async def get_real_estate_stats(request: Request):
     return json(result)
 
 
+@analytics.route("/profile/real-estate-industry", methods=["GET"])
+@auth_required
+async def get_real_estate_industry_stats(request: Request):
+    """获取房产客户行业子分类统计"""
+    cached = await cache_service.get("analytics_profile", "real_estate_industry")
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    stats = await service.get_real_estate_industry_stats()
+
+    result = {"code": 0, "message": "success", "data": stats}
+    await cache_service.set("analytics_profile", result, "real_estate_industry")
+    return json(result)
+
+
 @analytics.route("/prediction/monthly", methods=["GET"])
 @auth_required
 async def predict_monthly_payment(request: Request):

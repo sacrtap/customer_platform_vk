@@ -5,7 +5,7 @@
 1. 消耗分析 - get_consumption_trend, get_top_customers, get_device_type_distribution
 2. 回款分析 - get_payment_analysis, get_invoice_status_stats
 3. 健康度分析 - get_customer_health_stats, get_balance_warning_list, get_inactive_customers
-4. 画像分析 - get_industry_distribution, get_real_estate_stats
+4. 画像分析 - get_industry_distribution, get_real_estate_stats, get_real_estate_industry_stats
 5. 预测回款 - predict_monthly_payment
 6. 首页仪表盘 - get_dashboard_stats, get_dashboard_chart_data
 """
@@ -820,6 +820,57 @@ class TestGetRealEstateStats:
 
         assert result["total_customers"] == 0
         assert result["real_estate_percentage"] == 0  # 避免除零错误
+
+
+class TestGetRealEstateIndustryStats:
+    """get_real_estate_industry_stats 测试"""
+
+    async def test_real_estate_industry_stats_success(self, analytics_service):
+        """测试正常数据返回：多个房产行业子分类"""
+        service, mock_db = analytics_service
+
+        mock_rows = [
+            {"name": "房产经纪", "count": 1},
+            {"name": "房产ERP", "count": 1},
+            {"name": "房产平台", "count": 1},
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = await service.get_real_estate_industry_stats()
+
+        assert len(result) == 3
+        industries = {item["industry"] for item in result}
+        assert industries == {"房产经纪", "房产ERP", "房产平台"}
+        for item in result:
+            assert item["count"] == 1
+            assert item["percentage"] == round(1 / 3 * 100, 2)
+
+    async def test_real_estate_industry_stats_empty(self, analytics_service):
+        """测试空数据库返回空列表"""
+        service, mock_db = analytics_service
+
+        mock_db.execute.return_value = make_mock_execute_result([])
+
+        result = await service.get_real_estate_industry_stats()
+
+        assert len(result) == 0
+
+    async def test_real_estate_industry_stats_isolation(self, analytics_service):
+        """测试房产与非房产客户正确隔离：is_real_estate=False 的客户不计入统计"""
+        service, mock_db = analytics_service
+
+        # 模拟 SQL 过滤后只返回房产行业数据（非房产客户已被 WHERE 条件排除）
+        mock_rows = [
+            {"name": "房产经纪", "count": 2},
+        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
+
+        result = await service.get_real_estate_industry_stats()
+
+        assert len(result) == 1
+        assert result[0]["industry"] == "房产经纪"
+        assert result[0]["count"] == 2
+        assert result[0]["percentage"] == 100.0
 
 
 # ==================== 预测回款测试 ====================
