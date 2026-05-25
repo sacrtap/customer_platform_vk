@@ -93,6 +93,7 @@ _bmad/
 _bmad-output/
 .agents/
 skills-lock.json
+design-artifacts/
 
 # Cache
 .cache/
