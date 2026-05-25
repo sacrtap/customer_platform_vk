@@ -92,6 +92,7 @@ opencode.json
 _bmad/
 _bmad-output/
 .agents/
+skills-lock.json
 
 # Cache
 .cache/
@@ -142,3 +143,4 @@ data_clean_backup.xlsx
 # Context-Mode Test
 docs/context-mode-test/
 AGENTS.md
+
