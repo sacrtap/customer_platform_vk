@@ -242,9 +242,8 @@
         <a-form-item field="real_amount" label="充值金额" required>
           <a-input-number
             v-model="rechargeForm.real_amount"
-            placeholder="请输入充值金额"
+            placeholder="请输入充值金额（负数表示扣减）"
             style="width: 100%"
-            :min="0.01"
             :precision="2"
             :step="100"
           />
@@ -252,9 +251,8 @@
         <a-form-item field="bonus_amount" label="赠送金额">
           <a-input-number
             v-model="rechargeForm.bonus_amount"
-            placeholder="请输入赠送金额"
+            placeholder="请输入赠送金额（负数表示扣减）"
             style="width: 100%"
-            :min="0"
             :precision="2"
             :step="100"
           />
@@ -303,7 +301,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 
 import {
@@ -572,9 +570,29 @@ const handleRecharge = async () => {
     Message.error('请选择客户')
     return false
   }
-  if (!rechargeForm.real_amount || rechargeForm.real_amount <= 0) {
-    Message.error('请输入有效的充值金额')
+  if (rechargeForm.real_amount === null || rechargeForm.real_amount === undefined) {
+    Message.error('请输入充值金额')
     return false
+  }
+  if (rechargeForm.real_amount === 0) {
+    Message.error('充值金额不能为 0')
+    return false
+  }
+
+  // 负数金额二次确认
+  if (rechargeForm.real_amount < 0) {
+    const totalDeduction = rechargeForm.real_amount + (rechargeForm.bonus_amount || 0)
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: '确认扣减金额',
+        content: `本次操作将从客户账户扣除 ${formatCurrency(Math.abs(totalDeduction))}，其中实充扣减 ${formatCurrency(Math.abs(rechargeForm.real_amount!))}，赠送扣减 ${formatCurrency(Math.abs(rechargeForm.bonus_amount || 0))}，是否确认？`,
+        okText: '确认扣减',
+        cancelText: '取消',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      })
+    })
+    if (!confirmed) return false
   }
 
   rechargeLoading.value = true
@@ -585,7 +603,8 @@ const handleRecharge = async () => {
       bonus_amount: rechargeForm.bonus_amount || undefined,
       remark: rechargeForm.remark || undefined,
     })
-    Message.success('充值成功')
+    const isDeduction = rechargeForm.real_amount < 0
+    Message.success(isDeduction ? '扣减成功' : '充值成功')
 
     // 局部更新：找到对应客户行，更新余额数据
     const customerId = res.data.customer_id
