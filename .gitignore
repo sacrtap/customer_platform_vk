@@ -110,7 +110,6 @@ dmypy.json
 
 # Git worktrees
 .worktrees/
-.github/
 
 # omo
 .omo/
