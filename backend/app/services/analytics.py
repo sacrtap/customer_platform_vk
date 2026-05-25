@@ -39,16 +39,20 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         """获取消耗趋势（月度）"""
         # 按月份聚合消耗金额
-        stmt = select(
-            extract("year", Invoice.period_start).label("year"),
-            extract("month", Invoice.period_start).label("month"),
-            func.sum(Invoice.total_amount).label("total_amount"),
-        ).join(Customer, Invoice.customer_id == Customer.id).where(
-            and_(
-                Invoice.period_start >= start_date,
-                Invoice.period_end <= end_date,
-                Invoice.status != "cancelled",
-                Customer.deleted_at.is_(None),
+        stmt = (
+            select(
+                extract("year", Invoice.period_start).label("year"),
+                extract("month", Invoice.period_start).label("month"),
+                func.sum(Invoice.total_amount).label("total_amount"),
+            )
+            .join(Customer, Invoice.customer_id == Customer.id)
+            .where(
+                and_(
+                    Invoice.period_start >= start_date,
+                    Invoice.period_end <= end_date,
+                    Invoice.status != "cancelled",
+                    Customer.deleted_at.is_(None),
+                )
             )
         )
 
@@ -190,16 +194,20 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         """获取回款分析数据"""
         # 总结算金额
-        invoice_stmt = select(
-            func.sum(Invoice.total_amount).label("total_invoiced"),
-            func.sum(Invoice.discount_amount).label("total_discount"),
-            func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_final"),
-        ).join(Customer, Invoice.customer_id == Customer.id).where(
-            and_(
-                Invoice.period_start >= start_date,
-                Invoice.period_end <= end_date,
-                Invoice.status != "cancelled",
-                Customer.deleted_at.is_(None),
+        invoice_stmt = (
+            select(
+                func.sum(Invoice.total_amount).label("total_invoiced"),
+                func.sum(Invoice.discount_amount).label("total_discount"),
+                func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_final"),
+            )
+            .join(Customer, Invoice.customer_id == Customer.id)
+            .where(
+                and_(
+                    Invoice.period_start >= start_date,
+                    Invoice.period_end <= end_date,
+                    Invoice.status != "cancelled",
+                    Customer.deleted_at.is_(None),
+                )
             )
         )
 
@@ -209,13 +217,15 @@ class AnalyticsService:
             invoice_stmt = invoice_stmt.where(Customer.name.ilike(f"%{keyword}%"))
 
         # 已回款金额
-        payment_stmt = select(func.sum(RechargeRecord.real_amount).label("total_paid")).join(
-            Customer, RechargeRecord.customer_id == Customer.id
-        ).where(
-            and_(
-                RechargeRecord.created_at >= datetime.combine(start_date, datetime.min.time()),
-                RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
-                Customer.deleted_at.is_(None),
+        payment_stmt = (
+            select(func.sum(RechargeRecord.real_amount).label("total_paid"))
+            .join(Customer, RechargeRecord.customer_id == Customer.id)
+            .where(
+                and_(
+                    RechargeRecord.created_at >= datetime.combine(start_date, datetime.min.time()),
+                    RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
+                    Customer.deleted_at.is_(None),
+                )
             )
         )
 
