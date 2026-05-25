@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { getCustomers } from '@/api/customers'
 
@@ -29,11 +29,13 @@ const props = withDefaults(
     modelValue?: number
     placeholder?: string
     width?: number | string
+    displayName?: string
   }>(),
   {
     modelValue: undefined,
     placeholder: '请输入客户名称搜索',
     width: 250,
+    displayName: undefined,
   }
 )
 
@@ -92,6 +94,18 @@ const handleSearch = (value: string) => {
     }
   }, 300)
 }
+
+watch(
+  () => props.displayName,
+  (newVal) => {
+    if (newVal !== undefined && newVal !== '') {
+      displayText.value = newVal
+    } else {
+      displayText.value = ''
+    }
+  },
+  { immediate: true },
+)
 
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer)

@@ -235,6 +235,7 @@
         <a-form-item field="customer_id" label="客户" required>
           <CustomerAutoComplete
             v-model="rechargeForm.customer_id"
+            :display-name="rechargeCustomerName"
             placeholder="请输入客户名称搜索"
             width="100%"
           />
@@ -293,6 +294,9 @@
               <span class="bonus">赠：{{ formatCurrency(record.bonus_amount) }}</span>
             </div>
           </div>
+        </template>
+        <template #created_at="{ record }">
+          {{ formatLastRechargeTime(record.created_at) }}
         </template>
       </a-table>
     </a-modal>
@@ -403,7 +407,7 @@ const columns = [
     title: '余额',
     dataIndex: 'total_amount',
     slotName: 'balance',
-    width: 280,
+    width: 200,
     sortable: { sortDirections: ['ascend', 'descend'] },
   },
   {
@@ -427,6 +431,7 @@ const columns = [
 const rechargeModalVisible = ref(false)
 const rechargeLoading = ref(false)
 const selectedBalance = ref<Balance | null>(null)
+const rechargeCustomerName = ref('')
 const rechargeForm = reactive({
   customer_id: undefined as number | undefined,
   real_amount: null as number | null,
@@ -449,7 +454,7 @@ const currentRecordCustomerId = ref<number | null>(null)
 
 // 充值记录表格列
 const recordColumns = [
-  { title: '充值时间', dataIndex: 'created_at', width: 180 },
+  { title: '充值时间', slotName: 'created_at', width: 180 },
   { title: '金额', slotName: 'amount', width: 200 },
   { title: '备注', dataIndex: 'remark', width: 200 },
 ]
@@ -558,6 +563,7 @@ const handlePageChange = (page: number) => {
 const openRechargeModal = (balance?: Balance) => {
   selectedBalance.value = balance || null
   rechargeForm.customer_id = balance ? balance.customer_id : undefined
+  rechargeCustomerName.value = balance ? (balance.customer_name ?? '') : ''
   rechargeForm.real_amount = null
   rechargeForm.bonus_amount = null
   rechargeForm.remark = ''
