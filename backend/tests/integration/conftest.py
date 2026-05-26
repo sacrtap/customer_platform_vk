@@ -93,11 +93,17 @@ def sync_test_engine():
         tables = inspector.get_table_names()
         print(f"✅ 已创建 {len(tables)} 个表: {tables[:5]}...")
 
-        # 确保新增的 cancelled_at 列存在（create_all 不修改已存在的表）
+        # 确保新增的列存在（create_all 不修改已存在的表）
         if "invoices" in tables:
             columns = [col["name"] for col in inspector.get_columns("invoices")]
             if "cancelled_at" not in columns:
                 conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_at VARCHAR(50)"))
+
+        # 确保 customers.is_real_estate 列存在
+        if "customers" in tables:
+            columns = [col["name"] for col in inspector.get_columns("customers")]
+            if "is_real_estate" not in columns:
+                conn.execute(text("ALTER TABLE customers ADD COLUMN is_real_estate BOOLEAN"))
 
     yield engine
 
