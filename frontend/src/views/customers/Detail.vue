@@ -62,6 +62,14 @@
                   </a-tag>
                 </span>
               </div>
+              <div class="info-item">
+                <span class="label">是否房产客户</span>
+                <span class="value">
+                  <a-tag v-if="customer.is_real_estate === true" color="green">是</a-tag>
+                  <a-tag v-else-if="customer.is_real_estate === false" color="gray">否</a-tag>
+                  <span v-else>-</span>
+                </span>
+              </div>
               <!-- 第 4 行 -->
               <div class="info-item">
                 <span class="label">结算方式</span>
@@ -429,6 +437,14 @@
               <a-form-item field="email" label="邮箱">
                 <a-input v-model="editForm.email" placeholder="请输入邮箱" />
               </a-form-item>
+
+              <a-form-item field="is_real_estate" label="是否房产客户">
+                <a-select v-model="editForm.is_real_estate" placeholder="请选择" allow-clear>
+                  <a-option :value="null">-</a-option>
+                  <a-option :value="true">是</a-option>
+                  <a-option :value="false">否</a-option>
+                </a-select>
+              </a-form-item>
             </div>
 
             <!-- 第二列：结算与业务 -->
@@ -730,6 +746,7 @@ interface EditForm {
   is_settlement_enabled?: boolean
   is_disabled?: boolean
   notes?: string
+  is_real_estate?: boolean | null
   // 规模等级和消费等级（来自 CustomerProfile）
   scale_level?: string
   consume_level?: string
@@ -909,6 +926,7 @@ const editForm = ref<EditForm>({
   is_settlement_enabled: true,
   is_disabled: false,
   notes: undefined,
+  is_real_estate: null,
   // 规模等级和消费等级（来自 CustomerProfile）
   scale_level: undefined,
   consume_level: undefined,
@@ -1085,6 +1103,7 @@ const openEditModal = () => {
     is_settlement_enabled: customer.value.is_settlement_enabled ?? true,
     is_disabled: customer.value.is_disabled ?? false,
     notes: customer.value.notes || undefined,
+    is_real_estate: customer.value.is_real_estate ?? null,
     // 规模等级和消费等级（来自 CustomerProfile）
     scale_level: profile.value.scale_level || undefined,
     consume_level: profile.value.consume_level || undefined,
@@ -1156,6 +1175,7 @@ const handleEditSubmit = async () => {
         is_settlement_enabled: editForm.value.is_settlement_enabled,
         is_disabled: editForm.value.is_disabled,
         notes: editForm.value.notes || undefined,
+        is_real_estate: editForm.value.is_real_estate ?? null,
       }),
       updateProfile(customerId.value, {
         scale_level: editForm.value.scale_level || undefined,
