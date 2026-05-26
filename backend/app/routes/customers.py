@@ -123,6 +123,7 @@ async def list_customers(request: Request):
                     "settlement_cycle": c.settlement_cycle,
                     "settlement_type": c.settlement_type,
                     "is_key_customer": c.is_key_customer,
+                    "is_real_estate": c.is_real_estate,
                     "email": c.email,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                 }
@@ -262,6 +263,7 @@ async def create_customer(request: Request):
         "settlement_cycle": "string (optional)",
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
+        "is_real_estate": "boolean (optional)",
         "email": "string (optional)"
     }
     """
@@ -337,6 +339,7 @@ async def update_customer(request: Request, customer_id: int):
         "settlement_cycle": "string (optional)",
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
+        "is_real_estate": "boolean (optional)",
         "email": "string (optional)"
     }
     """
