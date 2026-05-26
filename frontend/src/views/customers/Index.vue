@@ -367,6 +367,14 @@
 
         <a-row :gutter="16">
           <a-col :span="12">
+            <a-form-item field="is_real_estate" label="是否房产客户">
+              <a-select v-model="customerForm.is_real_estate" placeholder="请选择" allow-clear>
+                <a-option :value="true">是</a-option>
+                <a-option :value="false">否</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
             <a-form-item field="settlement_cycle" label="结算周期">
               <a-select
                 v-model="customerForm.settlement_cycle"
@@ -969,6 +977,7 @@ const customerForm = reactive({
   settlement_type: undefined as string | undefined,
   settlement_cycle: undefined as string | undefined,
   is_key_customer: false,
+  is_real_estate: null as boolean | null,
   manager_id: null as number | null,
   sales_manager_id: null as number | null,
 })
@@ -992,6 +1001,7 @@ const openCreateModal = () => {
     settlement_type: undefined,
     settlement_cycle: undefined,
     is_key_customer: false,
+    is_real_estate: null,
     manager_id: null,
     sales_manager_id: null,
   })
@@ -1011,6 +1021,7 @@ const openEditModal = (record: Customer) => {
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,
+    is_real_estate: record.is_real_estate ?? null,
     manager_id: record.manager_id || null,
     sales_manager_id: record.sales_manager_id || null,
   })
@@ -1040,6 +1051,7 @@ const handleCustomerSubmit = async () => {
       settlement_type: customerForm.settlement_type,
       settlement_cycle: customerForm.settlement_cycle,
       is_key_customer: customerForm.is_key_customer,
+      is_real_estate: customerForm.is_real_estate ?? undefined,
       manager_id: customerForm.manager_id || undefined,
       sales_manager_id: customerForm.sales_manager_id || undefined,
     }
