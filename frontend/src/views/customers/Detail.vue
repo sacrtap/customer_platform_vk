@@ -768,6 +768,7 @@ const customer = ref<Customer>({
   is_settlement_enabled: null,
   is_disabled: null,
   notes: null,
+  is_real_estate: null,
 })
 
 const profile = ref<CustomerProfile>({

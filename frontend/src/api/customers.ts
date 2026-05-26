@@ -34,6 +34,7 @@ export function createCustomer(data: {
   settlement_cycle?: string
   settlement_type?: string
   is_key_customer?: boolean
+  is_real_estate?: boolean | null
   email?: string
 }) {
   return api.post('/customers', data)
@@ -52,6 +53,7 @@ export function updateCustomer(
     settlement_cycle?: string
     settlement_type?: string
     is_key_customer?: boolean
+    is_real_estate?: boolean | null
     email?: string
     erp_system?: string
     first_payment_date?: string
