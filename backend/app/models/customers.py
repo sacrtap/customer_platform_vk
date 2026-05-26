@@ -29,6 +29,7 @@ class Customer(BaseModel):
     settlement_cycle = Column(String(20))  # monthly/quarterly/yearly
     settlement_type = Column(String(20), index=True)  # prepaid/postpaid
     is_key_customer = Column(Boolean, default=False, index=True)
+    is_real_estate = Column(Boolean, nullable=True, default=None)
     email = Column(String(100), index=True)
 
     # === 新增字段（方案A） ===
