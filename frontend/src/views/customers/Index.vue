@@ -128,6 +128,14 @@
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="房产客户">
+              <a-select v-model="filters.is_real_estate" placeholder="请选择" allow-clear>
+                <a-option :value="true">是</a-option>
+                <a-option :value="false">否</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="结算方式">
               <a-select v-model="filters.settlement_type" placeholder="请选择" allow-clear>
                 <a-option value="prepaid">预付费</a-option>
@@ -601,6 +609,7 @@ const createDefaultFilters = () => ({
   account_type: '正式账号',
   industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
   is_key_customer: null as boolean | null,
+  is_real_estate: null as boolean | null,
   settlement_type: '',
 })
 
@@ -760,6 +769,7 @@ const loadCustomers = async () => {
       sales_manager_id?: number
       is_key_customer?: boolean
       settlement_type?: string
+      is_real_estate?: boolean
       sort_by: string
       sort_order: 'asc' | 'desc'
     } = {
@@ -774,6 +784,7 @@ const loadCustomers = async () => {
       params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
 
@@ -825,6 +836,7 @@ const handleRefresh = async () => {
       manager_id?: number
       sales_manager_id?: number
       is_key_customer?: boolean
+      is_real_estate?: boolean
       settlement_type?: string
       sort_by: string
       sort_order: 'asc' | 'desc'
@@ -841,6 +853,7 @@ const handleRefresh = async () => {
     if (filters.industry && filters.industry.length > 0)
       params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
@@ -938,6 +951,7 @@ const handleExport = async () => {
     if (filters.industry && filters.industry.length > 0)
       params.industry = filters.industry.join(',')
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
