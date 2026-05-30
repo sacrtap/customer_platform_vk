@@ -6,9 +6,7 @@
 import re
 
 # 读取文件
-with open(
-    "backend/tests/integration/test_customers_api.py", "r", encoding="utf-8"
-) as f:
+with open("backend/tests/integration/test_customers_api.py", "r", encoding="utf-8") as f:
     content = f.read()
 
 # 替换规则
@@ -53,9 +51,7 @@ for pattern, replacement in replacements:
     content = re.sub(pattern, replacement, content)
 
 # 写回文件
-with open(
-    "backend/tests/integration/test_customers_api.py", "w", encoding="utf-8"
-) as f:
+with open("backend/tests/integration/test_customers_api.py", "w", encoding="utf-8") as f:
     f.write(content)
 
 print("替换完成！")

@@ -9,11 +9,14 @@
     JWT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 """
+
 import secrets
+
 
 def generate_secret():
     """生成 32 字节的 URL 安全随机字符串"""
     return secrets.token_urlsafe(32)
+
 
 if __name__ == "__main__":
     print("# 生产环境密钥配置")

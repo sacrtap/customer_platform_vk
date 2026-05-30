@@ -130,21 +130,13 @@ def generate_daily_usage(
 
 def main():
     parser = argparse.ArgumentParser(description="生成模拟每日用量数据")
-    parser.add_argument(
-        "--customer-id", type=int, default=2, help="客户 ID (默认: 2)"
-    )
+    parser.add_argument("--customer-id", type=int, default=2, help="客户 ID (默认: 2)")
     parser.add_argument(
         "--start", type=str, default="2026-02-01", help="开始日期 (默认: 2026-02-01)"
     )
-    parser.add_argument(
-        "--end", type=str, default="2026-02-28", help="结束日期 (默认: 2026-02-28)"
-    )
-    parser.add_argument(
-        "--layer-type", type=str, default="single", help="层级类型 (默认: single)"
-    )
-    parser.add_argument(
-        "--reset", action="store_true", help="删除已有数据后重新生成"
-    )
+    parser.add_argument("--end", type=str, default="2026-02-28", help="结束日期 (默认: 2026-02-28)")
+    parser.add_argument("--layer-type", type=str, default="single", help="层级类型 (默认: single)")
+    parser.add_argument("--reset", action="store_true", help="删除已有数据后重新生成")
     parser.add_argument(
         "--no-random-seed", action="store_true", help="不设置随机种子（每次结果不同）"
     )

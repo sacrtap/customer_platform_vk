@@ -1,0 +1,26 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        name: ruff check (linting)
+       # ruff 默认就是 check 模式
+        files: ^backend/
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format (formatting)
+        files: ^backend/
+        types: [python]
+
+  - repo: local
+    hooks:
+      - id: pre-commit-check
+        name: 提交前预验证脚本
+        entry: bash scripts/pre-commit-check.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

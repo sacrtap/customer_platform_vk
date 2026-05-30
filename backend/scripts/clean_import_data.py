@@ -24,6 +24,7 @@
 - 预估年消费 → estimated_annual_spend
 - 25年实际消费 → actual_annual_spend_2025
 """
+
 import openpyxl
 from datetime import datetime
 from pathlib import Path
@@ -110,50 +111,50 @@ def clean_value(val, field_name):
         val = val.strip()
         if val in ("#N/A", "#VALUE!", "None", "", "nan"):
             return None
-    
+
     # 账号类型
     if field_name == "account_type":
         return ACCOUNT_TYPE_MAP.get(str(val), str(val))
-    
+
     # 行业类型："无"→空
     if field_name == "industry":
         if str(val) == "无":
             return None
         return str(val)
-    
+
     # 计费模式
     if field_name == "price_policy":
         return PRICE_POLICY_MAP.get(str(val))
-    
+
     # 结算周期
     if field_name == "settlement_cycle":
         return SETTLEMENT_CYCLE_MAP.get(str(val))
-    
+
     # 结算方式
     if field_name == "settlement_type":
         return "prepaid"
-    
+
     # 重点客户
     if field_name == "is_key_customer":
         return str(val) in ("S", "A")
-    
+
     # 首次回款时间
     if field_name == "first_payment_date":
         if hasattr(val, "strftime"):
             return val.strftime("%Y-%m-%d")
         return None
-    
+
     # 接入时间（文字描述，返回 None，由调用方处理追加到 notes）
     if field_name == "onboarding_date":
         if hasattr(val, "strftime"):
             return val.strftime("%Y-%m-%d")
         # 文字描述如 "25上半年" 不转为日期
         return None
-    
+
     # 合作状态
     if field_name == "cooperation_status":
         return COOPERATION_STATUS_MAP.get(str(val))
-    
+
     # 是否结算
     if field_name == "is_settlement_enabled":
         v = str(val).lower()
@@ -162,7 +163,7 @@ def clean_value(val, field_name):
         if v in ("否", "false", "0", "no"):
             return "false"
         return None
-    
+
     # 是否停用
     if field_name == "is_disabled":
         v = str(val).lower()
@@ -171,14 +172,14 @@ def clean_value(val, field_name):
         if v in ("否", "false", "0", "no"):
             return "false"
         return None
-    
+
     # 消费等级
     if field_name == "consume_level":
         v = str(val).strip()
         if v in ("0", "0.0"):
             return None
         return CONSUME_LEVEL_MAP.get(v)
-    
+
     # 月均拍摄量（整数，0→空）
     if field_name in ("monthly_avg_shots", "monthly_avg_shots_estimated"):
         if val == 0 or val == "0":
@@ -187,7 +188,7 @@ def clean_value(val, field_name):
             return int(float(str(val)))
         except (ValueError, TypeError):
             return None
-    
+
     # 金额字段（0/#VALUE!→空）
     if field_name in ("estimated_annual_spend", "actual_annual_spend_2025"):
         if val == 0 or val == "0" or str(val) in ("#VALUE!", "#N/A"):
@@ -196,7 +197,7 @@ def clean_value(val, field_name):
             return float(str(val))
         except (ValueError, TypeError):
             return None
-    
+
     return val
 
 
@@ -240,7 +241,7 @@ def main():
 
     # 读取输入数据
     input_headers = [cell.value for cell in next(ws_in.iter_rows(min_row=1, max_row=1))]
-    
+
     # 建立列索引
     col_indices = {}
     source_field_map = {
@@ -263,7 +264,7 @@ def main():
         "25年实际消费": "actual_annual_spend_2025",
         "客户等级": "is_key_customer_source",
     }
-    
+
     for cn_name, en_name in source_field_map.items():
         if cn_name in input_headers:
             col_indices[en_name] = input_headers.index(cn_name)
@@ -271,7 +272,9 @@ def main():
     cleaned_count = 0
     skipped = 0
 
-    for row_idx, row in enumerate(ws_in.iter_rows(min_row=2, max_row=ws_in.max_row, values_only=True), 2):
+    for row_idx, row in enumerate(
+        ws_in.iter_rows(min_row=2, max_row=ws_in.max_row, values_only=True), 2
+    ):
         # 获取关键字段
         company_id = row[col_indices["company_id"]] if "company_id" in col_indices else None
         name = row[col_indices["name"]] if "name" in col_indices else None
@@ -280,13 +283,17 @@ def main():
         if company_id is None or (isinstance(company_id, float) and str(company_id) == "nan"):
             skipped += 1
             continue
-        if name is None or (isinstance(name, float) and str(name) == "nan") or str(name).strip() == "":
+        if (
+            name is None
+            or (isinstance(name, float) and str(name) == "nan")
+            or str(name).strip() == ""
+        ):
             skipped += 1
             continue
 
         # 构建输出行
         output_row = []
-        
+
         # 接入时间原文（用于追加到 notes）
         onboarding_raw = None
         if "onboarding_date_raw" in col_indices:
@@ -294,7 +301,7 @@ def main():
             val = row[idx] if idx < len(row) else None
             if val and str(val).strip() not in ("", "#N/A", "None", "nan"):
                 onboarding_raw = str(val).strip()
-        
+
         # 备注原文
         notes_raw = None
         if "notes" in col_indices:
@@ -302,7 +309,7 @@ def main():
             val = row[idx] if idx < len(row) else None
             if val and str(val).strip() not in ("", "#N/A", "None", "nan"):
                 notes_raw = str(val).strip()
-        
+
         # 合并 notes
         final_notes = notes_raw
         if onboarding_raw:
@@ -327,7 +334,7 @@ def main():
                 # 源数据无邮箱
                 output_row.append(None)
                 continue
-            
+
             # 获取源数据列
             source_col = None
             if field == "company_id":
@@ -366,7 +373,7 @@ def main():
                 source_col = "estimated_annual_spend"
             elif field == "actual_annual_spend_2025":
                 source_col = "actual_annual_spend_2025"
-            
+
             if source_col and source_col in col_indices:
                 idx = col_indices[source_col]
                 raw_val = row[idx] if idx < len(row) else None

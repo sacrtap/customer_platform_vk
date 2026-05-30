@@ -33,14 +33,10 @@ def reset_admin_password(new_password: str = "admin123"):
     """重置 admin 用户密码"""
     print(f"连接到数据库：{DATABASE_URL}")
 
-    engine = create_engine(
-        DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    )
+    engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
     with Session(engine) as session:
-        user = session.execute(
-            select(User).where(User.username == "admin")
-        ).scalar_one_or_none()
+        user = session.execute(select(User).where(User.username == "admin")).scalar_one_or_none()
 
         if not user:
             print("❌ admin 用户不存在")

@@ -47,9 +47,7 @@ def cleanup():
     print(f"连接到数据库：{DATABASE_URL}")
 
     # 使用同步引擎
-    engine = create_engine(
-        DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    )
+    engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
 
     with Session(engine) as session:
         from app.models.users import Permission, Role, role_permissions
