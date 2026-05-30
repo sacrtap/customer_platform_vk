@@ -1031,7 +1031,7 @@ const openEditModal = (record: Customer) => {
     name: record.name,
     email: record.email || '',
     account_type: record.account_type,
-    industry_type_id: record.profile?.industry_type_id ?? null,
+    industry_type_id: record.industry_type_id ?? null,
     settlement_type: record.settlement_type,
     settlement_cycle: record.settlement_cycle,
     is_key_customer: record.is_key_customer,

@@ -121,6 +121,7 @@ async def list_customers(request: Request):
                         if (c.profile and c.profile.industry_type)
                         else None
                     ),
+                    "industry_type_id": c.profile.industry_type_id if c.profile else None,
                     "price_policy": convert_price_policy_to_display(c.price_policy),
                     "manager_id": c.manager_id,
                     "sales_manager_id": c.sales_manager_id,
