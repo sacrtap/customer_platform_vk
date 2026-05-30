@@ -8,7 +8,13 @@
 
 set -e
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 获取项目根目录（兼容 pre-commit 环境）
+GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -n "$GIT_ROOT" ]; then
+  ROOT_DIR="$GIT_ROOT"
+else
+  ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 

@@ -1,10 +1,9 @@
-from logging.config import fileConfig
-
-from sqlalchemy import create_engine
-from sqlalchemy import pool
-from alembic import context
 import sys
 from pathlib import Path
+
+from sqlalchemy import create_engine, pool
+
+from alembic import context
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

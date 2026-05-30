@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: pre-commit-check
         name: 提交前预验证脚本
-        entry: bash scripts/pre-commit-check.sh
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/pre-commit-check.sh'
         language: system
         pass_filenames: false
         stages: [pre-commit]

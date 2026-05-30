@@ -10,10 +10,10 @@
     python scripts/seed_daily_usage.py --customer-id 2 --start 2026-02-01 --end 2026-02-28
 """
 
-import sys
-import os
 import argparse
+import os
 import random
+import sys
 from datetime import date, timedelta
 
 # 添加项目根目录到 Python 路径
@@ -27,7 +27,7 @@ try:
 except ImportError:
     pass
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.models.billing import DailyUsage, PricingRule
@@ -92,7 +92,7 @@ def generate_daily_usage(
         # 只为已配置规则的设备类型生成用量
         device_types = [dt for dt in device_types if dt in rule_device_types]
         if not device_types:
-            print(f"   ⚠️  结算周期内无匹配的定价规则，使用所有设备类型")
+            print("   ⚠️  结算周期内无匹配的定价规则，使用所有设备类型")
             device_types = ["X", "N", "L"]
 
     # 生成每日用量
