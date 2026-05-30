@@ -75,7 +75,6 @@ class CustomerProfile(BaseModel):
     industry_type_id = Column(
         Integer, ForeignKey("industry_types.id", ondelete="SET NULL"), nullable=True
     )
-    is_real_estate = Column(Boolean, default=False)
     description = Column(Text)
 
     # === 新增字段（方案A） ===

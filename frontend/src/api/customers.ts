@@ -12,6 +12,7 @@ export function getCustomers(params?: {
   sales_manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
+  is_real_estate?: boolean
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }) {
@@ -123,6 +124,7 @@ export function exportCustomers(params?: {
   sales_manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
+  is_real_estate?: boolean
 }) {
   return api.get('/customers/export', {
     params,

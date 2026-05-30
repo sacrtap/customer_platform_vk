@@ -74,6 +74,10 @@ async def list_customers(request: Request):
     if is_key is not None:
         filters["is_key_customer"] = is_key.lower() == "true"
 
+    is_real_estate = request.args.get("is_real_estate")
+    if is_real_estate is not None:
+        filters["is_real_estate"] = is_real_estate.lower() == "true"
+
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
 
@@ -200,7 +204,7 @@ async def get_customer(request: Request, customer_id: int):
             "industry": (
                 customer.profile.industry_type.name if customer.profile.industry_type else None
             ),
-            "is_real_estate": customer.profile.is_real_estate,
+            "is_real_estate": customer.is_real_estate,
             "description": customer.profile.description,
             "monthly_avg_shots": customer.profile.monthly_avg_shots,
             "monthly_avg_shots_estimated": customer.profile.monthly_avg_shots_estimated,
@@ -442,7 +446,7 @@ async def get_profile(request: Request, customer_id: int):
                 "consume_level": profile.consume_level,
                 "industry_type_id": profile.industry_type_id,
                 "industry": profile.industry_type.name if profile.industry_type else None,
-                "is_real_estate": profile.is_real_estate,
+                "is_real_estate": customer.is_real_estate,
                 "description": profile.description,
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
@@ -497,7 +501,7 @@ async def update_profile(request: Request, customer_id: int):
                 "consume_level": profile.consume_level,
                 "industry_type_id": profile.industry_type_id,
                 "industry": profile.industry_type.name if profile.industry_type else None,
-                "is_real_estate": profile.is_real_estate,
+                "is_real_estate": customer.is_real_estate,
                 "description": profile.description,
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
@@ -796,6 +800,10 @@ async def export_customers(request: Request):
     is_key = request.args.get("is_key_customer")
     if is_key is not None:
         filters["is_key_customer"] = is_key.lower() == "true"
+
+    is_real_estate = request.args.get("is_real_estate")
+    if is_real_estate is not None:
+        filters["is_real_estate"] = is_real_estate.lower() == "true"
 
     filters = {k: v for k, v in filters.items() if v is not None}
 

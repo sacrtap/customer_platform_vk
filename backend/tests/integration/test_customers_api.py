@@ -1220,3 +1220,214 @@ async def test_customers_missing_permission(test_client, db_session):
             {"username": username},
         )
         db_session.commit()
+
+
+# ==================== is_real_estate Filter Tests ====================
+
+
+@pytest.mark.asyncio
+async def test_list_customers_filter_is_real_estate_true(test_client, auth_headers, db_session):
+    """测试 is_real_estate=true 筛选 — 预期失败：筛选功能未实现"""
+    from sqlalchemy import text
+
+    # 清理已有客户数据
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    # 创建测试客户：2个房产客户 + 1个非房产客户
+    customers = [
+        {
+            "company_id": 2001,
+            "name": "房产公司 A",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "is_real_estate": True,
+            "email": "re_a@example.com",
+        },
+        {
+            "company_id": 2002,
+            "name": "房产公司 B",
+            "account_type": "正式账号",
+            "settlement_type": "postpaid",
+            "is_key_customer": True,
+            "is_real_estate": True,
+            "email": "re_b@example.com",
+        },
+        {
+            "company_id": 2003,
+            "name": "非房产公司",
+            "account_type": "试用账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "is_real_estate": False,
+            "email": "non_re@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, is_key_customer, is_real_estate, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :is_key_customer, :is_real_estate, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    # 筛选 is_real_estate=true
+    request, response = await test_client.get(
+        "/api/v1/customers?is_real_estate=true",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+    # 断言失败：筛选未实现，返回全部3条而非仅2条
+    assert len(data["data"]["list"]) == 2, (
+        f"Expected 2 real estate customers, got {len(data['data']['list'])}. "
+        "is_real_estate filter not implemented in route+service"
+    )
+    for item in data["data"]["list"]:
+        assert item["is_real_estate"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_customers_filter_is_real_estate_false(test_client, auth_headers, db_session):
+    """测试 is_real_estate=false 筛选 — 预期失败：筛选功能未实现"""
+    from sqlalchemy import text
+
+    # 清理已有客户数据
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    # 创建测试客户：1个房产 + 2个非房产（含 NULL）
+    customers = [
+        {
+            "company_id": 2101,
+            "name": "房产公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": True,
+            "is_real_estate": True,
+            "email": "re@example.com",
+        },
+        {
+            "company_id": 2102,
+            "name": "非房产公司",
+            "account_type": "试用账号",
+            "settlement_type": "postpaid",
+            "is_key_customer": False,
+            "is_real_estate": False,
+            "email": "non_re@example.com",
+        },
+        {
+            "company_id": 2103,
+            "name": "未设置公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "is_real_estate": None,
+            "email": "null_re@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, is_key_customer, is_real_estate, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :is_key_customer, :is_real_estate, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    # 筛选 is_real_estate=false
+    request, response = await test_client.get(
+        "/api/v1/customers?is_real_estate=false",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+    # 断言失败：筛选未实现，返回全部3条而非仅1条
+    assert len(data["data"]["list"]) == 1, (
+        f"Expected 1 non-real-estate customer, got {len(data['data']['list'])}. "
+        "is_real_estate filter not implemented in route+service"
+    )
+    for item in data["data"]["list"]:
+        assert item["is_real_estate"] is False
+
+
+@pytest.mark.asyncio
+async def test_export_customers_filter_is_real_estate(test_client, auth_headers, db_session):
+    """测试导出接口 is_real_estate 筛选 — 预期失败：筛选功能未实现"""
+    from sqlalchemy import text
+
+    # 清理已有客户数据
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    customers = [
+        {
+            "company_id": 2201,
+            "name": "房产公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "is_real_estate": True,
+            "email": "re_export@example.com",
+        },
+        {
+            "company_id": 2202,
+            "name": "非房产公司",
+            "account_type": "试用账号",
+            "settlement_type": "postpaid",
+            "is_key_customer": False,
+            "is_real_estate": False,
+            "email": "non_re_export@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, is_key_customer, is_real_estate, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :is_key_customer, :is_real_estate, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    # 导出接口带 is_real_estate=true 筛选
+    request, response = await test_client.get(
+        "/api/v1/customers/export?is_real_estate=true",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    # 导出成功，但筛选未实现，所以导出文件会包含非房产客户
+    # 这个测试只验证导出接口能响应（不报错），不验证内容
+    # 预期：筛选功能缺失，但接口不崩溃
+    from openpyxl import load_workbook
+    import io
+
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+
+    # 筛选未实现 → 导出全部2条客户；筛选实现后 → 只导出1条房产客户
+    row_count = ws.max_row - 1  # 减去表头行
+    assert row_count == 1, (
+        f"Expected 1 row (real estate only) after filtering, got {row_count}. "
+        "is_real_estate filter not implemented in export route"
+    )

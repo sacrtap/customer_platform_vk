@@ -243,6 +243,10 @@ class CustomerService:
         if (is_key_customer := filters.get("is_key_customer")) is not None:
             conditions.append(Customer.is_key_customer == is_key_customer)
 
+        # 房产客户筛选
+        if (is_real_estate := filters.get("is_real_estate")) is not None:
+            conditions.append(Customer.is_real_estate == is_real_estate)
+
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
@@ -349,6 +353,7 @@ class CustomerService:
             "settlement_cycle",
             "settlement_type",
             "is_key_customer",
+            "is_real_estate",
             "email",
             # 新增字段
             "erp_system",
@@ -440,7 +445,6 @@ class CustomerService:
                 "scale_level",
                 "consume_level",
                 "industry_type_id",
-                "is_real_estate",
                 "description",
                 # 新增字段
                 "monthly_avg_shots",
@@ -458,7 +462,6 @@ class CustomerService:
                 scale_level=data.get("scale_level"),
                 consume_level=data.get("consume_level"),
                 industry_type_id=data.get("industry_type_id"),
-                is_real_estate=data.get("is_real_estate", False),
                 description=data.get("description"),
                 monthly_avg_shots=data.get("monthly_avg_shots"),
                 monthly_avg_shots_estimated=data.get("monthly_avg_shots_estimated"),
