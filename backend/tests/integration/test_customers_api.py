@@ -1419,8 +1419,9 @@ async def test_export_customers_filter_is_real_estate(test_client, auth_headers,
     # 导出成功，但筛选未实现，所以导出文件会包含非房产客户
     # 这个测试只验证导出接口能响应（不报错），不验证内容
     # 预期：筛选功能缺失，但接口不崩溃
-    from openpyxl import load_workbook
     import io
+
+    from openpyxl import load_workbook
 
     wb = load_workbook(io.BytesIO(response.body))
     ws = wb.active
