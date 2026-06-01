@@ -9,8 +9,10 @@ from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
+from ..cache.base import cache_service
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer, CustomerProfile
+from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 # 允许排序的字段白名单
 ALLOWED_SORT_FIELDS = {
@@ -391,6 +393,165 @@ class CustomerService:
         await self.db.refresh(customer)
 
         return customer
+
+    async def batch_update_customers(
+        self, customer_ids: list[int], fields: dict, current_user: dict
+    ) -> dict:
+        """批量更新客户信息
+
+        Args:
+            customer_ids: 客户 ID 列表
+            fields: 字段更新数据（键为字段名，值为新值）
+            current_user: 当前用户信息（含 user_id）
+
+        Returns:
+            批量更新结果字典
+        """
+        # 参数校验
+        if not customer_ids:
+            raise ValueError("customer_ids 不能为空")
+        if not fields:
+            raise ValueError("fields 不能为空")
+
+        # 可更新字段白名单
+        updatable_fields = {
+            "company_id",
+            "name",
+            "account_type",
+            "price_policy",
+            "manager_id",
+            "settlement_cycle",
+            "settlement_type",
+            "is_key_customer",
+            "is_real_estate",
+            "email",
+            "erp_system",
+            "first_payment_date",
+            "onboarding_date",
+            "sales_manager_id",
+            "cooperation_status",
+            "is_settlement_enabled",
+            "is_disabled",
+            "notes",
+            "industry_type_id",
+        }
+
+        # 校验字段白名单
+        invalid_fields = [f for f in fields if f not in updatable_fields]
+        if invalid_fields:
+            raise ValueError(f"包含不在白名单内的字段: {', '.join(invalid_fields)}")
+
+        # 上限校验
+        if len(customer_ids) > 100:
+            raise ValueError("批量更新上限为 100 个客户")
+
+        success_list: list[int] = []
+        failed_list: list[dict[str, Any]] = []
+
+        for cid in customer_ids:
+            try:
+                customer = await self.get_customer_by_id(cid)
+                if not customer:
+                    failed_list.append({"customer_id": cid, "reason": "客户不存在"})
+                    continue
+
+                # email 格式校验
+                if "email" in fields and fields["email"]:
+                    if not re.match(
+                        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+                        str(fields["email"]),
+                    ):
+                        failed_list.append({"customer_id": cid, "reason": "邮箱格式错误"})
+                        continue
+
+                # industry_type_id 存在性校验
+                if "industry_type_id" in fields and fields["industry_type_id"] is not None:
+                    from ..models.industry_type import IndustryType
+
+                    ind_result = await self.db.execute(
+                        select(IndustryType).where(IndustryType.id == fields["industry_type_id"])
+                    )
+                    if not ind_result.scalar_one_or_none():
+                        failed_list.append({"customer_id": cid, "reason": "行业类型不存在"})
+                        continue
+
+                # company_id 唯一性校验
+                new_company_id = fields.get("company_id")
+                if new_company_id and new_company_id != customer.company_id:
+                    existing = await self.db.execute(
+                        select(Customer.id).where(
+                            Customer.company_id == new_company_id,
+                            Customer.deleted_at.is_(None),
+                        )
+                    )
+                    if existing.scalar_one_or_none() is not None:
+                        failed_list.append(
+                            {"customer_id": cid, "reason": "公司 ID 已被其他客户使用"}
+                        )
+                        continue
+
+                # 日期字段转换
+                date_fields = {"first_payment_date", "onboarding_date"}
+                fields_to_apply = fields.copy()
+                for field in date_fields:
+                    if field in fields_to_apply and fields_to_apply[field] is not None:
+                        fields_to_apply[field] = parse_date_to_object(fields_to_apply[field])
+
+                # 执行更新
+                for field, value in fields_to_apply.items():
+                    if field != "industry_type_id":
+                        setattr(customer, field, value)
+
+                # Profile 更新
+                if "industry_type_id" in fields_to_apply:
+                    profile = await self.get_customer_profile(customer.id)
+                    if profile:
+                        profile.industry_type_id = fields_to_apply["industry_type_id"]
+                    else:
+                        profile = CustomerProfile(
+                            customer_id=customer.id,
+                            industry_type_id=fields_to_apply["industry_type_id"],
+                        )
+                        self.db.add(profile)
+
+                await self.db.commit()
+                await self.db.refresh(customer)
+                success_list.append(cid)
+
+            except Exception as e:  # pragma: no cover
+                failed_list.append({"customer_id": cid, "reason": str(e)})
+
+        # 审计日志
+        if success_list or failed_list:
+            summary = build_batch_audit_summary(
+                operation="batch_update",
+                total_count=len(customer_ids),
+                success_count=len(success_list),
+                failed_count=len(failed_list),
+                details=failed_list[:10],
+            )
+            await create_audit_entry(
+                db_session=self.db,
+                user_id=current_user.get("user_id"),
+                action="batch_update",
+                module="customers",
+                record_id=None,
+                record_type="customer",
+                changes={"fields": fields},
+                operation_type="batch",
+                extra_metadata=summary,
+                auto_commit=False,
+            )
+
+        # 清理客户列表缓存
+        await cache_service.invalidate_customer_cache(None)
+
+        return {
+            "total": len(customer_ids),
+            "success_count": len(success_list),
+            "failed_count": len(failed_list),
+            "failed_list": failed_list,
+        }
 
     async def delete_customer(self, customer_id: int) -> bool:
         """删除客户（软删除）"""

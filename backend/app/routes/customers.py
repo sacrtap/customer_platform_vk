@@ -400,6 +400,65 @@ async def update_customer(request: Request, customer_id: int):
     )
 
 
+@customers_bp.post("/batch-update")
+@auth_required
+@require_permission("customers:edit")
+async def batch_update_customers(request: Request):
+    """
+    批量更新客户信息
+
+    Body:
+    {
+        "customer_ids": [1, 2, 3],  # list[int], 非空，上限 100
+        "fields": {                  # dict, 非空，仅包含要更新的字段
+            "is_key_customer": true,
+            "settlement_cycle": "monthly"
+        }
+    }
+    """
+    data = request.json
+    if not data:
+        return json({"code": 40001, "message": "请求体不能为空"}, status=400)
+
+    customer_ids = data.get("customer_ids")
+    fields = data.get("fields")
+
+    if not customer_ids or not isinstance(customer_ids, list) or len(customer_ids) == 0:
+        return json({"code": 40002, "message": "customer_ids 不能为空"}, status=400)
+
+    if not fields or not isinstance(fields, dict) or len(fields) == 0:
+        return json({"code": 40003, "message": "fields 不能为空"}, status=400)
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = CustomerService(db_session)
+    current_user = get_current_user(request) or {}
+
+    try:
+        result = await service.batch_update_customers(
+            customer_ids=customer_ids,
+            fields=fields,
+            current_user=current_user,
+        )
+    except ValueError as e:
+        return json({"code": 40004, "message": str(e)}, status=400)
+    except Exception as e:
+        return json({"code": 50001, "message": f"批量更新失败: {str(e)}"}, status=500)
+
+    return json(
+        {
+            "code": 0,
+            "message": "批量更新完成",
+            "data": {
+                "success": True,
+                "total": result["total"],
+                "success_count": result["success_count"],
+                "failed_count": result["failed_count"],
+                "failed_list": result["failed_list"],
+            },
+        }
+    )
+
+
 @customers_bp.delete("/<customer_id:int>")
 @auth_required
 @require_permission("customers:delete")

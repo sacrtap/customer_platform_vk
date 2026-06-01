@@ -132,6 +132,11 @@ export function exportCustomers(params?: {
   })
 }
 
+// 批量更新客户
+export function batchUpdateCustomers(customerIds: number[], fields: Record<string, unknown>) {
+  return api.post('/customers/batch-update', { customer_ids: customerIds, fields })
+}
+
 // 获取行业类型字典
 export function getIndustryTypes() {
   return api.get('/dicts/industry_types')
