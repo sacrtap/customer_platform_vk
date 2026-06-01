@@ -691,9 +691,8 @@
               placeholder="选择结算方式"
               allow-clear
             >
-              <a-option value="fixed">固定价格</a-option>
-              <a-option value="tiered">阶梯价格</a-option>
-              <a-option value="annual">包年</a-option>
+              <a-option value="prepaid">预付费</a-option>
+              <a-option value="postpaid">后付费</a-option>
             </a-select>
           </div>
 
@@ -708,7 +707,7 @@
             >
               <a-option value="monthly">月结</a-option>
               <a-option value="quarterly">季结</a-option>
-              <a-option value="annually">年结</a-option>
+              <a-option value="yearly">年结</a-option>
             </a-select>
           </div>
 
@@ -761,9 +760,9 @@
               placeholder="选择计费策略"
               allow-clear
             >
-              <a-option value="standard">标准</a-option>
-              <a-option value="discounted">优惠</a-option>
-              <a-option value="custom">自定义</a-option>
+              <a-option value="pricing">定价</a-option>
+              <a-option value="tiered">阶梯</a-option>
+              <a-option value="yearly">包年</a-option>
             </a-select>
           </div>
         </div>
@@ -1345,7 +1344,7 @@ const closeBatchEditDialog = () => {
   batchEditDialogVisible.value = false
 }
 
-const submitBatchUpdate = async (fields: Record<string, any>) => {
+const submitBatchUpdate = async (fields: Record<string, unknown>) => {
   try {
     const result = await batchUpdateCustomers(selectedCustomerIds.value, fields)
 

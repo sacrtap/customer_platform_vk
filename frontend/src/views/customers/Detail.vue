@@ -468,6 +468,7 @@
                   <a-option value="weekly">周结</a-option>
                   <a-option value="monthly">月结</a-option>
                   <a-option value="quarterly">季结</a-option>
+                  <a-option value="yearly">年结</a-option>
                 </a-select>
               </a-form-item>
 
