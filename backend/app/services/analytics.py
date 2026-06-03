@@ -566,7 +566,7 @@ class AnalyticsService:
             .where(
                 and_(
                     Customer.deleted_at.is_(None),
-                    CustomerProfile.is_real_estate,
+                    Customer.is_real_estate,
                 )
             )
         )
@@ -591,7 +591,7 @@ class AnalyticsService:
             .where(
                 and_(
                     Customer.deleted_at.is_(None),
-                    CustomerProfile.is_real_estate,
+                    Customer.is_real_estate,
                 )
             )
             .group_by(IndustryType.name)

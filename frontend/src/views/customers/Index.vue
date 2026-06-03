@@ -80,28 +80,6 @@
           刷新
         </a-button>
 
-        <!-- 批量选择状态 + 按钮 -->
-        <div v-if="hasSelectedCustomers" class="batch-selection-bar">
-          <a-tag color="arcoblue" size="large">
-            已选择 {{ selectedCustomerIds.length }} 条
-          </a-tag>
-          <a-button type="primary" @click="openBatchEditDialog">
-            <template #icon>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-              >
-                <path
-                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5v.5a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .146-.354z"
-                />
-              </svg>
-            </template>
-            批量编辑
-          </a-button>
-        </div>
       </div>
     </div>
 
@@ -254,6 +232,32 @@
     </div>
 
     <!-- 表格 -->
+    <!-- 批量操作工具栏（仅选中客户时显示） -->
+    <div v-if="hasSelectedCustomers" class="batch-toolbar">
+      <a-space>
+        <a-tag color="arcoblue" size="large">
+          已选择 {{ selectedCustomerIds.length }} 条
+        </a-tag>
+        <a-button type="primary" @click="openBatchEditDialog">
+          <template #icon>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5v.5a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5v-.5a.5.5 0 0 1 .146-.354z"
+              />
+            </svg>
+          </template>
+          批量编辑
+        </a-button>
+        <a-button @click="clearBatchSelection">取消选择</a-button>
+      </a-space>
+    </div>
+
     <div class="table-section">
       <a-table
         :columns="columns"
@@ -609,7 +613,7 @@
       v-model:visible="batchEditDialogVisible"
       :title="`批量编辑（已选择 ${selectedCustomerIds.length} 个客户）`"
       width="600px"
-      :footer="false"
+      :mask-closable="false"
       @cancel="closeBatchEditDialog"
     >
       <a-form :model="batchForm" layout="vertical">
@@ -746,8 +750,10 @@
               placeholder="选择账号类型"
               allow-clear
             >
-              <a-option value="enterprise">企业</a-option>
-              <a-option value="individual">个人</a-option>
+              <a-option value="正式账号">正式账号</a-option>
+              <a-option value="测试账号">测试账号</a-option>
+              <a-option value="客户测试账号">客户测试账号</a-option>
+              <a-option value="内部账号">内部账号</a-option>
             </a-select>
           </div>
 
@@ -1341,6 +1347,12 @@ const openBatchEditDialog = () => {
 }
 
 const closeBatchEditDialog = () => {
+  batchEditDialogVisible.value = false
+}
+
+// 取消批量选择
+const clearBatchSelection = () => {
+  selectedCustomerIds.value = []
   batchEditDialogVisible.value = false
 }
 
@@ -1941,12 +1953,13 @@ onMounted(() => {
   font-size: 12px;
 }
 
-/* 批量选择状态栏 */
-.batch-selection-bar {
+/* 批量操作工具栏 */
+.batch-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-left: 16px;
+  padding: 12px 16px;
+  background: var(--color-fill-1);
+  border-bottom: 1px solid var(--neutral-2);
 }
 
 /* 批量编辑表单布局 */
