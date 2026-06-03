@@ -822,6 +822,11 @@ import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatDateTime } from '@/utils/formatters'
 import type { ImportResult, IndustryType, Customer } from '@/types'
 
+interface BatchFailedItem {
+  customer_id: number
+  reason: string
+}
+
 const router = useRouter()
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -1370,7 +1375,7 @@ const submitBatchUpdate = async (fields: Record<string, unknown>) => {
       )
       if (data.failed_list && data.failed_list.length > 0) {
         const details = data.failed_list.slice(0, 5).map(
-          (item: any) => `客户 ${item.customer_id}: ${item.reason}`
+          (item: BatchFailedItem) => `客户 ${item.customer_id}: ${item.reason}`
         ).join('\n')
         Modal.warning({
           title: '部分客户编辑失败',

@@ -25,9 +25,9 @@
 - 25年实际消费 → actual_annual_spend_2025
 """
 
-import openpyxl
-from datetime import datetime
 from pathlib import Path
+
+import openpyxl
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 INPUT_FILE = PROJECT_ROOT / "docs" / "data.xlsx"

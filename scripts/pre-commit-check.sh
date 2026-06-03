@@ -115,15 +115,24 @@ if [ "$BACKEND_ONLY" = false ]; then
   cd "$FRONTEND_DIR"
 
   # 1. npm audit（非阻断）
-  echo -n "  [1/3] npm audit... "
+  echo -n "  [1/4] npm audit... "
   if npm audit --audit-level=high --quiet 2>/dev/null; then
     check_pass "npm audit 通过"
   else
     warn "npm audit 发现漏洞（非阻断，请人工确认）"
   fi
 
-  # 2. type-check
-  echo -n "  [2/3] vue-tsc type-check... "
+  # 2. ESLint
+  echo -n "  [2/4] ESLint... "
+  if npm run lint -- --max-warnings 0 2>&1; then
+    check_pass "ESLint 通过"
+  else
+    check_fail "ESLint 失败，请修复后重试"
+    EXIT_CODE=1
+  fi
+
+  # 3. type-check
+  echo -n "  [3/4] vue-tsc type-check... "
   if npx vue-tsc --noEmit 2>&1 | grep -q "error TS"; then
     check_fail "TypeScript 类型检查失败"
     EXIT_CODE=1
@@ -131,8 +140,8 @@ if [ "$BACKEND_ONLY" = false ]; then
     check_pass "TypeScript 类型检查通过"
   fi
 
-  # 3. build
-  echo -n "  [3/3] npm run build... "
+  # 4. build
+  echo -n "  [4/4] npm run build... "
   if npm run build > /dev/null 2>&1; then
     check_pass "前端构建通过"
   else

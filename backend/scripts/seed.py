@@ -8,9 +8,10 @@
     python scripts/seed.py --reset   # 清空已有种子数据后重新创建
 """
 
-import sys
-import os
 import argparse
+import os
+import sys
+
 import bcrypt
 
 # 添加项目根目录到 Python 路径
@@ -28,7 +29,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 # 导入模型（在 sys.path 设置之后）
-from app.models.users import User, Role, Permission
+from app.models.users import Permission, Role, User
 
 # 从环境变量读取数据库 URL，默认本地 PostgreSQL（无密码，使用当前系统用户）
 DATABASE_URL = os.getenv(

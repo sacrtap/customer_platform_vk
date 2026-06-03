@@ -9,8 +9,8 @@
     python scripts/cleanup_deprecated_permissions.py
 """
 
-import sys
 import os
+import sys
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -105,7 +105,7 @@ def cleanup():
         # ---- 5. 提交 ----
         session.commit()
 
-        print(f"\n✅ 清理完成!")
+        print("\n✅ 清理完成!")
         print(f"   删除权限数: {len(deprecated_perms)}")
         print(f"   权限代码: {', '.join(p.code for p in deprecated_perms)}")
 

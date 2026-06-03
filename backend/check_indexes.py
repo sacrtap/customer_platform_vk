@@ -1,4 +1,5 @@
 import asyncio
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -10,8 +11,8 @@ async def check():
         # Check unique index
         result = await conn.execute(
             text("""
-            SELECT indexname, indexdef 
-            FROM pg_indexes 
+            SELECT indexname, indexdef
+            FROM pg_indexes
             WHERE tablename = 'industry_types'
         """)
         )

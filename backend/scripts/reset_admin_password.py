@@ -6,8 +6,9 @@
     python scripts/reset_admin_password.py
 """
 
-import sys
 import os
+import sys
+
 import bcrypt
 
 # 添加项目根目录到 Python 路径
