@@ -192,6 +192,7 @@ async def get_customer(request: Request, customer_id: int):
         "cooperation_status": customer.cooperation_status,
         "is_settlement_enabled": customer.is_settlement_enabled,
         "is_disabled": customer.is_disabled,
+        "is_real_estate": customer.is_real_estate,
         "notes": customer.notes,
     }
 
