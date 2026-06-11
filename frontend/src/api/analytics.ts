@@ -128,8 +128,8 @@ export interface IndustryDistributionItem {
   percentage: number
 }
 
-export function getIndustryDistribution() {
-  return api.get('/analytics/profile/industry')
+export function getIndustryDistribution(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/profile/industry', { params })
 }
 
 export interface ScaleLevelStatsItem {
@@ -138,8 +138,8 @@ export interface ScaleLevelStatsItem {
   percentage: number
 }
 
-export function getScaleStats() {
-  return api.get('/analytics/profile/scale')
+export function getScaleStats(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/profile/scale', { params })
 }
 
 export interface ConsumeLevelStatsItem {
@@ -148,8 +148,8 @@ export interface ConsumeLevelStatsItem {
   percentage: number
 }
 
-export function getConsumeLevelStats() {
-  return api.get('/analytics/profile/consume-level')
+export function getConsumeLevelStats(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/profile/consume-level', { params })
 }
 
 export interface RealEstateStats {
@@ -159,8 +159,8 @@ export interface RealEstateStats {
   real_estate_percentage: number
 }
 
-export function getRealEstateStats() {
-  return api.get('/analytics/profile/real-estate')
+export function getRealEstateStats(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/profile/real-estate', { params })
 }
 
 export interface RealEstateIndustryItem {
@@ -168,8 +168,8 @@ export interface RealEstateIndustryItem {
   count: number
 }
 
-export function getRealEstateIndustryStats() {
-  return api.get('/analytics/profile/real-estate-industry')
+export function getRealEstateIndustryStats(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/profile/real-estate-industry', { params })
 }
 
 // ==================== 预测回款 ====================

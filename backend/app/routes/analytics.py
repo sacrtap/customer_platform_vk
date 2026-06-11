@@ -1,5 +1,6 @@
 """客户分析 API 路由"""
 
+import time
 from datetime import datetime
 
 from sanic import Blueprint
@@ -284,7 +285,11 @@ async def get_customer_health_score(request: Request, customer_id: int):
 @auth_required
 async def get_industry_distribution(request: Request):
     """获取行业分布"""
-    cached = await cache_service.get("analytics_profile", "industry")
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    hour_bucket = int(time.time() // 3600)
+    cached_key = f"industry:{hour_bucket}"
+
+    cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
         return json(cached)
 
@@ -294,7 +299,8 @@ async def get_industry_distribution(request: Request):
     distribution = await service.get_industry_distribution()
 
     result = {"code": 0, "message": "success", "data": distribution}
-    await cache_service.set("analytics_profile", result, "industry")
+    if not force_refresh:
+        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
     return json(result)
 
 
@@ -302,7 +308,11 @@ async def get_industry_distribution(request: Request):
 @auth_required
 async def get_scale_stats(request: Request):
     """获取客户规模等级统计"""
-    cached = await cache_service.get("analytics_profile", "scale")
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    hour_bucket = int(time.time() // 3600)
+    cached_key = f"scale:{hour_bucket}"
+
+    cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
         return json(cached)
 
@@ -312,7 +322,8 @@ async def get_scale_stats(request: Request):
     stats = await service.get_scale_level_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_profile", result, "scale")
+    if not force_refresh:
+        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
     return json(result)
 
 
@@ -320,7 +331,11 @@ async def get_scale_stats(request: Request):
 @auth_required
 async def get_consume_level_stats(request: Request):
     """获取客户消费等级统计"""
-    cached = await cache_service.get("analytics_profile", "consume_level")
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    hour_bucket = int(time.time() // 3600)
+    cached_key = f"consume_level:{hour_bucket}"
+
+    cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
         return json(cached)
 
@@ -330,7 +345,8 @@ async def get_consume_level_stats(request: Request):
     stats = await service.get_consume_level_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_profile", result, "consume_level")
+    if not force_refresh:
+        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
     return json(result)
 
 
@@ -338,7 +354,11 @@ async def get_consume_level_stats(request: Request):
 @auth_required
 async def get_real_estate_stats(request: Request):
     """获取房产客户统计"""
-    cached = await cache_service.get("analytics_profile", "real_estate")
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    hour_bucket = int(time.time() // 3600)
+    cached_key = f"real_estate:{hour_bucket}"
+
+    cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
         return json(cached)
 
@@ -348,7 +368,8 @@ async def get_real_estate_stats(request: Request):
     stats = await service.get_real_estate_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_profile", result, "real_estate")
+    if not force_refresh:
+        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
     return json(result)
 
 
@@ -356,7 +377,11 @@ async def get_real_estate_stats(request: Request):
 @auth_required
 async def get_real_estate_industry_stats(request: Request):
     """获取房产客户行业子分类统计"""
-    cached = await cache_service.get("analytics_profile", "real_estate_industry")
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    hour_bucket = int(time.time() // 3600)
+    cached_key = f"real_estate_industry:{hour_bucket}"
+
+    cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
         return json(cached)
 
@@ -366,7 +391,8 @@ async def get_real_estate_industry_stats(request: Request):
     stats = await service.get_real_estate_industry_stats()
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_profile", result, "real_estate_industry")
+    if not force_refresh:
+        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
     return json(result)
 
 

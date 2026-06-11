@@ -771,6 +771,42 @@
               <a-option value="yearly">包年</a-option>
             </a-select>
           </div>
+
+          <!-- 12. 规模等级 -->
+          <div class="batch-field-item">
+            <a-checkbox v-model="batchFieldsSelected.scale_level">规模等级</a-checkbox>
+            <a-select
+              v-model="batchForm.scale_level"
+              :disabled="!batchFieldsSelected.scale_level"
+              placeholder="选择规模等级"
+              allow-clear
+            >
+              <a-option value="S">S - 超大规模 (5000 人)</a-option>
+              <a-option value="A">A - 大规模 (2000 人)</a-option>
+              <a-option value="B">B - 中大规模 (1000 人)</a-option>
+              <a-option value="C">C - 中等规模 (500 人)</a-option>
+              <a-option value="D">D - 小规模 (100 人)</a-option>
+              <a-option value="E">E - 微型 (&lt;100 人)</a-option>
+            </a-select>
+          </div>
+
+          <!-- 13. 消费等级 -->
+          <div class="batch-field-item">
+            <a-checkbox v-model="batchFieldsSelected.consume_level">消费等级</a-checkbox>
+            <a-select
+              v-model="batchForm.consume_level"
+              :disabled="!batchFieldsSelected.consume_level"
+              placeholder="选择消费等级"
+              allow-clear
+            >
+              <a-option value="C1">C1 - 100 万</a-option>
+              <a-option value="C2">C2 - 50 万</a-option>
+              <a-option value="C3">C3 - 25 万</a-option>
+              <a-option value="C4">C4 - 12 万</a-option>
+              <a-option value="C5">C5 - 6 万</a-option>
+              <a-option value="C6">C6 - 6 万以下</a-option>
+            </a-select>
+          </div>
         </div>
       </a-form>
 
@@ -1254,6 +1290,8 @@ const batchForm = reactive({
   is_disabled: false,
   account_type: '',
   price_policy: '',
+  scale_level: null as string | null,
+  consume_level: null as string | null,
 })
 
 const batchFieldsSelected = reactive({
@@ -1268,6 +1306,8 @@ const batchFieldsSelected = reactive({
   is_disabled: false,
   account_type: false,
   price_policy: false,
+  scale_level: false,
+  consume_level: false,
 })
 
 const batchPreviewVisible = ref(false)
@@ -1289,6 +1329,8 @@ const fieldNames: Record<string, string> = {
   is_disabled: '停用',
   account_type: '账号类型',
   price_policy: '计费策略',
+  scale_level: '规模等级',
+  consume_level: '消费等级',
 }
 
 const selectedFields = computed(() => {
@@ -1343,6 +1385,8 @@ const openBatchEditDialog = () => {
   batchForm.is_disabled = false
   batchForm.account_type = ''
   batchForm.price_policy = ''
+  batchForm.scale_level = null
+  batchForm.consume_level = null
 
   Object.keys(batchFieldsSelected).forEach(k => {
     (batchFieldsSelected as Record<string, boolean>)[k] = false

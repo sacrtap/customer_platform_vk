@@ -117,6 +117,8 @@ export interface Customer {
   is_real_estate: boolean | null
   // 行业类型 ID（API 返回）
   industry_type_id: number | null
+  scale_level: string | null
+  consume_level: string | null
   // 可选关联对象（详情接口返回）
   profile?: CustomerProfile
   balance?: Balance

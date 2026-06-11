@@ -788,6 +788,8 @@ const customer = ref<Customer>({
   notes: null,
   is_real_estate: null,
   industry_type_id: null,
+  scale_level: null,
+  consume_level: null,
 })
 
 const profile = ref<CustomerProfile>({

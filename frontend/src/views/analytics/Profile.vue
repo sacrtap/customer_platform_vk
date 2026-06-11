@@ -5,6 +5,18 @@
         <h1>画像分析</h1>
         <p class="header-subtitle">客户画像多维度统计分析</p>
       </div>
+      <div class="header-actions">
+        <a-button :loading="loading" @click="handleRefresh">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+              <path d="M8 1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 1z"/>
+              <path d="M8 5.5L5.5 3H10.5L8 5.5z"/>
+            </svg>
+          </template>
+          刷新
+        </a-button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -114,24 +126,39 @@ const industryCount = ref(0)
 const realEstateCustomers = ref(0)
 const realEstateRate = ref(0)
 const dataCompleteRate = ref(0)
+const loading = ref(false)
 
 // 加载数据
-const loadData = async () => {
+const loadData = async (options?: { force_refresh?: boolean }) => {
+  const { force_refresh = false } = options || {}
   try {
     await Promise.all([
-      loadIndustryData(),
-      loadScaleData(),
-      loadConsumeLevelData(),
-      loadRealEstateData(),
+      loadIndustryData({ force_refresh }),
+      loadScaleData({ force_refresh }),
+      loadConsumeLevelData({ force_refresh }),
+      loadRealEstateData({ force_refresh }),
     ])
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载失败')
   }
 }
 
+// 强制刷新
+const handleRefresh = async () => {
+  loading.value = true
+  try {
+    await loadData({ force_refresh: true })
+    Message.success('已刷新')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '刷新失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 // 加载行业分布
-const loadIndustryData = async () => {
-  const res = await getIndustryDistribution()
+const loadIndustryData = async (options?: { force_refresh?: boolean }) => {
+  const res = await getIndustryDistribution(options)
   const data = res.data || []
   industryCount.value = data.length
   totalCustomers.value = data.reduce((sum: number, item: { count: number }) => sum + item.count, 0)
@@ -139,21 +166,21 @@ const loadIndustryData = async () => {
 }
 
 // 加载规模等级
-const loadScaleData = async () => {
-  const res = await getScaleStats()
+const loadScaleData = async (options?: { force_refresh?: boolean }) => {
+  const res = await getScaleStats(options)
   initScaleChart(res.data || [])
 }
 
 // 加载消费等级
-const loadConsumeLevelData = async () => {
-  const res = await getConsumeLevelStats()
+const loadConsumeLevelData = async (options?: { force_refresh?: boolean }) => {
+  const res = await getConsumeLevelStats(options)
   initConsumeLevelChart(res.data || [])
 }
 
 // 加载房产客户统计
-const loadRealEstateData = async () => {
+const loadRealEstateData = async (options?: { force_refresh?: boolean }) => {
   // 统计卡片数据：调用 getRealEstateStats
-  const statsRes = await getRealEstateStats()
+  const statsRes = await getRealEstateStats(options)
   const stats = statsRes.data || {}
   realEstateCustomers.value = stats.real_estate_customers || 0
   realEstateRate.value = stats.real_estate_percentage || 0
@@ -163,7 +190,7 @@ const loadRealEstateData = async () => {
     ) || 85
 
   // 饼图数据：调用 getRealEstateIndustryStats
-  const industryRes = await getRealEstateIndustryStats()
+  const industryRes = await getRealEstateIndustryStats(options)
   const industryData = industryRes.data || []
   initRealEstateChart(industryData)
 }
@@ -252,6 +279,43 @@ const initScaleChart = (data: ScaleData[]) => {
   }
 
   scaleChart = echarts.init(scaleChartRef.value)
+
+  // 检查数据完整性：如果只有"未分类"或无数据，显示友好提示
+  const hasValidLevels = data.some((item) => item.scale_level !== '未分类')
+  const totalCount = data.reduce((sum, item) => sum + item.count, 0)
+
+  if (!hasValidLevels || totalCount === 0) {
+    // 空状态：只显示中心文字，不渲染饼图
+    const option = {
+      tooltip: {
+        show: false,
+      },
+      legend: {
+        show: false,
+      },
+      series: [
+        {
+          name: '规模等级',
+          type: 'pie',
+          radius: ['40%', '70%'],
+          center: ['35%', '50%'],
+          data: [],  // 空数据数组
+          label: {
+            show: true,
+            position: 'center',
+            formatter: '-',
+            fontSize: 24,
+            color: '#999',
+            fontWeight: 'lighter',
+          },
+        },
+      ],
+    }
+
+    console.log('[规模等级分布] 数据尚未完善，客户规模等级字段待手动维护')
+    scaleChart.setOption(option)
+    return
+  }
 
   const option = {
     tooltip: {
@@ -443,7 +507,7 @@ const handleResize = () => {
 }
 
 onMounted(() => {
-  loadData()
+  loadData({ force_refresh: true }) // 首次加载强制刷新，避免命中旧缓存
   window.addEventListener('resize', handleResize)
 })
 
@@ -471,6 +535,9 @@ onUnmounted(() => {
 }
 
 .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 24px;
 }
 

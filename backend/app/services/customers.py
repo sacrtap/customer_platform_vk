@@ -325,6 +325,9 @@ class CustomerService:
         await self.db.commit()
         await self.db.refresh(customer)
 
+        # 方案 2: 数据变更时主动清除画像分析缓存
+        await clear_analytics_cache()
+
         return customer
 
     async def update_customer(self, customer_id: int, data: dict) -> Optional[Customer]:
@@ -392,6 +395,9 @@ class CustomerService:
         await self.db.commit()
         await self.db.refresh(customer)
 
+        # 方案 2: 数据变更时主动清除画像分析缓存
+        await clear_analytics_cache()
+
         return customer
 
     async def batch_update_customers(
@@ -434,6 +440,8 @@ class CustomerService:
             "is_disabled",
             "notes",
             "industry_type_id",
+            "scale_level",
+            "consume_level",
         }
 
         # 校验字段白名单
@@ -499,19 +507,24 @@ class CustomerService:
 
                 # 执行更新
                 for field, value in fields_to_apply.items():
-                    if field != "industry_type_id":
+                    if field not in ("industry_type_id", "scale_level", "consume_level"):
                         setattr(customer, field, value)
 
                 # Profile 更新
-                if "industry_type_id" in fields_to_apply:
+                profile_fields = {"industry_type_id", "scale_level", "consume_level"}
+                if any(f in fields_to_apply for f in profile_fields):
                     profile = await self.get_customer_profile(customer.id)
                     if profile:
-                        profile.industry_type_id = fields_to_apply["industry_type_id"]
+                        for pf in profile_fields:
+                            if pf in fields_to_apply:
+                                setattr(profile, pf, fields_to_apply[pf])
                     else:
-                        profile = CustomerProfile(
-                            customer_id=customer.id,
-                            industry_type_id=fields_to_apply["industry_type_id"],
-                        )
+                        profile_data: dict[str, Any] = {}
+                        for pf in profile_fields:
+                            if pf in fields_to_apply:
+                                profile_data[pf] = fields_to_apply[pf]
+                        profile_data["customer_id"] = customer.id
+                        profile = CustomerProfile(**profile_data)
                         self.db.add(profile)
 
                 await self.db.commit()
@@ -884,3 +897,26 @@ class CustomerService:
 
         await self.db.commit()
         return success_count, errors
+
+
+
+async def clear_analytics_cache():
+    """清除所有画像分析相关的缓存"""
+    from ..cache.base import cache_service
+    
+    cache_keys = [
+        ("analytics_profile", "industry"),
+        ("analytics_profile", "scale"),
+        ("analytics_profile", "consume_level"),
+        ("analytics_profile", "real_estate"),
+        ("analytics_profile", "real_estate_industry"),
+    ]
+    
+    for key_ns, key_suffix in cache_keys:
+        try:
+            await cache_service.delete(key_ns, key_suffix)
+        except Exception as e:
+            print(f"[Cache Clear] 清除 {key_ns}:{key_suffix} 失败：{e}")
+
+
+
