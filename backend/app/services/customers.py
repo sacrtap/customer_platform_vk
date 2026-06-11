@@ -899,11 +899,10 @@ class CustomerService:
         return success_count, errors
 
 
-
 async def clear_analytics_cache():
     """清除所有画像分析相关的缓存"""
     from ..cache.base import cache_service
-    
+
     cache_keys = [
         ("analytics_profile", "industry"),
         ("analytics_profile", "scale"),
@@ -911,12 +910,9 @@ async def clear_analytics_cache():
         ("analytics_profile", "real_estate"),
         ("analytics_profile", "real_estate_industry"),
     ]
-    
+
     for key_ns, key_suffix in cache_keys:
         try:
             await cache_service.delete(key_ns, key_suffix)
         except Exception as e:
             print(f"[Cache Clear] 清除 {key_ns}:{key_suffix} 失败：{e}")
-
-
-
