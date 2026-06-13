@@ -83,6 +83,7 @@ class PricingRule(BaseModel):
 
     # 关联
     customer = relationship("Customer", lazy="selectin")
+    daily_consumptions = relationship("DailyConsumption", back_populates="pricing_rule")
 
 
 class Invoice(BaseModel):

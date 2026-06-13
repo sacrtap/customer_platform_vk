@@ -55,6 +55,7 @@ class Customer(BaseModel):
     profile = relationship("CustomerProfile", uselist=False, back_populates="customer")
     balance = relationship("CustomerBalance", uselist=False, back_populates="customer")
     tags = relationship("CustomerTag", back_populates="customer", lazy="selectin")
+    daily_consumptions = relationship("DailyConsumption", back_populates="customer")
 
     def __repr__(self):
         return f"<Customer {self.name}>"
