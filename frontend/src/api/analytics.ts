@@ -3,10 +3,13 @@ import api from './index'
 // ==================== 消耗分析 ====================
 
 export interface ConsumptionTrendItem {
-  year: number
-  month: number
-  period: string
-  total_amount: number
+  date: string
+  order_count: number
+  cost: number
+  year?: number
+  month?: number
+  period?: string
+  total_amount?: number
 }
 
 export function getConsumptionTrend(params?: {
@@ -14,29 +17,37 @@ export function getConsumptionTrend(params?: {
   end_date?: string
   customer_id?: number
   keyword?: string
+  metric?: 'cost' | 'order_count'
 }) {
   return api.get('/analytics/consumption/trend', { params })
 }
 
 export interface TopCustomer {
   customer_id: number
-  company_id: number
   customer_name: string
-  total_amount: number
+  order_count: number
+  cost: number
+  company_id?: number
+  total_amount?: number
 }
 
 export function getTopCustomers(params?: {
   start_date?: string
   end_date?: string
   limit?: number
+  metric?: 'cost' | 'order_count'
 }) {
   return api.get('/analytics/consumption/top', { params })
 }
 
 export interface DeviceDistributionItem {
   device_type: string
-  total_quantity: number
-  total_amount: number
+  order_count: number
+  cost: number
+  order_count_percentage: number
+  cost_percentage: number
+  total_quantity?: number
+  total_amount?: number
 }
 
 export function getDeviceDistribution(params?: {
@@ -44,34 +55,36 @@ export function getDeviceDistribution(params?: {
   end_date?: string
   customer_id?: number
   keyword?: string
+  metric?: 'cost' | 'order_count'
 }) {
   return api.get('/analytics/consumption/device-distribution', { params })
+}
+
+export function manualSyncConsumption() {
+  return api.post('/analytics/consumption/sync')
 }
 
 // ==================== 回款分析 ====================
 
 export interface PaymentAnalysis {
-  total_invoiced: number
-  total_discount: number
-  total_final: number
-  total_paid: number
-  completion_rate: number
-  difference: number
+  total_amount: number
+  paid_amount: number
+  unpaid_amount: number
+  payment_rate: number
 }
 
 export function getPaymentAnalysis(params?: {
   start_date?: string
   end_date?: string
-  customer_id?: number
-  keyword?: string
 }) {
   return api.get('/analytics/payment/analysis', { params })
 }
 
 export interface InvoiceStatusStats {
-  status: string
-  count: number
-  total_amount: number
+  total: number
+  paid: number
+  unpaid: number
+  overdue: number
 }
 
 export function getInvoiceStatusStats(params?: { start_date?: string; end_date?: string }) {
@@ -82,11 +95,10 @@ export function getInvoiceStatusStats(params?: { start_date?: string; end_date?:
 
 export interface HealthStats {
   total_customers: number
-  active_customers: number
-  inactive_customers: number
-  warning_customers: number
-  churn_risk_customers: number
-  active_rate: number
+  healthy_count: number
+  warning_count: number
+  danger_count: number
+  health_rate: number
 }
 
 export function getHealthStats() {
@@ -95,11 +107,10 @@ export function getHealthStats() {
 
 export interface WarningCustomer {
   customer_id: number
-  company_id: number
   customer_name: string
-  total_amount: number
-  real_amount: number
-  bonus_amount: number
+  risk_score: number
+  risk_level: string
+  warning_reasons: string[]
 }
 
 export function getWarningList(params?: { threshold?: number }) {
@@ -108,12 +119,9 @@ export function getWarningList(params?: { threshold?: number }) {
 
 export interface InactiveCustomer {
   customer_id: number
-  company_id: number
   customer_name: string
-  manager_id?: number
-  manager_name: string
-  days?: number
-  days_inactive?: number
+  last_active_date: string
+  inactive_days: number
 }
 
 export function getInactiveList(params?: { days?: number }) {
@@ -123,8 +131,8 @@ export function getInactiveList(params?: { days?: number }) {
 // ==================== 画像分析 ====================
 
 export interface IndustryDistributionItem {
-  industry: string
-  count: number
+  industry_type: string
+  customer_count: number
   percentage: number
 }
 
@@ -134,7 +142,7 @@ export function getIndustryDistribution(params?: { force_refresh?: boolean }) {
 
 export interface ScaleLevelStatsItem {
   scale_level: string
-  count: number
+  customer_count: number
   percentage: number
 }
 
@@ -144,7 +152,7 @@ export function getScaleStats(params?: { force_refresh?: boolean }) {
 
 export interface ConsumeLevelStatsItem {
   consume_level: string
-  count: number
+  customer_count: number
   percentage: number
 }
 
@@ -153,10 +161,9 @@ export function getConsumeLevelStats(params?: { force_refresh?: boolean }) {
 }
 
 export interface RealEstateStats {
-  total_customers: number
-  real_estate_customers: number
-  non_real_estate_customers: number
-  real_estate_percentage: number
+  is_real_estate: boolean
+  customer_count: number
+  percentage: number
 }
 
 export function getRealEstateStats(params?: { force_refresh?: boolean }) {
@@ -164,8 +171,9 @@ export function getRealEstateStats(params?: { force_refresh?: boolean }) {
 }
 
 export interface RealEstateIndustryItem {
-  industry: string
-  count: number
+  industry_type: string
+  customer_count: number
+  percentage: number
 }
 
 export function getRealEstateIndustryStats(params?: { force_refresh?: boolean }) {
@@ -175,20 +183,14 @@ export function getRealEstateIndustryStats(params?: { force_refresh?: boolean })
 // ==================== 预测回款 ====================
 
 export interface PaymentPrediction {
-  customer_id: number
-  company_id: number
-  customer_name: string
-  device_type: string
-  quantity: number
-  pricing_type: string
+  month: string
   predicted_amount: number
+  confidence: number
 }
 
 export function getMonthlyPrediction(params?: {
-  year?: number
-  month?: number
-  customer_id?: number
-  keyword?: string
+  start_date?: string
+  end_date?: string
 }) {
   return api.get('/analytics/prediction/monthly', { params })
 }
@@ -197,13 +199,9 @@ export function getMonthlyPrediction(params?: {
 
 export interface DashboardStats {
   total_customers: number
-  key_customers: number
-  total_balance: number
-  real_balance: number
-  bonus_balance: number
-  month_invoice_count: number
-  pending_confirmation: number
-  month_consumption: number
+  active_customers: number
+  total_revenue: number
+  monthly_growth: number
 }
 
 export function getDashboardStats() {
@@ -211,57 +209,17 @@ export function getDashboardStats() {
 }
 
 export interface ChartTrendItem {
-  period: string
-  invoiced: number
-  paid: number
-  completion_rate: number
+  month: string
+  value: number
 }
 
 export interface DashboardChartData {
-  consumption_trend: ConsumptionTrendItem[]
-  payment_trend: ChartTrendItem[]
+  revenue_trend: ChartTrendItem[]
+  customer_growth: ChartTrendItem[]
 }
 
 export function getDashboardChartData(params?: { chart_type?: string; months?: number }) {
-  // 使用模拟数据作为降级方案
-  return new Promise((resolve) => {
-    api
-      .get('/analytics/dashboard/chart-data', { params })
-      .then(resolve)
-      .catch(() => {
-        // 生成模拟数据
-        const months = params?.months || 12
-        const now = new Date()
-        const consumption_trend: Array<{
-          year: number
-          month: number
-          period: string
-          total_amount: number
-        }> = []
-
-        for (let i = months - 1; i >= 0; i--) {
-          const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-          const baseAmount = 500000 + Math.random() * 500000
-          consumption_trend.push({
-            year: date.getFullYear(),
-            month: date.getMonth() + 1,
-            period: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-            total_amount: Math.round(baseAmount),
-          })
-        }
-
-        const payment_trend = consumption_trend.map((item) => ({
-          period: item.period,
-          invoiced: Math.round(item.total_amount * 0.95),
-          paid: Math.round(item.total_amount * 0.85),
-          completion_rate: 0.89,
-        }))
-
-        resolve({
-          data: { consumption_trend, payment_trend },
-        })
-      })
-  })
+  return api.get('/analytics/dashboard/chart-data', { params })
 }
 
 // ==================== 首页仪表盘扩展 ====================
@@ -270,57 +228,43 @@ export function getDashboardChartData(params?: { chart_type?: string; months?: n
 export interface PendingTask {
   id: number
   title: string
-  priority: 'high' | 'medium' | 'low'
-  priority_text: string
-  due_date: string
+  type: 'warning' | 'info' | 'success'
   created_at: string
+  status: 'pending' | 'completed'
 }
 
 export interface PendingTasksResponse {
-  items: PendingTask[]
+  tasks: PendingTask[]
   total: number
 }
 
 export function getPendingTasks() {
-  // 后端暂未实现，返回模拟数据
+  // 模拟数据，后端接口暂未实现
   return Promise.resolve({
-    data: {
-      items: [
-        {
-          id: 1,
-          title: '确认待处理账单',
-          priority: 'high',
-          priority_text: '高',
-          due_date: '今天 18:00 截止',
-          created_at: '2026-04-06',
-        },
-        {
-          id: 2,
-          title: '跟进余额不足客户',
-          priority: 'high',
-          priority_text: '高',
-          due_date: '3 个客户',
-          created_at: '2026-04-05',
-        },
-        {
-          id: 3,
-          title: '审核减免申请',
-          priority: 'medium',
-          priority_text: '中',
-          due_date: '明天截止',
-          created_at: '2026-04-04',
-        },
-        {
-          id: 4,
-          title: '导出月度分析报告',
-          priority: 'low',
-          priority_text: '低',
-          due_date: '本周五',
-          created_at: '2026-04-03',
-        },
-      ],
-      total: 4,
-    },
+    tasks: [
+      {
+        id: 1,
+        title: '3 个客户余额不足',
+        type: 'warning',
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      },
+      {
+        id: 2,
+        title: '5 个客户即将到期',
+        type: 'info',
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      },
+      {
+        id: 3,
+        title: '2 个结算单待确认',
+        type: 'info',
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      },
+    ],
+    total: 3,
   })
 }
 
@@ -328,13 +272,11 @@ export function getPendingTasks() {
 
 export interface CustomerHealthScore {
   customer_id: number
-  score: number
-  level: string
-  factors: Array<{
-    name: string
-    value: number
-    weight: number
-  }>
+  customer_name: string
+  health_score: number
+  health_level: string
+  risk_factors: string[]
+  suggestions: string[]
 }
 
 export function getCustomerHealthScore(customerId: number) {

@@ -17,11 +17,12 @@ analytics = Blueprint("analytics", url_prefix="/api/v1/analytics")
 @analytics.route("/consumption/trend", methods=["GET"])
 @auth_required
 async def get_consumption_trend(request: Request):
-    """获取消耗趋势"""
+    """获取消耗趋势（支持订单数量和结算费用切换）"""
     start_date_str = request.args.get("start_date")
     end_date_str = request.args.get("end_date")
     customer_id = request.args.get("customer_id")
     keyword = request.args.get("keyword")
+    metric = request.args.get("metric", "cost")  # cost | order_count
 
     if not start_date_str or not end_date_str:
         # 默认最近 6 个月
@@ -42,12 +43,22 @@ async def get_consumption_trend(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    trend = await service.get_consumption_trend(
-        start_date,
-        end_date,
-        int(customer_id) if customer_id else None,
-        keyword,
-    )
+    # 使用新的带 metric 参数的方法
+    if hasattr(service, "get_consumption_trend_with_metric"):
+        trend = await service.get_consumption_trend_with_metric(
+            start_date,
+            end_date,
+            metric=metric,
+            customer_id=int(customer_id) if customer_id else None,
+            keyword=keyword,
+        )
+    else:
+        trend = await service.get_consumption_trend(
+            start_date,
+            end_date,
+            int(customer_id) if customer_id else None,
+            keyword,
+        )
 
     result = {"code": 0, "message": "success", "data": trend}
     await cache_service.set("analytics_consumption_trend", result, cache_key)
@@ -119,6 +130,50 @@ async def get_device_distribution(request: Request):
     result = {"code": 0, "message": "success", "data": distribution}
     await cache_service.set("analytics_device_distribution", result, cache_key)
     return json(result)
+
+
+@analytics.route("/consumption/sync", methods=["POST"])
+@auth_required
+async def manual_sync_consumption(request: Request):
+    """手动触发消耗数据同步"""
+    from datetime import date, timedelta
+
+    from ..services.cost_calc import CostCalcService
+    from ..services.order_sync import OrderSyncService
+
+    db_session = request.ctx.db_session
+
+    try:
+        # 同步订单数据（昨日）
+        sync_date = date.today() - timedelta(days=1)
+        order_service = OrderSyncService(db_session)
+        order_result = await order_service.sync_orders(sync_date=sync_date)
+
+        # 计算费用（昨日）
+        cost_service = CostCalcService(db_session)
+        cost_result = await cost_service.calculate_daily_cost(consumption_date=sync_date)
+
+        return json(
+            {
+                "code": 0,
+                "message": "同步成功",
+                "data": {
+                    "order_sync": {
+                        "success": order_result.success,
+                        "failed": order_result.failed,
+                        "skipped": order_result.skipped,
+                        "message": order_result.message,
+                    },
+                    "cost_calc": {
+                        "total_customers": cost_result["total_customers"],
+                        "calculated": cost_result["calculated"],
+                        "no_rule": cost_result["no_rule"],
+                    },
+                },
+            }
+        )
+    except Exception as e:
+        return json({"code": 500, "message": f"同步失败: {str(e)}"}, status=500)
 
 
 @analytics.route("/payment/analysis", methods=["GET"])

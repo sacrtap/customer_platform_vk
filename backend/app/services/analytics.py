@@ -80,6 +80,108 @@ class AnalyticsService:
             for row in result
         ]
 
+    async def get_consumption_trend_with_metric(
+        self,
+        start_date: date,
+        end_date: date,
+        metric: str = "cost",
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """获取消耗趋势（支持订单数量和结算费用切换）"""
+        from ..models.daily_consumption import DailyConsumption
+
+        # 按日期聚合
+        stmt = (
+            select(
+                DailyConsumption.consumption_date.label("date"),
+                func.sum(DailyConsumption.order_count).label("order_count"),
+                func.sum(DailyConsumption.total_cost).label("cost"),
+            )
+            .join(Customer, DailyConsumption.customer_id == Customer.id)
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= start_date,
+                    DailyConsumption.consumption_date <= end_date,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        )
+
+        if customer_id:
+            stmt = stmt.where(DailyConsumption.customer_id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+        stmt = stmt.group_by(DailyConsumption.consumption_date).order_by(
+            DailyConsumption.consumption_date
+        )
+
+        result = (await self.db.execute(stmt)).all()
+        return [
+            {
+                "date": row.date.isoformat(),
+                "order_count": int(row.order_count) if row.order_count else 0,
+                "cost": float(row.cost) if row.cost else 0.0,
+            }
+            for row in result
+        ]
+
+    async def get_device_type_distribution_with_metric(
+        self,
+        start_date: date,
+        end_date: date,
+        metric: str = "cost",
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """获取设备类型分布（支持订单数量和结算费用切换）"""
+        from ..models.daily_consumption import DailyConsumption
+
+        stmt = (
+            select(
+                DailyConsumption.device_type,
+                func.sum(DailyConsumption.order_count).label("order_count"),
+                func.sum(DailyConsumption.total_cost).label("cost"),
+            )
+            .join(Customer, DailyConsumption.customer_id == Customer.id)
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= start_date,
+                    DailyConsumption.consumption_date <= end_date,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        )
+
+        if customer_id:
+            stmt = stmt.where(DailyConsumption.customer_id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+        stmt = stmt.group_by(DailyConsumption.device_type)
+
+        result = (await self.db.execute(stmt)).all()
+
+        # 计算总数用于百分比
+        total_order_count = sum(int(row.order_count) for row in result if row.order_count)
+        total_cost = sum(float(row.cost) for row in result if row.cost)
+
+        return [
+            {
+                "device_type": row.device_type,
+                "order_count": int(row.order_count) if row.order_count else 0,
+                "cost": float(row.cost) if row.cost else 0.0,
+                "order_count_percentage": round(int(row.order_count) / total_order_count * 100, 2)
+                if total_order_count > 0
+                else 0,
+                "cost_percentage": round(float(row.cost) / total_cost * 100, 2)
+                if total_cost > 0
+                else 0,
+            }
+            for row in result
+        ]
+
     async def get_top_customers(
         self, start_date: date, end_date: date, limit: int = 10
     ) -> List[Dict[str, Any]]:
@@ -112,6 +214,58 @@ class AnalyticsService:
                 "company_id": row.company_id,
                 "customer_name": row.name,
                 "total_amount": float(row.total_amount) if row.total_amount else 0.0,
+            }
+            for row in result
+        ]
+
+    async def get_top_customers_with_metric(
+        self,
+        start_date: date,
+        end_date: date,
+        metric: str = "cost",
+        limit: int = 10,
+        keyword: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """获取 Top10 客户排行（支持订单数量和结算费用切换）"""
+        from ..models.daily_consumption import DailyConsumption
+
+        stmt = (
+            select(
+                Customer.id,
+                Customer.name,
+                func.sum(DailyConsumption.order_count).label("order_count"),
+                func.sum(DailyConsumption.total_cost).label("cost"),
+            )
+            .join(DailyConsumption, DailyConsumption.customer_id == Customer.id)
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= start_date,
+                    DailyConsumption.consumption_date <= end_date,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        )
+
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+
+        stmt = stmt.group_by(Customer.id, Customer.name)
+
+        # 根据 metric 排序
+        if metric == "order_count":
+            stmt = stmt.order_by(func.sum(DailyConsumption.order_count).desc())
+        else:
+            stmt = stmt.order_by(func.sum(DailyConsumption.total_cost).desc())
+
+        stmt = stmt.limit(limit)
+
+        result = (await self.db.execute(stmt)).all()
+        return [
+            {
+                "customer_id": row.id,
+                "customer_name": row.name,
+                "order_count": int(row.order_count) if row.order_count else 0,
+                "cost": float(row.cost) if row.cost else 0.0,
             }
             for row in result
         ]
