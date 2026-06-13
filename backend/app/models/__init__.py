@@ -18,6 +18,7 @@ from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
 from . import files  # noqa: E402
 from . import industry_type  # noqa: E402
+from . import daily_order  # noqa: E402
 from . import token_blacklist  # noqa: E402
 
 # isort: on
@@ -33,4 +34,5 @@ __all__ = [
     "files",
     "industry_type",
     "token_blacklist",
+    "daily_order",
 ]
