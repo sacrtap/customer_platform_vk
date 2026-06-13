@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # Redis 配置
     redis_url: str = "redis://localhost:6379/0"
 
+    # 外部 MySQL 配置（用于订单同步）
+    external_mysql_url: str = ""
+    external_mysql_pool_size: int = 5
+    external_mysql_pool_recycle: int = 3600
+
     # 缓存 TTL 配置 (秒)
     cache_ttl_dashboard_stats: int = 300  # 5 分钟
     cache_ttl_dashboard_chart: int = 900  # 15 分钟
