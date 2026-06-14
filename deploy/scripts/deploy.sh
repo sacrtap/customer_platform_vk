@@ -355,11 +355,16 @@ pull_images() {
 run_migrations() {
     log_step "运行数据库迁移..."
     
-    # 迁移前确保没有残留的 migrate 容器
-    if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^customer-platform-migrate$"; then
-        log_warn "发现残留的 migrate 容器，移除..."
-        $CONTAINER_RUNTIME rm -f customer-platform-migrate 2>/dev/null || true
-    fi
+    # 迁移前强制清理所有相关容器（避免名称冲突）
+    # 注意：只删除容器，不删除数据卷，数据不会丢失
+    log_info "清理所有相关容器..."
+    for container_name in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
+        if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
+            log_info "移除容器 ${container_name}..."
+            $CONTAINER_RUNTIME rm -f "$container_name" 2>/dev/null || true
+            sleep 1
+        fi
+    done
     
     # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
     if ! $COMPOSE_CMD -f $COMPOSE_FILE up migrate; then
