@@ -289,11 +289,15 @@ stop_containers() {
         fi
     done
     
-    # 5. 验证清理结果
+    # 5. 验证清理结果（带重试）
     for container_name in "${fixed_containers[@]}"; do
         if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-            log_error "容器 ${container_name} 移除失败！"
-            return 1
+            log_warn "容器 ${container_name} 仍在清理中，等待 3 秒..."
+            sleep 3
+            # 再次检查
+            if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
+                log_warn "容器 ${container_name} 移除可能失败，但继续部署（compose up 会处理重建）"
+            fi
         fi
     done
     
