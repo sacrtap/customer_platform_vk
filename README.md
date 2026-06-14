@@ -180,7 +180,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 # ===== 配置环境变量 =====
-cp .env.example .env
+cp ../.env.example .env
 # 编辑 .env 文件，配置数据库等环境变量
 # 至少需要配置 DATABASE_URL 数据库连接字符串
 
@@ -307,7 +307,7 @@ git clone https://github.com/sacrtap/customer_platform_vk.git
 cd customer_platform_vk
 
 # 复制环境配置
-cp .env.example .env
+cp ../.env.example .env
 # 编辑 .env 文件，修改生产环境配置
 
 # 运行部署脚本

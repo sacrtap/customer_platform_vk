@@ -491,23 +491,15 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
 const loadTodos = async () => {
   try {
     const res = await getPendingTasks()
-    // Mock 数据返回的是 items
-    todos.value = res.data.items.map(
-      (item: {
-        id: number
-        title: string
-        priority: string
-        priority_text: string
-        due_date: string
-      }) => ({
-        id: item.id,
-        title: item.title,
-        priority: item.priority as 'high' | 'medium' | 'low',
-        priorityText: item.priority_text,
-        due: item.due_date,
-        checked: false,
-      })
-    )
+    // Mock 数据返回 { tasks, total }
+    todos.value = res.tasks.map((item) => ({
+      id: item.id,
+      title: item.title,
+      priority: item.type === 'warning' ? 'high' : 'medium',
+      priorityText: item.type === 'warning' ? '警告' : '信息',
+      due: item.created_at,
+      checked: false,
+    }))
   } catch (error) {
     Message.error('加载待办事项失败')
   }

@@ -29,9 +29,11 @@ def init_scheduler(app):
 
         # 导入任务函数
         from .balance_check import check_balance_warning
+        from .cost_calc import calc_daily_cost
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
         from .invoice_generator import generate_monthly_invoices
+        from .order_sync import sync_daily_orders
         from .usage_sync import sync_daily_usage
         from .webhook_cleanup import cleanup_webhook_signatures
 
@@ -87,6 +89,24 @@ def init_scheduler(app):
             trigger=CronTrigger(hour=4, minute=0),
             id="cleanup_webhook_signatures",
             name="Webhook 签名清理",
+            replace_existing=True,
+        )
+
+        # 消耗分析增强：每日 01:00 同步订单
+        scheduler.add_job(
+            lambda: sync_daily_orders(session_factory()),
+            trigger=CronTrigger(hour=1, minute=0),
+            id="sync_daily_orders",
+            name="每日订单同步",
+            replace_existing=True,
+        )
+
+        # 消耗分析增强：每日 01:30 计算费用
+        scheduler.add_job(
+            lambda: calc_daily_cost(session_factory()),
+            trigger=CronTrigger(hour=1, minute=30),
+            id="calc_daily_cost",
+            name="每日费用计算",
             replace_existing=True,
         )
 

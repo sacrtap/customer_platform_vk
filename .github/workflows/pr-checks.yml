@@ -120,6 +120,10 @@ jobs:
           JWT_SECRET: test-secret-key-for-ci
           JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+          POSTGRES_HOST: localhost
         run: |
           cd backend
           pytest --cov=app --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml

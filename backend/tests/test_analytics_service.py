@@ -148,8 +148,8 @@ def make_mock_row(data):
             elif data[0] is None:
                 setattr(row, "level", "未分类")
                 setattr(row, "count", data[1])
-            # 行业分布、健康等级等
             else:
+                setattr(row, "name", data[0])
                 setattr(row, "industry", data[0])
                 setattr(row, "count", data[1])
                 setattr(row, "health_level", data[0])

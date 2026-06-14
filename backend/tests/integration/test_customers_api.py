@@ -375,6 +375,14 @@ async def test_update_customer_profile_success(
     """测试更新客户画像 - 成功场景"""
     customer_id = customer_data["customer_id"]
 
+    # 先创建行业类型，确保 "互联网" 存在（可能已存在，返回 409 也算成功）
+    _req, ind_resp = await test_client.post(
+        "/api/v1/industry-types",
+        json={"name": "互联网", "sort_order": 1},
+        headers=auth_headers,
+    )
+    assert ind_resp.status in (200, 201, 409)
+
     profile_data = {
         "scale_level": "large",
         "consume_level": "high",

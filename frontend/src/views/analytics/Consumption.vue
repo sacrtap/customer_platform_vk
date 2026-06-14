@@ -96,6 +96,10 @@
       <div class="chart-card">
         <div class="chart-header">
           <h3>设备类型分布</h3>
+          <a-radio-group v-model="deviceMetric" type="button" size="small" @change="loadDeviceData">
+            <a-radio value="cost">结算费用</a-radio>
+            <a-radio value="order_count">订单数量</a-radio>
+          </a-radio-group>
         </div>
         <div ref="deviceChartRef" class="chart-container"></div>
       </div>
@@ -104,6 +108,10 @@
       <div class="chart-card">
         <div class="chart-header">
           <h3>Top10 消耗客户</h3>
+          <a-radio-group v-model="topMetric" type="button" size="small" @change="loadTopCustomersData">
+            <a-radio value="cost">结算费用</a-radio>
+            <a-radio value="order_count">订单数量</a-radio>
+          </a-radio-group>
         </div>
         <div class="top-customers-list">
           <div
@@ -118,7 +126,9 @@
               <div class="customer-name">{{ customer.customer_name }}</div>
               <div class="customer-id">{{ customer.company_id }}</div>
             </div>
-            <div class="customer-amount">{{ formatCurrency(customer.total_amount) }}</div>
+            <div class="customer-amount">
+              {{ topMetric === 'cost' ? formatCurrency(customer.cost) : formatNumber(customer.order_count) + ' 单' }}
+            </div>
           </div>
           <a-empty v-if="topCustomers.length === 0" description="暂无数据" />
         </div>
@@ -152,6 +162,11 @@ const filters = reactive({
 
 const timeRange = ref('3month')
 const dateRange = ref<[Date, Date] | null>(null)
+
+// Metric 切换
+const trendMetric = ref<'cost' | 'order_count'>('cost')
+const deviceMetric = ref<'cost' | 'order_count'>('cost')
+const topMetric = ref<'cost' | 'order_count'>('cost')
 
 const loading = ref(false)
 const trendChartRef = ref<HTMLElement>()
@@ -234,6 +249,7 @@ const loadTrendData = async () => {
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     keyword: filters.keyword || undefined,
+    metric: trendMetric.value,
   })
   consumptionTrend.value = res.data || []
   initTrendChart()
@@ -245,6 +261,7 @@ const loadTopCustomersData = async () => {
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     limit: 10,
+    metric: topMetric.value,
   })
   topCustomers.value = res.data || []
   if (topCustomers.value.length > 0) {
@@ -258,6 +275,7 @@ const loadDeviceData = async () => {
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     keyword: filters.keyword || undefined,
+    metric: deviceMetric.value,
   })
   deviceDistribution.value = res.data || []
   initDeviceChart()
@@ -267,7 +285,7 @@ const loadDeviceData = async () => {
 const calculateStats = () => {
   if (consumptionTrend.value.length > 0) {
     totalConsumption.value = consumptionTrend.value.reduce(
-      (sum, item) => sum + item.total_amount,
+      (sum, item) => sum + (item.cost || 0),
       0
     )
 
@@ -277,8 +295,8 @@ const calculateStats = () => {
 
     // 计算环比（简单估算）
     if (consumptionTrend.value.length >= 2) {
-      const last = consumptionTrend.value[consumptionTrend.value.length - 1].total_amount
-      const prev = consumptionTrend.value[consumptionTrend.value.length - 2].total_amount
+      const last = consumptionTrend.value[consumptionTrend.value.length - 1].cost || 0
+      const prev = consumptionTrend.value[consumptionTrend.value.length - 2].cost || 0
       trend.value = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0
     }
   }
@@ -301,18 +319,41 @@ const initTrendChart = () => {
   const option = {
     tooltip: {
       trigger: 'axis',
-      formatter: '{b}<br/>{a}: ¥{c}',
+      axisPointer: {
+        type: 'cross',
+        crossStyle: {
+          color: '#999'
+        }
+      },
+      formatter: function(params: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        let result = params[0].axisValue + '<br/>'
+        params.forEach((param: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (param.seriesName === '结算费用') {
+            result += param.marker + param.seriesName + ': ¥' + param.value.toLocaleString() + '<br/>'
+          } else {
+            result += param.marker + param.seriesName + ': ' + param.value.toLocaleString() + ' 单<br/>'
+          }
+        })
+        return result
+      }
+    },
+    legend: {
+      data: ['结算费用', '订单数量'],
+      top: '0%',
+      textStyle: {
+        color: '#646a73'
+      }
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '3%',
-      top: '10%',
+      top: '15%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
-      data: consumptionTrend.value.map((item) => item.period),
+      data: consumptionTrend.value.map((item) => item.date || item.period),
       axisLine: {
         lineStyle: {
           color: '#e0e2e7',
@@ -322,24 +363,41 @@ const initTrendChart = () => {
         color: '#646a73',
       },
     },
-    yAxis: {
-      type: 'value',
-      axisLabel: {
-        formatter: '¥{value}',
-        color: '#646a73',
-      },
-      splitLine: {
-        lineStyle: {
-          color: '#f0f0f0',
+    yAxis: [
+      {
+        type: 'value',
+        name: '结算费用',
+        position: 'left',
+        axisLabel: {
+          formatter: '¥{value}',
+          color: '#646a73',
+        },
+        splitLine: {
+          lineStyle: {
+            color: '#f0f0f0',
+          },
         },
       },
-    },
+      {
+        type: 'value',
+        name: '订单数量',
+        position: 'right',
+        axisLabel: {
+          formatter: '{value} 单',
+          color: '#646a73',
+        },
+        splitLine: {
+          show: false
+        },
+      }
+    ],
     series: [
       {
-        name: '消耗金额',
+        name: '结算费用',
         type: 'line',
         smooth: true,
-        data: consumptionTrend.value.map((item) => item.total_amount),
+        yAxisIndex: 0,
+        data: consumptionTrend.value.map((item) => item.cost),
         itemStyle: {
           color: '#0369A1',
         },
@@ -350,6 +408,22 @@ const initTrendChart = () => {
           ]),
         },
       },
+      {
+        name: '订单数量',
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 1,
+        data: consumptionTrend.value.map((item) => item.order_count),
+        itemStyle: {
+          color: '#10B981',
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' },
+          ]),
+        },
+      }
     ],
   }
 
@@ -408,7 +482,7 @@ const initDeviceChart = () => {
         },
         data: deviceDistribution.value.map((item) => ({
           name: item.device_type,
-          value: item.total_amount,
+          value: deviceMetric.value === 'cost' ? item.cost : item.order_count,
         })),
       },
     ],
