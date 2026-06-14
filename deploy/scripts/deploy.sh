@@ -361,8 +361,26 @@ run_migrations() {
     for container_name in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
         if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
             log_info "移除容器 ${container_name}..."
-            $CONTAINER_RUNTIME rm -f "$container_name" 2>/dev/null || true
-            sleep 1
+            # 先尝试 stop（Podman 有时需要先停止才能删除）
+            $CONTAINER_RUNTIME stop "$container_name" 2>&1 || true
+            sleep 2
+            # 再尝试 rm，保留错误输出用于诊断
+            rm_output=$($CONTAINER_RUNTIME rm -f "$container_name" 2>&1)
+            rm_exit=$?
+            if [ $rm_exit -ne 0 ]; then
+                log_warn "容器 ${container_name} 删除失败 (exit=$rm_exit): ${rm_output}"
+                log_info "等待 5 秒后重试..."
+                sleep 5
+                # 重试一次
+                rm_output=$($CONTAINER_RUNTIME rm -f "$container_name" 2>&1)
+                rm_exit=$?
+                if [ $rm_exit -ne 0 ]; then
+                    log_error "容器 ${container_name} 仍然无法删除: ${rm_output}"
+                    log_error "请手动登录服务器执行: podman rm -f ${container_name}"
+                    return 1
+                fi
+            fi
+            log_info "容器 ${container_name} 已移除"
         fi
     done
     
