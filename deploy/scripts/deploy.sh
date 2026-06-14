@@ -358,13 +358,14 @@ run_migrations() {
     # 迁移前强制清理所有相关容器（避免名称冲突）
     # 注意：只删除容器，不删除数据卷，数据不会丢失
     log_info "清理所有相关容器..."
-    # 按依赖顺序删除：先删除依赖 db 的容器，再删除 db
-    # 顺序：app -> nginx -> migrate -> seed -> db -> redis
+    # 按依赖逆序删除：先删除依赖者，再删除被依赖者
+    # 依赖链：nginx→app→db,redis；seed→migrate→db
+    # 删除顺序：nginx → seed → app → migrate → db → redis
     local containers_in_order=(
-        "customer-platform-app"
         "customer-platform-nginx"
-        "customer-platform-migrate"
         "customer-platform-seed"
+        "customer-platform-app"
+        "customer-platform-migrate"
         "customer-platform-db"
         "customer-platform-redis"
     )
