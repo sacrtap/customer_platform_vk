@@ -1,14 +1,12 @@
 """CostCalcService 单元测试"""
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.models.billing import PricingRule
-from app.models.daily_consumption import DailyConsumption
-from app.models.daily_order import DailyOrder
 from app.services.cost_calc import CostCalcService
 
 

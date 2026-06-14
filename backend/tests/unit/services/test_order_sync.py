@@ -1,12 +1,9 @@
 """OrderSyncService 单元测试 - 订单同步"""
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from pytest import raises
+from unittest.mock import AsyncMock, MagicMock
 
 from app.services.dto import CustomerCalcResult, SyncResult
-
 
 # ==================== Fixtures ====================
 

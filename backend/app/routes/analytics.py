@@ -87,10 +87,14 @@ async def get_top_customers(request: Request):
     if cached is not None:
         return json(cached)
 
+    metric = request.args.get("metric", "cost")
+
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    top_customers = await service.get_top_customers(start_date, end_date, limit)
+    top_customers = await service.get_top_customers_with_metric(
+        start_date, end_date, metric=metric, limit=limit
+    )
 
     result = {"code": 0, "message": "success", "data": top_customers}
     await cache_service.set("analytics_top_customers", result, cache_key)
@@ -120,11 +124,13 @@ async def get_device_distribution(request: Request):
     if cached is not None:
         return json(cached)
 
+    metric = request.args.get("metric", "cost")
+
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    distribution = await service.get_device_type_distribution(
-        start_date, end_date, int(customer_id) if customer_id else None
+    distribution = await service.get_device_type_distribution_with_metric(
+        start_date, end_date, metric=metric, customer_id=int(customer_id) if customer_id else None
     )
 
     result = {"code": 0, "message": "success", "data": distribution}

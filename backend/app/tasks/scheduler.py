@@ -29,12 +29,12 @@ def init_scheduler(app):
 
         # 导入任务函数
         from .balance_check import check_balance_warning
+        from .cost_calc import calc_daily_cost
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
         from .invoice_generator import generate_monthly_invoices
-        from .usage_sync import sync_daily_usage
         from .order_sync import sync_daily_orders
-        from .cost_calc import calc_daily_cost
+        from .usage_sync import sync_daily_usage
         from .webhook_cleanup import cleanup_webhook_signatures
 
         # 添加定时任务 - 使用 lambda 传递 session

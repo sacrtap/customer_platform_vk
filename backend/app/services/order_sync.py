@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class OrderSyncService:
     """订单同步服务"""
 
-    def __init__(self, db: AsyncSession, external_engine: AsyncEngine):
+    def __init__(self, db: AsyncSession, external_engine: Optional[AsyncEngine] = None):
         self.db = db
         self.external_engine = external_engine
 
