@@ -405,7 +405,6 @@ async def mock_cache():
     mock_cache.invalidate_analytics_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
-
     # Mock 权限缓存 - 简单方案：所有用户返回完整权限
     # test_customers_missing_permission 测试需要特殊处理
     FULL_PERMISSIONS = {
@@ -445,6 +444,7 @@ async def mock_cache():
         "tags:create",
         "tags:edit",
         "tags:delete",
+        "industry_types:manage",
     }
 
     mock_perm_cache = MagicMock()
