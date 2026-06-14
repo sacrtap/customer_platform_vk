@@ -1,6 +1,7 @@
 import os
 import secrets
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
     cache_ttl_analytics_trend: int = 900  # 15 分钟
 
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).parent.parent.parent / ".env")
         env_file_encoding = "utf-8"
 
 
