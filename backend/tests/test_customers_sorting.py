@@ -469,8 +469,8 @@ class TestSortEdgeCases:
         from app.models.customers import CustomerProfile
 
         for field in ALLOWED_SORT_FIELDS:
-            # industry 字段在 CustomerProfile 表中
-            if field == "industry":
+            # industry_type_id 字段在 CustomerProfile 表中
+            if field == "industry_type_id":
                 assert hasattr(CustomerProfile, field), (
                     f"{field} is not a valid CustomerProfile attribute"
                 )
