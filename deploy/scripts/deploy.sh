@@ -286,20 +286,21 @@ stop_containers() {
         if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
             log_warn "发现残留容器 ${container_name}，强制移除..."
             # 先停止，再移除，避免竞态条件
-            $CONTAINER_RUNTIME stop "$container_name" 2>/dev/null || true
-            sleep 1
-            $CONTAINER_RUNTIME rm -f "$container_name" 2>/dev/null || true
-        fi
-    done
-    
-    # 5. 验证清理结果（带重试）
-    for container_name in "${fixed_containers[@]}"; do
-        if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-            log_warn "容器 ${container_name} 仍在清理中，等待 3 秒..."
-            sleep 3
-            # 再次检查
+            $CONTAINER_RUNTIME stop "$container_name" || true
+            sleep 2
+            # 尝试删除，最多重试 3 次
+            for attempt in 1 2 3; do
+                if ! $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
+                    break
+                fi
+                log_info "尝试删除容器 ${container_name} (第 ${attempt} 次)..."
+                $CONTAINER_RUNTIME rm -f "$container_name" || true
+                sleep 2
+            done
+            # 最终检查
             if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-                log_warn "容器 ${container_name} 移除可能失败，但继续部署（compose up 会处理重建）"
+                log_error "无法删除容器 ${container_name}，部署可能失败"
+                return 1
             fi
         fi
     done
