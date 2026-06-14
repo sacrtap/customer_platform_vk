@@ -224,6 +224,7 @@ def test_user(sync_test_engine, worker_id):
             ("tags:create", "新建标签", "tags"),
             ("tags:edit", "编辑标签", "tags"),
             ("tags:delete", "删除标签", "tags"),
+            ("industry_types:manage", "行业类型管理", "system"),
         ]
         for perm_code, desc, module in permissions:
             session.execute(
