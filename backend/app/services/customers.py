@@ -646,9 +646,8 @@ class CustomerService:
             if industry_name is not None and industry_type:
                 profile.industry_type = industry_type
             self.db.add(profile)
-
         await self.db.commit()
-        await self.db.refresh(profile)
+        await self.db.refresh(profile, ["industry_type"])
 
         return profile
 
