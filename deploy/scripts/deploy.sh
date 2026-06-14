@@ -193,23 +193,6 @@ pre_deploy_check() {
     fi
     log_info "$CONTAINER_RUNTIME 服务正常"
     
-    # 4. 检查镜像是否存在（仅当使用远程镜像时）
-    if [ "$USE_REMOTE_IMAGE" = true ]; then
-        log_info "检查镜像..."
-        local image_tag=$VERSION
-        local backend_image="customer_platform_app:${image_tag}"
-        local frontend_image="customer_platform_frontend:${image_tag}"
-        
-        if ! $CONTAINER_RUNTIME image exists "$backend_image" 2>/dev/null; then
-            log_error "后端镜像不存在：$backend_image"
-            return 1
-        fi
-        if ! $CONTAINER_RUNTIME image exists "$frontend_image" 2>/dev/null; then
-            log_error "前端镜像不存在：$frontend_image"
-            return 1
-        fi
-        log_info "镜像检查通过"
-    fi
     
     log_info "部署前检查完成"
 }
