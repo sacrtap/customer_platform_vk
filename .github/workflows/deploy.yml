@@ -128,6 +128,7 @@ jobs:
           DB_USER: ${{ secrets.STAGING_DB_USER }}
           DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          EXTERNAL_MYSQL_URL: ${{ secrets.STAGING_EXTERNAL_MYSQL_URL }}
           HEALTH_URL: "http://localhost:8082/health"
         run: |
           echo "🚀 部署到 Staging 环境..."
@@ -150,6 +151,7 @@ jobs:
               DB_USER="${DB_USER}" \
               DB_PASSWORD="${DB_PASSWORD}" \
               JWT_SECRET="${JWT_SECRET}" \
+              EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
               HEALTH_URL="${HEALTH_URL}" \
               DEPLOY_DIR="${DEPLOY_DIR}" \
               'bash -s' << 'DEPLOY_SCRIPT'
@@ -193,6 +195,7 @@ jobs:
           DB_USER: ${{ secrets.PRODUCTION_DB_USER }}
           DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+          EXTERNAL_MYSQL_URL: ${{ secrets.PRODUCTION_EXTERNAL_MYSQL_URL }}
           HEALTH_URL: "http://localhost:8082/health"
         run: |
           echo "🚀 部署到 Production 环境..."
@@ -213,6 +216,7 @@ jobs:
               DB_USER="${DB_USER}" \
               DB_PASSWORD="${DB_PASSWORD}" \
               JWT_SECRET="${JWT_SECRET}" \
+              EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
               HEALTH_URL="${HEALTH_URL}" \
               DEPLOY_DIR="${DEPLOY_DIR}" \
               'bash -s' << 'DEPLOY_SCRIPT'

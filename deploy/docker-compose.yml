@@ -78,6 +78,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       EXTERNAL_API_BASE_URL: ${EXTERNAL_API_BASE_URL:-}
       EXTERNAL_API_TOKEN: ${EXTERNAL_API_TOKEN:-}
+      EXTERNAL_MYSQL_URL: ${EXTERNAL_MYSQL_URL:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-true}
     volumes:
