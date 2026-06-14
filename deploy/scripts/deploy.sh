@@ -166,10 +166,22 @@ pre_deploy_check() {
     # 2. 检查是否有其他部署进程在运行
     log_info "检查部署进程..."
     local current_pid=$$
-    local deploy_pids=$(ps aux | grep "deploy.sh" | grep -v grep | awk '{print $2}' | grep -v "^${current_pid}$" || true)
+    # 使用 [d]eploy.sh 避免 grep 匹配自身，排除 bash -s（SSH heredoc 进程）
+    local deploy_pids=$(ps aux | grep "[d]eploy.sh" | grep -v "bash -s" | awk '{print $2}' | grep -v "^${current_pid}$" || true)
     if [ -n "$deploy_pids" ]; then
-        log_error "发现其他部署进程正在运行：$deploy_pids"
-        return 1
+        log_warn "发现其他部署进程：$deploy_pids"
+        log_info "尝试清理残留进程..."
+        for pid in $deploy_pids; do
+            if kill -0 "$pid" 2>/dev/null; then
+                kill "$pid" 2>/dev/null || true
+                sleep 1
+                # 如果进程还在，强制杀死
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -9 "$pid" 2>/dev/null || true
+                fi
+            fi
+        done
+        log_info "残留进程已清理"
     fi
     log_info "无其他部署进程"
     
