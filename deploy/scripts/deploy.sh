@@ -152,12 +152,16 @@ pre_deploy_check() {
     
     # 1. 检查磁盘空间（至少需要 2GB 可用空间）
     log_info "检查磁盘空间..."
-    local available_space=$(df -h /var/lib/docker 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/G//')
-    if [ -z "$available_space" ] || [ "$available_space" -lt 2 ]; then
+    # 检查根目录磁盘空间（兼容 Docker 和 Podman）
+    local available_space=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' | grep -oE '[0-9]+')
+    if [ -z "$available_space" ]; then
+        log_warn "无法检测磁盘空间，跳过检查"
+    elif [ "$available_space" -lt 2 ]; then
         log_error "磁盘空间不足：${available_space}G（需要至少 2G）"
         return 1
+    else
+        log_info "磁盘空间充足：${available_space}G"
     fi
-    log_info "磁盘空间充足：${available_space}G"
     
     # 2. 检查是否有其他部署进程在运行
     log_info "检查部署进程..."
