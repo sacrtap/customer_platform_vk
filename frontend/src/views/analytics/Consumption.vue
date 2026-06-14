@@ -88,10 +88,6 @@
       <div class="chart-card full-width">
         <div class="chart-header">
           <h3>消耗趋势</h3>
-          <a-radio-group v-model="trendMetric" type="button" size="small" @change="loadTrendData">
-            <a-radio value="cost">结算费用</a-radio>
-            <a-radio value="order_count">订单数量</a-radio>
-          </a-radio-group>
         </div>
         <div ref="trendChartRef" class="chart-container"></div>
       </div>
@@ -323,13 +319,36 @@ const initTrendChart = () => {
   const option = {
     tooltip: {
       trigger: 'axis',
-      formatter: '{b}<br/>{a}: ¥{c}',
+      axisPointer: {
+        type: 'cross',
+        crossStyle: {
+          color: '#999'
+        }
+      },
+      formatter: function(params: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        let result = params[0].axisValue + '<br/>'
+        params.forEach((param: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          if (param.seriesName === '结算费用') {
+            result += param.marker + param.seriesName + ': ¥' + param.value.toLocaleString() + '<br/>'
+          } else {
+            result += param.marker + param.seriesName + ': ' + param.value.toLocaleString() + ' 单<br/>'
+          }
+        })
+        return result
+      }
+    },
+    legend: {
+      data: ['结算费用', '订单数量'],
+      top: '0%',
+      textStyle: {
+        color: '#646a73'
+      }
     },
     grid: {
       left: '3%',
       right: '4%',
       bottom: '3%',
-      top: '10%',
+      top: '15%',
       containLabel: true,
     },
     xAxis: {
@@ -344,24 +363,41 @@ const initTrendChart = () => {
         color: '#646a73',
       },
     },
-    yAxis: {
-      type: 'value',
-      axisLabel: {
-        formatter: '¥{value}',
-        color: '#646a73',
-      },
-      splitLine: {
-        lineStyle: {
-          color: '#f0f0f0',
+    yAxis: [
+      {
+        type: 'value',
+        name: '结算费用',
+        position: 'left',
+        axisLabel: {
+          formatter: '¥{value}',
+          color: '#646a73',
+        },
+        splitLine: {
+          lineStyle: {
+            color: '#f0f0f0',
+          },
         },
       },
-    },
+      {
+        type: 'value',
+        name: '订单数量',
+        position: 'right',
+        axisLabel: {
+          formatter: '{value} 单',
+          color: '#646a73',
+        },
+        splitLine: {
+          show: false
+        },
+      }
+    ],
     series: [
       {
-        name: trendMetric.value === 'cost' ? '结算费用' : '订单数量',
+        name: '结算费用',
         type: 'line',
         smooth: true,
-        data: consumptionTrend.value.map((item) => trendMetric.value === 'cost' ? item.cost : item.order_count),
+        yAxisIndex: 0,
+        data: consumptionTrend.value.map((item) => item.cost),
         itemStyle: {
           color: '#0369A1',
         },
@@ -372,6 +408,22 @@ const initTrendChart = () => {
           ]),
         },
       },
+      {
+        name: '订单数量',
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 1,
+        data: consumptionTrend.value.map((item) => item.order_count),
+        itemStyle: {
+          color: '#10B981',
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' },
+          ]),
+        },
+      }
     ],
   }
 
