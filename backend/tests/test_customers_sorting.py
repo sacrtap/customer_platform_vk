@@ -98,7 +98,7 @@ class TestSortConstants:
             "name",
             "created_at",
             "updated_at",
-            "industry",  # 行业类型 (CustomerProfile 表)
+            "industry_type_id",  # 行业类型 ID (CustomerProfile 表)
             "settlement_type",  # 结算方式 (Customer 表)
             "manager_id",  # 运营经理 (Customer 表)
             "sales_manager_id",  # 商务经理 (Customer 表)

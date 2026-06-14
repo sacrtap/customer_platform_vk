@@ -67,15 +67,18 @@ export function manualSyncConsumption() {
 // ==================== 回款分析 ====================
 
 export interface PaymentAnalysis {
-  total_amount: number
-  paid_amount: number
-  unpaid_amount: number
-  payment_rate: number
+  total_invoiced: number
+  total_discount: number
+  total_final: number
+  total_received: number
+  pending_amount: number
+  collection_rate: number
 }
 
 export function getPaymentAnalysis(params?: {
   start_date?: string
   end_date?: string
+  keyword?: string
 }) {
   return api.get('/analytics/payment/analysis', { params })
 }
@@ -107,10 +110,12 @@ export function getHealthStats() {
 
 export interface WarningCustomer {
   customer_id: number
+  company_id: string
   customer_name: string
-  risk_score: number
-  risk_level: string
-  warning_reasons: string[]
+  total_amount: number
+  real_amount: number
+  bonus_amount: number
+  manager_name: string
 }
 
 export function getWarningList(params?: { threshold?: number }) {
@@ -119,9 +124,11 @@ export function getWarningList(params?: { threshold?: number }) {
 
 export interface InactiveCustomer {
   customer_id: number
+  company_id: string
   customer_name: string
-  last_active_date: string
-  inactive_days: number
+  manager_name: string
+  days: number
+  days_inactive?: number
 }
 
 export function getInactiveList(params?: { days?: number }) {
@@ -183,14 +190,18 @@ export function getRealEstateIndustryStats(params?: { force_refresh?: boolean })
 // ==================== 预测回款 ====================
 
 export interface PaymentPrediction {
+  customer_id: number
+  customer_name: string
+  company_id: string
   month: string
   predicted_amount: number
   confidence: number
 }
 
 export function getMonthlyPrediction(params?: {
-  start_date?: string
-  end_date?: string
+  year?: number
+  month?: number
+  keyword?: string
 }) {
   return api.get('/analytics/prediction/monthly', { params })
 }
@@ -273,8 +284,10 @@ export function getPendingTasks() {
 export interface CustomerHealthScore {
   customer_id: number
   customer_name: string
+  score: number
   health_score: number
   health_level: string
+  level: string
   risk_factors: string[]
   suggestions: string[]
 }
