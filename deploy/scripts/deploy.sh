@@ -358,16 +358,26 @@ run_migrations() {
     # 迁移前强制清理所有相关容器（避免名称冲突）
     # 注意：只删除容器，不删除数据卷，数据不会丢失
     log_info "清理所有相关容器..."
-    for container_name in customer-platform-db customer-platform-redis customer-platform-app customer-platform-nginx customer-platform-migrate customer-platform-seed; do
+    # 按依赖顺序删除：先删除依赖 db 的容器，再删除 db
+    # 顺序：app -> nginx -> migrate -> seed -> db -> redis
+    local containers_in_order=(
+        "customer-platform-app"
+        "customer-platform-nginx"
+        "customer-platform-migrate"
+        "customer-platform-seed"
+        "customer-platform-db"
+        "customer-platform-redis"
+    )
+    for container_name in "${containers_in_order[@]}"; do
         if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
             log_info "移除容器 ${container_name}..."
-            # 先尝试 stop（Podman 有时需要先停止才能删除）
+            # 先尝试 stop
             $CONTAINER_RUNTIME stop "$container_name" 2>&1 || true
-            sleep 2
+            sleep 1
             # 再尝试 rm（用 if 避免 set -e 导致脚本退出）
             if ! $CONTAINER_RUNTIME rm -f "$container_name" 2>&1; then
-                log_warn "容器 ${container_name} 删除失败，等待 5 秒后重试..."
-                sleep 5
+                log_warn "容器 ${container_name} 删除失败，等待 3 秒后重试..."
+                sleep 3
                 if ! $CONTAINER_RUNTIME rm -f "$container_name" 2>&1; then
                     log_error "容器 ${container_name} 仍然无法删除"
                     log_error "请手动登录服务器执行: podman rm -f ${container_name}"
