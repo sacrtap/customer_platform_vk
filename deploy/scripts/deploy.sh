@@ -146,6 +146,58 @@ load_env() {
         log_warn "未找到 .env 文件，使用默认配置"
     fi
 }
+# 部署前检查
+pre_deploy_check() {
+    log_step "部署前检查..."
+    
+    # 1. 检查磁盘空间（至少需要 2GB 可用空间）
+    log_info "检查磁盘空间..."
+    local available_space=$(df -h /var/lib/docker 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/G//')
+    if [ -z "$available_space" ] || [ "$available_space" -lt 2 ]; then
+        log_error "磁盘空间不足：${available_space}G（需要至少 2G）"
+        return 1
+    fi
+    log_info "磁盘空间充足：${available_space}G"
+    
+    # 2. 检查是否有其他部署进程在运行
+    log_info "检查部署进程..."
+    local current_pid=$$
+    local deploy_pids=$(ps aux | grep "deploy.sh" | grep -v grep | awk '{print $2}' | grep -v "^${current_pid}$" || true)
+    if [ -n "$deploy_pids" ]; then
+        log_error "发现其他部署进程正在运行：$deploy_pids"
+        return 1
+    fi
+    log_info "无其他部署进程"
+    
+    # 3. 检查 Docker/Podman 服务状态
+    log_info "检查容器运行时..."
+    if ! $CONTAINER_RUNTIME info > /dev/null 2>&1; then
+        log_error "$CONTAINER_RUNTIME 服务未运行或无法访问"
+        return 1
+    fi
+    log_info "$CONTAINER_RUNTIME 服务正常"
+    
+    # 4. 检查镜像是否存在（仅当使用远程镜像时）
+    if [ "$USE_REMOTE_IMAGE" = true ]; then
+        log_info "检查镜像..."
+        local image_tag=$VERSION
+        local backend_image="customer_platform_app:${image_tag}"
+        local frontend_image="customer_platform_frontend:${image_tag}"
+        
+        if ! $CONTAINER_RUNTIME image exists "$backend_image" 2>/dev/null; then
+            log_error "后端镜像不存在：$backend_image"
+            return 1
+        fi
+        if ! $CONTAINER_RUNTIME image exists "$frontend_image" 2>/dev/null; then
+            log_error "前端镜像不存在：$frontend_image"
+            return 1
+        fi
+        log_info "镜像检查通过"
+    fi
+    
+    log_info "部署前检查完成"
+}
+
 
 # 初始化服务器环境
 init_server() {
@@ -204,14 +256,21 @@ ENVEOF
 stop_containers() {
     log_info "停止旧容器..."
     
-    # 先尝试 compose down（添加 --remove-orphans 清理孤立容器）
+    # 1. 先停止所有服务（优雅关闭，等待 10 秒）
+    log_info "执行 compose stop..."
+    $COMPOSE_CMD -f $COMPOSE_FILE stop -t 10 || true
+    
+    # 2. 等待容器完全停止
+    sleep 3
+    
+    # 3. 移除所有容器（保留数据卷，避免数据丢失）
     log_info "执行 compose down..."
     down_output=$($COMPOSE_CMD -f $COMPOSE_FILE down --remove-orphans 2>&1) || {
         log_warn "compose down 返回非零退出码（可能无容器可停止）"
         log_warn "down 输出: ${down_output}"
     }
     
-    # 强制移除可能残留的固定命名容器（针对 podman compose 的兼容性问题）
+    # 4. 强制移除可能残留的固定命名容器（针对 podman compose 的兼容性问题）
     local fixed_containers=(
         "customer-platform-db"
         "customer-platform-redis"
@@ -224,7 +283,18 @@ stop_containers() {
     for container_name in "${fixed_containers[@]}"; do
         if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
             log_warn "发现残留容器 ${container_name}，强制移除..."
+            # 先停止，再移除，避免竞态条件
+            $CONTAINER_RUNTIME stop "$container_name" 2>/dev/null || true
+            sleep 1
             $CONTAINER_RUNTIME rm -f "$container_name" 2>/dev/null || true
+        fi
+    done
+    
+    # 5. 验证清理结果
+    for container_name in "${fixed_containers[@]}"; do
+        if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
+            log_error "容器 ${container_name} 移除失败！"
+            return 1
         fi
     done
     
@@ -282,14 +352,26 @@ pull_images() {
 run_migrations() {
     log_step "运行数据库迁移..."
     
+    # 迁移前确保没有残留的 migrate 容器
+    if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^customer-platform-migrate$"; then
+        log_warn "发现残留的 migrate 容器，移除..."
+        $CONTAINER_RUNTIME rm -f customer-platform-migrate 2>/dev/null || true
+    fi
+    
     # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
-    $COMPOSE_CMD -f $COMPOSE_FILE up migrate
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE up migrate; then
+        log_error "数据库迁移失败！"
+        return 1
+    fi
     
     log_info "数据库迁移完成"
     
     # 运行种子数据（幂等，已存在则跳过）
     log_step "初始化种子数据..."
-    $COMPOSE_CMD -f $COMPOSE_FILE up seed
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE up seed; then
+        log_error "种子数据初始化失败！"
+        return 1
+    fi
     log_info "种子数据初始化完成"
 }
 
@@ -325,6 +407,57 @@ health_check() {
     log_error "健康检查失败 (${health_url})"
     return 1
 }
+# 部署后验证
+post_deploy_verify() {
+    log_step "部署后验证..."
+    
+    # 1. 验证所有服务都在运行
+    log_info "检查服务运行状态..."
+    local services=("customer-platform-db" "customer-platform-redis" "customer-platform-app" "customer-platform-nginx")
+    for service in "${services[@]}"; do
+        if ! $CONTAINER_RUNTIME ps --format "{{.Names}}" | grep -q "^${service}$"; then
+            log_error "服务 ${service} 未运行"
+            return 1
+        fi
+        log_info "✓ ${service} 运行正常"
+    done
+    
+    # 2. 验证数据库连接
+    log_info "检查数据库连接..."
+    if ! $CONTAINER_RUNTIME exec customer-platform-db pg_isready -U ${DB_USER:-user} > /dev/null 2>&1; then
+        log_error "数据库连接失败"
+        return 1
+    fi
+    log_info "✓ 数据库连接正常"
+    
+    # 3. 验证应用健康端点
+    log_info "检查应用健康端点..."
+    local max_retries=10
+    local retry=0
+    while [ $retry -lt $max_retries ]; do
+        if curl -f -s http://localhost:8082/health > /dev/null 2>&1; then
+            log_info "✓ 应用健康端点响应正常"
+            break
+        fi
+        retry=$((retry + 1))
+        if [ $retry -eq $max_retries ]; then
+            log_error "应用健康端点无响应（重试 ${max_retries} 次）"
+            return 1
+        fi
+        sleep 3
+    done
+    
+    # 4. 验证前端可访问
+    log_info "检查前端访问..."
+    if ! curl -f -s http://localhost:8082 > /dev/null 2>&1; then
+        log_error "前端无法访问"
+        return 1
+    fi
+    log_info "✓ 前端访问正常"
+    
+    log_info "部署后验证完成"
+}
+
 
 # 显示服务状态
 show_status() {
@@ -452,6 +585,7 @@ main() {
     check_dependencies
     check_config
     load_env
+    pre_deploy_check
     stop_containers
     
     if [ "$USE_REMOTE_IMAGE" = true ]; then
@@ -467,6 +601,7 @@ main() {
     
     start_services
     health_check
+    post_deploy_verify
     cleanup
     show_status
     show_info
