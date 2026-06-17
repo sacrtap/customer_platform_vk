@@ -1648,7 +1648,6 @@ async def import_balance(request: Request):
     - bonus_amount (number >= 0, required) - 赠送金额
     - remark (text, optional) - 备注
     """
-    import math
 
     import pandas as pd
     from sqlalchemy import select
