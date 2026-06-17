@@ -269,41 +269,38 @@ stop_containers() {
         log_warn "down 输出: ${down_output}"
     }
     
-    # 4. 强制移除可能残留的固定命名容器（针对 podman compose 的兼容性问题）
-    # 按依赖逆序删除：先删除依赖者，再删除被依赖者
-    # 依赖链：nginx→app→db,redis；seed→migrate→app
-    # 删除顺序：nginx → seed → migrate → app → db → redis
-    local fixed_containers=(
-        "customer-platform-nginx"
-        "customer-platform-seed"
-        "customer-platform-migrate"
-        "customer-platform-app"
-        "customer-platform-db"
-        "customer-platform-redis"
-    )
-    
-    for container_name in "${fixed_containers[@]}"; do
-        if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-            log_warn "发现残留容器 ${container_name}，强制移除..."
-            # 先停止，再移除，避免竞态条件
-            $CONTAINER_RUNTIME stop "$container_name" || true
-            sleep 2
-            # 尝试删除，最多重试 3 次
-            for attempt in 1 2 3; do
-                if ! $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-                    break
-                fi
-                log_info "尝试删除容器 ${container_name} (第 ${attempt} 次)..."
-                $CONTAINER_RUNTIME rm -f "$container_name" || true
-                sleep 2
-            done
-            # 最终检查
-            if $CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep -q "^${container_name}$"; then
-                log_error "无法删除容器 ${container_name}，部署可能失败"
-                return 1
-            fi
+    # 4. 强制移除所有 customer-platform- 前缀的容器
+    # 使用循环重试：每次尝试删除所有残留容器，直到全部清除或达到最大重试次数
+    # 这样可以处理未知名称的孤儿容器和复杂的依赖关系
+    log_info "检查并清理所有残留容器..."
+    max_attempts=5
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        remaining=$($CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep "^customer-platform-" || true)
+        if [ -z "$remaining" ]; then
+            log_info "所有残留容器已清理"
+            break
         fi
+        
+        attempt=$((attempt + 1))
+        log_info "第 ${attempt}/${max_attempts} 轮清理，发现残留容器:"
+        echo "$remaining" | while read -r c; do log_info "  - $c"; done
+        
+        # 尝试删除所有残留容器（忽略错误，继续下一轮）
+        echo "$remaining" | while read -r c; do
+            $CONTAINER_RUNTIME rm -f "$c" 2>&1 || true
+        done
+        
+        sleep 2
     done
+    
+    # 最终检查
+    final_remaining=$($CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep "^customer-platform-" || true)
+    if [ -n "$final_remaining" ]; then
+        log_error "经过 ${max_attempts} 轮尝试后仍有容器无法删除:"
+        echo "$final_remaining"
+        return 1
+    fi
     
     log_info "旧容器已停止"
 }
