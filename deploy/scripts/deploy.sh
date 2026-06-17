@@ -393,6 +393,21 @@ run_migrations() {
         fi
     done
     
+    # 清理残留网络（避免 label 不匹配导致 compose up 失败）
+    # docker-compose 会按 <project>_<network> 命名网络，若旧网络 label 不匹配会报错
+    local network_name="customer_platform_vk_customer-platform-network"
+    if $CONTAINER_RUNTIME network ls --format "{{.Name}}" | grep -q "^${network_name}$"; then
+        log_info "移除残留网络 ${network_name}..."
+        if ! $CONTAINER_RUNTIME network rm "$network_name" 2>&1; then
+            log_warn "网络 ${network_name} 删除失败，可能被其他容器占用"
+            log_warn "尝试强制删除..."
+            # 强制删除（如果有容器连接会失败，但上面已清理所有容器）
+            $CONTAINER_RUNTIME network rm -f "$network_name" 2>&1 || true
+        fi
+        log_info "残留网络已清理"
+    fi
+    
+    
     # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
     if ! $COMPOSE_CMD -f $COMPOSE_FILE up migrate; then
         log_error "数据库迁移失败！"
