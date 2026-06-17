@@ -98,6 +98,62 @@ class BalanceService:
 
         return record
 
+    async def batch_import_recharge(
+        self,
+        rows: List[Dict[str, Any]],
+        operator_id: int,
+    ) -> Tuple[int, List[str]]:
+        """
+        批量导入充值
+
+        Args:
+            rows: 校验通过的数据行列表，每行包含 customer_id, real_amount, bonus_amount, remark
+            operator_id: 操作人 ID
+
+        Returns:
+            (success_count, errors)
+        """
+        success_count = 0
+        errors: List[str] = []
+
+        for idx, row in enumerate(rows, start=1):
+            customer_id = row["customer_id"]
+            real_amount = Decimal(str(row.get("real_amount", 0) or 0))
+            bonus_amount = Decimal(str(row.get("bonus_amount", 0) or 0))
+            remark = row.get("remark")
+
+            try:
+                # 创建充值记录
+                record = RechargeRecord(
+                    customer_id=customer_id,
+                    real_amount=real_amount,
+                    bonus_amount=bonus_amount,
+                    operator_id=operator_id,
+                    payment_proof="批量导入",
+                    remark=remark,
+                )
+                self.db.add(record)
+
+                # 更新余额
+                balance = await self.get_or_create_balance(customer_id)
+                balance.real_amount = (balance.real_amount or 0) + real_amount
+                balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount
+                balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount
+
+                await self.db.flush()
+                success_count += 1
+            except Exception as e:
+                errors.append(f"第 {idx} 行：充值失败 - {str(e)}")
+
+        # 统一提交
+        try:
+            await self.db.commit()
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+        return success_count, errors
+
     async def consume(
         self,
         customer_id: int,

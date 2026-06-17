@@ -6,6 +6,12 @@
         <p class="header-subtitle">客户余额充值与管理</p>
       </div>
       <div class="header-actions">
+        <a-button v-if="can('billing:import')" @click="openImportDialog">
+          <template #icon>
+            <icon-upload />
+          </template>
+          导入充值
+        </a-button>
         <a-button v-if="can('billing:recharge')" type="primary" @click="openRechargeModal()">
           <template #icon>
             <svg
@@ -300,18 +306,176 @@
         </template>
       </a-table>
     </a-modal>
+
+    <!-- 导入对话框 -->
+    <a-modal
+      v-model:visible="importModalVisible"
+      title="批量导入充值"
+      :ok-text="importLoading ? '导入中...' : '开始导入'"
+      :confirm-loading="importLoading"
+      width="560px"
+      @before-ok="handleImportSubmit"
+      @cancel="importModalVisible = false"
+    >
+      <div class="import-modal-content">
+        <a-alert type="info" style="margin-bottom: 20px">
+          请下载模板文件，填写后上传 Excel 文件进行导入
+          <template #action>
+            <a-button type="text" size="small" @click="downloadTemplate">
+              <template #icon>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </template>
+              下载模板
+            </a-button>
+          </template>
+        </a-alert>
+
+        <div
+          class="upload-area"
+          @click="triggerFileInput"
+          @drop.prevent="handleFileDrop"
+          @dragover.prevent
+          @dragenter.prevent
+        >
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".xlsx"
+            class="file-input-hidden"
+            @change="handleFileInputChange"
+          />
+          <div v-if="!importFile" class="upload-placeholder">
+            <div class="upload-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <div class="upload-text-primary">点击或拖拽文件到此处</div>
+            <div class="upload-text-secondary">仅支持 .xlsx 格式的 Excel 文件</div>
+          </div>
+          <div v-else class="file-selected">
+            <div class="file-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </div>
+            <div class="file-info">
+              <div class="file-name">{{ importFile.name }}</div>
+              <div class="file-size">{{ formatFileSize(importFile.size) }}</div>
+            </div>
+            <div class="file-remove" @click.stop="removeFile">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="import-tips">
+          <div class="tips-title">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            导入须知
+          </div>
+          <ul class="tips-list">
+            <li>请使用下载的模板文件填写充值数据</li>
+            <li>确保必填字段（公司 ID、充值金额等）已填写</li>
+            <li>单次导入建议不超过 1000 条数据</li>
+          </ul>
+        </div>
+
+        <div v-if="importResult" class="import-result">
+          <a-alert :type="importResult.error_count > 0 ? 'warning' : 'success'">
+            导入完成：成功 {{ importResult.success_count }} 条，失败 {{ importResult.error_count }} 条
+          </a-alert>
+          <div v-if="importResult.errors && importResult.errors.length > 0" class="import-errors">
+            <div class="errors-title">失败详情：</div>
+            <ul class="errors-list">
+              <li v-for="(error, index) in importResult.errors" :key="index">{{ error }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
+import { IconUpload } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 
 import {
   getBalances,
   recharge,
   getRechargeRecords,
+  importBalances,
+  downloadBalanceImportTemplate,
   type Balance,
   type RechargeRecord,
 } from '@/api/billing'
@@ -322,7 +486,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
-import type { IndustryType } from '@/types'
+import type { IndustryType, ImportResult } from '@/types'
 
 // 格式化充值时间（与结算单列表保持一致：含秒）
 const formatLastRechargeTime = (dateStr: string): string => {
@@ -438,6 +602,116 @@ const rechargeForm = reactive({
   bonus_amount: null as number | null,
   remark: '',
 })
+
+// 导入对话框相关
+const importModalVisible = ref(false)
+const importLoading = ref(false)
+const importFile = ref<File | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const importResult = ref<ImportResult | null>(null)
+
+const openImportDialog = () => {
+  importFile.value = null
+  importModalVisible.value = true
+  importResult.value = null
+}
+
+const triggerFileInput = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileInputChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+const handleFileDrop = (event: DragEvent) => {
+  const file = event.dataTransfer?.files[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+const validateAndSetFile = (file: File) => {
+  const isValidType =
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.name.endsWith('.xlsx')
+  if (!isValidType) {
+    Message.error('仅支持 .xlsx 格式的 Excel 文件')
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    Message.error('文件大小不能超过 10MB')
+    return
+  }
+  importFile.value = file
+}
+
+const removeFile = () => {
+  importFile.value = null
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const handleImportSubmit = async () => {
+  if (!importFile.value) {
+    Message.warning('请选择要导入的文件')
+    return false
+  }
+
+  importLoading.value = true
+  try {
+    const res = await importBalances(importFile.value)
+    importResult.value = res.data
+
+    if (res.data.error_count === 0) {
+      Message.success(`导入成功：${res.data.success_count} 条`)
+      await loadBalances()
+      return true
+    } else {
+      Message.warning(`导入完成：成功 ${res.data.success_count} 条，失败 ${res.data.error_count} 条`)
+      if (res.data.success_count > 0) {
+        await loadBalances()
+      }
+      return false // 保持对话框打开，显示错误详情
+    }
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '导入失败')
+    return false
+  } finally {
+    importLoading.value = false
+  }
+}
+
+const downloadTemplate = async () => {
+  try {
+    const response = await downloadBalanceImportTemplate()
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = '余额导入模板.xlsx'
+    link.click()
+    window.URL.revokeObjectURL(url)
+    Message.success('模板下载成功')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '下载模板失败')
+  }
+}
 
 // 充值记录对话框相关
 const recordModalVisible = ref(false)
@@ -894,5 +1168,184 @@ const loadIndustryTypesData = async () => {
   border: none;
   border-radius: 4px;
   font-size: 12px;
+  font-size: 12px;
+}
+
+/* 导入弹框样式 */
+.import-modal-content {
+  padding: 4px 0;
+}
+
+.upload-area {
+  border: 2px dashed var(--neutral-3);
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: var(--neutral-1);
+  margin-bottom: 20px;
+}
+
+.upload-area:hover {
+  border-color: var(--primary-6);
+  background: rgba(3, 105, 161, 0.04);
+}
+
+.upload-area:active {
+  transform: scale(0.99);
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-icon {
+  color: var(--neutral-5);
+  margin-bottom: 8px;
+  transition: color 0.25s ease;
+}
+
+.upload-area:hover .upload-icon {
+  color: var(--primary-6);
+}
+
+.upload-icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.upload-text-primary {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--neutral-9);
+  line-height: 1.5;
+}
+
+.upload-text-secondary {
+  font-size: 13px;
+  color: var(--neutral-6);
+  line-height: 1.4;
+}
+
+.file-selected {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid var(--neutral-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.file-icon {
+  color: var(--primary-6);
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--neutral-9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.file-size {
+  font-size: 12px;
+  color: var(--neutral-6);
+}
+
+.file-remove {
+  color: var(--neutral-5);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.file-remove:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.08);
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.import-tips {
+  background: rgba(3, 105, 161, 0.04);
+  border-radius: 8px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--primary-6);
+}
+
+.tips-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neutral-9);
+  margin-bottom: 10px;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.tips-list li {
+  font-size: 12px;
+  color: var(--neutral-7);
+  line-height: 1.8;
+}
+
+.tips-list li:last-child {
+  margin-bottom: 0;
+}
+
+.import-result {
+  margin-top: 20px;
+}
+
+.import-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 77, 79, 0.05);
+  border-radius: 6px;
+}
+
+.errors-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--neutral-9);
+  margin-bottom: 8px;
+}
+
+.errors-list {
+  margin: 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
+.errors-list li {
+  font-size: 12px;
+  color: #ff4d4f;
+  line-height: 1.8;
 }
 </style>

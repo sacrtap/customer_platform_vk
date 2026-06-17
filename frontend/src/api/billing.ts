@@ -278,3 +278,21 @@ export interface BalanceTrendItem {
 export function getBalanceTrend(customerId: number, months: number = 6) {
   return api.get(`/billing/customers/${customerId}/balance-trend`, { params: { months } })
 }
+
+// ==================== 余额导入 ====================
+
+export function importBalances(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/billing/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function downloadBalanceImportTemplate() {
+  return api.get('/billing/import-template', {
+    responseType: 'blob',
+  })
+}

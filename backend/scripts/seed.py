@@ -51,7 +51,7 @@ ALL_PERMISSIONS = [
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     # ============================================================
-    # 结算管理 (8)
+    # 结算管理 (9)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑结算", "修改定价规则", "billing"),
@@ -59,6 +59,7 @@ ALL_PERMISSIONS = [
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
     ("billing:refund", "退款操作", "执行退款", "billing"),
     ("billing:export", "导出账单", "导出结算数据", "billing"),
+    ("billing:import", "导入余额", "批量导入充值数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
     ("billing:pay", "结算付款", "标记付款和完成结算", "billing"),
     # ============================================================
