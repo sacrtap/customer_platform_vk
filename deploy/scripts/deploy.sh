@@ -271,13 +271,13 @@ stop_containers() {
     
     # 4. 强制移除可能残留的固定命名容器（针对 podman compose 的兼容性问题）
     # 按依赖逆序删除：先删除依赖者，再删除被依赖者
-    # 依赖链：nginx→app→db,redis；seed→migrate→db
-    # 删除顺序：nginx → seed → app → migrate → db → redis
+    # 依赖链：nginx→app→db,redis；seed→migrate→app
+    # 删除顺序：nginx → seed → migrate → app → db → redis
     local fixed_containers=(
         "customer-platform-nginx"
         "customer-platform-seed"
-        "customer-platform-app"
         "customer-platform-migrate"
+        "customer-platform-app"
         "customer-platform-db"
         "customer-platform-redis"
     )
@@ -363,13 +363,13 @@ run_migrations() {
     # 注意：只删除容器，不删除数据卷，数据不会丢失
     log_info "清理所有相关容器..."
     # 按依赖逆序删除：先删除依赖者，再删除被依赖者
-    # 依赖链：nginx→app→db,redis；seed→migrate→db
-    # 删除顺序：nginx → seed → app → migrate → db → redis
+    # 依赖链：nginx→app→db,redis；seed→migrate→app
+    # 删除顺序：nginx → seed → migrate → app → db → redis
     local containers_in_order=(
         "customer-platform-nginx"
         "customer-platform-seed"
-        "customer-platform-app"
         "customer-platform-migrate"
+        "customer-platform-app"
         "customer-platform-db"
         "customer-platform-redis"
     )
