@@ -290,7 +290,7 @@ const handleRefresh = async () => {
 const handleSync = async () => {
   syncLoading.value = true
   try {
-    const res: any = await manualSyncConsumption()
+    const res = await manualSyncConsumption()
     if (res.code === 0) {
       Message.success(`同步成功！订单：${res.data.order_sync.success}条，费用：${res.data.cost_calc.calculated}条`)
       // 同步完成后自动刷新数据
