@@ -63,7 +63,25 @@ export function getDeviceDistribution(params?: {
   return api.get('/analytics/consumption/device-distribution', { params })
 }
 
-export function manualSyncConsumption() {
+export interface SyncConsumptionResponse {
+  code: number
+  message: string
+  data: {
+    order_sync: {
+      success: number
+      failed: number
+      skipped: number
+      message: string
+    }
+    cost_calc: {
+      total_customers: number
+      calculated: number
+      no_rule: number
+    }
+  }
+}
+
+export function manualSyncConsumption(): Promise<SyncConsumptionResponse> {
   return api.post('/analytics/consumption/sync')
 }
 

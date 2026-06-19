@@ -296,7 +296,7 @@ const handleSync = async () => {
       // 同步完成后自动刷新数据
       await loadData()
     } else {
-      Message.error(res.data?.message || '同步失败')
+      Message.error(res.message || '同步失败')
     }
   } catch (error: unknown) {
     Message.error(error instanceof Error ? error.message : '同步失败')

@@ -130,7 +130,9 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         # 使用 reference_date 而非 date.today()
-        rule = await service._get_active_pricing_rule(customer_id=1, reference_date=date(2024, 1, 15))
+        rule = await service._get_active_pricing_rule(
+            customer_id=1, reference_date=date(2024, 1, 15)
+        )
 
         assert rule is not None
         assert rule.id == 1
@@ -143,7 +145,9 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         # 使用 reference_date 而非 date.today()
-        rule = await service._get_active_pricing_rule(customer_id=999, reference_date=date(2024, 1, 15))
+        rule = await service._get_active_pricing_rule(
+            customer_id=999, reference_date=date(2024, 1, 15)
+        )
 
         assert rule is None
 
