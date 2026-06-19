@@ -1,7 +1,6 @@
 """费用计算服务 - 每日消耗费用计算"""
 
 import logging
-
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -40,7 +39,7 @@ class CostCalcService:
         """
         # 1. 先清空该日期的所有费用记录
         await self._clear_consumptions(consumption_date)
-        
+
         # 2. 查询当日有订单的客户 ID 列表（去重）
         result = await self.db.execute(
             select(DailyOrder.customer_id)
@@ -139,9 +138,7 @@ class CostCalcService:
             select(
                 DailyOrder.device_type,
                 DailyOrder.floor_count,
-            ).where(
-                DailyOrder.customer_id == customer_id, DailyOrder.sync_date == consumption_date
-            )
+            ).where(DailyOrder.customer_id == customer_id, DailyOrder.sync_date == consumption_date)
         )
 
         # 在 Python 中按 (device_type, layer_type) 分组

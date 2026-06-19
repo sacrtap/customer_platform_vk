@@ -1,9 +1,9 @@
 """订单同步定时任务"""
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from ..models.billing import SyncTaskLog
 from ..services.order_sync import OrderSyncService
@@ -11,21 +11,21 @@ from ..services.order_sync import OrderSyncService
 logger = logging.getLogger(__name__)
 
 
-async def sync_daily_orders(session: AsyncSession):
+async def sync_daily_orders(session: AsyncSession, external_engine: AsyncEngine | None = None):
     """
     同步每日订单数据
 
     执行时间：每日 01:00
     职责：从外部 MySQL 数据库同步订单数据到 daily_orders 表
     """
-    logger.info("🔄 开始执行每日订单同步任务")
+    logger.info("开始执行每日订单同步任务")
 
     try:
         # 创建服务实例
-        service = OrderSyncService(session)
+        service = OrderSyncService(session, external_engine=external_engine)
 
         # 执行同步
-        result = await service.sync_orders(sync_date=date.today())
+        result = await service.sync_orders(sync_date=date.today() - timedelta(days=1))
 
         # 记录同步日志
         await _log_sync_task(
@@ -41,12 +41,12 @@ async def sync_daily_orders(session: AsyncSession):
         )
 
         logger.info(
-            f"✅ 每日订单同步任务完成：成功={result.success}, "
+            f"每日订单同步任务完成：成功={result.success}, "
             f"失败={result.failed}, 跳过={result.skipped}"
         )
 
     except Exception as e:
-        logger.error(f"❌ 每日订单同步任务执行失败：{str(e)}")
+        logger.error(f"每日订单同步任务执行失败：{str(e)}")
 
         # 记录失败日志
         await _log_sync_task(

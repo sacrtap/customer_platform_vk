@@ -94,7 +94,7 @@ def init_scheduler(app):
 
         # 消耗分析增强：每日 01:00 同步订单
         scheduler.add_job(
-            lambda: sync_daily_orders(session_factory()),
+            lambda: sync_daily_orders(session_factory(), app.ctx.external_mysql_engine),
             trigger=CronTrigger(hour=1, minute=0),
             id="sync_daily_orders",
             name="每日订单同步",

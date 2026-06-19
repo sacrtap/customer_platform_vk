@@ -1,9 +1,8 @@
 """OrderSyncService 单元测试 - 订单同步"""
 
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-from app.services.dto import CustomerCalcResult, SyncResult
+from app.services.dto import SyncResult
 
 # ==================== Fixtures ====================
 
@@ -40,75 +39,6 @@ def _make_mock_customer(customer_id=1, name="测试公司", company_id=1):
     return mock_customer
 
 
-# ==================== Test _calculate_cost ====================
-
-
-class TestOrderSyncServiceCalculateCost:
-    """费用计算逻辑测试"""
-
-    async def test_calculate_cost_basic(self):
-        """基本费用计算 - 按定价规则"""
-        from app.services.order_sync import OrderSyncService
-
-        svc = MagicMock(spec=OrderSyncService)
-        svc.db = AsyncMock()
-
-        pricing_rule = MagicMock()
-        pricing_rule.price = Decimal("500.00")
-        pricing_rule.price_type = "unified"
-
-        result = await OrderSyncService._calculate_cost(
-            svc,
-            customer_id=1,
-            floor_count=10,
-            pricing_rule=pricing_rule,
-        )
-
-        assert isinstance(result, CustomerCalcResult)
-        assert result.customer_id == 1
-        assert result.total_cost == Decimal("500.00")
-        assert result.has_rule is True
-
-    async def test_calculate_cost_no_rule(self):
-        """没有定价规则时返回 no_rule 状态"""
-        from app.services.order_sync import OrderSyncService
-
-        svc = MagicMock(spec=OrderSyncService)
-        svc.db = AsyncMock()
-
-        result = await OrderSyncService._calculate_cost(
-            svc,
-            customer_id=1,
-            floor_count=10,
-            pricing_rule=None,
-        )
-
-        assert isinstance(result, CustomerCalcResult)
-        assert result.has_rule is False
-        assert result.total_cost == Decimal("0.00")
-
-    async def test_calculate_cost_zero_floor(self):
-        """楼层数为 0 的费用计算"""
-        from app.services.order_sync import OrderSyncService
-
-        svc = MagicMock(spec=OrderSyncService)
-        svc.db = AsyncMock()
-
-        pricing_rule = MagicMock()
-        pricing_rule.price = Decimal("500.00")
-        pricing_rule.price_type = "unified"
-
-        result = await OrderSyncService._calculate_cost(
-            svc,
-            customer_id=1,
-            floor_count=0,
-            pricing_rule=pricing_rule,
-        )
-
-        assert isinstance(result, CustomerCalcResult)
-        assert result.total_cost == Decimal("500.00")
-
-
 # ==================== Test _match_and_save ====================
 
 
@@ -125,13 +55,13 @@ class TestOrderSyncServiceMatchAndSave:
         orders = [_mock_order_row()]
         mock_customer = _make_mock_customer()
 
-        # 第一次 execute 返回客户匹配结果，第二次返回空（无重复订单）
-        customer_result = MagicMock()
-        customer_result.scalar_one_or_none.return_value = mock_customer
+        # _match_customer 返回客户
+        svc._match_customer = AsyncMock(return_value=mock_customer)
+
+        # execute 返回空（无重复订单）
         existing_result = MagicMock()
         existing_result.scalar_one_or_none.return_value = None
-
-        svc.db.execute = AsyncMock(side_effect=[customer_result, existing_result])
+        svc.db.execute = AsyncMock(return_value=existing_result)
         svc.db.add = MagicMock()
         svc.db.commit = AsyncMock()
 
@@ -151,11 +81,8 @@ class TestOrderSyncServiceMatchAndSave:
 
         orders = [_mock_order_row(group_type="G999")]
 
-        # 两次 execute 都返回 None（customer 未匹配，company_name 也未匹配）
-        no_match_result = MagicMock()
-        no_match_result.scalar_one_or_none.return_value = None
-
-        svc.db.execute = AsyncMock(return_value=no_match_result)
+        # _match_customer 返回 None（未匹配到客户）
+        svc._match_customer = AsyncMock(return_value=None)
 
         result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")
 
@@ -187,7 +114,7 @@ class TestOrderSyncServiceMatchAndSave:
         assert result.skipped == 1
 
     async def test_match_and_save_db_error(self):
-        """保存订单时数据库异常"""
+        """批量提交时数据库异常"""
         from app.services.order_sync import OrderSyncService
 
         svc = MagicMock(spec=OrderSyncService)
@@ -196,15 +123,15 @@ class TestOrderSyncServiceMatchAndSave:
         orders = [_mock_order_row()]
         mock_customer = _make_mock_customer()
 
-        customer_result = MagicMock()
-        customer_result.scalar_one_or_none.return_value = mock_customer
+        # _match_customer 返回客户
+        svc._match_customer = AsyncMock(return_value=mock_customer)
+
+        # execute 返回空（无重复订单）
         existing_result = MagicMock()
         existing_result.scalar_one_or_none.return_value = None
-
-        svc.db.execute = AsyncMock(side_effect=[customer_result, existing_result])
+        svc.db.execute = AsyncMock(return_value=existing_result)
         svc.db.add = MagicMock()
         svc.db.commit = AsyncMock(side_effect=Exception("Deadlock detected"))
-
         svc.db.rollback = AsyncMock()
 
         result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")

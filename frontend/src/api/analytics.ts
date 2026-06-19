@@ -18,6 +18,7 @@ export function getConsumptionTrend(params?: {
   customer_id?: number
   keyword?: string
   metric?: 'cost' | 'order_count'
+  force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/trend', { params })
 }
@@ -36,6 +37,7 @@ export function getTopCustomers(params?: {
   end_date?: string
   limit?: number
   metric?: 'cost' | 'order_count'
+  force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/top', { params })
 }
@@ -56,6 +58,7 @@ export function getDeviceDistribution(params?: {
   customer_id?: number
   keyword?: string
   metric?: 'cost' | 'order_count'
+  force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/device-distribution', { params })
 }

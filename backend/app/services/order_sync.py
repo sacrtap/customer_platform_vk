@@ -1,19 +1,16 @@
 """订单同步服务"""
 
 import logging
-from datetime import date
-from decimal import Decimal
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 import aiomysql
-from sqlalchemy import and_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from app.models.billing import PricingRule
 from app.models.customers import Customer
 from app.models.daily_order import DailyOrder
-from app.services.dto import CustomerCalcResult, SyncResult
+from app.services.dto import SyncResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +29,15 @@ class OrderSyncService:
 
         url = settings.external_mysql_url
         if not url:
-            return {}
+            raise ValueError("外部 MySQL 配置缺失：EXTERNAL_MYSQL_URL 未设置")
+
         # mysql://user:password@host:port/dbname
         parts = url.replace("mysql://", "").split("@")
         user_pass = parts[0].split(":")
         host_port_db = parts[1].split("/")
         host_port = host_port_db[0].split(":")
-        return {
+
+        config = {
             "host": host_port[0],
             "port": int(host_port[1]) if len(host_port) > 1 else 3306,
             "user": user_pass[0],
@@ -46,119 +45,191 @@ class OrderSyncService:
             "db": host_port_db[1] if len(host_port_db) > 1 else "",
         }
 
+        # 验证必需字段（使用 key 存在性检查，避免空密码误判）
+        required_keys = ["host", "port", "user", "db"]
+        missing = [k for k in required_keys if k not in config]
+        if missing:
+            raise ValueError(f"外部 MySQL 配置缺失：{', '.join(missing)}")
+
+        return config
+
     async def sync_orders(self, sync_date: date) -> SyncResult:
         """同步指定日期的订单"""
         try:
+            # 1. 先清空该日期的所有旧订单
+            await self._clear_orders(sync_date)
+
+            # 2. 获取新订单
             orders = await self._fetch_orders(sync_date)
             if not orders:
                 return SyncResult(
                     success=0, failed=0, skipped=0, unmatched=0, message="没有新订单需要同步"
                 )
+
+            # 3. 匹配客户并保存
             return await self._match_and_save(orders=orders, sync_date=sync_date)
         except Exception as e:
             logger.error("订单同步失败: %s", e)
             return SyncResult(success=0, failed=0, skipped=0, unmatched=0, message=str(e))
 
     async def _fetch_orders(self, sync_date: date) -> List[Dict]:
-        """从外部 MySQL 获取订单"""
-        config = self.external_db_config
-        conn = await aiomysql.connect(
-            host=config["host"],
-            port=config["port"],
-            user=config["user"],
-            password=config["password"],
-            db=config["db"],
+        """从外部 MySQL 获取订单
+
+        通过 JOIN nest_user 获取公司名称，使用 DATE(create_date) 匹配日期，
+        使用 LEFT(device_name, 1) 提取设备类型首字符。
+        """
+        # 统一 SQL（两条路径共用）
+        SQL_ENGINE = (
+            "SELECT D.order_code, D.custom_code, D.nest_id, "
+            "U.owner_company, D.group_type, DATE(D.create_date), "
+            "D.floor_count, LEFT(D.device_name, 1) "
+            "FROM nest_model_order AS D "
+            "INNER JOIN ("
+            "  SELECT group_type, MAX(owner_company) AS owner_company "
+            "  FROM nest_user GROUP BY group_type"
+            ") AS U ON D.group_type = U.group_type "
+            "WHERE DATE(D.create_date) = :date AND D.nest_id != ''"
         )
-        try:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "SELECT order_code, custom_code, nest_id, company_name, "
-                    "group_type, create_date, floor_count, device_type "
-                    "FROM erp_orders WHERE create_date = %s",
-                    (sync_date,),
-                )
-                rows = await cursor.fetchall()
-                return [
-                    {
-                        "order_code": row[0],
-                        "custom_code": row[1],
-                        "nest_id": row[2],
-                        "company_name": row[3],
-                        "group_type": row[4],
-                        "create_date": row[5],
-                        "floor_count": row[6],
-                        "device_type": row[7],
-                    }
-                    for row in rows
-                ]
-        finally:
-            conn.close()
+        SQL_AIOMYSQL = (
+            "SELECT D.order_code, D.custom_code, D.nest_id, "
+            "U.owner_company, D.group_type, DATE(D.create_date), "
+            "D.floor_count, LEFT(D.device_name, 1) "
+            "FROM nest_model_order AS D "
+            "INNER JOIN ("
+            "  SELECT group_type, MAX(owner_company) AS owner_company "
+            "  FROM nest_user GROUP BY group_type"
+            ") AS U ON D.group_type = U.group_type "
+            "WHERE DATE(D.create_date) = %s AND D.nest_id != ''"
+        )
+
+        def _rows_to_dicts(rows):
+            return [
+                {
+                    "order_code": row[0],
+                    "custom_code": row[1],
+                    "nest_id": row[2],
+                    "company_name": row[3],
+                    "group_type": row[4],  # Keep as int for customer matching
+                    "create_date": self._normalize_date(row[5]),
+                    "floor_count": row[6],
+                    "device_type": row[7],
+                }
+                for row in rows
+            ]
+
+        if self.external_engine:
+            from sqlalchemy.sql import text
+
+            async with self.external_engine.connect() as conn:
+                result = await conn.execute(text(SQL_ENGINE), {"date": sync_date})
+                return _rows_to_dicts(result.fetchall())
+        else:
+            config = self.external_db_config
+            conn = await aiomysql.connect(
+                host=config["host"],
+                port=config["port"],
+                user=config["user"],
+                password=config["password"],
+                db=config["db"],
+            )
+            try:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(SQL_AIOMYSQL, (sync_date,))
+                    return _rows_to_dicts(await cursor.fetchall())
+            finally:
+                if conn:
+                    conn.close()
+
+    def _normalize_date(self, value) -> date:
+        """将各种日期类型转换为 datetime.date
+
+        外部 MySQL 的 DATE 字段可能返回 datetime.date、datetime.datetime 或 str。
+        """
+        if isinstance(value, datetime):
+            return value.date()
+        elif isinstance(value, date):
+            return value
+        elif isinstance(value, str):
+            # 尝试解析常见格式
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
+                try:
+                    return datetime.strptime(value, fmt).date()
+                except ValueError:
+                    continue
+            raise ValueError(f"无法解析日期: {value}")
+        else:
+            raise TypeError(f"不支持的日期类型: {type(value)}")
+
+    async def _clear_orders(self, sync_date: date) -> None:
+        """清空指定日期的所有订单"""
+        from sqlalchemy import delete
+
+        result = await self.db.execute(delete(DailyOrder).where(DailyOrder.sync_date == sync_date))
+        await self.db.commit()
+        logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
 
     async def _match_and_save(self, orders: List[Dict], sync_date: date) -> SyncResult:
         """匹配客户并保存订单"""
         result = SyncResult()
+        saved_orders = []  # 收集成功保存的订单
+
+        # 注意：清空逻辑已移至 sync_orders 入口
 
         for order in orders:
             order_code = order.get("order_code")
             try:
-                # 匹配客户：通过 group_type（外部客户 ID）
-                group_type = order.get("group_type")
-                customer = None
-                if group_type:
-                    stmt = select(Customer).where(Customer.company_id == group_type)
-                    db_customer_result = await self.db.execute(stmt)
-                    customer = db_customer_result.scalar_one_or_none()
-
-                # 匹配客户：通过公司名称
-                if customer is None:
-                    company_name = order.get("company_name")
-                    if company_name:
-                        stmt = select(Customer).where(Customer.name == company_name)
-                        db_name_result = await self.db.execute(stmt)
-                        customer = db_name_result.scalar_one_or_none()
-
+                # 匹配客户（使用独立方法）
+                customer = await self._match_customer(order)
                 if customer is None:
                     result.unmatched += 1
                     continue
 
-                # 检查重复订单
-                stmt = select(DailyOrder).where(
-                    and_(
+                # 检查订单是否已存在
+                existing = await self.db.execute(
+                    select(DailyOrder).where(
                         DailyOrder.order_code == order_code,
-                        DailyOrder.create_date == order.get("create_date"),
+                        DailyOrder.sync_date == sync_date,
                     )
                 )
-                db_existing = await self.db.execute(stmt)
-                existing = db_existing.scalar_one_or_none()
-                if existing is not None:
+                if existing.scalar_one_or_none():
                     result.skipped += 1
                     continue
 
-                # 创建并保存订单记录
+                # 创建订单记录但不立即提交
                 daily_order = DailyOrder(
                     order_code=order_code,
                     custom_code=order.get("custom_code"),
                     nest_id=order.get("nest_id"),
                     company_name=order.get("company_name"),
-                    group_type=order.get("group_type"),
+                    group_type=str(order.get("group_type"))
+                    if order.get("group_type") is not None
+                    else None,
                     customer_id=customer.id,
                     create_date=order.get("create_date"),
                     floor_count=order.get("floor_count"),
                     device_type=order.get("device_type"),
                     sync_date=sync_date,
                 )
-                self.db.add(daily_order)
-                await self.db.commit()
+                saved_orders.append(daily_order)
                 result.success += 1
 
-            except IntegrityError:
-                await self.db.rollback()
-                logger.warning("订单重复跳过: %s", order_code)
-                result.skipped += 1
+            except Exception as e:
+                # 捕获匹配客户时的异常
+                logger.error("处理订单失败 %s: %s", order_code, e)
+                result.failed += 1
+
+        # 统一提交所有成功的订单
+        if saved_orders:
+            for order_obj in saved_orders:
+                self.db.add(order_obj)
+            try:
+                await self.db.commit()
             except Exception as e:
                 await self.db.rollback()
-                logger.error("保存订单失败: %s", e)
-                result.failed += 1
+                logger.error("批量提交订单失败: %s", e)
+                # 将已成功的订单标记为失败
+                result.failed += len(saved_orders)
+                result.success -= len(saved_orders)
 
         # 设置结果消息
         if result.failed > 0 and result.success > 0:
@@ -191,31 +262,3 @@ class OrderSyncService:
                 return customer
 
         return None
-
-    async def _calculate_cost(
-        self,
-        customer_id: int,
-        floor_count: int,
-        pricing_rule: Optional[PricingRule] = None,
-    ) -> CustomerCalcResult:
-        """计算订单费用"""
-        if pricing_rule is None:
-            return CustomerCalcResult(
-                customer_id=customer_id,
-                customer_name="",
-                has_rule=False,
-                order_count=0,
-                total_cost=Decimal("0.00"),
-                message="no_rule",
-            )
-
-        total_cost = pricing_rule.price
-
-        return CustomerCalcResult(
-            customer_id=customer_id,
-            customer_name="",
-            has_rule=True,
-            order_count=1,
-            total_cost=total_cost,
-            message="",
-        )

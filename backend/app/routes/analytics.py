@@ -22,8 +22,9 @@ analytics = Blueprint("analytics", url_prefix="/api/v1/analytics")
 async def get_consumption_trend(request: Request):
     """获取消耗趋势（支持订单数量和结算费用切换）"""
     import logging
+
     logger = logging.getLogger(__name__)
-    
+
     start_date_str = request.args.get("start_date")
     end_date_str = request.args.get("end_date")
     customer_id = request.args.get("customer_id")
@@ -31,16 +32,10 @@ async def get_consumption_trend(request: Request):
     metric = request.args.get("metric", "cost")  # cost | order_count
     force_refresh_raw = request.args.get("force_refresh", "")
     force_refresh = force_refresh_raw.lower() == "true"
-    
-    # 明显的调试输出
-    print(f"\n{'='*60}")
-    print(f"🔍 CONSUMPTION TREND ENDPOINT CALLED")
-    print(f"   Raw force_refresh: {force_refresh_raw!r}")
-    print(f"   Parsed force_refresh: {force_refresh}")
-    print(f"   All args: {dict(request.args)}")
-    print(f"{'='*60}\n")
-    
-    logger.info(f"🔍 Consumption trend request: force_refresh={force_refresh_raw!r} -> {force_refresh}")
+
+    logger.info(
+        f"🔍 Consumption trend request: force_refresh={force_refresh_raw!r} -> {force_refresh}"
+    )
     if not start_date_str or not end_date_str:
         # 默认最近 6 个月
         from dateutil.relativedelta import relativedelta
@@ -53,7 +48,11 @@ async def get_consumption_trend(request: Request):
 
     cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}"
-    cached = await cache_service.get("analytics_consumption_trend", cache_key) if not force_refresh else None
+    cached = (
+        await cache_service.get("analytics_consumption_trend", cache_key)
+        if not force_refresh
+        else None
+    )
     if cached is not None:
         return json(cached)
 
@@ -102,7 +101,9 @@ async def get_top_customers(request: Request):
 
     metric = request.args.get("metric", "cost")
     cache_key = f"{start_date}:{end_date}:{limit}:{metric}"
-    cached = await cache_service.get("analytics_top_customers", cache_key) if not force_refresh else None
+    cached = (
+        await cache_service.get("analytics_top_customers", cache_key) if not force_refresh else None
+    )
     if cached is not None:
         return json(cached)
 
@@ -138,7 +139,11 @@ async def get_device_distribution(request: Request):
 
     cid = customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}"
-    cached = await cache_service.get("analytics_device_distribution", cache_key) if not force_refresh else None
+    cached = (
+        await cache_service.get("analytics_device_distribution", cache_key)
+        if not force_refresh
+        else None
+    )
     if cached is not None:
         return json(cached)
 
@@ -166,15 +171,15 @@ async def manual_sync_consumption(request: Request):
     from ..services.order_sync import OrderSyncService
 
     db_session = request.ctx.db_session
-    
+
     # 并发控制：使用 Redis 分布式锁
     lock_key = "sync_consumption_lock"
     lock_ttl = 300  # 5分钟超时
-    
+
     # 尝试获取锁
     redis_client = await cache_service._get_redis()
     acquired = await redis_client.set(lock_key, "1", nx=True, ex=lock_ttl)
-    
+
     if not acquired:
         return json(
             {

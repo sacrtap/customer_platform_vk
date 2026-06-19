@@ -5,6 +5,24 @@
         <h1>消耗分析</h1>
         <p class="header-subtitle">多维度客户消耗数据统计与趋势分析</p>
       </div>
+      <div class="header-actions">
+        <a-button :loading="syncLoading" :disabled="syncLoading" @click="handleSync">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+            </svg>
+          </template>
+          {{ syncLoading ? '同步中...' : '数据同步' }}
+        </a-button>
+        <a-button :loading="loading" @click="handleRefresh">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+            </svg>
+          </template>
+          刷新
+        </a-button>
+      </div>
     </div>
 
     <!-- 筛选区域 -->
@@ -35,7 +53,7 @@
         </a-form-item>
         <a-form-item>
           <a-space>
-            <a-button type="primary" @click="loadData">查询</a-button>
+            <a-button type="primary" @click="() => loadData()">查询</a-button>
             <a-button @click="handleReset">重置</a-button>
           </a-space>
         </a-form-item>
@@ -88,6 +106,10 @@
       <div class="chart-card full-width">
         <div class="chart-header">
           <h3>消耗趋势</h3>
+          <a-radio-group v-model="trendMetric" type="button" size="small" @change="() => loadData()">
+            <a-radio value="cost">结算费用</a-radio>
+            <a-radio value="order_count">订单数量</a-radio>
+          </a-radio-group>
         </div>
         <div ref="trendChartRef" class="chart-container"></div>
       </div>
@@ -96,7 +118,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h3>设备类型分布</h3>
-          <a-radio-group v-model="deviceMetric" type="button" size="small" @change="loadDeviceData">
+          <a-radio-group v-model="deviceMetric" type="button" size="small" @change="() => loadDeviceData()">
             <a-radio value="cost">结算费用</a-radio>
             <a-radio value="order_count">订单数量</a-radio>
           </a-radio-group>
@@ -107,9 +129,9 @@
       <!-- Top10 客户排行榜 -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3>Top10 消耗客户</h3>
-          <a-radio-group v-model="topMetric" type="button" size="small" @change="loadTopCustomersData">
-            <a-radio value="cost">结算费用</a-radio>
+          <h3>Top10 客户排行</h3>
+          <a-radio-group v-model="topMetric" type="button" size="small" @change="() => loadTopCustomersData()">
+            <a-radio value="cost">消耗金额</a-radio>
             <a-radio value="order_count">订单数量</a-radio>
           </a-radio-group>
         </div>
@@ -118,6 +140,8 @@
             v-for="(customer, index) in topCustomers"
             :key="customer.customer_id"
             class="top-customer-item"
+            :class="{ 'is-top': index < 3 }"
+            @click="topCustomer = customer"
           >
             <div class="rank">
               <span :class="['rank-num', `rank-${index + 1}`]">{{ index + 1 }}</span>
@@ -146,6 +170,7 @@ import {
   getConsumptionTrend,
   getTopCustomers,
   getDeviceDistribution,
+  manualSyncConsumption,
   type ConsumptionTrendItem,
   type TopCustomer,
   type DeviceDistributionItem,
@@ -169,6 +194,7 @@ const deviceMetric = ref<'cost' | 'order_count'>('cost')
 const topMetric = ref<'cost' | 'order_count'>('cost')
 
 const loading = ref(false)
+const syncLoading = ref(false)
 const trendChartRef = ref<HTMLElement>()
 const deviceChartRef = ref<HTMLElement>()
 let trendChart: ECharts | null = null
@@ -231,10 +257,14 @@ const handleReset = () => {
 }
 
 // 加载数据
-const loadData = async () => {
+const loadData = async (forceRefresh = false) => {
   loading.value = true
   try {
-    await Promise.all([loadTrendData(), loadTopCustomersData(), loadDeviceData()])
+    await Promise.all([
+      loadTrendData(forceRefresh),
+      loadTopCustomersData(forceRefresh),
+      loadDeviceData(forceRefresh),
+    ])
     calculateStats()
   } catch (error: unknown) {
     Message.error(error instanceof Error ? error.message : '加载失败')
@@ -243,25 +273,58 @@ const loadData = async () => {
   }
 }
 
+// 刷新（强制跳过缓存）
+const handleRefresh = async () => {
+  loading.value = true
+  try {
+    await loadData(true)
+    Message.success('数据已刷新')
+  } catch (error: unknown) {
+    Message.error(error instanceof Error ? error.message : '刷新失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 同步数据
+const handleSync = async () => {
+  syncLoading.value = true
+  try {
+    const res: any = await manualSyncConsumption()
+    if (res.code === 0) {
+      Message.success(`同步成功！订单：${res.data.order_sync.success}条，费用：${res.data.cost_calc.calculated}条`)
+      // 同步完成后自动刷新数据
+      await loadData()
+    } else {
+      Message.error(res.data?.message || '同步失败')
+    }
+  } catch (error: unknown) {
+    Message.error(error instanceof Error ? error.message : '同步失败')
+  } finally {
+    syncLoading.value = false
+  }
+}
 // 加载趋势数据
-const loadTrendData = async () => {
+const loadTrendData = async (forceRefresh = false) => {
   const res = await getConsumptionTrend({
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     keyword: filters.keyword || undefined,
     metric: trendMetric.value,
+    force_refresh: forceRefresh || undefined,
   })
   consumptionTrend.value = res.data || []
   initTrendChart()
 }
 
 // 加载 Top 客户
-const loadTopCustomersData = async () => {
+const loadTopCustomersData = async (forceRefresh = false) => {
   const res = await getTopCustomers({
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     limit: 10,
     metric: topMetric.value,
+    force_refresh: forceRefresh || undefined,
   })
   topCustomers.value = res.data || []
   if (topCustomers.value.length > 0) {
@@ -270,12 +333,13 @@ const loadTopCustomersData = async () => {
 }
 
 // 加载设备分布
-const loadDeviceData = async () => {
+const loadDeviceData = async (forceRefresh = false) => {
   const res = await getDeviceDistribution({
     start_date: filters.start_date || undefined,
     end_date: filters.end_date || undefined,
     keyword: filters.keyword || undefined,
     metric: deviceMetric.value,
+    force_refresh: forceRefresh || undefined,
   })
   deviceDistribution.value = res.data || []
   initDeviceChart()
@@ -505,211 +569,205 @@ onMounted(() => {
 
 <style scoped>
 .consumption-analysis-page {
-  padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --primary-6: #0369a1;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 24px;
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 24px;
 }
 
 .header-title h1 {
   font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+  font-weight: 600;
+  color: #1d2330;
+  margin: 0 0 8px 0;
 }
 
 .header-subtitle {
   font-size: 14px;
-  color: var(--neutral-6);
+  color: #646a73;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
 .filter-section {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
   margin-bottom: 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
 .stat-card {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  transition: all 200ms ease;
-}
-
-.stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .stat-label {
-  font-size: 13px;
-  color: var(--neutral-6);
+  font-size: 14px;
+  color: #646a73;
   margin-bottom: 12px;
 }
 
 .stat-value {
   font-size: 28px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-weight: 600;
+  color: #1d2330;
   margin-bottom: 8px;
 }
 
 .stat-trend {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .trend-label {
-  color: var(--neutral-5);
+  color: #646a73;
+  margin-right: 8px;
 }
 
 .trend-value {
-  font-weight: 600;
+  color: #10B981;
+  font-weight: 500;
 }
 
-.trend-up {
-  color: #ef4444;
-}
-
-.trend-down {
-  color: #22c55e;
+.trend-value.trend-down {
+  color: #FF4D4F;
 }
 
 .charts-section {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 16px;
 }
 
 .chart-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .chart-card.full-width {
-  grid-column: 1 / -1;
+  grid-column: span 2;
 }
 
 .chart-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .chart-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: #1d2330;
+  margin: 0;
 }
 
 .chart-container {
-  height: 350px;
-  padding: 24px;
+  height: 300px;
 }
 
 .top-customers-list {
-  padding: 16px 24px;
-  max-height: 350px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .top-customer-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--neutral-2);
+  padding: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.top-customer-item:last-child {
-  border-bottom: none;
+.top-customer-item:hover {
+  background: #f5f6f7;
+}
+
+.top-customer-item.is-top {
+  background: linear-gradient(135deg, #FFF7E6 0%, #FFFFFF 100%);
+  border-left: 3px solid #FAAD14;
 }
 
 .rank {
   width: 32px;
-  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f5f6f7;
+  margin-right: 12px;
 }
 
 .rank-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--neutral-7);
-  background: var(--neutral-1);
+  color: #646a73;
 }
 
-.rank-1 {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  color: white;
+.top-customer-item.is-top .rank-num {
+  color: #FAAD14;
+  font-weight: bold;
 }
 
-.rank-2 {
-  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
-  color: white;
+.rank-rank-1 {
+  background: linear-gradient(135deg, #FAAD14 0%, #FFC53D 100%);
+  color: #fff;
 }
 
-.rank-3 {
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-  color: white;
+.rank-rank-2 {
+  background: linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%);
+  color: #fff;
+}
+
+.rank-rank-3 {
+  background: linear-gradient(135deg, #CD7F32 0%, #E6A866 100%);
+  color: #fff;
 }
 
 .customer-info {
   flex: 1;
-  min-width: 0;
 }
 
 .customer-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--neutral-10);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #1d2330;
+  margin-bottom: 4px;
 }
 
 .customer-id {
   font-size: 12px;
-  color: var(--neutral-5);
-  margin-top: 2px;
+  color: #646a73;
 }
 
 .customer-amount {
   font-size: 14px;
   font-weight: 600;
-  color: var(--primary-6);
-  white-space: nowrap;
+  color: #0369A1;
 }
 
 @media (max-width: 1200px) {
@@ -720,11 +778,29 @@ onMounted(() => {
   .charts-section {
     grid-template-columns: 1fr;
   }
+
+  .chart-card.full-width {
+    grid-column: span 1;
+  }
 }
 
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions .arco-btn {
+    flex: 1;
   }
 }
 </style>

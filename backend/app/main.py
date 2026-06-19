@@ -132,6 +132,18 @@ def create_app(
     app.blueprint(industry_type_bp)
     app.blueprint(database_bp)
 
+    # 创建外部 MySQL 引擎（订单同步用）
+
+    external_engine = None
+    if settings.external_mysql_url:
+        external_engine = create_async_engine(
+            settings.external_mysql_url.replace("mysql://", "mysql+aiomysql://"),
+            pool_size=5,
+            pool_recycle=3600,
+            echo=settings.database_echo,
+        )
+        app.ctx.external_mysql_engine = external_engine
+
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
 
@@ -175,6 +187,9 @@ def create_app(
             await engine.dispose()
         else:
             engine.dispose()
+        # 关闭外部 MySQL 引擎
+        if hasattr(app.ctx, "external_mysql_engine") and app.ctx.external_mysql_engine:
+            await app.ctx.external_mysql_engine.dispose()
 
     return app
 
