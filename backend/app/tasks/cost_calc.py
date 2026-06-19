@@ -1,7 +1,8 @@
 """费用计算定时任务"""
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,14 +19,16 @@ async def calc_daily_cost(session: AsyncSession):
     执行时间：每日 01:30
     职责：根据 daily_orders 和 pricing_rules 计算每日费用到 daily_consumption 表
     """
-    logger.info("💰 开始执行每日费用计算任务")
+    logger.info("开始执行每日费用计算任务")
 
     try:
         # 创建服务实例
         service = CostCalcService(session)
 
         # 执行计算
-        result = await service.calculate_daily_cost(consumption_date=date.today())
+        result = await service.calculate_daily_cost(
+            consumption_date=date.today() - timedelta(days=1)
+        )
 
         # 记录任务日志
         await _log_calc_task(
@@ -40,12 +43,12 @@ async def calc_daily_cost(session: AsyncSession):
         )
 
         logger.info(
-            f"✅ 每日费用计算任务完成：总客户={result['total_customers']}, "
+            f"每日费用计算任务完成：总客户={result['total_customers']}, "
             f"有规则={result['calculated']}, 无规则={result['no_rule']}"
         )
 
     except Exception as e:
-        logger.error(f"❌ 每日费用计算任务执行失败：{str(e)}")
+        logger.error(f"每日费用计算任务执行失败：{str(e)}")
 
         # 记录失败日志
         await _log_calc_task(
@@ -70,7 +73,7 @@ async def _log_calc_task(
     calculated_count: int,
     no_rule_count: int,
     executed_at: datetime,
-    error_message: str = None,
+    error_message: Optional[str] = None,
 ):
     """记录费用计算任务日志"""
     log_entry = SyncTaskLog(
@@ -78,10 +81,10 @@ async def _log_calc_task(
         status=status,
         total_count=total_count,
         success_count=calculated_count,
-        failed_count=no_rule_count,
-        skipped_count=0,
+        failed_count=0,
+        skipped_count=no_rule_count,
         executed_at=executed_at,
-        error_message=error_message,
+        error_message=error_message or "",
     )
     session.add(log_entry)
     await session.commit()

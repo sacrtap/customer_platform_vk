@@ -1,14 +1,18 @@
 """费用计算服务 - 每日消耗费用计算"""
 
+import logging
+
 from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.models.billing import PricingRule
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
+
+logger = logging.getLogger(__name__)
 
 
 class CostCalcService:
@@ -34,7 +38,10 @@ class CostCalcService:
         Returns:
             {total_customers, calculated, no_rule}
         """
-        # 1. 查询当日有订单的客户 ID 列表（去重）
+        # 1. 先清空该日期的所有费用记录
+        await self._clear_consumptions(consumption_date)
+        
+        # 2. 查询当日有订单的客户 ID 列表（去重）
         result = await self.db.execute(
             select(DailyOrder.customer_id)
             .where(DailyOrder.create_date == consumption_date, DailyOrder.customer_id.isnot(None))
@@ -46,7 +53,7 @@ class CostCalcService:
         calculated_count = 0
         no_rule_count = 0
 
-        # 2. 对每个客户计算费用
+        # 3. 对每个客户计算费用
         for customer_id in customer_ids:
             result = await self._calculate_customer_cost(
                 customer_id=customer_id, consumption_date=consumption_date
@@ -62,6 +69,16 @@ class CostCalcService:
             "no_rule": no_rule_count,
         }
 
+    async def _clear_consumptions(self, consumption_date: date) -> None:
+        """清空指定日期的所有费用记录"""
+        from sqlalchemy import delete
+
+        result = await self.db.execute(
+            delete(DailyConsumption).where(DailyConsumption.consumption_date == consumption_date)
+        )
+        await self.db.commit()
+        logger.info(f"已清空 {consumption_date} 的 {result.rowcount} 条费用记录")
+
     async def _calculate_customer_cost(self, customer_id: int, consumption_date: date) -> dict:
         """计算单个客户的消耗费用
 
@@ -72,13 +89,17 @@ class CostCalcService:
         Returns:
             {"has_rule", cost_result_list}
         """
+        # 注意：清空逻辑已移至 calculate_daily_cost 入口
+
         # 1. 查询当日订单（按 device_type + layer_type 分组）
         order_groups = await self._get_order_groups(
             customer_id=customer_id, consumption_date=consumption_date
         )
 
         # 2. 查询客户生效中的计费规则
-        pricing_rule = await self._get_active_pricing_rule(customer_id=customer_id)
+        pricing_rule = await self._get_active_pricing_rule(
+            customer_id=customer_id, reference_date=consumption_date
+        )
 
         has_rule = pricing_rule is not None
 
@@ -109,7 +130,7 @@ class CostCalcService:
 
         Args:
             customer_id: 客户 ID
-            consumption_date: 消耗日期
+            consumption_date: 消耗日期（同时也是 sync_date）
 
         Returns:
             List of order groups with device_type, layer_type, order_count, total_floor_count
@@ -118,47 +139,48 @@ class CostCalcService:
             select(
                 DailyOrder.device_type,
                 DailyOrder.floor_count,
-                func.count(DailyOrder.id).label("order_count"),
-                func.coalesce(func.sum(DailyOrder.floor_count), 0).label("total_floor_count"),
+            ).where(
+                DailyOrder.customer_id == customer_id, DailyOrder.sync_date == consumption_date
             )
-            .where(
-                DailyOrder.customer_id == customer_id, DailyOrder.create_date == consumption_date
-            )
-            .group_by(DailyOrder.device_type, DailyOrder.floor_count)
         )
 
-        groups = []
+        # 在 Python 中按 (device_type, layer_type) 分组
+        groups_dict: dict[tuple[str, str], dict] = {}
         for row in result.all():
+            device_type = row.device_type or "unknown"
             floor_count = row.floor_count or 1
             layer_type = "single" if floor_count <= 1 else "multi"
-            groups.append(
-                {
-                    "device_type": row.device_type,
+            key = (device_type, layer_type)
+            if key not in groups_dict:
+                groups_dict[key] = {
+                    "device_type": device_type,
                     "layer_type": layer_type,
-                    "order_count": row.order_count,
-                    "total_floor_count": row.total_floor_count,
+                    "order_count": 0,
+                    "total_floor_count": 0,
                 }
-            )
+            groups_dict[key]["order_count"] += 1
+            groups_dict[key]["total_floor_count"] += floor_count
 
-        return groups
+        return list(groups_dict.values())
 
-    async def _get_active_pricing_rule(self, customer_id: int) -> Optional[PricingRule]:
-        """查询客户当前生效中的计费规则
+    async def _get_active_pricing_rule(
+        self, customer_id: int, reference_date: date
+    ) -> Optional[PricingRule]:
+        """查询客户在指定日期生效中的计费规则
 
         Args:
             customer_id: 客户 ID
+            reference_date: 参考日期（用于判断规则是否生效）
 
         Returns:
             PricingRule object or None
         """
-        today = date.today()
         result = await self.db.execute(
             select(PricingRule)
             .where(
                 PricingRule.customer_id == customer_id,
-                PricingRule.effective_date <= today,
-                PricingRule.customer_id == customer_id,
-                (PricingRule.expiry_date >= today) | (PricingRule.expiry_date.is_(None)),
+                PricingRule.effective_date <= reference_date,
+                (PricingRule.expiry_date >= reference_date) | (PricingRule.expiry_date.is_(None)),
             )
             .order_by(PricingRule.created_at.desc())
             .limit(1)
@@ -177,12 +199,12 @@ class CostCalcService:
         """
         quantity = order_group["total_floor_count"]
 
-        if pricing_rule.price_type == "tiered":
+        if pricing_rule.pricing_type == "tiered":
             return self._calc_tiered(quantity, pricing_rule)
-        elif pricing_rule.price_type == "package":
-            return self._calc_package(pricing_rule.base_fee)
-        else:  # unified/fixed
-            return self._calc_unified(quantity, pricing_rule.price)
+        elif pricing_rule.pricing_type == "package":
+            return self._calc_package(pricing_rule)
+        else:  # fixed
+            return self._calc_unified(quantity, pricing_rule.unit_price)
 
     def _calc_unified(self, quantity: int, unit_price: Decimal) -> Decimal:
         """统一价格结算"""
@@ -190,12 +212,12 @@ class CostCalcService:
 
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
-        tiers = getattr(pricing_rule, "tiers", [])
+        tiers = pricing_rule.tiers or []
         if not tiers:
-            return pricing_rule.price
+            return (pricing_rule.unit_price or Decimal("0.00")) * quantity
 
         # Sort tiers by min_quantity
-        sorted_tiers = sorted(tiers, key=lambda t: getattr(t, "min_quantity", 0))
+        sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))
 
         remaining = quantity
         total_cost = Decimal("0")
@@ -204,14 +226,16 @@ class CostCalcService:
             if remaining <= 0:
                 break
 
-            tier_range = getattr(tier, "max_quantity", 999999) - getattr(tier, "min_quantity", 0)
+            min_qty = tier.get("min_quantity", 0)
+            max_qty = tier.get("max_quantity", 999999)
+            tier_range = max_qty - min_qty
             tier_quantity = min(remaining, tier_range)
-            tier_price = getattr(tier, "price", pricing_rule.price)
+            tier_price = tier.get("price", pricing_rule.unit_price)
             total_cost += Decimal(tier_quantity) * tier_price
             remaining -= tier_quantity
 
         return total_cost
 
-    def _calc_package(self, base_fee: Decimal) -> Decimal:
+    def _calc_package(self, pricing_rule: PricingRule) -> Decimal:
         """包年价格结算（按日分摊）"""
-        return (base_fee / Decimal("365")).quantize(Decimal("0.01"))
+        return (pricing_rule.unit_price or Decimal("0.00")).quantize(Decimal("0.01"))
