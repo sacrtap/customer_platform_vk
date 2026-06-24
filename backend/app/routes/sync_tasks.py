@@ -64,8 +64,15 @@ async def create_sync_task(request: Request):
             operator_id=operator_id,
         )
 
-        # 启动后台任务
-        request.app.add_task(service.execute_task(task.id))
+        # 启动后台任务（使用独立的数据库 session）
+        async_session_maker = request.app.ctx.async_session_maker
+
+        async def run_task():
+            async with async_session_maker() as new_session:
+                bg_service = SyncTaskService(db=new_session, redis_client=redis_client)
+                await bg_service.execute_task(task.id)
+
+        request.app.add_task(run_task())
 
         return json(
             {
