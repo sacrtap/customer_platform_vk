@@ -221,10 +221,11 @@ const startPolling = () => {
   }, 2000)
 }
 
-const formatDate = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+const formatDate = (value: Date | string): string => {
+  if (typeof value === 'string') return value
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
