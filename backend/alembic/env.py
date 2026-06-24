@@ -8,6 +8,7 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config import settings
+from app.models import sync_task  # noqa: F401  register model for autogenerate
 from app.models.base import BaseModel
 
 config = context.config
