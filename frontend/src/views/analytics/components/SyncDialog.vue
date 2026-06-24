@@ -1,11 +1,12 @@
 <template>
   <a-modal
-    v-model:visible="visible"
+    :visible="isVisible"
     :title="title"
     :ok-text="okText"
     :cancel-text="cancelText"
     :ok-loading="loading"
     :on-before-ok="handleBeforeOk"
+    @update:visible="handleVisibleUpdate"
     @cancel="handleCancel"
   >
     <!-- 输入阶段 -->
@@ -65,6 +66,13 @@ const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
   (e: 'success'): void
 }>()
+
+// 内部 visible 状态管理
+const isVisible = computed(() => props.visible)
+
+const handleVisibleUpdate = (value: boolean) => {
+  emit('update:visible', value)
+}
 
 const state = ref<'input' | 'creating' | 'polling' | 'result'>('input')
 const loading = ref(false)
@@ -164,8 +172,9 @@ const handleBeforeOk = async () => {
       state.value = 'polling'
       startPolling()
       return false // 不关闭对话框
-    } catch (error: any) {
-      Message.error(error.message || '创建任务失败')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '创建任务失败'
+      Message.error(message)
       return false
     } finally {
       loading.value = false

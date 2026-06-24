@@ -1,6 +1,5 @@
 """路由入口"""
 
-from . import auth, permissions, roles, users, sync_tasks
+from . import auth, permissions, roles, sync_tasks, users
 
-__all__ = ["auth", "users", "roles", "permissions", "sync_tasks"]
-
+__all__ = ["auth", "permissions", "roles", "sync_tasks", "users"]

@@ -174,11 +174,11 @@ import {
   getConsumptionTrend,
   getTopCustomers,
   getDeviceDistribution,
-  manualSyncConsumption,
   type ConsumptionTrendItem,
   type TopCustomer,
   type DeviceDistributionItem,
 } from '@/api/analytics'
+import { formatCurrency, formatNumber } from '@/utils/formatters'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import SyncDialog from './components/SyncDialog.vue'
@@ -198,8 +198,8 @@ const deviceMetric = ref<'cost' | 'order_count'>('cost')
 const topMetric = ref<'cost' | 'order_count'>('cost')
 
 const loading = ref(false)
-const syncLoading = ref(false)
 const showSyncDialog = ref(false)
+const trendChartRef = ref<HTMLElement>()
 const deviceChartRef = ref<HTMLElement>()
 let trendChart: ECharts | null = null
 let deviceChart: ECharts | null = null

@@ -20,7 +20,7 @@
           <span>同步失败：{{ progress.error_message || '未知错误' }}</span>
         </template>
       </div>
-      <div class="stats" v-if="progress.status === 'completed' || progress.status === 'failed'">
+      <div v-if="progress.status === 'completed' || progress.status === 'failed'" class="stats">
         <a-space>
           <a-tag color="green">成功 {{ progress.success_count }} 条</a-tag>
           <a-tag color="red">失败 {{ progress.failed_count }} 条</a-tag>
@@ -43,7 +43,7 @@ const props = defineProps<{
 
 const progressStatus = computed(() => {
   if (props.progress.status === 'completed') return 'success'
-  if (props.progress.status === 'failed') return 'error'
+  if (props.progress.status === 'failed') return 'danger'
   return 'normal'
 })
 </script>

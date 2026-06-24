@@ -1,6 +1,6 @@
 """同步任务服务"""
+
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -40,7 +40,10 @@ class SyncTaskService:
         # 尝试获取分布式锁
         lock_key = f"sync_lock:{start_date}:{end_date}"
         lock_acquired = await self.redis_client.set(
-            lock_key, "1", nx=True, ex=1800  # 30分钟TTL
+            lock_key,
+            "1",
+            nx=True,
+            ex=1800,  # 30分钟TTL
         )
         if not lock_acquired:
             raise Exception("已有相同周期的同步任务正在执行")
@@ -131,7 +134,7 @@ class SyncTaskService:
                     task.success_count += order_result.success
                     task.failed_count += order_result.failed
 
-                except Exception as e:
+                except Exception:
                     # 单天失败不中断整体流程
                     task.failed_count += 1
 
@@ -189,7 +192,9 @@ class SyncTaskService:
         if not task:
             raise ValueError(f"任务不存在: {task_id}")
 
-        percentage = int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
+        percentage = (
+            int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
+        )
 
         return {
             "task_id": str(task.id),
@@ -215,7 +220,9 @@ class SyncTaskService:
     async def _update_redis_progress(self, task: SyncTask) -> None:
         """更新 Redis 进度"""
         progress_key = f"sync_progress:{task.id}"
-        percentage = int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
+        percentage = (
+            int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
+        )
 
         progress_data = {
             "status": task.status,

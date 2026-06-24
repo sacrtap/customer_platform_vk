@@ -113,7 +113,6 @@ def create_app(
     from .routes.sync_tasks import sync_tasks_bp
     from .routes.tags import customer_tags_bp, profile_tags_bp, tags_bp
     from .routes.users import users_bp
-    from .routes.webhooks import webhooks_bp
 
     app.blueprint(auth_bp)
     app.blueprint(users_bp)

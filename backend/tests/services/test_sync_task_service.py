@@ -1,11 +1,12 @@
 """SyncTaskService 单元测试"""
-import pytest
+
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sync_task import SyncTask
-from app.models.billing import SyncTaskLog
 from app.services.sync_task_service import SyncTaskService
 
 
@@ -45,16 +46,6 @@ class TestCreateTask:
         sync_mode = "skip_existing"
         operator_id = 1
 
-        # 模拟数据库返回的任务
-        mock_task = SyncTask(
-            id="123e4567-e89b-12d3-a456-426614174000",
-            start_date=start_date,
-            end_date=end_date,
-            sync_mode=sync_mode,
-            status="pending",
-            total_days=8,
-            operator_id=operator_id,
-        )
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock()
@@ -150,16 +141,14 @@ class TestExecuteTask:
         mock_db.commit = AsyncMock()
 
         # Mock OrderSyncService 和 CostCalcService
-        with patch(
-            "app.services.sync_task_service.OrderSyncService"
-        ) as MockOrderSync, patch(
-            "app.services.sync_task_service.CostCalcService"
-        ) as MockCostCalc, patch.object(
-            SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
-        ), patch.object(
-            SyncTaskService, "_update_redis_progress", new_callable=AsyncMock
-        ), patch.object(
-            SyncTaskService, "_update_audit_log", new_callable=AsyncMock
+        with (
+            patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
+            patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
+            patch.object(
+                SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
+            ),
+            patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
         ):
             mock_order_service = AsyncMock()
             mock_order_service.sync_orders = AsyncMock(
@@ -201,16 +190,12 @@ class TestExecuteTask:
         mock_db.get = AsyncMock(return_value=task)
         mock_db.commit = AsyncMock()
 
-        with patch(
-            "app.services.sync_task_service.OrderSyncService"
-        ) as MockOrderSync, patch(
-            "app.services.sync_task_service.CostCalcService"
-        ) as MockCostCalc, patch.object(
-            SyncTaskService, "_clear_data", new_callable=AsyncMock
-        ), patch.object(
-            SyncTaskService, "_update_redis_progress", new_callable=AsyncMock
-        ), patch.object(
-            SyncTaskService, "_update_audit_log", new_callable=AsyncMock
+        with (
+            patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
+            patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
+            patch.object(SyncTaskService, "_clear_data", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
         ):
             mock_order_service = AsyncMock()
             mock_order_service.sync_orders = AsyncMock(
@@ -251,16 +236,14 @@ class TestExecuteTask:
         mock_db.get = AsyncMock(return_value=task)
         mock_db.commit = AsyncMock()
 
-        with patch(
-            "app.services.sync_task_service.OrderSyncService"
-        ) as MockOrderSync, patch(
-            "app.services.sync_task_service.CostCalcService"
-        ) as MockCostCalc, patch.object(
-            SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
-        ), patch.object(
-            SyncTaskService, "_update_redis_progress", new_callable=AsyncMock
-        ), patch.object(
-            SyncTaskService, "_update_audit_log", new_callable=AsyncMock
+        with (
+            patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
+            patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
+            patch.object(
+                SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
+            ),
+            patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
         ):
             mock_order_service = AsyncMock()
             # 第二天失败

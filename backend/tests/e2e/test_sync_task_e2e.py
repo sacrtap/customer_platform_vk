@@ -1,7 +1,8 @@
 """同步任务端到端测试"""
 
-import pytest
 from datetime import date, timedelta
+
+import pytest
 from httpx import AsyncClient
 
 from app.main import app
