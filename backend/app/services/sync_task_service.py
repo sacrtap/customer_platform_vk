@@ -83,86 +83,93 @@ class SyncTaskService:
         """执行同步任务（后台异步）"""
         task = await self.db.get(SyncTask, task_id)
         if not task:
+            # 任务不存在时尝试释放锁
+            lock_key = f"sync_lock:{task_id}"
+            await self.redis_client.delete(lock_key)
             raise ValueError(f"任务不存在: {task_id}")
 
-        # 更新状态为 running
-        task.status = "running"
-        await self.db.commit()
-        await self._update_redis_progress(task)
-
         lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
-        start_time = datetime.now(timezone.utc)
 
         try:
-            # 生成日期列表
-            current_date = task.start_date
-            dates = []
-            while current_date <= task.end_date:
-                dates.append(current_date)
-                current_date += timedelta(days=1)
+            # 更新状态为 running
+            task.status = "running"
+            await self.db.commit()
+            await self._update_redis_progress(task)
 
-            # 逐天执行
-            for sync_date in dates:
-                task.current_date = sync_date
-                await self.db.commit()
+            start_time = datetime.now(timezone.utc)
 
-                try:
-                    # skip_existing 模式：检查是否已有数据
-                    if task.sync_mode == "skip_existing":
-                        has_data = await self._check_data_exists(sync_date)
-                        if has_data:
-                            task.skipped_days += 1
-                            task.completed_days += 1
-                            await self.db.commit()
-                            await self._update_redis_progress(task)
-                            continue
+            try:
+                # 生成日期列表
+                current_date = task.start_date
+                dates = []
+                while current_date <= task.end_date:
+                    dates.append(current_date)
+                    current_date += timedelta(days=1)
 
-                    # force_overwrite 模式：删除旧数据
-                    if task.sync_mode == "force_overwrite":
-                        await self._clear_data(sync_date)
+                # 逐天执行
+                for sync_date in dates:
+                    task.current_date = sync_date
+                    await self.db.commit()
 
-                    # 同步订单
-                    order_service = OrderSyncService(self.db)
-                    order_result = await order_service.sync_orders(sync_date)
+                    try:
+                        # skip_existing 模式：检查是否已有数据
+                        if task.sync_mode == "skip_existing":
+                            has_data = await self._check_data_exists(sync_date)
+                            if has_data:
+                                task.skipped_days += 1
+                                task.completed_days += 1
+                                await self.db.commit()
+                                await self._update_redis_progress(task)
+                                continue
 
-                    # 计算费用
-                    cost_service = CostCalcService(self.db)
-                    await cost_service.calculate_daily_cost(sync_date)
+                        # force_overwrite 模式：删除旧数据
+                        if task.sync_mode == "force_overwrite":
+                            await self._clear_data(sync_date)
 
-                    # 更新统计
-                    task.completed_days += 1
-                    task.success_count += order_result.success
-                    task.failed_count += order_result.failed
+                        # 同步订单
+                        order_service = OrderSyncService(self.db)
+                        order_result = await order_service.sync_orders(sync_date)
 
-                except Exception:
-                    # 单天失败不中断整体流程
-                    task.failed_count += 1
+                        # 计算费用
+                        cost_service = CostCalcService(self.db)
+                        await cost_service.calculate_daily_cost(sync_date)
 
+                        # 更新统计
+                        task.completed_days += 1
+                        task.success_count += order_result.success
+                        task.failed_count += order_result.failed
+
+                    except Exception:
+                        # 单天失败不中断整体流程
+                        task.failed_count += 1
+
+                    await self.db.commit()
+                    await self._update_redis_progress(task)
+
+                # 任务完成
+                task.status = "completed"
+                task.completed_at = datetime.now(timezone.utc)
+                duration = (task.completed_at - start_time).total_seconds()
+
+                # 更新审计日志
+                await self._update_audit_log(
+                    task, "success" if task.status == "completed" else "failed", duration
+                )
+
+            except Exception as e:
+                task.status = "failed"
+                task.error_message = str(e)
+                task.completed_at = datetime.now(timezone.utc)
+                duration = (task.completed_at - start_time).total_seconds()
+
+                await self._update_audit_log(task, "failed", duration, str(e))
+
+            finally:
                 await self.db.commit()
                 await self._update_redis_progress(task)
 
-            # 任务完成
-            task.status = "completed"
-            task.completed_at = datetime.now(timezone.utc)
-            duration = (task.completed_at - start_time).total_seconds()
-
-            # 更新审计日志
-            await self._update_audit_log(
-                task, "success" if task.status == "completed" else "failed", duration
-            )
-
-        except Exception as e:
-            task.status = "failed"
-            task.error_message = str(e)
-            task.completed_at = datetime.now(timezone.utc)
-            duration = (task.completed_at - start_time).total_seconds()
-
-            await self._update_audit_log(task, "failed", duration, str(e))
-
         finally:
-            await self.db.commit()
-            await self._update_redis_progress(task)
-            # 释放锁
+            # 无论发生什么，确保释放锁
             await self.redis_client.delete(lock_key)
 
     async def get_progress(self, task_id: UUID) -> dict:
