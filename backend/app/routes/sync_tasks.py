@@ -50,7 +50,7 @@ async def create_sync_task(request: Request):
             )
 
         # 获取操作人
-        operator_id = request.ctx.user.id
+        operator_id = request.ctx.user["user_id"]
 
         # 创建服务
         redis_client = await cache_service._get_redis()
