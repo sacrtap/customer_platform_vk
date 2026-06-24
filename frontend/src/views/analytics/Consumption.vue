@@ -6,14 +6,18 @@
         <p class="header-subtitle">多维度客户消耗数据统计与趋势分析</p>
       </div>
       <div class="header-actions">
-        <a-button :loading="syncLoading" :disabled="syncLoading" @click="handleSync">
+        <a-button @click="showSyncDialog = true">
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
               <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
             </svg>
           </template>
-          {{ syncLoading ? '同步中...' : '数据同步' }}
+          数据同步
         </a-button>
+        <SyncDialog
+          v-model:visible="showSyncDialog"
+          @success="handleSyncSuccess"
+        />
         <a-button :loading="loading" @click="handleRefresh">
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -177,7 +181,7 @@ import {
 } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
+import SyncDialog from './components/SyncDialog.vue'
 
 const filters = reactive({
   start_date: '',
@@ -195,7 +199,7 @@ const topMetric = ref<'cost' | 'order_count'>('cost')
 
 const loading = ref(false)
 const syncLoading = ref(false)
-const trendChartRef = ref<HTMLElement>()
+const showSyncDialog = ref(false)
 const deviceChartRef = ref<HTMLElement>()
 let trendChart: ECharts | null = null
 let deviceChart: ECharts | null = null
@@ -286,27 +290,10 @@ const handleRefresh = async () => {
   }
 }
 
-// 同步数据
-const handleSync = async () => {
-  syncLoading.value = true
-  try {
-    const res = await manualSyncConsumption()
-    if (res.code === 0) {
-      Message.success(`同步成功！订单：${res.data.order_sync.success}条，费用：${res.data.cost_calc.calculated}条`)
-      // 同步完成后自动刷新数据
-      await loadData()
-    } else {
-      Message.error(res.message || '同步失败')
-    }
-  } catch (error: unknown) {
-    const msg =
-      error instanceof Error
-        ? error.message
-        : (error as { message?: string })?.message || '同步失败'
-    Message.error(msg)
-  } finally {
-    syncLoading.value = false
-  }
+// 同步成功回调
+const handleSyncSuccess = async () => {
+  Message.success('数据同步完成，正在刷新...')
+  await loadData()
 }
 // 加载趋势数据
 const loadTrendData = async (forceRefresh = false) => {

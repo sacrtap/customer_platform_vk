@@ -1,0 +1,41 @@
+import request from './index'
+
+export interface CreateSyncTaskParams {
+  start_date: string
+  end_date: string
+  sync_mode: 'skip_existing' | 'force_overwrite'
+}
+
+export interface SyncTask {
+  task_id: string
+  status: string
+  sync_mode: string
+  total_days: number
+  completed_days: number
+  skipped_days: number
+  current_date: string | null
+  success_count: number
+  failed_count: number
+  percentage: number
+  error_message: string | null
+  start_date?: string
+  end_date?: string
+  operator_id?: number
+  created_at?: string
+  completed_at?: string
+}
+
+export async function createSyncTask(params: CreateSyncTaskParams): Promise<SyncTask> {
+  const res = await request.post('/sync-tasks', params)
+  return res.data
+}
+
+export async function getSyncTaskProgress(taskId: string): Promise<SyncTask> {
+  const res = await request.get(`/sync-tasks/${taskId}/progress`)
+  return res.data
+}
+
+export async function getSyncTask(taskId: string): Promise<SyncTask> {
+  const res = await request.get(`/sync-tasks/${taskId}`)
+  return res.data
+}
