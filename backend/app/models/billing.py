@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel
@@ -190,6 +191,27 @@ class SyncTaskLog(BaseModel):
 
     # 错误信息
     error_message = Column(Text, nullable=True, comment="错误信息")
+
+    # 消费同步审计字段
+    task_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("sync_tasks.id"),
+        nullable=True,
+        comment="关联任务ID",
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True,
+        comment="操作人",
+    )
+    start_date = Column(Date, nullable=True, comment="同步开始日期")
+    end_date = Column(Date, nullable=True, comment="同步结束日期")
+    sync_mode = Column(
+        String(20),
+        nullable=True,
+        comment="同步模式: skip_existing/force_overwrite",
+    )
 
 
 class AuditLog(BaseModel):
