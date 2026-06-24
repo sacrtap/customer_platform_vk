@@ -39,3 +39,6 @@ export async function getSyncTask(taskId: string): Promise<SyncTask> {
   const res = await request.get(`/sync-tasks/${taskId}`)
   return res.data
 }
+export async function cancelSyncTask(taskId: string): Promise<void> {
+  await request.post(`/sync-tasks/${taskId}/cancel`)
+}

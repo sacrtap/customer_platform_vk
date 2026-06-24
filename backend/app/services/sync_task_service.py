@@ -89,6 +89,7 @@ class SyncTaskService:
             raise ValueError(f"任务不存在: {task_id}")
 
         lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
+        cancel_key = f"sync_cancel:{task_id}"  # 取消标志 key
 
         try:
             # 更新状态为 running
@@ -108,6 +109,16 @@ class SyncTaskService:
 
                 # 逐天执行
                 for sync_date in dates:
+                    # 检查取消标志
+                    if await self.redis_client.exists(cancel_key):
+                        task.status = "cancelled"
+                        task.completed_at = datetime.now(timezone.utc)
+                        duration = (task.completed_at - start_time).total_seconds()
+                        await self._update_audit_log(task, "cancelled", duration)
+                        await self.db.commit()
+                        await self._update_redis_progress(task)
+                        return  # 提前退出，不回滚
+
                     task.current_date = sync_date
                     await self.db.commit()
 
@@ -169,8 +180,22 @@ class SyncTaskService:
                 await self._update_redis_progress(task)
 
         finally:
-            # 无论发生什么，确保释放锁
+            # 无论发生什么，确保释放锁和清理取消标志
             await self.redis_client.delete(lock_key)
+            await self.redis_client.delete(cancel_key)
+
+    async def cancel_task(self, task_id: UUID) -> bool:
+        """取消同步任务"""
+        task = await self.db.get(SyncTask, task_id)
+        if not task:
+            raise ValueError(f"任务不存在: {task_id}")
+
+        if task.status != "running":
+            raise ValueError(f"任务状态为 {task.status}，无法取消")
+
+        cancel_key = f"sync_cancel:{task_id}"
+        await self.redis_client.set(cancel_key, "1", ex=3600)
+        return True
 
     async def get_progress(self, task_id: UUID) -> dict:
         """获取任务进度"""

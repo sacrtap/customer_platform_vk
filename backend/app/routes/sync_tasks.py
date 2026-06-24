@@ -150,3 +150,26 @@ async def get_sync_task_progress(request: Request, task_id: UUID):
     except Exception as e:
         logger.error(f"获取任务进度失败: {e}")
         return json({"code": 500, "message": f"获取进度失败: {str(e)}"}, status=500)
+
+
+@sync_tasks_bp.post("/<task_id:uuid>/cancel")
+@auth_required
+async def cancel_sync_task(request: Request, task_id: UUID):
+    """取消同步任务"""
+    try:
+        redis_client = await cache_service._get_redis()
+        service = SyncTaskService(db=request.ctx.db_session, redis_client=redis_client)
+
+        await service.cancel_task(task_id)
+
+        return json(
+            {
+                "code": 0,
+                "message": "任务已取消",
+            }
+        )
+    except ValueError as e:
+        return json({"code": 400, "message": str(e)}, status=400)
+    except Exception as e:
+        logger.error(f"取消任务失败: {e}")
+        return json({"code": 500, "message": f"取消失败: {str(e)}"}, status=500)

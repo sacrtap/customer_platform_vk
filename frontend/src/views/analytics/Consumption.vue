@@ -6,17 +6,27 @@
         <p class="header-subtitle">多维度客户消耗数据统计与趋势分析</p>
       </div>
       <div class="header-actions">
-        <a-button @click="showSyncDialog = true">
+        <a-button
+          :disabled="isSyncing"
+          @click="handleSyncButtonClick"
+        >
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
               <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
             </svg>
           </template>
-          数据同步
+          <template v-if="isSyncing">
+            数据同步 {{ syncProgress?.percentage }}%
+          </template>
+          <template v-else>
+            数据同步
+          </template>
         </a-button>
         <SyncDialog
           v-model:visible="showSyncDialog"
+          v-model:minimized="syncMinimized"
           @success="handleSyncSuccess"
+          @progress="handleProgressUpdate"
         />
         <a-button :loading="loading" @click="handleRefresh">
           <template #icon>
@@ -166,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -178,6 +188,7 @@ import {
   type TopCustomer,
   type DeviceDistributionItem,
 } from '@/api/analytics'
+import type { SyncTask } from '@/api/syncTasks'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
@@ -199,6 +210,27 @@ const topMetric = ref<'cost' | 'order_count'>('cost')
 
 const loading = ref(false)
 const showSyncDialog = ref(false)
+const syncMinimized = ref(false)
+const syncProgress = ref<SyncTask | null>(null)
+
+const isSyncing = computed(() => {
+  return !!(syncProgress.value &&
+         syncProgress.value.status === 'running' &&
+         syncProgress.value.percentage < 100)
+})
+
+const handleProgressUpdate = (progress: SyncTask) => {
+  syncProgress.value = progress
+}
+
+const handleSyncButtonClick = () => {
+  if (isSyncing.value) {
+    // 任务进行中，重新打开进度框
+    syncMinimized.value = false
+  }
+  showSyncDialog.value = true
+}
+
 const trendChartRef = ref<HTMLElement>()
 const deviceChartRef = ref<HTMLElement>()
 let trendChart: ECharts | null = null

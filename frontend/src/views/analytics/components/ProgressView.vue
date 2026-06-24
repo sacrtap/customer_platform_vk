@@ -16,6 +16,9 @@
         <template v-else-if="progress.status === 'completed'">
           <span>同步完成</span>
         </template>
+        <template v-else-if="progress.status === 'cancelled'">
+          <span>同步已取消</span>
+        </template>
         <template v-else-if="progress.status === 'failed'">
           <span>同步失败：{{ progress.error_message || '未知错误' }}</span>
         </template>

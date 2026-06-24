@@ -55,16 +55,19 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import { createSyncTask, getSyncTaskProgress, type SyncTask } from '@/api/syncTasks'
+import { createSyncTask, getSyncTaskProgress, cancelSyncTask, type SyncTask } from '@/api/syncTasks'
 import ProgressView from './ProgressView.vue'
 
 const props = defineProps<{
   visible: boolean
+  minimized?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
+  (e: 'update:minimized', value: boolean): void
   (e: 'success'): void
+  (e: 'progress', progress: SyncTask): void
 }>()
 
 // 内部 visible 状态管理
@@ -179,6 +182,17 @@ const handleBeforeOk = async () => {
     } finally {
       loading.value = false
     }
+  } else if (state.value === 'polling') {
+    // 取消任务
+    try {
+      await cancelSyncTask(taskId.value)
+      Message.info('正在取消任务...')
+      // 继续轮询直到状态变为 cancelled
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '取消失败'
+      Message.error(message)
+    }
+    return false
   } else if (state.value === 'result') {
     if (progress.value.status === 'failed') {
       // 重试
@@ -189,14 +203,20 @@ const handleBeforeOk = async () => {
   }
   return false
 }
-
 const handleCancel = () => {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
+  if (state.value === 'polling') {
+    // 隐藏模式：关闭 modal 但继续轮询
+    emit('update:minimized', true)
+    emit('update:visible', false)
+  } else {
+    // 输入或结果状态：真正关闭
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
+    state.value = 'input'
+    emit('update:visible', false)
   }
-  state.value = 'input'
-  emit('update:visible', false)
 }
 
 const startPolling = () => {
@@ -204,8 +224,9 @@ const startPolling = () => {
     try {
       const result = await getSyncTaskProgress(taskId.value)
       progress.value = result
+      emit('progress', result)
 
-      if (result.status === 'completed' || result.status === 'failed') {
+      if (result.status === 'completed' || result.status === 'failed' || result.status === 'cancelled') {
         if (pollInterval) {
           clearInterval(pollInterval)
           pollInterval = null
@@ -232,7 +253,7 @@ const formatDate = (value: Date | string): string => {
 watch(
   () => props.visible,
   (newVal) => {
-    if (!newVal) {
+    if (!newVal && !props.minimized) {
       if (pollInterval) {
         clearInterval(pollInterval)
         pollInterval = null
