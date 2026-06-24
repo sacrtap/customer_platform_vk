@@ -195,23 +195,24 @@ class CostCalcService:
             Calculated cost as Decimal
         """
         quantity = order_group["total_floor_count"]
+        unit_price = Decimal(str(pricing_rule.unit_price or 0))
 
         if pricing_rule.pricing_type == "tiered":
             return self._calc_tiered(quantity, pricing_rule)
         elif pricing_rule.pricing_type == "package":
             return self._calc_package(pricing_rule)
         else:  # fixed
-            return self._calc_unified(quantity, pricing_rule.unit_price)
+            return self._calc_unified(quantity, unit_price)
 
     def _calc_unified(self, quantity: int, unit_price: Decimal) -> Decimal:
         """统一价格结算"""
-        return Decimal(quantity) * unit_price
+        return Decimal(quantity) * Decimal(str(unit_price))
 
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
         tiers = pricing_rule.tiers or []
         if not tiers:
-            return (pricing_rule.unit_price or Decimal("0.00")) * quantity
+            return Decimal(str(pricing_rule.unit_price or 0)) * quantity
 
         # Sort tiers by min_quantity
         sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))
@@ -227,7 +228,7 @@ class CostCalcService:
             max_qty = tier.get("max_quantity", 999999)
             tier_range = max_qty - min_qty
             tier_quantity = min(remaining, tier_range)
-            tier_price = tier.get("price", pricing_rule.unit_price)
+            tier_price = Decimal(str(tier.get("price", pricing_rule.unit_price or 0)))
             total_cost += Decimal(tier_quantity) * tier_price
             remaining -= tier_quantity
 
@@ -235,4 +236,4 @@ class CostCalcService:
 
     def _calc_package(self, pricing_rule: PricingRule) -> Decimal:
         """包年价格结算（按日分摊）"""
-        return (pricing_rule.unit_price or Decimal("0.00")).quantize(Decimal("0.01"))
+        return Decimal(str(pricing_rule.unit_price or 0)).quantize(Decimal("0.01"))

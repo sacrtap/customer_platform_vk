@@ -299,7 +299,11 @@ const handleSync = async () => {
       Message.error(res.message || '同步失败')
     }
   } catch (error: unknown) {
-    Message.error(error instanceof Error ? error.message : '同步失败')
+    const msg =
+      error instanceof Error
+        ? error.message
+        : (error as { message?: string })?.message || '同步失败'
+    Message.error(msg)
   } finally {
     syncLoading.value = false
   }

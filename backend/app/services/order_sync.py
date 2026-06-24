@@ -55,22 +55,28 @@ class OrderSyncService:
 
     async def sync_orders(self, sync_date: date) -> SyncResult:
         """同步指定日期的订单"""
+        # 1. 先获取新订单（异常时返回错误结果）
         try:
-            # 1. 先清空该日期的所有旧订单
-            await self._clear_orders(sync_date)
-
-            # 2. 获取新订单
             orders = await self._fetch_orders(sync_date)
-            if not orders:
-                return SyncResult(
-                    success=0, failed=0, skipped=0, unmatched=0, message="没有新订单需要同步"
-                )
-
-            # 3. 匹配客户并保存
-            return await self._match_and_save(orders=orders, sync_date=sync_date)
         except Exception as e:
-            logger.error("订单同步失败: %s", e)
-            return SyncResult(success=0, failed=0, skipped=0, unmatched=0, message=str(e))
+            return SyncResult(
+                success=0,
+                failed=0,
+                skipped=0,
+                unmatched=0,
+                message=f"获取外部订单失败: {e}",
+            )
+
+        if not orders:
+            return SyncResult(
+                success=0, failed=0, skipped=0, unmatched=0, message="没有新订单需要同步"
+            )
+
+        # 2. 清空该日期的所有旧订单
+        await self._clear_orders(sync_date)
+
+        # 3. 匹配客户并保存
+        return await self._match_and_save(orders=orders, sync_date=sync_date)
 
     async def _fetch_orders(self, sync_date: date) -> List[Dict]:
         """从外部 MySQL 获取订单

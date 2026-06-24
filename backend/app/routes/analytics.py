@@ -175,10 +175,18 @@ async def manual_sync_consumption(request: Request):
     # 并发控制：使用 Redis 分布式锁
     lock_key = "sync_consumption_lock"
     lock_ttl = 300  # 5分钟超时
+    redis_client = None
 
     # 尝试获取锁
-    redis_client = await cache_service._get_redis()
-    acquired = await redis_client.set(lock_key, "1", nx=True, ex=lock_ttl)
+    try:
+        redis_client = await cache_service._get_redis()
+        acquired = await redis_client.set(lock_key, "1", nx=True, ex=lock_ttl)
+    except Exception as e:
+        logger.error("Redis 锁获取失败: %s", e)
+        return json(
+            {"code": 503, "message": f"同步服务暂不可用（锁服务异常）：{str(e)}"},
+            status=503,
+        )
 
     if not acquired:
         return json(
@@ -191,13 +199,26 @@ async def manual_sync_consumption(request: Request):
     try:
         # 同步订单数据（昨日）
         sync_date = date.today() - timedelta(days=1)
+        logger.info("开始数据同步，日期: %s", sync_date)
         external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
         order_service = OrderSyncService(db_session, external_engine=external_engine)
         order_result = await order_service.sync_orders(sync_date=sync_date)
+        logger.info(
+            "订单同步完成: success=%d, failed=%d, message=%s",
+            order_result.success,
+            order_result.failed,
+            order_result.message,
+        )
 
         # 计算费用（昨日）
         cost_service = CostCalcService(db_session)
         cost_result = await cost_service.calculate_daily_cost(consumption_date=sync_date)
+        logger.info(
+            "费用计算完成: total=%d, calculated=%d, no_rule=%d",
+            cost_result["total_customers"],
+            cost_result["calculated"],
+            cost_result["no_rule"],
+        )
 
         # 清除消费分析的缓存，确保前端能获取最新数据
         await cache_service.invalidate_pattern("cache:analytics_*")
@@ -226,7 +247,11 @@ async def manual_sync_consumption(request: Request):
         return json({"code": 500, "message": f"同步失败：{str(e)}"}, status=500)
     finally:
         # 释放锁
-        await redis_client.delete(lock_key)
+        if redis_client:
+            try:
+                await redis_client.delete(lock_key)
+            except Exception:
+                logger.warning("Redis 锁释放失败，将等待自动过期")
 
 
 @analytics.route("/payment/analysis", methods=["GET"])
