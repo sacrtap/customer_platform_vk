@@ -28,6 +28,8 @@ def init_scheduler(app):
         session_factory = app.ctx.async_session_maker
 
         # 导入任务函数
+        from ..cache.base import cache_service
+        from ..services.sync_task_service import SyncTaskService
         from .balance_check import check_balance_warning
         from .cost_calc import calc_daily_cost
         from .email_tasks import send_overdue_emails
@@ -107,6 +109,23 @@ def init_scheduler(app):
             trigger=CronTrigger(hour=1, minute=30),
             id="calc_daily_cost",
             name="每日费用计算",
+            replace_existing=True,
+        )
+
+        # 卡住任务检测：每小时检查一次运行超过 60 分钟的同步任务
+        async def check_stuck_sync_tasks():
+            redis_client = await cache_service._get_redis()
+            async with session_factory() as session:
+                service = SyncTaskService(db=session, redis_client=redis_client)
+                recovered = await service.check_stuck_tasks(max_running_minutes=60)
+                if recovered > 0:
+                    logger.warning(f"检测到 {recovered} 个卡住的同步任务，已标记为失败")
+
+        scheduler.add_job(
+            check_stuck_sync_tasks,
+            trigger=IntervalTrigger(hours=1),
+            id="check_stuck_sync_tasks",
+            name="卡住同步任务检测",
             replace_existing=True,
         )
 

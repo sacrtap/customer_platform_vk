@@ -1,5 +1,6 @@
 """订单同步服务"""
 
+import asyncio
 import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -131,17 +132,28 @@ class OrderSyncService:
                 return _rows_to_dicts(result.fetchall())
         else:
             config = self.external_db_config
-            conn = await aiomysql.connect(
-                host=config["host"],
-                port=config["port"],
-                user=config["user"],
-                password=config["password"],
-                db=config["db"],
+            conn = await asyncio.wait_for(
+                aiomysql.connect(
+                    host=config["host"],
+                    port=config["port"],
+                    user=config["user"],
+                    password=config["password"],
+                    db=config["db"],
+                    connect_timeout=10,
+                ),
+                timeout=15,
             )
             try:
                 async with conn.cursor() as cursor:
-                    await cursor.execute(SQL_AIOMYSQL, (sync_date,))
-                    return _rows_to_dicts(await cursor.fetchall())
+                    await asyncio.wait_for(
+                        cursor.execute(SQL_AIOMYSQL, (sync_date,)),
+                        timeout=30,
+                    )
+                    rows = await asyncio.wait_for(
+                        cursor.fetchall(),
+                        timeout=30,
+                    )
+                    return _rows_to_dicts(rows)
             finally:
                 if conn:
                     conn.close()
@@ -190,11 +202,11 @@ class OrderSyncService:
                     result.unmatched += 1
                     continue
 
-                # 检查订单是否已存在
+                # 检查订单是否已存在（使用与唯一约束一致的字段）
                 existing = await self.db.execute(
                     select(DailyOrder).where(
                         DailyOrder.order_code == order_code,
-                        DailyOrder.sync_date == sync_date,
+                        DailyOrder.create_date == order.get("create_date"),
                     )
                 )
                 if existing.scalar_one_or_none():

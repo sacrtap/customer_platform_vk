@@ -26,6 +26,7 @@ def mock_redis():
     redis.hset = AsyncMock()
     redis.expire = AsyncMock()
     redis.hgetall = AsyncMock(return_value={})
+    redis.exists = AsyncMock(return_value=False)
     return redis
 
 
@@ -270,6 +271,56 @@ class TestExecuteTask:
             assert task.completed_days == 2
             assert task.failed_count == 1
 
+    async def test_execute_task_cancelled(self, service, mock_db, mock_redis):
+        """测试任务取消"""
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        task = SyncTask(
+            id=task_id,
+            start_date=date.today() - timedelta(days=2),
+            end_date=date.today(),
+            sync_mode="skip_existing",
+            status="pending",
+            total_days=3,
+            completed_days=0,
+            skipped_days=0,
+            success_count=0,
+            failed_count=0,
+            operator_id=1,
+        )
+        mock_db.get = AsyncMock(return_value=task)
+        mock_db.commit = AsyncMock()
+        # 设置取消标志
+        mock_redis.exists = AsyncMock(return_value=True)
+
+        with (
+            patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
+        ):
+            await service.execute_task(task_id)
+
+            assert task.status == "cancelled"
+            assert task.completed_at is not None
+
+    async def test_cancel_task_success(self, service, mock_db, mock_redis):
+        """测试成功取消任务"""
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        task = SyncTask(id=task_id, status="running")
+        mock_db.get = AsyncMock(return_value=task)
+
+        result = await service.cancel_task(task_id)
+
+        assert result is True
+        mock_redis.set.assert_called_once()
+
+    async def test_cancel_task_not_running(self, service, mock_db):
+        """测试取消非运行中的任务"""
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        task = SyncTask(id=task_id, status="completed")
+        mock_db.get = AsyncMock(return_value=task)
+
+        with pytest.raises(ValueError, match="任务状态为 completed，无法取消"):
+            await service.cancel_task(task_id)
+
 
 class TestGetProgress:
     """get_progress 方法测试"""
@@ -300,7 +351,7 @@ class TestGetProgress:
         assert progress["status"] == "running"
         assert progress["completed_days"] == 5
         assert progress["skipped_days"] == 2
-        assert progress["percentage"] == 71
+        assert progress["percentage"] == 0.71
 
     async def test_get_progress_fallback_to_db(self, service, mock_db, mock_redis):
         """测试 Redis 无数据时回退到数据库"""
@@ -326,6 +377,49 @@ class TestGetProgress:
         # 验证
         assert progress["status"] == "completed"
         assert progress["completed_days"] == 7
+
+    async def test_get_progress_redis_empty_values(self, service, mock_redis):
+        """测试 Redis 返回空值时的安全解码"""
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                b"status": b"running",
+                b"sync_mode": b"",
+                b"total_days": b"",
+                b"completed_days": b"0",
+                b"skipped_days": b"0",
+                b"current_date": b"",
+                b"success_count": b"0",
+                b"failed_count": b"0",
+                b"percentage": b"0",
+                b"error_message": b"",
+            }
+        )
+
+        progress = await service.get_progress(task_id)
+
+        assert progress["status"] == "running"
+        assert progress["total_days"] == 0
+        assert progress["current_date"] is None
+        assert progress["error_message"] is None
+
+    async def test_get_progress_redis_missing_fields(self, service, mock_redis):
+        """测试 Redis 缺少部分字段时的容错"""
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        # 只返回部分字段
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                b"status": b"running",
+                b"percentage": b"50",
+            }
+        )
+
+        progress = await service.get_progress(task_id)
+
+        assert progress["status"] == "running"
+        assert progress["percentage"] == 0.5
+        assert progress["total_days"] == 0
+        assert progress["completed_days"] == 0
 
 
 class TestGetTask:

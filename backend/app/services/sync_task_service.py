@@ -48,36 +48,41 @@ class SyncTaskService:
         if not lock_acquired:
             raise Exception("已有相同周期的同步任务正在执行")
 
-        # 创建任务记录
-        task = SyncTask(
-            start_date=start_date,
-            end_date=end_date,
-            sync_mode=sync_mode,
-            status="pending",
-            total_days=days_delta,
-            operator_id=operator_id,
-        )
-        self.db.add(task)
-        await self.db.commit()
-        await self.db.refresh(task)
+        try:
+            # 创建任务记录
+            task = SyncTask(
+                start_date=start_date,
+                end_date=end_date,
+                sync_mode=sync_mode,
+                status="pending",
+                total_days=days_delta,
+                operator_id=operator_id,
+            )
+            self.db.add(task)
+            await self.db.commit()
+            # 不需要 refresh：task.id 是客户端生成的 UUID，已立即可用
 
-        # 写入审计日志
-        audit_log = SyncTaskLog(
-            task_name="consumption_sync",
-            status="pending",
-            task_id=task.id,
-            operator_id=operator_id,
-            start_date=start_date,
-            end_date=end_date,
-            sync_mode=sync_mode,
-        )
-        self.db.add(audit_log)
-        await self.db.commit()
+            # 写入审计日志
+            audit_log = SyncTaskLog(
+                task_name="consumption_sync",
+                status="pending",
+                task_id=task.id,
+                operator_id=operator_id,
+                start_date=start_date,
+                end_date=end_date,
+                sync_mode=sync_mode,
+            )
+            self.db.add(audit_log)
+            await self.db.commit()
 
-        # 初始化 Redis 进度
-        await self._update_redis_progress(task)
+            # 初始化 Redis 进度
+            await self._update_redis_progress(task)
 
-        return task
+            return task
+        except Exception:
+            # 创建失败时释放锁
+            await self.redis_client.delete(lock_key)
+            raise
 
     async def execute_task(self, task_id: UUID) -> None:
         """执行同步任务（后台异步）"""
@@ -92,6 +97,14 @@ class SyncTaskService:
         cancel_key = f"sync_cancel:{task_id}"  # 取消标志 key
 
         try:
+            # 检查任务是否在 pending 阶段已被取消
+            if await self.redis_client.exists(cancel_key):
+                task.status = "cancelled"
+                task.completed_at = datetime.now(timezone.utc)
+                await self.db.commit()
+                await self._update_redis_progress(task)
+                return
+
             # 更新状态为 running
             task.status = "running"
             await self.db.commit()
@@ -121,6 +134,7 @@ class SyncTaskService:
 
                     task.current_date = sync_date
                     await self.db.commit()
+                    await self._update_redis_progress(task)
 
                     try:
                         # skip_existing 模式：检查是否已有数据
@@ -153,6 +167,8 @@ class SyncTaskService:
                     except Exception:
                         # 单天失败不中断整体流程
                         task.failed_count += 1
+                        # 确保 session 状态正确，避免 PendingRollbackError
+                        await self.db.rollback()
 
                     await self.db.commit()
                     await self._update_redis_progress(task)
@@ -185,17 +201,107 @@ class SyncTaskService:
             await self.redis_client.delete(cancel_key)
 
     async def cancel_task(self, task_id: UUID) -> bool:
-        """取消同步任务"""
+        """取消同步任务
+
+        - pending: 后台执行尚未开始，立即标记为 cancelled
+        - running: 后台执行进行中，设置 Redis 取消标志 + 立即更新状态为 cancelled，
+          执行循环检测到标志后会跳过剩余天数
+        """
         task = await self.db.get(SyncTask, task_id)
         if not task:
             raise ValueError(f"任务不存在: {task_id}")
 
-        if task.status != "running":
+        if task.status not in ["pending", "running"]:
             raise ValueError(f"任务状态为 {task.status}，无法取消")
 
+        # 设置 Redis 取消标志，供 execute_task 循环检测
         cancel_key = f"sync_cancel:{task_id}"
         await self.redis_client.set(cancel_key, "1", ex=3600)
+
+        # 立即更新数据库状态为 cancelled，让前端列表即时反映取消结果
+        task.status = "cancelled"
+        task.completed_at = datetime.now(timezone.utc)
+        await self.db.commit()
+
+        # 更新 Redis 进度缓存
+        await self._update_redis_progress(task)
+
         return True
+
+    async def recover_stuck_tasks(self, max_running_minutes: int = 30) -> int:
+        """恢复卡住的任务：将 running 状态的任务标记为 failed
+
+        判断条件（满足任一即恢复）：
+        1. Redis 中不存在对应的进度 key（进程已死亡）
+        2. 任务运行时间超过 max_running_minutes（疑似卡住）
+
+        Args:
+            max_running_minutes: 最大允许运行时间（分钟），默认 30 分钟
+
+        Returns:
+            恢复的任务数量
+        """
+        result = await self.db.execute(select(SyncTask).where(SyncTask.status == "running"))
+        running_tasks = result.scalars().all()
+
+        recovered = 0
+        now = datetime.now()
+
+        for task in running_tasks:
+            progress_key = f"sync_progress:{task.id}"
+            should_recover = False
+            reason = ""
+
+            # 检查 1: Redis 进度 key 是否存在
+            if not await self.redis_client.exists(progress_key):
+                should_recover = True
+                reason = "任务执行进程异常终止（Redis 进度信息已消失）"
+            else:
+                # 检查 2: 任务运行时长是否超过阈值
+                running_duration = now - task.created_at
+                running_minutes = running_duration.total_seconds() / 60
+
+                if running_minutes > max_running_minutes:
+                    should_recover = True
+                    reason = f"任务运行超过 {max_running_minutes} 分钟（实际 {running_minutes:.1f} 分钟），疑似卡住"
+
+            if should_recover:
+                task.status = "failed"
+                task.error_message = reason
+                task.completed_at = now
+                await self.db.commit()
+                recovered += 1
+
+        return recovered
+
+    async def check_stuck_tasks(self, max_running_minutes: int = 60) -> int:
+        """检测并处理卡住的任务（定期检测用）
+
+        判断条件：status = 'running' 且运行时间超过 max_running_minutes
+
+        Args:
+            max_running_minutes: 最大允许运行时间（分钟），默认 60 分钟
+
+        Returns:
+            标记为 failed 的任务数量
+        """
+        threshold = datetime.now() - timedelta(minutes=max_running_minutes)
+
+        result = await self.db.execute(
+            select(SyncTask).where(
+                SyncTask.status == "running",
+                SyncTask.created_at < threshold,
+            )
+        )
+        stuck_tasks = result.scalars().all()
+
+        for task in stuck_tasks:
+            task.status = "failed"
+            task.error_message = f"任务运行超过 {max_running_minutes} 分钟，疑似卡住"
+            task.completed_at = datetime.now()
+            await self.db.commit()
+
+        return len(stuck_tasks)
 
     async def get_progress(self, task_id: UUID) -> dict:
         """获取任务进度"""
@@ -204,19 +310,31 @@ class SyncTaskService:
         progress_data = await self.redis_client.hgetall(progress_key)
 
         if progress_data:
+            # 辅助函数：安全解码 bytes 值
+            def decode_bytes(val, default=""):
+                if val is None:
+                    return default
+                if isinstance(val, bytes):
+                    return val.decode("utf-8")
+                return str(val)
+
             # 解码 Redis 数据
+            # percentage 从 0-100 整数转换为 0-1 小数（Arco Design 期望格式）
+            percentage_int = int(decode_bytes(progress_data.get(b"percentage"), "0") or "0")
             return {
                 "task_id": str(task_id),
-                "status": progress_data.get(b"status", b"").decode(),
-                "sync_mode": progress_data.get(b"sync_mode", b"").decode(),
-                "total_days": int(progress_data.get(b"total_days", 0)),
-                "completed_days": int(progress_data.get(b"completed_days", 0)),
-                "skipped_days": int(progress_data.get(b"skipped_days", 0)),
-                "current_date": progress_data.get(b"current_date", b"").decode() or None,
-                "success_count": int(progress_data.get(b"success_count", 0)),
-                "failed_count": int(progress_data.get(b"failed_count", 0)),
-                "percentage": int(progress_data.get(b"percentage", 0)),
-                "error_message": progress_data.get(b"error_message", b"").decode() or None,
+                "status": decode_bytes(progress_data.get(b"status")),
+                "sync_mode": decode_bytes(progress_data.get(b"sync_mode")),
+                "total_days": int(decode_bytes(progress_data.get(b"total_days"), "0") or "0"),
+                "completed_days": int(
+                    decode_bytes(progress_data.get(b"completed_days"), "0") or "0"
+                ),
+                "skipped_days": int(decode_bytes(progress_data.get(b"skipped_days"), "0") or "0"),
+                "current_date": decode_bytes(progress_data.get(b"current_date")) or None,
+                "success_count": int(decode_bytes(progress_data.get(b"success_count"), "0") or "0"),
+                "failed_count": int(decode_bytes(progress_data.get(b"failed_count"), "0") or "0"),
+                "percentage": percentage_int / 100.0,  # 转换为 0-1 小数
+                "error_message": decode_bytes(progress_data.get(b"error_message")) or None,
             }
 
         # 回退到数据库
@@ -224,9 +342,8 @@ class SyncTaskService:
         if not task:
             raise ValueError(f"任务不存在: {task_id}")
 
-        percentage = (
-            int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
-        )
+        # percentage 转换为 0-1 小数（Arco Design 期望格式）
+        percentage: float = task.completed_days / task.total_days if task.total_days > 0 else 0.0
 
         return {
             "task_id": str(task.id),
@@ -238,7 +355,7 @@ class SyncTaskService:
             "current_date": task.current_date.isoformat() if task.current_date else None,
             "success_count": task.success_count,
             "failed_count": task.failed_count,
-            "percentage": percentage,
+            "percentage": percentage,  # 0-1 小数
             "error_message": task.error_message,
         }
 
@@ -249,12 +366,115 @@ class SyncTaskService:
             raise ValueError(f"任务不存在: {task_id}")
         return task
 
+    async def list_tasks(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        status: str = None,
+    ) -> dict:
+        """获取任务列表（分页）"""
+        from sqlalchemy import desc as sa_desc
+        from sqlalchemy import func
+        from sqlalchemy.orm import selectinload
+
+        query = select(SyncTask).options(selectinload(SyncTask.operator))
+        count_query = select(func.count(SyncTask.id))
+
+        if status:
+            query = query.where(SyncTask.status == status)
+            count_query = count_query.where(SyncTask.status == status)
+
+        # 获取总数
+        total_result = await self.db.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # 分页查询
+        offset = (page - 1) * page_size
+        query = query.order_by(sa_desc(SyncTask.created_at)).offset(offset).limit(page_size)
+
+        result = await self.db.execute(query)
+        tasks = result.scalars().all()
+
+        return {
+            "list": [self._task_to_dict(task) for task in tasks],
+            "pagination": {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        }
+
+    async def get_stats(self) -> dict:
+        """获取任务统计数据"""
+        from datetime import datetime, timedelta
+
+        from sqlalchemy import func
+
+        # 总任务数
+        total_result = await self.db.execute(select(func.count(SyncTask.id)))
+        total_tasks = total_result.scalar() or 0
+
+        # 成功任务数
+        success_result = await self.db.execute(
+            select(func.count(SyncTask.id)).where(SyncTask.status == "completed")
+        )
+        success_count = success_result.scalar() or 0
+
+        # 成功率 = 成功完成的任务数 / 总提交任务数 × 100%（PRD 定义）
+        success_rate = round((success_count / total_tasks * 100), 1) if total_tasks > 0 else 0
+
+        # 24 小时内统计（使用 naive datetime 匹配数据库）
+        now = datetime.now()
+        last_24h = now - timedelta(hours=24)
+
+        last_24h_total_result = await self.db.execute(
+            select(func.count(SyncTask.id)).where(SyncTask.created_at >= last_24h)
+        )
+        last_24h_total = last_24h_total_result.scalar() or 0
+
+        last_24h_failed_result = await self.db.execute(
+            select(func.count(SyncTask.id)).where(
+                SyncTask.created_at >= last_24h,
+                SyncTask.status == "failed",
+            )
+        )
+        last_24h_failed = last_24h_failed_result.scalar() or 0
+
+        return {
+            "total_tasks": total_tasks,
+            "success_rate": success_rate,
+            "last_24h": {
+                "total": last_24h_total,
+                "failed": last_24h_failed,
+            },
+        }
+
+    def _task_to_dict(self, task: SyncTask) -> dict:
+        """将任务对象转换为字典"""
+        return {
+            "task_id": str(task.id),
+            "start_date": task.start_date.isoformat(),
+            "end_date": task.end_date.isoformat(),
+            "sync_mode": task.sync_mode,
+            "status": task.status,
+            "total_days": task.total_days,
+            "completed_days": task.completed_days,
+            "skipped_days": task.skipped_days,
+            "success_count": task.success_count,
+            "failed_count": task.failed_count,
+            "error_message": task.error_message,
+            "operator_id": task.operator_id,
+            "operator_name": task.operator.real_name if task.operator else None,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        }
+
     async def _update_redis_progress(self, task: SyncTask) -> None:
         """更新 Redis 进度"""
         progress_key = f"sync_progress:{task.id}"
-        percentage = (
-            int((task.completed_days / task.total_days) * 100) if task.total_days > 0 else 0
-        )
+        total_days = task.total_days or 0
+        completed_days = task.completed_days or 0
+        percentage = int((completed_days / total_days) * 100) if total_days > 0 else 0
 
         progress_data = {
             "status": task.status,

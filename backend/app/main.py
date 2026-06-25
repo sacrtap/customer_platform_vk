@@ -180,6 +180,23 @@ def create_app(
         logger = logging.getLogger(__name__)
         logger.info(f"🚀 {settings.app_name} 启动在 {settings.host}:{settings.port}")
 
+        # 恢复卡住的同步任务
+        if is_async:
+            try:
+                from app.cache.base import cache_service
+                from app.services.sync_task_service import SyncTaskService
+
+                redis_client = await cache_service._get_redis()
+                async with async_session_maker() as session:
+                    service = SyncTaskService(db=session, redis_client=redis_client)
+                    recovered = await service.recover_stuck_tasks()
+                    if recovered > 0:
+                        logger.info(f"✓ 已恢复 {recovered} 个卡住的同步任务")
+                    else:
+                        logger.info("✓ 无卡住的同步任务")
+            except Exception as e:
+                logger.error(f"恢复卡住任务失败: {e}")
+
     # 应用关闭事件
     @app.after_server_stop
     async def on_shutdown(app, loop):
