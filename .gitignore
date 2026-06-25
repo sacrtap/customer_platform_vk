@@ -44,6 +44,7 @@ secrets/
 htmlcov/
 coverage/
 *.coverage.xml
+coverage.json
 docs/testing/coverage-reports/
 .nyc_output/
 .tox/
