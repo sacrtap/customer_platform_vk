@@ -42,3 +42,37 @@ export async function getSyncTask(taskId: string): Promise<SyncTask> {
 export async function cancelSyncTask(taskId: string): Promise<void> {
   await request.post(`/sync-tasks/${taskId}/cancel`)
 }
+
+export interface SyncTaskListParams {
+  page?: number
+  page_size?: number
+  status?: string
+}
+
+export interface SyncTaskListResponse {
+  list: SyncTask[]
+  pagination: {
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export interface SyncTaskStats {
+  total_tasks: number
+  success_rate: number
+  last_24h: {
+    total: number
+    failed: number
+  }
+}
+
+export async function getSyncTaskList(params?: SyncTaskListParams): Promise<SyncTaskListResponse> {
+  const res = await request.get('/sync-tasks', { params })
+  return res.data
+}
+
+export async function getSyncTaskStats(): Promise<SyncTaskStats> {
+  const res = await request.get('/sync-tasks/stats')
+  return res.data
+}

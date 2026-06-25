@@ -3,14 +3,14 @@
     <div class="page-header">
       <div class="header-title">
         <h1>同步任务日志</h1>
-        <p class="header-subtitle">查看定时任务执行历史</p>
+        <p class="header-subtitle">查看同步任务执行历史和状态</p>
       </div>
     </div>
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">总执行次数</div>
+        <div class="stat-label">总任务数</div>
         <div class="stat-value">{{ stats.total_tasks }}</div>
       </div>
       <div class="stat-card">
@@ -30,29 +30,17 @@
     <!-- 筛选区域 -->
     <div class="filter-section">
       <a-form layout="inline">
-        <a-form-item label="任务名称">
-          <a-select
-            v-model="filters.task_name"
-            placeholder="全部任务"
-            style="width: 200px"
-            allow-clear
-          >
-            <a-option value="sync_daily_usage">每日用量同步</a-option>
-            <a-option value="generate_monthly_invoices">月度结算单生成</a-option>
-            <a-option value="check_balance_warning">余额预警检查</a-option>
-            <a-option value="send_overdue_emails">逾期提醒邮件</a-option>
-            <a-option value="cleanup_temp_files">临时文件清理</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="状态">
+        <a-form-item label="任务状态">
           <a-select
             v-model="filters.status"
             placeholder="全部状态"
-            style="width: 150px"
+            style="width: 200px"
             allow-clear
           >
-            <a-option value="success">成功</a-option>
-            <a-option value="partial">部分成功</a-option>
+            <a-option value="pending">队列中</a-option>
+            <a-option value="running">执行中</a-option>
+            <a-option value="completed">已完成</a-option>
+            <a-option value="cancelled">已取消</a-option>
             <a-option value="failed">失败</a-option>
           </a-select>
         </a-form-item>
@@ -60,7 +48,7 @@
           <a-space>
             <a-button type="primary" @click="handleSearch">查询</a-button>
             <a-button @click="handleReset">重置</a-button>
-            <a-button @click="fetchLogs">
+            <a-button @click="() => fetchTasks()">
               <template #icon>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -85,31 +73,55 @@
     <!-- 表格 -->
     <div class="table-section">
       <div class="table-header">
-        <h3>执行记录</h3>
+        <h3>任务记录</h3>
       </div>
       <a-table
         :columns="columns"
-        :data="logs"
+        :data="tasks"
         :loading="loading"
         :pagination="pagination"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
+        <template #task_id="{ record }">
+          {{ record.task_id.substring(0, 8) }}
+        </template>
+        <template #period="{ record }">
+          {{ record.start_date }} ~ {{ record.end_date }}
+        </template>
+        <template #sync_mode="{ record }">
+          {{ record.sync_mode === 'skip_existing' ? '仅补充缺失' : '强制覆盖' }}
+        </template>
         <template #status="{ record }">
           <a-tag :color="getStatusColor(record.status)">
             {{ getStatusText(record.status) }}
           </a-tag>
         </template>
-        <template #counts="{ record }">
-          <div class="counts-cell">
-            <span>总计：{{ record.total_count }}</span>
-            <span class="success">成功：{{ record.success_count }}</span>
-            <span class="failed">失败：{{ record.failed_count }}</span>
-            <span class="skipped">跳过：{{ record.skipped_count }}</span>
+        <template #progress="{ record }">
+          <div v-if="record.status === 'running'" class="progress-cell">
+            <a-progress
+              :percent="Math.round((record.completed_days / record.total_days) * 100)"
+              :status="getProgressStatus(record.status)"
+              :show-text="false"
+              size="small"
+            />
+            <span class="progress-text">
+              {{ record.completed_days }}/{{ record.total_days }} 天
+            </span>
           </div>
+          <span v-else-if="record.status === 'completed'">
+            {{ record.completed_days }}/{{ record.total_days }} 天
+          </span>
+          <span v-else>-</span>
         </template>
-        <template #executed_at="{ record }">
-          {{ formatDate(record.executed_at) }}
+        <template #created_at="{ record }">
+          {{ formatDate(record.created_at) }}
+        </template>
+        <template #completed_at="{ record }">
+          {{ record.completed_at ? formatDate(record.completed_at) : '-' }}
+        </template>
+        <template #operator="{ record }">
+          {{ record.operator_name || '-' }}
         </template>
         <template #error_message="{ record }">
           <a-tooltip v-if="record.error_message" :content="record.error_message">
@@ -117,56 +129,46 @@
           </a-tooltip>
           <span v-else>-</span>
         </template>
+        <template #actions="{ record }">
+          <a-button
+            v-if="record.status === 'pending' || record.status === 'running'"
+            type="text"
+            size="small"
+            status="danger"
+            @click="handleCancel(record)"
+          >
+            取消任务
+          </a-button>
+        </template>
       </a-table>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
-import service from '@/api'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { Message, Modal } from '@arco-design/web-vue'
+import {
+  getSyncTaskList,
+  getSyncTaskStats,
+  cancelSyncTask,
+  type SyncTask,
+  type SyncTaskStats,
+} from '@/api/syncTasks'
 
-interface SyncLog {
-  id: number
-  task_name: string
-  status: string
-  total_count: number
-  success_count: number
-  failed_count: number
-  skipped_count: number
-  executed_at: string
-  duration_seconds: number | null
-  error_message: string | null
-  created_at: string
-}
-
-interface Stats {
-  total_tasks: number
-  success_rate: number
-  last_24h: {
-    total: number
-    success: number
-    failed: number
-  }
-  by_task: Array<{
-    task_name: string
-    success: number
-    failed: number
-  }>
+interface Task extends SyncTask {
+  operator_name?: string
 }
 
 const loading = ref(false)
-const logs = ref<SyncLog[]>([])
-const stats = ref<Stats>({
+const tasks = ref<Task[]>([])
+const stats = ref<SyncTaskStats>({
   total_tasks: 0,
   success_rate: 0,
-  last_24h: { total: 0, success: 0, failed: 0 },
-  by_task: [],
+  last_24h: { total: 0, failed: 0 },
 })
 
 const filters = reactive({
-  task_name: '',
   status: '',
 })
 
@@ -180,32 +182,44 @@ const pagination = reactive({
 
 const columns = [
   {
-    title: '任务名称',
-    dataIndex: 'task_name',
-    slotName: 'task_name',
-    width: 180,
+    title: '任务 ID',
+    slotName: 'task_id',
+    width: 100,
+  },
+  {
+    title: '同步周期',
+    slotName: 'period',
+    width: 200,
+  },
+  {
+    title: '同步模式',
+    slotName: 'sync_mode',
+    width: 120,
   },
   {
     title: '状态',
-    dataIndex: 'status',
     slotName: 'status',
     width: 100,
   },
   {
-    title: '执行统计',
-    slotName: 'counts',
-    width: 200,
-  },
-  {
-    title: '执行时间',
-    dataIndex: 'executed_at',
-    slotName: 'executed_at',
+    title: '进度',
+    slotName: 'progress',
     width: 180,
   },
   {
-    title: '耗时 (秒)',
-    dataIndex: 'duration_seconds',
-    width: 100,
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 180,
+  },
+  {
+    title: '完成时间',
+    slotName: 'completed_at',
+    width: 180,
+  },
+  {
+    title: '操作人',
+    slotName: 'operator',
+    width: 120,
   },
   {
     title: '错误信息',
@@ -213,20 +227,20 @@ const columns = [
     ellipsis: true,
     tooltip: true,
   },
+  {
+    title: '操作',
+    slotName: 'actions',
+    width: 120,
+    fixed: 'right',
+  },
 ]
-
-const taskNameMap: Record<string, string> = {
-  sync_daily_usage: '每日用量同步',
-  generate_monthly_invoices: '月度结算单生成',
-  check_balance_warning: '余额预警检查',
-  send_overdue_emails: '逾期提醒邮件',
-  cleanup_temp_files: '临时文件清理',
-}
 
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
-    success: 'green',
-    partial: 'orange',
+    pending: 'blue',
+    running: 'green',
+    completed: 'gray',
+    cancelled: 'orange',
     failed: 'red',
   }
   return colors[status] || 'gray'
@@ -234,11 +248,19 @@ const getStatusColor = (status: string) => {
 
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    success: '成功',
-    partial: '部分成功',
+    pending: '队列中',
+    running: '执行中',
+    completed: '已完成',
+    cancelled: '已取消',
     failed: '失败',
   }
   return texts[status] || status
+}
+const getProgressStatus = (status: string) => {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'danger'
+  if (status === 'cancelled') return 'warning'
+  return 'normal' // running/pending 显示蓝色
 }
 
 const formatDate = (dateStr: string) => {
@@ -248,67 +270,113 @@ const formatDate = (dateStr: string) => {
 
 const fetchStats = async () => {
   try {
-    const res = await service.get('/sync-logs/stats')
-    const data = res.data
-    if (data.code === 0) {
-      stats.value = data.data
-    }
+    const data = await getSyncTaskStats()
+    stats.value = data
   } catch (error) {
     console.error('获取统计失败:', error)
   }
 }
 
-const fetchLogs = async () => {
-  loading.value = true
+const fetchTasks = async (showLoading = true) => {
+  if (showLoading) {
+    loading.value = true
+  }
   try {
     const params = {
       page: pagination.current,
       page_size: pagination.pageSize,
-      ...filters,
+      status: filters.status || undefined,
     }
-    const res = await service.get('/sync-logs', { params })
-    const data = res.data
-    if (data.code === 0) {
-      logs.value = data.data.list.map((log: SyncLog) => ({
-        ...log,
-        task_name: taskNameMap[log.task_name] || log.task_name,
-      }))
-      pagination.total = data.data.pagination.total
-    }
+    const data = await getSyncTaskList(params)
+    tasks.value = data.list
+    pagination.total = data.pagination.total
   } catch (error) {
-    Message.error('获取日志失败')
+    if (showLoading) {
+      Message.error('获取任务列表失败')
+    }
     console.error(error)
   } finally {
-    loading.value = false
+    if (showLoading) {
+      loading.value = false
+    }
   }
 }
 
 const handleSearch = () => {
   pagination.current = 1
-  fetchLogs()
+  fetchTasks()
 }
 
 const handleReset = () => {
-  filters.task_name = ''
   filters.status = ''
   pagination.current = 1
-  fetchLogs()
+  fetchTasks()
 }
 
 const handlePageChange = (page: number) => {
   pagination.current = page
-  fetchLogs()
+  fetchTasks()
 }
 
 const handlePageSizeChange = (pageSize: number) => {
   pagination.pageSize = pageSize
   pagination.current = 1
-  fetchLogs()
+  fetchTasks()
+}
+
+const handleCancel = async (task: Task) => {
+  Modal.warning({
+    title: '确认取消任务',
+    content: '确定要取消该同步任务吗？取消后任务将停止执行，已同步的数据不会回滚。',
+    okText: '确定取消',
+    cancelText: '返回',
+    okButtonProps: {
+      status: 'danger',
+    },
+    onOk: async () => {
+      try {
+        await cancelSyncTask(task.task_id)
+        Message.success('任务已取消')
+        fetchTasks(false)
+        fetchStats()
+      } catch (error) {
+        Message.error('取消任务失败')
+        console.error(error)
+      }
+    },
+  })
+}
+
+// 自动刷新执行中的任务
+let refreshTimer: number | null = null
+
+const startAutoRefresh = () => {
+  refreshTimer = window.setInterval(() => {
+    const hasRunningTasks = tasks.value.some(
+      (task) => task.status === 'running' || task.status === 'pending'
+    )
+    if (hasRunningTasks) {
+      fetchTasks(false)
+      fetchStats()
+    }
+  }, 2000)
+}
+
+const stopAutoRefresh = () => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 }
 
 onMounted(() => {
   fetchStats()
-  fetchLogs()
+  fetchTasks()
+  startAutoRefresh()
+})
+
+onUnmounted(() => {
+  stopAutoRefresh()
 })
 </script>
 
@@ -415,23 +483,20 @@ onMounted(() => {
   color: var(--neutral-10);
 }
 
-.counts-cell {
+.progress-cell {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
+  align-items: center;
+  gap: 8px;
 }
 
-.counts-cell .success {
-  color: #00b42a;
+.progress-cell :deep(.arco-progress) {
+  flex: 1;
 }
 
-.counts-cell .failed {
-  color: #ff4d4f;
-}
-
-.counts-cell .skipped {
-  color: #86909c;
+.progress-text {
+  font-size: 12px;
+  color: var(--neutral-6);
+  white-space: nowrap;
 }
 
 @media (max-width: 1200px) {

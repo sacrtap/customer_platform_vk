@@ -1,7 +1,7 @@
 <template>
   <div class="progress-view">
     <a-progress
-      :percent="progress.percentage"
+      :percent="Math.round(progress.percentage * 100)"
       :status="progressStatus"
       :stroke-width="20"
       style="width: 100%"
@@ -47,6 +47,7 @@ const props = defineProps<{
 const progressStatus = computed(() => {
   if (props.progress.status === 'completed') return 'success'
   if (props.progress.status === 'failed') return 'danger'
+  if (props.progress.status === 'cancelled') return 'warning'
   return 'normal'
 })
 </script>

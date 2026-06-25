@@ -16,7 +16,39 @@ logger = logging.getLogger(__name__)
 sync_tasks_bp = Blueprint("sync_tasks", url_prefix="/api/v1/sync-tasks")
 
 
-@sync_tasks_bp.post("/")
+@sync_tasks_bp.get("")
+@auth_required
+async def list_sync_tasks(request: Request):
+    """获取同步任务列表"""
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 20))
+        status = request.args.get("status")
+
+        service = SyncTaskService(db=request.ctx.db_session)
+        result = await service.list_tasks(page=page, page_size=page_size, status=status)
+
+        return json({"code": 0, "data": result})
+    except Exception as e:
+        logger.error(f"获取任务列表失败: {e}")
+        return json({"code": 500, "message": f"获取任务列表失败: {str(e)}"}, status=500)
+
+
+@sync_tasks_bp.get("/stats")
+@auth_required
+async def get_sync_task_stats(request: Request):
+    """获取同步任务统计数据"""
+    try:
+        service = SyncTaskService(db=request.ctx.db_session)
+        stats = await service.get_stats()
+
+        return json({"code": 0, "data": stats})
+    except Exception as e:
+        logger.error(f"获取统计数据失败: {e}")
+        return json({"code": 500, "message": f"获取统计数据失败: {str(e)}"}, status=500)
+
+
+@sync_tasks_bp.post("")
 @auth_required
 async def create_sync_task(request: Request):
     """创建同步任务"""

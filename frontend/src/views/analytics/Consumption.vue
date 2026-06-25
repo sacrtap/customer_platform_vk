@@ -16,7 +16,7 @@
             </svg>
           </template>
           <template v-if="isSyncing">
-            数据同步 {{ syncProgress?.percentage }}%
+            数据同步 {{ Math.round((syncProgress?.percentage || 0) * 100) }}%
           </template>
           <template v-else>
             数据同步
@@ -216,7 +216,7 @@ const syncProgress = ref<SyncTask | null>(null)
 const isSyncing = computed(() => {
   return !!(syncProgress.value &&
          syncProgress.value.status === 'running' &&
-         syncProgress.value.percentage < 100)
+         syncProgress.value.percentage < 1)
 })
 
 const handleProgressUpdate = (progress: SyncTask) => {

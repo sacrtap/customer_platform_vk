@@ -1,16 +1,19 @@
 """同步任务端到端测试"""
 
+import uuid
 from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
 
-from app.main import app
+from app.main import create_app
 
 
 @pytest.fixture
 async def client():
     """创建测试客户端"""
+    unique_app_name = f"test_sync_e2e_{uuid.uuid4().hex[:8]}"
+    app = create_app(app_name=unique_app_name)
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
 

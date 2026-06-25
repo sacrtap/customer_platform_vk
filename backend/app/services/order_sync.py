@@ -179,10 +179,12 @@ class OrderSyncService:
             raise TypeError(f"不支持的日期类型: {type(value)}")
 
     async def _clear_orders(self, sync_date: date) -> None:
-        """清空指定日期的所有订单"""
+        """清空指定日期的所有订单（按 create_date 删除，与唯一约束一致）"""
         from sqlalchemy import delete
 
-        result = await self.db.execute(delete(DailyOrder).where(DailyOrder.sync_date == sync_date))
+        result = await self.db.execute(
+            delete(DailyOrder).where(DailyOrder.create_date == sync_date)
+        )
         await self.db.commit()
         logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
 
@@ -190,12 +192,19 @@ class OrderSyncService:
         """匹配客户并保存订单"""
         result = SyncResult()
         saved_orders = []  # 收集成功保存的订单
+        seen_keys = set()  # 内存级去重，防止同一 (order_code, create_date) 重复插入
 
         # 注意：清空逻辑已移至 sync_orders 入口
 
         for order in orders:
             order_code = order.get("order_code")
             try:
+                # 检查本批次是否已处理过相同的 (order_code, create_date)
+                dedup_key = (order_code, order.get("create_date"))
+                if dedup_key in seen_keys:
+                    result.skipped += 1
+                    continue
+
                 # 匹配客户（使用独立方法）
                 customer = await self._match_customer(order)
                 if customer is None:
@@ -228,6 +237,7 @@ class OrderSyncService:
                     device_type=order.get("device_type"),
                     sync_date=sync_date,
                 )
+                seen_keys.add(dedup_key)
                 saved_orders.append(daily_order)
                 result.success += 1
 

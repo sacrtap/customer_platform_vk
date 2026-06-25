@@ -1,5 +1,6 @@
 """同步任务服务"""
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
@@ -12,6 +13,8 @@ from app.models.daily_order import DailyOrder
 from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
 from app.services.order_sync import OrderSyncService
+
+logger = logging.getLogger(__name__)
 
 
 class SyncTaskService:
@@ -86,19 +89,27 @@ class SyncTaskService:
 
     async def execute_task(self, task_id: UUID) -> None:
         """执行同步任务（后台异步）"""
+        logger.info(f"[{task_id}] 开始执行同步任务")
+
+        # 重新加载任务对象，确保在当前 session 上下文中
         task = await self.db.get(SyncTask, task_id)
         if not task:
+            logger.error(f"[{task_id}] 任务不存在")
             # 任务不存在时尝试释放锁
             lock_key = f"sync_lock:{task_id}"
             await self.redis_client.delete(lock_key)
             raise ValueError(f"任务不存在: {task_id}")
 
+        logger.info(
+            f"[{task_id}] 任务信息: 周期 {task.start_date} ~ {task.end_date}, 模式 {task.sync_mode}"
+        )
         lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
         cancel_key = f"sync_cancel:{task_id}"  # 取消标志 key
 
         try:
             # 检查任务是否在 pending 阶段已被取消
             if await self.redis_client.exists(cancel_key):
+                logger.info(f"[{task_id}] 任务在 pending 阶段已被取消")
                 task.status = "cancelled"
                 task.completed_at = datetime.now(timezone.utc)
                 await self.db.commit()
@@ -106,6 +117,7 @@ class SyncTaskService:
                 return
 
             # 更新状态为 running
+            logger.info(f"[{task_id}] 更新状态为 running")
             task.status = "running"
             await self.db.commit()
             await self._update_redis_progress(task)
@@ -120,10 +132,17 @@ class SyncTaskService:
                     dates.append(current_date)
                     current_date += timedelta(days=1)
 
+                logger.info(
+                    f"[{task_id}] 待处理日期: {len(dates)} 天, 从 {dates[0]} 到 {dates[-1]}"
+                )
+
                 # 逐天执行
-                for sync_date in dates:
+                for idx, sync_date in enumerate(dates):
+                    logger.info(f"[{task_id}] 处理第 {idx + 1}/{len(dates)} 天: {sync_date}")
+
                     # 检查取消标志
                     if await self.redis_client.exists(cancel_key):
+                        logger.info(f"[{task_id}] 检测到取消标志，停止处理")
                         task.status = "cancelled"
                         task.completed_at = datetime.now(timezone.utc)
                         duration = (task.completed_at - start_time).total_seconds()
@@ -141,6 +160,7 @@ class SyncTaskService:
                         if task.sync_mode == "skip_existing":
                             has_data = await self._check_data_exists(sync_date)
                             if has_data:
+                                logger.info(f"[{task_id}] {sync_date} 已有数据，跳过")
                                 task.skipped_days += 1
                                 task.completed_days += 1
                                 await self.db.commit()
@@ -149,41 +169,69 @@ class SyncTaskService:
 
                         # force_overwrite 模式：删除旧数据
                         if task.sync_mode == "force_overwrite":
+                            logger.info(f"[{task_id}] {sync_date} 强制覆盖模式，清除旧数据")
                             await self._clear_data(sync_date)
 
                         # 同步订单
+                        logger.info(f"[{task_id}] {sync_date} 开始同步订单")
                         order_service = OrderSyncService(self.db)
                         order_result = await order_service.sync_orders(sync_date)
+                        logger.info(
+                            f"[{task_id}] {sync_date} 订单同步完成: 成功 {order_result.success}, 失败 {order_result.failed}"
+                        )
 
                         # 计算费用
+                        logger.info(f"[{task_id}] {sync_date} 开始计算费用")
                         cost_service = CostCalcService(self.db)
                         await cost_service.calculate_daily_cost(sync_date)
+                        logger.info(f"[{task_id}] {sync_date} 费用计算完成")
+
+                        # 刷新 task 对象，因为 sync_orders 和 calculate_daily_cost 内部调用了 commit()
+                        # 导致 task 属性过期，后续访问会触发 MissingGreenlet
+                        await self.db.refresh(task)
 
                         # 更新统计
                         task.completed_days += 1
                         task.success_count += order_result.success
                         task.failed_count += order_result.failed
+                        await self.db.commit()  # 立即提交进度，使前端轮询能读取到最新值
+                        logger.info(
+                            f"[{task_id}] {sync_date} 处理完成，累计完成 {task.completed_days}/{len(dates)} 天"
+                        )
 
-                    except Exception:
+                    except Exception as e:
+                        logger.error(
+                            f"[{task_id}] {sync_date} 处理失败: {type(e).__name__}: {e}",
+                            exc_info=True,
+                        )
                         # 单天失败不中断整体流程
-                        task.failed_count += 1
-                        # 确保 session 状态正确，避免 PendingRollbackError
+                        # 先回滚，确保 session 状态正确
                         await self.db.rollback()
+                        # 重新加载任务对象，避免 MissingGreenlet 错误
+                        await self.db.refresh(task)
+                        task.failed_count += 1
+                        await self.db.commit()
 
-                    await self.db.commit()
+                    # 更新 Redis 进度
                     await self._update_redis_progress(task)
 
                 # 任务完成
+                logger.info(f"[{task_id}] 所有日期处理完成，更新状态为 completed")
                 task.status = "completed"
                 task.completed_at = datetime.now(timezone.utc)
                 duration = (task.completed_at - start_time).total_seconds()
+                logger.info(f"[{task_id}] 任务执行耗时: {duration:.2f} 秒")
 
                 # 更新审计日志
                 await self._update_audit_log(
                     task, "success" if task.status == "completed" else "failed", duration
                 )
+                logger.info(f"[{task_id}] 审计日志已更新")
 
             except Exception as e:
+                logger.error(
+                    f"[{task_id}] 任务执行过程中发生异常: {type(e).__name__}: {e}", exc_info=True
+                )
                 task.status = "failed"
                 task.error_message = str(e)
                 task.completed_at = datetime.now(timezone.utc)
@@ -192,13 +240,16 @@ class SyncTaskService:
                 await self._update_audit_log(task, "failed", duration, str(e))
 
             finally:
+                logger.info(f"[{task_id}] 提交最终状态到数据库")
                 await self.db.commit()
                 await self._update_redis_progress(task)
 
         finally:
             # 无论发生什么，确保释放锁和清理取消标志
+            logger.info(f"[{task_id}] 清理 Redis 锁和取消标志")
             await self.redis_client.delete(lock_key)
             await self.redis_client.delete(cancel_key)
+            logger.info(f"[{task_id}] 任务执行流程结束")
 
     async def cancel_task(self, task_id: UUID) -> bool:
         """取消同步任务
@@ -494,10 +545,12 @@ class SyncTaskService:
 
     async def _check_data_exists(self, sync_date: date) -> bool:
         """检查指定日期是否已有数据"""
+        from sqlalchemy import func
+
         result = await self.db.execute(
-            select(DailyOrder).where(DailyOrder.sync_date == sync_date).limit(1)
+            select(func.count(DailyOrder.id)).where(DailyOrder.sync_date == sync_date)
         )
-        return result.scalar_one_or_none() is not None
+        return result.scalar() > 0
 
     async def _clear_data(self, sync_date: date) -> None:
         """清空指定日期的数据"""

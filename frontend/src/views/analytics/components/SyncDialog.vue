@@ -32,7 +32,7 @@
         <a-form-item label="同步模式">
           <a-radio-group v-model="form.sync_mode">
             <a-radio value="skip_existing">仅补充缺失数据</a-radio>
-            <a-radio value="force_overwrite">强制重新同步</a-radio>
+            <a-radio value="force_overwrite">强制覆盖已有数据</a-radio>
           </a-radio-group>
         </a-form-item>
         <a-alert
@@ -53,10 +53,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onUnmounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
-import { createSyncTask, getSyncTaskProgress, cancelSyncTask, type SyncTask } from '@/api/syncTasks'
+import { ref, reactive, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { Message, Modal } from '@arco-design/web-vue'
+import { createSyncTask, type SyncTask } from '@/api/syncTasks'
 import ProgressView from './ProgressView.vue'
+
+const router = useRouter()
 
 const props = defineProps<{
   visible: boolean
@@ -77,9 +80,8 @@ const handleVisibleUpdate = (value: boolean) => {
   emit('update:visible', value)
 }
 
-const state = ref<'input' | 'creating' | 'polling' | 'result'>('input')
+const state = ref<'input' | 'polling' | 'result'>('input')
 const loading = ref(false)
-const taskId = ref<string>('')
 const progress = ref<SyncTask>({
   task_id: '',
   status: '',
@@ -121,13 +123,15 @@ const title = computed(() => {
   if (state.value === 'input') return '数据同步'
   if (state.value === 'polling') return '同步中...'
   if (state.value === 'result') {
-    return progress.value.status === 'completed' ? '同步完成' : '同步失败'
+    if (progress.value.status === 'completed') return '同步完成'
+    if (progress.value.status === 'cancelled') return '同步已取消'
+    return '同步失败'
   }
   return '数据同步'
 })
 
 const okText = computed(() => {
-  if (state.value === 'input') return '开始同步'
+  if (state.value === 'input') return '提交同步任务'
   if (state.value === 'polling') return '取消'
   if (state.value === 'result') {
     return progress.value.status === 'failed' ? '重试' : '关闭'
@@ -138,8 +142,6 @@ const okText = computed(() => {
 const cancelText = computed(() => {
   return state.value === 'input' ? '取消' : '关闭'
 })
-
-let pollInterval: number | null = null
 
 const disableStartDate = (date: Date) => {
   const today = new Date()
@@ -165,34 +167,36 @@ const handleBeforeOk = async () => {
       const start_date = formatDate(form.start_date)
       const end_date = formatDate(form.end_date)
 
-      const result = await createSyncTask({
+      await createSyncTask({
         start_date,
         end_date,
         sync_mode: form.sync_mode,
       })
 
-      taskId.value = result.task_id
-      state.value = 'polling'
-      startPolling()
-      return false // 不关闭对话框
+      // 关闭当前对话框
+      emit('update:visible', false)
+      state.value = 'input'
+
+      // 显示成功提示框，提供跳转至同步日志页面的入口
+      Modal.success({
+        title: '任务创建成功',
+        content: '同步任务已创建，是否立即查看任务进度？',
+        okText: '查看任务',
+        cancelText: '关闭',
+        onOk: () => {
+          router.push('/system/sync-logs')
+        },
+      })
+
+      return false
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '创建任务失败'
+      const err = error as { message?: string }
+      const message = err?.message || '创建任务失败'
       Message.error(message)
       return false
     } finally {
       loading.value = false
     }
-  } else if (state.value === 'polling') {
-    // 取消任务
-    try {
-      await cancelSyncTask(taskId.value)
-      Message.info('正在取消任务...')
-      // 继续轮询直到状态变为 cancelled
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '取消失败'
-      Message.error(message)
-    }
-    return false
   } else if (state.value === 'result') {
     if (progress.value.status === 'failed') {
       // 重试
@@ -203,6 +207,7 @@ const handleBeforeOk = async () => {
   }
   return false
 }
+
 const handleCancel = () => {
   if (state.value === 'polling') {
     // 隐藏模式：关闭 modal 但继续轮询
@@ -210,40 +215,16 @@ const handleCancel = () => {
     emit('update:visible', false)
   } else {
     // 输入或结果状态：真正关闭
-    if (pollInterval) {
-      clearInterval(pollInterval)
-      pollInterval = null
-    }
     state.value = 'input'
     emit('update:visible', false)
   }
 }
 
-const startPolling = () => {
-  pollInterval = window.setInterval(async () => {
-    try {
-      const result = await getSyncTaskProgress(taskId.value)
-      progress.value = result
-      emit('progress', result)
-
-      if (result.status === 'completed' || result.status === 'failed' || result.status === 'cancelled') {
-        if (pollInterval) {
-          clearInterval(pollInterval)
-          pollInterval = null
-        }
-        state.value = 'result'
-        if (result.status === 'completed') {
-          emit('success')
-        }
-      }
-    } catch (error) {
-      console.error('轮询进度失败:', error)
-    }
-  }, 2000)
-}
-
 const formatDate = (value: Date | string): string => {
-  if (typeof value === 'string') return value
+  if (typeof value === 'string') {
+    // 处理 ISO 格式字符串，提取日期部分
+    return value.split('T')[0]
+  }
   const year = value.getFullYear()
   const month = String(value.getMonth() + 1).padStart(2, '0')
   const day = String(value.getDate()).padStart(2, '0')
@@ -254,18 +235,8 @@ watch(
   () => props.visible,
   (newVal) => {
     if (!newVal && !props.minimized) {
-      if (pollInterval) {
-        clearInterval(pollInterval)
-        pollInterval = null
-      }
       state.value = 'input'
     }
   }
 )
-
-onUnmounted(() => {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-  }
-})
 </script>
