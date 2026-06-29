@@ -148,9 +148,19 @@ if settlement_type:
     base_stmt = base_stmt.where(Customer.settlement_type == settlement_type)
 ```
 
-#### 2.3.3 同步更新计数查询（第 180-210 行区域）
+#### 2.3.3 同步更新计数查询（第 188 行后）
 
 余额 API 有两个查询：数据查询和计数查询。需要在计数查询中也添加相同的筛选条件，确保分页总数正确。
+
+在第 188 行 `if is_key_customer is not None:` 条件后添加：
+
+```python
+if is_real_estate is not None:
+    count_stmt = count_stmt.where(Customer.is_real_estate == is_real_estate)
+
+if settlement_type:
+    count_stmt = count_stmt.where(Customer.settlement_type == settlement_type)
+```
 
 ---
 
