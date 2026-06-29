@@ -44,14 +44,12 @@
               />
             </a-form-item>
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6">
-            <a-form-item label="充值时间">
-              <a-range-picker
-                v-model="filters.recharge_date"
-                :placeholder="['开始日期', '结束日期']"
-                style="width: 100%"
-                format="YYYY-MM-DD"
-              />
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="账号类型">
+              <a-select v-model="filters.account_type" placeholder="请选择" allow-clear>
+                <a-option value="正式账号">正式账号</a-option>
+                <a-option value="测试账号">测试账号</a-option>
+              </a-select>
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
@@ -71,19 +69,37 @@
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="账号类型">
-              <a-select v-model="filters.account_type" placeholder="请选择" allow-clear>
-                <a-option value="正式账号">正式账号</a-option>
-                <a-option value="测试账号">测试账号</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
             <a-form-item label="重点客户">
               <a-select v-model="filters.is_key_customer" placeholder="请选择" allow-clear>
                 <a-option :value="true">是</a-option>
                 <a-option :value="false">否</a-option>
               </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="房产客户">
+              <a-select v-model="filters.is_real_estate" placeholder="请选择" allow-clear>
+                <a-option :value="true">是</a-option>
+                <a-option :value="false">否</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-form-item label="结算方式">
+              <a-select v-model="filters.settlement_type" placeholder="请选择" allow-clear>
+                <a-option value="prepaid">预付费</a-option>
+                <a-option value="postpaid">后付费</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="6">
+            <a-form-item label="充值时间">
+              <a-range-picker
+                v-model="filters.recharge_date"
+                :placeholder="['开始日期', '结束日期']"
+                style="width: 100%"
+                format="YYYY-MM-DD"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :md="8" :lg="6">
@@ -512,6 +528,8 @@ const createDefaultFilters = () => ({
   industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
   account_type: '正式账号',
   is_key_customer: null as boolean | null,
+  is_real_estate: null as boolean | null,
+  settlement_type: '',
 })
 
 const filters = reactive(createDefaultFilters())
@@ -757,6 +775,8 @@ const loadBalances = async () => {
       recharge_date_to?: string
       tag_ids?: string
       is_key_customer?: boolean
+      is_real_estate?: boolean
+      settlement_type?: string
       sort_by: string
       sort_order: 'asc' | 'desc'
     } = {
@@ -778,6 +798,8 @@ const loadBalances = async () => {
     if (advancedFilters.tag_ids && advancedFilters.tag_ids.length > 0) {
       params.tag_ids = advancedFilters.tag_ids.join(',')
     }
+    if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
 
     const res = await getBalances(params)
