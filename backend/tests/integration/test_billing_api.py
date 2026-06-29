@@ -168,6 +168,278 @@ async def test_get_balances_list(test_client, auth_token, test_customer_with_bal
 
 
 @pytest.mark.asyncio
+async def test_get_balances_filter_is_real_estate_true(test_client, auth_token, db_session):
+    """测试余额列表筛选 — is_real_estate=true"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_true = _unique_customer_id(95000)
+    cid_false = _unique_customer_id(96000)
+
+    for cid, is_re in [(cid_true, True), (cid_false, False)]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type, is_real_estate,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, :is_real_estate, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"测试客户_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": "prepaid",
+                "is_real_estate": is_re,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?is_real_estate=true",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_true in customer_ids
+    assert cid_false not in customer_ids
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_is_real_estate_false(test_client, auth_token, db_session):
+    """测试余额列表筛选 — is_real_estate=false"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_true = _unique_customer_id(95000)
+    cid_false = _unique_customer_id(96000)
+
+    for cid, is_re in [(cid_true, True), (cid_false, False)]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type, is_real_estate,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, :is_real_estate, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"测试客户_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": "prepaid",
+                "is_real_estate": is_re,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?is_real_estate=false",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_true not in customer_ids
+    assert cid_false in customer_ids
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_settlement_type_prepaid(test_client, auth_token, db_session):
+    """测试余额列表筛选 — settlement_type=prepaid"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_prepaid = _unique_customer_id(95000)
+    cid_postpaid = _unique_customer_id(96000)
+
+    for cid, st in [(cid_prepaid, "prepaid"), (cid_postpaid, "postpaid")]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"测试客户_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": st,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?settlement_type=prepaid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_prepaid in customer_ids
+    assert cid_postpaid not in customer_ids
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_settlement_type_postpaid(test_client, auth_token, db_session):
+    """测试余额列表筛选 — settlement_type=postpaid"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_prepaid = _unique_customer_id(95000)
+    cid_postpaid = _unique_customer_id(96000)
+
+    for cid, st in [(cid_prepaid, "prepaid"), (cid_postpaid, "postpaid")]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"测试客户_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": st,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?settlement_type=postpaid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_prepaid not in customer_ids
+    assert cid_postpaid in customer_ids
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_combined(test_client, auth_token, db_session):
+    """测试余额列表筛选 — 组合筛选 is_real_estate + settlement_type"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    # 四种组合：is_real_estate x settlement_type
+    configs = [
+        (True, "prepaid"),
+        (True, "postpaid"),
+        (False, "prepaid"),
+        (False, "postpaid"),
+    ]
+    cids = []
+    for is_re, st in configs:
+        cid = _unique_customer_id(95000)
+        cids.append(cid)
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type, is_real_estate,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, :is_real_estate, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"测试客户_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": st,
+                "is_real_estate": is_re,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?is_real_estate=true&settlement_type=prepaid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cids[0] in customer_ids  # True + prepaid
+    assert cids[1] not in customer_ids  # True + postpaid
+    assert cids[2] not in customer_ids  # False + prepaid
+    assert cids[3] not in customer_ids  # False + postpaid
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
 async def test_get_customer_balance_exists(test_client, auth_token, test_customer_with_balance):
     """测试获取客户余额 - 余额存在"""
     headers = {"Authorization": f"Bearer {auth_token}"}
