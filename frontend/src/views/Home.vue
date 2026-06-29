@@ -404,8 +404,15 @@ const todos = ref<
 // 结算单
 const invoices = ref<Invoice[]>([])
 
-// 加载统计数据
+// 性能跟踪辅助函数
+const trackPerformance = (label: string, startTime: number) => {
+  const duration = Date.now() - startTime
+  console.log(`[Dashboard] ${label}: ${duration}ms`)
+}
+
+ // 加载统计数据
 const loadStats = async (forceRefresh = false) => {
+  const startTime = Date.now()
   statsLoading.value = true
   try {
     const res = await statsRequest.execute(forceRefresh)
@@ -417,6 +424,7 @@ const loadStats = async (forceRefresh = false) => {
     stats.monthInvoiceCount = res.data.month_invoice_count
     stats.pendingConfirmation = res.data.pending_confirmation
     stats.monthConsumption = res.data.month_consumption
+    trackPerformance('stats_load', startTime)
   } catch (error) {
     console.error('加载统计数据失败:', error)
     Message.error('加载统计数据失败')
@@ -427,6 +435,7 @@ const loadStats = async (forceRefresh = false) => {
 
 // 加载图表数据
 const loadChartData = async (forceRefresh = false) => {
+  const startTime = Date.now()
   chartLoading.value = true
   try {
     const res = await chartRequest.execute(forceRefresh)
@@ -435,6 +444,7 @@ const loadChartData = async (forceRefresh = false) => {
       (res as { data: { consumption_trend: Array<{ period: string; total_amount: number }> } }).data
         .consumption_trend
     )
+    trackPerformance('chart_load', startTime)
   } catch (error) {
     console.error('加载图表数据失败:', error)
     Message.error('加载图表数据失败')
@@ -520,9 +530,8 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
 
   chartInstance.setOption(option)
 }
-
-// 加载待办事项
 const loadTodos = async (forceRefresh = false) => {
+  const startTime = Date.now()
   todosLoading.value = true
   try {
     const res = await todosRequest.execute(forceRefresh)
@@ -534,6 +543,7 @@ const loadTodos = async (forceRefresh = false) => {
       due: item.created_at,
       checked: false,
     }))
+    trackPerformance('todos_load', startTime)
   } catch (error) {
     console.error('加载待办事项失败:', error)
     Message.error('加载待办事项失败')
@@ -541,13 +551,13 @@ const loadTodos = async (forceRefresh = false) => {
     todosLoading.value = false
   }
 }
-
-// 加载最近结算单
 const loadRecentInvoices = async (forceRefresh = false) => {
+  const startTime = Date.now()
   invoicesLoading.value = true
   try {
     const res = await invoicesRequest.execute(forceRefresh)
     invoices.value = res.data.list
+    trackPerformance('invoices_load', startTime)
   } catch (error) {
     console.error('加载结算单失败:', error)
     Message.error('加载结算单失败')
