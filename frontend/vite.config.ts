@@ -20,7 +20,13 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost',
+      },
+    },
     globals: true,
+    pool: 'forks',
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'html'],

@@ -1192,38 +1192,39 @@ class AnalyticsService:
     # ========== 首页仪表盘 ==========
 
     async def get_dashboard_stats(self) -> Dict[str, Any]:
-        """获取仪表盘统计数据（优化：6次查询 → 2次查询）"""
+        """获取仪表盘统计数据（修复笛卡尔积：拆分为 2 个独立查询）"""
         today = datetime.utcnow()
         current_month_start = date(today.year, today.month, 1)
         current_month_end = date(today.year, today.month, monthrange(today.year, today.month)[1])
 
-        # 查询 1: 客户统计 + 余额 + 结算单统计（单次聚合查询）
-        stats_stmt = (
+        # 查询 1: 客户统计 + 余额（仅 JOIN 1:1 关系的 CustomerBalance，避免笛卡尔积）
+        balance_stmt = (
             select(
+                func.count(Customer.id).label("total_customers"),
                 func.count(
                     case(
-                        (
-                            and_(
-                                Customer.deleted_at.is_(None),
-                            ),
-                            Customer.id,
-                        )
-                    )
-                ).label("total_customers"),
-                func.count(
-                    case(
-                        (
-                            and_(
-                                Customer.deleted_at.is_(None),
-                                Customer.is_key_customer,
-                            ),
-                            Customer.id,
-                        )
+                        (Customer.is_key_customer, Customer.id),
                     )
                 ).label("key_customers"),
                 func.sum(CustomerBalance.total_amount).label("total_balance"),
                 func.sum(CustomerBalance.real_amount).label("real_balance"),
                 func.sum(CustomerBalance.bonus_amount).label("bonus_balance"),
+            )
+            .select_from(Customer)
+            .outerjoin(
+                CustomerBalance,
+                and_(
+                    Customer.id == CustomerBalance.customer_id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .where(Customer.deleted_at.is_(None))
+        )
+        balance_result = (await self.db.execute(balance_stmt)).first()
+
+        # 查询 2: 结算单统计（独立查询，不与 CustomerBalance JOIN）
+        invoice_stmt = (
+            select(
                 func.count(
                     case(
                         (
@@ -1252,28 +1253,20 @@ class AnalyticsService:
                 ).label("month_consumption"),
             )
             .select_from(Customer)
-            .outerjoin(
-                CustomerBalance,
-                and_(
-                    Customer.id == CustomerBalance.customer_id,
-                    CustomerBalance.deleted_at.is_(None),
-                ),
-            )
             .outerjoin(Invoice, Customer.id == Invoice.customer_id)
             .where(Customer.deleted_at.is_(None))
         )
-
-        result = (await self.db.execute(stats_stmt)).first()
+        invoice_result = (await self.db.execute(invoice_stmt)).first()
 
         return {
-            "total_customers": result.total_customers or 0,
-            "key_customers": result.key_customers or 0,
-            "total_balance": float(result.total_balance or 0),
-            "real_balance": float(result.real_balance or 0),
-            "bonus_balance": float(result.bonus_balance or 0),
-            "month_invoice_count": result.month_invoice_count or 0,
-            "pending_confirmation": result.pending_confirmation or 0,
-            "month_consumption": float(result.month_consumption or 0),
+            "total_customers": balance_result.total_customers or 0,
+            "key_customers": balance_result.key_customers or 0,
+            "total_balance": float(balance_result.total_balance or 0),
+            "real_balance": float(balance_result.real_balance or 0),
+            "bonus_balance": float(balance_result.bonus_balance or 0),
+            "month_invoice_count": invoice_result.month_invoice_count or 0,
+            "pending_confirmation": invoice_result.pending_confirmation or 0,
+            "month_consumption": float(invoice_result.month_consumption or 0),
         }
 
     async def get_dashboard_chart_data(self, months: int = 6) -> Dict[str, Any]:

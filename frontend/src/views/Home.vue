@@ -32,6 +32,7 @@
     </div>
 
     <!-- 统计卡片 -->
+    <a-spin :loading="statsLoading" style="width: 100%">
     <div class="stats-grid">
       <StatCard title="客户总数" :value="formatNumber(stats.totalCustomers)" variant="primary">
         <template #icon>
@@ -192,6 +193,7 @@
         </template>
       </StatCard>
     </div>
+    </a-spin>
 
     <!-- 内容网格 -->
     <div class="dashboard-grid">
@@ -206,9 +208,11 @@
             >
           </div>
         </div>
+        <a-spin :loading="chartLoading" style="width: 100%">
         <div class="card-body">
           <div ref="chartRef" class="chart-container"></div>
         </div>
+        </a-spin>
       </div>
 
       <!-- 待办事项 -->
@@ -217,6 +221,7 @@
           <h3 class="card-title">待办事项</h3>
           <a href="#" class="btn-text" @click.prevent="$message.info('查看全部开发中')">查看全部</a>
         </div>
+        <a-spin :loading="todosLoading" style="width: 100%">
         <div class="card-body">
           <div class="todo-list">
             <div v-for="(todo, index) in todos" :key="index" class="todo-item">
@@ -274,6 +279,7 @@
             </div>
           </div>
         </div>
+        </a-spin>
       </div>
 
       <!-- 最近结算单 -->
@@ -284,6 +290,7 @@
             >查看全部</a-button
           >
         </div>
+        <a-spin :loading="invoicesLoading" style="width: 100%">
         <div class="card-body" style="padding: 0">
           <div class="table-container">
             <table>
@@ -321,6 +328,7 @@
             </table>
           </div>
         </div>
+        </a-spin>
       </div>
     </div>
   </div>
@@ -333,9 +341,9 @@ import StatCard from '@/components/StatCard.vue'
 import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
+import { useCachedRequest } from '@/composables/useCachedRequest'
 
 import type { ECharts } from 'echarts'
-
 // 懒加载 ECharts
 let echartsPromise: Promise<typeof import('echarts')> | null = null
 const loadEcharts = async () => {
@@ -346,6 +354,25 @@ const loadEcharts = async () => {
   return echarts
 }
 
+// 初始化缓存请求器
+const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000) // 5分钟
+const chartRequest = useCachedRequest(
+  'chart',
+  () => getDashboardChartData({ months: 12 }),
+  15 * 60 * 1000
+) // 15分钟
+const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000) // 2分钟
+const invoicesRequest = useCachedRequest(
+  'invoices',
+  () => getRecentInvoices(10),
+  2 * 60 * 1000
+) // 2分钟
+
+// 独立的 loading 状态
+const statsLoading = ref(false)
+const chartLoading = ref(false)
+const todosLoading = ref(false)
+const invoicesLoading = ref(false)
 const loading = ref(false)
 const chartRef = ref<HTMLElement>()
 let chartInstance: ECharts | null = null
@@ -377,10 +404,18 @@ const todos = ref<
 // 结算单
 const invoices = ref<Invoice[]>([])
 
-// 加载统计数据
-const loadStats = async () => {
+// 性能跟踪辅助函数
+const trackPerformance = (label: string, startTime: number) => {
+  const duration = Date.now() - startTime
+  console.log(`[Dashboard] ${label}: ${duration}ms`)
+}
+
+ // 加载统计数据
+const loadStats = async (forceRefresh = false) => {
+  const startTime = Date.now()
+  statsLoading.value = true
   try {
-    const res = await getDashboardStats()
+    const res = await statsRequest.execute(forceRefresh)
     stats.totalCustomers = res.data.total_customers
     stats.keyCustomers = res.data.key_customers
     stats.totalBalance = res.data.total_balance
@@ -389,23 +424,32 @@ const loadStats = async () => {
     stats.monthInvoiceCount = res.data.month_invoice_count
     stats.pendingConfirmation = res.data.pending_confirmation
     stats.monthConsumption = res.data.month_consumption
+    trackPerformance('stats_load', startTime)
   } catch (error) {
+    console.error('加载统计数据失败:', error)
     Message.error('加载统计数据失败')
+  } finally {
+    statsLoading.value = false
   }
 }
 
 // 加载图表数据
-const loadChartData = async () => {
+const loadChartData = async (forceRefresh = false) => {
+  const startTime = Date.now()
+  chartLoading.value = true
   try {
-    const res = await getDashboardChartData({ months: 12 })
+    const res = await chartRequest.execute(forceRefresh)
     await nextTick()
     await initChart(
       (res as { data: { consumption_trend: Array<{ period: string; total_amount: number }> } }).data
         .consumption_trend
     )
+    trackPerformance('chart_load', startTime)
   } catch (error) {
     console.error('加载图表数据失败:', error)
     Message.error('加载图表数据失败')
+  } finally {
+    chartLoading.value = false
   }
 }
 
@@ -486,13 +530,12 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
 
   chartInstance.setOption(option)
 }
-
-// 加载待办事项
-const loadTodos = async () => {
+const loadTodos = async (forceRefresh = false) => {
+  const startTime = Date.now()
+  todosLoading.value = true
   try {
-    const res = await getPendingTasks()
-    // Mock 数据返回 { tasks, total }
-    todos.value = res.tasks.map((item) => ({
+    const res = await todosRequest.execute(forceRefresh)
+    todos.value = res.tasks.map((item: { id: number; title: string; type: string; created_at: string }) => ({
       id: item.id,
       title: item.title,
       priority: item.type === 'warning' ? 'high' : 'medium',
@@ -500,26 +543,44 @@ const loadTodos = async () => {
       due: item.created_at,
       checked: false,
     }))
+    trackPerformance('todos_load', startTime)
   } catch (error) {
+    console.error('加载待办事项失败:', error)
     Message.error('加载待办事项失败')
+  } finally {
+    todosLoading.value = false
+  }
+}
+const loadRecentInvoices = async (forceRefresh = false) => {
+  const startTime = Date.now()
+  invoicesLoading.value = true
+  try {
+    const res = await invoicesRequest.execute(forceRefresh)
+    invoices.value = res.data.list
+    trackPerformance('invoices_load', startTime)
+  } catch (error) {
+    console.error('加载结算单失败:', error)
+    Message.error('加载结算单失败')
+  } finally {
+    invoicesLoading.value = false
   }
 }
 
-// 加载最近结算单
-const loadRecentInvoices = async () => {
-  try {
-    const res = await getRecentInvoices(10)
-    invoices.value = res.data.list
-  } catch (error) {
-    Message.error('加载结算单失败')
-  }
+// 并行加载所有数据
+const loadAllData = async (forceRefresh = false) => {
+  await Promise.all([
+    loadStats(forceRefresh),
+    loadChartData(forceRefresh),
+    loadTodos(forceRefresh),
+    loadRecentInvoices(forceRefresh),
+  ])
 }
 
 // 刷新数据
 const refreshData = async () => {
   loading.value = true
   try {
-    await Promise.all([loadStats(), loadChartData(), loadTodos(), loadRecentInvoices()])
+    await loadAllData(true)
     Message.success('数据已刷新')
   } finally {
     loading.value = false
@@ -557,10 +618,7 @@ const handleResize = () => {
 }
 
 onMounted(() => {
-  loadStats()
-  loadChartData()
-  loadTodos()
-  loadRecentInvoices()
+  loadAllData()
   window.addEventListener('resize', handleResize)
 })
 
