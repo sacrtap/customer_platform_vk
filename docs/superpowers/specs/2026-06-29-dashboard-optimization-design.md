@@ -138,6 +138,8 @@ export function useCachedRequest<T>(
   fetcher: () => Promise<T>,
   ttl: number // 毫秒
 ) {
+  const userStore = useUserStore()
+  const userId = userStore.userInfo?.id || 'anonymous'
   const cacheKey = `dashboard_${key}_${userId}`
   
   const getCache = (): T | null => {
@@ -147,27 +149,48 @@ export function useCachedRequest<T>(
     if (Date.now() - entry.timestamp > ttl) return null
     return entry.data
   }
-  
+
   const setCache = (data: T) => {
     localStorage.setItem(cacheKey, JSON.stringify({
       data,
       timestamp: Date.now()
     }))
   }
-  
+
+  const getStaleCache = (): T | null => {
+    const raw = localStorage.getItem(cacheKey)
+    if (!raw) return null
+    try {
+      const entry: CacheEntry<T> = JSON.parse(raw)
+      return entry.data // 返回过期数据作为降级
+    } catch {
+      return null
+    }
+  }
+
   const execute = async (forceRefresh = false): Promise<T> => {
     // 1. 检查缓存
     if (!forceRefresh) {
       const cached = getCache()
       if (cached) return cached
     }
-    
+
     // 2. 发起请求
-    const data = await fetcher()
-    setCache(data)
-    return data
+    try {
+      const data = await fetcher()
+      setCache(data)
+      return data
+    } catch (error) {
+      // 3. 请求失败，尝试返回过期缓存
+      const staleCache = getStaleCache()
+      if (staleCache) {
+        Message.warning('数据更新失败，显示的是缓存数据')
+        return staleCache
+      }
+      throw error
+    }
   }
-  
+
   return { execute }
 }
 ```
@@ -438,6 +461,19 @@ window.addEventListener('storage', (e) => {
 
 **边界 4：内存泄漏防护**
 ```typescript
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  loadAllData()
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('storage', handleStorageChange)
+  
+  // 每 5 分钟检查缓存过期
+  refreshTimer = setInterval(() => {
+    loadAllData(false)
+  }, 5 * 60 * 1000)
+})
+
 onUnmounted(() => {
   // 清理定时器
   if (refreshTimer) {
