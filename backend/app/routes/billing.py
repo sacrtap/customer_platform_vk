@@ -67,6 +67,21 @@ async def get_balances(request: Request):
             )
         is_key_customer = is_key_customer.lower() == "true"
 
+    is_real_estate = request.args.get("is_real_estate")
+    if is_real_estate is not None and is_real_estate.strip() != "":
+        if is_real_estate.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_real_estate 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
+        is_real_estate = is_real_estate.lower() == "true"
+    else:
+        is_real_estate = None
+
+    settlement_type = request.args.get("settlement_type")
+    if settlement_type is not None and settlement_type.strip() == "":
+        settlement_type = None
+
     # 排序参数
     sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
     sort_order = request.args.get("sort_order", "asc")
@@ -112,6 +127,12 @@ async def get_balances(request: Request):
         base_stmt = base_stmt.where(Customer.sales_manager_id == sales_manager_id)
     if is_key_customer is not None:
         base_stmt = base_stmt.where(Customer.is_key_customer == is_key_customer)
+
+    if is_real_estate is not None:
+        base_stmt = base_stmt.where(Customer.is_real_estate == is_real_estate)
+
+    if settlement_type:
+        base_stmt = base_stmt.where(Customer.settlement_type == settlement_type)
 
     # 充值时间范围过滤（需要 JOIN RechargeRecord 子查询）
     if recharge_date_from or recharge_date_to:
@@ -186,6 +207,12 @@ async def get_balances(request: Request):
         count_stmt = count_stmt.where(Customer.sales_manager_id == sales_manager_id)
     if is_key_customer is not None:
         count_stmt = count_stmt.where(Customer.is_key_customer == is_key_customer)
+
+    if is_real_estate is not None:
+        count_stmt = count_stmt.where(Customer.is_real_estate == is_real_estate)
+
+    if settlement_type:
+        count_stmt = count_stmt.where(Customer.settlement_type == settlement_type)
     if recharge_date_from or recharge_date_to:
         recharge_filter_stmt = (
             select(RechargeRecord.customer_id)
