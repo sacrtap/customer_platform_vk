@@ -94,27 +94,29 @@
 
 **原则 3：智能刷新机制**
 - 数据 TTL：统计数据 5 分钟，图表 15 分钟，待办/结算单 2 分钟
-- 后台刷新：数据过期时先显示缓存，后台静默更新
+- 过期处理：缓存过期时先显示旧数据，同时发起请求更新
 - 手动刷新：用户点击刷新按钮时强制更新所有数据
 
 ### 3.3 数据流设计
 
 ```typescript
-// 伪代码示例
+// 使用 useCachedRequest composable
+const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000)
+
 const loadData = async (forceRefresh = false) => {
   // 1. 并行加载所有数据
   const [stats, chart, todos, invoices] = await Promise.all([
-    loadWithCache('stats', getDashboardStats, 5 * 60 * 1000, forceRefresh),
-    loadWithCache('chart', getDashboardChartData, 15 * 60 * 1000, forceRefresh),
-    loadWithCache('todos', getPendingTasks, 2 * 60 * 1000, forceRefresh),
-    loadWithCache('invoices', getRecentInvoices, 2 * 60 * 1000, forceRefresh),
+    statsRequest.execute(forceRefresh),
+    chartRequest.execute(forceRefresh),
+    todosRequest.execute(forceRefresh),
+    invoicesRequest.execute(forceRefresh),
   ])
   
   // 2. 更新各个区域状态
-  updateStats(stats)
-  updateChart(chart)
-  updateTodos(todos)
-  updateInvoices(invoices)
+  Object.assign(statsState, stats)
+  chartData.value = chart
+  todos.value = todos
+  invoices.value = invoices
 }
 ```
 
