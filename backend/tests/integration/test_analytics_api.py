@@ -161,6 +161,135 @@ async def test_dashboard_stats_success(test_client, auth_token, mock_cache):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_stats_no_cartesian_product(
+    test_client, auth_token, mock_cache, db_session: Session
+):
+    """测试仪表盘统计不存在笛卡尔积问题 - 多发票场景下余额不重复计算"""
+    from datetime import date
+
+    from app.models.billing import CustomerBalance, Invoice
+    from app.models.customers import Customer
+
+    # 清理测试数据
+    db_session.execute(
+        text(
+            "DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE '笛卡尔积测试客户%')"
+        )
+    )
+    db_session.execute(
+        text(
+            "DELETE FROM customer_balances WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE '笛卡尔积测试客户%')"
+        )
+    )
+    db_session.execute(text("DELETE FROM customers WHERE name LIKE '笛卡尔积测试客户%'"))
+    db_session.commit()
+
+    # 创建测试客户 1：余额 1000 元，5 张发票
+    customer1 = Customer(
+        name="笛卡尔积测试客户1",
+        account_type="enterprise",
+        cooperation_status="active",
+        company_id=99901,
+    )
+    db_session.add(customer1)
+    db_session.flush()
+
+    balance1 = CustomerBalance(
+        customer_id=customer1.id,
+        total_amount=1000.00,
+        real_amount=800.00,
+        bonus_amount=200.00,
+    )
+    db_session.add(balance1)
+
+    # 创建 5 张发票
+    current_month_start = date.today().replace(day=1)
+    for i in range(5):
+        invoice = Invoice(
+            customer_id=customer1.id,
+            invoice_no=f"TEST-C1-{i:03d}",
+            period_start=current_month_start,
+            period_end=current_month_start,
+            total_amount=100.00,
+            status="pending_customer",
+        )
+        db_session.add(invoice)
+
+    # 创建测试客户 2：余额 2000 元，3 张发票
+    customer2 = Customer(
+        name="笛卡尔积测试客户2",
+        account_type="enterprise",
+        cooperation_status="active",
+        company_id=99902,
+    )
+    db_session.add(customer2)
+    db_session.flush()
+
+    balance2 = CustomerBalance(
+        customer_id=customer2.id,
+        total_amount=2000.00,
+        real_amount=1500.00,
+        bonus_amount=500.00,
+    )
+    db_session.add(balance2)
+
+    # 创建 3 张发票
+    for i in range(3):
+        invoice = Invoice(
+            customer_id=customer2.id,
+            invoice_no=f"TEST-C2-{i:03d}",
+            period_start=current_month_start,
+            period_end=current_month_start,
+            total_amount=200.00,
+            status="pending_customer",
+        )
+        db_session.add(invoice)
+
+    db_session.commit()
+
+    # 调用 API
+    request, response = await test_client.get(
+        "/api/v1/analytics/dashboard/stats",
+        headers=auth_token,
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+
+    # 验证余额不会被重复计算
+    # 正确值：1000 + 2000 = 3000（不是 1000*5 + 2000*3 = 11000）
+    assert data["total_balance"] == 3000.00, (
+        f"总余额计算错误：期望 3000.00，实际 {data['total_balance']}"
+    )
+    assert data["real_balance"] == 2300.00, (
+        f"实充余额计算错误：期望 2300.00，实际 {data['real_balance']}"
+    )
+    assert data["bonus_balance"] == 700.00, (
+        f"赠送余额计算错误：期望 700.00，实际 {data['bonus_balance']}"
+    )
+
+    # 验证发票数量正确
+    # 正确值：5 + 3 = 8 张
+    assert data["month_invoice_count"] == 8, (
+        f"发票数量错误：期望 8，实际 {data['month_invoice_count']}"
+    )
+
+    # 清理测试数据
+    db_session.execute(
+        text(
+            "DELETE FROM invoices WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE '笛卡尔积测试客户%')"
+        )
+    )
+    db_session.execute(
+        text(
+            "DELETE FROM customer_balances WHERE customer_id IN (SELECT id FROM customers WHERE name LIKE '笛卡尔积测试客户%')"
+        )
+    )
+    db_session.execute(text("DELETE FROM customers WHERE name LIKE '笛卡尔积测试客户%'"))
+    db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_dashboard_chart_data_success(test_client, auth_token, mock_cache):
     """测试获取仪表盘图表数据 - 成功场景"""
     request, response = await test_client.get(

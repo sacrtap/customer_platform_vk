@@ -45,7 +45,7 @@ async def check_balance_warning(session: AsyncSession):
         normal_count = 0
 
         for customer, balance in rows:
-            total_balance = balance.actual_balance + balance.gift_balance
+            total_balance = balance.real_amount + balance.bonus_amount
 
             try:
                 if total_balance <= CRITICAL_THRESHOLD:

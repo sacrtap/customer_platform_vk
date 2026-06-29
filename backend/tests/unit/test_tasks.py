@@ -35,8 +35,8 @@ class TestBalanceCheckTask:
         customer.balance_warning_level = None
 
         balance = MagicMock()
-        balance.actual_balance = 5000
-        balance.gift_balance = 1000
+        balance.real_amount = 5000
+        balance.bonus_amount = 1000
 
         mock_result = MagicMock()
         mock_result.all.return_value = [(customer, balance)]
@@ -59,8 +59,8 @@ class TestBalanceCheckTask:
         customer.balance_warning_level = None
 
         balance = MagicMock()
-        balance.actual_balance = 200  # 低于严重预警阈值 500
-        balance.gift_balance = 100
+        balance.real_amount = 200  # 低于严重预警阈值 500
+        balance.bonus_amount = 100
 
         mock_result = MagicMock()
         mock_result.all.return_value = [(customer, balance)]
@@ -83,8 +83,8 @@ class TestBalanceCheckTask:
         customer.balance_warning_level = None
 
         balance = MagicMock()
-        balance.actual_balance = 800  # 低于预警阈值 1000
-        balance.gift_balance = 100
+        balance.real_amount = 800  # 低于预警阈值 1000
+        balance.bonus_amount = 100
 
         mock_result = MagicMock()
         mock_result.all.return_value = [(customer, balance)]
@@ -106,9 +106,8 @@ class TestBalanceCheckTask:
         customer.balance_warning_level = "critical"
 
         balance = MagicMock()
-        balance.actual_balance = 200
-        balance.gift_balance = 100
-
+        balance.real_amount = 200
+        balance.bonus_amount = 100
         mock_result = MagicMock()
         mock_result.all.return_value = [(customer, balance)]
         mock_session.execute = AsyncMock(return_value=mock_result)
@@ -130,8 +129,8 @@ class TestBalanceCheckTask:
         customer.balance_warning_level = "warning"
 
         balance = MagicMock()
-        balance.actual_balance = 5000
-        balance.gift_balance = 1000
+        balance.real_amount = 5000
+        balance.bonus_amount = 1000
 
         mock_result = MagicMock()
         mock_result.all.return_value = [(customer, balance)]
