@@ -964,10 +964,12 @@ async def get_invoice(request: Request, invoice_id: int):
                 ],
                 "approver_id": invoice.approver_id,
                 "approved_at": invoice.approved_at,
+                "discount_applied_at": invoice.discount_applied_at,
                 "customer_confirmed_at": invoice.customer_confirmed_at,
                 "paid_at": invoice.paid_at,
                 "completed_at": invoice.completed_at,
                 "cancelled_at": invoice.cancelled_at,
+                "created_at": invoice.created_at.isoformat() if invoice.created_at else None,
             },
         }
     )

@@ -870,6 +870,7 @@ class InvoiceService:
         invoice.discount_amount = discount_amount
         invoice.discount_reason = discount_reason
         invoice.discount_attachment = discount_attachment
+        invoice.discount_applied_at = datetime.now().isoformat()
 
         await self.db.commit()
 

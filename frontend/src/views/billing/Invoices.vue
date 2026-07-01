@@ -754,10 +754,10 @@ async function handleDiscount() {
     Message.success('折扣申请成功')
     discountModalVisible.value = false
     loadData()
+    // 刷新详情数据，确保时间线能显示 discount_applied_at
     if (selectedInvoice.value) {
-      // Drawer 中显示折扣信息
-      selectedInvoice.value.discount_amount = discountForm.discount_amount
-      selectedInvoice.value.discount_reason = discountForm.discount_reason
+      const { data } = await getInvoice(selectedInvoice.value.id)
+      selectedInvoice.value = data
     }
     return true
   } catch (error) {

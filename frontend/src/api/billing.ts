@@ -185,6 +185,7 @@ export interface Invoice {
   items?: InvoiceItem[]
   approver_id?: number
   approved_at?: string
+  discount_applied_at?: string
   customer_confirmed_at?: string
   paid_at?: string
   completed_at?: string

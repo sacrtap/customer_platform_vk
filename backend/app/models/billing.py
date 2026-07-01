@@ -106,6 +106,7 @@ class Invoice(BaseModel):
     )  # draft/pending_customer/customer_confirmed/paid/completed/cancelled
     approver_id = Column(Integer, ForeignKey("users.id"))
     approved_at = Column(String(50))
+    discount_applied_at = Column(String(50))  # 折扣申请时间
     customer_confirmed_at = Column(String(50))
     payment_proof = Column(String(255))
     paid_at = Column(String(50))
