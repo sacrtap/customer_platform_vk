@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..cache.base import cache_service
 from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..models.industry_type import IndustryType
+from ..repository import BalanceRepository, InvoiceRepository, PricingRepository
 from ..services.billing import BalanceService, InvoiceService, PricingService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
@@ -343,7 +344,7 @@ async def get_balances(request: Request):
 async def get_customer_balance(request: Request, customer_id: int):
     """获取客户余额"""
     db: AsyncSession = request.ctx.db_session
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     balance = await balance_service.get_balance_by_customer_id(customer_id)
 
@@ -409,7 +410,7 @@ async def recharge(request: Request):
             status=400,
         )
 
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     # 获取充值前余额
     balance_before = await balance_service.get_balance_by_customer_id(customer_id)
@@ -512,7 +513,7 @@ async def recharge(request: Request):
 async def get_recharge_records(request: Request):
     """获取充值记录列表"""
     db: AsyncSession = request.ctx.db_session
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     page = int(request.args.get("page", 1))
@@ -618,7 +619,7 @@ async def get_consumption_records(request: Request):
 async def get_pricing_rules(request: Request):
     """获取定价规则列表（支持分页）"""
     db: AsyncSession = request.ctx.db_session
-    pricing_service = PricingService(db)
+    pricing_service = PricingService(PricingRepository(db))
 
     # 分页参数
     page = int(request.args.get("page", 1))
@@ -695,7 +696,7 @@ async def create_pricing_rule(request: Request):
     data = request.json
     user = get_current_user(request)
 
-    pricing_service = PricingService(db)
+    pricing_service = PricingService(PricingRepository(db))
     data["created_by"] = user["user_id"] if user else 1
 
     # 日期转换
@@ -736,7 +737,7 @@ async def update_pricing_rule(request: Request, rule_id: int):
     db: AsyncSession = request.ctx.db_session
     data = request.json
 
-    pricing_service = PricingService(db)
+    pricing_service = PricingService(PricingRepository(db))
 
     # 日期转换
     if "effective_date" in data and isinstance(data["effective_date"], str):
@@ -775,7 +776,7 @@ async def update_pricing_rule(request: Request, rule_id: int):
 async def delete_pricing_rule(request: Request, rule_id: int):
     """删除定价规则"""
     db: AsyncSession = request.ctx.db_session
-    pricing_service = PricingService(db)
+    pricing_service = PricingService(PricingRepository(db))
 
     success = await pricing_service.delete_pricing_rule(rule_id)
 
@@ -835,7 +836,7 @@ async def check_pricing_rule_conflict(request: Request):
             status=400,
         )
 
-    pricing_service = PricingService(db)
+    pricing_service = PricingService(PricingRepository(db))
 
     conflicting_rules = await pricing_service.check_pricing_rule_conflict(
         customer_id=customer_id,
@@ -876,7 +877,7 @@ async def check_pricing_rule_conflict(request: Request):
 async def get_invoices(request: Request):
     """获取结算单列表"""
     db: AsyncSession = request.ctx.db_session
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
@@ -928,7 +929,7 @@ async def get_invoices(request: Request):
 async def get_invoice(request: Request, invoice_id: int):
     """获取结算单详情"""
     db: AsyncSession = request.ctx.db_session
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     invoice = await invoice_service.get_invoice_by_id(invoice_id)
 
@@ -1004,7 +1005,7 @@ async def calculate_invoice_items(request: Request):
     db: AsyncSession = request.ctx.db_session
     data = request.json
 
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 日期转换
     period_start = date.fromisoformat(data["period_start"])
@@ -1073,7 +1074,7 @@ async def generate_invoice(request: Request):
     data = request.json
     user = get_current_user(request)
 
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 日期转换
     period_start = date.fromisoformat(data["period_start"])
@@ -1148,7 +1149,7 @@ async def apply_discount(request: Request, invoice_id: int):
     db: AsyncSession = request.ctx.db_session
     data = request.json
 
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     success, message = await invoice_service.apply_discount(
         invoice_id=invoice_id,
@@ -1173,7 +1174,7 @@ async def submit_invoice(request: Request, invoice_id: int):
     """提交结算单（商务确认）"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 获取提交前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1222,7 +1223,7 @@ async def confirm_invoice(request: Request, invoice_id: int):
     """客户确认结算单"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 获取确认前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1269,7 +1270,7 @@ async def pay_invoice(request: Request, invoice_id: int):
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
     data = request.json or {}
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 获取付款前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1321,7 +1322,7 @@ async def complete_invoice(request: Request, invoice_id: int):
     """完成结算（扣款）"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 获取完成前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1367,7 +1368,7 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
     """取消结算单"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 获取取消前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1412,7 +1413,7 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
 async def delete_invoice(request: Request, invoice_id: int):
     """删除结算单"""
     db: AsyncSession = request.ctx.db_session
-    invoice_service = InvoiceService(db)
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     success = await invoice_service.delete_invoice(invoice_id)
 
@@ -1818,7 +1819,7 @@ async def import_balance(request: Request):
         current_user = get_current_user(request)
         operator_id = current_user.get("user_id") if current_user else 1
 
-        service = BalanceService(db_session)
+        service = BalanceService(BalanceRepository(db_session))
         success_count, batch_errors = await service.batch_import_recharge(
             rows=valid_rows,
             operator_id=operator_id,

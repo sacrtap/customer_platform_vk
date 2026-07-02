@@ -26,32 +26,31 @@ from ..models.billing import (
 )
 from ..models.customers import Customer
 from ..models.daily_consumption import DailyConsumption
+from ..repository import (
+    BalanceRepository,
+    BalanceRepositoryProtocol,
+    InvoiceRepositoryProtocol,
+    PricingRepositoryProtocol,
+)
 
 
 class BalanceService:
     """余额服务类"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, balance_repo: BalanceRepositoryProtocol):
+        self.balance_repo = balance_repo
+
+    @property
+    def db(self) -> AsyncSession:
+        return self.balance_repo.db
 
     async def get_balance_by_customer_id(self, customer_id: int) -> Optional[CustomerBalance]:
         """获取客户余额"""
-        result = await self.db.execute(
-            select(CustomerBalance).where(
-                CustomerBalance.customer_id == customer_id,
-                CustomerBalance.deleted_at.is_(None),
-            )
-        )
-        return result.scalar_one_or_none()
+        return await self.balance_repo.get_by_customer_id(customer_id)
 
     async def get_or_create_balance(self, customer_id: int) -> CustomerBalance:
         """获取或创建客户余额"""
-        balance = await self.get_balance_by_customer_id(customer_id)
-        if not balance:
-            balance = CustomerBalance(customer_id=customer_id)
-            self.db.add(balance)
-            await self.db.flush()
-        return balance
+        return await self.balance_repo.get_or_create(customer_id)
 
     async def recharge(
         self,
@@ -282,8 +281,12 @@ class BalanceService:
 class PricingService:
     """定价规则服务类"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, pricing_repo: PricingRepositoryProtocol):
+        self.pricing_repo = pricing_repo
+
+    @property
+    def db(self) -> AsyncSession:
+        return self.pricing_repo.db
 
     async def get_pricing_rules(
         self,
@@ -543,8 +546,17 @@ class PricingService:
 class InvoiceService:
     """结算单服务类"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(
+        self,
+        invoice_repo: InvoiceRepositoryProtocol,
+        pricing_repo: PricingRepositoryProtocol,
+    ):
+        self.invoice_repo = invoice_repo
+        self.pricing_repo = pricing_repo
+
+    @property
+    def db(self) -> AsyncSession:
+        return self.invoice_repo.db
 
     async def calculate_items_from_rules(
         self,
@@ -947,7 +959,7 @@ class InvoiceService:
 
         # 执行扣款
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
-        balance_service = BalanceService(self.db)
+        balance_service = BalanceService(BalanceRepository(self.db))
         success, message = await balance_service.consume(
             customer_id=invoice.customer_id,
             amount=final_amount,
