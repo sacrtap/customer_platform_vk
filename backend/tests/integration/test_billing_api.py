@@ -99,7 +99,7 @@ async def test_customer(db_session, test_user, worker_id):
         {"id": customer_id},
     )
     db_session.execute(
-        text("DELETE FROM daily_usage WHERE customer_id = :id"),
+        text("DELETE FROM daily_consumptions WHERE customer_id = :id"),
         {"id": customer_id},
     )
     db_session.execute(

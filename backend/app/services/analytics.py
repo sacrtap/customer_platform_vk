@@ -2,7 +2,6 @@
 
 from calendar import monthrange
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, case, extract, func, or_, select
@@ -11,13 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.billing import (
     ConsumptionRecord,
     CustomerBalance,
-    DailyUsage,
     Invoice,
     InvoiceItem,
     PricingRule,
     RechargeRecord,
 )
 from ..models.customers import Customer, CustomerProfile
+from ..models.daily_consumption import DailyConsumption
 from ..models.industry_type import IndustryType
 from ..models.users import User
 
@@ -310,22 +309,22 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         """获取每日用量趋势"""
         stmt = select(
-            DailyUsage.usage_date,
-            DailyUsage.device_type,
-            func.sum(DailyUsage.quantity).label("total_quantity"),
+            DailyConsumption.consumption_date.label("usage_date"),
+            DailyConsumption.device_type,
+            func.sum(DailyConsumption.order_count).label("total_quantity"),
         ).where(
             and_(
-                DailyUsage.usage_date >= start_date,
-                DailyUsage.usage_date <= end_date,
+                DailyConsumption.consumption_date >= start_date,
+                DailyConsumption.consumption_date <= end_date,
             )
         )
 
         if customer_id:
-            stmt = stmt.where(DailyUsage.customer_id == customer_id)
+            stmt = stmt.where(DailyConsumption.customer_id == customer_id)
 
-        stmt = stmt.group_by(DailyUsage.usage_date, DailyUsage.device_type).order_by(
-            DailyUsage.usage_date
-        )
+        stmt = stmt.group_by(
+            DailyConsumption.consumption_date, DailyConsumption.device_type
+        ).order_by(DailyConsumption.consumption_date)
 
         result = (await self.db.execute(stmt)).all()
         return [
@@ -815,29 +814,24 @@ class AnalyticsService:
             # 获取该客户该月的实际用量
             usage_stmt = (
                 select(
-                    DailyUsage.device_type,
-                    func.sum(DailyUsage.quantity).label("total_quantity"),
+                    DailyConsumption.device_type,
+                    func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
                 )
                 .where(
                     and_(
-                        DailyUsage.customer_id == row.id,
-                        DailyUsage.usage_date >= date(year, month, 1),
-                        DailyUsage.usage_date <= date(year, month, monthrange(year, month)[1]),
+                        DailyConsumption.customer_id == row.id,
+                        DailyConsumption.consumption_date >= date(year, month, 1),
+                        DailyConsumption.consumption_date
+                        <= date(year, month, monthrange(year, month)[1]),
                     )
                 )
-                .group_by(DailyUsage.device_type)
+                .group_by(DailyConsumption.device_type)
             )
 
             usage_result = (await self.db.execute(usage_stmt)).all()
 
             for usage_row in usage_result:
-                predicted_amount = await self._calculate_predicted_amount(
-                    pricing_type=row.pricing_type,
-                    unit_price=float(row.unit_price) if row.unit_price else Decimal("0"),
-                    tiers=row.tiers,
-                    package_type=row.package_type,
-                    quantity=float(usage_row.total_quantity) if usage_row.total_quantity else 0,
-                )
+                predicted_amount = float(usage_row.total_cost or 0)
 
                 predictions.append(
                     {
@@ -845,9 +839,7 @@ class AnalyticsService:
                         "company_id": row.company_id,
                         "customer_name": row.name,
                         "device_type": usage_row.device_type,
-                        "quantity": (
-                            float(usage_row.total_quantity) if usage_row.total_quantity else 0
-                        ),
+                        "quantity": predicted_amount,
                         "pricing_type": row.pricing_type,
                         "predicted_amount": predicted_amount,
                     }
@@ -1071,10 +1063,12 @@ class AnalyticsService:
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
 
         # 1. 获取近30天实际用量
-        usage_stmt = select(func.sum(DailyUsage.quantity).label("total_quantity")).where(
+        usage_stmt = select(
+            func.coalesce(func.sum(DailyConsumption.order_count), 0).label("total_quantity")
+        ).where(
             and_(
-                DailyUsage.customer_id == customer_id,
-                DailyUsage.usage_date >= thirty_days_ago.date(),
+                DailyConsumption.customer_id == customer_id,
+                DailyConsumption.consumption_date >= thirty_days_ago.date(),
             )
         )
         usage_result = (await self.db.execute(usage_stmt)).first()

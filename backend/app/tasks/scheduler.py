@@ -36,18 +36,9 @@ def init_scheduler(app):
         from .file_cleanup import cleanup_temp_files
         from .invoice_generator import generate_monthly_invoices
         from .order_sync import sync_daily_orders
-        from .usage_sync import sync_daily_usage
         from .webhook_cleanup import cleanup_webhook_signatures
 
         # 添加定时任务 - 使用 lambda 传递 session
-        # P6-2: 每日 00:00 同步用量
-        scheduler.add_job(
-            lambda: sync_daily_usage(session_factory()),
-            trigger=CronTrigger(hour=0, minute=0),
-            id="sync_daily_usage",
-            name="每日用量同步",
-            replace_existing=True,
-        )
 
         # P6-3: 每月 1 日 02:00 自动生成结算单
         scheduler.add_job(

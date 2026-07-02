@@ -38,7 +38,7 @@ async def clear_customer_data(request: Request):
     - invoices (结算单)
     - invoice_items (结算单明细)
     - consumption_records (消费流水)
-    - daily_usage (每日用量)
+    - daily_consumptions (每日消费)
     - pricing_rules (计费规则)
     - recharge_records (充值记录)
 
@@ -76,7 +76,7 @@ async def clear_customer_data(request: Request):
                 "invoices",
                 "invoice_items",
                 "consumption_records",
-                "daily_usage",
+                "daily_consumptions",
                 "pricing_rules",
                 "recharge_records",
             ],
@@ -124,9 +124,9 @@ async def clear_customer_data(request: Request):
             text("DELETE FROM consumption_records WHERE customer_id IN (SELECT id FROM customers)")
         )
 
-        # 5. 每日用量
+        # 5. 每日消费
         await db_session.execute(
-            text("DELETE FROM daily_usage WHERE customer_id IN (SELECT id FROM customers)")
+            text("DELETE FROM daily_consumptions WHERE customer_id IN (SELECT id FROM customers)")
         )
 
         # 6. 充值记录

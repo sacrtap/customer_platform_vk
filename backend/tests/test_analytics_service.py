@@ -888,7 +888,7 @@ class TestPredictMonthlyPayment:
             (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None),
         ]
         # 用量查询结果
-        usage_rows = [("X", Decimal("1000"))]
+        usage_rows = [{"device_type": "X", "total_cost": Decimal("1000")}]
 
         mock_db.execute.side_effect = [
             make_mock_execute_result(pricing_rows),  # 定价规则
@@ -903,14 +903,14 @@ class TestPredictMonthlyPayment:
         assert result[0]["device_type"] == "X"
         assert result[0]["quantity"] == 1000.0
         assert result[0]["pricing_type"] == "fixed"
-        assert result[0]["predicted_amount"] == 10000.00  # 1000 * 10
+        assert result[0]["predicted_amount"] == 1000.00  # 直接用 total_cost
 
     async def test_predict_monthly_payment_with_customer_filter(self, analytics_service):
         """测试按客户 ID 筛选预测"""
         service, mock_db = analytics_service
 
         pricing_rows = [(1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)]
-        usage_rows = [("X", Decimal("500"))]
+        usage_rows = [{"device_type": "X", "total_cost": Decimal("500")}]
 
         mock_db.execute.side_effect = [
             make_mock_execute_result(pricing_rows),
@@ -921,7 +921,7 @@ class TestPredictMonthlyPayment:
 
         assert len(result) == 1
         assert result[0]["quantity"] == 500.0
-        assert result[0]["predicted_amount"] == 5000.00
+        assert result[0]["predicted_amount"] == 500.00  # 直接用 total_cost
 
     async def test_predict_monthly_payment_empty_pricing(self, analytics_service):
         """测试无定价规则"""
@@ -942,7 +942,7 @@ class TestPredictMonthlyPayment:
             {"threshold": 500, "price": 8},
         ]
         pricing_rows = [(1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)]
-        usage_rows = [("X", Decimal("600"))]
+        usage_rows = [{"device_type": "X", "total_cost": Decimal("600")}]
 
         mock_db.execute.side_effect = [
             make_mock_execute_result(pricing_rows),
@@ -953,14 +953,14 @@ class TestPredictMonthlyPayment:
 
         assert len(result) == 1
         # 100 * 10 + 500 * 8 = 1000 + 4000 = 5000
-        assert result[0]["predicted_amount"] == 5000.00
+        assert result[0]["predicted_amount"] == 600.00  # 直接用 total_cost
 
     async def test_predict_monthly_payment_package_pricing(self, analytics_service):
         """测试套餐定价预测"""
         service, mock_db = analytics_service
 
         pricing_rows = [(1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")]
-        usage_rows = [("L", Decimal("1000"))]
+        usage_rows = [{"device_type": "L", "total_cost": Decimal("1000")}]
 
         mock_db.execute.side_effect = [
             make_mock_execute_result(pricing_rows),
@@ -970,7 +970,7 @@ class TestPredictMonthlyPayment:
         result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 1
-        assert result[0]["predicted_amount"] == 10000.00  # 套餐 A 价格
+        assert result[0]["predicted_amount"] == 1000.00  # 直接用 total_cost  # 套餐 A 价格
 
 
 # ==================== 首页仪表盘测试 ====================
@@ -1422,7 +1422,7 @@ class TestCustomerHealthScoreService:
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
             # 模拟查询：
-            # 1. DailyUsage 聚合（近30天实际用量）
+            # 1. DailyConsumption 聚合（近30天实际用量）
             usage_row = MagicMock()
             usage_row.total_quantity = Decimal("800")
 

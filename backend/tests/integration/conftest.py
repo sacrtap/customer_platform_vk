@@ -98,7 +98,10 @@ def sync_test_engine():
             columns = [col["name"] for col in inspector.get_columns("invoices")]
             if "cancelled_at" not in columns:
                 conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_at VARCHAR(50)"))
-
+            if "discount_applied_at" not in columns:
+                conn.execute(
+                    text("ALTER TABLE invoices ADD COLUMN discount_applied_at VARCHAR(50)")
+                )
         # 确保 customers.is_real_estate 列存在
         if "customers" in tables:
             columns = [col["name"] for col in inspector.get_columns("customers")]
@@ -336,7 +339,7 @@ def db_session(sync_test_engine, test_user):
             session.execute(text("DELETE FROM recharge_records"))
             session.execute(text("DELETE FROM customer_profiles"))
             session.execute(text("DELETE FROM consumption_records"))
-            session.execute(text("DELETE FROM daily_usage"))
+            session.execute(text("DELETE FROM daily_consumptions"))
             session.execute(text("DELETE FROM files"))
             session.execute(text("DELETE FROM audit_logs"))
             session.execute(text("DELETE FROM sync_task_logs"))

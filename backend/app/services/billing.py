@@ -19,13 +19,13 @@ from tenacity import (
 from ..models.billing import (
     ConsumptionRecord,
     CustomerBalance,
-    DailyUsage,
     Invoice,
     InvoiceItem,
     PricingRule,
     RechargeRecord,
 )
 from ..models.customers import Customer
+from ..models.daily_consumption import DailyConsumption
 
 
 class BalanceService:
@@ -587,16 +587,16 @@ class InvoiceService:
         # 1. 查询结算周期内的用量汇总（按 device_type + layer_type 分组）
         usage_stmt = (
             select(
-                DailyUsage.device_type,
-                DailyUsage.layer_type,
-                sa_func.sum(DailyUsage.quantity).label("total_quantity"),
+                DailyConsumption.device_type,
+                DailyConsumption.layer_type,
+                sa_func.sum(DailyConsumption.order_count).label("total_quantity"),
             )
             .where(
-                DailyUsage.customer_id == customer_id,
-                DailyUsage.usage_date >= period_start,
-                DailyUsage.usage_date <= period_end,
+                DailyConsumption.customer_id == customer_id,
+                DailyConsumption.consumption_date >= period_start,
+                DailyConsumption.consumption_date <= period_end,
             )
-            .group_by(DailyUsage.device_type, DailyUsage.layer_type)
+            .group_by(DailyConsumption.device_type, DailyConsumption.layer_type)
         )
         usage_result = await self.db.execute(usage_stmt)
         usage_rows = usage_result.all()

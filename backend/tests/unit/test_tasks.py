@@ -258,40 +258,6 @@ class TestInvoiceGeneratorTask:
 # ============================================================================
 
 
-class TestUsageSyncTask:
-    """测试用量同步任务"""
-
-    @pytest.mark.asyncio
-    async def test_sync_daily_usage_success(self):
-        """测试日用量同步成功"""
-        mock_session = AsyncMock()
-        mock_session.commit = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_session.execute = AsyncMock(return_value=mock_result)
-
-        try:
-            from app.tasks.usage_sync import sync_daily_usage
-
-            await sync_daily_usage(mock_session)
-        except ImportError:
-            pytest.skip("usage_sync 模块不存在")
-
-    @pytest.mark.asyncio
-    async def test_sync_daily_usage_handles_exception(self):
-        """测试用量同步异常处理"""
-        mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(side_effect=Exception("API 调用失败"))
-
-        try:
-            from app.tasks.usage_sync import sync_daily_usage
-
-            with pytest.raises(Exception):
-                await sync_daily_usage(mock_session)
-        except ImportError:
-            pytest.skip("usage_sync 模块不存在")
-
-
 class TestFileCleanupTask:
     """测试文件清理任务"""
 

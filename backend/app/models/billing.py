@@ -155,23 +155,6 @@ class ConsumptionRecord(BaseModel):
     balance_after = Column(DECIMAL(12, 2))
 
 
-class DailyUsage(BaseModel):
-    """每日用量表"""
-
-    __tablename__ = "daily_usage"
-
-    customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
-    usage_date = Column(Date, nullable=False, index=True)
-    device_type = Column(String(20), nullable=False)
-    layer_type = Column(String(20))
-    quantity = Column(DECIMAL(10, 2), nullable=False)
-
-    __table_args__ = (
-        Index("idx_daily_usage_customer_date", "customer_id", "usage_date"),
-        Index("idx_daily_usage_customer_device", "customer_id", "device_type"),
-    )
-
-
 class SyncTaskLog(BaseModel):
     """同步任务日志表"""
 
