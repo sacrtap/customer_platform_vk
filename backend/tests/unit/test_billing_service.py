@@ -45,7 +45,13 @@ def balance_service(mock_db_session):
 @pytest.fixture
 def pricing_service(mock_db_session):
     """创建 PricingService 实例"""
-    return PricingService(db=mock_db_session)
+    from unittest.mock import MagicMock
+
+    from app.repository import PricingRepository
+
+    mock_repo = MagicMock(spec=PricingRepository)
+    mock_repo.db = mock_db_session
+    return PricingService(pricing_repo=mock_repo)
 
 
 # ==================== Test BalanceService - Recharge ====================

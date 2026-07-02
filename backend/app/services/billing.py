@@ -26,7 +26,12 @@ from ..models.billing import (
 )
 from ..models.customers import Customer
 from ..models.daily_consumption import DailyConsumption
-from ..repository import BalanceRepository, BalanceRepositoryProtocol
+from ..repository import (
+    BalanceRepository,
+    BalanceRepositoryProtocol,
+    InvoiceRepositoryProtocol,
+    PricingRepositoryProtocol,
+)
 
 
 class BalanceService:
@@ -276,8 +281,12 @@ class BalanceService:
 class PricingService:
     """定价规则服务类"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, pricing_repo: PricingRepositoryProtocol):
+        self.pricing_repo = pricing_repo
+
+    @property
+    def db(self) -> AsyncSession:
+        return self.pricing_repo.db
 
     async def get_pricing_rules(
         self,
@@ -537,8 +546,17 @@ class PricingService:
 class InvoiceService:
     """结算单服务类"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(
+        self,
+        invoice_repo: InvoiceRepositoryProtocol,
+        pricing_repo: PricingRepositoryProtocol,
+    ):
+        self.invoice_repo = invoice_repo
+        self.pricing_repo = pricing_repo
+
+    @property
+    def db(self) -> AsyncSession:
+        return self.invoice_repo.db
 
     async def calculate_items_from_rules(
         self,
