@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..cache.base import cache_service
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer, CustomerProfile
+from ..repository import CustomerRepositoryProtocol
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 # 允许排序的字段白名单
@@ -149,21 +150,30 @@ class CustomerService:
     支持同步和异步 Session
     """
 
-    def __init__(self, db_session: Union[AsyncSession, Session]):
+    def __init__(
+        self,
+        db_session: Union[AsyncSession, Session],
+        customer_repo: Optional[CustomerRepositoryProtocol] = None,
+    ):
         self.db = db_session
         self._is_async = isinstance(db_session, AsyncSession)
+        # 向后兼容：如果没有传入 repo，则使用 db_session 创建默认 repo
+        if customer_repo is not None:
+            self.customer_repo = customer_repo
+        else:
+            from ..repository import CustomerRepository
+
+            self.customer_repo = CustomerRepository(db_session)
 
     async def get_customer_by_id(self, customer_id: int) -> Optional[Customer]:
         """根据 ID 获取客户"""
-        result = await self.db.execute(
-            select(Customer)
-            .options(
+        return await self.customer_repo.find_by_id(
+            customer_id,
+            options=[
                 selectinload(Customer.profile).selectinload(CustomerProfile.industry_type),
                 selectinload(Customer.balance),
-            )
-            .where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+            ],
         )
-        return result.scalar_one_or_none()
 
     async def get_all_customers(
         self,

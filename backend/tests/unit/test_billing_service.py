@@ -31,7 +31,15 @@ def mock_db_session():
 @pytest.fixture
 def balance_service(mock_db_session):
     """创建 BalanceService 实例"""
-    return BalanceService(db=mock_db_session)
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.repository import BalanceRepository
+
+    mock_repo = MagicMock(spec=BalanceRepository)
+    mock_repo.db = mock_db_session
+    mock_repo.get_by_customer_id = AsyncMock(return_value=None)
+    mock_repo.get_or_create = AsyncMock(return_value=None)
+    return BalanceService(balance_repo=mock_repo)
 
 
 @pytest.fixture
@@ -57,10 +65,7 @@ class TestBalanceService_Recharge:
             bonus_amount=Decimal("200.00"),
             total_amount=Decimal("1200.00"),
         )
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = existing_balance
-        mock_db_session.execute.return_value = mock_result
+        balance_service.balance_repo.get_or_create.return_value = existing_balance
 
         # 执行充值
         result = await balance_service.recharge(
@@ -89,10 +94,15 @@ class TestBalanceService_Recharge:
     @pytest.mark.asyncio
     async def test_recharge_creates_balance_if_not_exists(self, balance_service, mock_db_session):
         """测试充值时如果余额不存在则自动创建"""
-        # Mock 查询返回 None（余额不存在）
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db_session.execute.return_value = mock_result
+        # Mock 返回新创建的余额
+        new_balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("0.00"),
+            bonus_amount=Decimal("0.00"),
+            total_amount=Decimal("0.00"),
+        )
+        balance_service.balance_repo.get_or_create.return_value = new_balance
 
         # 执行充值
         result = await balance_service.recharge(
@@ -106,8 +116,8 @@ class TestBalanceService_Recharge:
         assert result is not None
         assert result.real_amount == Decimal("1000.00")
 
-        # 验证创建了余额记录（add 被调用至少 2 次：充值记录 + 余额）
-        assert mock_db_session.add.call_count >= 2
+        # 验证调用了 get_or_create 获取余额
+        balance_service.balance_repo.get_or_create.assert_called_once_with(200)
         mock_db_session.commit.assert_called()
 
 
@@ -255,10 +265,7 @@ class TestBalanceService_GetBalance:
             customer_id=100,
             total_amount=Decimal("5000.00"),
         )
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = balance
-        mock_db_session.execute.return_value = mock_result
+        balance_service.balance_repo.get_by_customer_id.return_value = balance
 
         result = await balance_service.get_balance_by_customer_id(100)
 
@@ -269,9 +276,7 @@ class TestBalanceService_GetBalance:
     @pytest.mark.asyncio
     async def test_get_balance_not_found(self, balance_service, mock_db_session):
         """测试获取不存在的余额"""
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db_session.execute.return_value = mock_result
+        balance_service.balance_repo.get_by_customer_id.return_value = None
 
         result = await balance_service.get_balance_by_customer_id(999)
 
@@ -281,29 +286,23 @@ class TestBalanceService_GetBalance:
     async def test_get_or_create_balance_existing(self, balance_service, mock_db_session):
         """测试获取或创建余额 - 已存在"""
         balance = CustomerBalance(id=1, customer_id=100, total_amount=Decimal("1000.00"))
-
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = balance
-        mock_db_session.execute.return_value = mock_result
+        balance_service.balance_repo.get_or_create.return_value = balance
 
         result = await balance_service.get_or_create_balance(100)
 
         assert result is not None
         assert result.customer_id == 100
-        mock_db_session.add.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_or_create_balance_creates_new(self, balance_service, mock_db_session):
         """测试获取或创建余额 - 不存在时创建"""
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_db_session.execute.return_value = mock_result
+        balance = CustomerBalance(id=1, customer_id=100, total_amount=Decimal("0.00"))
+        balance_service.balance_repo.get_or_create.return_value = balance
 
         result = await balance_service.get_or_create_balance(100)
 
         assert result is not None
         assert result.customer_id == 100
-        mock_db_session.add.assert_called()
 
 
 # ==================== Test PricingService - Create Rule ====================

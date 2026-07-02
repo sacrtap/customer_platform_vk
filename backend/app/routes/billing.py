@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..cache.base import cache_service
 from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..models.industry_type import IndustryType
+from ..repository import BalanceRepository
 from ..services.billing import BalanceService, InvoiceService, PricingService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
@@ -343,7 +344,7 @@ async def get_balances(request: Request):
 async def get_customer_balance(request: Request, customer_id: int):
     """获取客户余额"""
     db: AsyncSession = request.ctx.db_session
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     balance = await balance_service.get_balance_by_customer_id(customer_id)
 
@@ -409,7 +410,7 @@ async def recharge(request: Request):
             status=400,
         )
 
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     # 获取充值前余额
     balance_before = await balance_service.get_balance_by_customer_id(customer_id)
@@ -512,7 +513,7 @@ async def recharge(request: Request):
 async def get_recharge_records(request: Request):
     """获取充值记录列表"""
     db: AsyncSession = request.ctx.db_session
-    balance_service = BalanceService(db)
+    balance_service = BalanceService(BalanceRepository(db))
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     page = int(request.args.get("page", 1))
@@ -1818,7 +1819,7 @@ async def import_balance(request: Request):
         current_user = get_current_user(request)
         operator_id = current_user.get("user_id") if current_user else 1
 
-        service = BalanceService(db_session)
+        service = BalanceService(BalanceRepository(db_session))
         success_count, batch_errors = await service.batch_import_recharge(
             rows=valid_rows,
             operator_id=operator_id,
