@@ -20,15 +20,18 @@
 
 | 场景 | 必须优先使用的技能 | 项目内执行规则 |
 |------|--------------------|----------------|
-| 新功能、行为变更、组件/页面/API 设计 | `brainstorming` | 先澄清目标与约束；若用户明确要求直接实现且需求已完整，记录假设后继续 |
+| 新功能、行为变更、组件/页面/API 设计 | `brainstorming` + 按领域选 `frontend-design`\/`create-prd`\/`backend-development` | 必须先完成 spec 确认或用户显式签署跳过 spec；UI 必先 `frontend-design`，数据/流程必先 `create-prd`；跳过时必须在计划顶部标注"【额外建议】未经 spec 确认的风险" |
 | Bug、测试失败、异常行为 | `systematic-debugging` | 先定位根因，禁止未证明根因前直接改代码 |
 | 需要写代码修复或新增行为 | `test-driven-development`（若适用） | 结算管理金额/余额/账单逻辑严格 TDD；其他模块至少补充能验证新行为的测试或说明无需测试的原因 |
+| Spec 阶段（计划前） | `create-prd` 或 `docs/specs/*.md` | 需求必须拆成可读 chunk 并获用户 sign-off 后才可进入计划；出现矛盾或模糊时回-spec |
 | 多步骤或跨文件实现 | `writing-plans` | 先写可执行计划，计划必须列明文件、符号、步骤、验证命令 |
 | 执行已有计划 | `executing-plans` 或 `subagent-driven-development` | 独立任务优先 `subagent-driven-development`；顺序强依赖任务使用 `executing-plans` |
-| 2 个以上独立文件/模块可并行调查或实现 | `dispatching-parallel-agents` | 使用 OMP `task` 并行派遣；每个子代理必须有明确 Target/Change/Acceptance |
-| 完成修复或功能后准备声明完成 | `verification-before-completion` | 必须运行能覆盖新行为的检查后，才可说“完成/修复/通过” |
+| 2 个以上独立文件/模块可并行调查或实现 | `dispatching-parallel-agents` | 使用 OMP `task` 并行派遣；每个 subagent 必须以**明确的 Target/Change/Acceptance + 指定文件路径**启动，禁止把主会话完整对话历史无脑复制给 subagent；subagent 间可复用同类角色，但每个 implementer 任务应独立派生 |
+| Subagent 完成实现后 | `requesting-code-review` + `receiving-code-review` | 两步都通过才进入 ship：task reviewer 验收 spec 一致性，再 code reviewer 验收工程质量 |
+| 完成修复或功能后准备声明完成 | `verification-before-completion` | 必须运行能覆盖新行为的检查后，才可说"完成/修复/通过" |
 | 请求提交代码 | `git-commit` | 先检查 diff，按 conventional commit 生成提交信息 |
 | 需要外部库/API/框架文档 | `context7-mcp` 或 context-mode fetch/index | 优先读取官方文档，不凭训练数据猜测新版本 API |
+
 
 ### OMP 工具映射
 
@@ -63,3 +66,41 @@
 - 任何“完成/修复/通过”的表述前，必须有一条与新行为直接相关的验证证据。
 - 验证命令按变更范围选择：后端优先运行具体 pytest；前端类型变更运行 `npm run type-check`；UI 行为变更至少给出手动路径或 E2E/组件测试；规则/文档变更至少检查引用链和关键条款是否存在。
 - 若无法运行验证，必须明确说明未验证原因、影响范围、以及下一步应运行的具体命令。
+
+### 工作区隔离（Git Worktree）
+
+> 跨文件/多任务实施前，**必须优先在 isolated linked worktree 中工作**，避免污染主工作树。
+
+**启动检测（Step 0）**：先执行 `git rev-parse --git-dir` 与 `git rev-parse --git-common-dir`，并排除 submodule 情况（`git rev-parse --show-superproject-working-tree`）。若 `GIT_DIR != GIT_COMMON` 且不在 submodule 中，则已处于 linked worktree，直接复用。
+
+**创建工作区（Step 1）**：
+1. 优先用平台原生 worktree 工具（如 OMP 的 `git.worktreePathPrefix`）；
+2. 缺平台工具时 fallback 到 `git worktree add <path> -b <branch>`；
+3. 默认路径优先级：`.worktrees/<branch>` > `worktrees/<branch>` > 指令文件指定路径；
+4. 若 worktree 目录尚未被 `.gitignore` 覆盖，先添加规则并提交，再创建工作区；
+5. 若 `git worktree add` 因权限失败，告知用户沙盒限制，改为在当前目录就地工作。
+
+**工作区初始化（Step 2）**：
+- Node.js：存在 `package.json` 时执行 `npm install`
+- Python：存在 `pyproject.toml` 时执行 `poetry install`；存在 `requirements.txt` 时执行 `pip install -r requirements.txt`；存在 `Pipfile` 时执行 `pipenv install`
+- Rust：存在 `Cargo.toml` 时执行 `cargo build`
+- Go：存在 `go.mod` 时执行 `go mod download`
+
+**基线验证（Step 3）**：运行项目对应测试命令（pytest / npm test / cargo test / go test）。测试失败必须报告并请示是否继续；通过后才进入计划执行。
+
+来源：官方 `using-git-worktrees` skill（Step 0–Step 3）。
+
+### 开发分支收尾（Finishing a Development Branch）
+
+功能开发与审查全部通过后，必须按顺序执行收尾：
+
+1. **两阶段审查完成**：先 task review（验收 spec 一致性），再 code review（验收工程质量）；
+2. **用户确认合并**：合并前用 `git status` 复验待合并范围，禁止 stash-and-force；
+3. **合并回 main**：执行 `git merge --ff-only` 或 rebase 后合并，保留线性历史（用户选择）；
+4. **清理本地 worktree**：`git worktree remove <path>`；
+5. **清理本地分支**：`git branch -d <branch>`；
+6. **保留 worktree 工作目录**除非用户明确要求删除。
+
+OMP 附加规则：收尾阶段不得跳过审查，不得在 main 分支上保留已合并的 worktree，清理前后各运行一次基线测试确认。
+
+来源：官方 `finishing-a-development-branch` skill + 实际 worktree 管理最佳实践。
