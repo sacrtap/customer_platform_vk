@@ -30,8 +30,21 @@ from app.models.users import User
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/customer_platform")
 
 
-def reset_admin_password(new_password: str = "admin123"):
+def reset_admin_password(new_password: str = ""):
     """重置 admin 用户密码"""
+    if not new_password:
+        import getpass
+
+        new_password = getpass.getpass("请输入新密码: ")
+        confirm = getpass.getpass("请再次输入密码: ")
+        if new_password != confirm:
+            print("❌ 两次输入的密码不一致")
+            return False
+
+    if not new_password:
+        print("❌ 密码不能为空")
+        return False
+
     print(f"连接到数据库：{DATABASE_URL}")
 
     engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))

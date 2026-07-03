@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 - 客户运营中台</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Enterprise Color Palette */
+            --primary-1: #e8f3ff;
+            --primary-2: #bce0fd;
+            --primary-3: #8ec9fc;
+            --primary-4: #60b1fa;
+            --primary-5: #3296f7;
+            --primary-6: #0369A1;
+            --primary-7: #035a8a;
+            
+            --success-1: #e8ffea;
+            --success-5: #4ade80;
+            --success-6: #22c55e;
+            
+            --warning-1: #fff7e8;
+            --warning-5: #fbbf24;
+            --warning-6: #f59e0b;
+            
+            --danger-1: #ffe8e8;
+            --danger-5: #f87171;
+            --danger-6: #ef4444;
+            
+            --neutral-1: #f7f8fa;
+            --neutral-2: #eef0f3;
+            --neutral-3: #e0e2e7;
+            --neutral-4: #c9cdd4;
+            --neutral-5: #8f959e;
+            --neutral-6: #646a73;
+            --neutral-7: #4c5360;
+            --neutral-8: #3b4252;
+            --neutral-9: #2f3645;
+            --neutral-10: #1d2330;
+            
+            /* Layout */
+            --sidebar-width: 260px;
+            --sidebar-collapsed-width: 64px;
+            --header-height: 64px;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
+            
+            /* Transitions */
+            --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--neutral-1);
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: linear-gradient(180deg, var(--neutral-10) 0%, var(--neutral-9) 100%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transition: width var(--transition-base);
+            overflow: hidden;
+        }
+        
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+        }
+        
+        .sidebar-logo {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+        }
+        
+        .sidebar.collapsed .sidebar-logo {
+            padding: 0 16px;
+            justify-content: center;
+        }
+        
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
+            flex-shrink: 0;
+        }
+        
+        .logo-icon svg {
+            width: 22px;
+            height: 22px;
+            color: white;
+        }
+        
+        .logo-text {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+            letter-spacing: -0.3px;
+            white-space: nowrap;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .logo-text {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .sidebar.collapsed .sidebar-nav {
+            padding: 16px 8px;
+        }
+        
+        .nav-section {
+            margin-bottom: 24px;
+        }
+        
+        .sidebar.collapsed .nav-section {
+            margin-bottom: 16px;
+        }
+        
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .nav-section-title {
+            opacity: 0;
+            width: 0;
+            padding: 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            margin-bottom: 4px;
+            position: relative;
+            white-space: nowrap;
+        }
+        
+        .sidebar.collapsed .nav-item {
+            padding: 12px;
+        }
+        
+        /* Ensure icon is always centered in collapsed state */
+        .sidebar.collapsed .nav-item-icon {
+            margin: 0 auto;
+        }
+        
+        .sidebar.collapsed .nav-item-label,
+        .sidebar.collapsed .nav-item-badge,
+        .sidebar.collapsed .nav-item-arrow {
+            display: none;
+        }
+        
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+        }
+        
+        .nav-item-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .nav-item-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .nav-item-label {
+            font-size: 14px;
+            font-weight: 500;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .nav-item-label {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+        
+        .nav-item-badge {
+            margin-left: auto;
+            padding: 2px 8px;
+            background: var(--danger-5);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 10px;
+            flex-shrink: 0;
+            transition: all var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .nav-item-badge {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Nav Item Expand Arrow */
+        .nav-item-arrow {
+            margin-left: auto;
+            width: 16px;
+            height: 16px;
+            color: rgba(255, 255, 255, 0.5);
+            transition: transform var(--transition-fast);
+            flex-shrink: 0;
+        }
+        
+        .sidebar.collapsed .nav-item-arrow {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+            margin: 0;
+        }
+        
+        .nav-item.expanded .nav-item-arrow {
+            transform: rotate(90deg);
+        }
+        
+        /* Submenu */
+        .nav-submenu {
+            margin-top: 4px;
+            padding-left: 32px;
+            overflow: hidden;
+            transition: all var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .nav-submenu {
+            display: none;
+        }
+        
+        .nav-submenu.collapsed {
+            max-height: 0;
+            margin-top: 0;
+        }
+        
+        .nav-subitem {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 13px;
+            transition: all var(--transition-fast);
+            margin-bottom: 2px;
+        }
+        
+        .sidebar.collapsed .nav-subitem {
+            padding: 10px;
+        }
+        
+        .nav-subitem:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: white;
+        }
+        
+        .nav-subitem.active {
+            color: var(--primary-3);
+            background: rgba(3, 105, 161, 0.2);
+        }
+        
+        .nav-subitem::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-user {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-shrink: 0;
+            transition: all var(--transition-fast);
+            position: relative;
+        }
+        
+        .sidebar-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar.collapsed .sidebar-user {
+            overflow: visible;
+        }
+        
+        .sidebar.collapsed .sidebar-user-info {
+            display: none;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .user-info {
+            flex: 1;
+            overflow: hidden;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .sidebar.collapsed .user-info {
+            opacity: 0;
+            width: 0;
+        }
+        
+        .user-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+        }
+        
+        .user-role {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 2px;
+            white-space: nowrap;
+        }
+        
+        /* Sidebar Toggle Button - Redesigned */
+        .sidebar-toggle {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        
+        .sidebar-toggle:active {
+            transform: scale(0.95);
+        }
+        
+        .sidebar-toggle svg {
+            width: 16px;
+            height: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            transition: transform var(--transition-fast);
+        }
+        
+        .sidebar-toggle:hover svg {
+            color: white;
+        }
+        
+        /* Sidebar collapsed state - toggle button positioning */
+        .sidebar.collapsed .sidebar-user {
+            padding: 12px 8px;
+            justify-content: center;
+            overflow: visible;
+        }
+        
+        .sidebar.collapsed .sidebar-toggle {
+            position: absolute;
+            right: -14px;
+            top: 50%;
+            transform: translateY(-50%) rotate(180deg);
+            z-index: 10;
+        }
+        
+        .sidebar.collapsed .sidebar-toggle:hover {
+            transform: translateY(-50%) rotate(180deg) scale(1.05);
+        }
+        
+        .sidebar.collapsed .sidebar-toggle {
+            position: relative;
+            transform: rotate(180deg);
+            right: auto;
+            top: auto;
+        }
+        
+        .sidebar.collapsed .sidebar-toggle:hover {
+            transform: rotate(180deg) scale(1.05);
+        }
+        
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        
+        .sidebar-toggle:active {
+            transform: scale(0.95);
+        }
+        
+        .sidebar.collapsed .sidebar-toggle:hover {
+            transform: translateY(-50%) rotate(180deg) scale(1.05);
+        }
+        
+        .sidebar-toggle svg {
+            width: 16px;
+            height: 16px;
+            color: rgba(255, 255, 255, 0.6);
+            transition: transform var(--transition-fast);
+        }
+        
+        .sidebar-toggle:hover svg {
+            color: white;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: margin-left var(--transition-base);
+        }
+        
+        .sidebar.collapsed ~ .main-content {
+            margin-left: var(--sidebar-collapsed-width);
+        }
+        
+        /* Header */
+        .header {
+            height: var(--header-height);
+            background: white;
+            border-bottom: 1px solid var(--neutral-2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .header-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--neutral-10);
+        }
+        
+        .header-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--neutral-5);
+        }
+        
+        .header-breadcrumb a {
+            color: var(--neutral-5);
+            text-decoration: none;
+        }
+        
+        .header-breadcrumb .current {
+            color: var(--neutral-7);
+            font-weight: 500;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* Header Action with Tooltip */
+        .header-action {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--neutral-6);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            position: relative;
+        }
+        
+        .header-action:hover {
+            background: var(--neutral-1);
+            color: var(--neutral-9);
+        }
+        
+        .header-action svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .action-badge {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            width: 8px;
+            height: 8px;
+            background: var(--danger-5);
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            padding: 6px 12px;
+            background: var(--neutral-10);
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 8px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: all var(--transition-fast);
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .tooltip::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            right: 12px;
+            width: 8px;
+            height: 8px;
+            background: var(--neutral-10);
+            transform: rotate(45deg);
+        }
+        
+        .header-action:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--neutral-2);
+            margin: 0 4px;
+        }
+        
+        /* Page Content */
+        .page-content {
+            padding: 32px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--neutral-2);
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
+        }
+        
+        .stat-card.success::before {
+            background: linear-gradient(90deg, var(--success-5) 0%, var(--success-6) 100%);
+        }
+        
+        .stat-card.warning::before {
+            background: linear-gradient(90deg, var(--warning-5) 0%, var(--warning-6) 100%);
+        }
+        
+        .stat-card.danger::before {
+            background: linear-gradient(90deg, var(--danger-5) 0%, var(--danger-6) 100%);
+        }
+        
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .stat-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--neutral-6);
+        }
+        
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stat-icon.primary {
+            background: var(--primary-1);
+            color: var(--primary-6);
+        }
+        
+        .stat-icon.success {
+            background: var(--success-1);
+            color: var(--success-6);
+        }
+        
+        .stat-icon.warning {
+            background: var(--warning-1);
+            color: var(--warning-6);
+        }
+        
+        .stat-icon.danger {
+            background: var(--danger-1);
+            color: var(--danger-6);
+        }
+        
+        .stat-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--neutral-10);
+            margin-bottom: 8px;
+        }
+        
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .stat-change.positive {
+            color: var(--success-6);
+        }
+        
+        .stat-change.negative {
+            color: var(--danger-6);
+        }
+        
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+        
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid var(--neutral-2);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--neutral-2);
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--neutral-10);
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .card-body {
+            padding: 24px;
+        }
+        
+        /* Chart Placeholder */
+        .chart-placeholder {
+            height: 300px;
+            background: linear-gradient(180deg, var(--primary-1) 0%, white 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-6);
+            font-size: 14px;
+        }
+        
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--neutral-6);
+            background: var(--neutral-1);
+            border-bottom: 1px solid var(--neutral-2);
+        }
+        
+        td {
+            padding: 16px;
+            font-size: 14px;
+            color: var(--neutral-7);
+            border-bottom: 1px solid var(--neutral-2);
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        tr:hover td {
+            background: var(--neutral-1);
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.success {
+            background: var(--success-1);
+            color: var(--success-6);
+        }
+        
+        .status-badge.warning {
+            background: var(--warning-1);
+            color: var(--warning-6);
+        }
+        
+        .status-badge.danger {
+            background: var(--danger-1);
+            color: var(--danger-6);
+        }
+        
+        .status-badge.info {
+            background: var(--primary-1);
+            color: var(--primary-6);
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            height: 6px;
+            background: var(--neutral-2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        
+        .btn-default {
+            background: white;
+            border-color: var(--neutral-3);
+            color: var(--neutral-7);
+        }
+        
+        .btn-default:hover {
+            border-color: var(--primary-5);
+            color: var(--primary-6);
+            background: var(--primary-1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(3, 105, 161, 0.2);
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
+            box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
+        }
+        
+        .btn-text {
+            background: transparent;
+            color: var(--primary-6);
+            padding: 6px 12px;
+        }
+        
+        .btn-text:hover {
+            background: var(--primary-1);
+            color: var(--primary-7);
+        }
+        
+        .btn-sm {
+            padding: 4px 12px;
+            font-size: 12px;
+        }
+        
+        /* Todo List - Improved Design */
+        .todo-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .todo-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 16px;
+            background: var(--neutral-1);
+            border-radius: 12px;
+            transition: all var(--transition-base);
+            border: 1px solid transparent;
+        }
+        
+        .todo-item:hover {
+            background: white;
+            border-color: var(--neutral-2);
+            box-shadow: var(--shadow-sm);
+            transform: translateX(4px);
+        }
+        
+        /* Custom Checkbox for Todo */
+        .todo-checkbox-wrapper {
+            position: relative;
+            flex-shrink: 0;
+        }
+        
+        .todo-checkbox-wrapper input[type="checkbox"] {
+            display: none;
+        }
+        
+        .todo-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--neutral-4);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            background: white;
+        }
+        
+        .todo-checkbox svg {
+            width: 14px;
+            height: 14px;
+            color: white;
+            opacity: 0;
+            transform: scale(0);
+            transition: all var(--transition-fast);
+        }
+        
+        .todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox {
+            background: var(--primary-6);
+            border-color: var(--primary-6);
+        }
+        
+        .todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox svg {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .todo-checkbox-wrapper:hover .todo-checkbox {
+            border-color: var(--primary-5);
+        }
+        
+        .todo-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .todo-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--neutral-9);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        
+        .todo-checkbox-wrapper input[type="checkbox"]:checked ~ .todo-content .todo-title {
+            text-decoration: line-through;
+            color: var(--neutral-5);
+        }
+        
+        .todo-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .todo-priority {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .todo-priority.high {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #dc2626;
+        }
+        
+        .todo-priority.medium {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #d97706;
+        }
+        
+        .todo-priority.low {
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #4338ca;
+        }
+        
+        .todo-due {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: var(--neutral-5);
+        }
+        
+        .todo-due svg {
+            width: 13px;
+            height: 13px;
+        }
+        
+        .todo-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+        
+        .todo-item:hover .todo-actions {
+            opacity: 1;
+        }
+        
+        .todo-action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid var(--neutral-2);
+            color: var(--neutral-5);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .todo-action-btn:hover {
+            background: var(--neutral-1);
+            color: var(--neutral-7);
+            border-color: var(--neutral-3);
+        }
+        
+        .todo-action-btn.delete:hover {
+            background: var(--danger-1);
+            color: var(--danger-6);
+            border-color: var(--danger-5);
+        }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+            <span class="logo-text">Customer Platform VK</span>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">核心功能</div>
+                
+                <a class="nav-item active" href="/">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">仪表盘</span>
+                </a>
+                
+                <a class="nav-item" href="/customers">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">客户管理</span>
+                </a>
+                
+                <a class="nav-item" href="javascript:void(0)" onclick="toggleSubmenu(event, 'billing-submenu')">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">结算管理</span>
+                    <span class="nav-item-badge">5</span>
+                    <svg class="nav-item-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+                
+                <div class="nav-submenu collapsed" id="billing-submenu">
+                    <a class="nav-subitem" href="/billing/balances">余额管理</a>
+                    <a class="nav-subitem" href="/billing/pricing-rules">计费规则</a>
+                </div>
+                
+                <a class="nav-item" href="/profiles">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">画像管理</span>
+                </a>
+                
+                <a class="nav-item" href="/analytics">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">客户分析</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">系统管理</div>
+                
+                <a class="nav-item" href="/users">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">用户管理</span>
+                </a>
+                
+                <a class="nav-item" href="/roles">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">角色权限</span>
+                </a>
+                
+                <a class="nav-item" href="/tags">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">标签管理</span>
+                </a>
+                
+                <a class="nav-item" href="javascript:void(0)" onclick="toggleSubmenu(event, 'system-submenu')">
+                    <div class="nav-item-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">系统设置</span>
+                    <svg class="nav-item-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+                
+                <div class="nav-submenu collapsed" id="system-submenu">
+                    <a class="nav-subitem" href="/system/sync-logs">同步日志</a>
+                    <a class="nav-subitem" href="/system/audit-logs">审计日志</a>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="sidebar-user">
+            <div class="sidebar-user-info">
+                <div class="user-avatar">李</div>
+                <div class="user-info">
+                    <div class="user-name">李明</div>
+                    <div class="user-role">运营经理</div>
+                </div>
+            </div>
+            <div class="sidebar-toggle" onclick="toggleSidebar()">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </div>
+        </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="header-title">仪表盘</h1>
+                <div class="header-breadcrumb">
+                    <a href="#">首页</a>
+                    <span>/</span>
+                    <span class="current">仪表盘</span>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <!-- Search -->
+                <div class="header-action">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span class="tooltip">搜索</span>
+                </div>
+                
+                <!-- Notifications -->
+                <div class="header-action">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span class="action-badge"></span>
+                    <span class="tooltip">消息通知</span>
+                </div>
+                
+                <!-- Settings -->
+                <div class="header-action">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    <span class="tooltip">系统设置</span>
+                </div>
+                
+                <div class="header-divider"></div>
+                
+                <!-- Logout -->
+                <div class="header-action">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span class="tooltip">退出登录</span>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Page Content -->
+        <div class="page-content">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">客户总数</span>
+                        <div class="stat-icon primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="stat-value">2,847</div>
+                    <div class="stat-change positive">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"/>
+                        </svg>
+                        +12.5% 较上月
+                    </div>
+                </div>
+                
+                <div class="stat-card success">
+                    <div class="stat-header">
+                        <span class="stat-title">本月回款</span>
+                        <div class="stat-icon success">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="stat-value">¥1,284,500</div>
+                    <div class="stat-change positive">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"/>
+                        </svg>
+                        +8.2% 较上月
+                    </div>
+                </div>
+                
+                <div class="stat-card warning">
+                    <div class="stat-header">
+                        <span class="stat-title">待确认账单</span>
+                        <div class="stat-icon warning">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="stat-value">23</div>
+                    <div class="stat-change negative">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"/>
+                        </svg>
+                        +3 待处理
+                    </div>
+                </div>
+                
+                <div class="stat-card danger">
+                    <div class="stat-header">
+                        <span class="stat-title">余额预警</span>
+                        <div class="stat-icon danger">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="stat-value">8</div>
+                    <div class="stat-change negative">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"/>
+                        </svg>
+                        需跟进
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Revenue Trend Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">月度回款趋势</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-default btn-sm">导出</button>
+                            <button class="btn btn-primary btn-sm">查看详情</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-placeholder">
+                            <div style="text-align: center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" viewBox="0 0 16 16" style="margin-bottom: 12px; opacity: 0.5;">
+                                    <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
+                                </svg>
+                                <div>ECharts 图表区域</div>
+                                <div style="color: var(--neutral-5); font-size: 12px; margin-top: 4px;">
+                                    显示 12 个月回款趋势折线图
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Todo List - Improved Design -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">待办事项</h3>
+                        <a href="#" class="btn btn-text btn-sm">查看全部</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="todo-list">
+                            <div class="todo-item">
+                                <label class="todo-checkbox-wrapper">
+                                    <input type="checkbox">
+                                    <div class="todo-checkbox">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                </label>
+                                <div class="todo-content">
+                                    <div class="todo-title">确认 XX 科技账单</div>
+                                    <div class="todo-meta">
+                                        <span class="todo-priority high">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                            </svg>
+                                            高
+                                        </span>
+                                        <span class="todo-due">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            今天 18:00 截止
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="todo-actions">
+                                    <button class="todo-action-btn" title="编辑">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.527 3.821 3.821-1.527.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="todo-action-btn delete" title="删除">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
+                                            <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="todo-item">
+                                <label class="todo-checkbox-wrapper">
+                                    <input type="checkbox">
+                                    <div class="todo-checkbox">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                </label>
+                                <div class="todo-content">
+                                    <div class="todo-title">跟进余额不足客户</div>
+                                    <div class="todo-meta">
+                                        <span class="todo-priority high">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                            </svg>
+                                            高
+                                        </span>
+                                        <span class="todo-due">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                            </svg>
+                                            3 个客户
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="todo-actions">
+                                    <button class="todo-action-btn" title="编辑">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.527 3.821 3.821-1.527.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="todo-action-btn delete" title="删除">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
+                                            <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="todo-item">
+                                <label class="todo-checkbox-wrapper">
+                                    <input type="checkbox">
+                                    <div class="todo-checkbox">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                </label>
+                                <div class="todo-content">
+                                    <div class="todo-title">审核减免申请 - YY 公司</div>
+                                    <div class="todo-meta">
+                                        <span class="todo-priority medium">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                            </svg>
+                                            中
+                                        </span>
+                                        <span class="todo-due">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                            </svg>
+                                            明天截止
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="todo-actions">
+                                    <button class="todo-action-btn" title="编辑">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.527 3.821 3.821-1.527.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="todo-action-btn delete" title="删除">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
+                                            <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="todo-item">
+                                <label class="todo-checkbox-wrapper">
+                                    <input type="checkbox">
+                                    <div class="todo-checkbox">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                </label>
+                                <div class="todo-content">
+                                    <div class="todo-title">导出月度分析报告</div>
+                                    <div class="todo-meta">
+                                        <span class="todo-priority low">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                                            </svg>
+                                            低
+                                        </span>
+                                        <span class="todo-due">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                            </svg>
+                                            本周五
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="todo-actions">
+                                    <button class="todo-action-btn" title="编辑">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.527 3.821 3.821-1.527.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="todo-action-btn delete" title="删除">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z"/>
+                                            <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Invoices -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header">
+                        <h3 class="card-title">最近结算单</h3>
+                        <button class="btn btn-primary btn-sm">查看全部</button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>结算单号</th>
+                                        <th>客户名称</th>
+                                        <th>周期</th>
+                                        <th>金额</th>
+                                        <th>状态</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>INV-2026-0089</strong></td>
+                                        <td>XX 科技有限公司</td>
+                                        <td>2026-03</td>
+                                        <td>¥128,500</td>
+                                        <td>
+                                            <span class="status-badge warning">
+                                                <span class="status-dot"></span>
+                                                待确认
+                                            </span>
+                                        </td>
+                                        <td>2026-04-01</td>
+                                        <td>
+                                            <button class="btn btn-text btn-sm">查看</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>INV-2026-0088</strong></td>
+                                        <td>YY 集团有限公司</td>
+                                        <td>2026-03</td>
+                                        <td>¥85,200</td>
+                                        <td>
+                                            <span class="status-badge info">
+                                                <span class="status-dot"></span>
+                                                待付款
+                                            </span>
+                                        </td>
+                                        <td>2026-04-01</td>
+                                        <td>
+                                            <button class="btn btn-text btn-sm">查看</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>INV-2026-0087</strong></td>
+                                        <td>ZZ 创新股份</td>
+                                        <td>2026-03</td>
+                                        <td>¥256,800</td>
+                                        <td>
+                                            <span class="status-badge success">
+                                                <span class="status-dot"></span>
+                                                已完成
+                                            </span>
+                                        </td>
+                                        <td>2026-03-31</td>
+                                        <td>
+                                            <button class="btn btn-text btn-sm">查看</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>INV-2026-0086</strong></td>
+                                        <td>AA 数字科技</td>
+                                        <td>2026-03</td>
+                                        <td>¥42,300</td>
+                                        <td>
+                                            <span class="status-badge success">
+                                                <span class="status-dot"></span>
+                                                已完成
+                                            </span>
+                                        </td>
+                                        <td>2026-03-30</td>
+                                        <td>
+                                            <button class="btn btn-text btn-sm">查看</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // Toggle sidebar collapse/expand
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+        
+        // Toggle submenu expand/collapse
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const submenu = document.getElementById(submenuId);
+            const parentItem = submenu.previousElementSibling;
+            
+            // Toggle current submenu
+            submenu.classList.toggle('collapsed');
+            parentItem.classList.toggle('expanded');
+            
+            // Close other submenus in the same section
+            const section = parentItem.closest('.nav-section');
+            if (section) {
+                const otherSubmenus = section.querySelectorAll('.nav-submenu');
+                const otherItems = section.querySelectorAll('.nav-item');
+                
+                otherSubmenus.forEach((menu, index) => {
+                    if (menu.id !== submenuId && !menu.classList.contains('collapsed')) {
+                        menu.classList.add('collapsed');
+                        otherItems[index]?.classList.remove('expanded');
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

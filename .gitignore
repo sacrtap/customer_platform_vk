@@ -27,6 +27,8 @@ venv.bak/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
 .env.secrets
 secrets/
 *.pem
@@ -135,18 +137,16 @@ Pipfile.lock
 __pypackages__/
 
 # Documentation
-docs/
 docs/_build/
 docs/data.xlsx
 docs/data_clean.xlsx
 docs/data_cleaned.xlsx
 data_clean_backup.xlsx
+docs/usage/order.md
 /site
 .superpowers/
 
 # Context-Mode Test
 docs/context-mode-test/
-AGENTS.md
 banks/
 .sdd/
-.omp/
