@@ -84,8 +84,8 @@
     </div>
 
     <CustomerFilters
-      :filters="filters"
-      :advanced-filters="advancedFilters"
+      v-model:filters="filters"
+      v-model:advanced-filters="advancedFilters"
       :industry-types="industryTypes"
       :managers="managers"
       :customer-tags="customerTags"

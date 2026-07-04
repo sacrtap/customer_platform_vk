@@ -167,9 +167,10 @@ interface AdvancedFilters {
   tag_ids: number[]
 }
 
-const props = defineProps<{
-  filters: Filters
-  advancedFilters: AdvancedFilters
+
+const filters = defineModel<Filters>('filters', { required: true })
+const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', { required: true })
+defineProps<{
   industryTypes: IndustryType[]
   managers: Array<Record<string, unknown>>
   customerTags: Array<Record<string, unknown>>
