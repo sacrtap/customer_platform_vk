@@ -42,36 +42,13 @@
           </a-tab-pane>
 
           <a-tab-pane key="balance" title="余额信息">
-            <div v-if="balanceLoading" class="balance-cards">
-              <SkeletonCard v-for="i in 4" :key="i" height="110px" />
-            </div>
-            <div v-else class="balance-cards">
-              <div class="balance-card">
-                <div class="balance-label">总余额</div>
-                <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
-              </div>
-              <div class="balance-card">
-                <div class="balance-label">实充余额</div>
-                <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
-              </div>
-              <div class="balance-card">
-                <div class="balance-label">赠送余额</div>
-                <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
-              </div>
-              <div class="balance-card">
-                <div class="balance-label">已消耗</div>
-                <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
-              </div>
-            </div>
-
-            <!-- 余额趋势图 - 性能优化: 延迟加载 -->
-            <div class="balance-trend-section">
-              <BalanceTrendChart
-                v-if="shouldRenderChart('balanceTrend')"
-                :trend="balanceTrend"
-                :loading="balanceTrendLoading"
-              />
-            </div>
+            <CustomerBalanceTab
+              :balance="balance"
+              :balance-loading="balanceLoading"
+              :balance-trend="balanceTrend"
+              :balance-trend-loading="balanceTrendLoading"
+              :should-render-balance-trend="shouldRenderChart('balanceTrend')"
+            />
           </a-tab-pane>
 
           <a-tab-pane key="invoices" title="结算单">
@@ -187,8 +164,6 @@ import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytic
 import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
-import SkeletonCard from '@/components/SkeletonCard.vue'
-import BalanceTrendChart from '@/components/charts/BalanceTrendChart.vue'
 import UsageDistributionChart from '@/components/charts/UsageDistributionChart.vue'
 import { useCustomerStore } from '@/stores/customer'
 
@@ -196,6 +171,7 @@ import EditCustomerDialog from './detail/EditCustomerDialog.vue'
 import TagSelectorDialog from './detail/TagSelectorDialog.vue'
 import CustomerBasicTab from './detail/CustomerBasicTab.vue'
 import CustomerProfileTab from './detail/CustomerProfileTab.vue'
+import CustomerBalanceTab from './detail/CustomerBalanceTab.vue'
 const route = useRoute()
 const router = useRouter()
 const customerStore = useCustomerStore()
@@ -1065,169 +1041,6 @@ onUnmounted(() => {
   }
 }
 
-/* 余额卡片 - 自适应 Grid 布局 */
-.balance-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-lg, 24px);
-  padding: var(--space-lg, 24px) var(--space-md, 16px);
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* 4 张卡片最佳布局 */
-@media (min-width: 1400px) {
-  .balance-cards {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-/* 响应式适配 */
-@media (max-width: 1199px) and (min-width: 768px) {
-  .balance-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 767px) {
-  .balance-cards {
-    grid-template-columns: 1fr;
-  }
-}
-
-.balance-card {
-  background: linear-gradient(135deg, #ffffff 0%, var(--neutral-1) 100%);
-  padding: var(--space-lg, 20px) var(--space-md, 16px);
-  border-radius: var(--radius-lg, 12px);
-  text-align: center;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.04));
-  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
-  min-height: 110px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.balance-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(3, 105, 161, 0.1) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity var(--transition-base, 250ms) ease-out;
-  pointer-events: none;
-}
-
-.balance-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary-6), #0ea5e9, var(--primary-6));
-  transform: scaleX(0);
-  transition: transform var(--transition-base, 250ms) ease-out;
-  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-}
-
-.balance-card:hover {
-  transform: translateY(-6px) scale(1.02);
-  box-shadow:
-    0 20px 40px rgba(3, 105, 161, 0.2),
-    0 8px 16px rgba(0, 0, 0, 0.1);
-  border-color: var(--primary-6);
-  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-}
-
-.balance-card:hover::before {
-  opacity: 1;
-}
-
-.balance-card:hover::after {
-  transform: scaleX(1);
-}
-.balance-label {
-  font-size: 13px;
-  color: var(--neutral-6);
-  margin-bottom: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.balance-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  line-height: 1.2;
-}
-
-.balance-value.real {
-  color: var(--primary-6);
-}
-
-.balance-value.bonus {
-  color: var(--success-color);
-}
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.status-badge.success {
-  background: var(--success-bg);
-  color: var(--success-color);
-}
-.status-badge.warning {
-  background: var(--warning-bg);
-  color: var(--warning-color);
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* ========== 数据表格卡片容器 ========== */
-/* 透明容器，由外层 .tabs-section 统一提供卡片效果 */
-.data-table-card {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 0 0 0;
-}
-
-/* 用量表格区域的间距调整 */
-.usage-table-section .data-table-card {
-  margin-top: 0;
-}
-
-/* Tabs 容器 - 防止内容溢出 */
-:deep(.arco-tabs-pane) {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-:deep(.arco-tabs-content) {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
 
 /* 表格自动布局 - 使用 auto 自适应，不强制固定宽度 */
 :deep(.arco-table) {
@@ -1272,16 +1085,14 @@ onUnmounted(() => {
 }
 
 /* 空数据最小高度，防止布局塌陷 */
-.info-grid,
-.balance-cards {
+.info-grid {
   min-height: 200px;
 }
 
 /* 响应式断点 */
 /* XS Mobile - 374px and below */
 @media (max-width: 374px) {
-  .info-grid,
-  .balance-cards {
+  .info-grid {
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 16px 12px;
@@ -1290,15 +1101,6 @@ onUnmounted(() => {
   .info-item {
     padding: 12px;
     min-height: 80px;
-  }
-
-  .balance-card {
-    padding: 16px 12px;
-    min-height: 100px;
-  }
-
-  .balance-value {
-    font-size: 26px;
   }
 
   .tabs-section {
@@ -1313,10 +1115,6 @@ onUnmounted(() => {
 
 /* Mobile - 375px to 767px */
 @media (min-width: 375px) and (max-width: 767px) {
-  .balance-cards {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
 
   .page-header {
     flex-direction: column;
@@ -1340,35 +1138,17 @@ onUnmounted(() => {
     font-size: 22px;
   }
 
-  .balance-value {
-    font-size: 28px;
-  }
 }
 
 /* Tablet - 768px to 1199px */
 @media (min-width: 768px) and (max-width: 1199px) {
-  .balance-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   .tabs-section {
     padding: 28px;
   }
 }
 
-/* Large Tablet / Small Desktop - 1200px to 1399px */
-@media (min-width: 1200px) and (max-width: 1399px) {
-  .balance-cards {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
 
-/* Desktop - 1400px+ */
-@media (min-width: 1400px) {
-  .balance-cards {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
 
 /* Ultra-wide screens - 1600px+ */
 @media (min-width: 1600px) {
@@ -1378,15 +1158,6 @@ onUnmounted(() => {
   }
 }
 
-/* 余额趋势区域 */
-.balance-trend-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--neutral-2);
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 400px;
-}
 
 /* 用量分布区域 */
 .usage-distribution-section {
