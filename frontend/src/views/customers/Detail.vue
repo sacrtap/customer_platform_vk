@@ -30,160 +30,8 @@
       <div class="tabs-section">
         <a-tabs v-model="activeTab" @change="handleTabChange">
           <a-tab-pane key="basic" title="基础信息">
-            <div class="info-grid">
-              <!-- 第 1 行 -->
-              <div class="info-item">
-                <span class="label">客户名称</span>
-                <span class="value">{{ customer.name }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">公司 ID</span>
-                <span class="value">{{ customer.company_id }}</span>
-              </div>
-              <!-- 第 2 行 -->
-              <div class="info-item">
-                <span class="label">账号类型</span>
-                <span class="value">
-                  <a-tag>{{ customer.account_type || '-' }}</a-tag>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">行业类型</span>
-                <span class="value">
-                  <a-tag>{{ customer.industry || '-' }}</a-tag>
-                </span>
-              </div>
-              <!-- 第 3 行 -->
-              <div class="info-item">
-                <span class="label">重点客户</span>
-                <span class="value">
-                  <a-tag :color="customer.is_key_customer ? 'red' : 'gray'">
-                    {{ customer.is_key_customer ? '是' : '否' }}
-                  </a-tag>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">是否房产客户</span>
-                <span class="value">
-                  <a-tag v-if="customer.is_real_estate === true" color="green">是</a-tag>
-                  <a-tag v-else-if="customer.is_real_estate === false" color="gray">否</a-tag>
-                  <span v-else>-</span>
-                </span>
-              </div>
-              <!-- 第 4 行 -->
-              <div class="info-item">
-                <span class="label">结算方式</span>
-                <span class="value">
-                  <a-tag :color="customer.settlement_type === 'prepaid' ? 'green' : 'blue'">
-                    {{ customer.settlement_type === 'prepaid' ? '预付费' : '后付费' }}
-                  </a-tag>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">结算周期</span>
-                <span class="value">{{ settlementCycleText }}</span>
-              </div>
-              <!-- 第 5 行 -->
-              <div class="info-item">
-                <span class="label">邮箱</span>
-                <span class="value">{{ customer.email || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">所属 ERP</span>
-                <span class="value">
-                  <a-tag v-if="customer.erp_system">{{ customer.erp_system }}</a-tag>
-                  <span v-else>-</span>
-                </span>
-              </div>
-              <!-- 第 6 行 -->
-              <div class="info-item">
-                <span class="label">合作状态</span>
-                <span class="value">
-                  <a-tag :color="cooperationStatusColor">
-                    {{ cooperationStatusText }}
-                  </a-tag>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">商务经理</span>
-                <span class="value">
-                  {{ salesManagerName || '-' }}
-                </span>
-              </div>
-              <!-- 第 7 行 -->
-              <div class="info-item">
-                <span class="label">是否结算</span>
-                <span class="value">
-                  <a-tag :color="customer.is_settlement_enabled ? 'green' : 'gray'">
-                    {{ customer.is_settlement_enabled ? '是' : '否' }}
-                  </a-tag>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">是否停用</span>
-                <span class="value">
-                  <a-tag :color="customer.is_disabled ? 'red' : 'gray'">
-                    {{ customer.is_disabled ? '是' : '否' }}
-                  </a-tag>
-                </span>
-              </div>
-              <!-- 第 8 行 -->
-              <div class="info-item">
-                <span class="label">首次回款时间</span>
-                <span class="value">{{ customer.first_payment_date || '-' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">接入时间</span>
-                <span class="value">{{ customer.onboarding_date || '-' }}</span>
-              </div>
-              <!-- 第 9 行 -->
-              <div class="info-item">
-                <span class="label">备注</span>
-                <span class="value">
-                  <span v-if="customer.notes" class="notes-text">{{ customer.notes }}</span>
-                  <span v-else>-</span>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">创建时间</span>
-                <span class="value">{{ formatDateTime(customer.created_at) }}</span>
-              </div>
-              <!-- 第 10 行 - 占满整行 -->
-              <div class="info-item full-width">
-                <span class="label">客户标签</span>
-                <span class="value">
-                  <div class="tags-container">
-                    <a-tag
-                      v-for="tag in customerTags"
-                      :key="tag.id"
-                      color="arcoblue"
-                      closable
-                      @close="removeTag(tag.id)"
-                    >
-                      {{ tag.name }}
-                    </a-tag>
-                    <a-button type="text" size="small" @click="openTagSelector">
-                      <template #icon>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          fill="currentColor"
-                          viewBox="0 0 16 16"
-                        >
-                          <path
-                            d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-                          />
-                        </svg>
-                      </template>
-                      添加标签
-                    </a-button>
-                  </div>
-                </span>
-              </div>
-            </div>
+            <CustomerBasicTab :customer="customer!" :managers="managers" :customer-tags="customerTags" @open-tag-selector="openTagSelector" @remove-tag="removeTag" />
           </a-tab-pane>
-
           <a-tab-pane key="profile" title="画像信息">
             <div class="profile-tab-content">
               <!-- 核心指标区 -->
@@ -374,258 +222,35 @@
       </div>
 
       <!-- 编辑客户对话框 -->
-      <a-modal
-        v-model:visible="editModalVisible"
-        title="编辑客户"
-        :width="modalWidth"
-        :confirm-loading="editLoading"
-        @ok="handleEditSubmit"
-        @cancel="handleEditCancel"
-      >
-        <a-form
-          ref="editFormRef"
-          :model="editForm"
-          :rules="editFormRules"
-          layout="vertical"
-          validate-trigger="['blur', 'change']"
-        >
-          <div class="edit-form-grid">
-            <!-- 第一列：基础信息 -->
-            <div class="edit-form-column">
-              <div class="column-title">基础信息</div>
-
-              <a-form-item field="name" label="客户名称" required>
-                <a-input v-model="editForm.name" placeholder="请输入客户名称" />
-              </a-form-item>
-
-              <a-form-item field="company_id" label="公司 ID" required>
-                <a-input v-model="editForm.company_id" placeholder="请输入公司 ID" />
-              </a-form-item>
-
-              <a-form-item field="account_type" label="账号类型">
-                <a-select v-model="editForm.account_type" placeholder="请选择账号类型" allow-clear>
-                  <a-option value="正式账号">正式账号</a-option>
-                  <a-option value="测试账号">测试账号</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="industry_type_id" label="行业类型">
-                <a-select
-                  v-model="editForm.industry_type_id"
-                  placeholder="请选择行业类型"
-                  allow-clear
-                  :loading="industryTypesLoading"
-                >
-                  <a-option v-for="type in industryTypes" :key="type.id" :value="type.id">
-                    {{ type.name }}
-                  </a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="price_policy" label="计费模式">
-                <a-select v-model="editForm.price_policy" placeholder="请选择计费模式" allow-clear>
-                  <a-option
-                    v-for="option in pricePolicyOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="email" label="邮箱">
-                <a-input v-model="editForm.email" placeholder="请输入邮箱" />
-              </a-form-item>
-
-              <a-form-item field="is_real_estate" label="是否房产客户">
-                <a-select v-model="editForm.is_real_estate" placeholder="请选择" allow-clear>
-                  <a-option :value="null">-</a-option>
-                  <a-option :value="true">是</a-option>
-                  <a-option :value="false">否</a-option>
-                </a-select>
-              </a-form-item>
-            </div>
-
-            <!-- 第二列：结算与业务 -->
-            <div class="edit-form-column">
-              <div class="column-title">结算与业务</div>
-
-              <a-form-item field="settlement_type" label="结算方式" required>
-                <a-select v-model="editForm.settlement_type" placeholder="请选择结算方式">
-                  <a-option value="prepaid">预付费</a-option>
-                  <a-option value="postpaid">后付费</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="settlement_cycle" label="结算周期">
-                <a-select
-                  v-model="editForm.settlement_cycle"
-                  placeholder="请选择结算周期"
-                  allow-clear
-                >
-                  <a-option value="daily">日结</a-option>
-                  <a-option value="weekly">周结</a-option>
-                  <a-option value="monthly">月结</a-option>
-                  <a-option value="quarterly">季结</a-option>
-                  <a-option value="yearly">年结</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="cooperation_status" label="合作状态">
-                <a-select
-                  v-model="editForm.cooperation_status"
-                  placeholder="请选择合作状态"
-                  allow-clear
-                >
-                  <a-option value="active">合作中</a-option>
-                  <a-option value="suspended">暂停</a-option>
-                  <a-option value="terminated">终止</a-option>
-                  <a-option value="noused">近一年未使用</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="erp_system" label="所属 ERP">
-                <a-input
-                  v-model="editForm.erp_system"
-                  placeholder="请输入所属 ERP 系统"
-                  allow-clear
-                />
-              </a-form-item>
-
-              <a-form-item field="manager_id" label="运营经理">
-                <a-select
-                  v-model="editForm.manager_id"
-                  placeholder="请选择运营经理"
-                  allow-clear
-                  :loading="managersLoading"
-                >
-                  <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                    {{ manager.real_name || manager.username }}
-                  </a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="sales_manager_id" label="商务经理">
-                <a-select
-                  v-model="editForm.sales_manager_id"
-                  placeholder="请选择商务经理"
-                  allow-clear
-                  :loading="managersLoading"
-                >
-                  <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                    {{ manager.real_name || manager.username }}
-                  </a-option>
-                </a-select>
-              </a-form-item>
-            </div>
-
-            <!-- 第三列：画像与状态 -->
-            <div class="edit-form-column">
-              <div class="column-title">画像与状态</div>
-
-              <a-form-item field="scale_level" label="规模等级">
-                <a-select v-model="editForm.scale_level" placeholder="请选择规模等级" allow-clear>
-                  <a-option value="S">S - 5000人</a-option>
-                  <a-option value="A">A - 2000人</a-option>
-                  <a-option value="B">B - 1000人</a-option>
-                  <a-option value="C">C - 500人</a-option>
-                  <a-option value="D">D - 100人</a-option>
-                  <a-option value="E">E - 小于100人</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="consume_level" label="消费等级">
-                <a-select v-model="editForm.consume_level" placeholder="请选择消费等级" allow-clear>
-                  <a-option value="C1">C1</a-option>
-                  <a-option value="C2">C2</a-option>
-                  <a-option value="C3">C3</a-option>
-                  <a-option value="C4">C4</a-option>
-                  <a-option value="C5">C5</a-option>
-                  <a-option value="C6">C6</a-option>
-                </a-select>
-              </a-form-item>
-
-              <a-form-item field="first_payment_date" label="首次回款时间">
-                <a-date-picker
-                  v-model="editForm.first_payment_date"
-                  placeholder="请选择首次回款时间"
-                  style="width: 100%"
-                  allow-clear
-                  value-format="YYYY-MM-DD"
-                />
-              </a-form-item>
-
-              <a-form-item field="onboarding_date" label="接入时间">
-                <a-date-picker
-                  v-model="editForm.onboarding_date"
-                  placeholder="请选择接入时间"
-                  style="width: 100%"
-                  allow-clear
-                  value-format="YYYY-MM-DD"
-                />
-              </a-form-item>
-
-              <a-form-item field="is_key_customer" label="重点客户">
-                <a-switch v-model="editForm.is_key_customer" />
-              </a-form-item>
-
-              <a-form-item field="is_settlement_enabled" label="是否结算">
-                <a-switch v-model="editForm.is_settlement_enabled" />
-              </a-form-item>
-
-              <a-form-item field="is_disabled" label="是否停用">
-                <a-switch v-model="editForm.is_disabled" />
-              </a-form-item>
-            </div>
-
-            <!-- 备注区域 - 横跨三列 -->
-            <div class="edit-form-note">
-              <a-form-item field="notes" label="备注">
-                <a-textarea
-                  v-model="editForm.notes"
-                  placeholder="请输入备注信息"
-                  :auto-size="{ minRows: 2, maxRows: 4 }"
-                  allow-clear
-                />
-              </a-form-item>
-            </div>
-          </div>
-        </a-form>
-      </a-modal>
+      <EditCustomerDialog
+        :visible="editModalVisible"
+        :customer="customer"
+        :edit-loading="editLoading"
+        :modal-width="modalWidth"
+        :industry-types="industryTypes"
+        :industry-types-loading="industryTypesLoading"
+        :managers="managers"
+        :price-policy-options="pricePolicyOptions"
+        @submit="handleEditSubmit"
+        @close="editModalVisible = false"
+      />
 
       <!-- 标签选择器对话框 -->
-      <a-modal
-        v-model:visible="tagSelectorVisible"
-        title="添加标签"
-        :confirm-loading="tagSelectorLoading"
-        width="500px"
-        @ok="handleAddTag"
-        @cancel="tagSelectorVisible = false"
-      >
-        <a-form layout="vertical">
-          <a-form-item label="选择标签" required>
-            <a-select
-              v-model="selectedTagIds"
-              placeholder="请选择标签"
-              multiple
-              allow-clear
-              :loading="allTagsLoading"
-            >
-              <a-option v-for="tag in availableTags" :key="tag.id" :value="tag.id">
-                {{ tag.name }}
-              </a-option>
-            </a-select>
-          </a-form-item>
-        </a-form>
-      </a-modal>
+      <TagSelectorDialog
+        :visible="tagSelectorVisible"
+        :loading="tagSelectorLoading"
+        :all-tags="allTags"
+        :all-tags-loading="allTagsLoading"
+        :customer-tags="customerTags"
+        @add="handleAddTag"
+        @close="closeTagSelector"
+      />
     </a-spin>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue'
-import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import {
@@ -647,7 +272,7 @@ import { getDailyUsage, type DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
 import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
-import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
+import { formatCurrency, formatNumber } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import HealthGauge from '@/components/charts/HealthGauge.vue'
@@ -656,6 +281,9 @@ import BalanceTrendChart from '@/components/charts/BalanceTrendChart.vue'
 import UsageDistributionChart from '@/components/charts/UsageDistributionChart.vue'
 import { useCustomerStore } from '@/stores/customer'
 
+import EditCustomerDialog from './detail/EditCustomerDialog.vue'
+import TagSelectorDialog from './detail/TagSelectorDialog.vue'
+import CustomerBasicTab from './detail/CustomerBasicTab.vue'
 const route = useRoute()
 const router = useRouter()
 const customerStore = useCustomerStore()
@@ -667,8 +295,6 @@ const pricePolicyOptions = [
   { label: '包年', value: 'yearly' },
 ]
 
-// 编辑表单 ref
-const editFormRef = ref<FormInstance>()
 
 // 弹窗响应式宽度
 const modalWidth = computed(() => {
@@ -936,16 +562,6 @@ const editForm = ref<EditForm>({
   consume_level: undefined,
 })
 
-// 编辑表单验证规则
-const editFormRules = {
-  company_id: [{ required: true, message: '公司 ID 不能为空', trigger: ['blur', 'change'] }],
-  name: [
-    { required: true, message: '客户名称不能为空', trigger: ['blur', 'change'] },
-    { maxLength: 200, message: '客户名称不能超过 200 个字符', trigger: ['blur', 'change'] },
-  ],
-  email: [{ type: 'email', message: '邮箱格式不正确', trigger: ['blur', 'change'] }],
-  settlement_type: [{ required: true, message: '请选择结算方式', trigger: ['blur', 'change'] }],
-}
 
 // 加载数据 - 优化版：支持 Pinia 缓存和并行加载
 const loadCustomerData = async () => {
@@ -1116,17 +732,10 @@ const openEditModal = () => {
 }
 
 // 提交编辑
-const handleEditSubmit = async () => {
-  // 1. 客户端表单验证
-  try {
-    await editFormRef.value?.validate()
-  } catch {
-    return false
-  }
-
-  // 2. 日期格式校验
-  if (editForm.value.first_payment_date) {
-    const paymentDate = new Date(editForm.value.first_payment_date)
+const handleEditSubmit = async (form: EditForm) => {
+  // 1. 日期格式校验
+  if (form.first_payment_date) {
+    const paymentDate = new Date(form.first_payment_date)
     const today = new Date()
     today.setHours(23, 59, 59, 999)
     if (paymentDate > today) {
@@ -1135,8 +744,8 @@ const handleEditSubmit = async () => {
     }
   }
 
-  if (editForm.value.onboarding_date) {
-    const onboardingDate = new Date(editForm.value.onboarding_date)
+  if (form.onboarding_date) {
+    const onboardingDate = new Date(form.onboarding_date)
     const today = new Date()
     today.setHours(23, 59, 59, 999)
     if (onboardingDate > today) {
@@ -1145,10 +754,10 @@ const handleEditSubmit = async () => {
     }
   }
 
-  // 3. 首次回款时间不能早于接入时间
-  if (editForm.value.first_payment_date && editForm.value.onboarding_date) {
-    const paymentDate = new Date(editForm.value.first_payment_date)
-    const onboardingDate = new Date(editForm.value.onboarding_date)
+  // 2. 首次回款时间不能早于接入时间
+  if (form.first_payment_date && form.onboarding_date) {
+    const paymentDate = new Date(form.first_payment_date)
+    const onboardingDate = new Date(form.onboarding_date)
     if (paymentDate < onboardingDate) {
       Message.error('首次回款时间不能早于接入时间')
       return false
@@ -1157,45 +766,40 @@ const handleEditSubmit = async () => {
 
   editLoading.value = true
   try {
-    // 并行更新 Customer 和 CustomerProfile
-    // 注意：Promise.all 任一失败会进入 catch 块，两个更新都是幂等的可重试操作
     await Promise.all([
       updateCustomer(customerId.value, {
-        company_id: editForm.value.company_id,
-        name: editForm.value.name,
-        email: editForm.value.email || undefined,
-        account_type: editForm.value.account_type || undefined,
-        industry_type_id: editForm.value.industry_type_id ?? undefined,
-        price_policy: editForm.value.price_policy || undefined,
-        settlement_type: editForm.value.settlement_type,
-        settlement_cycle: editForm.value.settlement_cycle || undefined,
-        is_key_customer: editForm.value.is_key_customer,
-        manager_id: editForm.value.manager_id || undefined,
-        erp_system: editForm.value.erp_system || undefined,
-        first_payment_date: editForm.value.first_payment_date || undefined,
-        onboarding_date: editForm.value.onboarding_date || undefined,
-        sales_manager_id: editForm.value.sales_manager_id || undefined,
-        cooperation_status: editForm.value.cooperation_status || undefined,
-        is_settlement_enabled: editForm.value.is_settlement_enabled,
-        is_disabled: editForm.value.is_disabled,
-        notes: editForm.value.notes || undefined,
-        is_real_estate: editForm.value.is_real_estate ?? null,
+        company_id: form.company_id,
+        name: form.name,
+        email: form.email || undefined,
+        account_type: form.account_type || undefined,
+        industry_type_id: form.industry_type_id ?? undefined,
+        price_policy: form.price_policy || undefined,
+        settlement_type: form.settlement_type,
+        settlement_cycle: form.settlement_cycle || undefined,
+        is_key_customer: form.is_key_customer,
+        manager_id: form.manager_id || undefined,
+        erp_system: form.erp_system || undefined,
+        first_payment_date: form.first_payment_date || undefined,
+        onboarding_date: form.onboarding_date || undefined,
+        sales_manager_id: form.sales_manager_id || undefined,
+        cooperation_status: form.cooperation_status || undefined,
+        is_settlement_enabled: form.is_settlement_enabled,
+        is_disabled: form.is_disabled,
+        notes: form.notes || undefined,
+        is_real_estate: form.is_real_estate ?? null,
       }),
       updateProfile(customerId.value, {
-        scale_level: editForm.value.scale_level || undefined,
-        consume_level: editForm.value.consume_level || undefined,
-        industry_type_id: editForm.value.industry_type_id ?? undefined,
+        scale_level: form.scale_level || undefined,
+        consume_level: form.consume_level || undefined,
+        industry_type_id: form.industry_type_id ?? undefined,
       }),
     ])
     Message.success('更新成功')
     editModalVisible.value = false
-    // 性能优化: 更新后清除缓存
     customerStore.invalidateCustomerCache(customerId.value)
     await loadCustomerData()
     return true
   } catch (error: unknown) {
-    // 处理服务端错误
-    // API 拦截器已将 response.data.message 提取为 Error.message
     const err = error as Error
     if (err.message && err.message !== 'Error') {
       Message.error(err.message)
@@ -1208,12 +812,6 @@ const handleEditSubmit = async () => {
     editLoading.value = false
   }
 }
-
-const handleEditCancel = () => {
-  editModalVisible.value = false
-  editFormRef.value?.resetFields()
-}
-
 // 切换重点客户
 const toggleKeyCustomer = async () => {
   keyCustomerLoading.value = true
@@ -1280,45 +878,7 @@ const loadAllTags = async () => {
   }
 }
 
-// 计算可用标签（已添加的标签不显示）
-const availableTags = computed(() => {
-  const addedIds = new Set(customerTags.value.map((t) => t.id))
-  return allTags.value.filter((t) => !addedIds.has(t.id))
-})
 
-// 合作状态展示
-const cooperationStatusColor = computed(() => {
-  const status = customer.value.cooperation_status
-  if (status === 'active') return 'green'
-  if (status === 'suspended') return 'orange'
-  if (status === 'terminated') return 'red'
-  if (status === 'noused') return 'gray'
-  return 'gray'
-})
-
-const cooperationStatusText = computed(() => {
-  const status = customer.value.cooperation_status
-  const map: Record<string, string> = {
-    active: '合作中',
-    suspended: '暂停',
-    terminated: '终止',
-    noused: '近一年未使用',
-  }
-  return map[status || ''] || '-'
-})
-
-// 结算周期展示映射
-const settlementCycleText = computed(() => {
-  const cycle = customer.value.settlement_cycle
-  const map: Record<string, string> = {
-    daily: '日结',
-    weekly: '周结',
-    monthly: '月结',
-    quarterly: '季结',
-    yearly: '年结',
-  }
-  return map[cycle || ''] || cycle || '-'
-})
 
 // 消费等级显示映射（与 ConsumeLevelProgress 组件保持一致）
 const CONSUME_LEVEL_MAP: Record<string, string> = {
@@ -1337,12 +897,6 @@ const consumeLevelDisplay = computed(() => {
   return CONSUME_LEVEL_MAP[level] || level
 })
 
-// 商务经理名称（从 managers 列表中查找）
-const salesManagerName = computed(() => {
-  if (!customer.value.sales_manager_id) return null
-  const manager = managers.value.find((m) => m.id === customer.value.sales_manager_id)
-  return manager ? manager.real_name || manager.username : null
-})
 
 // 打开标签选择器
 const openTagSelector = async () => {
@@ -1351,16 +905,13 @@ const openTagSelector = async () => {
   tagSelectorVisible.value = true
 }
 
+const closeTagSelector = () => { tagSelectorVisible.value = false }
 // 添加标签
-const handleAddTag = async () => {
-  if (selectedTagIds.value.length === 0) {
-    Message.warning('请选择要添加的标签')
-    return
-  }
+const handleAddTag = async (tagIds: number[]) => {
 
   tagSelectorLoading.value = true
   try {
-    for (const tagId of selectedTagIds.value) {
+    for (const tagId of tagIds) {
       await addCustomerTag(customerId.value, tagId)
     }
     Message.success('标签添加成功')
