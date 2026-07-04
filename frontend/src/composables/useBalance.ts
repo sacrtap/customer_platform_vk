@@ -10,8 +10,8 @@ import type { IndustryType, Tag, User } from '@/types'
 const defaultFilters = () => ({
   keyword: '',
   recharge_date: [] as string[],
-industry: [] as string[],
-account_type: '',
+  industry: [] as string[],
+  account_type: '',
   is_key_customer: null as boolean | null,
   is_real_estate: null as boolean | null,
   settlement_type: '',
