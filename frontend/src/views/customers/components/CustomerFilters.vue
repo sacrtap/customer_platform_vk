@@ -150,6 +150,7 @@
 
 <script setup lang="ts">
 import type { IndustryType } from '@/types'
+import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 
 interface Filters {
   keyword: string
