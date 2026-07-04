@@ -52,61 +52,24 @@
           </a-tab-pane>
 
           <a-tab-pane key="invoices" title="结算单">
-            <div class="data-table-card">
-              <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
-                <template #status="{ record }">
-                  <span :class="['status-badge', getStatusClass(record.status)]">
-                    <span class="status-dot"></span>
-                    {{ getStatusText(record.status) }}
-                  </span>
-                </template>
-                <template #amount="{ record }">
-                  {{ formatCurrency(record.final_amount || record.total_amount) }}
-                </template>
-                <template #action="{ record }">
-                  <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
-                </template>
-                <template #empty>
-                  <EmptyState title="暂无结算单数据" description="当前客户暂无结算单" />
-                </template>
-              </a-table>
-            </div>
+            <CustomerInvoicesTab :invoices="invoices" @view-invoice="viewInvoice" />
           </a-tab-pane>
 
           <a-tab-pane key="usage" title="用量数据">
-            <!-- 用量分布图 - 性能优化: 延迟加载 -->
-            <div class="usage-distribution-section">
-              <UsageDistributionChart
-                v-if="shouldRenderChart('usageDistribution')"
-                :distribution="usageDistribution"
-                :total-quantity="totalUsageQuantity"
-                :loading="usageLoading"
-              />
-            </div>
-
-            <!-- 用量数据表格 -->
-            <div class="usage-table-section">
-              <div class="data-table-card">
-                <a-table
-                  :columns="usageColumns"
-                  :data="usageData"
+            <CustomerUsageTab
+              :usage-data="usageData"
+              :usage-loading="usageLoading"
+              :usage-pagination="usagePagination"
+            >
+              <template #chart>
+                <UsageDistributionChart
+                  v-if="shouldRenderChart('usageDistribution')"
+                  :distribution="usageDistribution"
+                  :total-quantity="totalUsageQuantity"
                   :loading="usageLoading"
-                  :pagination="usagePagination"
-                  row-key="id"
-                  @page-change="handleUsagePageChange"
-                >
-                  <template #deviceType="{ record }">
-                    <a-tag>{{ record.device_type }}</a-tag>
-                  </template>
-                  <template #quantity="{ record }">
-                    {{ formatNumber(record.quantity || 0) }}
-                  </template>
-                  <template #empty>
-                    <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
-                  </template>
-                </a-table>
-              </div>
-            </div>
+                />
+              </template>
+            </CustomerUsageTab>
           </a-tab-pane>
         </a-tabs>
       </div>
@@ -162,8 +125,6 @@ import { getDailyUsage, type DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore, type CustomerHealthScore } from '@/api/analytics'
 import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
-import { formatCurrency, formatNumber } from '@/utils/formatters'
-import EmptyState from '@/components/EmptyState.vue'
 import UsageDistributionChart from '@/components/charts/UsageDistributionChart.vue'
 import { useCustomerStore } from '@/stores/customer'
 
@@ -172,6 +133,8 @@ import TagSelectorDialog from './detail/TagSelectorDialog.vue'
 import CustomerBasicTab from './detail/CustomerBasicTab.vue'
 import CustomerProfileTab from './detail/CustomerProfileTab.vue'
 import CustomerBalanceTab from './detail/CustomerBalanceTab.vue'
+import CustomerInvoicesTab from './detail/CustomerInvoicesTab.vue'
+import CustomerUsageTab from './detail/CustomerUsageTab.vue'
 const route = useRoute()
 const router = useRouter()
 const customerStore = useCustomerStore()
@@ -405,23 +368,7 @@ const usagePagination = reactive({
   total: 0,
 })
 
-const usageColumns = [
-  { title: '日期', dataIndex: 'usage_date' },
-  { title: '设备类型', slotName: 'deviceType' },
-  { title: '层级类型', dataIndex: 'layer_type' },
-  { title: '用量', slotName: 'quantity' },
-  { title: '同步时间', dataIndex: 'synced_at' },
-]
 
-const invoiceColumns = [
-  { title: '结算单号', dataIndex: 'invoice_no' },
-  { title: '周期开始', dataIndex: 'period_start', width: 120 },
-  { title: '周期结束', dataIndex: 'period_end', width: 120 },
-  { title: '金额', slotName: 'amount', width: 130, align: 'right' },
-  { title: '状态', slotName: 'status', width: 100, align: 'center' },
-  { title: '创建时间', dataIndex: 'created_at', width: 170 },
-  { title: '操作', slotName: 'action', width: 90, align: 'center' },
-]
 
 // 编辑表单
 const editForm = ref<EditForm>({
@@ -558,30 +505,8 @@ const loadCustomerData = async () => {
 }
 
 // 获取状态样式类
-const getStatusClass = (status: string) => {
-  const statusMap: Record<string, string> = {
-    draft: 'warning',
-    pending_customer: 'warning',
-    customer_confirmed: 'success',
-    paid: 'success',
-    completed: 'success',
-    cancelled: 'danger',
-  }
-  return statusMap[status] || 'warning'
-}
 
 // 获取状态文本
-const getStatusText = (status: string) => {
-  const statusMap: Record<string, string> = {
-    draft: '草稿',
-    pending_customer: '待客户确认',
-    customer_confirmed: '客户已确认',
-    paid: '已付款',
-    completed: '已完成',
-    cancelled: '已取消',
-  }
-  return statusMap[status] || status
-}
 
 // 打开编辑对话框
 const openEditModal = () => {
@@ -828,10 +753,6 @@ const loadUsageData = async () => {
   }
 }
 
-const handleUsagePageChange = (page: number) => {
-  usagePagination.current = page
-  loadUsageData()
-}
 
 onMounted(() => {
   loadCustomerData()
