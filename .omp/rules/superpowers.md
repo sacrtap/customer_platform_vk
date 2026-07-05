@@ -3,6 +3,7 @@
 ### 适用范围
 
 本项目使用 Superpowers 作为 agentic software development methodology，并在 OMP 环境中执行。Superpowers 负责规定“什么时候必须调用技能、如何规划、如何调试、如何验证”；OMP 负责提供项目工具、IDE 上下文、子代理、CodeGraph、context-mode、文件读写与命令执行能力。
+上游 `obra/superpowers` README 将 Superpowers 定义为由可组合 skills 和初始指令组成的 agentic software development methodology；本项目只吸收其工作流原则，不要求安装或 vendor 上游仓库。
 
 ### 指令优先级
 
@@ -10,6 +11,21 @@
 2. **Superpowers 技能次之**：当技能与默认 agent 行为冲突时，按技能执行。
 3. **默认模型习惯最低**：不得用“只是简单问题”“先快速看一下文件”等理由跳过技能检查。
 
+### 主循环（对齐上游 The Basic Workflow）
+
+Superpowers 在本项目中的作用是把任务路由到正确工作流，而不是替代项目硬规则。上游 README 的 **The Basic Workflow** 顺序是：`brainstorming` → `using-git-worktrees` → `writing-plans` → `subagent-driven-development`/`executing-plans` → `test-driven-development` → `requesting-code-review` → `finishing-a-development-branch`。本项目按该顺序执行，并增加项目事实探索与完成前验证门禁：
+
+1. **技能检查**：先判断是否有 Superpowers 技能适用；有 1% 可能适用就读取/激活技能。
+2. **事实探索**：先读规则、目标文件和官方文档；所有路径、符号、命令和现状判断必须来自本次读取或工具结果。
+3. **设计确认**：新功能、行为变更或组件/API 设计先进入 `brainstorming` 或项目 spec 流程，确认目标、边界和验收口径。
+4. **隔离工作区**：设计获批后的跨文件或多任务实施优先使用 `using-git-worktrees`，创建隔离分支/工作区并确认基线。
+5. **计划**：获批设计进入 `writing-plans`；计划必须列明目标文件、符号、步骤、验证命令和 fallback。
+6. **执行**：已有计划进入 `subagent-driven-development` 或 `executing-plans`；独立模块用 `dispatching-parallel-agents` 并行，同一文件或顺序依赖串行。
+7. **实现循环**：实现阶段按适用范围使用 `test-driven-development`；敏感结算/余额/账单路径必须 RED-GREEN-REFACTOR。
+8. **审查与验证**：任务间使用 `requesting-code-review`/`receiving-code-review`；声明完成前使用 `verification-before-completion` 覆盖新行为。
+9. **收尾**：需要提交、合并或清理工作区时再进入 `git-commit` 和 `finishing-a-development-branch`。
+
+若用户显式指令、`.omp/RULES.md` 或项目子规则与技能建议冲突，按项目规则执行，并在回复中说明采用项目规则的原因。
 ### 会话启动规则
 
 - 每次收到用户任务后，先判断是否有 Superpowers 技能适用；只要有 1% 可能适用，就必须先读取/激活该技能，再进行澄清、探索、计划或实现。

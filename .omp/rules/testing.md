@@ -39,6 +39,15 @@
 | 客户分析 | 数据聚合逻辑 TDD，报表 UI Tests-after |
 | 系统/通用 | Tests-after |
 
+### Superpowers 测试门禁
+
+- 涉及结算金额、余额扣款、账单金额、客户确认、付款状态的变更必须使用 `test-driven-development`：先写能失败的测试，再实现最小代码，再重构。
+- Bug、测试失败或异常行为必须先用 `systematic-debugging` 定位根因；未证明根因前不得直接改实现。
+- 任何功能或修复声明完成前必须使用 `verification-before-completion`：至少运行一条覆盖新行为的测试、类型检查、E2E/手动路径或规则引用检查。
+- 若某次变更无需新增测试，必须在回复中说明原因，并给出替代验证命令或手动验证路径。
+
+上述要求对应 `.omp/rules/superpowers.md` 主循环的完整上游流程；新增测试命令见"运行测试"下方。
+
 ### 运行测试
 
 ```bash
