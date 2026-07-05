@@ -604,7 +604,7 @@ onMounted(() => {
 
 .header-title h1 {
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 700;
   color: #1d2330;
   margin: 0 0 8px 0;
 }

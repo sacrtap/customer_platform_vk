@@ -58,8 +58,8 @@
           <svg class="nav-item-arrow" style="margin-left:auto;width:16px;height:16px;transition:transform .2s" :style="{ transform: expandedSubmenu === 'system' ? 'rotate(180deg)' : 'rotate(0deg)' }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
         </div>
         <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
-          <a class="nav-subitem" :class="{ active: $route.path === '/system/users' }" @click="goTo('/system/users')">用户管理</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/system/roles' }" @click="goTo('/system/roles')">角色权限</a>
+          <a class="nav-subitem" :class="{ active: $route.path === '/users' }" @click="goTo('/users')">用户管理</a>
+          <a class="nav-subitem" :class="{ active: $route.path === '/roles' }" @click="goTo('/roles')">角色权限</a>
         </div>
       </div>
 

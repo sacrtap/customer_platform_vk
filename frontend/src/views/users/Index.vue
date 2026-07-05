@@ -556,15 +556,15 @@ onMounted(() => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 24px;
 }
 
 .header-title h1 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: var(--neutral-10);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .header-subtitle {

@@ -505,9 +505,11 @@ onMounted(() => {
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 24px;
 }
-
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;

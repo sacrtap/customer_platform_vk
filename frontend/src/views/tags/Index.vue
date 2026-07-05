@@ -296,19 +296,22 @@ onMounted(() => {
   --neutral-10: #1d2330;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 24px;
 }
-
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
   color: var(--neutral-10);
   margin-bottom: 8px;
+}
+
+.header-title {
+  display: flex;
+  flex-direction: column;
 }
 
 .header-subtitle {

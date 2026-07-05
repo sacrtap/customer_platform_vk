@@ -73,8 +73,8 @@ export function useAppLayout() {
         title: '系统管理',
         items: [
           { key: 'tags', label: '标签管理', to: '/tags', permission: 'tags:view' },
-          { key: 'users', label: '用户管理', to: '/system/users', permission: 'users:view' },
-          { key: 'roles', label: '角色权限', to: '/system/roles', permission: 'roles:view' },
+          { key: 'users', label: '用户管理', to: '/users', permission: 'users:view' },
+          { key: 'roles', label: '角色权限', to: '/roles', permission: 'roles:view' },
         ],
       },
       {
@@ -138,7 +138,7 @@ export function useAppLayout() {
     const p = route.path
     if (submenu === 'billing') return p.startsWith('/billing')
     if (submenu === 'analytics') return p.startsWith('/analytics')
-    if (submenu === 'system') return p.startsWith('/system')
+    if (submenu === 'system') return p === '/tags' || p === '/users' || p === '/roles'
     return false
   }
   const isParentMenuActive = (menu: string): boolean =>
@@ -158,7 +158,7 @@ export function useAppLayout() {
     watch(() => route.path, (newPath) => {
       if (newPath.startsWith('/billing')) expandedSubmenu.value = 'billing'
       else if (newPath.startsWith('/analytics')) expandedSubmenu.value = 'analytics'
-      else if (newPath.startsWith('/system')) expandedSubmenu.value = 'system'
+      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles') expandedSubmenu.value = 'system'
       else expandedSubmenu.value = null
       mobileMenuOpen.value = false
     }, { immediate: true })

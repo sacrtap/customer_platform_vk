@@ -22,9 +22,17 @@
             </a-select>
           </a-form-item>
         </a-col>
-        <a-col :xs="24" :sm="12" :md="8" :lg="4">
+        <a-col :xs="24" :sm="12" :md="8" :lg="6">
           <a-form-item label="充值日期">
             <a-range-picker v-model="filters.recharge_date" style="width: 100%" />
+          </a-form-item>
+        </a-col>
+        <a-col :xs="24" :sm="12" :md="8" :lg="4">
+          <a-form-item label="&nbsp;">
+            <a-space>
+              <a-button type="primary" @click="emit('search')">查询</a-button>
+              <a-button @click="emit('reset')">重置</a-button>
+            </a-space>
           </a-form-item>
         </a-col>
       </a-row>
@@ -51,14 +59,6 @@
               <a-option value="prepaid">预付费</a-option>
               <a-option value="postpaid">后付费</a-option>
             </a-select>
-          </a-form-item>
-        </a-col>
-        <a-col :xs="24" :sm="12" :md="8" :lg="4">
-          <a-form-item label="&nbsp;">
-            <a-space>
-              <a-button type="primary" @click="emit('search')">查询</a-button>
-              <a-button @click="emit('reset')">重置</a-button>
-            </a-space>
           </a-form-item>
         </a-col>
       </a-row>

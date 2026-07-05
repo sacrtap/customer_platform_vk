@@ -859,7 +859,7 @@ onUnmounted(() => {
   font-size: 24px;
   font-weight: 700;
   color: var(--neutral-10);
-  margin: 0;
+  margin: 0 0 8px 0;
 }
 .header-actions {
   display: flex;

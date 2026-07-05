@@ -158,9 +158,9 @@ loadInvoices()
 </script>
 
 <style scoped>
-.invoice-page { padding: 24px 32px; }
+.invoice-page { padding: 0; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; }
+.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
 .header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
 .header-actions { display: flex; gap: 12px; }
 .table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }

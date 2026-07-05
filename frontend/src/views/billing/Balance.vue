@@ -87,7 +87,7 @@ import RechargeModal from './components/RechargeModal.vue'
 import RechargeRecordModal from './components/RechargeRecordModal.vue'
 import ImportBalanceModal from './components/ImportBalanceModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { formatCurrency } from '@/utils/formatters'
+import { formatCurrency, formatDate } from '@/utils/formatters'
 import type { Balance } from '@/api/billing'
 
 const userStore = useUserStore()
@@ -116,7 +116,6 @@ const columns = [
   { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
-const formatDate = (d: string) => new Date(d).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 const openRechargeModal = (record?: Balance) => { currentCustomerId.value = record?.customer_id; rechargeModalVisible.value = true }
 const viewRechargeRecords = (record: Balance) => { currentRecordCustomerId.value = record.customer_id; recordModalVisible.value = true }
 
@@ -129,9 +128,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.balance-page { padding: 24px 32px; }
+.balance-page { padding: 0; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; }
+.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
 .header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
 .header-actions { display: flex; gap: 12px; }
 .table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }

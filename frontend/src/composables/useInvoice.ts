@@ -68,7 +68,7 @@ export function useInvoice() {
         params.due_date_to = filters.due_date[1]
       }
       const res = await getInvoices(params)
-      invoices.value = res.data?.items || []
+      invoices.value = res.data?.list || []
       total.value = res.data?.total || 0
     } catch {
       invoices.value = []

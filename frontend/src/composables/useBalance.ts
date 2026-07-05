@@ -84,7 +84,7 @@ export function useBalance() {
       if (filters.settlement_type) params.settlement_type = filters.settlement_type
 
       const res = await getBalances(params)
-      balances.value = res.data?.items || []
+      balances.value = res.data?.list || []
       total.value = res.data?.total || 0
     } catch {
       balances.value = []
