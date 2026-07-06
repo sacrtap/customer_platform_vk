@@ -19,6 +19,9 @@
         <template #quantity="{ record }">
           {{ formatNumber(record.quantity || 0) }}
         </template>
+        <template #syncedAt="{ record }">
+          {{ (record.synced_at || '').replace('T', ' ').split('.')[0] }}
+        </template>
         <template #empty>
           <EmptyState title="暂无用量数据" description="当前客户暂无用量记录" />
         </template>
@@ -26,7 +29,6 @@
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import type { DailyUsage } from '@/api/usage'
 import { formatNumber } from '@/utils/formatters'
@@ -47,7 +49,7 @@ const usageColumns = [
   { title: '设备类型', slotName: 'deviceType', width: 120 },
   { title: '图层类型', dataIndex: 'layer_type', width: 100 },
   { title: '用量', slotName: 'quantity', width: 100, align: 'right' },
-  { title: '同步时间', dataIndex: 'synced_at', width: 170 },
+  { title: '同步时间', slotName: 'syncedAt', width: 170 },
 ]
 </script>
 

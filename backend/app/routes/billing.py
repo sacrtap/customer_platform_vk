@@ -281,7 +281,11 @@ async def get_balances(request: Request):
         base_stmt = base_stmt.order_by(Customer.id.asc())
 
     # 分页查询
-    stmt = base_stmt.options(selectinload(CustomerBalance.customer))
+    stmt = base_stmt.options(
+        selectinload(CustomerBalance.customer)
+        .selectinload(Customer.profile)
+        .selectinload(CustomerProfile.industry_type)
+    )
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
@@ -315,6 +319,10 @@ async def get_balances(request: Request):
                         "customer_id": b.customer_id,
                         "company_id": b.customer.company_id if b.customer else None,
                         "customer_name": b.customer.name if b.customer else None,
+                        "account_type": b.customer.account_type if b.customer else None,
+                        "industry_type": b.customer.profile.industry_type.name
+                        if b.customer and b.customer.profile and b.customer.profile.industry_type
+                        else None,
                         "total_amount": float(b.total_amount) if b.total_amount else 0,
                         "real_amount": float(b.real_amount) if b.real_amount else 0,
                         "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,
@@ -524,6 +532,18 @@ async def get_recharge_records(request: Request):
         page=page,
         page_size=page_size,
     )
+    # 批量查询客户名称
+    from sqlalchemy import select
+
+    from ..models.customers import Customer
+
+    customer_ids = list(set(r.customer_id for r in records if r.customer_id))
+    customer_name_map = {}
+    if customer_ids:
+        customer_result = await db.execute(
+            select(Customer.id, Customer.name).where(Customer.id.in_(customer_ids))
+        )
+        customer_name_map = {row[0]: row[1] for row in customer_result}
 
     return json(
         {
@@ -534,6 +554,7 @@ async def get_recharge_records(request: Request):
                     {
                         "id": r.id,
                         "customer_id": r.customer_id,
+                        "customer_name": customer_name_map.get(r.customer_id, ""),
                         "real_amount": float(r.real_amount),
                         "bonus_amount": float(r.bonus_amount),
                         "total_amount": float(r.real_amount + r.bonus_amount),

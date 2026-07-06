@@ -368,4 +368,13 @@ test.describe('客户详情页面', () => {
     await expect(page).toHaveURL('/customers');
     await waitForTableLoaded(page);
   });
+  test('16. 进入详情页后 loading 消失', async ({ page }) => {
+    await page.goto(`/customers/${testCustomerId}`);
+    // 等待页面标题出现（数据加载完成标志）
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
+    // 验证 loading wrapper 已消失（v-if 移除 DOM）
+    await expect(page.locator('.page-loading')).toHaveCount(0, { timeout: 10000 });
+    // 验证 tabs 内容可见
+    await expect(page.locator('.tabs-section').first()).toBeVisible();
+  })
 });

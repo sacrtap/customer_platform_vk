@@ -609,3 +609,69 @@ async def get_balance_trend(request: Request, customer_id: int):
     trend = await service.get_balance_trend(customer_id=customer_id, months=months)
 
     return json({"code": 0, "message": "success", "data": trend})
+
+
+@analytics.route("/usage/daily", methods=["GET"])
+@auth_required
+async def get_daily_usage(request: Request):
+    """获取客户每日用量数据（分页）"""
+    from datetime import date, timedelta
+
+    from sqlalchemy import func, select
+
+    from ..models.daily_consumption import DailyConsumption
+
+    customer_id = request.args.get("customer_id")
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+
+    if not customer_id:
+        return json({"code": 400, "message": "缺少 customer_id 参数"}, status=400)
+
+    db_session = request.ctx.db_session
+
+    end_date = date.fromisoformat(end_date_str) if end_date_str else date.today()
+    start_date = (
+        date.fromisoformat(start_date_str) if start_date_str else end_date - timedelta(days=30)
+    )
+
+    query = (
+        select(DailyConsumption)
+        .where(
+            DailyConsumption.customer_id == int(customer_id),
+            DailyConsumption.consumption_date >= start_date,
+            DailyConsumption.consumption_date <= end_date,
+        )
+        .order_by(DailyConsumption.consumption_date.desc())
+    )
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await db_session.execute(count_query)).scalar() or 0
+
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+    result = await db_session.execute(query)
+    records = result.scalars().all()
+
+    items = [
+        {
+            "id": r.id,
+            "customer_id": r.customer_id,
+            "usage_date": r.consumption_date.isoformat(),
+            "device_type": r.device_type,
+            "layer_type": r.layer_type,
+            "quantity": r.order_count,
+            "synced_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in records
+    ]
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {"list": items, "total": total, "page": page, "page_size": page_size},
+        }
+    )

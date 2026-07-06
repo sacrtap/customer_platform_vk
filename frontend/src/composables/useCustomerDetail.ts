@@ -1,4 +1,4 @@
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onUpdated, watch } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
@@ -40,13 +40,14 @@ export interface EditForm {
 
 export function useCustomerDetail() {
   const route = useRoute()
+  console.log('[useCustomerDetail] called, route.params.id =', route.params.id)
   const router = useRouter()
   const customerStore = useCustomerStore()
 
   const customerId = ref(Number(route.params.id))
 
-  const detail = ref<Customer | null>(null)
-  const loading = ref(false)
+  const customer = ref<Customer | null>(null)
+  const loading = ref(true)
   const activeTab = ref('basic')
 
   const balance = ref<Balance | undefined>(undefined)
@@ -109,6 +110,8 @@ export function useCustomerDetail() {
   ]
 
   const keyCustomerLoading = ref(false)
+  const industryTypesLoading = ref(false)
+  const allTagsLoading = ref(false)
 
   const modalWidth = computed(() => {
     if (typeof window === 'undefined') return '1100px'
@@ -133,6 +136,7 @@ export function useCustomerDetail() {
 
   const loadedTabs = ref<Set<string>>(new Set(['basic']))
   const chartRenderState = ref<Record<string, boolean>>({})
+  const shouldRenderBalanceTrend = computed(() => chartRenderState.value.balanceTrend ?? false)
   let tabLoadTimer: ReturnType<typeof setTimeout> | null = null
 
   const markChartForRender = (chartId: string): void => {
@@ -140,7 +144,15 @@ export function useCustomerDetail() {
   }
 
   const loadDetail = async () => {
+    // 防御: 防止无效 customerId 导致 API 挂起
+    if (!customerId.value || isNaN(customerId.value) || customerId.value <= 0) {
+      console.error('[loadDetail] Invalid customerId:', customerId.value)
+      Message.error('无效的客户 ID，请检查路由参数')
+      loading.value = false
+      return
+    }
     loading.value = true
+    console.log('[loadDetail] started, loading =', loading.value)
     try {
       const [customerRes, profileRes, balanceRes, invoicesRes] = await Promise.all([
         getCustomer(customerId.value),
@@ -148,15 +160,17 @@ export function useCustomerDetail() {
         getCustomerBalance(customerId.value).catch(() => null),
         getInvoices({ customer_id: customerId.value, page_size: 100 }).catch(() => null),
       ])
-      detail.value = customerRes.data
+      console.log('[loadDetail] API all resolved')
+      customer.value = customerRes.data
       profile.value = profileRes?.data || null
       balance.value = balanceRes?.data
-      invoices.value = invoicesRes?.data || []
+      invoices.value = invoicesRes?.data?.list || []
     } catch (error) {
+      console.error('[loadDetail] API error:', error)
       Message.error('加载客户数据失败')
-      console.error('加载客户数据失败:', error)
     } finally {
       loading.value = false
+      console.log('[loadDetail] finally block, loading =', loading.value)
     }
   }
 
@@ -199,7 +213,7 @@ export function useCustomerDetail() {
   const loadInvoices = async () => {
     try {
       const res = await getInvoices({ customer_id: customerId.value, page_size: 100 })
-      invoices.value = res.data || []
+      invoices.value = res.data?.list || []
     } catch (error) {
       Message.error('加载结算单失败')
       console.error('加载结算单失败:', error)
@@ -215,11 +229,13 @@ export function useCustomerDetail() {
         page: currentPage,
         page_size: usagePagination.value.pageSize,
       })
-      usageData.value = res.data || []
-      usagePagination.value.total = res.data?.length || 0
-    } catch (error) {
-      Message.error('加载用量数据失败')
-      console.error('加载用量数据失败:', error)
+      usageData.value = res.data?.list || []
+      usagePagination.value.total = res.data?.total || 0
+    } catch (error: unknown) {
+      // 后端未实现用量 API 时优雅降级，显示空状态而非错误提示
+      usageData.value = []
+      usagePagination.value.total = 0
+      console.warn('[loadUsage] API error (showing empty state):', error)
     } finally {
       usageLoading.value = false
     }
@@ -273,25 +289,25 @@ export function useCustomerDetail() {
       return
     }
     Object.assign(editForm, {
-      name: detail.value?.name || '',
-      company_id: Number(detail.value?.company_id) || 0,
-      email: detail.value?.email || '',
-      account_type: detail.value?.account_type || undefined,
-      industry_type_id: profile.value?.industry_type_id ?? null,
-      price_policy: detail.value?.price_policy || undefined,
-      settlement_type: detail.value?.settlement_type || undefined,
-      settlement_cycle: detail.value?.settlement_cycle || undefined,
-      is_key_customer: detail.value?.is_key_customer || false,
-      manager_id: detail.value?.manager_id || undefined,
-      erp_system: detail.value?.erp_system || undefined,
-      first_payment_date: detail.value?.first_payment_date || undefined,
-      onboarding_date: detail.value?.onboarding_date || undefined,
-      sales_manager_id: detail.value?.sales_manager_id || undefined,
-      cooperation_status: detail.value?.cooperation_status || undefined,
-      is_settlement_enabled: detail.value?.is_settlement_enabled ?? true,
-      is_disabled: detail.value?.is_disabled ?? false,
-      notes: detail.value?.notes || undefined,
-      is_real_estate: detail.value?.is_real_estate ?? null,
+      name: customer.value?.name || '',
+      company_id: Number(customer.value?.company_id) || 0,
+      email: customer.value?.email as string ?? '',
+      account_type: customer.value?.account_type || undefined,
+      industry_type_id: profile.value?.industry_type_id as number | null ?? null,
+      price_policy: customer.value?.price_policy || undefined,
+      settlement_type: customer.value?.settlement_type || undefined,
+      settlement_cycle: customer.value?.settlement_cycle || undefined,
+      is_key_customer: customer.value?.is_key_customer || false,
+      manager_id: customer.value?.manager_id || undefined,
+      erp_system: customer.value?.erp_system || undefined,
+      first_payment_date: customer.value?.first_payment_date || undefined,
+      onboarding_date: customer.value?.onboarding_date || undefined,
+      sales_manager_id: customer.value?.sales_manager_id || undefined,
+      cooperation_status: customer.value?.cooperation_status || undefined,
+      is_settlement_enabled: customer.value?.is_settlement_enabled ?? true,
+      is_disabled: customer.value?.is_disabled ?? false,
+      notes: customer.value?.notes || undefined,
+      is_real_estate: customer.value?.is_real_estate as boolean | null ?? null,
       scale_level: profile.value?.scale_level || undefined,
       consume_level: profile.value?.consume_level || undefined,
     })
@@ -307,17 +323,18 @@ export function useCustomerDetail() {
     editLoading.value = true
     try {
       await editFormRef.value?.validate()
+      const editForm = form
       const [basicRes, profileRes] = await Promise.all([
-        updateCustomer(customerId.value, form as unknown as Parameters<typeof updateCustomer>[1]),
-        form.scale_level || form.consume_level
+        updateCustomer(customerId.value, form),
+        editForm.scale_level || editForm.consume_level
           ? updateProfile(customerId.value, {
-              scale_level: form.scale_level,
-              consume_level: form.consume_level,
-              industry_type_id: form.industry_type_id,
+              scale_level: editForm.scale_level,
+              consume_level: editForm.consume_level,
+              industry_type_id: editForm.industry_type_id,
             })
           : Promise.resolve(null),
       ])
-      detail.value = basicRes.data
+      customer.value = basicRes.data
       if (profileRes?.data) profile.value = profileRes.data
       if (basicRes.data) {
         customerStore.updateCachedCustomerPart(customerId.value, 'customer', basicRes.data as Customer)
@@ -342,14 +359,14 @@ export function useCustomerDetail() {
   const toggleKeyCustomer = async () => {
     keyCustomerLoading.value = true
     try {
-      const wasKeyCustomer = detail.value?.is_key_customer
+      const wasKeyCustomer = customer.value?.is_key_customer
       await updateCustomer(customerId.value, {
         is_key_customer: !wasKeyCustomer,
       })
       Message.success(wasKeyCustomer ? '已取消重点客户' : '已设为重点客户')
-      if (detail.value) {
-        detail.value.is_key_customer = !wasKeyCustomer
-        customerStore.updateCachedCustomerPart(customerId.value, 'customer', detail.value)
+      if (customer.value) {
+        customer.value.is_key_customer = !wasKeyCustomer
+        customerStore.updateCachedCustomerPart(customerId.value, 'customer', customer.value)
       }
     } catch (error) {
       Message.error('操作失败')
@@ -413,9 +430,9 @@ export function useCustomerDetail() {
     }
   }
 
-  const removeTag = async (tag: Tag) => {
+  const removeTag = async (tagId: number) => {
     try {
-      await removeCustomerTag(customerId.value, tag.id)
+      await removeCustomerTag(customerId.value, tagId)
       Message.success('标签已移除')
       await loadCustomerTags()
     } catch (error) {
@@ -442,10 +459,20 @@ export function useCustomerDetail() {
     }
   }
 
+  // 诊断: 追踪 loading 状态变化
+  watch(loading, (val) => {
+    console.log('[watch] loading changed to:', val)
+  }, { immediate: true })
+
   onMounted(() => {
+    console.log('[useCustomerDetail] onMounted fired')
     loadDetail()
     loadManagers()
     loadIndustryTypes()
+  })
+
+  onUpdated(() => {
+    console.log('[onUpdated] loading =', loading.value)
   })
 
   onUnmounted(() => {
@@ -453,17 +480,17 @@ export function useCustomerDetail() {
   })
 
   return {
-    detail, loading, activeTab,
+    customer, loading, activeTab,
     balance, balanceLoading,
     profile, profileLoading,
     invoices,
     usageData, usageLoading, usagePagination,
-    healthScore, healthScoreLoading, balanceTrend, balanceTrendLoading,
+    healthScore, healthScoreLoading, balanceTrend, balanceTrendLoading, shouldRenderBalanceTrend,
     usageDistribution, totalUsageQuantity,
     editModalVisible, editForm, editFormRef, editLoading, modalWidth,
     tagSelectorVisible, tagSelectorLoading, selectedTags,
-    customerTags, allTags,
-    managers, industryTypes, pricePolicyOptions,
+    customerTags, allTags, allTagsLoading,
+    managers, industryTypes, industryTypesLoading, pricePolicyOptions,
     keyCustomerLoading,
     consumeLevelDisplay, profileExtensionList,
     loadDetail, loadBalance, loadProfile, loadInvoices, loadUsage,

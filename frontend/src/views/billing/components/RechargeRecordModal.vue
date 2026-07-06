@@ -40,7 +40,7 @@ const loadRecords = async () => {
   loading.value = true
   try {
     const res = await getRechargeRecords({ customer_id: props.customerId, page: pagination.current, page_size: pagination.pageSize })
-    records.value = res.data?.items || []
+    records.value = res.data?.list || []
     total.value = res.data?.total || 0
   } catch { records.value = [] }
   finally { loading.value = false }

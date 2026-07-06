@@ -27,7 +27,7 @@
         :scroll="{ x: 'max-content' }"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
-        @sort-change="handleSortChange"
+        @sorter-change="handleSortChange"
       >
         <template #period="{ record }">{{ formatDate(record.period_start) }} ~ {{ formatDate(record.period_end) }}</template>
         <template #totalAmount="{ record }"><span class="amount">{{ formatCurrency(record.total_amount) }}</span></template>

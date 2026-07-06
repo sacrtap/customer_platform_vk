@@ -34,7 +34,7 @@
         :pagination="pagination"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
-        @sort-change="handleSortChange"
+        @sorter-change="handleSortChange"
       >
         <template #balance="{ record }">
           <div class="balance-info">

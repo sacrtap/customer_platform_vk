@@ -18,5 +18,5 @@ export function getDailyUsage(params?: {
   end_date?: string
   device_type?: string
 }) {
-  return api.get('/usage/daily', { params })
+  return api.get('/analytics/usage/daily', { params })
 }
