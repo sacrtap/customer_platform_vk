@@ -125,7 +125,7 @@
       v-model:visible="permissionModalVisible"
       :title="`${currentRole?.name || ''} - 权限配置`"
       :confirm-loading="savingPermissions"
-      width="700px"
+      width="900px"
       @before-ok="handlePermissionSubmit"
       @cancel="handlePermissionModalCancel"
     >
@@ -136,14 +136,38 @@
             {{ isAllPermissionsSelected ? '取消全选' : '全选' }}
           </a-button>
         </div>
-        <a-tree
-          v-if="permissionsTree.length > 0"
-          v-model:checked-keys="selectedPermissionIds"
-          :data="permissionsTree"
-          checkable
-          :field-names="{ key: 'id', title: 'name', children: 'children' }"
-        />
-        <a-empty v-else description="暂无可用权限" />
+        <div v-if="permissionGroups.length > 0" class="permission-groups-grid">
+          <section v-for="group in permissionGroups" :key="group.key" class="permission-group-card">
+            <header class="permission-group-header">
+              <div>
+                <div class="permission-group-title">{{ group.title }}</div>
+                <div class="permission-group-count">
+                  {{ group.permissions.filter((perm) => selectedPermissionIds.includes(perm.id)).length }} / {{ group.permissions.length }} 项
+                </div>
+              </div>
+              <a-button size="small" @click="togglePermissionGroup(group)">
+                {{ isGroupAllSelected(group) ? '取消全选' : '全选' }}
+              </a-button>
+            </header>
+
+            <a-checkbox-group v-model="selectedPermissionIds" class="permission-list">
+              <a-checkbox
+                v-for="permission in group.permissions"
+                :key="permission.id"
+                :value="permission.id"
+                class="permission-item"
+              >
+                <div class="permission-item-content">
+                  <span class="permission-name">{{ permission.name }}</span>
+                  <span v-if="permission.description" class="permission-description">
+                    {{ permission.description }}
+                  </span>
+                </div>
+              </a-checkbox>
+            </a-checkbox-group>
+          </section>
+        </div>
+        <a-empty v-if="permissionGroups.length === 0" description="暂无可用权限" />
       </div>
     </a-modal>
   </div>
@@ -165,6 +189,7 @@ import {
   updateRolePermissions,
   type Role as ApiRole,
 } from '@/api/roles'
+import { buildPermissionGroups, type PermissionGroup } from './permissionGroups'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
 
@@ -235,54 +260,20 @@ const savingPermissions = ref(false)
 const currentRole = ref<Role | null>(null)
 const selectedPermissionIds = ref<number[]>([])
 
-interface PermissionTreeNode {
-  id: string | number
-  name: string
-  title: string
-  children?: PermissionTreeNode[]
+const permissionGroups = computed(() => buildPermissionGroups(allPermissions.value))
+
+const isGroupAllSelected = (group: PermissionGroup<Permission>) =>
+  group.permissions.length > 0 && group.permissions.every((perm) => selectedPermissionIds.value.includes(perm.id))
+
+
+const togglePermissionGroup = (group: PermissionGroup<Permission>) => {
+  const groupIds = group.permissions.map((perm) => perm.id)
+  if (isGroupAllSelected(group)) {
+    selectedPermissionIds.value = selectedPermissionIds.value.filter((id) => !groupIds.includes(id))
+  } else {
+    selectedPermissionIds.value = Array.from(new Set([...selectedPermissionIds.value, ...groupIds]))
+  }
 }
-
-// 模块英文标识到中文名称的映射（与侧边栏菜单保持一致）
-const MODULE_NAME_MAP: Record<string, string> = {
-  customers: '客户管理',
-  billing: '结算管理',
-  analytics: '客户分析',
-  tags: '标签管理',
-  users: '用户管理',
-  roles: '角色权限',
-  system: '系统设置',
-  groups: '客户分组',
-  files: '文件管理',
-  webhooks: 'Webhook 管理',
-  profiles: '客户画像',
-}
-const permissionsTree = computed(() => {
-  const tree: PermissionTreeNode[] = []
-  const moduleMap = new Map<string, PermissionTreeNode>()
-
-  allPermissions.value.forEach((perm) => {
-    const moduleKey = perm.module || '其他'
-    const moduleName = MODULE_NAME_MAP[moduleKey] || moduleKey
-    if (!moduleMap.has(moduleKey)) {
-      const moduleNode = {
-        id: `module-${moduleKey}`,
-        name: moduleName,
-        title: moduleName,
-        children: [],
-      }
-      moduleMap.set(moduleKey, moduleNode)
-      tree.push(moduleNode)
-    }
-    const moduleNode = moduleMap.get(moduleKey)!
-    moduleNode.children!.push({
-      id: perm.id,
-      name: perm.name,
-      title: perm.name,
-    })
-  })
-
-  return tree
-})
 const isAllPermissionsSelected = computed(() => {
   const allPermIds = allPermissions.value.map((p) => p.id)
   return allPermIds.length > 0 && allPermIds.every((id) => selectedPermissionIds.value.includes(id))
@@ -507,7 +498,7 @@ onMounted(() => {
 }
 
 .permission-config {
-  max-height: 500px;
+  max-height: 620px;
   overflow-y: auto;
 }
 
@@ -523,5 +514,69 @@ onMounted(() => {
 .permission-count {
   font-size: 14px;
   color: var(--neutral-6);
+}
+
+.permission-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.permission-group-card {
+  border: 1px solid var(--neutral-2);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px;
+  min-width: 0;
+}
+
+.permission-group-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--neutral-2);
+}
+
+.permission-group-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--neutral-10);
+}
+
+.permission-group-count {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--neutral-6);
+}
+
+.permission-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.permission-item {
+  align-items: flex-start;
+}
+
+.permission-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.permission-name {
+  font-size: 14px;
+  color: var(--neutral-10);
+  line-height: 1.5;
+}
+
+.permission-description {
+  font-size: 12px;
+  color: var(--neutral-6);
+  line-height: 1.4;
 }
 </style>
