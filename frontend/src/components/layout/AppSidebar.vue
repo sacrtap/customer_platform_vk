@@ -61,16 +61,17 @@
           <a class="nav-subitem" :class="{ active: $route.path === '/users' }" @click="goTo('/users')">用户管理</a>
           <a class="nav-subitem" :class="{ active: $route.path === '/roles' }" @click="goTo('/roles')">角色权限</a>
           <a v-if="can('industry_types:manage')" class="nav-subitem" :class="{ active: $route.path === '/system/industry-types' }" @click="goTo('/system/industry-types')">行业类型</a>
+          <a v-if="can('system:database_clear')" class="nav-subitem" :class="{ active: $route.path === '/system/database-management' }" @click="goTo('/system/database-management')">数据清空</a>
         </div>
       </div>
 
       <div class="nav-section">
         <div v-if="!sidebarCollapsed" class="nav-section-title">系统工具</div>
-        <a v-if="can('sync:view')" class="nav-item" :class="{ active: $route.path === '/system/sync-logs' }" @click="goTo('/system/sync-logs')">
+        <a v-if="can('system:view')" class="nav-item" :class="{ active: $route.path === '/system/sync-logs' }" @click="goTo('/system/sync-logs')">
           <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></div>
           <span class="nav-item-label">同步日志</span>
         </a>
-        <a v-if="can('audit:view')" class="nav-item" :class="{ active: $route.path === '/system/audit-logs' }" @click="goTo('/system/audit-logs')">
+        <a v-if="can('system:view')" class="nav-item" :class="{ active: $route.path === '/system/audit-logs' }" @click="goTo('/system/audit-logs')">
           <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg></div>
           <span class="nav-item-label">审计日志</span>
         </a>
