@@ -160,7 +160,7 @@ export function useAppLayout() {
     watch(() => route.path, (newPath) => {
       if (newPath.startsWith('/billing')) expandedSubmenu.value = 'billing'
       else if (newPath.startsWith('/analytics')) expandedSubmenu.value = 'analytics'
-      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles' || newPath === '/system/industry-types') expandedSubmenu.value = 'system'
+      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles' || newPath === '/system/industry-types' || newPath === '/system/database-management') expandedSubmenu.value = 'system'
       else expandedSubmenu.value = null
       mobileMenuOpen.value = false
     }, { immediate: true })
