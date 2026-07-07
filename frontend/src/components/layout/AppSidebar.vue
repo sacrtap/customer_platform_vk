@@ -60,6 +60,7 @@
         <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
           <a class="nav-subitem" :class="{ active: $route.path === '/users' }" @click="goTo('/users')">用户管理</a>
           <a class="nav-subitem" :class="{ active: $route.path === '/roles' }" @click="goTo('/roles')">角色权限</a>
+          <a v-if="can('industry_types:manage')" class="nav-subitem" :class="{ active: $route.path === '/system/industry-types' }" @click="goTo('/system/industry-types')">行业类型</a>
         </div>
       </div>
 

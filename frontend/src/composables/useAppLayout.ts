@@ -75,6 +75,7 @@ export function useAppLayout() {
           { key: 'tags', label: '标签管理', to: '/tags', permission: 'tags:view' },
           { key: 'users', label: '用户管理', to: '/users', permission: 'users:view' },
           { key: 'roles', label: '角色权限', to: '/roles', permission: 'roles:view' },
+          { key: 'industry-types', label: '行业类型', to: '/system/industry-types', permission: 'industry_types:manage' },
         ],
       },
       {
@@ -111,6 +112,7 @@ export function useAppLayout() {
       Users: '用户管理',
       Roles: '角色权限',
       SyncLogs: '同步日志',
+      IndustryTypes: '行业类型',
       AuditLogs: '审计日志',
     }
     return routeMap[route.name as string] || '仪表盘'
@@ -138,7 +140,7 @@ export function useAppLayout() {
     const p = route.path
     if (submenu === 'billing') return p.startsWith('/billing')
     if (submenu === 'analytics') return p.startsWith('/analytics')
-    if (submenu === 'system') return p === '/tags' || p === '/users' || p === '/roles'
+    if (submenu === 'system') return p === '/tags' || p === '/users' || p === '/roles' || p === '/system/industry-types'
     return false
   }
   const isParentMenuActive = (menu: string): boolean =>
@@ -158,7 +160,7 @@ export function useAppLayout() {
     watch(() => route.path, (newPath) => {
       if (newPath.startsWith('/billing')) expandedSubmenu.value = 'billing'
       else if (newPath.startsWith('/analytics')) expandedSubmenu.value = 'analytics'
-      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles') expandedSubmenu.value = 'system'
+      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles' || newPath === '/system/industry-types') expandedSubmenu.value = 'system'
       else expandedSubmenu.value = null
       mobileMenuOpen.value = false
     }, { immediate: true })
