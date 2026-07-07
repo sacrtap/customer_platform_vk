@@ -42,15 +42,15 @@
               </a-option>
             </a-select>
           </a-form-item>
-          <a-form-item field="manager_id" label="客户经理">
-            <a-select v-model="editForm.manager_id" placeholder="请选择客户经理" allow-clear>
+          <a-form-item field="manager_id" label="运营经理">
+            <a-select v-model="editForm.manager_id" placeholder="请选择运营经理" allow-clear>
               <a-option v-for="m in managers" :key="m.id" :value="m.id">
                 {{ m.real_name || m.username }}
               </a-option>
             </a-select>
           </a-form-item>
-          <a-form-item field="sales_manager_id" label="销售">
-            <a-select v-model="editForm.sales_manager_id" placeholder="请选择销售" allow-clear>
+          <a-form-item field="sales_manager_id" label="商务经理">
+            <a-select v-model="editForm.sales_manager_id" placeholder="请选择商务经理" allow-clear>
               <a-option v-for="m in managers" :key="m.id" :value="m.id">
                 {{ m.real_name || m.username }}
               </a-option>
@@ -173,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import type { Customer, IndustryType, User } from '@/types'
 import type { EditForm } from '@/composables/useCustomerDetail'
@@ -232,8 +232,8 @@ const initForm = () => {
     company_id: Number(props.customer?.company_id) || 0,
     email: props.customer?.email || '',
     account_type: props.customer?.account_type || undefined,
-    industry_type_id: props.customer?.industry_type_id ?? null,
-    price_policy: props.customer?.price_policy || undefined,
+    industry_type_id: props.customer?.profile?.industry_type_id ?? null,
+    price_policy: props.customer?.price_policy ? { '定价': 'pricing', '阶梯': 'tiered', '包年': 'yearly' }[props.customer.price_policy] || props.customer.price_policy : undefined,
     settlement_type: props.customer?.settlement_type || undefined,
     settlement_cycle: props.customer?.settlement_cycle || undefined,
     is_key_customer: props.customer?.is_key_customer || false,
@@ -247,8 +247,8 @@ const initForm = () => {
     is_disabled: props.customer?.is_disabled ?? false,
     notes: props.customer?.notes || undefined,
     is_real_estate: props.customer?.is_real_estate ?? null,
-    scale_level: props.customer?.scale_level || undefined,
-    consume_level: props.customer?.consume_level || undefined,
+    scale_level: props.customer?.profile?.scale_level || undefined,
+    consume_level: props.customer?.profile?.consume_level || undefined,
   })
 }
 
@@ -266,9 +266,9 @@ const handleCancel = () => {
   emit('close')
 }
 
-if (props.customer) {
-  initForm()
-}
+watch(() => props.visible, (val) => {
+  if (val) initForm()
+})
 </script>
 
 <style scoped>

@@ -135,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import type { IndustryType, Customer } from '@/types'
@@ -226,6 +226,15 @@ const initFormForEdit = (record: Customer) => {
   customerForm.manager_id = record.manager_id || null
   customerForm.sales_manager_id = record.sales_manager_id || null
 }
+
+// Auto-initialize form when modal opens
+watch(() => props.visible, (val) => {
+  if (val && props.isEditMode && props.customerRecord) {
+    initFormForEdit(props.customerRecord)
+  } else if (val && !props.isEditMode) {
+    initFormForCreate()
+  }
+})
 
 const handleCustomerModalCancel = () => {
   emit('update:visible', false)

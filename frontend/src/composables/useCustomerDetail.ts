@@ -294,7 +294,7 @@ export function useCustomerDetail() {
       email: customer.value?.email as string ?? '',
       account_type: customer.value?.account_type || undefined,
       industry_type_id: profile.value?.industry_type_id as number | null ?? null,
-      price_policy: customer.value?.price_policy || undefined,
+      price_policy: customer.value?.price_policy ? { '定价': 'pricing', '阶梯': 'tiered', '包年': 'yearly' }[customer.value.price_policy] || customer.value.price_policy : undefined,
       settlement_type: customer.value?.settlement_type || undefined,
       settlement_cycle: customer.value?.settlement_cycle || undefined,
       is_key_customer: customer.value?.is_key_customer || false,
@@ -444,7 +444,7 @@ export function useCustomerDetail() {
   const loadManagers = async () => {
     try {
       const res = await getManagers()
-      managers.value = res.data || []
+      managers.value = res.data?.list || res.data || []
     } catch (error) {
       console.error('加载客户经理失败:', error)
     }
