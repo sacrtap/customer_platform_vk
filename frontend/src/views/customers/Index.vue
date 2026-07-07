@@ -64,6 +64,8 @@
       :customers="customers"
       :loading="loading"
       :pagination="pagination"
+      :managers="managers as Array<{ id: number; real_name: string | null }>"
+      :managers-loading="managersLoading as boolean"
       :selected-customer-ids="selectedCustomerIds"
       :can="can"
       @select="handleBatchSelect"

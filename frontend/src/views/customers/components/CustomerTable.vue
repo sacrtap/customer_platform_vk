@@ -80,11 +80,13 @@ interface Props {
     showPageSize?: boolean
     pageSizeOptions?: number[]
   }
+  managers: Array<{ id: number; real_name: string | null }>
+  managersLoading: boolean
   selectedCustomerIds: number[]
   can: (permission: string) => boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'select', checked: boolean, row: Customer): void
@@ -114,15 +116,16 @@ const getSettlementTypeName = (type: string) => {
   const map: Record<string, string> = { prepaid: '预付费', postpaid: '后付费' }
   return map[type] || type || '-'
 }
-
-const getManagerName = (id: number) => {
-  // TODO: 从 managers 字典中查找
-  return id ? `#${id}` : '-'
+const getManagerName = (id: number | null) => {
+  if (!id) return '-'
+  const manager = props.managers.find(m => m.id === id)
+  return manager?.real_name || `#${id}`
 }
 
-const getSalesManagerName = (id: number) => {
-  // TODO: 从 managers 字典中查找
-  return id ? `#${id}` : '-'
+const getSalesManagerName = (id: number | null) => {
+  if (!id) return '-'
+  const manager = props.managers.find(m => m.id === id)
+  return manager?.real_name || `#${id}`
 }
 
 // 事件转发
