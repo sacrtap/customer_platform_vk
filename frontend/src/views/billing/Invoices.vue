@@ -29,7 +29,7 @@
         @page-size-change="handlePageSizeChange"
         @sorter-change="handleSortChange"
       >
-        <template #period="{ record }">{{ formatDate(record.period_start) }} ~ {{ formatDate(record.period_end) }}</template>
+        <template #period="{ record }"><span class="cell-nowrap">{{ formatDate(record.period_start) }} ~ {{ formatDate(record.period_end) }}</span></template>
         <template #totalAmount="{ record }"><span class="amount">{{ formatCurrency(record.total_amount) }}</span></template>
         <template #discount="{ record }">
           <span v-if="record.discount_amount && record.discount_amount > 0" class="amount text-danger">-{{ formatCurrency(record.discount_amount) }}</span>
@@ -37,7 +37,7 @@
         </template>
         <template #finalAmount="{ record }"><span class="amount-final">{{ formatCurrency(record.final_amount) }}</span></template>
         <template #status="{ record }"><InvoiceStatusBadge :status="record.status" /></template>
-        <template #createdAt="{ record }">{{ formatDateTime(record.created_at) }}</template>
+        <template #createdAt="{ record }"><span class="cell-nowrap">{{ formatDateTime(record.created_at) }}</span></template>
         <template #action="{ record }">
           <a-space>
             <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
@@ -105,13 +105,13 @@ const selectedInvoiceId = ref<number>(0)
 const columns = [
   { title: '结算单号', dataIndex: 'invoice_no', width: 180, sortable: { sortDirections: ['ascend','descend'] } },
   { title: '客户', dataIndex: 'customer_name', width: 200 },
-  { title: '周期', slotName: 'period', width: 200 },
-  { title: '总金额', slotName: 'totalAmount', width: 140, align: 'right', sortable: { sortDirections: ['ascend','descend'] } },
-  { title: '折扣', slotName: 'discount', width: 120, align: 'right' },
-  { title: '实付', slotName: 'finalAmount', width: 140, align: 'right', sortable: { sortDirections: ['ascend','descend'] } },
-  { title: '状态', slotName: 'status', width: 130 },
-  { title: '创建时间', slotName: 'createdAt', width: 180, sortable: { sortDirections: ['ascend','descend'] } },
-  { title: '操作', slotName: 'action', width: 220, fixed: 'right' as const },
+  { title: '周期', slotName: 'period', width: 230 },
+  { title: '总金额', slotName: 'totalAmount', width: 130, align: 'right', sortable: { sortDirections: ['ascend','descend'] } },
+  { title: '折扣', slotName: 'discount', width: 90, align: 'right' },
+  { title: '实付', slotName: 'finalAmount', width: 130, align: 'right', sortable: { sortDirections: ['ascend','descend'] } },
+  { title: '状态', slotName: 'status', width: 110 },
+  { title: '创建时间', slotName: 'createdAt', width: 160, sortable: { sortDirections: ['ascend','descend'] } },
+  { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
 const viewInvoice = async (record: Invoice) => {
@@ -163,9 +163,16 @@ loadInvoices()
 .header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
 .header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
 .header-actions { display: flex; gap: 12px; }
-.table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.amount { font-weight: 500; color: #2f3645; }
-.amount-final { font-size: 14px; font-weight: 600; color: #0369a1; }
-.text-danger { color: #ef4444; }
-.text-muted { color: #8f959e; }
+.table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow-x: auto; }
+.amount { font-weight: 500; color: #2f3645; white-space: nowrap; }
+.amount-final { font-size: 14px; font-weight: 600; color: #0369a1; white-space: nowrap; }
+.text-danger { color: #ef4444; white-space: nowrap; }
+.cell-nowrap { white-space: nowrap; }
+.text-muted { color: #8f959e; white-space: nowrap; }
+::deep(.arco-table-td),
+::deep(.arco-table-th) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 </style>
