@@ -4,73 +4,106 @@
       <a-spin :size="24" />
     </div>
     <template v-else>
-      <div class="page-header">
-        <div class="header-title">
+      <AppPageHeader
+        :eyebrow="customer?.industry || 'Customer'"
+        :title="customer?.name || '客户详情'"
+        description="客户 360° 全景视图，涵盖基础档案、画像洞察、财务状况、结算记录与用量趋势。"
+      >
+        <template #actions>
           <a-button type="text" @click="goBack">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-              <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 1 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z" />
             </svg>
+            返回列表
           </a-button>
-          <h1>{{ customer?.name || '客户详情' }}</h1>
-        </div>
-        <div class="header-actions">
           <a-button @click="openEdit">编辑</a-button>
           <a-button type="primary" :loading="keyCustomerLoading" @click="toggleKeyCustomer">
             {{ customer?.is_key_customer ? '取消重点' : '设为重点' }}
           </a-button>
-        </div>
-      </div>
+        </template>
+      </AppPageHeader>
 
-      <div class="tabs-section">
-        <a-tabs v-model="activeTab" @change="handleTabChange">
-          <a-tab-pane key="basic" title="基础信息">
-            <CustomerBasicTab
-              v-if="customer"
-              :key="customer?.id"
-              :customer="customer as any"
-              :managers="managers as any"
-              :customer-tags="customerTags as any"
-              @open-tag-selector="openTagSelector"
-              @remove-tag="removeTag"
-            />
-          </a-tab-pane>
-          <a-tab-pane key="profile" title="画像信息">
-            <CustomerProfileTab
-              v-if="profile"
-              :key="profile?.id"
-              :profile="profile as any"
-              :profile-loading="profileLoading as boolean"
-              :health-score="healthScore as any"
-              :health-score-loading="healthScoreLoading as boolean"
-            />
-          </a-tab-pane>
-          <a-tab-pane key="balance" title="余额信息">
-            <CustomerBalanceTab
-              v-if="balance"
-              :key="balance?.customer_id"
-              :balance="balance as any"
-              :balance-loading="balanceLoading as boolean"
-              :balance-trend="balanceTrend as any"
-              :balance-trend-loading="balanceTrendLoading as boolean"
-              :should-render-balance-trend="shouldRenderBalanceTrend as any"
-            />
-          </a-tab-pane>
-          <a-tab-pane key="invoices" title="结算单">
-            <CustomerInvoicesTab
-              :invoices="invoices as any"
-              @view-invoice="viewInvoice"
-            />
-          </a-tab-pane>
-          <a-tab-pane key="usage" title="用量分析">
-            <CustomerUsageTab
-              :usage-data="usageData as any"
-              :usage-loading="usageLoading as boolean"
-              :usage-pagination="usagePagination as any"
-              @page-change="loadUsage"
-            />
-          </a-tab-pane>
-        </a-tabs>
-      </div>
+      <MetricGrid>
+        <MetricCard
+          label="客户等级"
+          :value="customer?.customer_level || '未分级'"
+          trend="定级依据：消耗/合同"
+          trend-type="neutral"
+        />
+        <MetricCard
+          label="账户余额"
+          :value="balance ? formatCurrencyWan(balance.total_balance || 0) : '—'"
+          :trend="balance?.real_balance < 0 ? '余额不足' : '余额充足'"
+          :trend-type="balance?.real_balance < 0 ? 'down' : 'up'"
+        />
+        <MetricCard
+          label="本月消耗"
+          :value="balance ? formatCurrencyWan(balance.month_consumption || 0) : '—'"
+          trend="月度预算执行"
+          trend-type="up"
+        />
+        <MetricCard
+          label="健康分"
+          :value="healthScore?.score || '—'"
+          :trend="healthScore?.level || '评估中'"
+          :trend-type="healthScore?.score >= 80 ? 'up' : healthScore?.score >= 60 ? 'warn' : 'down'"
+        />
+      </MetricGrid>
+
+      <DataSection title="基础信息" subtitle="核心档案字段">
+        <CustomerBasicTab
+          v-if="customer"
+          :key="customer?.id"
+          :customer="customer as any"
+          :managers="managers as any"
+          :customer-tags="customerTags as any"
+          @open-tag-selector="openTagSelector"
+          @remove-tag="removeTag"
+        />
+      </DataSection>
+
+      <DataSection title="画像信息" subtitle="多维画像标签与洞察">
+        <CustomerProfileTab
+          v-if="profile"
+          :key="profile?.id"
+          :profile="profile as any"
+          :profile-loading="profileLoading as boolean"
+          :health-score="healthScore as any"
+          :health-score-loading="healthScoreLoading as boolean"
+        />
+      </DataSection>
+
+      <DataSection title="余额信息" subtitle="实时余额、消耗趋势与预警">
+        <CustomerBalanceTab
+          v-if="balance"
+          :key="balance?.customer_id"
+          :balance="balance as any"
+          :balance-loading="balanceLoading as boolean"
+          :balance-trend="balanceTrend as any"
+          :balance-trend-loading="balanceTrendLoading as boolean"
+          :should-render-balance-trend="shouldRenderBalanceTrend as any"
+        />
+      </DataSection>
+
+      <DataSection title="结算单" subtitle="历史结算记录" :count="invoices?.length">
+        <CustomerInvoicesTab
+          :invoices="invoices as any"
+          @view-invoice="viewInvoice"
+        />
+      </DataSection>
+
+      <DataSection title="用量分析" subtitle="用量趋势与明细" :count="usagePagination?.total">
+        <CustomerUsageTab
+          :usage-data="usageData as any"
+          :usage-loading="usageLoading as boolean"
+          :usage-pagination="usagePagination as any"
+          @page-change="loadUsage"
+        />
+      </DataSection>
+
+      <DataSection title="操作记录" subtitle="关键业务操作审计轨迹">
+        <div class="placeholder-section">操作记录待开发</div>
+      </DataSection>
 
       <!-- 编辑客户对话框 -->
       <EditCustomerDialog
@@ -84,17 +117,18 @@
         :price-policy-options="pricePolicyOptions as any"
         @submit="(form) => submitEdit(form as any)"
         @close="editModalVisible = false"
+        @update:modal-width="modalWidth = $event"
       />
 
       <!-- 标签选择器对话框 -->
       <TagSelectorDialog
         :visible="tagSelectorVisible as boolean"
-        :loading="tagSelectorLoading as boolean"
+        :customer-id="customer?.id as number"
+        :customer-tags="customerTags as any"
         :all-tags="allTags as any"
         :all-tags-loading="allTagsLoading as boolean"
-        :customer-tags="customerTags as any"
-        @add="addTags"
         @close="closeTagSelector"
+        @add-tags="addTags"
       />
     </template>
   </div>
@@ -102,6 +136,7 @@
 
 <script setup lang="ts">
 import { useCustomerDetail } from '@/composables/useCustomerDetail'
+import { formatCurrencyWan } from '@/utils/formatters'
 
 import EditCustomerDialog from './detail/EditCustomerDialog.vue'
 import TagSelectorDialog from './detail/TagSelectorDialog.vue'
@@ -111,21 +146,26 @@ import CustomerBalanceTab from './detail/CustomerBalanceTab.vue'
 import CustomerInvoicesTab from './detail/CustomerInvoicesTab.vue'
 import CustomerUsageTab from './detail/CustomerUsageTab.vue'
 
+// 新组件导入
+import AppPageHeader from '@/components/dashboard/AppPageHeader.vue'
+import MetricGrid from '@/components/dashboard/MetricGrid.vue'
+import MetricCard from '@/components/dashboard/MetricCard.vue'
+import DataSection from '@/components/dashboard/DataSection.vue'
+
 // 使用 composable 管理详情页所有状态和逻辑
 const {
-  customer, loading, activeTab,
+  customer, loading,
   balance, balanceLoading, balanceTrend, balanceTrendLoading, shouldRenderBalanceTrend,
   profile, profileLoading,
   invoices,
   usageData, usageLoading, usagePagination,
   healthScore, healthScoreLoading,
   editModalVisible, editLoading, modalWidth,
-  tagSelectorVisible, tagSelectorLoading,
+  tagSelectorVisible,
   customerTags, allTags, allTagsLoading,
   managers, industryTypes, industryTypesLoading, pricePolicyOptions,
   keyCustomerLoading,
   loadUsage, viewInvoice,
-  handleTabChange,
   goBack, openEdit, submitEdit, toggleKeyCustomer,
   openTagSelector, closeTagSelector, addTags, removeTag,
 } = useCustomerDetail()
@@ -174,11 +214,21 @@ const {
 
 
 /* Arco Spin 组件宽度约束 */
-:deep(.arco-spin) {
+::deep(.arco-spin) {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
+}
+
+/* 数据区块占位符样式 */
+.placeholder-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: var(--cop-muted);
+  font-size: 14px;
 }
 
 :deep(.arco-spin-nested-loading) {

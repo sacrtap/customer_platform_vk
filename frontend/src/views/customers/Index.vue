@@ -1,11 +1,11 @@
 <template>
   <div class="customer-list-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>客户管理</h1>
-        <p class="header-subtitle">统一客户基础信息与画像数据管理</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      eyebrow="Customers"
+      title="客户管理"
+      description="统一客户基础信息与画像数据管理"
+    >
+      <template #actions>
         <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -32,77 +32,78 @@
           </template>
           导出
         </a-button>
-      </div>
-    </div>
+        <a-button v-if="can('customers:batch-edit')" :disabled="!hasSelectedCustomers" @click="openBatchEditDialog">
+          批量编辑
+        </a-button>
+      </template>
+    </AppPageHeader>
 
-    <CustomerFilters
-      v-model:filters="filters"
-      v-model:advanced-filters="advancedFilters"
-      :industry-types="industryTypes"
-      :managers="managers"
-      :customer-tags="customerTags"
-      :managers-loading="managersLoading"
-      :tags-loading="tagsLoading"
-      @search="handleSearch"
-      @reset="handleReset"
-      @advanced-search="handleAdvancedSearch"
-    />
+    <MetricGrid>
+      <MetricCard label="客户总数" :value="pagination.total" trend="总计" trend-type="neutral" />
+      <MetricCard label="重点客户" :value="customers.filter(c => c.is_key_customer).length" trend="高价值" trend-type="up" />
+      <MetricCard label="待完善画像" :value="customers.filter(c => !c.profile_completed).length" trend="需跟进" trend-type="warn" />
+      <MetricCard label="高风险客户" :value="customers.filter(c => c.risk_level === 'high').length" trend="预警中" trend-type="down" />
+    </MetricGrid>
 
-    <!-- 批量操作工具栏 -->
-    <div v-if="hasSelectedCustomers" class="batch-toolbar">
-      <a-space>
-        <a-tag color="arcoblue" size="large">
-          已选择 {{ selectedCustomerIds.length }} 条
-        </a-tag>
-        <a-button type="primary" @click="openBatchEditDialog">批量编辑</a-button>
-        <a-button @click="clearBatchSelection">取消选择</a-button>
-      </a-space>
-    </div>
+    <FilterPanel>
+      <CustomerFilters
+        v-model:filters="filters"
+        v-model:advanced-filters="advancedFilters"
+        :industry-types="industryTypes"
+        :managers="managers"
+        :customer-tags="customerTags"
+        :managers-loading="managersLoading"
+        :tags-loading="tagsLoading"
+        @search="handleSearch"
+        @reset="handleReset"
+        @advanced-search="handleAdvancedSearch"
+      />
+    </FilterPanel>
 
-    <!-- 表格 -->
-    <CustomerTable
-      :customers="customers"
-      :loading="loading"
-      :pagination="pagination"
-      :managers="managers as Array<{ id: number; real_name: string | null }>"
-      :managers-loading="managersLoading as boolean"
-      :selected-customer-ids="selectedCustomerIds"
-      :can="can"
-      @select="handleBatchSelect"
-      @select-all="handleBatchSelectAll"
-      @page-change="handlePageChange"
-      @page-size-change="handlePageSizeChange"
-      @sort-change="handleSort"
-      @view="viewCustomer"
-      @edit="openEditModal"
-      @delete="handleDelete"
-    />
+    <CompactTableShell>
+      <CustomerTable
+        :customers="customers"
+        :loading="loading"
+        :pagination="pagination"
+        :managers="managers"
+        :managers-loading="managersLoading"
+        :selected-customer-ids="selectedCustomerIds"
+        :can="can"
+        @select="handleBatchSelect"
+        @select-all="handleBatchSelectAll"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
+        @sort="handleSort"
+        @view="viewCustomer"
+        @edit="openEditModal"
+        @delete="handleDelete"
+      />
+    </CompactTableShell>
 
     <CustomerFormModal
-      :visible="customerModalVisible as boolean"
-      :is-edit-mode="isEditMode as boolean"
-      :customer-record="editingCustomerData as any"
-      :industry-types="industryTypes as any"
-      :managers="managers as any"
-      :managers-loading="managersLoading as boolean"
-      @saved="handleSearch"
-      @update:visible="customerModalVisible = $event"
+      v-model:visible="customerModalVisible"
+      :is-edit-mode="isEditMode"
+      :editing-customer="editingCustomerData"
+      :managers="managers"
+      :managers-loading="managersLoading"
+      :customer-tags="customerTags"
+      :tags-loading="tagsLoading"
+      :industry-types="industryTypes"
+      @submit="submitEdit"
     />
 
-    <!-- 导入对话框 -->
     <CustomerImportModal
-      :visible="importModalVisible"
-      @saved="handleSearch"
-      @update:visible="importModalVisible = $event"
+      v-model:visible="importModalVisible"
+      @imported="handleSearch"
     />
 
-    <!-- 批量编辑对话框 -->
     <CustomerBatchEditModal
-      :visible="batchEditDialogVisible"
+      v-model:visible="batchEditDialogVisible"
       :selected-customer-ids="selectedCustomerIds"
       :managers="managers"
-      @submitted="handleSearch"
-      @update:visible="batchEditDialogVisible = $event"
+      :customer-tags="customerTags"
+      :industry-types="industryTypes"
+      @updated="handleSearch"
     />
   </div>
 </template>
@@ -116,6 +117,13 @@ import CustomerFormModal from './components/CustomerFormModal.vue'
 import CustomerImportModal from './components/CustomerImportModal.vue'
 import CustomerBatchEditModal from './components/CustomerBatchEditModal.vue'
 
+// 新组件导入
+import AppPageHeader from '@/components/dashboard/AppPageHeader.vue'
+import MetricGrid from '@/components/dashboard/MetricGrid.vue'
+import MetricCard from '@/components/dashboard/MetricCard.vue'
+import FilterPanel from '@/components/dashboard/FilterPanel.vue'
+import CompactTableShell from '@/components/dashboard/CompactTableShell.vue'
+
 // 使用 composable 管理列表页所有状态和逻辑
 const {
   can,
@@ -128,7 +136,7 @@ const {
   handleSearch, handleReset, handleAdvancedSearch,
   handlePageChange, handlePageSizeChange, handleSort,
   handleDelete,
-  handleBatchSelect, handleBatchSelectAll, openBatchEditDialog, clearBatchSelection,
+  handleBatchSelect, handleBatchSelectAll, openBatchEditDialog,
   handleExport,
   openCreateModal, openEditModal, viewCustomer, openImportModal,
 } = useCustomerList()
@@ -137,41 +145,7 @@ const {
 <style scoped>
 .customer-list-page {
   padding: 24px;
-  background: var(--color-bg-1);
+  background: var(--cop-bg);
   min-height: 100vh;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.header-title h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.header-subtitle {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: var(--color-text-3);
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.batch-toolbar {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: var(--color-fill-1);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
 }
 </style>

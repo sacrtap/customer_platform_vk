@@ -1,9 +1,11 @@
 <template>
   <div class="home-page">
-    <!-- 顶部操作栏 -->
-    <div class="header-actions">
-      <h1 class="page-title">仪表盘</h1>
-      <div class="actions-right">
+    <AppPageHeader
+      eyebrow="Home"
+      title="运营工作台"
+      description="首屏回答今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。"
+    >
+      <template #actions>
         <a-button type="primary" :loading="loading" @click="refreshData">
           <template #icon>
             <svg
@@ -28,308 +30,113 @@
           </template>
           刷新数据
         </a-button>
-      </div>
-    </div>
+      </template>
+    </AppPageHeader>
 
-    <!-- 统计卡片 -->
     <a-spin :loading="statsLoading" style="width: 100%">
-    <div class="stats-grid">
-      <StatCard title="客户总数" :value="formatNumber(stats.totalCustomers)" variant="primary">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #22c55e;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
-              />
-            </svg>
-            关键客户 {{ stats.keyCustomers }} 家
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard
-        title="本月消耗"
-        :value="formatCurrencyWan(stats.monthConsumption)"
-        variant="success"
-      >
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #22c55e;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
-              />
-            </svg>
-            结算单 {{ stats.monthInvoiceCount }} 份
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard title="待确认账单" :value="stats.pendingConfirmation" variant="warning">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #ef4444;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-            待处理
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard title="总余额" :value="formatCurrencyWan(stats.totalBalance)" variant="danger">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <span style="font-size: 13px; color: #ef4444"
-            >实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span
-          >
-        </template>
-      </StatCard>
-    </div>
+      <MetricGrid>
+        <MetricCard
+          label="活跃客户"
+          :value="formatNumber(stats.totalCustomers)"
+          trend="较上月变化"
+          trend-type="up"
+        />
+        <MetricCard
+          label="本月消耗"
+          :value="formatCurrencyWan(stats.monthConsumption)"
+          trend="完成率"
+          trend-type="up"
+        />
+        <MetricCard
+          label="待回款"
+          :value="stats.pendingConfirmation"
+          trend="临期提醒"
+          trend-type="warn"
+        />
+        <MetricCard
+          label="低余额客户"
+          :value="formatNumber(stats.keyCustomers)"
+          trend="需跟进"
+          trend-type="down"
+        />
+      </MetricGrid>
     </a-spin>
 
     <!-- 内容网格 -->
     <div class="dashboard-grid">
       <!-- 月度消耗趋势 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">月度消耗趋势</h3>
-          <div class="card-actions">
-            <a-button size="small" @click="$message.info('导出功能开发中')">导出</a-button>
-            <a-button type="primary" size="small" @click="$message.info('详情功能开发中')"
-              >查看详情</a-button
-            >
-          </div>
-        </div>
-        <a-spin :loading="chartLoading" style="width: 100%">
-        <div class="card-body">
-          <div ref="chartRef" class="chart-container"></div>
-        </div>
-        </a-spin>
-      </div>
+      <ChartCard title="月度消耗趋势">
+        <div ref="chartRef" class="chart-container" style="height: 300px;"></div>
+      </ChartCard>
 
       <!-- 待办事项 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">待办事项</h3>
-          <a href="#" class="btn-text" @click.prevent="$message.info('查看全部开发中')">查看全部</a>
+      <DataSection title="待办事项" subtitle="优先处理事项">
+        <div v-if="todosLoading" class="todos-loading">
+          <a-spin :size="24" />
         </div>
-        <a-spin :loading="todosLoading" style="width: 100%">
-        <div class="card-body">
-          <div class="todo-list">
-            <div v-for="(todo, index) in todos" :key="index" class="todo-item">
-              <label class="todo-checkbox-wrapper">
-                <input v-model="todo.checked" type="checkbox" />
-                <div class="todo-checkbox">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="3"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-              </label>
-              <div class="todo-content">
-                <div class="todo-title">{{ todo.title }}</div>
-                <div class="todo-meta">
-                  <span :class="['todo-priority', todo.priority]">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      fill="currentColor"
-                      viewBox="0 0 16 16"
-                    >
-                      <path
-                        d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"
-                      />
-                    </svg>
-                    {{ todo.priorityText }}
-                  </span>
-                  <span class="todo-due">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      fill="currentColor"
-                      viewBox="0 0 16 16"
-                    >
-                      <path
-                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
-                      />
-                    </svg>
-                    {{ todo.due }}
-                  </span>
-                </div>
-              </div>
+        <ul v-else class="todo-list">
+          <li v-for="todo in todos" :key="todo.id" class="todo-item">
+            <div class="todo-icon" :class="todo.type">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  v-if="todo.type === 'warning'"
+                  fill-rule="evenodd"
+                  d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM8.5 4a.5.5 0 0 0-1 0v5.793l-2.147 2.146a.5.5 0 0 0 .708.708L8 8.707l1.793 1.793a.5.5 0 1 0 .708-.708L8.5 9.793V4z"
+                />
+                <path
+                  v-else-if="todo.type === 'info'"
+                  fill-rule="evenodd"
+                  d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM5.5 6A.5.5 0 0 0 5 6.5v5a.5.5 0 0 0 1 0v-5A.5.5 0 0 0 5.5 6zm3.5 10a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5z"
+                />
+                <path
+                  v-else
+                  fill-rule="evenodd"
+                  d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM5.5 6A.5.5 0 0 0 5 6.5v5a.5.5 0 0 0 1 0v-5A.5.5 0 0 0 5.5 6zm3.5 10a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5z"
+                />
+              </svg>
             </div>
-          </div>
-        </div>
-        </a-spin>
-      </div>
+            <div class="todo-content">
+              <div class="todo-title">{{ todo.title }}</div>
+              <div class="todo-meta">{{ formatDate(todo.created_at) }}</div>
+            </div>
+          </li>
+        </ul>
+      </DataSection>
 
       <!-- 最近结算单 -->
-      <div class="card full-width">
-        <div class="card-header">
-          <h3 class="card-title">最近结算单</h3>
-          <a-button type="primary" size="small" @click="$message.info('查看全部开发中')"
-            >查看全部</a-button
-          >
-        </div>
-        <a-spin :loading="invoicesLoading" style="width: 100%">
-        <div class="card-body" style="padding: 0">
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>结算单号</th>
-                  <th>周期</th>
-                  <th>金额</th>
-                  <th>状态</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="invoice in invoices" :key="invoice.id">
-                  <td>
-                    <strong>{{ invoice.invoice_no }}</strong>
-                  </td>
-                  <td>{{ invoice.period_start }} 至 {{ invoice.period_end }}</td>
-                  <td>{{ formatCurrency(invoice.total_amount) }}</td>
-                  <td>
-                    <span :class="['status-badge', getStatusClass(invoice.status)]">
-                      <span class="status-dot"></span>
-                      {{ getStatusText(invoice.status) }}
-                    </span>
-                  </td>
-                  <td>{{ formatDate(invoice.created_at) }}</td>
-                  <td>
-                    <a-button type="primary" size="small" @click="$message.info('查看开发中')">
-                      查看
-                    </a-button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        </a-spin>
-      </div>
+      <DataSection title="最近结算单" subtitle="近期结算记录">
+        <a-table
+          :columns="invoiceColumns"
+          :data="invoices"
+          :loading="invoicesLoading"
+          :bordered="false"
+          :row-hoverable="true"
+          size="small"
+          :pagination="false"
+        >
+          <template #invoice_number="{ record }">
+            <span class="invoice-number">{{ record.invoice_number }}</span>
+          </template>
+          <template #customer_name="{ record }">
+            <span class="customer-name">{{ record.customer_name }}</span>
+          </template>
+          <template #amount="{ record }">
+            <span class="amount">{{ formatCurrency(record.amount) }}</span>
+          </template>
+          <template #status="{ record }">
+            <StatusBadge :status="record.status" />
+          </template>
+          <template #created_at="{ record }">
+            <span class="date">{{ formatDate(record.created_at) }}</span>
+          </template>
+        </a-table>
+      </DataSection>
     </div>
   </div>
 </template>
@@ -337,13 +144,16 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import StatCard from '@/components/StatCard.vue'
 import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 import { useCachedRequest } from '@/composables/useCachedRequest'
-
 import type { ECharts } from 'echarts'
+// 简单的性能追踪函数
+const trackPerformance = (label: string, startTime: number) => {
+  const duration = Date.now() - startTime
+  console.log(`[Dashboard] ${label}: ${duration}ms`)
+}
 // 懒加载 ECharts
 let echartsPromise: Promise<typeof import('echarts')> | null = null
 const loadEcharts = async () => {
@@ -400,17 +210,19 @@ const todos = ref<
     checked: boolean
   }>
 >([])
-
 // 结算单
 const invoices = ref<Invoice[]>([])
 
-// 性能跟踪辅助函数
-const trackPerformance = (label: string, startTime: number) => {
-  const duration = Date.now() - startTime
-  console.log(`[Dashboard] ${label}: ${duration}ms`)
-}
+// 结算单列定义
+const invoiceColumns = [
+  { title: '结算单号', dataIndex: 'invoice_number', width: 160 },
+  { title: '客户', dataIndex: 'customer_name', width: 180 },
+  { title: '金额', dataIndex: 'amount', width: 120, align: 'right' },
+  { title: '状态', dataIndex: 'status', width: 100 },
+  { title: '创建时间', dataIndex: 'created_at', width: 160 },
+] as const
 
- // 加载统计数据
+// 统计数据加载
 const loadStats = async (forceRefresh = false) => {
   const startTime = Date.now()
   statsLoading.value = true
@@ -493,7 +305,12 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
       splitLine: { lineStyle: { color: '#eef0f3' } },
       axisLabel: {
         color: '#646a73',
-        formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
+        formatter: (value: number) => {
+          if (value >= 10000) {
+            return (value / 10000).toFixed(1) + '万'
+          }
+          return value.toString()
+        },
       },
     },
     series: [
@@ -503,13 +320,8 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
-        lineStyle: {
-          color: '#0369a1',
-          width: 3,
-        },
-        itemStyle: {
-          color: '#0369a1',
-        },
+        lineStyle: { width: 3, color: '#3296f7' },
+        itemStyle: { color: '#3296f7' },
         areaStyle: {
           color: {
             type: 'linear',
@@ -518,7 +330,7 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(3, 105, 161, 0.2)' },
+              { offset: 0, color: 'rgba(50, 150, 247, 0.2)' },
               { offset: 1, color: 'rgba(3, 105, 161, 0.02)' },
             ],
           },
@@ -587,30 +399,7 @@ const refreshData = async () => {
   }
 }
 
-// 状态映射
-const getStatusClass = (status: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    pending_customer: 'warning',
-    customer_confirmed: 'warning',
-    paid: 'info',
-    completed: 'success',
-    cancelled: 'danger',
-  }
-  return map[status] || 'info'
-}
 
-const getStatusText = (status: string) => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    pending_customer: '待客户确认',
-    customer_confirmed: '客户已确认',
-    paid: '已付款',
-    completed: '已完成',
-    cancelled: '已取消',
-  }
-  return map[status] || status
-}
 
 // 窗口大小变化处理
 const handleResize = () => {
@@ -624,7 +413,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  chartInstance?.dispose()
 })
 </script>
 
@@ -657,38 +445,10 @@ onUnmounted(() => {
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 顶部操作栏 */
-.header-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin: 0;
-}
-
-.actions-right {
-  display: flex;
-  gap: 12px;
-}
-
 /* 图表容器 */
 .chart-container {
   height: 300px;
   width: 100%;
-}
-
-/* 统计卡片网格 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 32px;
 }
 
 /* 内容网格 */
@@ -698,115 +458,53 @@ onUnmounted(() => {
   gap: 24px;
 }
 
-/* 卡片 */
-.card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.card.full-width {
-  grid-column: 1 / -1;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--neutral-10);
-}
-
-.card-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.card-body {
-  padding: 24px;
-}
-
-.chart-placeholder {
-  height: 300px;
-  background: linear-gradient(180deg, var(--primary-1) 0%, white 100%);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* 待办事项 */
 .todo-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .todo-item {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
   background: var(--neutral-1);
-  border-radius: 12px;
-  transition: all var(--transition-base);
-  border: 1px solid transparent;
+  transition: background var(--transition-fast);
 }
 
 .todo-item:hover {
-  background: white;
-  border-color: var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  transform: translateX(4px);
+  background: var(--neutral-2);
 }
 
-.todo-checkbox-wrapper {
-  position: relative;
+.todo-icon {
   flex-shrink: 0;
-}
-
-.todo-checkbox-wrapper input[type='checkbox'] {
-  display: none;
-}
-
-.todo-checkbox {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--neutral-3);
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  background: white;
 }
 
-.todo-checkbox svg {
-  width: 14px;
-  height: 14px;
-  color: white;
-  opacity: 0;
-  transform: scale(0);
-  transition: all var(--transition-fast);
+.todo-icon.warning {
+  background: var(--danger-1);
+  color: var(--danger-6);
 }
 
-.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox {
-  background: var(--primary-6);
-  border-color: var(--primary-6);
+.todo-icon.info {
+  background: var(--primary-1);
+  color: var(--primary-6);
 }
 
-.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox svg {
-  opacity: 1;
-  transform: scale(1);
+.todo-icon.success {
+  background: var(--success-1);
+  color: var(--success-6);
 }
 
 .todo-content {
@@ -817,158 +515,41 @@ onUnmounted(() => {
 .todo-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--neutral-9);
-  margin-bottom: 8px;
-  line-height: 1.4;
+  color: var(--neutral-10);
+  margin-bottom: 4px;
 }
 
 .todo-meta {
+  font-size: 12px;
+  color: var(--neutral-6);
+}
+
+.todos-loading {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-content: center;
+  height: 120px;
 }
 
-.todo-priority {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.todo-priority.high {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #dc2626;
-}
-
-.todo-priority.medium {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #d97706;
-}
-
-.todo-priority.low {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: #4338ca;
-}
-
-.todo-due {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--neutral-5);
-}
-
-/* 表格 */
-.table-container {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  text-align: left;
-  padding: 12px 16px;
+/* 结算单表格 */
+.invoice-number {
+  font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--neutral-6);
-  background: var(--neutral-1);
-  border-bottom: 1px solid var(--neutral-2);
-}
-
-td {
-  padding: 16px;
-  font-size: 14px;
   color: var(--neutral-7);
-  border-bottom: 1px solid var(--neutral-2);
 }
 
-tr:last-child td {
-  border-bottom: none;
+.customer-name {
+  font-weight: 500;
+  color: var(--neutral-10);
 }
 
-tr:hover td {
-  background: var(--neutral-1);
+.amount {
+  font-weight: 600;
+  color: var(--neutral-10);
 }
 
-/* 状态徽章 */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
+.date {
   font-size: 12px;
-  font-weight: 500;
-}
-
-.status-badge.success {
-  background: var(--success-1);
-  color: var(--success-6);
-}
-
-.status-badge.warning {
-  background: var(--warning-1);
-  color: var(--warning-6);
-}
-
-.status-badge.danger {
-  background: var(--danger-1);
-  color: var(--danger-6);
-}
-
-.status-badge.info {
-  background: var(--primary-1);
-  color: var(--primary-6);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* 文字按钮 */
-.btn-text {
-  background: transparent;
-  color: var(--primary-6);
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-decoration: none;
-  border: none;
-}
-
-.btn-text:hover {
-  background: var(--primary-1);
-  color: var(--primary-7);
-}
-
-/* 响应式 */
-@media (max-width: 1200px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
+  color: var(--neutral-6);
 }
 </style>
