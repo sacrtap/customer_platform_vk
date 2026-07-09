@@ -1,0 +1,35 @@
+.cop-page {
+  min-height: 100%;
+  background: var(--cop-bg);
+  color: var(--cop-ink);
+}
+
+.cop-card {
+  background: var(--cop-panel);
+  border: 1px solid var(--cop-line);
+  border-radius: var(--cop-radius);
+  box-shadow: var(--cop-shadow);
+}
+
+.cop-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cop-muted {
+  color: var(--cop-muted);
+}
+
+.cop-table-shell {
+  overflow: auto;
+  border: 1px solid var(--cop-line);
+  border-radius: 15px;
+  background: var(--cop-panel);
+}
+
+.cop-status-success { color: var(--cop-success); }
+.cop-status-warning { color: var(--cop-warning); }
+.cop-status-danger { color: var(--cop-danger); }

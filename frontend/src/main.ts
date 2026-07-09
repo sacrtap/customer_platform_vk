@@ -4,6 +4,8 @@ import ArcoVue from '@arco-design/web-vue'
 import '@arco-design/web-vue/dist/arco.css'
 import './styles/global.css'
 import './styles/arco-theme.css'
+import './styles/design-tokens.css'
+import './styles/dashboard-theme.css'
 import App from './App.vue'
 import router from './router'
 
