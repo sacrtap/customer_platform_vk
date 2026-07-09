@@ -130,44 +130,34 @@ frontend/src/
 
 #### AppSidebar.vue
 
+**结构**：
+- 品牌区（logo + 平台名称 + 版本）
+- 导航区：分组标题 + 一级菜单按钮（可折叠展开）+ 二级菜单子项
+- 底部：侧边栏整体折叠按钮 + 设计说明文字
+
+**交互**：
+- **二级菜单**：一级菜单按钮（nav-parent）仅做折叠展开切换（aria-expanded + chevron 旋转），二级菜单子项负责页面路由
+- **整体折叠**：底部折叠按钮（◀）点击后侧边栏从 248px 收至 66px，隐藏分组标题、子菜单、提示标签、品牌副标题
+
 **视觉特征**：
-- 背景色：`#1E1B4B`（深靛蓝）
-- 宽度：`224px`（w-56）
-- 导航项：水平布局（图标 + 文字）
-- 激活状态：左侧 3px 圆角指示条 + 半透明靛蓝背景
-- 悬停状态：白色半透明背景
+- 背景色：`#0F172A`（深蓝灰）
+- 宽度：`248px`（展开）/ `66px`（折叠），过渡动画 0.25s ease
+- 导航项：圆点指示器（8px dot）+ 图标 + 文字，hover/active 时白色半透明背景
+- 激活圆点：`#38BDF8`（青色）
+- 分组标题：11px 大写，`#94A3B8`，字间距 0.08em
+- 二级菜单：左侧 1px 半透明竖线缩进，子项前 5px 圆点（hover/active 变青色）
+- 提示标签：右侧 11px 灰色文字
+- 折叠按钮：底部居中，hover 时背景/文字变亮
 
-**关键样式**：
+**关键样式**（CSS token 化用于 Vue 迁移）：
 ```css
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.nav-item.active {
-  background: rgba(99, 102, 241, 0.18);
-  color: #fff;
-}
-
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 20%;
-  height: 60%;
-  width: 3px;
-  background: #6366F1;
-  border-radius: 0 2px 2px 0;
-}
-
-.nav-item:not(.active):hover {
-  background: rgba(255, 255, 255, 0.08);
-}
+.side{width:248px; background:#0f172a; transition:width .25s}
+.side.collapsed{width:66px}
+.nav-parent{cursor:pointer}
+.nav-parent[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.subnav{display:none}
+.nav-parent[aria-expanded="true"] + .subnav{display:grid}
+.side.collapsed .nav-title,.side.collapsed .chev,.side.collapsed .subnav,.side.collapsed .nav-hint,.side.collapsed .brand div:last-child{display:none}
 ```
 
 #### AppHeader.vue

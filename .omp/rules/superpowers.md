@@ -15,7 +15,7 @@
 
 Superpowers 在本项目中的作用是把任务路由到正确工作流，而不是替代项目硬规则。上游 README 的 **The Basic Workflow** 顺序是：`brainstorming` → `using-git-worktrees` → `writing-plans` → `subagent-driven-development`/`executing-plans` → `test-driven-development` → `requesting-code-review` → `finishing-a-development-branch`。本项目按该顺序执行，并增加项目事实探索与完成前验证门禁：
 
-1. **技能检查**：先判断是否有 Superpowers 技能适用；有 1% 可能适用就读取/激活技能。
+1. **技能检查**：先判断是否有 Superpowers 技能适用；
 2. **事实探索**：先读规则、目标文件和官方文档；所有路径、符号、命令和现状判断必须来自本次读取或工具结果。
 3. **设计确认**：新功能、行为变更或组件/API 设计先进入 `brainstorming` 或项目 spec 流程，确认目标、边界和验收口径。
 4. **隔离工作区**：设计获批后的跨文件或多任务实施优先使用 `using-git-worktrees`，创建隔离分支/工作区并确认基线。
