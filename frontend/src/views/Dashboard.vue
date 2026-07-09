@@ -50,7 +50,7 @@
         </a-form>
         <template #footer>
           <a-button @click="changePasswordVisible = false">取消</a-button>
-          <a-button type="primary" :loading="changePasswordLoading" @click="handleChangePassword">确认修改</a-button>
+          <a-button type="primary" :loading="changePasswordLoading" @click="handleChangePassword">确定</a-button>
         </template>
       </a-modal>
     </main>
@@ -109,83 +109,61 @@ const handleChangePassword = async () => {
       current_password: changePasswordForm.current_password,
       new_password: changePasswordForm.new_password,
     })
-    Message.success('密码修改成功')
+    Message.success('密码修改成功，请重新登录')
     changePasswordVisible.value = false
-  } catch (error) {
-    handleError(error)
+    // 这里可以触发登出逻辑
+  } catch (e) {
+    handleError(e)
   } finally {
     changePasswordLoading.value = false
   }
 }
 
-const goToProfile = () => router.push('/profile')
+const goToProfile = () => {
+  router.push('/profile')
+}
 </script>
 
 <style scoped>
 .dashboard-layout {
-  --sidebar-width: 260px;
-  --sidebar-collapsed-width: 68px;
-  --header-height: 64px;
-  --primary-1: #e8f3ff;
-  --primary-5: #0369a1;
-  --primary-6: #0f172a;
-  --primary-7: #020617;
-  --success-1: #e8ffea;
-  --success-6: #22c55e;
-  --warning-1: #fff7e8;
-  --warning-6: #f59e0b;
-  --danger-1: #ffe8e8;
-  --danger-5: #f87171;
-  --danger-6: #ef4444;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-9: #2f3645;
-  --neutral-10: #1d2330;
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
   min-height: 100vh;
-  background: var(--neutral-1);
+  background: var(--cop-bg);
+}
+
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 25;
 }
 
 .main-content {
-  margin-left: var(--sidebar-width);
+  margin-left: var(--cop-sidebar-width);
   min-height: 100vh;
-  transition: margin-left var(--transition-base);
-  width: calc(100% - var(--sidebar-width));
-  overflow-x: hidden;
+  transition: margin-left var(--t-base);
   display: flex;
   flex-direction: column;
 }
 
 .main-content.sidebar-collapsed {
-  margin-left: var(--sidebar-collapsed-width);
-  width: calc(100% - var(--sidebar-collapsed-width));
+  margin-left: var(--cop-sidebar-collapsed-width);
 }
 
 .page-content {
   flex: 1;
-  padding: 24px 32px;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
+  padding: 22px 24px 44px;
+  background: var(--cop-bg);
 }
 
-.mobile-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 99;
-}
-
-@media (max-width: 1200px) {
-  .mobile-overlay { display: block; }
-  .main-content { margin-left: 0; width: 100%; }
-  .main-content.sidebar-collapsed { margin-left: 0; width: 100%; }
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+  }
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+  .page-content {
+    padding: 16px;
+  }
 }
 </style>

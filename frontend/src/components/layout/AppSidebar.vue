@@ -1,97 +1,159 @@
 <template>
-  <aside :class="['sidebar', { collapsed: sidebarCollapsed, 'mobile-open': mobileMenuOpen }]">
-    <div class="sidebar-logo">
+  <aside
+    class="app-sidebar"
+    :class="{ 'is-collapsed': sidebarCollapsed, 'mobile-open': mobileMenuOpen }"
+    @mouseenter="handleSubmenuHover(null)"
+    @mouseleave="handleSubmenuHover(null)"
+  >
+    <div class="sidebar-header">
       <div class="logo-icon">
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+        <svg
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+          />
+        </svg>
       </div>
-      <span v-if="!sidebarCollapsed" class="logo-text">Customer Platform VK</span>
+      <span v-if="!sidebarCollapsed" class="sidebar-title">Customer Platform VK</span>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-section">
-        <div v-if="!sidebarCollapsed" class="nav-section-title">核心功能</div>
-        <a class="nav-item" :class="{ active: $route.path === '/' }" @click="goTo('/')">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></div>
-          <span class="nav-item-label">仪表盘</span>
-        </a>
-        <a v-if="can('customers:view')" class="nav-item" :class="{ active: $route.path.startsWith('/customers') }" @click="goTo('/customers')">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></div>
-          <span class="nav-item-label">客户管理</span>
-        </a>
-        <div class="nav-item nav-item-wrapper" :class="{ expanded: expandedSubmenu === 'billing', 'parent-active': isParentMenuActive('billing') }" @click="toggleSubmenu('billing')" @mouseenter="handleSubmenuHover('billing')" @mouseleave="handleSubmenuHover(null)">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-          <span class="nav-item-label">结算管理</span>
-          <svg class="nav-item-arrow" style="margin-left:auto;width:16px;height:16px;transition:transform .2s" :style="{ transform: expandedSubmenu === 'billing' ? 'rotate(180deg)' : 'rotate(0deg)' }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+    <nav class="sidebar-nav" aria-label="主导航">
+      <div
+        v-for="section in navSections"
+        :key="section.key"
+        class="sidebar-section"
+      >
+        <div
+          v-if="!sidebarCollapsed"
+          class="sidebar-group-title"
+          :aria-label="section.title"
+        >
+          {{ section.title }}
         </div>
-        <div v-show="expandedSubmenu === 'billing' && !sidebarCollapsed" class="nav-submenu">
-          <a class="nav-subitem" :class="{ active: $route.name === 'Balance' }" @click="goTo('/billing/balances')">余额管理</a>
-          <a class="nav-subitem" :class="{ active: $route.name === 'PricingRules' }" @click="goTo('/billing/pricing-rules')">计费规则</a>
-          <a class="nav-subitem" :class="{ active: $route.name === 'Invoices' }" @click="goTo('/billing/invoices')">结算单管理</a>
-        </div>
-      </div>
 
-      <div class="nav-section">
-        <div v-if="!sidebarCollapsed" class="nav-section-title">分析</div>
-        <div class="nav-item nav-item-wrapper" :class="{ expanded: expandedSubmenu === 'analytics', 'parent-active': isParentMenuActive('analytics') }" @click="toggleSubmenu('analytics')" @mouseenter="handleSubmenuHover('analytics')" @mouseleave="handleSubmenuHover(null)">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg></div>
-          <span class="nav-item-label">客户分析</span>
-          <svg class="nav-item-arrow" style="margin-left:auto;width:16px;height:16px;transition:transform .2s" :style="{ transform: expandedSubmenu === 'analytics' ? 'rotate(180deg)' : 'rotate(0deg)' }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-        </div>
-        <div v-show="expandedSubmenu === 'analytics' && !sidebarCollapsed" class="nav-submenu">
-          <a class="nav-subitem" :class="{ active: $route.path === '/analytics/consumption' }" @click="goTo('/analytics/consumption')">消耗分析</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/analytics/payment' }" @click="goTo('/analytics/payment')">回款分析</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/analytics/health' }" @click="goTo('/analytics/health')">健康度分析</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/analytics/profile' }" @click="goTo('/analytics/profile')">画像分析</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/analytics/forecast' }" @click="goTo('/analytics/forecast')">预测回款</a>
-        </div>
-      </div>
+        <div
+          v-for="item in section.items"
+          :key="item.key"
+          class="sidebar-parent"
+          :aria-expanded="expandedSubmenu === item.key"
+          @click="can(item.permission ?? '') && toggleSubmenu(item.key)"
+          @mouseenter="handleSubmenuHover(item.key)"
+          @mouseleave="handleSubmenuHover(null)"
+        >
+          <a
+            v-if="!item.children"
+            :href="item.route"
+            class="sidebar-item"
+            :class="{ active: isParentMenuActive(item.key) }"
+            :aria-current="isParentMenuActive(item.key) ? 'page' : undefined"
+            @click.prevent="can(item.permission ?? '') && goTo(item.route)"
+          >
+            <span class="sidebar-icon" :aria-hidden="true">
+              <component :is="getIconComponent(item.icon)" />
+            </span>
+            <span v-if="!sidebarCollapsed" class="sidebar-label">{{ item.label }}</span>
+          </a>
 
-      <div class="nav-section">
-        <div v-if="!sidebarCollapsed" class="nav-section-title">系统管理</div>
-        <a v-if="can('tags:view')" class="nav-item" :class="{ active: $route.path === '/tags' }" @click="goTo('/tags')">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg></div>
-          <span class="nav-item-label">标签管理</span>
-        </a>
-        <div class="nav-item nav-item-wrapper" :class="{ expanded: expandedSubmenu === 'system', 'parent-active': isParentMenuActive('system') }" @click="toggleSubmenu('system')" @mouseenter="handleSubmenuHover('system')" @mouseleave="handleSubmenuHover(null)">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
-          <span class="nav-item-label">系统设置</span>
-          <svg class="nav-item-arrow" style="margin-left:auto;width:16px;height:16px;transition:transform .2s" :style="{ transform: expandedSubmenu === 'system' ? 'rotate(180deg)' : 'rotate(0deg)' }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-        </div>
-        <div v-show="expandedSubmenu === 'system' && !sidebarCollapsed" class="nav-submenu">
-          <a class="nav-subitem" :class="{ active: $route.path === '/users' }" @click="goTo('/users')">用户管理</a>
-          <a class="nav-subitem" :class="{ active: $route.path === '/roles' }" @click="goTo('/roles')">角色权限</a>
-          <a v-if="can('industry_types:manage')" class="nav-subitem" :class="{ active: $route.path === '/system/industry-types' }" @click="goTo('/system/industry-types')">行业类型</a>
-          <a v-if="can('system:database_clear')" class="nav-subitem" :class="{ active: $route.path === '/system/database-management' }" @click="goTo('/system/database-management')">数据清空</a>
-        </div>
-      </div>
+          <div
+            v-else
+            class="sidebar-parent-trigger"
+            :class="{ active: isParentMenuActive(item.key) }"
+          >
+            <span class="sidebar-icon" :aria-hidden="true">
+              <component :is="getIconComponent(item.icon)" />
+            </span>
+            <span v-if="!sidebarCollapsed" class="sidebar-label">{{ item.label }}</span>
+            <span
+              v-if="!sidebarCollapsed"
+              class="sidebar-chev"
+              :class="{ expanded: expandedSubmenu === item.key }"
+            >
+              <svg
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </span>
+          </div>
 
-      <div class="nav-section">
-        <div v-if="!sidebarCollapsed" class="nav-section-title">系统工具</div>
-        <a v-if="can('system:view')" class="nav-item" :class="{ active: $route.path === '/system/sync-logs' }" @click="goTo('/system/sync-logs')">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></div>
-          <span class="nav-item-label">同步日志</span>
-        </a>
-        <a v-if="can('system:view')" class="nav-item" :class="{ active: $route.path === '/system/audit-logs' }" @click="goTo('/system/audit-logs')">
-          <div class="nav-item-icon"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg></div>
-          <span class="nav-item-label">审计日志</span>
-        </a>
+          <div
+            v-if="item.children"
+            class="sidebar-subnav"
+            :style="{ display: expandedSubmenu === item.key ? 'block' : 'none' }"
+            role="group"
+            :aria-label="item.label"
+          >
+            <a
+              v-for="child in item.children"
+              :key="child.key"
+              :href="child.route"
+              class="sidebar-child"
+              :aria-current="route.path === child.route ? 'page' : undefined"
+              @click.prevent="goTo(child.route)"
+            >
+              <span class="sidebar-icon" :aria-hidden="true">
+                <component :is="getIconComponent(child.icon)" />
+              </span>
+              <span v-if="!sidebarCollapsed" class="sidebar-label">
+                {{ child.label }}
+              </span>
+              <span
+                v-if="!sidebarCollapsed && child.hint"
+                class="sidebar-hint"
+              >
+                {{ child.hint }}
+              </span>
+            </a>
+          </div>
+        </div>
       </div>
     </nav>
 
-    <div class="sidebar-user">
-      <div class="sidebar-user-info">
-        <div class="user-name">{{ currentUser?.username || '用户' }}</div>
-        <div class="user-role">{{ currentUser?.roles?.[0] || '运营经理' }}</div>
-      </div>
-      <div class="sidebar-toggle" :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleSidebar">
-        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 19l-7-7 7-7'" /></svg>
-      </div>
+    <div v-if="!sidebarCollapsed" class="sidebar-footer">
+      <button
+        class="collapse-toggle"
+        aria-label="折叠侧边栏"
+        title="折叠侧边栏"
+        @click="toggleSidebar"
+      >
+        <svg
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+          />
+        </svg>
+      </button>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAppLayout } from '@/composables/useAppLayout'
 
 const emit = defineEmits<{
@@ -99,17 +161,45 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
+
 const {
   sidebarCollapsed,
   mobileMenuOpen,
   expandedSubmenu,
+  navSections,
   can,
-  currentUser,
   toggleSidebar,
   toggleSubmenu,
   handleSubmenuHover,
   isParentMenuActive,
 } = useAppLayout()
+
+const iconMap = {
+  LayoutDashboard: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>`,
+  },
+  Users: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>`,
+  },
+  CreditCard: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>`,
+  },
+  BarChart2: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>`,
+  },
+  Settings: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" /></svg>`,
+  },
+  FileText: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>`,
+  },
+  CheckCheck: {
+    template: `<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 6 12 12 6 9" /><polyline points="22 10 18 14 14 10" /></svg>`,
+  },
+}
+
+const getIconComponent = (iconName: string) => iconMap[iconName as keyof typeof iconMap] || iconMap.LayoutDashboard
 
 const goTo = (path: string) => {
   router.push(path)
@@ -118,45 +208,277 @@ const goTo = (path: string) => {
 </script>
 
 <style scoped>
-.sidebar { --sidebar-width: 260px; --sidebar-collapsed-width: 68px; --header-height: 64px; --primary-5: #0369a1; --danger-5: #f87171; --t-fast: 150ms cubic-bezier(0.4,0,0.2,1); --t-base: 250ms cubic-bezier(0.4,0,0.2,1); position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-width); background: linear-gradient(180deg,#1d2330 0%,#0f172a 100%); z-index: 100; display: flex; flex-direction: column; transition: width var(--t-base); overflow: hidden; }
-.sidebar.collapsed { width: var(--sidebar-collapsed-width); }
-.sidebar-nav { flex: 1; padding: 20px 12px; overflow-y: auto; overflow-x: hidden; min-height: 0; }
-.sidebar-nav::-webkit-scrollbar { width: 4px; }
-.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
-.sidebar-logo { height: var(--header-height); display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.1); flex-shrink: 0; }
-.sidebar.collapsed .sidebar-logo { padding: 0 16px; justify-content: center; }
-.logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg,#0369a1,#0284c7); border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(3,105,161,.4); flex-shrink: 0; }
-.logo-icon svg { width: 22px; height: 22px; color: #fff; }
-.logo-text { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -.3px; white-space: nowrap; }
-.nav-section { margin-bottom: 24px; }
-.sidebar.collapsed .nav-section { margin-bottom: 12px; width: 100%; display: flex; flex-direction: column; align-items: center; }
-.nav-section-title { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .5px; padding: 0 12px; margin-bottom: 8px; white-space: nowrap; }
-.sidebar.collapsed .nav-section-title { opacity: 0; width: 0; padding: 0; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; color: #fff; text-decoration: none; transition: background-color var(--t-fast), color var(--t-fast); cursor: pointer; margin-bottom: 4px; position: relative; white-space: nowrap; }
-.nav-item-wrapper { position: relative; }
-.sidebar.collapsed .nav-item { padding: 0; justify-content: center; align-items: center; aspect-ratio: 1; width: 100%; min-height: 48px; border-radius: 12px; }
-.nav-item:hover { background: rgba(3,105,161,.15); color: #fff; }
-.nav-item.active { background: linear-gradient(135deg,#0369a1,#0284c7); color: #fff; box-shadow: 0 4px 12px rgba(3,105,161,.4); }
-.sidebar.collapsed .nav-item.active { box-shadow: 0 6px 20px rgba(3,105,161,.5); transform: scale(1.02); }
-.nav-item-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; transition: transform var(--t-fast); }
-.nav-item-icon svg { width: 22px; height: 22px; }
-.sidebar.collapsed .nav-item-icon { margin: 0; }
-.nav-item-label { font-size: 14px; font-weight: 500; color: #fff; transition: opacity var(--t-fast), width var(--t-fast); }
-.sidebar.collapsed .nav-item-label, .sidebar.collapsed .nav-item-arrow { display: none; opacity: 0; width: 0; overflow: hidden; }
-.nav-item-arrow { transition: transform var(--t-fast); }
-.nav-submenu { padding-left: 24px; }
-.nav-subitem { display: block; padding: 10px 12px; font-size: 13px; color: rgba(255,255,255,.7); text-decoration: none; border-radius: 8px; transition: background-color var(--t-fast); cursor: pointer; margin-bottom: 2px; }
-.nav-subitem:hover { background: rgba(3,105,161,.15); color: #fff; }
-.nav-subitem.active { background: rgba(3,105,161,.2); color: #fff; font-weight: 500; }
-.sidebar.collapsed .nav-submenu { display: none; }
-.sidebar-user { display: flex; align-items: center; gap: 8px; padding: 16px 12px; border-top: 1px solid rgba(255,255,255,.1); flex-shrink: 0; }
-.sidebar.collapsed .sidebar-user { justify-content: center; padding: 16px 8px; }
-.sidebar-user-info { flex: 1; min-width: 0; }
-.sidebar.collapsed .sidebar-user-info { display: none; }
-.user-name { font-size: 13px; font-weight: 500; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-role { font-size: 11px; color: rgba(255,255,255,.5); margin-top: 2px; }
-.sidebar-toggle { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15); border-radius: 8px; cursor: pointer; color: #fff; transition: background-color var(--t-fast); flex-shrink: 0; }
-.sidebar-toggle:hover { background: rgba(255,255,255,.2); }
-.sidebar-toggle svg { width: 16px; height: 16px; }
-@media (max-width:768px) { .sidebar { transform: translateX(-100%); width: var(--sidebar-width)!important; } .sidebar.mobile-open { transform: translateX(0); box-shadow: 0 0 20px rgba(0,0,0,.3); } .sidebar.collapsed { width: var(--sidebar-width)!important; } }
+.app-sidebar {
+  width: var(--cop-sidebar-width);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #1d2330 0%, #0f172a 100%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  transition: width var(--t-base);
+  overflow: visible;
+}
+
+.app-sidebar.is-collapsed {
+  width: var(--cop-sidebar-collapsed-width);
+}
+
+.sidebar-header {
+  height: var(--cop-header-height);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--cop-primary), #0284c7);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
+  flex-shrink: 0;
+}
+
+.logo-icon svg {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+}
+
+.sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 12px;
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+
+.app-sidebar.is-collapsed .sidebar-group-title {
+  display: none;
+}
+
+.sidebar-parent {
+  position: relative;
+  width: 100%;
+}
+
+.sidebar-item,
+.sidebar-parent-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--cop-radius-sm);
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast);
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sidebar-item:hover,
+.sidebar-parent-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.sidebar-item.active,
+.sidebar-parent-trigger.active {
+  background: linear-gradient(90deg, rgba(3, 105, 161, 0.2), transparent);
+  color: #fff;
+  border-left: 3px solid var(--cop-primary);
+  padding-left: 9px;
+}
+
+.sidebar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.sidebar-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-chev {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+  transition: transform var(--t-fast);
+}
+
+.sidebar-chev.expanded {
+  transform: rotate(180deg);
+}
+
+.sidebar-chev svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-subnav {
+  margin-top: 4px;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-sidebar.is-collapsed .sidebar-subnav,
+.app-sidebar.is-collapsed .sidebar-parent[aria-expanded="true"] + .sidebar-subnav {
+  display: none !important;
+}
+
+.sidebar-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--cop-radius-sm);
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sidebar-child:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.sidebar-child[aria-current="page"] {
+  background: rgba(3, 105, 161, 0.15);
+  color: #fff;
+}
+
+.sidebar-child .sidebar-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-child .sidebar-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-hint {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+}
+
+.app-sidebar.is-collapsed .sidebar-label,
+.app-sidebar.is-collapsed .sidebar-group-title,
+.app-sidebar.is-collapsed .sidebar-hint,
+.app-sidebar.is-collapsed .sidebar-chev {
+  display: none;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--cop-radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.collapse-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.app-sidebar.is-collapsed .collapse-toggle {
+  padding: 8px;
+}
 </style>
