@@ -331,8 +331,12 @@ module.exports = {
 | **tags/Index.vue** | 重写布局 | 小 |
 | **users/Index.vue** | 重写布局 + 保留表格 | 中 |
 | **roles/Index.vue** | 重写布局 + 保留权限配置 | 中 |
-| **系统工具页面** | 重写布局 | 小 |
-| **Profile.vue** | 重写布局 | 小 |
+| **analysis/Consumption.vue** | 重写布局 + 保留图表 | 中 |
+| **analysis/Payment.vue** | 重写布局 + 保留图表 | 中 |
+| **analysis/Health.vue** | 重写布局 + 保留图表 | 中 |
+| **analysis/Profile.vue** | 重写布局 + 保留图表 | 中 |
+| **Profile.vue**（用户资料） | 重写布局 | 小 |
+| **ResetPassword.vue** | 重写布局 | 小 |
 
 **交付物**：
 - 所有页面迁移完成
