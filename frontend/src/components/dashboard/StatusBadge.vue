@@ -58,19 +58,19 @@ const dotClass = computed(() => `status-badge__dot--${props.type || 'default'}`)
   color: var(--cop-muted);
 }
 .status-badge--success {
-  background: rgba(5, 150, 105, 0.1);
+  background: color-mix(in srgb, var(--cop-success) 12%, white);
   color: var(--cop-success);
 }
 .status-badge--warning {
-  background: rgba(217, 119, 6, 0.1);
+  background: color-mix(in srgb, var(--cop-warning) 12%, white);
   color: var(--cop-warning);
 }
 .status-badge--danger {
-  background: rgba(220, 38, 38, 0.1);
+  background: color-mix(in srgb, var(--cop-danger) 12%, white);
   color: var(--cop-danger);
 }
 .status-badge--info {
-  background: rgba(8, 145, 178, 0.1);
+  background: color-mix(in srgb, var(--cop-cyan) 12%, white);
   color: var(--cop-cyan);
 }
 </style>
