@@ -1,11 +1,11 @@
 <template>
   <div class="user-management-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>用户管理</h1>
-        <p class="header-subtitle">系统账号与权限管理</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      title="用户管理"
+      description="系统账号与权限管理"
+      eyebrow="SYSTEM"
+    >
+      <template #actions>
         <a-input-search
           v-model="searchKeyword"
           placeholder="搜索用户名、姓名或邮箱"
@@ -15,26 +15,11 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button v-if="can('users:create')" type="primary" @click="handleCreate">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-          </template>
-          新建用户
-        </a-button>
-      </div>
-    </div>
+        <a-button v-if="can('users:create')" type="primary" @click="handleCreate">新建用户</a-button>
+      </template>
+    </AppPageHeader>
 
-    <div class="table-section">
+    <DataSection title="用户列表"><CompactTableShell>
       <a-table
         :columns="columns"
         :data="users"
@@ -105,7 +90,7 @@
           </EmptyState>
         </template>
       </a-table>
-    </div>
+    </CompactTableShell></DataSection>
 
     <!-- 用户编辑对话框 -->
     <a-modal
@@ -190,6 +175,7 @@ import {
 import { getRoles } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
 import { formatDateTime } from '@/utils/formatters'
+import { AppPageHeader, DataSection, CompactTableShell } from '@/components/dashboard'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
