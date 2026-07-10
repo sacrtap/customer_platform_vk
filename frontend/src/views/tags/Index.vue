@@ -1,29 +1,16 @@
 <template>
   <div class="tag-management-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>标签管理</h1>
-        <p class="header-subtitle">自定义标签分类与管理</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      title="标签管理"
+      description="自定义标签分类与管理"
+      eyebrow="SYSTEM"
+    >
+      <template #actions>
         <a-button v-if="can('tags:create')" type="primary" @click="handleCreate">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-          </template>
           新建标签
         </a-button>
-      </div>
-    </div>
+      </template>
+    </AppPageHeader>
 
     <div class="tabs-section">
       <a-tabs v-model:active-key="activeTab" @change="handleTabChange">
@@ -123,6 +110,7 @@ import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { getTags, createTag, updateTag, deleteTag, type Tag as ApiTag } from '@/api/tags'
+import { AppPageHeader } from '@/components/dashboard'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
