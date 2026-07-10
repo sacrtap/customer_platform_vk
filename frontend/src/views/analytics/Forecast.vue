@@ -1,14 +1,12 @@
 <template>
   <div class="forecast-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>预测回款</h1>
-        <p class="header-subtitle">基于历史数据的智能回款预测</p>
-      </div>
-    </div>
+    <AppPageHeader
+      title="预测回款"
+      description="基于历史数据的智能回款预测"
+      eyebrow="ANALYTICS"
+    />
 
-    <!-- 筛选区域 -->
-    <div class="filter-section">
+    <FilterPanel>
       <a-form layout="inline" :model="filters">
         <a-form-item label="年份">
           <a-year-picker v-model="selectedYear" style="width: 150px" @change="loadData" />
@@ -45,82 +43,38 @@
           </a-space>
         </a-form-item>
       </a-form>
-    </div>
+    </FilterPanel>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">预测回款总额</div>
-        <div class="stat-value">{{ formatCurrency(totalPredicted) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">已确认回款</div>
-        <div class="stat-value success">{{ formatCurrency(confirmedAmount) }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">完成率</span>
-          <span class="trend-value">{{ completionRate }}%</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">待确认回款</div>
-        <div class="stat-value warning">{{ formatCurrency(pendingAmount) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">预测客户数</div>
-        <div class="stat-value">{{ predictedCustomers }}</div>
-      </div>
-    </div>
+    <MetricGrid>
+      <MetricCard label="预测回款总额" :value="formatCurrency(totalPredicted)" />
+      <MetricCard label="已确认回款" :value="formatCurrency(confirmedAmount)" :trend="'完成率 ' + completionRate + '%'" trend-type="up" />
+      <MetricCard label="待确认回款" :value="formatCurrency(pendingAmount)" trend-type="warn" />
+      <MetricCard label="预测客户数" :value="predictedCustomers" />
+    </MetricGrid>
 
-    <!-- 预测趋势图 -->
-    <div class="chart-section">
-      <div class="chart-card full-width">
-        <div class="chart-header">
-          <h3>月度回款预测</h3>
-        </div>
-        <div ref="forecastChartRef" class="chart-container"></div>
-      </div>
-    </div>
+    <ChartCard title="月度回款预测">
+      <div ref="forecastChartRef" class="chart-container" />
+    </ChartCard>
 
-    <!-- 预测明细表 -->
-    <div class="table-section">
-      <div class="table-header">
-        <h3>预测明细</h3>
-        <a-button type="text" size="small" @click="loadData">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
-              <path
-                d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"
-              />
-            </svg>
+    <DataSection title="预测明细">
+      <CompactTableShell>
+        <a-table
+          :columns="columns"
+          :data="predictionList"
+          :loading="loading"
+          row-key="customer_id"
+          :pagination="pagination"
+          @page-change="handlePageChange"
+        >
+          <template #amount="{ record }">
+            <span class="predicted-amount">{{ formatCurrency(record.predicted_amount) }}</span>
           </template>
-          刷新
-        </a-button>
-      </div>
-      <a-table
-        :columns="columns"
-        :data="predictionList"
-        :loading="loading"
-        row-key="customer_id"
-        :pagination="pagination"
-        @page-change="handlePageChange"
-      >
-        <template #amount="{ record }">
-          <span class="predicted-amount">{{ formatCurrency(record.predicted_amount) }}</span>
-        </template>
-        <template #action="{ record }">
-          <a-button type="text" size="small" @click="viewCustomer(record.customer_id)"
-            >查看</a-button
-          >
-        </template>
-      </a-table>
-    </div>
+          <template #action="{ record }">
+            <a-button type="text" size="small" @click="viewCustomer(record.customer_id)">查看</a-button>
+          </template>
+        </a-table>
+      </CompactTableShell>
+    </DataSection>
   </div>
 </template>
 
@@ -134,6 +88,7 @@ import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
+import { AppPageHeader, FilterPanel, MetricGrid, MetricCard, ChartCard, DataSection, CompactTableShell } from '@/components/dashboard'
 
 const router = useRouter()
 
