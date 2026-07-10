@@ -1,11 +1,14 @@
 <template>
   <div class="sync-logs-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>同步任务日志</h1>
-        <p class="header-subtitle">查看同步任务执行历史和状态</p>
-      </div>
-    </div>
+    <AppPageHeader
+      title="同步日志"
+      description="数据同步任务与状态追踪"
+      eyebrow="SYSTEM"
+    >
+      <template #actions>
+
+      </template>
+    </AppPageHeader>
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -71,11 +74,7 @@
     </div>
 
     <!-- 表格 -->
-    <div class="table-section">
-      <div class="table-header">
-        <h3>任务记录</h3>
-      </div>
-      <a-table
+    <DataSection title="同步任务列表"><CompactTableShell><a-table
         :columns="columns"
         :data="tasks"
         :loading="loading"
@@ -140,12 +139,12 @@
             取消任务
           </a-button>
         </template>
-      </a-table>
-    </div>
+      </a-table></CompactTableShell></DataSection>
   </div>
 </template>
 
 <script setup lang="ts">
+import { AppPageHeader, DataSection, CompactTableShell } from '@/components/dashboard'
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import {

@@ -1,11 +1,11 @@
 <template>
   <div class="database-management">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>数据库管理</h1>
-        <p class="header-subtitle">系统级数据操作管理</p>
-      </div>
-    </div>
+    <AppPageHeader
+      title="数据库管理"
+      description="数据库健康与备份管理"
+      eyebrow="SYSTEM"
+    >
+    </AppPageHeader>
 
     <a-card :bordered="false">
       <template #title>
@@ -50,6 +50,7 @@
 </template>
 
 <script setup lang="ts">
+import { AppPageHeader } from '@/components/dashboard'
 import { ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'

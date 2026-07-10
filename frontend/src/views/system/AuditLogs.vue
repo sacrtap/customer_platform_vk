@@ -1,11 +1,11 @@
 <template>
   <div class="audit-logs-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>审计日志</h1>
-        <p class="header-subtitle">查看系统操作记录</p>
-      </div>
-    </div>
+    <AppPageHeader
+      title="审计日志"
+      description="系统变更与操作追溯"
+      eyebrow="SYSTEM"
+    >
+    </AppPageHeader>
 
     <!-- 筛选区域 -->
     <div class="filter-section">
@@ -74,11 +74,7 @@
     </div>
 
     <!-- 表格 -->
-    <div class="table-section">
-      <div class="table-header">
-        <h3>操作记录</h3>
-      </div>
-      <a-table
+    <DataSection title="列表"><CompactTableShell><a-table
         :columns="columns"
         :data="logs"
         :loading="loading"
@@ -134,12 +130,12 @@
         <template #created_at="{ record }">
           {{ formatDate(record.created_at) }}
         </template>
-      </a-table>
-    </div>
+      </a-table></CompactTableShell></DataSection>
   </div>
 </template>
 
 <script setup lang="ts">
+import { AppPageHeader, DataSection, CompactTableShell } from '@/components/dashboard'
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as auditApi from '@/api/audit'

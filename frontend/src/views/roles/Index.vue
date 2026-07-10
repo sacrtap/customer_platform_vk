@@ -1,12 +1,12 @@
 <template>
   <div class="role-management-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>角色权限</h1>
-        <p class="header-subtitle">角色管理与权限配置</p>
-      </div>
-      <div class="header-actions">
-        <a-input-search
+    <AppPageHeader
+      title="角色管理"
+      description="系统角色与权限配置"
+      eyebrow="SYSTEM"
+    >
+      <template #actions>
+<a-input-search
           v-model="searchKeyword"
           placeholder="搜索角色名或描述"
           style="width: 300px"
@@ -15,27 +15,11 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-          </template>
-          新建角色
-        </a-button>
-      </div>
-    </div>
+        <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">新建角色</a-button>
+      </template>
+    </AppPageHeader>
 
-    <div class="table-section">
-      <a-table
+    <DataSection title="角色列表"><CompactTableShell><a-table
         :columns="columns"
         :data="roles"
         :loading="loading"
@@ -92,8 +76,7 @@
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
-      </a-table>
-    </div>
+      </a-table></CompactTableShell></DataSection>
 
     <!-- 角色编辑对话框 -->
     <a-modal
@@ -174,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+import { AppPageHeader, DataSection, CompactTableShell } from '@/components/dashboard'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
