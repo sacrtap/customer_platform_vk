@@ -1,14 +1,12 @@
 <template>
   <div class="payment-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>回款分析</h1>
-        <p class="header-subtitle">结算单回款进度与完成率分析</p>
-      </div>
-    </div>
+    <AppPageHeader
+      title="回款分析"
+      description="结算单回款进度与完成率分析"
+      eyebrow="ANALYTICS"
+    />
 
-    <!-- 筛选区域 -->
-    <div class="filter-section">
+    <FilterPanel>
       <a-form layout="inline" :model="filters">
         <a-form-item label="时间范围">
           <a-select
@@ -40,57 +38,25 @@
           </a-space>
         </a-form-item>
       </a-form>
-    </div>
+    </FilterPanel>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">应收总额</div>
-        <div class="stat-value">{{ formatCurrency(totalInvoiced) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">减免总额</div>
-        <div class="stat-value warning">{{ formatCurrency(totalDiscount) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">已回款</div>
-        <div class="stat-value success">{{ formatCurrency(totalPaid) }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">回款率</span>
-          <span class="trend-value">{{ completionRate }}%</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">待回款</div>
-        <div class="stat-value danger">{{ formatCurrency(difference) }}</div>
-      </div>
-    </div>
+    <MetricGrid>
+      <MetricCard label="应收总额" :value="formatCurrency(totalInvoiced)" />
+      <MetricCard label="减免总额" :value="formatCurrency(totalDiscount)" trend-type="warn" />
+      <MetricCard label="已回款" :value="formatCurrency(totalPaid)" :trend="'回款率 ' + completionRate + '%'" trend-type="up" />
+      <MetricCard label="待回款" :value="formatCurrency(difference)" trend-type="down" />
+    </MetricGrid>
 
-    <!-- 图表区域 -->
     <div class="charts-section">
-      <!-- 预测 vs 实际对比图 -->
-      <div class="chart-card full-width">
-        <div class="chart-header">
-          <h3>回款对比分析</h3>
-        </div>
-        <div ref="comparisonChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- 结算单状态分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>结算单状态分布</h3>
-        </div>
-        <div ref="statusChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- 回款趋势 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>回款趋势</h3>
-        </div>
-        <div ref="trendChartRef" class="chart-container"></div>
-      </div>
+      <ChartCard title="回款对比分析">
+        <div ref="comparisonChartRef" class="chart-container" />
+      </ChartCard>
+      <ChartCard title="结算单状态分布">
+        <div ref="statusChartRef" class="chart-container" />
+      </ChartCard>
+      <ChartCard title="回款趋势">
+        <div ref="trendChartRef" class="chart-container" />
+      </ChartCard>
     </div>
   </div>
 </template>
@@ -104,6 +70,7 @@ import { getPaymentAnalysis, getInvoiceStatusStats } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
+import { AppPageHeader, FilterPanel, MetricGrid, MetricCard, ChartCard } from '@/components/dashboard'
 
 const filters = reactive({
   start_date: '',
