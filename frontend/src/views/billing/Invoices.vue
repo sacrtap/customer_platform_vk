@@ -48,17 +48,20 @@
         <template #status="{ record }"><InvoiceStatusBadge :status="record.status" /></template>
         <template #createdAt="{ record }"><span class="cell-nowrap">{{ formatDateTime(record.created_at) }}</span></template>
         <template #action="{ record }">
-          <a-dropdown>
-            <template #trigger>
-              <a-button size="small" ghost>操作</a-button>
-            </template>
-            <template #overlay>
-              <a-menu
-                :options="getActionOptions(record)"
-                @select="key => handleSingleAction(record, key)"
-              />
-            </template>
-          </a-dropdown>
+          <a-space>
+            <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
+            <a-dropdown>
+              <template #trigger>
+                <a-button size="small">更多<IconDown /></a-button>
+              </template>
+              <template #overlay>
+                <a-menu
+                  :options="getActionOptions(record)"
+                  @select="key => handleSingleAction(record, key)"
+                />
+              </template>
+            </a-dropdown>
+          </a-space>
         </template>
       </a-table>
     </CompactTableShell>

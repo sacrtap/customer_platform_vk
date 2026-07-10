@@ -78,6 +78,18 @@
             style="width: 220px"
           />
         </a-form-item>
+        <a-form-item label="设备类型">
+          <a-select
+            v-model="filters.device_type"
+            placeholder="请选择"
+            style="width: 160px"
+            allow-clear
+          >
+            <a-option value="X">X</a-option>
+            <a-option value="N">N</a-option>
+            <a-option value="L">L</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item>
           <a-button type="primary" :loading="loading" @click="handleSearch">
             查询
@@ -173,30 +185,6 @@
         </ChartCard>
       </div>
     </div>
-
-    <DataSection title="消耗明细" subtitle="按客户/设备/日期维度明细" :count="detailTotal">
-      <a-table
-        :columns="detailColumns"
-        :data="detailList"
-        :loading="loading"
-        row-key="id"
-        :pagination="detailPagination"
-        :bordered="false"
-        @page-change="handleDetailPageChange"
-        @page-size-change="handleDetailPageSizeChange"
-        @sorter-change="handleDetailSorterChange"
-      >
-        <template #device_type="{ record }">
-          <span class="device-badge">{{ record.device_type }}</span>
-        </template>
-        <template #total_cost="{ record }">
-          <span class="amount">{{ formatCurrency(record.total_cost) }}</span>
-        </template>
-        <template #total_orders="{ record }">
-          <span class="order-count">{{ formatNumber(record.total_orders) }}</span>
-        </template>
-      </a-table>
-    </DataSection>
   </div>
 </template>
 
@@ -225,13 +213,13 @@ import {
   MetricGrid,
   MetricCard,
   ChartCard,
-  DataSection,
 } from '@/components/dashboard'
 
 const filters = reactive({
   start_date: '',
   end_date: '',
   keyword: '',
+  device_type: '',
 })
 
 const timeRange = ref('3month')
@@ -278,31 +266,11 @@ const trendData = ref<ConsumptionTrendItem[]>([])
 const topCustomers = ref<TopCustomer[]>([])
 const deviceDistribution = ref<DeviceDistributionItem[]>([])
 
-const detailList = ref<Array<Record<string, unknown>>>([])
-const detailLoading = ref(false)
-const detailPagination = reactive({
-  current: 1,
-  pageSize: 20,
-  total: 0,
-  showTotal: true,
-  showPageSize: true,
-})
-
-const detailTotal = computed(() => detailPagination.total)
-
 const topColumns = [
   { title: '排名', slotName: 'rank', width: 60, align: 'center' as const },
   { title: '客户', dataIndex: 'customer_name', width: 200 },
   { title: '消耗金额', slotName: 'metric', width: 140, align: 'right' as const },
   { title: '占比', slotName: 'percentage', width: 120, align: 'right' as const },
-]
-
-const detailColumns = [
-  { title: '日期', dataIndex: 'date', width: 120 },
-  { title: '客户', dataIndex: 'customer_name', width: 200 },
-  { title: '设备类型', slotName: 'device_type', width: 120 },
-  { title: '消耗金额', slotName: 'total_cost', width: 140, align: 'right' as const },
-  { title: '订单量', slotName: 'total_orders', width: 100, align: 'right' as const },
 ]
 
 const totalMetricValue = computed(() => {
@@ -339,7 +307,6 @@ const loadData = async () => {
       loadTrend(),
       loadTopCustomers(),
       loadDeviceDistribution(),
-      loadDetailList(),
     ])
   } finally {
     loading.value = false
@@ -347,7 +314,8 @@ const loadData = async () => {
 }
 
 const loadTrend = async () => {
-  const params = { start_date: filters.start_date, end_date: filters.end_date }
+  const params: Record<string, string | number | undefined> = { start_date: filters.start_date, end_date: filters.end_date }
+  if (filters.device_type) params.device_type = filters.device_type
   const res = await getConsumptionTrend(params)
   trendData.value = res.data
   renderTrendChart()
@@ -355,36 +323,18 @@ const loadTrend = async () => {
 }
 
 const loadTopCustomers = async () => {
-  const params = { start_date: filters.start_date, end_date: filters.end_date, limit: 10 }
+  const params: Record<string, string | number | undefined> = { start_date: filters.start_date, end_date: filters.end_date, limit: 10 }
+  if (filters.device_type) params.device_type = filters.device_type
   const res = await getTopCustomers(params)
   topCustomers.value = res.data
 }
 
 const loadDeviceDistribution = async () => {
-  const params = { start_date: filters.start_date, end_date: filters.end_date }
+  const params: Record<string, string | number | undefined> = { start_date: filters.start_date, end_date: filters.end_date }
+  if (filters.device_type) params.device_type = filters.device_type
   const res = await getDeviceDistribution(params)
   deviceDistribution.value = res.data
   renderDeviceChart?.()
-}
-
-const loadDetailList = async () => {
-  detailLoading.value = true
-  try {
-    const params = {
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      keyword: filters.keyword || undefined,
-      page: detailPagination.current,
-      page_size: detailPagination.pageSize,
-    }
-    // Assuming there's a getConsumptionDetail API or using getTopCustomers with pagination
-    // For now, we'll use a mock or adapt from existing APIs
-    const res = await getTopCustomers({ ...params, limit: 100 })
-    detailList.value = res.data
-    detailPagination.total = res.data.length
-  } finally {
-    detailLoading.value = false
-  }
 }
 
 const computeMetrics = () => {
@@ -444,7 +394,6 @@ watch(topMetric, () => {
 })
 
 const handleSearch = () => {
-  detailPagination.current = 1
   loadData()
 }
 
@@ -452,6 +401,7 @@ const handleReset = () => {
   filters.start_date = ''
   filters.end_date = ''
   filters.keyword = ''
+  filters.device_type = ''
   timeRange.value = '3month'
   dateRange.value = null
   const end = new Date()
@@ -459,27 +409,11 @@ const handleReset = () => {
   start.setMonth(start.getMonth() - 3)
   filters.start_date = start.toISOString().split('T')[0]
   filters.end_date = end.toISOString().split('T')[0]
-  detailPagination.current = 1
   loadData()
 }
 
 const handleRefresh = () => {
   loadData()
-}
-
-const handleDetailPageChange = (page: number) => {
-  detailPagination.current = page
-  loadDetailList()
-}
-
-const handleDetailPageSizeChange = (pageSize: number) => {
-  detailPagination.pageSize = pageSize
-  detailPagination.current = 1
-  loadDetailList()
-}
-
-const handleDetailSorterChange = (_sorter: unknown) => {
-  // Handle sorting if needed
 }
 
 const handleSyncSuccess = () => {

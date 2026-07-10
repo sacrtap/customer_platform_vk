@@ -17,9 +17,10 @@ export function getConsumptionTrend(params?: {
   end_date?: string
   customer_id?: number
   keyword?: string
+  device_type?: string
   metric?: 'cost' | 'order_count'
   force_refresh?: boolean
-}) {
+}): Promise<{ code: number; message: string; data: ConsumptionTrendItem[] }> {
   return api.get('/analytics/consumption/trend', { params })
 }
 
@@ -31,14 +32,14 @@ export interface TopCustomer {
   company_id?: number
   total_amount?: number
 }
-
 export function getTopCustomers(params?: {
   start_date?: string
   end_date?: string
   limit?: number
+  device_type?: string
   metric?: 'cost' | 'order_count'
   force_refresh?: boolean
-}) {
+}): Promise<{ code: number; message: string; data: TopCustomer[] }> {
   return api.get('/analytics/consumption/top', { params })
 }
 
@@ -51,15 +52,15 @@ export interface DeviceDistributionItem {
   total_quantity?: number
   total_amount?: number
 }
-
 export function getDeviceDistribution(params?: {
   start_date?: string
   end_date?: string
   customer_id?: number
   keyword?: string
+  device_type?: string
   metric?: 'cost' | 'order_count'
   force_refresh?: boolean
-}) {
+}): Promise<{ code: number; message: string; data: DeviceDistributionItem[] }> {
   return api.get('/analytics/consumption/device-distribution', { params })
 }
 

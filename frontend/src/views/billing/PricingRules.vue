@@ -20,9 +20,8 @@
         <a-form-item label="设备类型">
           <a-select v-model="filters.device_type" placeholder="请选择" allow-clear style="width: 160px">
             <a-option value="X">X光机</a-option>
-            <a-option value="CT">CT</a-option>
-            <a-option value="MR">MR</a-option>
-            <a-option value="DR">DR</a-option>
+            <a-option value="N">N系列</a-option>
+            <a-option value="L">L系列</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="计费类型">
@@ -56,7 +55,7 @@
             <span>{{ record.customer_name || '—' }}</span>
           </template>
           <template #device_type="{ record }">
-            <span class="device-badge">{{ record.device_type }}</span>
+            <span class="device-badge">{{ getDeviceTypeText(record.device_type) }}</span>
           </template>
           <template #layer_type="{ record }">
             <span>{{ record.layer_type === 'single' ? '单层' : '多层' }}</span>
@@ -86,7 +85,7 @@
                 <a-button size="small" ghost>操作</a-button>
               </template>
               <template #overlay>
-                <a-menu @select="key => handleAction(record, key as string)">
+                <a-menu @select="key => handleAction(record, key)">
                   <a-menu-item key="edit">编辑</a-menu-item>
                   <a-menu-item key="delete">删除</a-menu-item>
                 </a-menu>
@@ -111,9 +110,8 @@
         <a-form-item label="设备类型" required>
           <a-select v-model="formData.device_type" placeholder="请选择" style="width: 100%">
             <a-option value="X">X光机</a-option>
-            <a-option value="CT">CT</a-option>
-            <a-option value="MR">MR</a-option>
-            <a-option value="DR">DR</a-option>
+            <a-option value="N">N系列</a-option>
+            <a-option value="L">L系列</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="楼层类型" required>
@@ -236,6 +234,15 @@ const getPricingTypeText = (type: string) => {
     fixed: '定价结算',
     tiered: '阶梯结算',
     package: '包年结算',
+  }
+  return map[type] || type
+}
+
+const getDeviceTypeText = (type: string) => {
+  const map: Record<string, string> = {
+    X: 'X光机',
+    N: 'N系列',
+    L: 'L系列',
   }
   return map[type] || type
 }
@@ -372,6 +379,20 @@ const handleSubmit = async () => {
       package_type: formData.package_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date,
+    }
+
+    // Check for pricing rule conflict before create/update
+    const conflictRes = await billingApi.checkPricingRuleConflict({
+      customer_id: formData.customer_id,
+      device_type: formData.device_type,
+      layer_type: formData.layer_type,
+      effective_date: formData.effective_date,
+      expiry_date: formData.expiry_date,
+      exclude_id: isEdit.value && formData.id ? formData.id : undefined,
+    })
+    if (conflictRes.data.has_conflict) {
+      Message.warning(`存在冲突的计价规则：${conflictRes.data.conflicting_rules.map(r => r.id).join(', ')}`)
+      return false
     }
 
     if (isEdit.value && formData.id) {
