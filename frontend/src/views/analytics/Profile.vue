@@ -1,11 +1,11 @@
 <template>
   <div class="profile-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>画像分析</h1>
-        <p class="header-subtitle">客户画像多维度统计分析</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      title="画像分析"
+      description="客户画像多维度统计分析"
+      eyebrow="ANALYTICS"
+    >
+      <template #actions>
         <a-button :loading="loading" @click="handleRefresh">
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
@@ -16,63 +16,29 @@
           </template>
           刷新
         </a-button>
-      </div>
-    </div>
+      </template>
+    </AppPageHeader>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">客户总数</div>
-        <div class="stat-value">{{ totalCustomers }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">行业覆盖</div>
-        <div class="stat-value">{{ industryCount }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">房产客户</div>
-        <div class="stat-value">{{ realEstateCustomers }}</div>
-        <div class="stat-extra">占比 {{ realEstateRate }}%</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">数据完整率</div>
-        <div class="stat-value success">{{ dataCompleteRate }}%</div>
-      </div>
-    </div>
+    <MetricGrid>
+      <MetricCard label="客户总数" :value="totalCustomers" />
+      <MetricCard label="行业覆盖" :value="industryCount" />
+      <MetricCard label="房产客户" :value="realEstateCustomers" :trend="'占比 ' + realEstateRate + '%'" trend-type="neutral" />
+      <MetricCard label="数据完整率" :value="dataCompleteRate + '%'" trend-type="up" />
+    </MetricGrid>
 
-    <!-- 图表区域 -->
     <div class="charts-grid">
-      <!-- 行业分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>行业分布</h3>
-        </div>
-        <div ref="industryChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- 规模等级分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>规模等级分布</h3>
-        </div>
-        <div ref="scaleChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- 消费等级分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>消费等级分布</h3>
-        </div>
-        <div ref="consumeLevelChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- 房产客户占比 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>房产客户占比</h3>
-        </div>
-        <div ref="realEstateChartRef" class="chart-container"></div>
-      </div>
+      <ChartCard title="行业分布">
+        <div ref="industryChartRef" class="chart-container" />
+      </ChartCard>
+      <ChartCard title="规模等级分布">
+        <div ref="scaleChartRef" class="chart-container" />
+      </ChartCard>
+      <ChartCard title="消费等级分布">
+        <div ref="consumeLevelChartRef" class="chart-container" />
+      </ChartCard>
+      <ChartCard title="房产客户占比">
+        <div ref="realEstateChartRef" class="chart-container" />
+      </ChartCard>
     </div>
   </div>
 </template>
@@ -89,6 +55,7 @@ import {
   getRealEstateStats,
   getRealEstateIndustryStats,
 } from '@/api/analytics'
+import { AppPageHeader, MetricGrid, MetricCard, ChartCard } from '@/components/dashboard'
 
 interface IndustryData {
   industry: string
