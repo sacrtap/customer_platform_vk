@@ -1,23 +1,32 @@
 <template>
   <div class="invoice-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>结算单管理</h1>
-        <p class="header-subtitle">结算单列表、详情查看与状态流转</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      title="结算单管理"
+      description="结算单列表、详情查看与状态流转"
+      eyebrow="BILLING"
+    >
+      <template #actions>
         <a-button v-if="can('billing:edit')" type="primary" @click="generateModalVisible = true">
           <template #icon><icon-plus /></template>生成结算单
         </a-button>
         <a-button v-if="can('billing:view')" @click="handleExport">
           <template #icon><icon-download /></template>导出
         </a-button>
-      </div>
-    </div>
+      </template>
+    </AppPageHeader>
 
-    <InvoiceFilters v-model:filters="filters" @search="handleSearch" @reset="handleReset" />
+    <FilterPanel>
+      <InvoiceFilters v-model:filters="filters" @search="handleSearch" @reset="handleReset" />
+    </FilterPanel>
 
-    <div class="table-section">
+    <MetricGrid>
+      <MetricCard label="本月应收" :value="formatCurrency(thisMonthReceivable)" />
+      <MetricCard label="待确认" :value="pendingConfirmCount" trend="需跟进" trend-type="warn" />
+      <MetricCard label="已取消" :value="failedCount" />
+      <MetricCard label="临期回款" :value="urgentCollectionCount" />
+    </MetricGrid>
+
+    <CompactTableShell>
       <a-table
         :columns="columns"
         :data="invoices"
@@ -39,31 +48,22 @@
         <template #status="{ record }"><InvoiceStatusBadge :status="record.status" /></template>
         <template #createdAt="{ record }"><span class="cell-nowrap">{{ formatDateTime(record.created_at) }}</span></template>
         <template #action="{ record }">
-          <a-space>
-            <a-button type="primary" size="small" @click="viewInvoice(record)">查看</a-button>
-            <a-button v-if="record.status === 'draft'" type="primary" size="small" @click="handleSingleAction(record, 'submit')">提交</a-button>
-            <a-dropdown>
-              <a-button size="small">更多<icon-down /></a-button>
-              <template #content>
-                <a-doption v-if="record.status === 'pending_customer'" @click="handleSingleAction(record, 'confirm')">确认</a-doption>
-                <a-doption v-if="['draft', 'pending_customer'].includes(record.status)" @click="handleSingleAction(record, 'cancel')">取消</a-doption>
-                <a-doption v-if="can('billing:edit') && record.status === 'draft'" @click="handleSingleAction(record, 'delete')">删除</a-doption>
-              </template>
-            </a-dropdown>
-          </a-space>
+          <a-dropdown>
+            <template #trigger>
+              <a-button size="small" ghost>操作</a-button>
+            </template>
+            <template #overlay>
+              <a-menu
+                :options="getActionOptions(record)"
+                @select="key => handleSingleAction(record, key)"
+              />
+            </template>
+          </a-dropdown>
         </template>
       </a-table>
-    </div>
+    </CompactTableShell>
 
-    <InvoiceDetailDrawer
-      v-model:visible="drawerVisible"
-      :invoice="currentDetail"
-      @go-customer="goToCustomer"
-      @submit="handleSingleAction(currentDetail!, 'submit')"
-      @confirm="handleSingleAction(currentDetail!, 'confirm')"
-      @cancel="handleSingleAction(currentDetail!, 'cancel')"
-    />
-
+    <InvoiceDetailDrawer v-model:visible="drawerVisible" :detail="currentDetail" @close="drawerVisible = false" />
     <GenerateInvoiceModal v-model:visible="generateModalVisible" @success="handleGenerateSuccess" />
     <DiscountModal v-model:visible="discountModalVisible" :invoice-id="selectedInvoiceId" @success="handleDiscountSuccess" />
     <PayModal v-model:visible="payModalVisible" :invoice-id="selectedInvoiceId" @success="handlePaySuccess" />
@@ -71,10 +71,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
 import { Modal } from '@arco-design/web-vue'
-import { IconPlus, IconDownload, IconDown } from '@arco-design/web-vue/es/icon'
+import { IconPlus, IconDownload } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import { useInvoice } from '@/composables/useInvoice'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
@@ -86,7 +85,14 @@ import DiscountModal from './components/DiscountModal.vue'
 import PayModal from './components/PayModal.vue'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 
-const router = useRouter()
+import {
+  AppPageHeader,
+  FilterPanel,
+  MetricCard,
+  MetricGrid,
+  CompactTableShell,
+} from '@/components/dashboard'
+
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
 
@@ -114,16 +120,52 @@ const columns = [
   { title: '操作', slotName: 'action', width: 200, fixed: 'right' as const },
 ]
 
-const viewInvoice = async (record: Invoice) => {
-  selectedInvoiceId.value = record.id
-  await fetchDetail(record.id)
-  drawerVisible.value = true
+const getActionOptions = (record: Invoice) => {
+  const options = [
+    { label: '详情', key: 'view' },
+  ]
+
+  if (record.status === 'draft' && can('billing:edit')) {
+    options.push({ label: '提交', key: 'submit' })
+  }
+  if (record.status === 'pending_customer' && can('billing:view')) {
+    options.push({ label: '确认', key: 'confirm' })
+  }
+  if (['draft', 'pending_customer'].includes(record.status) && can('billing:edit')) {
+    options.push({ label: '取消', key: 'cancel' })
+  }
+  if (['draft', 'cancelled'].includes(record.status) && can('billing:edit')) {
+    options.push({ label: '删除', key: 'delete' })
+  }
+  if (record.status === 'customer_confirmed' && can('billing:view')) {
+    options.push({ label: '折扣', key: 'discount' })
+    options.push({ label: '回款', key: 'pay' })
+  }
+
+  return options
 }
 
-const goToCustomer = (id: number) => router.push(`/customers/${id}`)
+const handleSingleAction = async (record: Invoice, action: string) => {
+  const actions: Record<string, () => Promise<void>> = {
+    view: async () => { selectedInvoiceId.value = record.id; await fetchDetail(record.id); drawerVisible.value = true },
+    submit: async () => { await doSubmit(record.id); loadInvoices() },
+    confirm: async () => { await doConfirm(record.id); loadInvoices() },
+    cancel: async () => {
+      await Modal.confirm({ title: '确认取消', content: '确定要取消该结算单吗？', onOk: async () => { await doCancel(record.id); loadInvoices() } })
+    },
+    delete: async () => {
+      await Modal.confirm({ title: '确认删除', content: '确定要删除该结算单吗？此操作不可恢复。', onOk: async () => { await doDelete(record.id); loadInvoices() } })
+    },
+    discount: async () => { discountModalVisible.value = true },
+    pay: async () => { payModalVisible.value = true },
+  }
+
+  if (actions[action]) {
+    await actions[action]()
+  }
+}
 
 const handleExport = () => {
-  // 导出逻辑占位
   console.log('导出结算单列表')
 }
 
@@ -139,40 +181,47 @@ const handlePaySuccess = () => {
   payModalVisible.value = false
 }
 
-const handleSingleAction = (record: Invoice, action: 'submit' | 'confirm' | 'cancel' | 'delete') => {
-  const actions = {
-    submit: () => doSubmit(record.id),
-    confirm: () => doConfirm(record.id),
-    cancel: () => {
-      Modal.confirm({ title: '确认取消', content: '确定要取消该结算单吗？', onOk: () => doCancel(record.id) })
-    },
-    delete: () => {
-      Modal.confirm({ title: '确认删除', content: '确定要删除该结算单吗？此操作不可恢复。', onOk: () => doDelete(record.id) })
-    },
-  }
-  actions[action]()
-}
+// Computed metrics
+const thisMonthReceivable = computed(() => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  return invoices.value
+    .filter(i => new Date(i.created_at) >= start && i.final_amount > 0 && ['customer_confirmed', 'paid', 'completed'].includes(i.status))
+    .reduce((sum, i) => sum + i.final_amount, 0)
+})
 
-// 初始化
+const pendingConfirmCount = computed(() => {
+  return invoices.value.filter(i => i.status === 'pending_customer').length
+})
+
+const failedCount = computed(() => {
+  return invoices.value.filter(i => i.status === 'cancelled').length
+})
+
+const urgentCollectionCount = computed(() => {
+  const now = new Date()
+  const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+  return invoices.value.filter(i =>
+    i.status === 'customer_confirmed' &&
+    i.paid_at &&
+    new Date(i.paid_at) <= thirtyDaysLater
+  ).length
+})
+
 loadInvoices()
 </script>
 
 <style scoped>
-.invoice-page { padding: 0; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
-.header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
-.header-actions { display: flex; gap: 12px; }
-.table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow-x: auto; }
-.amount { font-weight: 500; color: #2f3645; white-space: nowrap; }
-.amount-final { font-size: 14px; font-weight: 600; color: #0369a1; white-space: nowrap; }
-.text-danger { color: #ef4444; white-space: nowrap; }
-.cell-nowrap { white-space: nowrap; }
-.text-muted { color: #8f959e; white-space: nowrap; }
-::deep(.arco-table-td),
-::deep(.arco-table-th) {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.invoice-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0;
 }
+
+.cell-nowrap { white-space: nowrap; }
+.amount { font-weight: 500; color: var(--cop-ink); }
+.amount-final { font-size: 14px; font-weight: 600; color: var(--cop-primary); }
+.text-danger { color: var(--cop-danger); }
+.text-muted { color: var(--cop-muted); }
 </style>

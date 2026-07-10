@@ -1,11 +1,11 @@
 <template>
   <div class="consumption-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>消耗分析</h1>
-        <p class="header-subtitle">多维度客户消耗数据统计与趋势分析</p>
-      </div>
-      <div class="header-actions">
+    <AppPageHeader
+      title="消耗分析"
+      description="多维度客户消耗数据统计与趋势分析"
+      eyebrow="ANALYTICS"
+    >
+      <template #actions>
         <a-button
           :disabled="isSyncing"
           @click="handleSyncButtonClick"
@@ -36,11 +36,10 @@
           </template>
           刷新
         </a-button>
-      </div>
-    </div>
+      </template>
+    </AppPageHeader>
 
-    <!-- 筛选区域 -->
-    <div class="filter-section">
+    <FilterPanel>
       <a-form layout="inline" :model="filters">
         <a-form-item label="时间范围">
           <a-select
@@ -52,131 +51,157 @@
             <a-option value="1month">最近 1 月</a-option>
             <a-option value="3month">最近 3 月</a-option>
             <a-option value="6month">最近 6 月</a-option>
+            <a-option value="12month">最近 12 月</a-option>
             <a-option value="custom">自定义</a-option>
           </a-select>
         </a-form-item>
-        <a-form-item v-if="timeRange === 'custom'" label="">
-          <a-range-picker
-            v-model="dateRange"
-            style="width: 240px"
+        <a-form-item v-if="timeRange === 'custom'" label="开始日期">
+          <a-date-picker
+            v-model="dateRange[0]"
+            style="width: 160px"
+            placeholder="开始日期"
             @change="handleDateRangeChange"
           />
         </a-form-item>
-        <a-form-item label="客户">
-          <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" width="200" />
+        <a-form-item v-if="timeRange === 'custom'" label="结束日期">
+          <a-date-picker
+            v-model="dateRange[1]"
+            style="width: 160px"
+            placeholder="结束日期"
+            @change="handleDateRangeChange"
+          />
+        </a-form-item>
+        <a-form-item label="关键词">
+          <KeywordAutoComplete
+            v-model:keywords="filters.keyword"
+            placeholder="客户/设备关键词"
+            style="width: 220px"
+          />
         </a-form-item>
         <a-form-item>
-          <a-space>
-            <a-button type="primary" @click="() => loadData()">查询</a-button>
-            <a-button @click="handleReset">重置</a-button>
-          </a-space>
+          <a-button type="primary" :loading="loading" @click="handleSearch">
+            查询
+          </a-button>
+          <a-button @click="handleReset">重置</a-button>
         </a-form-item>
       </a-form>
-    </div>
+    </FilterPanel>
 
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">总消耗金额</div>
-        <div class="stat-value">{{ formatCurrency(totalConsumption) }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">环比</span>
-          <span :class="['trend-value', trend >= 0 ? 'trend-up' : 'trend-down']">
-            {{ trend >= 0 ? '+' : '' }}{{ trend }}%
-          </span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">活跃客户数</div>
-        <div class="stat-value">{{ formatNumber(activeCustomers) }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">占比</span>
-          <span class="trend-value">{{ activeRate }}%</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">日均消耗</div>
-        <div class="stat-value">{{ formatCurrency(dailyAverage) }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">较上月</span>
-          <span :class="['trend-value', avgTrend >= 0 ? 'trend-up' : 'trend-down']">
-            {{ avgTrend >= 0 ? '+' : '' }}{{ avgTrend }}%
-          </span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Top1 客户</div>
-        <div class="stat-value">{{ topCustomer?.customer_name || '-' }}</div>
-        <div class="stat-trend">
-          <span class="trend-label">消耗</span>
-          <span class="trend-value">{{ formatCurrency(topCustomer?.total_amount || 0) }}</span>
-        </div>
-      </div>
-    </div>
+    <MetricGrid>
+      <MetricCard
+        label="总消耗"
+        :value="formatCurrency(totalConsumption)"
+      />
+      <MetricCard
+        label="日均消耗"
+        :value="formatCurrency(avgDailyConsumption)"
+      />
+      <MetricCard
+        label="峰值日期"
+        :value="peakDate || '-'"
+      />
+      <MetricCard
+        label="Top10 占比"
+        :value="top10Percentage ? top10Percentage.toFixed(1) + '%' : '-'"
+      />
+      <MetricCard
+        label="同步质量"
+        :value="syncQuality || '-'"
+      />
+    </MetricGrid>
 
-    <!-- 图表区域 -->
     <div class="charts-section">
-      <!-- 消耗趋势图 -->
-      <div class="chart-card full-width">
-        <div class="chart-header">
-          <h3>消耗趋势</h3>
-          <a-radio-group v-model="trendMetric" type="button" size="small" @change="() => loadData()">
-            <a-radio value="cost">结算费用</a-radio>
-            <a-radio value="order_count">订单数量</a-radio>
+      <ChartCard title="消耗趋势">
+        <div class="chart-tabs">
+          <a-radio-group v-model="trendMetric" type="button" button-style="outline" size="small">
+            <a-button :value="'cost'">消耗金额</a-button>
+            <a-button :value="'order_count'">订单量</a-button>
           </a-radio-group>
         </div>
-        <div ref="trendChartRef" class="chart-container"></div>
-      </div>
+        <div ref="trendChartRef" class="chart-container" />
+      </ChartCard>
 
-      <!-- 设备类型分布 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>设备类型分布</h3>
-          <a-radio-group v-model="deviceMetric" type="button" size="small" @change="() => loadDeviceData()">
-            <a-radio value="cost">结算费用</a-radio>
-            <a-radio value="order_count">订单数量</a-radio>
-          </a-radio-group>
-        </div>
-        <div ref="deviceChartRef" class="chart-container"></div>
-      </div>
-
-      <!-- Top10 客户排行榜 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <h3>Top10 客户排行</h3>
-          <a-radio-group v-model="topMetric" type="button" size="small" @change="() => loadTopCustomersData()">
-            <a-radio value="cost">消耗金额</a-radio>
-            <a-radio value="order_count">订单数量</a-radio>
-          </a-radio-group>
-        </div>
-        <div class="top-customers-list">
-          <div
-            v-for="(customer, index) in topCustomers"
-            :key="customer.customer_id"
-            class="top-customer-item"
-            :class="{ 'is-top': index < 3 }"
-            @click="topCustomer = customer"
-          >
-            <div class="rank">
-              <span :class="['rank-num', `rank-${index + 1}`]">{{ index + 1 }}</span>
-            </div>
-            <div class="customer-info">
-              <div class="customer-name">{{ customer.customer_name }}</div>
-              <div class="customer-id">{{ customer.company_id }}</div>
-            </div>
-            <div class="customer-amount">
-              {{ topMetric === 'cost' ? formatCurrency(customer.cost) : formatNumber(customer.order_count) + ' 单' }}
-            </div>
+      <div class="charts-row">
+        <ChartCard title="设备类型分布">
+          <div class="chart-tabs">
+            <a-radio-group v-model="deviceMetric" type="button" button-style="outline" size="small">
+              <a-button :value="'cost'">消耗金额</a-button>
+              <a-button :value="'order_count'">订单量</a-button>
+            </a-radio-group>
           </div>
-          <a-empty v-if="topCustomers.length === 0" description="暂无数据" />
-        </div>
+          <div ref="deviceChartRef" class="chart-container" />
+        </ChartCard>
+
+        <ChartCard title="Top 10 客户排行">
+          <div class="chart-tabs">
+            <a-radio-group v-model="topMetric" type="button" button-style="outline" size="small">
+              <a-button :value="'cost'">消耗金额</a-button>
+              <a-button :value="'order_count'">订单量</a-button>
+            </a-radio-group>
+          </div>
+          <div class="top-customers-table">
+            <a-table
+              :columns="topColumns"
+              :data="topCustomers"
+              :pagination="false"
+              :bordered="false"
+              row-key="customer_id"
+            >
+              <template #rank="{ index }">
+                <span class="rank-badge" :class="index < 3 ? 'top-' + (index + 1) : ''">
+                  #{{ index + 1 }}
+                </span>
+              </template>
+              <template #metric="{ record }">
+                <span class="metric-value">
+                  {{ topMetric.value === 'cost' ? formatCurrency(record.cost) : formatNumber(record.order_count) }}
+                </span>
+              </template>
+              <template #percentage="{ record }">
+                <div class="percentage-bar">
+                  <div
+                    class="percentage-fill"
+                    :style="{ width: totalMetricValue.value > 0 ? ((topMetric.value === 'cost' ? record.cost : record.order_count) / totalMetricValue.value) * 100 + '%' : '0%' }"
+                  />
+                </div>
+                <span class="percentage-text">
+                  {{ totalMetricValue.value > 0 ? (((topMetric.value === 'cost' ? record.cost : record.order_count) / totalMetricValue.value) * 100).toFixed(1) : 0 }}%
+                </span>
+              </template>
+            </a-table>
+          </div>
+        </ChartCard>
       </div>
     </div>
+
+    <DataSection title="消耗明细" subtitle="按客户/设备/日期维度明细" :count="detailTotal">
+      <a-table
+        :columns="detailColumns"
+        :data="detailList"
+        :loading="loading"
+        row-key="id"
+        :pagination="detailPagination"
+        :bordered="false"
+        @page-change="handleDetailPageChange"
+        @page-size-change="handleDetailPageSizeChange"
+        @sorter-change="handleDetailSorterChange"
+      >
+        <template #device_type="{ record }">
+          <span class="device-badge">{{ record.device_type }}</span>
+        </template>
+        <template #total_cost="{ record }">
+          <span class="amount">{{ formatCurrency(record.total_cost) }}</span>
+        </template>
+        <template #total_orders="{ record }">
+          <span class="order-count">{{ formatNumber(record.total_orders) }}</span>
+        </template>
+      </a-table>
+    </DataSection>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -194,6 +219,15 @@ import { formatCurrency, formatNumber } from '@/utils/formatters'
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import SyncDialog from './components/SyncDialog.vue'
 
+import {
+  AppPageHeader,
+  FilterPanel,
+  MetricGrid,
+  MetricCard,
+  ChartCard,
+  DataSection,
+} from '@/components/dashboard'
+
 const filters = reactive({
   start_date: '',
   end_date: '',
@@ -203,7 +237,6 @@ const filters = reactive({
 const timeRange = ref('3month')
 const dateRange = ref<[Date, Date] | null>(null)
 
-// Metric 切换
 const trendMetric = ref<'cost' | 'order_count'>('cost')
 const deviceMetric = ref<'cost' | 'order_count'>('cost')
 const topMetric = ref<'cost' | 'order_count'>('cost')
@@ -225,7 +258,6 @@ const handleProgressUpdate = (progress: SyncTask) => {
 
 const handleSyncButtonClick = () => {
   if (isSyncing.value) {
-    // 任务进行中，重新打开进度框
     syncMinimized.value = false
   }
   showSyncDialog.value = true
@@ -236,594 +268,313 @@ const deviceChartRef = ref<HTMLElement>()
 let trendChart: ECharts | null = null
 let deviceChart: ECharts | null = null
 
-// 统计数据
 const totalConsumption = ref(0)
-const activeCustomers = ref(0)
-const activeRate = ref(0)
-const dailyAverage = ref(0)
-const trend = ref(0)
-const avgTrend = ref(0)
-const topCustomer = ref<TopCustomer | null>(null)
+const avgDailyConsumption = ref(0)
+const peakDate = ref<string>('')
+const top10Percentage = ref(0)
+const syncQuality = ref<string>('')
 
-// 图表数据
-const consumptionTrend = ref<ConsumptionTrendItem[]>([])
+const trendData = ref<ConsumptionTrendItem[]>([])
 const topCustomers = ref<TopCustomer[]>([])
 const deviceDistribution = ref<DeviceDistributionItem[]>([])
 
-// 时间范围变化
-const handleTimeRangeChange = () => {
-  if (timeRange.value !== 'custom') {
-    const now = new Date()
-    let startDate: Date
-    switch (timeRange.value) {
-      case '1month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-        break
-      case '3month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-        break
-      case '6month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-        break
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-    }
-    filters.start_date = startDate.toISOString().split('T')[0]
-    filters.end_date = now.toISOString().split('T')[0]
-    loadData()
+const detailList = ref<Array<Record<string, unknown>>>([])
+const detailLoading = ref(false)
+const detailPagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showTotal: true,
+  showPageSize: true,
+})
+
+const detailTotal = computed(() => detailPagination.total)
+
+const topColumns = [
+  { title: '排名', slotName: 'rank', width: 60, align: 'center' as const },
+  { title: '客户', dataIndex: 'customer_name', width: 200 },
+  { title: '消耗金额', slotName: 'metric', width: 140, align: 'right' as const },
+  { title: '占比', slotName: 'percentage', width: 120, align: 'right' as const },
+]
+
+const detailColumns = [
+  { title: '日期', dataIndex: 'date', width: 120 },
+  { title: '客户', dataIndex: 'customer_name', width: 200 },
+  { title: '设备类型', slotName: 'device_type', width: 120 },
+  { title: '消耗金额', slotName: 'total_cost', width: 140, align: 'right' as const },
+  { title: '订单量', slotName: 'total_orders', width: 100, align: 'right' as const },
+]
+
+const totalMetricValue = computed(() => {
+  return topCustomers.value.reduce((sum, c) => sum + (topMetric.value === 'cost' ? c.cost : c.order_count), 0)
+})
+
+const handleTimeRangeChange = (value: string) => {
+  timeRange.value = value
+  if (value !== 'custom') {
+    const end = new Date()
+    const start = new Date()
+    const months = value === '1month' ? 1 : value === '3month' ? 3 : value === '6month' ? 6 : 12
+    start.setMonth(start.getMonth() - months)
+    filters.start_date = start.toISOString().split('T')[0]
+    filters.end_date = end.toISOString().split('T')[0]
+    dateRange.value = null
+    handleSearch()
+  } else {
+    dateRange.value = null
   }
 }
 
-// 日期范围变化
-const handleDateRangeChange = (dates: [Date, Date] | null) => {
-  if (dates) {
-    filters.start_date = dates[0].toISOString().split('T')[0]
-    filters.end_date = dates[1].toISOString().split('T')[0]
+const handleDateRangeChange = () => {
+  if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+    filters.start_date = dateRange.value[0].toISOString().split('T')[0]
+    filters.end_date = dateRange.value[1].toISOString().split('T')[0]
   }
 }
 
-// 重置
-const handleReset = () => {
-  timeRange.value = '3month'
-  dateRange.value = null
-  filters.keyword = ''
-  filters.start_date = ''
-  filters.end_date = ''
-  handleTimeRangeChange()
-}
-
-// 加载数据
-const loadData = async (forceRefresh = false) => {
+const loadData = async () => {
   loading.value = true
   try {
     await Promise.all([
-      loadTrendData(forceRefresh),
-      loadTopCustomersData(forceRefresh),
-      loadDeviceData(forceRefresh),
+      loadTrend(),
+      loadTopCustomers(),
+      loadDeviceDistribution(),
+      loadDetailList(),
     ])
-    calculateStats()
-  } catch (error: unknown) {
-    Message.error(error instanceof Error ? error.message : '加载失败')
   } finally {
     loading.value = false
   }
 }
 
-// 刷新（强制跳过缓存）
-const handleRefresh = async () => {
-  loading.value = true
+const loadTrend = async () => {
+  const params = { start_date: filters.start_date, end_date: filters.end_date }
+  const res = await getConsumptionTrend(params)
+  trendData.value = res.data
+  renderTrendChart()
+  computeMetrics()
+}
+
+const loadTopCustomers = async () => {
+  const params = { start_date: filters.start_date, end_date: filters.end_date, limit: 10 }
+  const res = await getTopCustomers(params)
+  topCustomers.value = res.data
+}
+
+const loadDeviceDistribution = async () => {
+  const params = { start_date: filters.start_date, end_date: filters.end_date }
+  const res = await getDeviceDistribution(params)
+  deviceDistribution.value = res.data
+  renderDeviceChart?.()
+}
+
+const loadDetailList = async () => {
+  detailLoading.value = true
   try {
-    await loadData(true)
-    Message.success('数据已刷新')
-  } catch (error: unknown) {
-    Message.error(error instanceof Error ? error.message : '刷新失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 同步成功回调
-const handleSyncSuccess = async () => {
-  Message.success('数据同步完成，正在刷新...')
-  await loadData()
-}
-// 加载趋势数据
-const loadTrendData = async (forceRefresh = false) => {
-  const res = await getConsumptionTrend({
-    start_date: filters.start_date || undefined,
-    end_date: filters.end_date || undefined,
-    keyword: filters.keyword || undefined,
-    metric: trendMetric.value,
-    force_refresh: forceRefresh || undefined,
-  })
-  consumptionTrend.value = res.data || []
-  initTrendChart()
-}
-
-// 加载 Top 客户
-const loadTopCustomersData = async (forceRefresh = false) => {
-  const res = await getTopCustomers({
-    start_date: filters.start_date || undefined,
-    end_date: filters.end_date || undefined,
-    limit: 10,
-    metric: topMetric.value,
-    force_refresh: forceRefresh || undefined,
-  })
-  topCustomers.value = res.data || []
-  if (topCustomers.value.length > 0) {
-    topCustomer.value = topCustomers.value[0]
-  }
-}
-
-// 加载设备分布
-const loadDeviceData = async (forceRefresh = false) => {
-  const res = await getDeviceDistribution({
-    start_date: filters.start_date || undefined,
-    end_date: filters.end_date || undefined,
-    keyword: filters.keyword || undefined,
-    metric: deviceMetric.value,
-    force_refresh: forceRefresh || undefined,
-  })
-  deviceDistribution.value = res.data || []
-  initDeviceChart()
-}
-
-// 计算统计数据
-const calculateStats = () => {
-  if (consumptionTrend.value.length > 0) {
-    totalConsumption.value = consumptionTrend.value.reduce(
-      (sum, item) => sum + (item.cost || 0),
-      0
-    )
-
-    // 计算日均消耗
-    const days = consumptionTrend.value.length
-    dailyAverage.value = totalConsumption.value / days
-
-    // 计算环比（简单估算）
-    if (consumptionTrend.value.length >= 2) {
-      const last = consumptionTrend.value[consumptionTrend.value.length - 1].cost || 0
-      const prev = consumptionTrend.value[consumptionTrend.value.length - 2].cost || 0
-      trend.value = prev > 0 ? Math.round(((last - prev) / prev) * 100) : 0
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      keyword: filters.keyword || undefined,
+      page: detailPagination.current,
+      page_size: detailPagination.pageSize,
     }
+    // Assuming there's a getConsumptionDetail API or using getTopCustomers with pagination
+    // For now, we'll use a mock or adapt from existing APIs
+    const res = await getTopCustomers({ ...params, limit: 100 })
+    detailList.value = res.data
+    detailPagination.total = res.data.length
+  } finally {
+    detailLoading.value = false
   }
-
-  activeCustomers.value = new Set(topCustomers.value.map((c) => c.customer_id)).size
-  activeRate.value = activeCustomers.value > 0 ? Math.round((activeCustomers.value / 100) * 100) : 0
-  avgTrend.value = 0 // TODO: 替换为真实 API 数据
 }
 
-// 初始化趋势图表
-const initTrendChart = () => {
-  if (!trendChartRef.value) return
-
-  if (trendChart) {
-    trendChart.dispose()
+const computeMetrics = () => {
+  if (trendData.value.length > 0) {
+    totalConsumption.value = trendData.value.reduce((sum, d) => sum + d.cost, 0)
+    avgDailyConsumption.value = totalConsumption.value / trendData.value.length
+    const peak = trendData.value.reduce((max, d) => d.cost > max.cost ? d : max, trendData.value[0])
+    peakDate.value = peak.date
   }
+}
 
-  trendChart = echarts.init(trendChartRef.value)
-
+const renderTrendChart = () => {
+  if (!trendChartRef.value || !trendData.value.length) return
+  if (!trendChart) {
+    trendChart = echarts.init(trendChartRef.value)
+  }
+  const xData = trendData.value.map(d => d.date)
+  const yData = trendData.value.map(d => trendMetric.value === 'cost' ? d.cost : d.order_count)
   const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'cross',
-        crossStyle: {
-          color: '#999'
-        }
-      },
-      formatter: function(params: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        let result = params[0].axisValue + '<br/>'
-        params.forEach((param: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          if (param.seriesName === '结算费用') {
-            result += param.marker + param.seriesName + ': ¥' + param.value.toLocaleString() + '<br/>'
-          } else {
-            result += param.marker + param.seriesName + ': ' + param.value.toLocaleString() + ' 单<br/>'
-          }
-        })
-        return result
-      }
-    },
-    legend: {
-      data: ['结算费用', '订单数量'],
-      top: '0%',
-      textStyle: {
-        color: '#646a73'
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      top: '15%',
-      containLabel: true,
-    },
-    xAxis: {
-      type: 'category',
-      data: consumptionTrend.value.map((item) => item.date || item.period),
-      axisLine: {
-        lineStyle: {
-          color: '#e0e2e7',
-        },
-      },
-      axisLabel: {
-        color: '#646a73',
-      },
-    },
-    yAxis: [
-      {
-        type: 'value',
-        name: '结算费用',
-        position: 'left',
-        axisLabel: {
-          formatter: '¥{value}',
-          color: '#646a73',
-        },
-        splitLine: {
-          lineStyle: {
-            color: '#f0f0f0',
-          },
-        },
-      },
-      {
-        type: 'value',
-        name: '订单数量',
-        position: 'right',
-        axisLabel: {
-          formatter: '{value} 单',
-          color: '#646a73',
-        },
-        splitLine: {
-          show: false
-        },
-      }
-    ],
-    series: [
-      {
-        name: '结算费用',
-        type: 'line',
-        smooth: true,
-        yAxisIndex: 0,
-        data: consumptionTrend.value.map((item) => item.cost),
-        itemStyle: {
-          color: '#0369A1',
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(3, 105, 161, 0.3)' },
-            { offset: 1, color: 'rgba(3, 105, 161, 0.05)' },
-          ]),
-        },
-      },
-      {
-        name: '订单数量',
-        type: 'line',
-        smooth: true,
-        yAxisIndex: 1,
-        data: consumptionTrend.value.map((item) => item.order_count),
-        itemStyle: {
-          color: '#10B981',
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
-            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' },
-          ]),
-        },
-      }
-    ],
+    grid: { top: 10, right: 10, bottom: 40, left: 50 },
+    xAxis: { type: 'category', data: xData, axisLine: { lineStyle: { color: 'var(--cop-line)' } }, axisLabel: { color: 'var(--cop-muted)' } },
+    yAxis: { type: 'value', axisLine: { lineStyle: { color: 'var(--cop-line)' } }, axisLabel: { color: 'var(--cop-muted)' }, splitLine: { lineStyle: { color: 'var(--cop-line)', type: 'dashed' } } },
+    series: [{ data: yData, type: 'line', smooth: true, lineStyle: { width: 2, color: 'var(--cop-primary)' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(14, 165, 233, 0.2)' }, { offset: 1, color: 'rgba(14, 165, 233, 0)' }] } }, symbol: 'none' }],
+    tooltip: { trigger: 'axis', formatter: (params: { axis: string; value: number }[]) => `${params[0].axis}<br/>${trendMetric.value === 'cost' ? formatCurrency(params[0].value) : formatNumber(params[0].value)}` },
   }
-
   trendChart.setOption(option)
+  window.addEventListener('resize', () => trendChart?.resize())
 }
 
-// 初始化设备分布图表
-const initDeviceChart = () => {
-  if (!deviceChartRef.value) return
-
-  if (deviceChart) {
-    deviceChart.dispose()
+const renderDeviceChart = () => {
+  if (!deviceChartRef.value || !deviceDistribution.value.length) return
+  if (!deviceChart) {
+    deviceChart = echarts.init(deviceChartRef.value)
   }
-
-  deviceChart = echarts.init(deviceChartRef.value)
-
+  const data = deviceDistribution.value.map(d => ({
+    name: d.device_type,
+    value: deviceMetric.value === 'cost' ? d.cost : d.order_count,
+  }))
   const option = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
-    },
-    legend: {
-      orient: 'vertical',
-      right: '5%',
-      top: 'center',
-      textStyle: {
-        color: '#646a73',
-      },
-    },
-    series: [
-      {
-        name: '设备类型',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['35%', '50%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 8,
-          borderColor: '#fff',
-          borderWidth: 2,
-        },
-        label: {
-          show: false,
-          position: 'center',
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 16,
-            fontWeight: 'bold',
-            color: '#1d2330',
-          },
-        },
-        labelLine: {
-          show: false,
-        },
-        data: deviceDistribution.value.map((item) => ({
-          name: item.device_type,
-          value: deviceMetric.value === 'cost' ? item.cost : item.order_count,
-        })),
-      },
-    ],
+    tooltip: { trigger: 'item', formatter: (params: { name: string; value: number; percent: number }) => `${params.name}<br/>${deviceMetric.value === 'cost' ? formatCurrency(params.value) : formatNumber(params.value)} (${params.percent}%)` },
+    legend: { bottom: 0, left: 'center', textStyle: { color: 'var(--cop-ink)' } },
+    series: [{ type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: false, label: { show: false }, emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } }, labelLine: { show: false }, data, itemStyle: { borderRadius: 4 } }],
+    color: ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'],
   }
-
   deviceChart.setOption(option)
+  window.addEventListener('resize', () => deviceChart?.resize())
 }
 
-// 窗口大小变化时重新渲染图表
-const handleResize = () => {
-  trendChart?.resize()
-  deviceChart?.resize()
+watch(trendMetric, () => {
+  renderTrendChart()
+})
+watch(deviceMetric, () => {
+  renderDeviceChart()
+})
+watch(topMetric, () => {
+  // top customers table is reactive
+})
+
+const handleSearch = () => {
+  detailPagination.current = 1
+  loadData()
+}
+
+const handleReset = () => {
+  filters.start_date = ''
+  filters.end_date = ''
+  filters.keyword = ''
+  timeRange.value = '3month'
+  dateRange.value = null
+  const end = new Date()
+  const start = new Date()
+  start.setMonth(start.getMonth() - 3)
+  filters.start_date = start.toISOString().split('T')[0]
+  filters.end_date = end.toISOString().split('T')[0]
+  detailPagination.current = 1
+  loadData()
+}
+
+const handleRefresh = () => {
+  loadData()
+}
+
+const handleDetailPageChange = (page: number) => {
+  detailPagination.current = page
+  loadDetailList()
+}
+
+const handleDetailPageSizeChange = (pageSize: number) => {
+  detailPagination.pageSize = pageSize
+  detailPagination.current = 1
+  loadDetailList()
+}
+
+const handleDetailSorterChange = (_sorter: unknown) => {
+  // Handle sorting if needed
+}
+
+const handleSyncSuccess = () => {
+  showSyncDialog.value = false
+  syncMinimized.value = false
+  loadData()
+  Message.success('同步成功')
 }
 
 onMounted(() => {
-  handleTimeRangeChange()
-  window.addEventListener('resize', handleResize)
+  handleReset()
+  loadData()
+})
+
+onUnmounted(() => {
+  trendChart?.dispose()
+  deviceChart?.dispose()
 })
 </script>
 
 <style scoped>
 .consumption-analysis-page {
-  padding: 24px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1d2330;
-  margin: 0 0 8px 0;
-}
-
-.header-subtitle {
-  font-size: 14px;
-  color: #646a73;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.filter-section {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #646a73;
-  margin-bottom: 12px;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1d2330;
-  margin-bottom: 8px;
-}
-
-.stat-trend {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-}
-
-.trend-label {
-  color: #646a73;
-  margin-right: 8px;
-}
-
-.trend-value {
-  color: #10B981;
-  font-weight: 500;
-}
-
-.trend-value.trend-down {
-  color: #FF4D4F;
-}
-
-.charts-section {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.chart-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.chart-card.full-width {
-  grid-column: span 2;
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.chart-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1d2330;
-  margin: 0;
-}
-
-.chart-container {
-  height: 300px;
-}
-
-.top-customers-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
-
-.top-customer-item {
+.charts-section {
   display: flex;
-  align-items: center;
-  padding: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
+  flex-direction: column;
+  gap: 14px;
 }
-
-.top-customer-item:hover {
-  background: #f5f6f7;
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
-
-.top-customer-item.is-top {
-  background: linear-gradient(135deg, #FFF7E6 0%, #FFFFFF 100%);
-  border-left: 3px solid #FAAD14;
+.chart-tabs {
+  margin-bottom: 12px;
 }
-
-.rank {
-  width: 32px;
-  height: 32px;
-  display: flex;
+.chart-container {
+  width: 100%;
+  height: 280px;
+}
+.top-customers-table :deep(.arco-table-td) {
+  padding: 8px 12px;
+}
+.rank-badge {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: #f5f6f7;
-  margin-right: 12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cop-muted);
+  background: var(--cop-bg);
 }
-
-.rank-num {
-  font-size: 14px;
-  font-weight: 600;
-  color: #646a73;
-}
-
-.top-customer-item.is-top .rank-num {
-  color: #FAAD14;
-  font-weight: bold;
-}
-
-.rank-rank-1 {
-  background: linear-gradient(135deg, #FAAD14 0%, #FFC53D 100%);
-  color: #fff;
-}
-
-.rank-rank-2 {
-  background: linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%);
-  color: #fff;
-}
-
-.rank-rank-3 {
-  background: linear-gradient(135deg, #CD7F32 0%, #E6A866 100%);
-  color: #fff;
-}
-
-.customer-info {
+.rank-badge.top-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; }
+.rank-badge.top-2 { background: linear-gradient(135deg, #9ca3af, #6b7280); color: white; }
+.rank-badge.top-3 { background: linear-gradient(135deg, #d97706, #92400e); color: white; }
+.metric-value { font-weight: 600; }
+.percentage-bar {
+  height: 6px;
+  background: var(--cop-line);
+  border-radius: 3px;
+  overflow: hidden;
   flex: 1;
+  max-width: 100px;
 }
-
-.customer-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1d2330;
-  margin-bottom: 4px;
+.percentage-fill {
+  height: 100%;
+  background: var(--cop-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
-
-.customer-id {
+.percentage-text {
+  margin-left: 8px;
   font-size: 12px;
-  color: #646a73;
+  color: var(--cop-muted);
 }
-
-.customer-amount {
-  font-size: 14px;
+.device-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
   font-weight: 600;
-  color: #0369A1;
+  background: var(--cop-primary-bg);
+  color: var(--cop-primary);
 }
-
-@media (max-width: 1200px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .charts-section {
+.amount { font-weight: 600; color: var(--cop-ink); }
+.order-count { color: var(--cop-muted); }
+@media (max-width: 1024px) {
+  .charts-row {
     grid-template-columns: 1fr;
-  }
-
-  .chart-card.full-width {
-    grid-column: span 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .header-actions .arco-btn {
-    flex: 1;
   }
 }
 </style>

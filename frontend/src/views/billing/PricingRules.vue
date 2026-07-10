@@ -1,44 +1,32 @@
 <template>
   <div class="pricing-rules">
-    <a-card>
-      <template #title>
-        <a-space>
-          <span>定价规则</span>
-          <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
-            <template #icon><icon-plus /></template>
-            新建规则
-          </a-button>
-        </a-space>
+    <AppPageHeader
+      title="计价规则"
+      description="按客户/设备/楼层维度维护计价规则"
+      eyebrow="BILLING"
+    >
+      <template #actions>
+        <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
+          <template #icon><icon-plus /></template>新建规则
+        </a-button>
       </template>
+    </AppPageHeader>
 
-      <!-- 筛选区域 -->
+    <FilterPanel>
       <a-form :model="filters" layout="inline" class="filter-form">
         <a-form-item label="客户">
-          <KeywordAutoComplete
-            v-model="filters.keyword"
-            placeholder="公司名称/公司 ID"
-            width="200"
-          />
+          <CustomerAutoComplete v-model="filters.keyword" placeholder="请输入客户名称/ID" style="width: 220px" />
         </a-form-item>
         <a-form-item label="设备类型">
-          <a-select
-            v-model="filters.device_type"
-            placeholder="请选择"
-            style="width: 150px"
-            allow-clear
-          >
-            <a-option value="X">X 系列</a-option>
-            <a-option value="N">N 系列</a-option>
-            <a-option value="L">L 系列</a-option>
+          <a-select v-model="filters.device_type" placeholder="请选择" allow-clear style="width: 160px">
+            <a-option value="X">X光机</a-option>
+            <a-option value="CT">CT</a-option>
+            <a-option value="MR">MR</a-option>
+            <a-option value="DR">DR</a-option>
           </a-select>
         </a-form-item>
         <a-form-item label="计费类型">
-          <a-select
-            v-model="filters.pricing_type"
-            placeholder="请选择"
-            style="width: 150px"
-            allow-clear
-          >
+          <a-select v-model="filters.pricing_type" placeholder="请选择" allow-clear style="width: 160px">
             <a-option value="fixed">定价结算</a-option>
             <a-option value="tiered">阶梯结算</a-option>
             <a-option value="package">包年结算</a-option>
@@ -51,84 +39,64 @@
           </a-space>
         </a-form-item>
       </a-form>
+    </FilterPanel>
 
-      <!-- 表格 -->
-      <a-table
-        :columns="columns"
-        :data="data"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="onPageChange"
-        @page-size-change="onPageSizeChange"
-      >
-        <template #customer_name="{ record }">
-          <span>{{ record.customer_name || `客户${record.customer_id}` }}</span>
-        </template>
-        <template #device_type="{ record }">
-          <a-tag
-            :color="
-              record.device_type === 'X'
-                ? 'arcoblue'
-                : record.device_type === 'N'
-                  ? 'green'
-                  : 'orange'
-            "
-          >
-            {{ record.device_type }}系列
-          </a-tag>
-        </template>
-        <template #layer_type="{ record }">
-          <a-tag :color="record.layer_type === 'multi' ? 'purple' : 'blue'">
-            {{ record.layer_type === 'multi' ? '多层' : '单层' }}
-          </a-tag>
-        </template>
-        <template #pricing_type="{ record }">
-          <a-tag
-            :color="
-              record.pricing_type === 'fixed'
-                ? 'blue'
-                : record.pricing_type === 'tiered'
-                  ? 'green'
-                  : 'orange'
-            "
-          >
-            {{ getPricingTypeText(record.pricing_type) }}
-          </a-tag>
-        </template>
-        <template #unit_price="{ record }">
-          <span v-if="record.unit_price">¥{{ record.unit_price.toFixed(2) }}</span>
-          <span v-else>-</span>
-        </template>
-        <template #valid_period="{ record }">
-          <span v-if="record.effective_date && record.expiry_date">
-            {{ record.effective_date }} 至 {{ record.expiry_date }}
-          </span>
-          <span v-else-if="record.effective_date"> {{ record.effective_date }} 起 </span>
-          <span v-else>-</span>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('billing:edit')"
-              type="text"
-              size="small"
-              @click="showEditModal(record)"
-              >编辑</a-button
-            >
-            <a-popconfirm
-              v-if="can('billing:delete')"
-              content="确定要删除此定价规则吗？"
-              @ok="handleDelete(record)"
-            >
-              <a-button type="text" size="small" status="danger">删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </a-table>
-    </a-card>
+    <DataSection title="计价规则列表" :count="pagination.total">
+      <CompactTableShell>
+        <a-table
+          :columns="columns"
+          :data="data"
+          :loading="loading"
+          row-key="id"
+          :pagination="pagination"
+          @page-change="onPageChange"
+          @page-size-change="onPageSizeChange"
+        >
+          <template #customer_name="{ record }">
+            <span>{{ record.customer_name || '—' }}</span>
+          </template>
+          <template #device_type="{ record }">
+            <span class="device-badge">{{ record.device_type }}</span>
+          </template>
+          <template #layer_type="{ record }">
+            <span>{{ record.layer_type === 'single' ? '单层' : '多层' }}</span>
+          </template>
+          <template #pricing_type="{ record }">
+            <span class="pricing-badge">{{ getPricingTypeText(record.pricing_type) }}</span>
+          </template>
+          <template #unit_price="{ record }">
+            <span v-if="record.unit_price != null" class="amount">¥{{ record.unit_price }}</span>
+            <span v-else>—</span>
+          </template>
+          <template #package_type="{ record }">
+            <span v-if="record.package_type">{{ record.package_type }}</span>
+            <span v-else>—</span>
+          </template>
+          <template #valid_period="{ record }">
+            <span v-if="record.effective_date || record.expiry_date">
+              {{ record.effective_date ? formatDate(record.effective_date) : '—' }}
+              ~
+              {{ record.expiry_date ? formatDate(record.expiry_date) : '长期' }}
+            </span>
+            <span v-else>—</span>
+          </template>
+          <template #action="{ record }">
+            <a-dropdown>
+              <template #trigger>
+                <a-button size="small" ghost>操作</a-button>
+              </template>
+              <template #overlay>
+                <a-menu @select="key => handleAction(record, key as string)">
+                  <a-menu-item key="edit">编辑</a-menu-item>
+                  <a-menu-item key="delete">删除</a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </template>
+        </a-table>
+      </CompactTableShell>
+    </DataSection>
 
-    <!-- 创建/编辑规则弹窗 -->
     <a-modal
       v-model:visible="modalVisible"
       :title="modalTitle"
@@ -137,102 +105,49 @@
       @before-ok="handleSubmit"
     >
       <a-form :model="formData" layout="vertical">
-        <a-form-item label="客户" :rules="[{ required: true, message: '请选择客户' }]">
-          <CustomerAutoComplete
-            v-model="formData.customer_id"
-            placeholder="请输入客户名称搜索"
-            width="100%"
-          />
+        <a-form-item label="客户" required>
+          <CustomerAutoComplete v-model="formData.customer_id" placeholder="请选择客户" style="width: 100%" />
         </a-form-item>
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="设备类型" :rules="[{ required: true, message: '请选择设备类型' }]">
-              <a-select v-model="formData.device_type" placeholder="请选择">
-                <a-option value="X">X 系列</a-option>
-                <a-option value="N">N 系列</a-option>
-                <a-option value="L">L 系列</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="楼层类型" :rules="[{ required: true, message: '请选择楼层类型' }]">
-              <a-select v-model="formData.layer_type" placeholder="请选择">
-                <a-option value="single">单层</a-option>
-                <a-option value="multi">多层</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="计费类型" :rules="[{ required: true, message: '请选择计费类型' }]">
-              <a-select
-                v-model="formData.pricing_type"
-                placeholder="请选择"
-                @change="onPricingTypeChange"
-              >
-                <a-option value="fixed">定价结算</a-option>
-                <a-option value="tiered">阶梯结算</a-option>
-                <a-option value="package">包年结算</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <!-- 定价结算 -->
-        <a-form-item
-          v-if="formData.pricing_type === 'fixed'"
-          label="单价"
-          :rules="[{ required: true, message: '请输入单价' }]"
-        >
-          <a-input-number
-            v-model="formData.unit_price"
-            placeholder="请输入单价"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-          >
-            <template #prefix>¥</template>
-          </a-input-number>
-        </a-form-item>
-
-        <!-- 阶梯结算 -->
-        <a-form-item v-if="formData.pricing_type === 'tiered'" label="阶梯配置">
-          <a-alert type="info" style="margin-bottom: 12px">
-            阶梯配置需要通过 JSON
-            格式输入，例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]
-          </a-alert>
-          <a-textarea
-            v-model="formData.tiersJson"
-            placeholder='例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]'
-            :rows="4"
-          />
-        </a-form-item>
-
-        <!-- 包年结算 -->
-        <a-form-item
-          v-if="formData.pricing_type === 'package'"
-          label="套餐类型"
-          :rules="[{ required: true, message: '请选择套餐类型' }]"
-        >
-          <a-select v-model="formData.package_type" placeholder="请选择">
-            <a-option value="A">A 套餐</a-option>
-            <a-option value="B">B 套餐</a-option>
-            <a-option value="C">C 套餐</a-option>
-            <a-option value="D">D 套餐</a-option>
+        <a-form-item label="设备类型" required>
+          <a-select v-model="formData.device_type" placeholder="请选择" style="width: 100%">
+            <a-option value="X">X光机</a-option>
+            <a-option value="CT">CT</a-option>
+            <a-option value="MR">MR</a-option>
+            <a-option value="DR">DR</a-option>
           </a-select>
         </a-form-item>
-
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="生效日期" :rules="[{ required: true, message: '请选择生效日期' }]">
-              <a-date-picker v-model="formData.effective_date" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="失效日期">
-              <a-date-picker v-model="formData.expiry_date" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <a-form-item label="楼层类型" required>
+          <a-radio-group v-model="formData.layer_type">
+            <a-radio value="single">单层</a-radio>
+            <a-radio value="multi">多层</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="计费类型" required>
+          <a-select v-model="formData.pricing_type" placeholder="请选择" style="width: 100%" @change="onPricingTypeChange">
+            <a-option value="fixed">定价结算</a-option>
+            <a-option value="tiered">阶梯结算</a-option>
+            <a-option value="package">包年结算</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item v-if="formData.pricing_type === 'fixed'" label="单价" required>
+          <a-input-number v-model="formData.unit_price" :min="0" :precision="2" style="width: 100%" />
+        </a-form-item>
+        <a-form-item v-if="formData.pricing_type === 'tiered'" label="阶梯配置 (JSON)">
+          <a-textarea v-model="formData.tiersJson" :rows="4" placeholder='[{"min": 0, "max": 100, "price": 10}, {"min": 101, "max": null, "price": 8}]' style="width: 100%" />
+        </a-form-item>
+        <a-form-item v-if="formData.pricing_type === 'package'" label="套餐类型">
+          <a-select v-model="formData.package_type" placeholder="请选择" style="width: 100%">
+            <a-option value="basic">基础套餐</a-option>
+            <a-option value="standard">标准套餐</a-option>
+            <a-option value="premium">高级套餐</a-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="生效日期" required>
+          <a-date-picker v-model="formData.effective_date" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="失效日期">
+          <a-date-picker v-model="formData.expiry_date" style="width: 100%" />
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -240,12 +155,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import { IconPlus } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
-import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import { formatDate } from '@/utils/formatters'
+
+import {
+  AppPageHeader,
+  FilterPanel,
+  DataSection,
+  CompactTableShell,
+} from '@/components/dashboard'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -260,7 +182,6 @@ interface PricingRule {
   unit_price?: number
   tiers?: Record<string, unknown>
   package_type?: string
-  package_limits?: Record<string, unknown>
   effective_date?: string
   expiry_date?: string
 }
@@ -271,9 +192,9 @@ const columns = [
   { title: '楼层类型', dataIndex: 'layer_type', slotName: 'layer_type', width: 100 },
   { title: '计费类型', dataIndex: 'pricing_type', slotName: 'pricing_type', width: 120 },
   { title: '单价', dataIndex: 'unit_price', slotName: 'unit_price', width: 100 },
-  { title: '套餐类型', dataIndex: 'package_type', width: 100 },
+  { title: '套餐类型', dataIndex: 'package_type', slotName: 'package_type', width: 100 },
   { title: '有效期', slotName: 'valid_period', width: 200 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' },
+  { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
 ]
 
 const data = ref<PricingRule[]>([])
@@ -416,83 +337,77 @@ const handleSubmit = async () => {
     Message.warning('请选择生效日期')
     return false
   }
+  if (formData.pricing_type === 'fixed' && formData.unit_price == null) {
+    Message.warning('请输入单价')
+    return false
+  }
+  if (formData.pricing_type === 'tiered' && !formData.tiersJson.trim()) {
+    Message.warning('请输入阶梯配置')
+    return false
+  }
+  if (formData.pricing_type === 'package' && !formData.package_type) {
+    Message.warning('请选择套餐类型')
+    return false
+  }
 
   modalLoading.value = true
   try {
-    // 提交前检查冲突
-    const conflictRes = await billingApi.checkPricingRuleConflict({
-      customer_id: formData.customer_id,
-      device_type: formData.device_type,
-      layer_type: formData.layer_type,
-      effective_date: formData.effective_date,
-      expiry_date: formData.expiry_date,
-      exclude_id: isEdit.value && formData.id ? formData.id : undefined,
-    })
-
-    if (conflictRes.data.has_conflict) {
-      const conflictRules = conflictRes.data.conflicting_rules
-      const conflictMsg = conflictRules
-        .map(
-          (r: billingApi.ConflictRule) =>
-            `规则ID ${r.id}（${r.pricing_type}）：${r.effective_date} ~ ${r.expiry_date || '永久'}`
-        )
-        .join('\n')
-      Message.error({
-        content: `有效期冲突，已存在以下规则：\n${conflictMsg}`,
-        duration: 5000,
-      })
-      return false
+    let tiers: Record<string, unknown> | undefined
+    if (formData.pricing_type === 'tiered') {
+      try {
+        tiers = JSON.parse(formData.tiersJson)
+      } catch {
+        Message.warning('阶梯配置 JSON 格式错误')
+        return false
+      }
     }
 
-    const data: Partial<PricingRule> = {
+    const payload = {
       customer_id: formData.customer_id,
       device_type: formData.device_type,
       layer_type: formData.layer_type,
       pricing_type: formData.pricing_type,
+      unit_price: formData.unit_price,
+      tiers,
+      package_type: formData.package_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date,
     }
 
-    if (formData.pricing_type === 'fixed' && formData.unit_price) {
-      data.unit_price = formData.unit_price
-    } else if (formData.pricing_type === 'tiered') {
-      if (formData.tiersJson) {
-        try {
-          data.tiers = JSON.parse(formData.tiersJson)
-        } catch (e) {
-          Message.error('阶梯配置 JSON 格式不正确')
-          modalLoading.value = false
-          return false
-        }
-      }
-    } else if (formData.pricing_type === 'package' && formData.package_type) {
-      data.package_type = formData.package_type
-    }
-
     if (isEdit.value && formData.id) {
-      await billingApi.updatePricingRule(formData.id, data)
+      await billingApi.updatePricingRule(formData.id, payload)
       Message.success('更新成功')
     } else {
-      await billingApi.createPricingRule(data)
+      await billingApi.createPricingRule(payload)
       Message.success('创建成功')
     }
+    modalVisible.value = false
     fetchData()
-    return true
   } catch (err: unknown) {
-    Message.error((err as Error)?.message || '操作失败')
+    Message.error((err as Error)?.message || (isEdit.value ? '更新失败' : '创建失败'))
     return false
   } finally {
     modalLoading.value = false
   }
 }
 
-const handleDelete = async (record: PricingRule) => {
-  try {
-    await billingApi.deletePricingRule(record.id)
-    Message.success('删除成功')
-    fetchData()
-  } catch (err: unknown) {
-    Message.error((err as Error)?.message || '删除失败')
+const handleAction = (record: PricingRule, action: string) => {
+  if (action === 'edit') {
+    showEditModal(record)
+  } else if (action === 'delete') {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除该计价规则吗？此操作不可恢复。',
+      onOk: async () => {
+        try {
+          await billingApi.deletePricingRule(record.id)
+          Message.success('删除成功')
+          fetchData()
+        } catch (err: unknown) {
+          Message.error((err as Error)?.message || '删除失败')
+        }
+      },
+    })
   }
 }
 
@@ -503,10 +418,37 @@ onMounted(() => {
 
 <style scoped>
 .pricing-rules {
-  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .filter-form {
-  margin-bottom: 16px;
+  margin-bottom: 0;
+}
+
+.device-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--cop-primary-bg);
+  color: var(--cop-primary);
+}
+
+.pricing-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--cop-bg);
+  color: var(--cop-ink);
+}
+
+.amount {
+  font-weight: 600;
+  color: var(--cop-ink);
 }
 </style>
