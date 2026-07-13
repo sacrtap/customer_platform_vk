@@ -49,29 +49,6 @@
 
   /* Font Stack */
   --font-stack: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-
-  /* ---- Backward-compat aliases (兼容期，逐步迁移) ---- */
-  --primary-1: #DBEAFE;
-  --primary-5: #2563EB;
-  --primary-6: #1D4ED8;
-  --primary-7: #1E40AF;
-  --neutral-1: var(--bg);
-  --neutral-2: var(--soft);
-  --neutral-3: var(--line);
-  --neutral-5: #94A3B8;
-  --neutral-6: var(--muted);
-  --neutral-7: #334155;
-  --neutral-9: #1E293B;
-  --neutral-10: var(--ink);
-  --success-1: #DCFCE7;
-  --success-5: #34D399;
-  --success-6: var(--green);
-  --warning-1: #FEF3C7;
-  --warning-5: #FBBF24;
-  --warning-6: var(--amber);
-  --danger-1: #FEE2E2;
-  --danger-5: #F87171;
-  --danger-6: var(--red);
 }
 
 /* ==========================================
