@@ -240,12 +240,6 @@ onMounted(() => {
 <style scoped>
 .industry-types-page {
   padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .page-header {
@@ -258,13 +252,13 @@ onMounted(() => {
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .header-subtitle {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .header-actions {
@@ -276,7 +270,7 @@ onMounted(() => {
   width: 100%;
   background: white;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -286,16 +280,16 @@ onMounted(() => {
 }
 
 :deep(.arco-table th) {
-  background: var(--neutral-1);
-  color: var(--neutral-6);
+  background: var(--bg);
+  color: var(--muted);
   font-weight: 600;
 }
 
 :deep(.arco-table td) {
-  color: var(--neutral-7);
+  color: #334155;
 }
 
 :deep(.arco-table tr:hover td) {
-  background: var(--neutral-1);
+  background: var(--bg);
 }
 </style>

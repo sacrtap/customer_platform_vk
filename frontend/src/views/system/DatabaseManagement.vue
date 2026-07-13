@@ -132,13 +132,13 @@ const handleClearConfirm = () => {
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .header-subtitle {
   font-size: 14px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .card-header {

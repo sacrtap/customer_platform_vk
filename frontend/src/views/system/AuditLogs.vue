@@ -274,16 +274,6 @@ onMounted(() => {
 <style scoped>
 .audit-logs-page {
   padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --primary-6: #0369a1;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .page-header {
@@ -293,20 +283,20 @@ onMounted(() => {
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .header-subtitle {
   font-size: 14px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .filter-section {
   background: white;
   padding: 24px;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
 }
@@ -314,7 +304,7 @@ onMounted(() => {
 .table-section {
   background: white;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -324,17 +314,17 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--soft);
 }
 
 .table-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
 }
 
 .text-gray {
-  color: var(--neutral-5);
+  color: #94A3B8;
 }
 
 .changes-content {
@@ -352,7 +342,7 @@ onMounted(() => {
 }
 
 .change-section pre {
-  background: var(--neutral-1);
+  background: var(--bg);
   padding: 8px;
   border-radius: 4px;
   font-size: 12px;
