@@ -43,20 +43,20 @@ defineProps<{
 .empty-state-icon {
   width: 64px;
   height: 64px;
-  color: var(--neutral-3);
+  color: var(--line);
   margin-bottom: 16px;
 }
 
 .empty-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--neutral-9);
+  color: var(--ink);
   margin: 0 0 8px;
 }
 
 .empty-description {
   font-size: 14px;
-  color: var(--neutral-5);
+  color: var(--muted);
   margin: 0 0 24px;
 }
 
