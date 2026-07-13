@@ -32,7 +32,7 @@ defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--neutral-6);
+  color: var(--muted);
   cursor: pointer;
   transition:
     background-color var(--transition-fast),
@@ -43,8 +43,8 @@ defineEmits<{
 }
 
 .header-action:hover {
-  background: var(--neutral-1);
-  color: var(--neutral-9);
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .header-action svg {
@@ -58,7 +58,7 @@ defineEmits<{
   right: 10px;
   min-width: 8px;
   height: 8px;
-  background: var(--danger-5);
+  background: var(--red);
   border-radius: 50%;
   border: 2px solid white;
   font-size: 0;
@@ -70,7 +70,7 @@ defineEmits<{
   right: 0;
   margin-top: 8px;
   padding: 6px 12px;
-  background: var(--neutral-10);
+  background: var(--ink);
   color: white;
   font-size: 12px;
   font-weight: 500;
@@ -94,7 +94,7 @@ defineEmits<{
   right: 12px;
   width: 8px;
   height: 8px;
-  background: var(--neutral-10);
+  background: var(--ink);
   transform: rotate(45deg);
 }
 
