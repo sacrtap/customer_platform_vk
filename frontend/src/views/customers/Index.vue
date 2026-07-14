@@ -71,14 +71,12 @@
       @add-tag="openTagModal"
     />
 
-    <!-- 新增/编辑客户弹窗 -->
+    <!-- 新增客户弹窗 -->
     <AddCustomerModal
       :visible="customerModalVisible"
-      :is-edit-mode="isEditMode"
-      :customer-record="editingCustomerData"
       :industry-types="industryTypes"
       :managers="managers"
-      @saved="handleSearch"
+      @submit="handleSearch"
       @update:visible="customerModalVisible = $event"
     />
 

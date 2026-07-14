@@ -27,6 +27,8 @@ export function useCustomerList() {
     keyword: '',
     account_type: '正式账号',
     industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
+    scale_level: '',
+    consume_level: '',
     is_key_customer: null as boolean | null,
     is_real_estate: null as boolean | null,
     settlement_type: '',

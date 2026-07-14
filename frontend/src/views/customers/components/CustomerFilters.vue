@@ -137,7 +137,8 @@ import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 
 interface Filters {
   keyword: string
-  industry: string
+  account_type: string
+  industry: string[]
   scale_level: string
   consume_level: string
   is_key_customer: boolean | null
@@ -203,14 +204,16 @@ const salesOptions = computed(() =>
   )
 )
 
-// 行业多选转换 (API 用逗号分隔字符串)
+// 行业多选转换：composables 中存为 string[]，API 请求时 join(',')
 const industryValue = computed({
   get: () => {
     const v = filters.value.industry
-    return v ? v.split(',') : []
+    if (!v) return []
+    if (Array.isArray(v)) return v
+    return (v as string).split(',')
   },
   set: (val: string[]) => {
-    filters.value.industry = val.join(',')
+    filters.value.industry = val as unknown as string[]
   },
 })
 
