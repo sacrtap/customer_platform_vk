@@ -1,11 +1,15 @@
 <template>
   <div class="profile-page">
-    <div class="profile-card">
-      <!-- 页面标题 -->
-      <div class="profile-header">
-        <h1 class="profile-title">个人信息</h1>
-      </div>
+    <!-- PageHeader -->
+    <PageHeader eyebrow="Account" title="个人信息"
+      subtitle="管理你的账号资料与安全设置">
+      <template #actions>
+        <a-button @click="changePasswordVisible = true">修改密码</a-button>
+      </template>
+    </PageHeader>
 
+    <!-- 主卡片 -->
+    <div class="profile-card">
       <!-- 加载状态 -->
       <div v-if="loading" class="profile-loading">
         <a-spin size="large" />
@@ -23,23 +27,29 @@
               {{ formData.username?.charAt(0)?.toUpperCase() || 'U' }}
             </div>
           </div>
+          <div class="avatar-name">
+            {{ formData.real_name || formData.username || '用户' }}
+          </div>
+          <div class="avatar-meta">
+            {{ formData.email || '未设置邮箱' }}
+          </div>
           <div class="avatar-actions">
-          <a-upload
-            :show-file-list="false"
-            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-            :custom-request="handleAvatarUpload"
-          >
-            <a-button type="primary" size="small" :loading="avatarUploading">
-              更换头像
-            </a-button>
-          </a-upload>
+            <a-upload
+              :show-file-list="false"
+              accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+              :custom-request="handleAvatarUpload"
+            >
+              <a-button type="primary" size="small" :loading="avatarUploading">
+                更换头像
+              </a-button>
+            </a-upload>
             <a-button v-if="formData.avatar_url" size="small" @click="removeAvatar">
               移除
             </a-button>
           </div>
         </div>
 
-        <!-- 右侧：表单区域 -->
+        <!-- 右侧：基本信息区 -->
         <div class="form-section">
           <a-form
             ref="formRef"
@@ -48,21 +58,27 @@
             :rules="rules"
             @submit="handleSubmit"
           >
-            <a-form-item label="用户名" field="username">
-              <a-input v-model="formData.username" disabled />
-            </a-form-item>
+            <div class="field-grid">
+              <a-form-item label="用户名" field="username">
+                <a-input v-model="formData.username" disabled />
+              </a-form-item>
 
-            <a-form-item label="邮箱" field="email">
-              <a-input v-model="formData.email" placeholder="请输入邮箱" />
-            </a-form-item>
+              <a-form-item label="真实姓名" field="real_name">
+                <a-input v-model="formData.real_name" placeholder="请输入真实姓名" />
+              </a-form-item>
 
-            <a-form-item label="手机号" field="phone">
-              <a-input v-model="formData.phone" placeholder="请输入手机号" />
-            </a-form-item>
+              <a-form-item label="邮箱" field="email">
+                <a-input v-model="formData.email" placeholder="请输入邮箱" />
+              </a-form-item>
 
-            <a-form-item label="最后登录时间">
-              <a-input :model-value="formatLastLogin()" disabled />
-            </a-form-item>
+              <a-form-item label="手机号" field="phone">
+                <a-input v-model="formData.phone" placeholder="请输入手机号" />
+              </a-form-item>
+
+              <a-form-item label="最后登录时间">
+                <a-input :model-value="formatLastLogin()" disabled />
+              </a-form-item>
+            </div>
 
             <!-- 操作按钮 -->
             <div class="form-actions">
@@ -137,6 +153,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
@@ -354,24 +371,39 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.profile-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2, #eef0f3);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  overflow: hidden;
+/* PageHeader */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
 }
 
-.profile-header {
-  padding: 24px 32px;
-  border-bottom: 1px solid var(--neutral-2, #eef0f3);
+.header-info h1 {
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  margin: 4px 0 4px;
 }
 
-.profile-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--neutral-10, #1d2330);
+.header-subtitle {
+  color: var(--muted);
   margin: 0;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 主卡片 */
+.profile-card {
+  background: var(--panel);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .profile-loading {
@@ -382,26 +414,25 @@ onMounted(() => {
 
 /* 主内容区：左右分栏 */
 .profile-content {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   min-height: 400px;
 }
 
 /* 左侧：头像侧边栏 */
 .avatar-sidebar {
-  width: 240px;
-  flex-shrink: 0;
   padding: 32px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  border-right: 1px solid var(--neutral-2, #eef0f3);
-  background: var(--neutral-1, #f7f8fa);
+  gap: 12px;
+  border-right: 1px solid var(--line);
+  background: var(--bg);
 }
 
 .avatar-wrapper {
-  width: 100px;
-  height: 100px;
+  width: 80px;
+  height: 80px;
 }
 
 .avatar-preview {
@@ -412,7 +443,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .avatar-preview img {
@@ -422,10 +453,23 @@ onMounted(() => {
 }
 
 .avatar-default {
-  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
-  color: white;
-  font-weight: 600;
-  font-size: 40px;
+  background: #DBEAFE;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 32px;
+}
+
+.avatar-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+}
+
+.avatar-meta {
+  color: #94A3B8;
+  font-size: 13px;
+  text-align: center;
 }
 
 .avatar-actions {
@@ -433,20 +477,27 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
+  margin-top: 4px;
 }
 
 /* 右侧：表单区域 */
 .form-section {
-  flex: 1;
   padding: 32px;
 }
 
-:deep(.arco-form-item) {
-  margin-bottom: 24px;
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
 
-:deep(.arco-form-item:last-child) {
-  margin-bottom: 0;
+:deep(.arco-form-item) {
+  margin-bottom: 14px;
+}
+
+/* 让最后登录时间占满整行 */
+:deep(.field-grid > .arco-form-item:last-child) {
+  grid-column: 1 / -1;
 }
 
 .form-actions {
@@ -455,25 +506,28 @@ onMounted(() => {
   padding-top: 8px;
 }
 
-/* 响应式：小屏幕下改为上下布局 */
+/* 响应式 */
 @media (max-width: 768px) {
   .profile-page {
     max-width: 100%;
   }
 
   .profile-content {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .avatar-sidebar {
-    width: 100%;
     border-right: none;
-    border-bottom: 1px solid var(--neutral-2, #eef0f3);
+    border-bottom: 1px solid var(--line);
     padding: 24px;
   }
 
   .form-section {
     padding: 24px;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

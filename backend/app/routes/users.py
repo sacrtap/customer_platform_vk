@@ -825,3 +825,83 @@ async def upload_avatar(request: Request):
     logger.info(f"头像上传成功：用户 {user_id}, 路径 {avatar_url}")
 
     return json({"code": 0, "message": "success", "data": {"avatar_url": avatar_url}})
+
+
+# ==================== 偏好设置 ====================
+
+
+@users_bp.get("/me/preferences")
+@auth_required
+async def get_user_preferences(request: Request):
+    """获取当前用户偏好设置"""
+    user_id = request.ctx.user["user_id"]
+    db: AsyncSession = request.ctx.db_session
+
+    user = await db.get(User, user_id)
+    if not user:
+        return json({"code": 404, "message": "User not found"}, status=404)
+
+    # 从用户扩展字段获取偏好设置
+    import json as json_mod
+
+    prefs_raw = getattr(user, "preferences", None)
+    if prefs_raw:
+        try:
+            prefs = json_mod.loads(prefs_raw) if isinstance(prefs_raw, str) else prefs_raw
+        except (json_mod.JSONDecodeError, TypeError):
+            prefs = {}
+    else:
+        prefs = {}
+
+    # 默认偏好
+    defaults = {
+        "theme": "light",
+        "language": "zh-CN",
+        "notifications": {
+            "email": True,
+            "low_balance": True,
+            "sync_error": True,
+        },
+    }
+    # 合并默认值
+    for k, v in defaults.items():
+        if k not in prefs:
+            prefs[k] = v
+
+    return json({"code": 0, "data": prefs})
+
+
+@users_bp.put("/me/preferences")
+@auth_required
+async def update_user_preferences(request: Request):
+    """更新当前用户偏好设置"""
+    import json as json_mod
+
+    user_id = request.ctx.user["user_id"]
+    db: AsyncSession = request.ctx.db_session
+
+    user = await db.get(User, user_id)
+    if not user:
+        return json({"code": 404, "message": "User not found"}, status=404)
+
+    data = request.json or {}
+
+    # 获取现有偏好
+    prefs_raw = getattr(user, "preferences", None)
+    if prefs_raw:
+        try:
+            prefs = json_mod.loads(prefs_raw) if isinstance(prefs_raw, str) else prefs_raw
+        except (json_mod.JSONDecodeError, TypeError):
+            prefs = {}
+    else:
+        prefs = {}
+
+    # 合并新偏好
+    prefs.update(data)
+
+    # 保存
+    setattr(user, "preferences", json_mod.dumps(prefs, ensure_ascii=False))
+    async with db.begin():
+        pass  # user already modified
+
+    return json({"code": 0, "message": "偏好设置已更新", "data": prefs})
