@@ -120,12 +120,15 @@
       @update:visible="assignManagerVisible = $event"
     />
 
-    <!-- 打标签弹窗 -->
+    <!-- 打标签弹窗（批量操作） -->
     <TagSelectorDialog
       :visible="tagModalVisible"
-      :selected-ids="selectedCustomerIds"
-      @update:visible="tagModalVisible = $event"
-      @saved="handleSearch"
+      :loading="batchLoading"
+      :all-tags="customerTags as unknown as Tag[]"
+      :all-tags-loading="tagsLoading"
+      :customer-tags="[]"
+      @add="handleBatchAddTags"
+      @close="tagModalVisible = false"
     />
   </div>
 </template>
@@ -133,7 +136,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useCustomerList } from '@/composables/useCustomerList'
-import type { Customer } from '@/types'
+import type { Customer, Tag } from '@/types'
+import { batchAddCustomerTags } from '@/api/tags'
 
 import PageHeader from '@/components/PageHeader.vue'
 import CustomerKpi from './components/CustomerKpi.vue'
@@ -239,6 +243,20 @@ const handleAssignManagerConfirm = async (_managerId: number) => {
   batchLoading.value = true
   try {
     assignManagerVisible.value = false
+    handleSearch()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+const handleBatchAddTags = async (tagIds: number[]) => {
+  batchLoading.value = true
+  try {
+    await batchAddCustomerTags({
+      customer_ids: selectedCustomerIds.value,
+      tag_ids: tagIds,
+    })
+    tagModalVisible.value = false
     handleSearch()
   } finally {
     batchLoading.value = false
