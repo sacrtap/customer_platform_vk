@@ -1,11 +1,7 @@
 <template>
   <div class="sync-logs-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>同步任务日志</h1>
-        <p class="header-subtitle">查看同步任务执行历史和状态</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="System" title="同步任务日志"
+      subtitle="查看同步任务执行历史和状态" />
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -147,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import {
   getSyncTaskList,

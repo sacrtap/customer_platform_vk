@@ -1,11 +1,7 @@
 <template>
   <div class="audit-logs-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>审计日志</h1>
-        <p class="header-subtitle">查看系统操作记录</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="System" title="审计日志"
+      subtitle="查看系统操作记录" />
 
     <!-- 筛选区域 -->
     <div class="filter-section">
@@ -143,6 +139,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as auditApi from '@/api/audit'
+import PageHeader from '@/components/PageHeader.vue'
 
 interface AuditLog {
   id: number

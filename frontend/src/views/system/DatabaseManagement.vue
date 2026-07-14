@@ -1,11 +1,7 @@
 <template>
   <div class="database-management">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>数据库管理</h1>
-        <p class="header-subtitle">系统级数据操作管理</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="System" title="数据库管理"
+      subtitle="系统级数据操作管理" />
 
     <a-card :bordered="false">
       <template #title>
@@ -51,6 +47,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'
 import { handleError } from '@/utils/errorHandler'
