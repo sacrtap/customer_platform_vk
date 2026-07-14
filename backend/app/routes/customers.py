@@ -947,3 +947,114 @@ async def export_customers(request: Request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ==================== 客户 360 摘要 ====================
+
+
+@customers_bp.get("/<customer_id:int>/summary")
+@auth_required
+async def get_customer_summary(request: Request, customer_id: int):
+    """获取客户 360 预览摘要数据"""
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    service = CustomerService(db)
+    # 使用现有服务获取客户健康度等数据
+    await service.get_customer_detail(customer_id)
+
+    # 格式化返回数据
+    return json({
+        "code": 0,
+        "data": {
+            "name": customer.name,
+            "industry": customer.industry_type,
+            "scale_level": customer.scale_level,
+            "consume_level": customer.consume_level,
+            "balance": f"¥{customer.balance:,.0f}" if hasattr(customer, "balance") else "N/A",
+            "usage_30d": "N/A",
+            "health": "—",
+            "health_class": "",
+            "forecast_days": "—",
+            "recent_events": [],
+        }
+    })
+
+
+@customers_bp.get("/<customer_id:int>/related")
+@auth_required
+async def get_related_customers(request: Request, customer_id: int):
+    """获取关联客户推荐（同行业同规模）"""
+    from sqlalchemy import select
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    result = await db.execute(
+        select(Customer)
+        .where(
+            Customer.id != customer_id,
+            Customer.industry_type == customer.industry_type,
+            Customer.scale_level == customer.scale_level,
+        )
+        .limit(4)
+    )
+
+    related = []
+    for c in result.scalars():
+        related.append({
+            "id": c.id,
+            "name": c.name,
+            "industry": c.industry_type,
+            "scale_level": c.scale_level,
+            "health": "—",
+        })
+
+    return json({"code": 0, "data": related})
+
+
+@customers_bp.get("/<customer_id:int>/balance-forecast")
+@auth_required
+async def get_balance_forecast(request: Request, customer_id: int):
+    """余额耗尽预测"""
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    # 简单预测：如果有余额和消耗数据，计算预计天数
+    balance = getattr(customer, "balance", 0) or 0
+    # 日均消耗暂时返回 0，需要消耗记录表来计算
+    daily_avg = 0
+
+    if daily_avg > 0:
+        days_left = int(balance / daily_avg)
+        status = "warning" if days_left <= 7 else "ok"
+    else:
+        days_left = None
+        status = "safe"
+
+    return json({
+        "code": 0,
+        "data": {
+            "days_left": days_left,
+            "daily_avg": daily_avg,
+            "balance": balance,
+            "status": status,
+        }
+    })
