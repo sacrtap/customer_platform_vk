@@ -1,17 +1,18 @@
 <template>
   <div class="pricing-rules">
-    <a-card>
-      <template #title>
-        <a-space>
-          <span>定价规则</span>
-          <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
-            <template #icon><icon-plus /></template>
-            新建规则
-          </a-button>
-        </a-space>
+    <!-- PageHeader -->
+    <PageHeader eyebrow="Billing" title="计费规则"
+      subtitle="管理客户定价、阶梯与包年计费规则">
+      <template #actions>
+        <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
+          <template #icon><icon-plus /></template>
+          新建规则
+        </a-button>
       </template>
+    </PageHeader>
 
-      <!-- 筛选区域 -->
+    <!-- 筛选区域 -->
+    <div class="filter-card">
       <a-form :model="filters" layout="inline" class="filter-form">
         <a-form-item label="客户">
           <KeywordAutoComplete
@@ -51,8 +52,10 @@
           </a-space>
         </a-form-item>
       </a-form>
+    </div>
 
-      <!-- 表格 -->
+    <!-- 表格 -->
+    <div class="table-section">
       <a-table
         :columns="columns"
         :data="data"
@@ -126,7 +129,7 @@
           </a-space>
         </template>
       </a-table>
-    </a-card>
+    </div>
 
     <!-- 创建/编辑规则弹窗 -->
     <a-modal
@@ -503,10 +506,93 @@ onMounted(() => {
 
 <style scoped>
 .pricing-rules {
-  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.filter-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
 }
 
 .filter-form {
-  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.filter-form :deep(.arco-form-item) {
+  margin-bottom: 0;
+}
+
+.filter-form :deep(.arco-form-item-label) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.table-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+  overflow: hidden;
+}
+
+/* 表头样式 */
+.table-section :deep(.arco-table-th) {
+  background: #F8FAFC;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 行 hover */
+.table-section :deep(.arco-table-tr:hover .arco-table-td) {
+  background: #F8FBFF;
+}
+
+/* Modal 样式 */
+:deep(.arco-modal) {
+  border-radius: var(--radius-lg);
+}
+
+:deep(.arco-form-item-label) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
 }
 </style>

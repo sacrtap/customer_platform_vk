@@ -1,19 +1,16 @@
 <template>
   <div class="invoice-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>结算单管理</h1>
-        <p class="header-subtitle">结算单列表、详情查看与状态流转</p>
-      </div>
-      <div class="header-actions">
+    <PageHeader eyebrow="Billing" title="结算单管理"
+      subtitle="结算单列表、详情查看与状态流转">
+      <template #actions>
         <a-button v-if="can('billing:edit')" type="primary" @click="generateModalVisible = true">
           <template #icon><icon-plus /></template>生成结算单
         </a-button>
         <a-button v-if="can('billing:view')" @click="handleExport">
           <template #icon><icon-download /></template>导出
         </a-button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <InvoiceFilters v-model:filters="filters" @search="handleSearch" @reset="handleReset" />
 
@@ -74,6 +71,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Modal } from '@arco-design/web-vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { IconPlus, IconDownload, IconDown } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import { useInvoice } from '@/composables/useInvoice'
@@ -158,19 +156,90 @@ loadInvoices()
 </script>
 
 <style scoped>
-.invoice-page { padding: 0; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
-.header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
-.header-actions { display: flex; gap: 12px; }
-.table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow-x: auto; }
-.amount { font-weight: 500; color: #2f3645; white-space: nowrap; }
-.amount-final { font-size: 14px; font-weight: 600; color: #0369a1; white-space: nowrap; }
-.text-danger { color: #ef4444; white-space: nowrap; }
-.cell-nowrap { white-space: nowrap; }
-.text-muted { color: #8f959e; white-space: nowrap; }
-::deep(.arco-table-td),
-::deep(.arco-table-th) {
+.invoice-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.table-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+  overflow-x: auto;
+}
+
+/* 表头样式 */
+.table-section :deep(.arco-table-th) {
+  background: #F8FAFC;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 行 hover */
+.table-section :deep(.arco-table-tr:hover .arco-table-td) {
+  background: #F8FBFF;
+}
+
+.amount {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.amount-final {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.text-danger {
+  color: var(--red);
+  white-space: nowrap;
+}
+
+.cell-nowrap {
+  white-space: nowrap;
+}
+
+.text-muted {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+:deep(.arco-table-td),
+:deep(.arco-table-th) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

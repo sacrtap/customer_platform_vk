@@ -1,11 +1,8 @@
 <template>
   <div class="consumption-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>消耗分析</h1>
-        <p class="header-subtitle">多维度客户消耗数据统计与趋势分析</p>
-      </div>
-      <div class="header-actions">
+    <PageHeader eyebrow="Analytics" title="消耗分析"
+      subtitle="重构为“同步状态 + 关键指标 + 趋势/排行 + 明细钻取”四层，图表旁保留解释和异常入口。">
+      <template #actions>
         <a-button
           :disabled="isSyncing"
           @click="handleSyncButtonClick"
@@ -36,11 +33,18 @@
           </template>
           刷新
         </a-button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
+
+    <!-- 同步状态提示 -->
+    <SyncStatusBar status="ok" last-sync="10:00">
+      <template #action>
+        <a-button size="mini" @click="handleSyncButtonClick">手动同步</a-button>
+      </template>
+    </SyncStatusBar>
 
     <!-- 筛选区域 -->
-    <div class="filter-section">
+    <div class="filter-card">
       <a-form layout="inline" :model="filters">
         <a-form-item label="时间范围">
           <a-select
@@ -106,7 +110,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Top1 客户</div>
-        <div class="stat-value">{{ topCustomer?.customer_name || '-' }}</div>
+        <div class="stat-value stat-value-sm">{{ topCustomer?.customer_name || '-' }}</div>
         <div class="stat-trend">
           <span class="trend-label">消耗</span>
           <span class="trend-value">{{ formatCurrency(topCustomer?.total_amount || 0) }}</span>
@@ -176,9 +180,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
+import PageHeader from '@/components/PageHeader.vue'
+import SyncStatusBar from '@/components/SyncStatusBar.vue'
 import type { ECharts } from 'echarts'
 import {
   getConsumptionTrend,
@@ -193,6 +199,13 @@ import { formatCurrency, formatNumber } from '@/utils/formatters'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import SyncDialog from './components/SyncDialog.vue'
+
+/** ECharts 统一配色序列 */
+const CHART_COLORS = ['#1D4ED8', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED']
+const TEXT_MUTED = '#475569'
+const TEXT_INK = '#0F172A'
+const AXIS_LINE = '#DBE3EF'
+const SPLIT_LINE = '#F1F5F9'
 
 const filters = reactive({
   start_date: '',
@@ -409,7 +422,7 @@ const initTrendChart = () => {
       axisPointer: {
         type: 'cross',
         crossStyle: {
-          color: '#999'
+          color: '#94A3B8'
         }
       },
       formatter: function(params: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -428,7 +441,7 @@ const initTrendChart = () => {
       data: ['结算费用', '订单数量'],
       top: '0%',
       textStyle: {
-        color: '#646a73'
+        color: TEXT_MUTED
       }
     },
     grid: {
@@ -443,11 +456,11 @@ const initTrendChart = () => {
       data: consumptionTrend.value.map((item) => item.date || item.period),
       axisLine: {
         lineStyle: {
-          color: '#e0e2e7',
+          color: AXIS_LINE,
         },
       },
       axisLabel: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     yAxis: [
@@ -457,11 +470,11 @@ const initTrendChart = () => {
         position: 'left',
         axisLabel: {
           formatter: '¥{value}',
-          color: '#646a73',
+          color: TEXT_MUTED,
         },
         splitLine: {
           lineStyle: {
-            color: '#f0f0f0',
+            color: SPLIT_LINE,
           },
         },
       },
@@ -471,7 +484,7 @@ const initTrendChart = () => {
         position: 'right',
         axisLabel: {
           formatter: '{value} 单',
-          color: '#646a73',
+          color: TEXT_MUTED,
         },
         splitLine: {
           show: false
@@ -486,12 +499,12 @@ const initTrendChart = () => {
         yAxisIndex: 0,
         data: consumptionTrend.value.map((item) => item.cost),
         itemStyle: {
-          color: '#0369A1',
+          color: CHART_COLORS[0],
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(3, 105, 161, 0.3)' },
-            { offset: 1, color: 'rgba(3, 105, 161, 0.05)' },
+            { offset: 0, color: 'rgba(29, 78, 216, 0.3)' },
+            { offset: 1, color: 'rgba(29, 78, 216, 0.05)' },
           ]),
         },
       },
@@ -502,12 +515,12 @@ const initTrendChart = () => {
         yAxisIndex: 1,
         data: consumptionTrend.value.map((item) => item.order_count),
         itemStyle: {
-          color: '#10B981',
+          color: CHART_COLORS[1],
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
-            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' },
+            { offset: 0, color: 'rgba(8, 145, 178, 0.3)' },
+            { offset: 1, color: 'rgba(8, 145, 178, 0.05)' },
           ]),
         },
       }
@@ -537,7 +550,7 @@ const initDeviceChart = () => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -561,15 +574,18 @@ const initDeviceChart = () => {
             show: true,
             fontSize: 16,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
           show: false,
         },
-        data: deviceDistribution.value.map((item) => ({
+        data: deviceDistribution.value.map((item, index) => ({
           name: item.device_type,
           value: deviceMetric.value === 'cost' ? item.cost : item.order_count,
+          itemStyle: {
+            color: CHART_COLORS[index % CHART_COLORS.length],
+          },
         })),
       },
     ],
@@ -588,71 +604,91 @@ onMounted(() => {
   handleTimeRangeChange()
   window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  trendChart?.dispose()
+  deviceChart?.dispose()
+})
 </script>
 
 <style scoped>
 .consumption-analysis-page {
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1d2330;
-  margin: 0 0 8px 0;
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
-  font-size: 14px;
-  color: #646a73;
   margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.filter-section {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+.filter-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   padding: 20px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 200ms ease;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #646a73;
+  font-size: 13px;
+  color: var(--muted);
   margin-bottom: 12px;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: #1d2330;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
   margin-bottom: 8px;
+}
+
+.stat-value-sm {
+  font-size: 18px;
 }
 
 .stat-trend {
@@ -662,34 +698,36 @@ onMounted(() => {
 }
 
 .trend-label {
-  color: #646a73;
+  color: var(--muted);
   margin-right: 8px;
 }
 
 .trend-value {
-  color: #10B981;
-  font-weight: 500;
+  color: var(--green);
+  font-weight: 600;
 }
 
 .trend-value.trend-down {
-  color: #FF4D4F;
+  color: var(--red);
 }
 
 .charts-section {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
 .chart-card {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   padding: 20px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .chart-card.full-width {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 
 .chart-header {
@@ -700,9 +738,9 @@ onMounted(() => {
 }
 
 .chart-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: #1d2330;
+  color: var(--ink);
   margin: 0;
 }
 
@@ -710,28 +748,29 @@ onMounted(() => {
   height: 300px;
 }
 
+/* Top customers list */
 .top-customers-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .top-customer-item {
   display: flex;
   align-items: center;
-  padding: 12px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .top-customer-item:hover {
-  background: #f5f6f7;
+  background: #F8FAFC;
 }
 
 .top-customer-item.is-top {
-  background: linear-gradient(135deg, #FFF7E6 0%, #FFFFFF 100%);
-  border-left: 3px solid #FAAD14;
+  background: linear-gradient(135deg, #FEF3C7 0%, #FFFFFF 100%);
+  border-left: 3px solid var(--amber);
 }
 
 .rank {
@@ -741,56 +780,58 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #f5f6f7;
+  background: #F1F5F9;
   margin-right: 12px;
+  flex-shrink: 0;
 }
 
 .rank-num {
   font-size: 14px;
-  font-weight: 600;
-  color: #646a73;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .top-customer-item.is-top .rank-num {
-  color: #FAAD14;
+  color: var(--amber);
   font-weight: bold;
 }
 
 .rank-rank-1 {
-  background: linear-gradient(135deg, #FAAD14 0%, #FFC53D 100%);
+  background: linear-gradient(135deg, #D97706 0%, #FBBF24 100%);
   color: #fff;
 }
 
 .rank-rank-2 {
-  background: linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%);
+  background: linear-gradient(135deg, #94A3B8 0%, #CBD5E1 100%);
   color: #fff;
 }
 
 .rank-rank-3 {
-  background: linear-gradient(135deg, #CD7F32 0%, #E6A866 100%);
+  background: linear-gradient(135deg, #B45309 0%, #D97706 100%);
   color: #fff;
 }
 
 .customer-info {
   flex: 1;
+  min-width: 0;
 }
 
 .customer-name {
   font-size: 14px;
-  font-weight: 500;
-  color: #1d2330;
+  font-weight: 600;
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
 .customer-id {
   font-size: 12px;
-  color: #646a73;
+  color: var(--muted);
 }
 
 .customer-amount {
   font-size: 14px;
-  font-weight: 600;
-  color: #0369A1;
+  font-weight: 700;
+  color: var(--primary);
 }
 
 @media (max-width: 1200px) {

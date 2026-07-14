@@ -1,19 +1,16 @@
 <template>
   <div class="balance-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>余额管理</h1>
-        <p class="header-subtitle">客户余额查询、充值与导入</p>
-      </div>
-      <div class="header-actions">
+    <PageHeader eyebrow="Billing" title="余额管理"
+      subtitle="客户余额总览、充值操作与充值记录追溯">
+      <template #actions>
         <a-button v-if="can('balance:recharge')" type="primary" @click="openRechargeModal()">
           <template #icon><icon-plus /></template>充值
         </a-button>
         <a-button v-if="can('balance:import')" @click="importModalVisible = true">
           <template #icon><icon-upload /></template>导入
         </a-button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <BalanceFilters
       v-model:filters="filters"
@@ -81,6 +78,7 @@
 import { onMounted, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useBalance } from '@/composables/useBalance'
+import PageHeader from '@/components/PageHeader.vue'
 import { IconPlus, IconUpload } from '@arco-design/web-vue/es/icon'
 import BalanceFilters from './components/BalanceFilters.vue'
 import RechargeModal from './components/RechargeModal.vue'
@@ -128,16 +126,90 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.balance-page { padding: 0; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.header-title h1 { font-size: 24px; font-weight: 700; color: #2f3645; margin-bottom: 8px; }
-.header-subtitle { font-size: 14px; color: #8f959e; margin-top: 4px; }
-.header-actions { display: flex; gap: 12px; }
-.table-section { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.balance-info .balance-detail { font-size: 12px; color: #8f959e; margin-top: 2px; display: flex; gap: 12px; }
-.balance-info .real { color: #0369a1; }
-.balance-info .bonus { color: #22c55e; }
-.used-detail { font-size: 12px; color: #8f959e; margin-top: 2px; display: flex; gap: 12px; }
-.used-detail .used-real { color: #ef4444; }
-.used-detail .used-bonus { color: #8f959e; }
+.balance-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.table-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 24px;
+  overflow: hidden;
+}
+
+/* 表头样式 */
+.table-section :deep(.arco-table-th) {
+  background: #F8FAFC;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 行 hover */
+.table-section :deep(.arco-table-tr:hover .arco-table-td) {
+  background: #F8FBFF;
+}
+
+.balance-info .balance-detail {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 12px;
+}
+
+.balance-info .real {
+  color: var(--primary);
+}
+
+.balance-info .bonus {
+  color: var(--green);
+}
+
+.used-detail {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 12px;
+}
+
+.used-detail .used-real {
+  color: var(--red);
+}
+
+.used-detail .used-bonus {
+  color: var(--muted);
+}
 </style>

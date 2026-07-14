@@ -4,25 +4,21 @@
       <a-spin :size="24" />
     </div>
     <template v-else>
-      <div class="page-header">
-        <div class="header-title">
-          <a-button type="text" @click="goBack">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-              <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z" />
-            </svg>
-          </a-button>
-          <h1>{{ customer?.name || '客户详情' }}</h1>
-        </div>
-        <div class="header-actions">
+      <!-- PageHeader -->
+      <PageHeader :eyebrow="'Customer Detail'" :title="customer?.name || '客户详情'"
+        subtitle="详情页按基础信息、画像、余额、消耗、结算、操作记录聚合，支持运营在一个页面完成判断。">
+        <template #actions>
+          <a-button @click="goBack">返回</a-button>
           <a-button @click="openEdit">编辑</a-button>
           <a-button type="primary" :loading="keyCustomerLoading" @click="toggleKeyCustomer">
             {{ customer?.is_key_customer ? '取消重点' : '设为重点' }}
           </a-button>
-        </div>
-      </div>
+        </template>
+      </PageHeader>
 
-      <div class="tabs-section">
-        <a-tabs v-model="activeTab" @change="handleTabChange">
+      <!-- Tab 区域 -->
+      <div class="tabs-card">
+        <a-tabs v-model="activeTab" type="rounded" @change="handleTabChange">
           <a-tab-pane key="basic" title="基础信息">
             <CustomerBasicTab
               v-if="customer"
@@ -102,6 +98,7 @@
 
 <script setup lang="ts">
 import { useCustomerDetail } from '@/composables/useCustomerDetail'
+import PageHeader from '@/components/PageHeader.vue'
 
 import EditCustomerDialog from './detail/EditCustomerDialog.vue'
 import TagSelectorDialog from './detail/TagSelectorDialog.vue'
@@ -133,37 +130,14 @@ const {
 
 <style scoped>
 .customer-detail-page {
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-6: #646a73;
-  --neutral-10: #1d2330;
-  --primary-1: #e8f3ff;
-  --primary-6: #0369a1;
-  --success-bg: #e8ffea;
-  --success-color: #22c55e;
-  --warning-bg: #fff7e8;
-  --warning-color: #f59e0b;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 32px;
-
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* 修复容器宽度溢出问题 - 不允许横向滚动 */
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   width: 100%;
   overflow-x: hidden;
   box-sizing: border-box;
 }
+
 .page-loading {
   display: flex;
   justify-content: center;
@@ -172,6 +146,70 @@ const {
   width: 100%;
 }
 
+/* ---- PageHeader ---- */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.title-info h1 {
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  margin: 2px 0 0 0;
+  line-height: 1.2;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ---- Tabs Card ---- */
+.tabs-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+/* Arco Tabs 药丸标签样式 */
+.tabs-card :deep(.arco-tabs-nav) {
+  margin-bottom: 20px;
+}
+
+.tabs-card :deep(.arco-tabs-tab) {
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all var(--transition-fast);
+}
+
+.tabs-card :deep(.arco-tabs-tab-active) {
+  background: #DBEAFE;
+  border-color: #BFDBFE;
+  color: var(--primary);
+}
 
 /* Arco Spin 组件宽度约束 */
 :deep(.arco-spin) {
@@ -185,134 +223,15 @@ const {
   width: 100%;
   max-width: 100%;
 }
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin: 0 0 8px 0;
-}
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-.tabs-section {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  padding: 32px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: auto;
-}
 
-/* 双列信息网格 - 基础信息面板 */
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0;
-  padding: 8px 0;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--neutral-2);
-  transition: background-color var(--transition-fast);
-}
-
-.info-item:hover {
-  background-color: var(--neutral-1);
-}
-
-.info-item .label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--neutral-6);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-bottom: 6px;
-}
-
-.info-item .value {
-  font-size: 14px;
-  color: var(--neutral-10);
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-/* 客户标签占满整行 */
-.info-item.full-width {
-  grid-column: 1 / -1;
-}
-
-/* 客户标签区域 */
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.tags-container :deep(.arco-btn-text) {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  transition: all var(--transition-fast);
-  border: 1px dashed var(--neutral-6);
-  background: transparent;
-  color: var(--neutral-6);
-  font-size: 13px;
-}
-
-.tags-container :deep(.arco-btn-text:hover) {
-  border-color: var(--primary-6);
-  background: var(--primary-1);
-  color: var(--primary-6);
-}
-
-/* 响应式适配 - 平板及中等屏幕 */
-@media (min-width: 375px) and (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .info-item .label {
-    font-size: 12px;
-  }
-
-  .info-item .value {
-    font-size: 14px;
-  }
-}
-
-
-/* 表格自动布局 - 使用 auto 自适应，不强制固定宽度 */
+/* 表格自动布局 */
 :deep(.arco-table) {
   table-layout: auto;
   width: 100%;
   max-width: 100%;
-  box-sizing: border-box; /* 修复：Arco 默认 content-box + padding 导致溢出 */
+  box-sizing: border-box;
 }
 
-/* 表格单元格内容不换行时截断显示 */
 :deep(.arco-table-td),
 :deep(.arco-table-th) {
   white-space: nowrap;
@@ -326,14 +245,20 @@ const {
   overflow-x: auto;
 }
 
-/* 表格容器 - 支持横向滚动 */
-.table-wrapper {
-  overflow-x: auto;
-  border: 1px solid var(--neutral-2);
-  border-radius: var(--radius-md);
+/* 表格表头 */
+:deep(.arco-table-th) {
+  background: #F8FAFC;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-/* 表格空状态居中样式 */
+/* 表格行 hover */
+:deep(.arco-table-tr:hover .arco-table-td) {
+  background: #F8FBFF;
+}
+
+/* 空状态 */
 :deep(.arco-table-empty) {
   display: flex;
   justify-content: center;
@@ -344,95 +269,6 @@ const {
 
 :deep(.arco-table-empty .empty-state) {
   margin: 0 auto;
-}
-
-/* 空数据最小高度，防止布局塌陷 */
-.info-grid {
-  min-height: 200px;
-}
-
-/* 响应式断点 */
-/* XS Mobile - 374px and below */
-@media (max-width: 374px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-    padding: 16px 12px;
-  }
-
-  .info-item {
-    padding: 12px;
-    min-height: 80px;
-  }
-
-  .tabs-section {
-    padding: 12px;
-    border-radius: 12px;
-  }
-
-  .header-title h1 {
-    font-size: 20px;
-  }
-}
-
-/* Mobile - 375px to 767px */
-@media (min-width: 375px) and (max-width: 767px) {
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .header-actions {
-    width: 100%;
-  }
-
-  .header-actions .arco-btn {
-    flex: 1;
-  }
-
-  .tabs-section {
-    padding: 20px 16px;
-  }
-
-  .header-title h1 {
-    font-size: 22px;
-  }
-
-}
-
-/* Tablet - 768px to 1199px */
-@media (min-width: 768px) and (max-width: 1199px) {
-
-  .tabs-section {
-    padding: 28px;
-  }
-}
-
-
-
-/* Ultra-wide screens - 1600px+ */
-@media (min-width: 1600px) {
-  .tabs-section {
-    max-width: 1600px;
-    margin: 0 auto;
-  }
-}
-
-
-/* 用量分布区域 */
-.usage-distribution-section {
-  margin-bottom: 24px;
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 350px;
-}
-
-.usage-table-section {
-  margin-top: 24px;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 /* 减少运动偏好支持 */
@@ -446,113 +282,28 @@ const {
   }
 }
 
-/* 扩展指标网格间距 */
-.metrics-grid-extended {
-  margin-top: 4px;
-}
-
-/* 备注文字样式 - 支持换行 */
-.notes-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.6;
-}
-
-/* ========== 编辑弹框三列布局 ========== */
-
-/* 编辑表单网格容器 */
-.edit-form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0 20px;
-  width: 100%;
-}
-
-/* 编辑表单列 */
-.edit-form-column {
-  display: flex;
-  flex-direction: column;
-}
-
-/* 列标题 */
-.edit-form-column .column-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--primary-6, #0369a1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--primary-1, #e8f3ff);
-}
-
-/* 列分隔线 */
-.edit-form-column + .edit-form-column {
-  border-left: 1px solid var(--neutral-2, #eef0f3);
-  padding-left: 20px;
-}
-
-/* 备注区域 - 横跨三列 */
-.edit-form-note {
-  grid-column: 1 / -1;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--neutral-2, #eef0f3);
-}
-
-/* 响应式降级：两列 */
-@media (max-width: 1399px) {
-  .edit-form-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .edit-form-column:nth-child(1) {
-    border-right: 1px solid var(--neutral-2, #eef0f3);
-    padding-right: 20px;
-  }
-
-  .edit-form-column:nth-child(2) {
-    border-left: none;
-    padding-left: 0;
-  }
-
-  .edit-form-column:nth-child(3) {
-    border-top: 1px solid var(--neutral-2, #eef0f3);
-    padding-top: 16px;
-    margin-top: 16px;
-    grid-column: 1 / -1;
-  }
-
-  .edit-form-column:nth-child(3) .column-title {
-    margin-bottom: 12px;
-  }
-}
-
-/* 响应式降级：单列 */
+/* 响应式 */
 @media (max-width: 767px) {
-  .edit-form-grid {
-    grid-template-columns: 1fr;
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
 
-  .edit-form-column {
-    border-left: none !important;
-    border-right: none !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    border-top: none !important;
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-    grid-column: auto !important;
+  .header-actions {
+    width: 100%;
   }
 
-  .edit-form-column + .edit-form-column {
-    border-top: 1px solid var(--neutral-2, #eef0f3);
-    padding-top: 16px;
-    margin-top: 16px;
+  .header-actions .arco-btn {
+    flex: 1;
   }
 
-  .edit-form-note {
-    border-top: 1px solid var(--neutral-2, #eef0f3);
+  .tabs-card {
+    padding: 16px;
+  }
+
+  .title-info h1 {
+    font-size: 22px;
   }
 }
 </style>
