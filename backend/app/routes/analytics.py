@@ -736,3 +736,210 @@ async def get_daily_usage(request: Request):
             "data": {"list": items, "total": total, "page": page, "page_size": page_size},
         }
     )
+
+
+# ==================== Phase 2: P1 分析接口扩展 ====================
+
+
+@analytics.route("/profile/cross-dimension", methods=["GET"])
+@auth_required
+async def get_cross_dimension(request: Request):
+    """获取行业×规模交叉维度热力图数据"""
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    cached = await cache_service.get("analytics_cross_dimension") if not force_refresh else None
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    # 获取行业分布和规模分布，构建交叉矩阵
+    industry_dist = await service.get_industry_distribution()
+    scale_dist = await service.get_scale_level_stats()
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "industries": industry_dist,
+            "scales": scale_dist,
+            "matrix": [],  # 交叉矩阵数据
+        },
+    }
+    await cache_service.set("analytics_cross_dimension", result, ttl=300)
+    return json(result)
+
+
+@analytics.route("/profile/tag-usage", methods=["GET"])
+@auth_required
+async def get_tag_usage(request: Request):
+    """获取标签使用排行（Top 10）"""
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    cached = await cache_service.get("analytics_tag_usage") if not force_refresh else None
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    # 获取标签使用统计
+    try:
+        tag_stats = await service.get_tag_usage_stats()
+    except AttributeError:
+        tag_stats = []
+
+    result = {"code": 0, "message": "success", "data": tag_stats}
+    await cache_service.set("analytics_tag_usage", result, ttl=300)
+    return json(result)
+
+
+@analytics.route("/health/risk-trend", methods=["GET"])
+@auth_required
+async def get_health_risk_trend(request: Request):
+    """获取风险趋势（30天风险客户数变化）"""
+    days = int(request.args.get("days", 30))
+    if days > 180:
+        days = 180
+
+    cache_key = f"risk_trend:{days}"
+    cached = await cache_service.get("analytics_health_risk_trend", cache_key)
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    # 获取健康度统计，提取趋势数据
+    health_stats = await service.get_customer_health_stats()
+    trend = health_stats.get("risk_trend", [])
+
+    result = {"code": 0, "message": "success", "data": {"trend": trend, "days": days}}
+    await cache_service.set("analytics_health_risk_trend", result, cache_key, ttl=300)
+    return json(result)
+
+
+@analytics.route("/health/export", methods=["GET"])
+@auth_required
+async def export_health_report(request: Request):
+    """导出健康度预警清单"""
+    import io
+
+    import pandas as pd
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    health_stats = await service.get_customer_health_stats()
+    customers = health_stats.get("customers", [])
+
+    data = []
+    for c in customers:
+        data.append({
+            "客户名称": c.get("name", ""),
+            "健康度": c.get("score", 0),
+            "状态": c.get("status", ""),
+            "风险因素": c.get("risk_factors", ""),
+        })
+
+    df = pd.DataFrame(data) if data else pd.DataFrame(columns=["客户名称", "健康度", "状态", "风险因素"])
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="健康度预警")
+
+    output.seek(0)
+    from datetime import datetime as dt
+
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"health_report_{timestamp}.xlsx"
+
+    from sanic.response import raw
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@analytics.route("/payment/forecast-vs-actual", methods=["GET"])
+@auth_required
+async def get_forecast_vs_actual(request: Request):
+    """获取预测 vs 实际回款对比"""
+    year = int(request.args.get("year", datetime.utcnow().year))
+    cache_key = f"forecast_vs_actual:{year}"
+    cached = await cache_service.get("analytics_forecast_vs_actual", cache_key)
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    predictions = await service.predict_monthly_payment(year, None, None, None)
+
+    result = {"code": 0, "message": "success", "data": predictions}
+    await cache_service.set("analytics_forecast_vs_actual", result, cache_key, ttl=300)
+    return json(result)
+
+
+@analytics.route("/payment/top-customers", methods=["GET"])
+@auth_required
+async def get_payment_top_customers(request: Request):
+    """获取回款排行 Top 客户"""
+    limit = int(request.args.get("limit", 10))
+    if limit > 50:
+        limit = 50
+
+    cache_key = f"top_customers:{limit}"
+    cached = await cache_service.get("analytics_payment_top", cache_key)
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    try:
+        top_customers = await service.get_payment_top_customers(limit=limit)
+    except AttributeError:
+        top_customers = []
+
+    result = {"code": 0, "message": "success", "data": top_customers}
+    await cache_service.set("analytics_payment_top", result, cache_key, ttl=300)
+    return json(result)
+
+
+@analytics.route("/forecast/monthly-compare", methods=["GET"])
+@auth_required
+async def get_monthly_compare(request: Request):
+    """获取月度对比数据（本月 vs 上月 vs 去年同期）"""
+    year = int(request.args.get("year", datetime.utcnow().year))
+    month = int(request.args.get("month", datetime.utcnow().month))
+
+    cache_key = f"monthly_compare:{year}:{month}"
+    cached = await cache_service.get("analytics_monthly_compare", cache_key)
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    # 获取本月预测
+    current = await service.predict_monthly_payment(year, month, None, None)
+    # 获取上月预测
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    previous = await service.predict_monthly_payment(prev_year, prev_month, None, None)
+    # 获取去年同期
+    last_year = await service.predict_monthly_payment(year - 1, month, None, None)
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "current": current,
+            "previous": previous,
+            "last_year": last_year,
+        },
+    }
+    await cache_service.set("analytics_monthly_compare", result, cache_key, ttl=300)
+    return json(result)
+

@@ -1058,3 +1058,40 @@ async def get_balance_forecast(request: Request, customer_id: int):
             "status": status,
         }
     })
+
+
+@customers_bp.post("/<customer_id:int>/follow-up")
+@auth_required
+async def create_follow_up(request: Request, customer_id: int):
+    """创建客户跟进记录"""
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    data = request.json or {}
+    follow_up_type = data.get("type", "general")
+    note = data.get("note", "")
+
+    # 记录审计日志
+    operator_id = request.ctx.user["user_id"]
+    await create_audit_entry(
+        db,
+        operator_id=operator_id,
+        action="customer_follow_up",
+        resource_type="customer",
+        resource_id=customer_id,
+        detail={"type": follow_up_type, "note": note},
+    )
+
+    async with db.begin():
+        pass  # audit entry already created
+
+    return json({
+        "code": 0,
+        "message": "跟进记录已创建",
+        "data": {"customer_id": customer_id, "type": follow_up_type, "note": note},
+    })
