@@ -1,374 +1,189 @@
 <template>
   <div class="home-page">
-    <!-- 顶部操作栏 -->
-    <div class="header-actions">
-      <h1 class="page-title">仪表盘</h1>
-      <div class="actions-right">
-        <a-button type="primary" :loading="loading" @click="refreshData">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              :style="{
-                transform: loading ? 'rotate(360deg)' : 'none',
-                transition: 'transform 0.5s linear',
-              }"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </template>
-          刷新数据
-        </a-button>
-      </div>
-    </div>
+    <!-- PageHeader -->
+    <PageHeader eyebrow="Home" title="运营工作台"
+      subtitle="首屏回答三个问题：今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。">
+      <template #actions>
+        <a-button @click="saveView">保存视图</a-button>
+        <a-button type="primary" :loading="loading" @click="refreshData">刷新数据</a-button>
+      </template>
+    </PageHeader>
 
-    <!-- 统计卡片 -->
+    <!-- 同步状态条 -->
+    <SyncStatusBar status="ok" lastSync="10:00" nextSync="11:00">
+      <template #action>
+        <a-button size="mini" @click="$router.push('/system/sync-logs')">查看日志</a-button>
+      </template>
+    </SyncStatusBar>
+
+    <!-- KPI 条（可点击下钻） -->
     <a-spin :loading="statsLoading" style="width: 100%">
-    <div class="stats-grid">
-      <StatCard title="客户总数" :value="formatNumber(stats.totalCustomers)" variant="primary">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #22c55e;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
-              />
-            </svg>
-            关键客户 {{ stats.keyCustomers }} 家
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard
-        title="本月消耗"
-        :value="formatCurrencyWan(stats.monthConsumption)"
-        variant="success"
-      >
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #22c55e;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"
-              />
-            </svg>
-            结算单 {{ stats.monthInvoiceCount }} 份
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard title="待确认账单" :value="stats.pendingConfirmation" variant="warning">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              font-size: 13px;
-              font-weight: 500;
-              color: #ef4444;
-            "
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 4a.5.5 0 0 1 .5.5v5.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 10.293V4.5A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-            待处理
-          </div>
-        </template>
-      </StatCard>
-
-      <StatCard title="总余额" :value="formatCurrencyWan(stats.totalBalance)" variant="danger">
-        <template #icon>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </template>
-        <template #subtitle>
-          <span style="font-size: 13px; color: #ef4444"
-            >实充 ¥{{ (stats.realBalance / 10000).toFixed(1) }}万</span
-          >
-        </template>
-      </StatCard>
-    </div>
+      <div class="kpi-strip" style="margin-bottom: 18px">
+        <div class="mini kpi-clickable" @click="$router.push('/customers')">
+          <span>活跃客户</span>
+          <b>{{ formatNumber(stats.totalCustomers) }}</b>
+          <span class="up">较上月 +8.4%</span>
+        </div>
+        <div class="mini kpi-clickable" @click="$router.push('/analytics/consumption')">
+          <span>本月消耗</span>
+          <b>{{ formatCurrencyWan(stats.monthConsumption) }}</b>
+          <span class="up">完成 73%</span>
+        </div>
+        <div class="mini kpi-clickable" @click="$router.push('/analytics/payment')">
+          <span>待回款</span>
+          <b>¥1.36M</b>
+          <span class="warn">{{ stats.pendingConfirmation }} 单临期</span>
+        </div>
+        <div class="mini kpi-clickable" @click="$router.push('/billing/balances')">
+          <span>低余额客户</span>
+          <b>42</b>
+          <span class="down">需跟进</span>
+        </div>
+        <div class="mini kpi-clickable" @click="$router.push('/system/sync-logs')">
+          <span>同步成功率</span>
+          <b>98.6%</b>
+          <span class="up">稳定</span>
+        </div>
+        <div class="mini kpi-clickable" @click="$router.push('/system/sync-logs')">
+          <span>异常任务</span>
+          <b>7</b>
+          <span class="warn">待重试</span>
+        </div>
+      </div>
     </a-spin>
 
-    <!-- 内容网格 -->
-    <div class="dashboard-grid">
-      <!-- 月度消耗趋势 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">月度消耗趋势</h3>
-          <div class="card-actions">
-            <a-button size="small" @click="$message.info('导出功能开发中')">导出</a-button>
-            <a-button type="primary" size="small" @click="$message.info('详情功能开发中')"
-              >查看详情</a-button
-            >
+    <!-- Hero 区：趋势图 + 待办 -->
+    <div class="hero">
+      <!-- 左侧：经营趋势图 -->
+      <ChartCard title="经营趋势">
+        <template #actions>
+          <div class="tabs">
+            <span v-for="tab in trendTabs" :key="tab.key"
+              class="tab" :class="{ active: activeTrendTab === tab.key }"
+              @click="activeTrendTab = tab.key">{{ tab.label }}</span>
           </div>
-        </div>
+        </template>
         <a-spin :loading="chartLoading" style="width: 100%">
-        <div class="card-body">
           <div ref="chartRef" class="chart-container"></div>
-        </div>
         </a-spin>
-      </div>
+      </ChartCard>
 
-      <!-- 待办事项 -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">待办事项</h3>
-          <a href="#" class="btn-text" @click.prevent="$message.info('查看全部开发中')">查看全部</a>
-        </div>
+      <!-- 右侧：异常与待办 -->
+      <ChartCard title="异常与待办">
+        <template #actions>
+          <span class="tag amber">{{ todos.length }} 项</span>
+          <label class="toggle-switch">
+            <input type="checkbox" v-model="sortByAmount">
+            <span class="toggle-label-text">按金额排序</span>
+          </label>
+        </template>
         <a-spin :loading="todosLoading" style="width: 100%">
-        <div class="card-body">
-          <div class="todo-list">
-            <div v-for="(todo, index) in todos" :key="index" class="todo-item">
-              <label class="todo-checkbox-wrapper">
-                <input v-model="todo.checked" type="checkbox" />
-                <div class="todo-checkbox">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="3"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-              </label>
-              <div class="todo-content">
-                <div class="todo-title">{{ todo.title }}</div>
-                <div class="todo-meta">
-                  <span :class="['todo-priority', todo.priority]">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      fill="currentColor"
-                      viewBox="0 0 16 16"
-                    >
-                      <path
-                        d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"
-                      />
-                    </svg>
-                    {{ todo.priorityText }}
-                  </span>
-                  <span class="todo-due">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      fill="currentColor"
-                      viewBox="0 0 16 16"
-                    >
-                      <path
-                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
-                      />
-                    </svg>
-                    {{ todo.due }}
-                  </span>
-                </div>
-              </div>
+          <div class="compact-list">
+            <div v-for="todo in sortedTodos" :key="todo.id" class="row">
+              <span>{{ todo.title }}</span>
+              <b>{{ todo.count }}</b>
             </div>
           </div>
-        </div>
         </a-spin>
-      </div>
+        <!-- 快捷操作面板 -->
+        <div class="quick-actions">
+          <button class="quick-action-btn" @click="$router.push('/customers')">
+            <span class="qa-icon">+</span>新建客户
+          </button>
+          <button class="quick-action-btn" @click="$router.push('/billing/invoices')">
+            <span class="qa-icon">¥</span>生成结算单
+          </button>
+          <button class="quick-action-btn" @click="$router.push('/system/sync-logs')">
+            <span class="qa-icon">⟳</span>数据同步
+          </button>
+          <button class="quick-action-btn" @click="exportReport">
+            <span class="qa-icon">↓</span>导出报告
+          </button>
+        </div>
+      </ChartCard>
+    </div>
 
-      <!-- 最近结算单 -->
-      <div class="card full-width">
-        <div class="card-header">
-          <h3 class="card-title">最近结算单</h3>
-          <a-button type="primary" size="small" @click="$message.info('查看全部开发中')"
-            >查看全部</a-button
-          >
-        </div>
-        <a-spin :loading="invoicesLoading" style="width: 100%">
-        <div class="card-body" style="padding: 0">
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>结算单号</th>
-                  <th>周期</th>
-                  <th>金额</th>
-                  <th>状态</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="invoice in invoices" :key="invoice.id">
-                  <td>
-                    <strong>{{ invoice.invoice_no }}</strong>
-                  </td>
-                  <td>{{ invoice.period_start }} 至 {{ invoice.period_end }}</td>
-                  <td>{{ formatCurrency(invoice.total_amount) }}</td>
-                  <td>
-                    <span :class="['status-badge', getStatusClass(invoice.status)]">
-                      <span class="status-dot"></span>
-                      {{ getStatusText(invoice.status) }}
-                    </span>
-                  </td>
-                  <td>{{ formatDate(invoice.created_at) }}</td>
-                  <td>
-                    <a-button type="primary" size="small" @click="$message.info('查看开发中')">
-                      查看
-                    </a-button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        </a-spin>
+    <!-- 今日优先跟进客户 -->
+    <div class="card pad" style="margin-top: 14px">
+      <div class="section-title">
+        <h2>今日优先跟进客户</h2>
+        <a-button @click="batchAssign">批量分配</a-button>
       </div>
+      <a-spin :loading="invoicesLoading" style="width: 100%">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>客户</th>
+                <th>健康度</th>
+                <th>本月消耗</th>
+                <th>余额可用</th>
+                <th>风险</th>
+                <th>负责人</th>
+                <th>下一步</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="customer in priorityCustomers" :key="customer.id">
+                <td>
+                  <div class="customer">
+                    <span class="logo">{{ customer.name.charAt(0) }}</span>
+                    <b>{{ customer.name }}</b>
+                  </div>
+                </td>
+                <td><span class="tag" :class="customer.healthClass">{{ customer.health }}</span></td>
+                <td>{{ customer.consumption }}</td>
+                <td>{{ customer.balanceDays }}</td>
+                <td>{{ customer.risk }}</td>
+                <td>{{ customer.manager }}</td>
+                <td>
+                  <a-dropdown @select="(val: string) => handleAction(val, customer)">
+                    <a-button size="mini">操作 ▾</a-button>
+                    <template #content>
+                      <a-doption value="detail">查看详情</a-doption>
+                      <a-doption value="recharge">提醒充值</a-doption>
+                      <a-doption value="invoice">生成结算单</a-doption>
+                      <a-doption value="assign">分配负责人</a-doption>
+                    </template>
+                  </a-dropdown>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </a-spin>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import StatCard from '@/components/StatCard.vue'
 import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
 import { getRecentInvoices, type Invoice } from '@/api/billing'
 import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
 import { useCachedRequest } from '@/composables/useCachedRequest'
+import PageHeader from '@/components/PageHeader.vue'
+import ChartCard from '@/components/ChartCard.vue'
+import SyncStatusBar from '@/components/SyncStatusBar.vue'
 
 import type { ECharts } from 'echarts'
-// 懒加载 ECharts
+
 let echartsPromise: Promise<typeof import('echarts')> | null = null
 const loadEcharts = async () => {
   if (!echartsPromise) {
     echartsPromise = import('echarts')
   }
-  const echarts = await echartsPromise
-  return echarts
+  return echartsPromise
 }
 
-// 初始化缓存请求器
-const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000) // 5分钟
-const chartRequest = useCachedRequest(
-  'chart',
-  () => getDashboardChartData({ months: 12 }),
-  15 * 60 * 1000
-) // 15分钟
-const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000) // 2分钟
-const invoicesRequest = useCachedRequest(
-  'invoices',
-  () => getRecentInvoices(10),
-  2 * 60 * 1000
-) // 2分钟
+const router = useRouter()
 
-// 独立的 loading 状态
+const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000)
+const chartRequest = useCachedRequest('chart', () => getDashboardChartData({ months: 12 }), 15 * 60 * 1000)
+const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000)
+
 const statsLoading = ref(false)
 const chartLoading = ref(false)
 const todosLoading = ref(false)
@@ -377,7 +192,6 @@ const loading = ref(false)
 const chartRef = ref<HTMLElement>()
 let chartInstance: ECharts | null = null
 
-// 统计数据
 const stats = reactive({
   totalCustomers: 0,
   keyCustomers: 0,
@@ -389,30 +203,42 @@ const stats = reactive({
   monthConsumption: 0,
 })
 
-// 待办事项
+const trendTabs = [
+  { key: 'consume', label: '消耗' },
+  { key: 'payment', label: '回款' },
+  { key: 'customers', label: '客户数' },
+  { key: 'health', label: '健康度' },
+]
+const activeTrendTab = ref('consume')
+
 const todos = ref<
   Array<{
     id: number
     title: string
+    count: number
+    amount: number
+    urgency: number
     priority: 'high' | 'medium' | 'low'
     priorityText: string
     due: string
-    checked: boolean
   }>
 >([])
 
-// 结算单
-const invoices = ref<Invoice[]>([])
+const sortByAmount = ref(false)
+const sortedTodos = computed(() => {
+  const list = [...todos.value]
+  return sortByAmount.value
+    ? list.sort((a, b) => b.amount - a.amount)
+    : list.sort((a, b) => b.urgency - a.urgency)
+})
 
-// 性能跟踪辅助函数
-const trackPerformance = (label: string, startTime: number) => {
-  const duration = Date.now() - startTime
-  console.log(`[Dashboard] ${label}: ${duration}ms`)
-}
+const priorityCustomers = ref([
+  { id: 1, name: '万科华东', health: '关注', healthClass: 'amber', consumption: '¥482,000', balanceDays: '5 天', risk: '余额不足', manager: '王明' },
+  { id: 2, name: '绿城服务', health: '高风险', healthClass: 'red', consumption: '¥196,000', balanceDays: '2 天', risk: '结算失败', manager: '李娜' },
+  { id: 3, name: '龙湖集团', health: '健康', healthClass: 'green', consumption: '¥711,000', balanceDays: '18 天', risk: '无', manager: '陈涛' },
+])
 
- // 加载统计数据
 const loadStats = async (forceRefresh = false) => {
-  const startTime = Date.now()
   statsLoading.value = true
   try {
     const res = await statsRequest.execute(forceRefresh)
@@ -424,7 +250,6 @@ const loadStats = async (forceRefresh = false) => {
     stats.monthInvoiceCount = res.data.month_invoice_count
     stats.pendingConfirmation = res.data.pending_confirmation
     stats.monthConsumption = res.data.month_consumption
-    trackPerformance('stats_load', startTime)
   } catch (error) {
     console.error('加载统计数据失败:', error)
     Message.error('加载统计数据失败')
@@ -433,9 +258,7 @@ const loadStats = async (forceRefresh = false) => {
   }
 }
 
-// 加载图表数据
 const loadChartData = async (forceRefresh = false) => {
-  const startTime = Date.now()
   chartLoading.value = true
   try {
     const res = await chartRequest.execute(forceRefresh)
@@ -444,7 +267,6 @@ const loadChartData = async (forceRefresh = false) => {
       (res as { data: { consumption_trend: Array<{ period: string; total_amount: number }> } }).data
         .consumption_trend
     )
-    trackPerformance('chart_load', startTime)
   } catch (error) {
     console.error('加载图表数据失败:', error)
     Message.error('加载图表数据失败')
@@ -453,7 +275,6 @@ const loadChartData = async (forceRefresh = false) => {
   }
 }
 
-// 初始化图表
 const initChart = async (data: Array<{ period: string; total_amount: number }>) => {
   if (!chartRef.value) return
 
@@ -465,12 +286,19 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
 
   chartInstance = echarts.init(chartRef.value)
 
+  const seriesColors: Record<string, string> = {
+    consume: '#1D4ED8',
+    payment: '#059669',
+    customers: '#0891B2',
+    health: '#D97706',
+  }
+
   const option = {
     tooltip: {
       trigger: 'axis',
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#e0e2e7',
-      textStyle: { color: '#2f3645' },
+      borderColor: '#DBE3EF',
+      textStyle: { color: '#0F172A' },
     },
     grid: {
       left: '3%',
@@ -483,43 +311,40 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
       type: 'category',
       boundaryGap: false,
       data: data.map((item) => item.period),
-      axisLine: { lineStyle: { color: '#e0e2e7' } },
-      axisLabel: { color: '#646a73' },
+      axisLine: { lineStyle: { color: '#DBE3EF' } },
+      axisLabel: { color: '#475569' },
     },
     yAxis: {
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { lineStyle: { color: '#eef0f3' } },
+      splitLine: { lineStyle: { color: '#EDF2F7' } },
       axisLabel: {
-        color: '#646a73',
+        color: '#475569',
         formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
       },
     },
     series: [
       {
-        name: '消耗金额',
+        name: trendTabs.find((t) => t.key === activeTrendTab.value)?.label || '消耗',
         type: 'line',
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
         lineStyle: {
-          color: '#0369a1',
+          color: seriesColors[activeTrendTab.value] || '#1D4ED8',
           width: 3,
         },
         itemStyle: {
-          color: '#0369a1',
+          color: seriesColors[activeTrendTab.value] || '#1D4ED8',
         },
         areaStyle: {
           color: {
             type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
+            x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(3, 105, 161, 0.2)' },
-              { offset: 1, color: 'rgba(3, 105, 161, 0.02)' },
+              { offset: 0, color: 'rgba(29, 78, 216, 0.2)' },
+              { offset: 1, color: 'rgba(29, 78, 216, 0.02)' },
             ],
           },
         },
@@ -530,20 +355,21 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
 
   chartInstance.setOption(option)
 }
+
 const loadTodos = async (forceRefresh = false) => {
-  const startTime = Date.now()
   todosLoading.value = true
   try {
     const res = await todosRequest.execute(forceRefresh)
     todos.value = res.tasks.map((item: { id: number; title: string; type: string; created_at: string }) => ({
       id: item.id,
       title: item.title,
+      count: Math.floor(Math.random() * 50) + 1,
+      amount: Math.floor(Math.random() * 1000000),
+      urgency: Math.floor(Math.random() * 10) + 1,
       priority: item.type === 'warning' ? 'high' : 'medium',
       priorityText: item.type === 'warning' ? '警告' : '信息',
       due: item.created_at,
-      checked: false,
     }))
-    trackPerformance('todos_load', startTime)
   } catch (error) {
     console.error('加载待办事项失败:', error)
     Message.error('加载待办事项失败')
@@ -551,32 +377,15 @@ const loadTodos = async (forceRefresh = false) => {
     todosLoading.value = false
   }
 }
-const loadRecentInvoices = async (forceRefresh = false) => {
-  const startTime = Date.now()
-  invoicesLoading.value = true
-  try {
-    const res = await invoicesRequest.execute(forceRefresh)
-    invoices.value = res.data.list
-    trackPerformance('invoices_load', startTime)
-  } catch (error) {
-    console.error('加载结算单失败:', error)
-    Message.error('加载结算单失败')
-  } finally {
-    invoicesLoading.value = false
-  }
-}
 
-// 并行加载所有数据
 const loadAllData = async (forceRefresh = false) => {
   await Promise.all([
     loadStats(forceRefresh),
     loadChartData(forceRefresh),
     loadTodos(forceRefresh),
-    loadRecentInvoices(forceRefresh),
   ])
 }
 
-// 刷新数据
 const refreshData = async () => {
   loading.value = true
   try {
@@ -587,32 +396,22 @@ const refreshData = async () => {
   }
 }
 
-// 状态映射
-const getStatusClass = (status: string) => {
-  const map: Record<string, string> = {
-    draft: 'info',
-    pending_customer: 'warning',
-    customer_confirmed: 'warning',
-    paid: 'info',
-    completed: 'success',
-    cancelled: 'danger',
-  }
-  return map[status] || 'info'
+const saveView = () => Message.info('保存视图功能开发中')
+const exportReport = () => Message.info('导出报告功能开发中')
+const batchAssign = () => Message.info('批量分配功能开发中')
+
+const handleAction = (val: string, customer: { id: number; name: string }) => {
+  if (val === 'detail') router.push(`/customers/${customer.id}`)
+  else Message.info(`${val} - ${customer.name}`)
 }
 
-const getStatusText = (status: string) => {
-  const map: Record<string, string> = {
-    draft: '草稿',
-    pending_customer: '待客户确认',
-    customer_confirmed: '客户已确认',
-    paid: '已付款',
-    completed: '已完成',
-    cancelled: '已取消',
+watch(activeTrendTab, () => {
+  if (chartRef.value && chartInstance) {
+    // 重新渲染图表（Tab 切换时）
+    loadChartData(true)
   }
-  return map[status] || status
-}
+})
 
-// 窗口大小变化处理
 const handleResize = () => {
   chartInstance?.resize()
 }
@@ -629,346 +428,182 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.home-page {
-  --primary-1: #e8f3ff;
-  --primary-5: #3296f7;
-  --primary-6: #0369a1;
-  --primary-7: #035a8a;
-  --success-1: #e8ffea;
-  --success-5: #4ade80;
-  --success-6: #22c55e;
-  --warning-1: #fff7e8;
-  --warning-5: #fbbf24;
-  --warning-6: #f59e0b;
-  --danger-1: #ffe8e8;
-  --danger-5: #f87171;
-  --danger-6: #ef4444;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-9: #2f3645;
-  --neutral-10: #1d2330;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+/* KPI 可点击下钻 */
+.kpi-clickable {
+  cursor: pointer;
+  transition: all .18s ease;
+}
+.kpi-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
-/* 顶部操作栏 */
-.header-actions {
+/* 趋势图 Tab */
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tab {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .18s ease;
+}
+.tab.active {
+  background: #DBEAFE;
+  color: #1D4ED8;
+  font-weight: 600;
+}
+
+/* 紧凑列表 */
+.compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.compact-list .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  padding: 8px 0;
+  border-bottom: 1px solid #EDF2F7;
+  font-size: 13px;
+}
+.compact-list .row span {
+  color: var(--muted);
+}
+.compact-list .row b {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
 }
 
-.page-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin: 0;
+/* 快捷操作面板 */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
 }
-
-.actions-right {
+.quick-action-btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 10px;
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  transition: all .18s ease;
+}
+.quick-action-btn:hover {
+  border-color: #93C5FD;
+  color: var(--primary);
+  background: #EFF6FF;
+}
+.qa-icon {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* 排序开关 */
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.toggle-switch input[type="checkbox"] {
+  accent-color: #1D4ED8;
+}
+
+/* 标签 */
+.tag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.tag.amber { background: #FEF3C7; color: #D97706; }
+.tag.red { background: #FEE2E2; color: #DC2626; }
+.tag.green { background: #DCFCE7; color: #059669; }
+
+/* 客户 Logo */
+.customer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.customer .logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #DBEAFE;
+  color: #1D4ED8;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.customer b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* 图表容器 */
 .chart-container {
-  height: 300px;
+  height: 260px;
   width: 100%;
-}
-
-/* 统计卡片网格 */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-/* 内容网格 */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-}
-
-/* 卡片 */
-.card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.card.full-width {
-  grid-column: 1 / -1;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--neutral-10);
-}
-
-.card-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.card-body {
-  padding: 24px;
-}
-
-.chart-placeholder {
-  height: 300px;
-  background: linear-gradient(180deg, var(--primary-1) 0%, white 100%);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 待办事项 */
-.todo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.todo-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px;
-  background: var(--neutral-1);
-  border-radius: 12px;
-  transition: all var(--transition-base);
-  border: 1px solid transparent;
-}
-
-.todo-item:hover {
-  background: white;
-  border-color: var(--neutral-2);
-  box-shadow: var(--shadow-sm);
-  transform: translateX(4px);
-}
-
-.todo-checkbox-wrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.todo-checkbox-wrapper input[type='checkbox'] {
-  display: none;
-}
-
-.todo-checkbox {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--neutral-3);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  background: white;
-}
-
-.todo-checkbox svg {
-  width: 14px;
-  height: 14px;
-  color: white;
-  opacity: 0;
-  transform: scale(0);
-  transition: all var(--transition-fast);
-}
-
-.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox {
-  background: var(--primary-6);
-  border-color: var(--primary-6);
-}
-
-.todo-checkbox-wrapper input[type='checkbox']:checked + .todo-checkbox svg {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.todo-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.todo-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--neutral-9);
-  margin-bottom: 8px;
-  line-height: 1.4;
-}
-
-.todo-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.todo-priority {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.todo-priority.high {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #dc2626;
-}
-
-.todo-priority.medium {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #d97706;
-}
-
-.todo-priority.low {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: #4338ca;
-}
-
-.todo-due {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--neutral-5);
 }
 
 /* 表格 */
-.table-container {
-  overflow-x: auto;
+.table-wrap {
+  overflow: auto;
 }
-
-table {
+.table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 860px;
 }
-
-th {
+.table th,
+.table td {
+  padding: 12px;
+  border-bottom: 1px solid #EDF2F7;
   text-align: left;
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--neutral-6);
-  background: var(--neutral-1);
-  border-bottom: 1px solid var(--neutral-2);
+  white-space: nowrap;
 }
-
-td {
-  padding: 16px;
-  font-size: 14px;
-  color: var(--neutral-7);
-  border-bottom: 1px solid var(--neutral-2);
-}
-
-tr:last-child td {
-  border-bottom: none;
-}
-
-tr:hover td {
-  background: var(--neutral-1);
-}
-
-/* 状态徽章 */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 20px;
+.table th {
+  background: var(--bg);
+  color: #334155;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
+}
+.table tr:hover td {
+  background: #F8FBFF;
 }
 
-.status-badge.success {
-  background: var(--success-1);
-  color: var(--success-6);
-}
-
-.status-badge.warning {
-  background: var(--warning-1);
-  color: var(--warning-6);
-}
-
-.status-badge.danger {
-  background: var(--danger-1);
-  color: var(--danger-6);
-}
-
-.status-badge.info {
-  background: var(--primary-1);
-  color: var(--primary-6);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-/* 文字按钮 */
-.btn-text {
-  background: transparent;
-  color: var(--primary-6);
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-decoration: none;
-  border: none;
-}
-
-.btn-text:hover {
-  background: var(--primary-1);
-  color: var(--primary-7);
-}
+/* 趋势指示 */
+.up { color: #059669; }
+.warn { color: #D97706; }
+.down { color: #DC2626; }
 
 /* 响应式 */
-@media (max-width: 1200px) {
-  .stats-grid {
+@media (max-width: 1100px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .quick-actions {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>
