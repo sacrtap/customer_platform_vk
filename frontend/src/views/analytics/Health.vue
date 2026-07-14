@@ -1,11 +1,7 @@
 <template>
   <div class="health-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>健康度分析</h1>
-        <p class="header-subtitle">客户活跃度监控与风险预警</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="Analytics" title="健康度分析"
+      subtitle="客户活跃度监控与风险预警" />
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -13,7 +9,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
+            style="background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -37,7 +33,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
+            style="background: linear-gradient(135deg, #059669 0%, #047857 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -62,7 +58,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+            style="background: linear-gradient(135deg, #D97706 0%, #B45309 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -86,7 +82,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"
+            style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -210,6 +206,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message } from '@arco-design/web-vue'
 import {
   getHealthStats,
@@ -353,49 +350,44 @@ onMounted(() => {
 
 <style scoped>
 .health-analysis-page {
-  padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: 16px;
 }
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
-  font-size: 14px;
-  color: var(--neutral-6);
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  padding: 24px;
+  padding: 20px;
   transition: all 200ms ease;
 }
 
@@ -417,46 +409,46 @@ onMounted(() => {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   color: white;
+  flex-shrink: 0;
 }
 
 .stat-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-size: 30px;
+  font-weight: 850;
+  color: var(--ink);
 }
 
 .stat-value.success {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .stat-value.warning {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .stat-value.danger {
-  color: #ef4444;
+  color: var(--red);
 }
 
 .stat-extra {
   font-size: 12px;
-  color: var(--neutral-5);
+  color: var(--muted);
   margin-top: 8px;
 }
 
 .table-section {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  margin-bottom: 24px;
 }
 
 .table-header {
@@ -464,13 +456,22 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .table-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
+  margin: 0;
+}
+
+/* 表头样式 */
+.table-section :deep(.arco-table-th) {
+  background: #F8FAFC;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .balance-value {
@@ -478,16 +479,16 @@ onMounted(() => {
 }
 
 .balance-value.warning {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .balance-value.danger {
-  color: #ef4444;
+  color: var(--red);
 }
 
 .inactive-days {
   font-weight: 600;
-  color: #ef4444;
+  color: var(--red);
 }
 
 @media (max-width: 1200px) {

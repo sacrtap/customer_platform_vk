@@ -1,23 +1,11 @@
 <template>
   <div class="profile-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>画像分析</h1>
-        <p class="header-subtitle">客户画像多维度统计分析</p>
-      </div>
-      <div class="header-actions">
-        <a-button :loading="loading" @click="handleRefresh">
-          <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-              <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-              <path d="M8 1a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 1z"/>
-              <path d="M8 5.5L5.5 3H10.5L8 5.5z"/>
-            </svg>
-          </template>
-          刷新
-        </a-button>
-      </div>
-    </div>
+    <PageHeader eyebrow="Analytics" title="画像分析"
+      subtitle="客户画像多维度统计分析">
+      <template #actions>
+        <a-button :loading="loading" @click="handleRefresh">刷新</a-button>
+      </template>
+    </PageHeader>
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -69,7 +57,7 @@
       <!-- 房产客户占比 -->
       <div class="chart-card">
         <div class="chart-header">
-          <h3>房产客户占比</h3>
+          <h3>房产客户行业分布</h3>
         </div>
         <div ref="realEstateChartRef" class="chart-container"></div>
       </div>
@@ -79,6 +67,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -89,6 +78,14 @@ import {
   getRealEstateStats,
   getRealEstateIndustryStats,
 } from '@/api/analytics'
+
+/** ECharts 统一配色序列 */
+const CHART_COLORS = ['#1D4ED8', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED']
+const TEXT_MUTED = '#475569'
+const TEXT_INK = '#0F172A'
+
+/** 房产客户独立橙色系配色 */
+const REAL_ESTATE_COLORS = ['#D97706', '#F59E0B', '#FBBF24', '#FCD34D', '#FDE68A']
 
 interface IndustryData {
   industry: string
@@ -205,17 +202,6 @@ const initIndustryChart = (data: IndustryData[]) => {
 
   industryChart = echarts.init(industryChartRef.value)
 
-  const colors = [
-    '#0369A1',
-    '#0ea5e9',
-    '#38bdf8',
-    '#7dd3fc',
-    '#bae6fd',
-    '#0284c7',
-    '#0369A1',
-    '#075985',
-  ]
-
   const option = {
     tooltip: {
       trigger: 'item',
@@ -226,7 +212,7 @@ const initIndustryChart = (data: IndustryData[]) => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -250,7 +236,7 @@ const initIndustryChart = (data: IndustryData[]) => {
             show: true,
             fontSize: 14,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
@@ -260,7 +246,7 @@ const initIndustryChart = (data: IndustryData[]) => {
           name: item.industry || '其他',
           value: item.count,
           itemStyle: {
-            color: colors[index % colors.length],
+            color: CHART_COLORS[index % CHART_COLORS.length],
           },
         })),
       },
@@ -299,13 +285,13 @@ const initScaleChart = (data: ScaleData[]) => {
           type: 'pie',
           radius: ['40%', '70%'],
           center: ['35%', '50%'],
-          data: [],  // 空数据数组
+          data: [],
           label: {
             show: true,
             position: 'center',
             formatter: '-',
             fontSize: 24,
-            color: '#999',
+            color: '#94A3B8',
             fontWeight: 'lighter',
           },
         },
@@ -327,7 +313,7 @@ const initScaleChart = (data: ScaleData[]) => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -351,15 +337,18 @@ const initScaleChart = (data: ScaleData[]) => {
             show: true,
             fontSize: 14,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
           show: false,
         },
-        data: data.map((item) => ({
+        data: data.map((item, index) => ({
           name: item.scale_level || '未知',
           value: item.count,
+          itemStyle: {
+            color: CHART_COLORS[index % CHART_COLORS.length],
+          },
         })),
       },
     ],
@@ -388,7 +377,7 @@ const initConsumeLevelChart = (data: ConsumeLevelData[]) => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -412,15 +401,18 @@ const initConsumeLevelChart = (data: ConsumeLevelData[]) => {
             show: true,
             fontSize: 14,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
           show: false,
         },
-        data: data.map((item) => ({
+        data: data.map((item, index) => ({
           name: item.consume_level || '未知',
           value: item.count,
+          itemStyle: {
+            color: CHART_COLORS[index % CHART_COLORS.length],
+          },
         })),
       },
     ],
@@ -439,9 +431,6 @@ const initRealEstateChart = (data: RealEstateIndustryData[]) => {
 
   realEstateChart = echarts.init(realEstateChartRef.value)
 
-  // 橙色系配色，区别于行业分布图的蓝色系
-  const colors = ['#f97316', '#fb923c', '#fdba74', '#fed7aa', '#ffedd5']
-
   const option = {
     tooltip: {
       trigger: 'item',
@@ -452,7 +441,7 @@ const initRealEstateChart = (data: RealEstateIndustryData[]) => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -476,7 +465,7 @@ const initRealEstateChart = (data: RealEstateIndustryData[]) => {
             show: true,
             fontSize: 14,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
@@ -487,10 +476,10 @@ const initRealEstateChart = (data: RealEstateIndustryData[]) => {
               name: item.industry || '其他',
               value: item.count,
               itemStyle: {
-                color: colors[index % colors.length],
+                color: REAL_ESTATE_COLORS[index % REAL_ESTATE_COLORS.length],
               },
             }))
-          : [{ name: '暂无数据', value: 0, itemStyle: { color: '#e5e7eb' } }],
+          : [{ name: '暂无数据', value: 0, itemStyle: { color: '#E2E8F0' } }],
       },
     ],
   }
@@ -507,7 +496,7 @@ const handleResize = () => {
 }
 
 onMounted(() => {
-  loadData({ force_refresh: true }) // 首次加载强制刷新，避免命中旧缓存
+  loadData({ force_refresh: true })
   window.addEventListener('resize', handleResize)
 })
 
@@ -522,50 +511,50 @@ onUnmounted(() => {
 
 <style scoped>
 .profile-analysis-page {
-  padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  gap: 16px;
 }
 
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
-  font-size: 14px;
-  color: var(--neutral-6);
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  padding: 20px;
   transition: all 200ms ease;
 }
 
@@ -576,50 +565,50 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
   margin-bottom: 12px;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
 }
 
 .stat-value.success {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .stat-extra {
   font-size: 12px;
-  color: var(--neutral-5);
+  color: var(--muted);
   margin-top: 8px;
 }
 
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .chart-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
 .chart-header {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .chart-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
+  margin: 0;
 }
 
 .chart-container {

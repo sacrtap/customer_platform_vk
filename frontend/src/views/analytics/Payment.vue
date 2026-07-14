@@ -1,14 +1,10 @@
 <template>
   <div class="payment-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>回款分析</h1>
-        <p class="header-subtitle">结算单回款进度与完成率分析</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="Analytics" title="回款分析"
+      subtitle="结算单回款进度与完成率分析" />
 
     <!-- 筛选区域 -->
-    <div class="filter-section">
+    <div class="filter-card">
       <a-form layout="inline" :model="filters">
         <a-form-item label="时间范围">
           <a-select
@@ -96,7 +92,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
@@ -104,6 +101,13 @@ import { getPaymentAnalysis, getInvoiceStatusStats } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
+
+/** ECharts 统一配色序列 */
+const CHART_COLORS = ['#1D4ED8', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED']
+const TEXT_MUTED = '#475569'
+const TEXT_INK = '#0F172A'
+const AXIS_LINE = '#DBE3EF'
+const SPLIT_LINE = '#F1F5F9'
 
 const filters = reactive({
   start_date: '',
@@ -252,7 +256,7 @@ const initComparisonChart = () => {
     legend: {
       data: ['应收金额', '已回款'],
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     grid: {
@@ -267,22 +271,22 @@ const initComparisonChart = () => {
       data: periodLabels,
       axisLine: {
         lineStyle: {
-          color: '#e0e2e7',
+          color: AXIS_LINE,
         },
       },
       axisLabel: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     yAxis: {
       type: 'value',
       axisLabel: {
         formatter: '¥{value}',
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
       splitLine: {
         lineStyle: {
-          color: '#f0f0f0',
+          color: SPLIT_LINE,
         },
       },
     },
@@ -293,8 +297,8 @@ const initComparisonChart = () => {
         data: invoicedData,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#0369A1' },
-            { offset: 1, color: '#075985' },
+            { offset: 0, color: '#1D4ED8' },
+            { offset: 1, color: '#1E40AF' },
           ]),
         },
       },
@@ -304,8 +308,8 @@ const initComparisonChart = () => {
         data: paidData,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#22c55e' },
-            { offset: 1, color: '#16a34a' },
+            { offset: 0, color: '#059669' },
+            { offset: 1, color: '#047857' },
           ]),
         },
       },
@@ -326,12 +330,12 @@ const initStatusChart = () => {
   statusChart = echarts.init(statusChartRef.value)
 
   const statusColors: Record<string, string> = {
-    draft: '#6b7280',
-    pending_customer: '#f59e0b',
-    customer_confirmed: '#3b82f6',
-    paid: '#22c55e',
-    completed: '#10b981',
-    cancelled: '#ef4444',
+    draft: '#94A3B8',
+    pending_customer: '#D97706',
+    customer_confirmed: '#1D4ED8',
+    paid: '#059669',
+    completed: '#0891B2',
+    cancelled: '#DC2626',
   }
 
   const statusNames: Record<string, string> = {
@@ -353,7 +357,7 @@ const initStatusChart = () => {
       right: '5%',
       top: 'center',
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     series: [
@@ -377,7 +381,7 @@ const initStatusChart = () => {
             show: true,
             fontSize: 14,
             fontWeight: 'bold',
-            color: '#1d2330',
+            color: TEXT_INK,
           },
         },
         labelLine: {
@@ -387,7 +391,7 @@ const initStatusChart = () => {
           name: statusNames[item.name] || item.name,
           value: item.count,
           itemStyle: {
-            color: statusColors[item.name] || '#6b7280',
+            color: statusColors[item.name] || '#94A3B8',
           },
         })),
       },
@@ -435,22 +439,22 @@ const initTrendChart = () => {
       data: periodLabels,
       axisLine: {
         lineStyle: {
-          color: '#e0e2e7',
+          color: AXIS_LINE,
         },
       },
       axisLabel: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     yAxis: {
       type: 'value',
       axisLabel: {
         formatter: '¥{value}',
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
       splitLine: {
         lineStyle: {
-          color: '#f0f0f0',
+          color: SPLIT_LINE,
         },
       },
     },
@@ -461,12 +465,12 @@ const initTrendChart = () => {
         smooth: true,
         data: paidData,
         itemStyle: {
-          color: '#22c55e',
+          color: CHART_COLORS[2],
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
-            { offset: 1, color: 'rgba(34, 197, 94, 0.05)' },
+            { offset: 0, color: 'rgba(5, 150, 105, 0.3)' },
+            { offset: 1, color: 'rgba(5, 150, 105, 0.05)' },
           ]),
         },
       },
@@ -487,63 +491,63 @@ onMounted(() => {
   handleTimeRangeChange()
   window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  comparisonChart?.dispose()
+  statusChart?.dispose()
+  trendChart?.dispose()
+})
 </script>
 
 <style scoped>
 .payment-analysis-page {
-  padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --primary-6: #0369a1;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: 16px;
 }
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
-  font-size: 14px;
-  color: var(--neutral-6);
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.filter-section {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+.filter-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  margin-bottom: 24px;
+  padding: 20px 24px;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  padding: 20px;
   transition: all 200ms ease;
 }
 
@@ -554,26 +558,26 @@ onMounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
   margin-bottom: 12px;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
 }
 
 .stat-value.success {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .stat-value.warning {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .stat-value.danger {
-  color: #ef4444;
+  color: var(--red);
 }
 
 .stat-trend {
@@ -585,24 +589,24 @@ onMounted(() => {
 }
 
 .trend-label {
-  color: var(--neutral-5);
+  color: var(--muted);
 }
 
 .trend-value {
   font-weight: 600;
-  color: var(--primary-6);
+  color: var(--primary);
 }
 
 .charts-section {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 14px;
 }
 
 .chart-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -613,13 +617,14 @@ onMounted(() => {
 
 .chart-header {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .chart-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
+  margin: 0;
 }
 
 .chart-container {
