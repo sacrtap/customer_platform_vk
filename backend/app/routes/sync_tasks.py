@@ -48,6 +48,42 @@ async def get_sync_task_stats(request: Request):
         return json({"code": 500, "message": f"获取统计数据失败: {str(e)}"}, status=500)
 
 
+@sync_tasks_bp.get("/status")
+@auth_required
+async def get_sync_status(request: Request):
+    """获取同步状态摘要（用于首页同步状态条）"""
+    try:
+        service = SyncTaskService(db=request.ctx.db_session)
+        stats = await service.get_stats()
+
+        # 从 stats 中提取同步状态信息
+        error_count = stats.get("failed_count", 0)
+        today_total = stats.get("today_total", 0)
+        today_success = stats.get("today_success", 0)
+        rate = round(today_success / today_total * 100, 1) if today_total > 0 else 0
+
+        # 最近同步时间
+        last_sync = stats.get("last_sync_time")
+        if last_sync:
+            last_sync_str = last_sync.strftime("%H:%M") if hasattr(last_sync, "strftime") else str(last_sync)
+        else:
+            last_sync_str = None
+
+        return json({
+            "code": 0,
+            "data": {
+                "status": "ok" if error_count == 0 else "warning",
+                "last_sync": last_sync_str,
+                "next_sync": None,
+                "sync_rate": rate,
+                "error_count": error_count,
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取同步状态失败: {e}")
+        return json({"code": 500, "message": f"获取同步状态失败: {str(e)}"}, status=500)
+
+
 @sync_tasks_bp.post("")
 @auth_required
 async def create_sync_task(request: Request):

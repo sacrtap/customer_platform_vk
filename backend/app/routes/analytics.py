@@ -595,6 +595,67 @@ async def get_dashboard_chart_data(request: Request):
     return json(result)
 
 
+@analytics.route("/dashboard/trend", methods=["GET"])
+@auth_required
+async def get_dashboard_trend(request: Request):
+    """获取仪表盘趋势数据（支持多指标切换）
+
+    查询参数:
+    - metric: consumption | payment | customer_count | health
+    - months: 查询月数（默认 12）
+    """
+    metric = request.args.get("metric", "consumption")
+    months = int(request.args.get("months", 12))
+    if months > 24:
+        months = 24
+
+    cache_key = f"{metric}:{months}"
+    cached = await cache_service.get("analytics_dashboard_trend", cache_key)
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    from dateutil.relativedelta import relativedelta
+
+    end_date = datetime.utcnow().date()
+    start_date = end_date - relativedelta(months=months)
+
+    if metric == "consumption":
+        trend = await service.get_consumption_trend(start_date, end_date, None, None)
+        dates = [item.get("period", "") for item in trend]
+        values = [item.get("total_amount", 0) for item in trend]
+    elif metric == "payment":
+        # 回款趋势：使用结算单数据
+        invoice_stats = await service.get_invoice_status_stats(start_date, end_date)
+        trend = invoice_stats.get("monthly_trend", [])
+        dates = [item.get("month", "") for item in trend]
+        values = [item.get("paid_amount", 0) for item in trend]
+    elif metric == "customer_count":
+        # 客户数趋势
+        chart_data = await service.get_dashboard_chart_data(months)
+        trend = chart_data.get("customer_growth_trend", chart_data.get("consumption_trend", []))
+        dates = [item.get("period", "") for item in trend]
+        values = [item.get("customer_count", item.get("total_amount", 0)) for item in trend]
+    elif metric == "health":
+        # 健康度趋势
+        health_stats = await service.get_customer_health_stats()
+        trend = health_stats.get("monthly_trend", [])
+        dates = [item.get("month", "") for item in trend]
+        values = [item.get("avg_score", 0) for item in trend]
+    else:
+        return json({"code": 400, "message": "Invalid metric parameter"}, status=400)
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {"dates": dates, "values": values, "metric": metric},
+    }
+    await cache_service.set("analytics_dashboard_trend", result, cache_key, ttl=300)
+    return json(result)
+
+
 @analytics.route("/billing/trend/<customer_id:int>", methods=["GET"])
 @auth_required
 async def get_balance_trend(request: Request, customer_id: int):
