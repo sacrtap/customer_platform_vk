@@ -1,37 +1,36 @@
 <template>
   <div class="customer-list-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>客户管理</h1>
-        <p class="header-subtitle">统一客户基础信息与画像数据管理</p>
+    <!-- PageHeader -->
+    <PageHeader eyebrow="Customers" title="客户列表"
+      subtitle="将客户筛选、标签、画像、余额风险与批量操作放在同一工作面，避免运营在多个页面来回跳转。">
+      <template #actions>
+        <a-button v-if="can('customers:export')" @click="handleExport">导出</a-button>
+        <a-button v-if="can('customers:import')" @click="openImportModal">导入</a-button>
+        <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">新增客户</a-button>
+      </template>
+    </PageHeader>
+
+    <!-- KPI 联动筛选 -->
+    <div class="grid-4">
+      <div class="metric card kpi-clickable" :class="{ 'kpi-active': activeKpi === 'all' }" @click="applyKpiFilter('all')">
+        <div class="label">客户总数</div>
+        <div class="value">{{ kpiData.total }}</div>
+        <div class="trend up">本月新增 {{ kpiData.newThisMonth }}</div>
       </div>
-      <div class="header-actions">
-        <a-button v-if="can('customers:create')" type="primary" @click="openCreateModal">
-          <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" />
-            </svg>
-          </template>
-          新建客户
-        </a-button>
-        <a-button v-if="can('customers:import')" @click="openImportModal">
-          <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
-              <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z" />
-            </svg>
-          </template>
-          导入
-        </a-button>
-        <a-button v-if="can('customers:export')" @click="handleExport">
-          <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z" />
-              <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z" />
-            </svg>
-          </template>
-          导出
-        </a-button>
+      <div class="metric card kpi-clickable" :class="{ 'kpi-active': activeKpi === 'key' }" @click="applyKpiFilter('key')">
+        <div class="label">重点客户</div>
+        <div class="value">{{ kpiData.keyCustomers }}</div>
+        <div class="trend">消耗贡献 {{ kpiData.keyContribution }}%</div>
+      </div>
+      <div class="metric card kpi-clickable" :class="{ 'kpi-active': activeKpi === 'incomplete' }" @click="applyKpiFilter('incomplete')">
+        <div class="label">待完善画像</div>
+        <div class="value">{{ kpiData.incompleteProfile }}</div>
+        <div class="trend warn">影响分析准确性</div>
+      </div>
+      <div class="metric card kpi-clickable" :class="{ 'kpi-active': activeKpi === 'mine' }" @click="applyKpiFilter('mine')">
+        <div class="label">我的客户</div>
+        <div class="value">{{ kpiData.myCustomers }}</div>
+        <div class="trend down">需运营跟进</div>
       </div>
     </div>
 
@@ -49,17 +48,13 @@
     />
 
     <!-- 批量操作工具栏 -->
-    <div v-if="hasSelectedCustomers" class="batch-toolbar">
-      <a-space>
-        <a-tag color="arcoblue" size="large">
-          已选择 {{ selectedCustomerIds.length }} 条
-        </a-tag>
-        <a-button type="primary" @click="openBatchEditDialog">批量编辑</a-button>
-        <a-button @click="clearBatchSelection">取消选择</a-button>
-      </a-space>
-    </div>
+    <BatchToolbar v-if="hasSelectedCustomers" :count="selectedCustomerIds.length">
+      <a-button type="primary" @click="openBatchEditDialog">批量编辑</a-button>
+      <a-button @click="clearBatchSelection">取消选择</a-button>
+    </BatchToolbar>
 
     <!-- 表格 -->
+    <TableSection>
     <CustomerTable
       :customers="customers"
       :loading="loading"
@@ -76,6 +71,13 @@
       @view="viewCustomer"
       @edit="openEditModal"
       @delete="handleDelete"
+    />
+    </TableSection>
+
+    <!-- 客户预览抽屉 -->
+    <CustomerPreviewDrawer
+      v-model:visible="previewDrawerVisible"
+      :customer-id="previewCustomerId"
     />
 
     <CustomerFormModal
@@ -108,8 +110,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, reactive } from 'vue'
 import { useCustomerList } from '@/composables/useCustomerList'
 
+import PageHeader from '@/components/PageHeader.vue'
+import BatchToolbar from '@/components/BatchToolbar.vue'
+import TableSection from '@/components/TableSection.vue'
+import CustomerPreviewDrawer from '@/components/CustomerPreviewDrawer.vue'
 import CustomerFilters from './components/CustomerFilters.vue'
 import CustomerTable from './components/CustomerTable.vue'
 import CustomerFormModal from './components/CustomerFormModal.vue'
@@ -132,46 +139,64 @@ const {
   handleExport,
   openCreateModal, openEditModal, viewCustomer, openImportModal,
 } = useCustomerList()
+
+// KPI 联动筛选
+const activeKpi = ref('all')
+const kpiData = reactive({
+  total: '3,286',
+  newThisMonth: 126,
+  keyCustomers: 348,
+  keyContribution: 72,
+  incompleteProfile: 214,
+  myCustomers: 58,
+})
+const applyKpiFilter = (kpi: string) => {
+  activeKpi.value = kpi
+  // 根据 KPI 设置筛选条件
+  if (kpi === 'key') {
+    filters.is_key_customer = true
+  } else if (kpi === 'mine') {
+    // 设置当前用户的客户
+  } else {
+    ;(filters as any).is_key_customer = undefined
+  }
+  handleSearch()
+}
+
+// 预览抽屉
+const previewDrawerVisible = ref(false)
+const previewCustomerId = ref<number | null>(null)
+const openPreview = (id: number) => {
+  previewCustomerId.value = id
+  previewDrawerVisible.value = true
+}
 </script>
 
 <style scoped>
 .customer-list-page {
-  padding: 24px;
-  background: var(--color-bg-1);
-  min-height: 100vh;
-}
-
-.page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+  flex-direction: column;
+  gap: 18px;
 }
 
-.header-title h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+/* KPI 联动筛选 */
+.kpi-clickable {
+  cursor: pointer;
+  transition: all .18s ease;
+}
+.kpi-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.kpi-active {
+  border-color: #93C5FD;
+  background: #EFF6FF;
 }
 
-.header-subtitle {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: var(--color-text-3);
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.batch-toolbar {
-  margin-bottom: 16px;
-  padding: 12px;
-  background: var(--color-fill-1);
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-}
+.metric .label { font-size: 13px; color: var(--muted); }
+.metric .value { font-size: 24px; font-weight: 850; color: var(--ink); margin: 4px 0; }
+.metric .trend { font-size: 12px; }
+.trend.up { color: #059669; }
+.trend.warn { color: #D97706; }
+.trend.down { color: #DC2626; }
 </style>
