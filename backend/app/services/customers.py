@@ -239,6 +239,20 @@ class CustomerService:
             else:
                 conditions.append(IndustryType.name.in_(industry_list))
 
+        # 规模等级筛选
+        if scale_level := filters.get("scale_level"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(CustomerProfile.scale_level == scale_level)
+
+        # 消费等级筛选
+        if consume_level := filters.get("consume_level"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(CustomerProfile.consume_level == consume_level)
+
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
             conditions.append(Customer.manager_id == manager_id)

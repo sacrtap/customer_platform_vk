@@ -58,6 +58,8 @@ async def list_customers(request: Request):
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
+        "scale_level": request.args.get("scale_level"),
+        "consume_level": request.args.get("consume_level"),
         "manager_id": (
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
         ),
@@ -131,6 +133,18 @@ async def list_customers(request: Request):
                     "is_real_estate": c.is_real_estate,
                     "email": c.email,
                     "created_at": c.created_at.isoformat() if c.created_at else None,
+                    # === 客户列表页新增字段 ===
+                    "scale_level": c.profile.scale_level if c.profile else None,
+                    "consume_level": c.profile.consume_level if c.profile else None,
+                    "balance": (
+                        float(c.balance.total_amount)
+                        if c.balance
+                        else 0.0
+                    ),
+                    # 以下字段暂为占位，后续画像分析模块完善后补全
+                    "usage_30d": None,
+                    "usage_30d_amount": None,
+                    "health": None,
                 }
                 for c in customers
             ],
