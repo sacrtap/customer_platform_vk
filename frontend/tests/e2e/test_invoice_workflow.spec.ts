@@ -136,18 +136,18 @@ test.describe('结算单工作流 @smoke', () => {
 
     // 重构后使用自定义表格 table.table，行点击打开详情抽屉
     const firstRow = page.locator('table.table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      // 点击行打开详情抽屉（row-clickable 类）
-      await firstRow.click();
-      await page.waitForTimeout(500);
+    const hasRow = await firstRow.count() > 0;
+    test.skip(!hasRow, '结算单列表中无数据');
 
-      // 验证抽屉打开
-      const drawer = page.locator('.arco-drawer:visible').first();
-      if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
-        // 关闭抽屉
-        await page.keyboard.press('Escape').catch(() => {});
-      }
+    // 点击行打开详情抽屉（row-clickable 类）
+    await firstRow.click();
+    await page.waitForTimeout(500);
+
+    // 验证抽屉打开
+    const drawer = page.locator('.arco-drawer:visible').first();
+    if (await drawer.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // 关闭抽屉
+      await page.keyboard.press('Escape').catch(() => {});
     }
-    // 测试通过
   });
 });
