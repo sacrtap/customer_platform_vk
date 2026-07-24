@@ -74,7 +74,7 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in environment}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set in environment}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.company.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-noreply@company.com}
