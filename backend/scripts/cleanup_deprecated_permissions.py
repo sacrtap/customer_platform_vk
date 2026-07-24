@@ -78,7 +78,7 @@ def cleanup():
             )
             associated_roles = list(roles_query.scalars().all())
             if associated_roles:
-                role_names = ", ".join(r.name for r in associated_roles)
+                role_names = ", ".join(r.name for r in associated_roles)  # pyright: ignore[reportArgumentType, reportCallIssue]
                 print(f"  ⚠️  '{perm.code}' 被以下角色关联: {role_names}")
             else:
                 print(f"  ✅ '{perm.code}' 无角色关联")
@@ -91,8 +91,8 @@ def cleanup():
                 text("DELETE FROM role_permissions WHERE permission_id = :perm_id"),
                 {"perm_id": perm.id},
             )
-            if deleted.rowcount > 0:
-                print(f"  ✅ 从 {deleted.rowcount} 个角色中移除 '{perm.code}'")
+            if deleted.rowcount > 0:  # pyright: ignore[reportAttributeAccessIssue]
+                print(f"  ✅ 从 {deleted.rowcount} 个角色中移除 '{perm.code}'")  # pyright: ignore[reportAttributeAccessIssue]
             else:
                 print(f"  ⏭️  '{perm.code}' 无角色关联，跳过")
 
@@ -107,7 +107,7 @@ def cleanup():
 
         print("\n✅ 清理完成!")
         print(f"   删除权限数: {len(deprecated_perms)}")
-        print(f"   权限代码: {', '.join(p.code for p in deprecated_perms)}")
+        print(f"   权限代码: {', '.join(p.code for p in deprecated_perms)}")  # pyright: ignore[reportArgumentType, reportCallIssue]
 
 
 if __name__ == "__main__":

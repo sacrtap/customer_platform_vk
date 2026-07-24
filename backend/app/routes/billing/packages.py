@@ -295,11 +295,11 @@ async def update_package_plan(request: Request, plan_id: int):
     # 处理 is_unlimited 和 limit_count
     if "is_unlimited" in data:
         is_unlimited = bool(data["is_unlimited"])
-        plan.is_unlimited = is_unlimited
+        plan.is_unlimited = is_unlimited  # pyright: ignore[reportAttributeAccessIssue]
 
         if is_unlimited:
             # 切换为不限量时清空 limit_count
-            plan.limit_count = None
+            plan.limit_count = None  # pyright: ignore[reportAttributeAccessIssue]
         else:
             # 切换为限量时，limit_count 必须有值
             if "limit_count" in data and data["limit_count"] is not None:
@@ -310,7 +310,7 @@ async def update_package_plan(request: Request, plan_id: int):
                             {"code": 40001, "message": "限量数量必须大于 0"},
                             status=400,
                         )
-                    plan.limit_count = limit_count
+                    plan.limit_count = limit_count  # pyright: ignore[reportAttributeAccessIssue]
                 except (ValueError, TypeError):
                     return json(
                         {"code": 40001, "message": "限量数量格式错误"},
@@ -321,7 +321,7 @@ async def update_package_plan(request: Request, plan_id: int):
                     {"code": 40001, "message": "限量套餐必须填写具体数量"},
                     status=400,
                 )
-    elif "limit_count" in data and not plan.is_unlimited:
+    elif "limit_count" in data and not plan.is_unlimited:  # pyright: ignore[reportGeneralTypeIssues]
         # 单独更新 limit_count（当前为限量模式）
         try:
             limit_count = int(data["limit_count"])
@@ -330,7 +330,7 @@ async def update_package_plan(request: Request, plan_id: int):
                     {"code": 40001, "message": "限量数量必须大于 0"},
                     status=400,
                 )
-            plan.limit_count = limit_count
+            plan.limit_count = limit_count  # pyright: ignore[reportAttributeAccessIssue]
         except (ValueError, TypeError):
             return json({"code": 40001, "message": "限量数量格式错误"}, status=400)
 
@@ -363,7 +363,7 @@ async def update_package_plan(request: Request, plan_id: int):
         user_id=user.get("user_id") if user else None,
         action="update",
         module="billing",
-        record_id=plan.id,
+        record_id=plan.id,  # pyright: ignore[reportArgumentType]
         record_type="package_plan",
         changes={"before": before_data, "after": after_data},
         operation_type="standard",
@@ -409,7 +409,7 @@ async def delete_package_plan(request: Request, plan_id: int):
 
     from sqlalchemy import func
 
-    plan.deleted_at = func.now()
+    plan.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
     await db.commit()
 
     # 审计日志

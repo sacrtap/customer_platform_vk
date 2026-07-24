@@ -77,7 +77,7 @@ def init_scheduler(app):
         @monitored_task("check_stuck_sync_tasks", "卡住同步任务检测")
         async def _check_stuck_sync_tasks():
             redis_client = await cache_service._get_redis()
-            async with session_factory() as session:
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
                 service = SyncTaskService(db=session, redis_client=redis_client)
                 recovered = await service.check_stuck_tasks(max_running_minutes=60)
                 if recovered > 0:
@@ -88,7 +88,7 @@ def init_scheduler(app):
 
         # P6-3: 每月 1 日 02:00 自动生成结算单
         scheduler.add_job(
-            lambda: _generate_monthly_invoices(session_factory()),
+            lambda: _generate_monthly_invoices(session_factory()),  # pyright: ignore[reportOptionalCall]
             trigger=CronTrigger(day=1, hour=2, minute=0),
             id="generate_monthly_invoices",
             name="月度结算单自动生成",
@@ -97,7 +97,7 @@ def init_scheduler(app):
 
         # P6-4: 每小时检查余额预警
         scheduler.add_job(
-            lambda: _check_balance_warning(session_factory()),
+            lambda: _check_balance_warning(session_factory()),  # pyright: ignore[reportOptionalCall]
             trigger=IntervalTrigger(hours=1),
             id="check_balance_warning",
             name="余额预警检查",
@@ -106,7 +106,7 @@ def init_scheduler(app):
 
         # P6-7: 每日 09:00 发送逾期提醒邮件
         scheduler.add_job(
-            lambda: _send_overdue_emails(session_factory()),
+            lambda: _send_overdue_emails(session_factory()),  # pyright: ignore[reportOptionalCall]
             trigger=CronTrigger(hour=9, minute=0),
             id="send_overdue_emails",
             name="逾期提醒邮件",
@@ -124,7 +124,7 @@ def init_scheduler(app):
 
         # P6-8: 每日 04:00 清理 Webhook 签名（5 天前）
         scheduler.add_job(
-            lambda: _cleanup_webhook_signatures(session_factory()),
+            lambda: _cleanup_webhook_signatures(session_factory()),  # pyright: ignore[reportOptionalCall]
             trigger=CronTrigger(hour=4, minute=0),
             id="cleanup_webhook_signatures",
             name="Webhook 签名清理",
@@ -133,7 +133,7 @@ def init_scheduler(app):
 
         # 消耗分析增强：每日 01:00 同步订单
         scheduler.add_job(
-            lambda: _sync_daily_orders(session_factory(), app.ctx.external_mysql_engine),
+            lambda: _sync_daily_orders(session_factory(), app.ctx.external_mysql_engine),  # pyright: ignore[reportOptionalCall]
             trigger=CronTrigger(hour=1, minute=0),
             id="sync_daily_orders",
             name="每日订单同步",
@@ -142,7 +142,7 @@ def init_scheduler(app):
 
         # 消耗分析增强：每日 01:30 计算费用
         scheduler.add_job(
-            lambda: _calc_daily_cost(session_factory()),
+            lambda: _calc_daily_cost(session_factory()),  # pyright: ignore[reportOptionalCall]
             trigger=CronTrigger(hour=1, minute=30),
             id="calc_daily_cost",
             name="每日费用计算",

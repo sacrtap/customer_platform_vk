@@ -55,6 +55,12 @@ pytest-xdist==3.8.0
 pytest-testmon==2.2.0
 locust==2.20.0
 
+# Type Stubs (for Pyright type checking)
+pandas-stubs==2.1.4.231227
+types-redis==4.6.0.20241004
+types-python-dateutil==2.9.0.20241003
+types-openpyxl==3.1.2.20240601
+
 # CORS
 sanic-cors==2.2.0
 

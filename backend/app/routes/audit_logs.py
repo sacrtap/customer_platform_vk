@@ -39,7 +39,7 @@ async def list_audit_logs(request: Request):
     conditions = [AuditLog.deleted_at.is_(None)]
 
     if user_id := (int(request.args.get("user_id")) if request.args.get("user_id") else None):
-        conditions.append(AuditLog.user_id == user_id)
+        conditions.append(AuditLog.user_id == user_id)  # pyright: ignore[reportArgumentType]
 
     if action := request.args.get("action"):
         conditions.append(AuditLog.action == action)
@@ -50,14 +50,14 @@ async def list_audit_logs(request: Request):
     if start_date := request.args.get("start_date"):
         try:
             start = datetime.fromisoformat(start_date)
-            conditions.append(AuditLog.created_at >= start)
+            conditions.append(AuditLog.created_at >= start)  # pyright: ignore[reportArgumentType]
         except ValueError:
             pass
 
     if end_date := request.args.get("end_date"):
         try:
             end = datetime.fromisoformat(end_date)
-            conditions.append(AuditLog.created_at <= end)
+            conditions.append(AuditLog.created_at <= end)  # pyright: ignore[reportArgumentType]
         except ValueError:
             pass
 

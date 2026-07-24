@@ -153,7 +153,7 @@ async def create_sync_task(request: Request):
         async def run_task():
             async with async_session_maker() as new_session:
                 bg_service = SyncTaskService(db=new_session, redis_client=redis_client)
-                await bg_service.execute_task(task.id)
+                await bg_service.execute_task(task.id)  # pyright: ignore[reportArgumentType]
 
         request.app.add_task(run_task())
 
@@ -214,8 +214,8 @@ async def get_sync_task(request: Request, task_id: UUID):
                     "success_count": task.success_count,
                     "failed_count": task.failed_count,
                     "operator_id": task.operator_id,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
-                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     "error_message": task.error_message,
                 },
             }

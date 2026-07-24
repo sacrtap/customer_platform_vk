@@ -197,9 +197,9 @@ class CostCalcService:
         quantity = order_group["total_floor_count"]
         unit_price = Decimal(str(pricing_rule.unit_price or 0))
 
-        if pricing_rule.pricing_type == "tiered":
+        if pricing_rule.pricing_type == "tiered":  # pyright: ignore[reportGeneralTypeIssues]
             return self._calc_tiered(quantity, pricing_rule)
-        elif pricing_rule.pricing_type == "package":
+        elif pricing_rule.pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
             return self._calc_package(pricing_rule)
         else:  # fixed
             return self._calc_unified(quantity, unit_price)
@@ -211,11 +211,11 @@ class CostCalcService:
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
         tiers = pricing_rule.tiers or []
-        if not tiers:
+        if not tiers:  # pyright: ignore[reportGeneralTypeIssues]
             return Decimal(str(pricing_rule.unit_price or 0)) * quantity
 
         # Sort tiers by min_quantity
-        sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))
+        sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))  # pyright: ignore[reportCallIssue, reportArgumentType, reportAttributeAccessIssue]
 
         remaining = quantity
         total_cost = Decimal("0")

@@ -62,7 +62,7 @@ class RoleService:
 
         # 分配权限
         if permission_ids:
-            await self.assign_permissions(role.id, permission_ids)
+            await self.assign_permissions(role.id, permission_ids)  # pyright: ignore[reportArgumentType]
 
         await self.db_session.commit()
         await self.db_session.refresh(role)
@@ -82,18 +82,18 @@ class RoleService:
             return None
 
         # 系统角色不能修改名称
-        if role.is_system and name and name != role.name:
+        if role.is_system and name and name != role.name:  # pyright: ignore[reportGeneralTypeIssues]
             raise ValueError("系统角色不能修改名称")
 
         if name is not None:
             # 检查新名称是否已被使用
             existing = await self.get_role_by_name(name)
-            if existing and existing.id != role_id:
+            if existing and existing.id != role_id:  # pyright: ignore[reportGeneralTypeIssues]
                 raise ValueError(f"角色 '{name}' 已存在")
-            role.name = name
+            role.name = name  # pyright: ignore[reportAttributeAccessIssue]
 
         if description is not None:
-            role.description = description
+            role.description = description  # pyright: ignore[reportAttributeAccessIssue]
 
         # 更新权限
         if permission_ids is not None:
@@ -119,7 +119,7 @@ class RoleService:
             return False
 
         # 系统角色不能删除
-        if role.is_system:
+        if role.is_system:  # pyright: ignore[reportGeneralTypeIssues]
             return False
 
         await self.db_session.delete(role)

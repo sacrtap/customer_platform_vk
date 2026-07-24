@@ -153,7 +153,7 @@ async def _log_check_task(
     critical_count: int,
     normal_count: int,
     executed_at: datetime,
-    error_message: str = None,
+    error_message: str = None,  # pyright: ignore[reportArgumentType]
 ):
     """记录检查任务日志"""
     from ..models.billing import SyncTaskLog

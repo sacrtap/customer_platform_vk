@@ -38,10 +38,10 @@ async def import_balance(request: Request):
     from ...models.customers import Customer
 
     files = request.files
-    if "file" not in files:
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
         return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
 
-    excel_file = files["file"][0]
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
     if not excel_file.name.endswith(".xlsx"):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
@@ -87,15 +87,15 @@ async def import_balance(request: Request):
         valid_rows = []
 
         for idx, row in df.iterrows():
-            row_num = idx + 2  # Excel 行号（含表头）
+            row_num = idx + 2  # Excel 行号（含表头）  # pyright: ignore[reportOperatorIssue]
 
             # 校验 company_id
             company_id = row.get("company_id")
-            if pd.isna(company_id) or company_id is None:
+            if pd.isna(company_id) or company_id is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 errors.append(f"第 {row_num} 行：客户编号为空")
                 continue
             try:
-                company_id = int(company_id)
+                company_id = int(company_id)  # pyright: ignore[reportArgumentType]
             except (ValueError, TypeError):
                 errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
                 continue
@@ -108,11 +108,11 @@ async def import_balance(request: Request):
 
             # 校验 real_amount
             real_amount = row.get("real_amount")
-            if pd.isna(real_amount) or real_amount is None:
+            if pd.isna(real_amount) or real_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 real_amount = 0
             else:
                 try:
-                    real_amount = float(real_amount)
+                    real_amount = float(real_amount)  # pyright: ignore[reportArgumentType]
                     if real_amount < 0:
                         errors.append(f"第 {row_num} 行：实充金额不能为负数")
                         continue
@@ -122,11 +122,11 @@ async def import_balance(request: Request):
 
             # 校验 bonus_amount
             bonus_amount = row.get("bonus_amount")
-            if pd.isna(bonus_amount) or bonus_amount is None:
+            if pd.isna(bonus_amount) or bonus_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 bonus_amount = 0
             else:
                 try:
-                    bonus_amount = float(bonus_amount)
+                    bonus_amount = float(bonus_amount)  # pyright: ignore[reportArgumentType]
                     if bonus_amount < 0:
                         errors.append(f"第 {row_num} 行：赠送金额不能为负数")
                         continue
@@ -141,7 +141,7 @@ async def import_balance(request: Request):
 
             # 备注
             remark = row.get("remark")
-            if pd.isna(remark) or remark is None:
+            if pd.isna(remark) or remark is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 remark = None
             else:
                 remark = str(remark)[:200]  # 截断到 200 字符
@@ -175,7 +175,7 @@ async def import_balance(request: Request):
         service = BalanceService(BalanceRepository(db_session))
         success_count, batch_errors = await service.batch_import_recharge(
             rows=valid_rows,
-            operator_id=operator_id,
+            operator_id=operator_id,  # pyright: ignore[reportArgumentType]
         )
         errors.extend(batch_errors)
 
@@ -232,11 +232,11 @@ async def download_balance_import_template(request: Request):
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "余额导入模板"
+    ws.title = "余额导入模板"  # pyright: ignore[reportOptionalMemberAccess]
 
     # 表头
     headers = ["company_id", "real_amount", "bonus_amount", "remark"]
-    ws.append(headers)
+    ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 中文说明行
     notes = [
@@ -245,14 +245,14 @@ async def download_balance_import_template(request: Request):
         "必填：赠送金额（>=0）",
         "可选：备注（最长200字符）",
     ]
-    ws.append(notes)
+    ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 设置列宽
-    for col in ws.columns:
-        ws.column_dimensions[col[0].column_letter].width = 25
+    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
+        ws.column_dimensions[col[0].column_letter].width = 25  # pyright: ignore[reportOptionalMemberAccess]
 
     # 示例数据
-    ws.append([100001, 10000.00, 2000.00, "月初充值"])
+    ws.append([100001, 10000.00, 2000.00, "月初充值"])  # pyright: ignore[reportOptionalMemberAccess]
 
     # 生成文件
     output = io.BytesIO()

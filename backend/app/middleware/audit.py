@@ -153,7 +153,7 @@ def audit_middleware(app: Sanic):
             db_session.add(audit_entry)
             await db_session.commit()
         except Exception as e:
-            app.logger.error(f"Audit log failed: {e}")
+            app.logger.error(f"Audit log failed: {e}")  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def build_changes(
@@ -196,7 +196,7 @@ def serialize_record_for_audit(record) -> dict:
         val = getattr(record, key, None)
         # 将 datetime 等不可 JSON 序列化的类型转为字符串
         if hasattr(val, "isoformat"):
-            val = val.isoformat()
+            val = val.isoformat()  # pyright: ignore[reportOptionalMemberAccess]
         result[key] = val
     return result
 

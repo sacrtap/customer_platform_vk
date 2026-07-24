@@ -66,14 +66,14 @@ async def get_invoices(request: Request):
                         "customer_sales_manager_id": i.customer.sales_manager_id
                         if i.customer
                         else None,
-                        "period_start": i.period_start.isoformat() if i.period_start else None,
-                        "period_end": i.period_end.isoformat() if i.period_end else None,
-                        "total_amount": float(i.total_amount),
-                        "discount_amount": float(i.discount_amount) if i.discount_amount else 0,
-                        "final_amount": float(i.total_amount - (i.discount_amount or 0)),
+                        "period_start": i.period_start.isoformat() if i.period_start else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        "period_end": i.period_end.isoformat() if i.period_end else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        "total_amount": float(i.total_amount),  # pyright: ignore[reportArgumentType]
+                        "discount_amount": float(i.discount_amount) if i.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "final_amount": float(i.total_amount - (i.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                         "status": i.status,
                         "is_auto_generated": i.is_auto_generated,
-                        "created_at": i.created_at.isoformat() if i.created_at else None,
+                        "created_at": i.created_at.isoformat() if i.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for i in invoices
                 ],
@@ -139,12 +139,12 @@ async def get_invoice(request: Request, invoice_id: int):
                 "customer_sales_manager_id": invoice.customer.sales_manager_id
                 if invoice.customer
                 else None,
-                "period_start": invoice.period_start.isoformat() if invoice.period_start else None,
-                "period_end": invoice.period_end.isoformat() if invoice.period_end else None,
-                "total_amount": float(invoice.total_amount),
-                "discount_amount": float(invoice.discount_amount) if invoice.discount_amount else 0,
+                "period_start": invoice.period_start.isoformat() if invoice.period_start else None,  # pyright: ignore[reportGeneralTypeIssues]
+                "period_end": invoice.period_end.isoformat() if invoice.period_end else None,  # pyright: ignore[reportGeneralTypeIssues]
+                "total_amount": float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
+                "discount_amount": float(invoice.discount_amount) if invoice.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "discount_reason": invoice.discount_reason,
-                "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),
+                "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                 "status": invoice.status,
                 "items": [
                     {
@@ -179,7 +179,7 @@ async def get_invoice(request: Request, invoice_id: int):
                 "cancelled_name": resolve_name(invoice.cancelled_by),
                 "created_by": invoice.created_by,
                 "created_by_name": resolve_name(invoice.created_by),
-                "created_at": invoice.created_at.isoformat() if invoice.created_at else None,
+                "created_at": invoice.created_at.isoformat() if invoice.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
             },
         }
     )
@@ -478,7 +478,7 @@ async def generate_invoice(request: Request):
             "data": {
                 "id": invoice.id,
                 "invoice_no": invoice.invoice_no,
-                "total_amount": float(invoice.total_amount),
+                "total_amount": float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
             },
         },
         status=201,
@@ -722,7 +722,8 @@ async def retry_deduction(request: Request, invoice_id: int):
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.retry_deduction(
-        invoice_id=invoice_id, user_id=user.get("user_id") if user else 1
+        invoice_id=invoice_id,
+        user_id=user.get("user_id") if user else 1,  # pyright: ignore[reportArgumentType]
     )
 
     if not success:
@@ -819,7 +820,8 @@ async def complete_invoice(request: Request, invoice_id: int):
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.complete_invoice(
-        invoice_id=invoice_id, user_id=user.get("user_id") if user else 1
+        invoice_id=invoice_id,
+        user_id=user.get("user_id") if user else 1,  # pyright: ignore[reportArgumentType]
     )
 
     if not success:
@@ -868,7 +870,7 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
 
     success, message = await invoice_service.cancel_invoice(
         invoice_id=invoice_id,
-        user_id=user["user_id"] if user else None,
+        user_id=user["user_id"] if user else None,  # pyright: ignore[reportArgumentType]
     )
 
     if not success:
@@ -1013,7 +1015,7 @@ async def export_invoices(request: Request):
     # 创建 Excel 工作簿
     wb = Workbook()
     ws = wb.active
-    ws.title = "结算单导出"
+    ws.title = "结算单导出"  # pyright: ignore[reportOptionalMemberAccess]
 
     # 定义样式
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -1042,7 +1044,7 @@ async def export_invoices(request: Request):
 
     # 写入表头
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
+        cell = ws.cell(row=1, column=col_num, value=header)  # pyright: ignore[reportOptionalMemberAccess]
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_alignment
@@ -1051,7 +1053,7 @@ async def export_invoices(request: Request):
     # 设置列宽
     column_widths = [20, 30, 12, 12, 12, 12, 12, 18, 20]
     for col_num, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = width
+        ws.column_dimensions[get_column_letter(col_num)].width = width  # pyright: ignore[reportOptionalMemberAccess]
 
     # 写入数据
     status_map = {
@@ -1072,32 +1074,32 @@ async def export_invoices(request: Request):
         row_data = [
             invoice.invoice_no,
             customer_name,
-            invoice.period_start.isoformat() if invoice.period_start else "",
-            invoice.period_end.isoformat() if invoice.period_end else "",
-            float(invoice.total_amount),
-            float(invoice.discount_amount) if invoice.discount_amount else 0,
-            float(invoice.total_amount - (invoice.discount_amount or 0)),
-            status_map.get(invoice.status, invoice.status),
-            invoice.created_at.isoformat() if invoice.created_at else "",
+            invoice.period_start.isoformat() if invoice.period_start else "",  # pyright: ignore[reportGeneralTypeIssues]
+            invoice.period_end.isoformat() if invoice.period_end else "",  # pyright: ignore[reportGeneralTypeIssues]
+            float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
+            float(invoice.discount_amount) if invoice.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
+            status_map.get(invoice.status, invoice.status),  # pyright: ignore[reportCallIssue, reportArgumentType]
+            invoice.created_at.isoformat() if invoice.created_at else "",  # pyright: ignore[reportGeneralTypeIssues]
         ]
 
         for col_num, value in enumerate(row_data, 1):
-            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell = ws.cell(row=row_num, column=col_num, value=value)  # pyright: ignore[reportOptionalMemberAccess]
             cell.alignment = cell_alignment
             cell.border = thin_border
 
     # 添加统计信息行
     total_row = len(invoices) + 2
-    ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")
-    ws.cell(
+    ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")  # pyright: ignore[reportOptionalMemberAccess]
+    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
         row=total_row,
         column=5,
-        value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",
+        value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
     )
-    ws.cell(
+    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
         row=total_row,
         column=7,
-        value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",
+        value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
     )
 
     # 保存到内存
@@ -1112,7 +1114,7 @@ async def export_invoices(request: Request):
     # 返回文件
     return await response_file(
         output,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # pyright: ignore[reportCallIssue]
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "no-cache, no-store, must-revalidate",

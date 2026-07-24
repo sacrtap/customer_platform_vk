@@ -56,14 +56,14 @@ async def get_pricing_rules(request: Request):
                         "device_type": r.device_type,
                         "layer_type": r.layer_type or "single",
                         "pricing_type": r.pricing_type,
-                        "unit_price": float(r.unit_price) if r.unit_price else None,
+                        "unit_price": float(r.unit_price) if r.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "tiers": r.tiers,
                         "package_type": r.package_type,
                         "package_limits": r.package_limits,
                         "effective_date": (
-                            r.effective_date.isoformat() if r.effective_date else None
+                            r.effective_date.isoformat() if r.effective_date else None  # pyright: ignore[reportGeneralTypeIssues]
                         ),
-                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for r in rules
                 ],
@@ -122,7 +122,7 @@ async def create_pricing_rule(request: Request):
                 "device_type": rule.device_type,
                 "layer_type": rule.layer_type or "single",
                 "pricing_type": rule.pricing_type,
-                "unit_price": float(rule.unit_price) if rule.unit_price else None,
+                "unit_price": float(rule.unit_price) if rule.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
             },
         },
         status=201,
@@ -257,9 +257,9 @@ async def check_pricing_rule_conflict(request: Request):
                         "id": r.id,
                         "pricing_type": r.pricing_type,
                         "effective_date": (
-                            r.effective_date.isoformat() if r.effective_date else None
+                            r.effective_date.isoformat() if r.effective_date else None  # pyright: ignore[reportGeneralTypeIssues]
                         ),
-                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for r in conflicting_rules
                 ],

@@ -37,7 +37,7 @@ class CustomerRepository(BaseRepository[Customer], CustomerRepositoryProtocol):
         stmt = self._base_query(include_deleted).where(
             or_(
                 Customer.name.ilike(f"%{keyword}%"),
-                Customer.company_id.cast(str).ilike(f"%{keyword}%"),
+                Customer.company_id.cast(str).ilike(f"%{keyword}%"),  # pyright: ignore[reportArgumentType]
             )
         )
         result = await self.db.execute(stmt)

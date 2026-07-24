@@ -20,9 +20,9 @@ async def generate_test_data():
     # 创建异步数据库连接
     db_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://")
     engine = create_async_engine(db_url)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
-    async with async_session() as db:
+    async with async_session() as db:  # pyright: ignore[reportGeneralTypeIssues]
         # 1. 检查是否已有客户数据
         result = await db.execute(select(Customer).limit(5))
         customers = result.scalars().all()

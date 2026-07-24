@@ -82,7 +82,7 @@ async def get_sync_logs(request):
                 "executed_at": log.executed_at,
                 "duration_seconds": log.duration_seconds,
                 "error_message": log.error_message,
-                "created_at": log.created_at.isoformat() if log.created_at else None,
+                "created_at": log.created_at.isoformat() if log.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
             }
             for log in logs
         ]

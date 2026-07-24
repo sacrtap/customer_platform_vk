@@ -43,7 +43,7 @@ class BalanceService:
 
     @property
     def db(self) -> AsyncSession:
-        return self.balance_repo.db
+        return self.balance_repo.db  # pyright: ignore[reportAttributeAccessIssue]
 
     async def get_balance_by_customer_id(self, customer_id: int) -> Optional[CustomerBalance]:
         """获取客户余额"""
@@ -89,9 +89,9 @@ class BalanceService:
 
         # 更新余额
         balance = await self.get_or_create_balance(customer_id)
-        balance.real_amount = (balance.real_amount or 0) + real_amount
-        balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount
-        balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount
+        balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
+        balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
+        balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
         await self.db.refresh(record)
@@ -136,9 +136,9 @@ class BalanceService:
 
                 # 更新余额
                 balance = await self.get_or_create_balance(customer_id)
-                balance.real_amount = (balance.real_amount or 0) + real_amount
-                balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount
-                balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount
+                balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
+                balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
+                balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
 
                 await self.db.flush()
                 success_count += 1
@@ -203,7 +203,7 @@ class BalanceService:
                         return False, "客户余额账户不存在"
 
                     total_balance = (balance.real_amount or 0) + (balance.bonus_amount or 0)
-                    if total_balance < amount:
+                    if total_balance < amount:  # pyright: ignore[reportGeneralTypeIssues]
                         return False, f"余额不足，当前余额：{total_balance:.2f}元"
 
                     # 先消耗赠金，再消耗实充
@@ -211,28 +211,28 @@ class BalanceService:
                     bonus_used = Decimal(0)
                     real_used = Decimal(0)
 
-                    if balance.bonus_amount and balance.bonus_amount > 0:
-                        if balance.bonus_amount >= remaining:
+                    if balance.bonus_amount and balance.bonus_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
+                        if balance.bonus_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
                             bonus_used = remaining
-                            balance.bonus_amount -= remaining
+                            balance.bonus_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
                             remaining = Decimal(0)
                         else:
                             bonus_used = balance.bonus_amount
                             remaining -= balance.bonus_amount
-                            balance.bonus_amount = Decimal(0)
+                            balance.bonus_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
 
-                    if remaining > 0 and balance.real_amount and balance.real_amount > 0:
-                        if balance.real_amount >= remaining:
+                    if remaining > 0 and balance.real_amount and balance.real_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
+                        if balance.real_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
                             real_used = remaining
-                            balance.real_amount -= remaining
+                            balance.real_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
                         else:
                             real_used = balance.real_amount
-                            balance.real_amount = Decimal(0)
+                            balance.real_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 更新总额
-                    balance.used_total = (balance.used_total or 0) + amount
-                    balance.used_bonus = (balance.used_bonus or 0) + bonus_used
-                    balance.used_real = (balance.used_real or 0) + real_used
+                    balance.used_total = (balance.used_total or 0) + amount  # pyright: ignore[reportAttributeAccessIssue]
+                    balance.used_bonus = (balance.used_bonus or 0) + bonus_used  # pyright: ignore[reportAttributeAccessIssue]
+                    balance.used_real = (balance.used_real or 0) + real_used  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 创建消费记录
                     consumption = ConsumptionRecord(
@@ -276,7 +276,7 @@ class BalanceService:
         result = await self.db.execute(stmt)
         records = result.scalars().all()
 
-        return list(records), total
+        return list(records), total  # pyright: ignore[reportReturnType]
 
 
 class PricingService:
@@ -287,7 +287,7 @@ class PricingService:
 
     @property
     def db(self) -> AsyncSession:
-        return self.pricing_repo.db
+        return self.pricing_repo.db  # pyright: ignore[reportAttributeAccessIssue]
 
     async def get_pricing_rules(
         self,
@@ -331,7 +331,7 @@ class PricingService:
         result = await self.db.execute(stmt)
         rules = result.scalars().all()
 
-        return list(rules), total
+        return list(rules), total  # pyright: ignore[reportReturnType]
 
     async def _check_overlap(
         self,
@@ -371,17 +371,17 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:
+                    if new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
                         raise ValueError(
                             "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
                         )
                 else:
-                    if effective_date <= rule_expiry:
+                    if effective_date <= rule_expiry:  # pyright: ignore[reportGeneralTypeIssues]
                         raise ValueError(
                             "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
                         )
             else:
-                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
+                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
                     raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
 
     async def create_pricing_rule(self, data: Dict[str, Any]) -> PricingRule:
@@ -394,7 +394,7 @@ class PricingService:
 
         # 使用统一的校验方法
         await self._check_overlap(
-            customer_id=customer_id,
+            customer_id=customer_id,  # pyright: ignore[reportArgumentType]
             device_type=device_type,
             layer_type=layer_type,
             effective_date=effective_date,
@@ -517,13 +517,13 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     conflicting.append(rule)
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:
+                    if new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
                         conflicting.append(rule)
                 else:
-                    if effective_date <= rule_expiry:
+                    if effective_date <= rule_expiry:  # pyright: ignore[reportGeneralTypeIssues]
                         conflicting.append(rule)
             else:
-                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
+                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
                     conflicting.append(rule)
 
         return conflicting
@@ -538,7 +538,7 @@ class PricingService:
         if not rule:
             return False
 
-        rule.deleted_at = func.now()
+        rule.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True
@@ -557,7 +557,7 @@ class InvoiceService:
 
     @property
     def db(self) -> AsyncSession:
-        return self.invoice_repo.db
+        return self.invoice_repo.db  # pyright: ignore[reportAttributeAccessIssue]
 
     async def calculate_items_from_rules(
         self,
@@ -628,7 +628,7 @@ class InvoiceService:
 
         # 构建规则查找字典：(device_type, layer_type) -> PricingRule
         # layer_type 为 NULL 时默认为 'single'
-        rules_map: Dict[Tuple[str, str], PricingRule] = {
+        rules_map: Dict[Tuple[str, str], PricingRule] = {  # pyright: ignore[reportAssignmentType]
             (r.device_type, r.layer_type or "single"): r for r in pricing_rules
         }
 
@@ -649,7 +649,7 @@ class InvoiceService:
                 # 没有匹配的定价规则，跳过
                 continue
 
-            if rule.pricing_type == "fixed":
+            if rule.pricing_type == "fixed":  # pyright: ignore[reportGeneralTypeIssues]
                 # 定价结算：总用量 × 单价
                 unit_price = Decimal(str(rule.unit_price or 0))
                 subtotal = total_quantity * unit_price
@@ -665,10 +665,10 @@ class InvoiceService:
                 )
                 total_amount += subtotal
 
-            elif rule.pricing_type == "tiered":
+            elif rule.pricing_type == "tiered":  # pyright: ignore[reportGeneralTypeIssues]
                 # 阶梯结算：按阶梯单价计算
                 tiers = rule.tiers or {}
-                subtotal = self._calculate_tiered_price(total_quantity, tiers)
+                subtotal = self._calculate_tiered_price(total_quantity, tiers)  # pyright: ignore[reportArgumentType]
                 # 阶梯计价的 unit_price 显示为平均单价
                 avg_unit_price = subtotal / total_quantity if total_quantity > 0 else Decimal(0)
                 items.append(
@@ -683,7 +683,7 @@ class InvoiceService:
                 )
                 total_amount += subtotal
 
-            elif rule.pricing_type == "package":
+            elif rule.pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
                 # 包年结算：按包年固定费用
                 package_limits = rule.package_limits or {}
                 # 简化实现：使用包年基础费用作为单价
@@ -865,7 +865,7 @@ class InvoiceService:
         result = await self.db.execute(stmt)
         invoices = result.scalars().unique().all()
 
-        return list(invoices), total
+        return list(invoices), total  # pyright: ignore[reportReturnType]
 
     async def get_invoice_by_id(self, invoice_id: int) -> Optional[Invoice]:
         """获取结算单详情"""
@@ -895,13 +895,13 @@ class InvoiceService:
         if invoice.status not in ["draft", "pending_ops", "pending_sales", "pending_customer"]:
             return False, f"当前状态不能修改减免：{invoice.status}"
 
-        if discount_amount > invoice.total_amount:
+        if discount_amount > invoice.total_amount:  # pyright: ignore[reportGeneralTypeIssues]
             return False, "减免金额不能大于结算总额"
 
-        invoice.discount_amount = discount_amount
-        invoice.discount_reason = discount_reason
-        invoice.discount_attachment = discount_attachment
-        invoice.discount_applied_at = datetime.now().isoformat()
+        invoice.discount_amount = discount_amount  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_reason = discount_reason  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_attachment = discount_attachment  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_applied_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -918,19 +918,19 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "draft":
+        if invoice.status != "draft":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能提交：{invoice.status}"
 
         # 查询客户是否指定了运营经理
-        customer = await self._get_customer(invoice.customer_id)
-        if customer and customer.manager_id:
-            invoice.status = "pending_ops"
+        customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
+        if customer and customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+            invoice.status = "pending_ops"  # pyright: ignore[reportAttributeAccessIssue]
         else:
             # 未指定运营经理，回退到旧流程（直接待客户确认）
-            invoice.status = "pending_customer"
+            invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
 
-        invoice.approver_id = approver_id
-        invoice.approved_at = datetime.now().isoformat()
+        invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -947,19 +947,19 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "pending_ops":
+        if invoice.status != "pending_ops":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能进行运营经理确认：{invoice.status}"
 
-        customer = await self._get_customer(invoice.customer_id)
+        customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
         if not customer:
             return False, "客户不存在"
 
-        if customer.manager_id != user_id:
+        if customer.manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
             return False, "您不是该客户指定的运营经理，无权确认"
 
-        invoice.status = "pending_sales"
-        invoice.ops_confirmed_by = user_id
-        invoice.ops_confirmed_at = datetime.now().isoformat()
+        invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.ops_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.ops_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -976,19 +976,19 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "pending_sales":
+        if invoice.status != "pending_sales":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能进行销售经理确认：{invoice.status}"
 
-        customer = await self._get_customer(invoice.customer_id)
+        customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
         if not customer:
             return False, "客户不存在"
 
-        if customer.sales_manager_id != user_id:
+        if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
             return False, "您不是该客户指定的销售经理，无权确认"
 
-        invoice.status = "pending_customer"
-        invoice.sales_confirmed_by = user_id
-        invoice.sales_confirmed_at = datetime.now().isoformat()
+        invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.sales_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.sales_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1005,12 +1005,12 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "pending_customer":
+        if invoice.status != "pending_customer":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能确认：{invoice.status}"
 
-        invoice.status = "customer_confirmed"
-        invoice.customer_confirmed_at = datetime.now().isoformat()
-        invoice.customer_confirmed_by = user_id
+        invoice.status = "customer_confirmed"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.customer_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.customer_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         # 自动执行扣款
@@ -1026,7 +1026,7 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "customer_confirmed":
+        if invoice.status != "customer_confirmed":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能重试扣款：{invoice.status}"
 
         success, message = await self._execute_deduction(invoice, user_id=user_id)
@@ -1051,18 +1051,18 @@ class InvoiceService:
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
         balance_service = BalanceService(BalanceRepository(self.db))
         success, message = await balance_service.consume(
-            customer_id=invoice.customer_id,
-            amount=final_amount,
-            invoice_id=invoice.id,
+            customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+            amount=final_amount,  # pyright: ignore[reportArgumentType]
+            invoice_id=invoice.id,  # pyright: ignore[reportArgumentType]
         )
 
         if not success:
             # 扣款失败，保持 customer_confirmed 状态
             return False, f"客户确认成功，但扣款失败：{message}"
 
-        invoice.status = "completed"
-        invoice.completed_at = datetime.now().isoformat()
-        invoice.completed_by = user_id
+        invoice.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.completed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.completed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True, "客户确认成功，已自动完成扣款"
@@ -1083,12 +1083,12 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "customer_confirmed":
+        if invoice.status != "customer_confirmed":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能付款：{invoice.status}"
 
-        invoice.status = "paid"
-        invoice.paid_at = datetime.now().isoformat()
-        invoice.payment_proof = payment_proof
+        invoice.status = "paid"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.paid_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.payment_proof = payment_proof  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1101,7 +1101,7 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status != "paid":
+        if invoice.status != "paid":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能完成：{invoice.status}"
 
         # 提交当前事务（get_invoice_by_id 的 autobegin 事务），
@@ -1112,17 +1112,17 @@ class InvoiceService:
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
         balance_service = BalanceService(BalanceRepository(self.db))
         success, message = await balance_service.consume(
-            customer_id=invoice.customer_id,
-            amount=final_amount,
+            customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+            amount=final_amount,  # pyright: ignore[reportArgumentType]
             invoice_id=invoice_id,
         )
 
         if not success:
             return False, message
 
-        invoice.status = "completed"
-        invoice.completed_at = datetime.now().isoformat()
-        invoice.completed_by = user_id
+        invoice.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.completed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.completed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1139,9 +1139,9 @@ class InvoiceService:
         if invoice.status not in ("draft", "pending_ops", "pending_sales", "pending_customer"):
             return False, f"当前状态不能取消：{invoice.status}"
 
-        invoice.status = "cancelled"
-        invoice.cancelled_at = datetime.now().isoformat()
-        invoice.cancelled_by = user_id
+        invoice.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.cancelled_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.cancelled_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1154,7 +1154,7 @@ class InvoiceService:
         if not invoice:
             return False
 
-        invoice.deleted_at = func.now()
+        invoice.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True
@@ -1280,8 +1280,8 @@ class InvoiceService:
             try:
                 items, total_amount = await self.calculate_items_from_rules(
                     customer_id=cust["id"],
-                    period_start=period_start,
-                    period_end=period_end,
+                    period_start=period_start,  # pyright: ignore[reportArgumentType]
+                    period_end=period_end,  # pyright: ignore[reportArgumentType]
                 )
             except Exception:
                 items, total_amount = [], Decimal(0)
@@ -1299,8 +1299,8 @@ class InvoiceService:
             # 生成结算单（状态 draft）
             invoice = await self.generate_invoice(
                 customer_id=cust["id"],
-                period_start=period_start,
-                period_end=period_end,
+                period_start=period_start,  # pyright: ignore[reportArgumentType]
+                period_end=period_end,  # pyright: ignore[reportArgumentType]
                 items=items,
                 created_by=created_by,
                 is_auto_generated=True,

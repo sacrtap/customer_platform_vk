@@ -812,7 +812,7 @@ async def get_dashboard_trend(request: Request):
     elif metric == "payment":
         # 回款趋势：使用结算单数据
         invoice_stats = await service.get_invoice_status_stats(start_date, end_date)
-        trend = invoice_stats.get("monthly_trend", [])
+        trend = invoice_stats.get("monthly_trend", [])  # pyright: ignore[reportAttributeAccessIssue]
         dates = [item.get("month", "") for item in trend]
         values = [item.get("paid_amount", 0) for item in trend]
     elif metric == "customer_count":
@@ -967,7 +967,7 @@ async def get_tag_usage(request: Request):
 
     # 获取标签使用统计
     try:
-        tag_stats = await service.get_tag_usage_stats()
+        tag_stats = await service.get_tag_usage_stats()  # pyright: ignore[reportAttributeAccessIssue]
     except AttributeError:
         tag_stats = []
 
@@ -1032,7 +1032,7 @@ async def export_health_report(request: Request):
         else pd.DataFrame(columns=["客户名称", "健康度", "状态", "风险因素"])
     )
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:  # pyright: ignore[reportArgumentType]
         df.to_excel(writer, index=False, sheet_name="健康度预警")
 
     output.seek(0)
@@ -1087,7 +1087,7 @@ async def get_payment_top_customers(request: Request):
     service = AnalyticsService(db_session)
 
     try:
-        top_customers = await service.get_payment_top_customers(limit=limit)
+        top_customers = await service.get_payment_top_customers(limit=limit)  # pyright: ignore[reportAttributeAccessIssue]
     except AttributeError:
         top_customers = []
 

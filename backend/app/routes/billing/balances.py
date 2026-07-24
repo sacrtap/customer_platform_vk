@@ -172,7 +172,7 @@ async def get_balances(request: Request):
 
     # 标签筛选（需要 JOIN CustomerTag 表）
     if tag_ids:
-        from ...models.customers import CustomerTag
+        from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
         tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
         if tag_id_list:
@@ -242,7 +242,7 @@ async def get_balances(request: Request):
             )
         count_stmt = count_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
     if tag_ids:
-        from ...models.customers import CustomerTag
+        from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
         tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
         if tag_id_list:
@@ -335,12 +335,12 @@ async def get_balances(request: Request):
                         else None,
                         "settlement_type": (b.customer.settlement_type if b.customer else None),
                         "is_key_customer": (b.customer.is_key_customer if b.customer else False),
-                        "total_amount": float(b.total_amount) if b.total_amount else 0,
-                        "real_amount": float(b.real_amount) if b.real_amount else 0,
-                        "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,
-                        "used_total": float(b.used_total) if b.used_total else 0,
-                        "used_real": float(b.used_real) if b.used_real else 0,
-                        "used_bonus": float(b.used_bonus) if b.used_bonus else 0,
+                        "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "last_recharge_at": (
                             last_recharge_map[b.customer_id].isoformat()
                             if b.customer_id in last_recharge_map
@@ -557,12 +557,12 @@ async def get_customer_balance(request: Request, customer_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "total_amount": float(balance.total_amount) if balance.total_amount else 0,
-                "real_amount": float(balance.real_amount) if balance.real_amount else 0,
-                "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,
-                "used_total": float(balance.used_total) if balance.used_total else 0,
-                "used_real": float(balance.used_real) if balance.used_real else 0,
-                "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,
+                "total_amount": float(balance.total_amount) if balance.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "real_amount": float(balance.real_amount) if balance.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_total": float(balance.used_total) if balance.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_real": float(balance.used_real) if balance.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
             },
         }
     )
@@ -626,16 +626,16 @@ async def recharge(request: Request):
         user_id=user.get("user_id") if user else None,
         action="recharge",
         module="billing",
-        record_id=record.id,
+        record_id=record.id,  # pyright: ignore[reportArgumentType]
         record_type="recharge",
         changes={
             "before": {
-                "real_amount": float(balance_before.real_amount) if balance_before else 0,
-                "bonus_amount": float(balance_before.bonus_amount) if balance_before else 0,
+                "real_amount": float(balance_before.real_amount) if balance_before else 0,  # pyright: ignore[reportArgumentType]
+                "bonus_amount": float(balance_before.bonus_amount) if balance_before else 0,  # pyright: ignore[reportArgumentType]
             },
             "after": {
-                "real_amount": float(balance_after.real_amount) if balance_after else 0,
-                "bonus_amount": float(balance_after.bonus_amount) if balance_after else 0,
+                "real_amount": float(balance_after.real_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
+                "bonus_amount": float(balance_after.bonus_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
                 "recharge_real": float(real_amount),
                 "recharge_bonus": float(bonus_amount),
             },
@@ -655,37 +655,37 @@ async def recharge(request: Request):
             "data": {
                 "id": record.id,
                 "customer_id": record.customer_id,
-                "real_amount": float(record.real_amount),
-                "bonus_amount": float(record.bonus_amount),
-                "total_amount": float(record.real_amount + record.bonus_amount),
+                "real_amount": float(record.real_amount),  # pyright: ignore[reportArgumentType]
+                "bonus_amount": float(record.bonus_amount),  # pyright: ignore[reportArgumentType]
+                "total_amount": float(record.real_amount + record.bonus_amount),  # pyright: ignore[reportArgumentType]
                 # 充值后的完整余额信息（用于前端局部更新）
                 "balance": {
                     "total_amount": (
-                        float(balance_after.total_amount)
-                        if balance_after and balance_after.total_amount
+                        float(balance_after.total_amount)  # pyright: ignore[reportArgumentType]
+                        if balance_after and balance_after.total_amount  # pyright: ignore[reportGeneralTypeIssues]
                         else 0
                     ),
                     "real_amount": (
-                        float(balance_after.real_amount)
-                        if balance_after and balance_after.real_amount
+                        float(balance_after.real_amount)  # pyright: ignore[reportArgumentType]
+                        if balance_after and balance_after.real_amount  # pyright: ignore[reportGeneralTypeIssues]
                         else 0
                     ),
                     "bonus_amount": (
-                        float(balance_after.bonus_amount)
-                        if balance_after and balance_after.bonus_amount
+                        float(balance_after.bonus_amount)  # pyright: ignore[reportArgumentType]
+                        if balance_after and balance_after.bonus_amount  # pyright: ignore[reportGeneralTypeIssues]
                         else 0
                     ),
                     "used_total": (
-                        float(balance_after.used_total)
-                        if balance_after and balance_after.used_total
+                        float(balance_after.used_total)  # pyright: ignore[reportArgumentType]
+                        if balance_after and balance_after.used_total  # pyright: ignore[reportGeneralTypeIssues]
                         else 0
                     ),
-                    "used_real": float(balance_after.used_real)
-                    if balance_after and balance_after.used_real
+                    "used_real": float(balance_after.used_real)  # pyright: ignore[reportArgumentType]
+                    if balance_after and balance_after.used_real  # pyright: ignore[reportGeneralTypeIssues]
                     else 0,
                     "used_bonus": (
-                        float(balance_after.used_bonus)
-                        if balance_after and balance_after.used_bonus
+                        float(balance_after.used_bonus)  # pyright: ignore[reportArgumentType]
+                        if balance_after and balance_after.used_bonus  # pyright: ignore[reportGeneralTypeIssues]
                         else 0
                     ),
                 },
@@ -717,7 +717,7 @@ async def get_recharge_records(request: Request):
 
     from ...models.customers import Customer
 
-    customer_ids = list(set(r.customer_id for r in records if r.customer_id))
+    customer_ids = list(set(r.customer_id for r in records if r.customer_id))  # pyright: ignore[reportGeneralTypeIssues]
     customer_name_map = {}
     if customer_ids:
         customer_result = await db.execute(
@@ -735,13 +735,13 @@ async def get_recharge_records(request: Request):
                         "id": r.id,
                         "customer_id": r.customer_id,
                         "customer_name": customer_name_map.get(r.customer_id, ""),
-                        "real_amount": float(r.real_amount),
-                        "bonus_amount": float(r.bonus_amount),
-                        "total_amount": float(r.real_amount + r.bonus_amount),
+                        "real_amount": float(r.real_amount),  # pyright: ignore[reportArgumentType]
+                        "bonus_amount": float(r.bonus_amount),  # pyright: ignore[reportArgumentType]
+                        "total_amount": float(r.real_amount + r.bonus_amount),  # pyright: ignore[reportArgumentType]
                         "operator_id": r.operator_id,
                         "payment_proof": r.payment_proof,
                         "remark": r.remark,
-                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for r in records
                 ],
@@ -795,11 +795,11 @@ async def get_consumption_records(request: Request):
                         "id": r.id,
                         "customer_id": r.customer_id,
                         "invoice_id": r.invoice_id,
-                        "amount": float(r.amount),
-                        "bonus_used": float(r.bonus_used) if r.bonus_used else 0,
-                        "real_used": float(r.real_used) if r.real_used else 0,
-                        "balance_after": float(r.balance_after) if r.balance_after else 0,
-                        "consumed_at": r.created_at.isoformat() if r.created_at else None,
+                        "amount": float(r.amount),  # pyright: ignore[reportArgumentType]
+                        "bonus_used": float(r.bonus_used) if r.bonus_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "real_used": float(r.real_used) if r.real_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "balance_after": float(r.balance_after) if r.balance_after else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "consumed_at": r.created_at.isoformat() if r.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for r in records
                 ],

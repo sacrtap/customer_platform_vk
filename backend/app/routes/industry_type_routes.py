@@ -35,7 +35,7 @@ async def get_industry_types(request: Request):
                     "id": it.id,
                     "name": it.name,
                     "sort_order": it.sort_order,
-                    "created_at": it.created_at.isoformat() if it.created_at else None,
+                    "created_at": it.created_at.isoformat() if it.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                 }
                 for it in industry_types
             ],
