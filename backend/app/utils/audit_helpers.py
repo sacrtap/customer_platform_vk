@@ -10,7 +10,7 @@ from ..models.billing import AuditLog
 
 async def create_audit_entry(
     db_session: AsyncSession,
-    user_id: int,
+    user_id: int | None,
     action: str,
     module: str,
     record_id: int | None = None,

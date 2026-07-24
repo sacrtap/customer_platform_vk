@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>客户管理 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="customers" class="page active">
+      <div class="headline"><div><div class="eyebrow">Customers</div><h1 class="h1">客户管理</h1><p class="desc">将客户筛选、标签、画像、余额风险与批量操作放在同一工作面，避免运营在多个页面来回跳转。</p></div><div class="actions"><button class="btn" onclick="openModal('modal-import')">导入客户</button><button class="btn" onclick="openModal('modal-export')">导出</button><button class="btn primary" onclick="openModal('modal-add')">新增客户</button></div></div>
+      <!-- P0: KPI 联动筛选 - 卡片可点击 -->
+      <div class="grid-4"><div class="metric card kpi-clickable kpi-active" data-kpi="all" onclick="applyKpiFilter('all')"><div class="label">客户总数</div><div class="value">3,286</div><div class="trend up">本月新增 126</div></div><div class="metric card kpi-clickable" data-kpi="key" onclick="applyKpiFilter('key')"><div class="label">重点客户</div><div class="value">348</div><div class="trend">消耗贡献 72%</div></div><div class="metric card kpi-clickable" data-kpi="incomplete" onclick="applyKpiFilter('incomplete')"><div class="label">待完善画像</div><div class="value">214</div><div class="trend warn">影响分析准确性</div></div><div class="metric card kpi-clickable" data-kpi="mine" onclick="applyKpiFilter('mine')"><div class="label">我的客户</div><div class="value">58</div><div class="trend down">需运营跟进</div></div></div>
+      <div class="card pad" style="margin-top:14px">
+        <div class="filters">
+          <div class="search-input-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="cust-name-search" placeholder="搜索客户名称 / 公司 ID">
+          </div>
+          <div class="filter-dropdown" data-filter-key="industry">
+            <button class="filter-trigger" onclick="toggleFilterDropdown(this)"><span class="filter-label">行业</span><span class="filter-value">全部</span><span class="filter-arrow">▾</span></button>
+            <div class="filter-panel"><div class="filter-option active" data-value="" onclick="selectFilterOption(this)">全部</div><div class="filter-option" data-value="房产" onclick="selectFilterOption(this)">房产</div><div class="filter-option" data-value="SaaS" onclick="selectFilterOption(this)">SaaS</div><div class="filter-option" data-value="电商" onclick="selectFilterOption(this)">电商</div><div class="filter-option" data-value="贸易" onclick="selectFilterOption(this)">贸易</div><div class="filter-option" data-value="商业服务" onclick="selectFilterOption(this)">商业服务</div><div class="filter-option" data-value="传媒" onclick="selectFilterOption(this)">传媒</div><div class="filter-option" data-value="能源" onclick="selectFilterOption(this)">能源</div></div>
+          </div>
+          <div class="filter-dropdown" data-filter-key="scale">
+            <button class="filter-trigger" onclick="toggleFilterDropdown(this)"><span class="filter-label">规模等级</span><span class="filter-value">全部</span><span class="filter-arrow">▾</span></button>
+            <div class="filter-panel"><div class="filter-option active" data-value="" onclick="selectFilterOption(this)">全部</div><div class="filter-option" data-value="S" onclick="selectFilterOption(this)">S（超大型）</div><div class="filter-option" data-value="A" onclick="selectFilterOption(this)">A（大型）</div><div class="filter-option" data-value="B" onclick="selectFilterOption(this)">B（中型）</div><div class="filter-option" data-value="C" onclick="selectFilterOption(this)">C（小型）</div><div class="filter-option" data-value="D" onclick="selectFilterOption(this)">D（微型）</div></div>
+          </div>
+          <div class="filter-dropdown" data-filter-key="consume">
+            <button class="filter-trigger" onclick="toggleFilterDropdown(this)"><span class="filter-label">消费等级</span><span class="filter-value">全部</span><span class="filter-arrow">▾</span></button>
+            <div class="filter-panel"><div class="filter-option active" data-value="" onclick="selectFilterOption(this)">全部</div><div class="filter-option" data-value="S" onclick="selectFilterOption(this)">S（高价值）</div><div class="filter-option" data-value="A" onclick="selectFilterOption(this)">A（高消费）</div><div class="filter-option" data-value="B" onclick="selectFilterOption(this)">B（中消费）</div><div class="filter-option" data-value="C" onclick="selectFilterOption(this)">C（低消费）</div><div class="filter-option" data-value="none" onclick="selectFilterOption(this)">未消费</div></div>
+          </div>
+          <div class="filter-dropdown" data-filter-key="ops-manager">
+            <button class="filter-trigger" onclick="toggleFilterDropdown(this)"><span class="filter-label">运营经理</span><span class="filter-value">全部</span><span class="filter-arrow">▾</span></button>
+            <div class="filter-panel"><div class="filter-option active" data-value="" onclick="selectFilterOption(this)">全部</div><div class="filter-option" data-value="王明" onclick="selectFilterOption(this)">王明</div><div class="filter-option" data-value="李娜" onclick="selectFilterOption(this)">李娜</div><div class="filter-option" data-value="陈涛" onclick="selectFilterOption(this)">陈涛</div><div class="filter-option" data-value="张经理" onclick="selectFilterOption(this)">张经理（我）</div></div>
+          </div>
+          <div class="filter-dropdown" data-filter-key="sales-manager">
+            <button class="filter-trigger" onclick="toggleFilterDropdown(this)"><span class="filter-label">销售经理</span><span class="filter-value">全部</span><span class="filter-arrow">▾</span></button>
+            <div class="filter-panel"><div class="filter-option active" data-value="" onclick="selectFilterOption(this)">全部</div><div class="filter-option" data-value="赵磊" onclick="selectFilterOption(this)">赵磊</div><div class="filter-option" data-value="孙芳" onclick="selectFilterOption(this)">孙芳</div><div class="filter-option" data-value="周杰" onclick="selectFilterOption(this)">周杰</div><div class="filter-option" data-value="吴敏" onclick="selectFilterOption(this)">吴敏</div></div>
+          </div>
+          <button class="btn primary">筛选</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span class="kpi-filter-badge" id="kpi-filter-badge" style="display:none"></span>
+        </div>
+        <!-- P2: 批量操作工具栏 -->
+        <div class="batch-toolbar" id="cust-batch-bar" style="display:none">
+          <span class="batch-count">已选择 <b id="cust-batch-count">0</b> 项</span>
+          <button class="btn" onclick="openModal('modal-batch-edit')">批量编辑</button><button class="btn" onclick="openModal('modal-batch-assign')">分配负责人</button><button class="btn" onclick="openModal('modal-batch-export')">批量导出</button><button class="btn" onclick="openModal('modal-batch-tags')">设标签</button>
+        </div>
+        <div class="table-wrap"><table class="table" id="cust-table"><thead><tr><th><input type="checkbox" id="cust-check-all"></th><th class="th-sortable" data-col="customer" data-sort-key="name" onclick="toggleSort(this)">客户<span class="th-sort-indicator"></span></th><th data-col="industry">行业/标签</th><th class="th-sortable" data-col="scale" data-sort-key="scale" onclick="toggleSort(this)">规模等级<span class="th-sort-indicator"></span></th><th class="th-sortable" data-col="consume" data-sort-key="consume" onclick="toggleSort(this)">消费等级<span class="th-sort-indicator"></span></th><th class="th-sortable" data-col="balance" data-sort-key="balance" onclick="toggleSort(this)">余额<span class="th-sort-indicator"></span></th><th class="th-sortable" data-col="usage" data-sort-key="usage" onclick="toggleSort(this)">30天消耗<span class="th-sort-indicator"></span></th><th class="th-sortable" data-col="health" data-sort-key="health" onclick="toggleSort(this)">健康度<span class="th-sort-indicator"></span></th><th data-col="ops-manager">运营经理</th><th data-col="sales-manager">销售经理</th><th>操作 <button class="th-icon-btn" onclick="openModal('modal-col-settings')" title="列设置"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></th></tr></thead><tbody>
+          <tr data-risk="amber" onclick="openPreviewDrawer(this)"><td><input type="checkbox" class="cust-check" onclick="event.stopPropagation()"></td><td data-col="customer"><div class="customer"><span class="logo">万</span><b>万科华东</b></div></td><td data-col="industry">房产 <span class="tag blue">重点</span></td><td data-col="scale">A</td><td data-col="consume">S</td><td data-col="balance">¥820,000</td><td data-col="usage"><div class="bar"><span style="width:82%"></span></div></td><td data-col="health"><span class="tag amber">关注</span></td><td data-col="ops-manager">王明</td><td data-col="sales-manager">赵磊</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openModal('modal-edit');event.stopPropagation()">编辑</button><button class="btn" style="padding:4px 10px;font-size:12px;margin-left:4px" data-page-link="detail" onclick="event.stopPropagation()">详情</button></td></tr>
+          <tr data-risk="green" onclick="openPreviewDrawer(this)"><td><input type="checkbox" class="cust-check" onclick="event.stopPropagation()"></td><td data-col="customer"><div class="customer"><span class="logo">保</span><b>保利发展</b></div></td><td data-col="industry">房产 <span class="tag violet">包年</span></td><td data-col="scale">A</td><td data-col="consume">A</td><td data-col="balance">¥1,560,000</td><td data-col="usage"><div class="bar"><span style="width:68%"></span></div></td><td data-col="health"><span class="tag green">健康</span></td><td data-col="ops-manager">李娜</td><td data-col="sales-manager">孙芳</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openModal('modal-edit');event.stopPropagation()">编辑</button><button class="btn" style="padding:4px 10px;font-size:12px;margin-left:4px" data-page-link="detail" onclick="event.stopPropagation()">详情</button></td></tr>
+          <tr data-risk="red" onclick="openPreviewDrawer(this)"><td><input type="checkbox" class="cust-check" onclick="event.stopPropagation()"></td><td data-col="customer"><div class="customer"><span class="logo">远</span><b>远洋商业</b></div></td><td data-col="industry">商业服务 <span class="tag amber">待完善</span></td><td data-col="scale">B</td><td data-col="consume">B</td><td data-col="balance">¥120,000</td><td data-col="usage"><div class="bar"><span style="width:34%"></span></div></td><td data-col="health"><span class="tag red">高风险</span></td><td data-col="ops-manager">陈涛</td><td data-col="sales-manager">周杰</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openModal('modal-edit');event.stopPropagation()">编辑</button><button class="btn" style="padding:4px 10px;font-size:12px;margin-left:4px" data-page-link="detail" onclick="event.stopPropagation()">详情</button></td></tr>
+          <tr data-risk="red" onclick="openPreviewDrawer(this)"><td><input type="checkbox" class="cust-check" onclick="event.stopPropagation()"></td><td data-col="customer"><div class="customer"><span class="logo">绿</span><b>绿城服务</b></div></td><td data-col="industry">房产 <span class="tag blue">重点</span></td><td data-col="scale">A</td><td data-col="consume">S</td><td data-col="balance">¥196,000</td><td data-col="usage"><div class="bar"><span style="width:45%"></span></div></td><td data-col="health"><span class="tag red">高风险</span></td><td data-col="ops-manager">张经理</td><td data-col="sales-manager">吴敏</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openModal('modal-edit');event.stopPropagation()">编辑</button><button class="btn" style="padding:4px 10px;font-size:12px;margin-left:4px" data-page-link="detail" onclick="event.stopPropagation()">详情</button></td></tr>
+          <tr data-risk="green" onclick="openPreviewDrawer(this)"><td><input type="checkbox" class="cust-check" onclick="event.stopPropagation()"></td><td data-col="customer"><div class="customer"><span class="logo">龙</span><b>龙湖集团</b></div></td><td data-col="industry">房产 <span class="tag amber">待完善</span></td><td data-col="scale">A</td><td data-col="consume">A</td><td data-col="balance">¥711,000</td><td data-col="usage"><div class="bar"><span style="width:72%"></span></div></td><td data-col="health"><span class="tag green">健康</span></td><td data-col="ops-manager">王明</td><td data-col="sales-manager">赵磊</td><td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="openModal('modal-edit');event.stopPropagation()">编辑</button><button class="btn" style="padding:4px 10px;font-size:12px;margin-left:4px" data-page-link="detail" onclick="event.stopPropagation()">详情</button></td></tr>
+        </tbody></table></div>
+        <div class="pagination"><span class="page-total">共 3,286 条</span><div class="pagination-right"><span class="page-size">每页 <select class="page-size-select"><option>10</option><option selected>20</option><option>50</option></select> 条</span><div class="page-controls"><button class="page-btn" disabled>‹</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><span class="page-ellipsis">…</span><button class="page-btn">165</button><button class="page-btn">›</button></div><span class="page-jump">跳至 <input type="number" class="page-jump-input" value="1" min="1" max="165"> 页</span></div></div>
+      </div>
+    </section>
+
+    <!-- 客户管理：模态弹窗 -->
+    <div class="modal-overlay" id="modal-import" style="display:none" onclick="if(event.target===this)closeModal('modal-import')">
+      <div class="modal">
+        <div class="modal-header"><h2>📥 导入客户</h2><button class="modal-close" onclick="closeModal('modal-import')">✕</button></div>
+        <div class="modal-body">
+          <div class="modal-steps"><div class="modal-step active"><span class="step-num">1</span>下载模板</div><div class="modal-step"><span class="step-num">2</span>上传文件</div><div class="modal-step"><span class="step-num">3</span>确认导入</div></div>
+          <div class="upload-zone"><div class="upload-icon">📄</div><p>拖拽文件到此处或 <a href="#" style="color:var(--primary);font-weight:700">点击选择</a></p><p class="subtle">支持 .xlsx / .csv 格式，单次最多 5,000 条</p></div>
+          <div style="display:flex;gap:12px;margin-top:14px"><button class="btn">📥 下载导入模板</button><button class="btn">查看字段说明</button></div>
+          <div class="modal-tips"><div class="modal-tip">✓ 必填字段：客户名称、行业、规模等级</div><div class="modal-tip">✓ 选填字段：消费等级、联系方式、负责人</div><div class="modal-tip">⚠ 重复客户名称将自动跳过</div></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-import')">取消</button><button class="btn primary">开始导入</button></div>
+      </div>
+    </div>
+    <div class="modal-overlay" id="modal-export" style="display:none" onclick="if(event.target===this)closeModal('modal-export')">
+      <div class="modal">
+        <div class="modal-header"><h2>📤 导出客户</h2><button class="modal-close" onclick="closeModal('modal-export')">✕</button></div>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">导出范围</label><div class="radio-group"><label class="radio-item"><input type="radio" name="export-scope" value="filtered" checked> <span>当前筛选结果（3,286 条）</span></label><label class="radio-item"><input type="radio" name="export-scope" value="selected"> <span>已选择（0 条）</span></label><label class="radio-item"><input type="radio" name="export-scope" value="all"> <span>全部客户</span></label></div></div>
+          <div class="form-group"><label class="form-label">导出格式</label><div class="radio-group"><label class="radio-item"><input type="radio" name="export-format" value="xlsx" checked> <span>Excel (.xlsx)</span></label><label class="radio-item"><input type="radio" name="export-format" value="csv"> <span>CSV (.csv)</span></label></div></div>
+          <div class="form-group"><label class="form-label">导出列</label><div class="checkbox-grid"><label class="checkbox-item"><input type="checkbox" checked> 客户名称</label><label class="checkbox-item"><input type="checkbox" checked> 行业</label><label class="checkbox-item"><input type="checkbox" checked> 规模等级</label><label class="checkbox-item"><input type="checkbox" checked> 消费等级</label><label class="checkbox-item"><input type="checkbox" checked> 余额</label><label class="checkbox-item"><input type="checkbox" checked> 30天消耗</label><label class="checkbox-item"><input type="checkbox" checked> 健康度</label><label class="checkbox-item"><input type="checkbox" checked> 运营经理</label><label class="checkbox-item"><input type="checkbox" checked> 销售经理</label><label class="checkbox-item"><input type="checkbox"> 联系方式</label><label class="checkbox-item"><input type="checkbox"> 创建时间</label><label class="checkbox-item"><input type="checkbox"> 最近活跃</label></div></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-export')">取消</button><button class="btn primary">确认导出</button></div>
+      </div>
+    </div>
+    <div class="modal-overlay" id="modal-add" style="display:none" onclick="if(event.target===this)closeModal('modal-add')">
+      <div class="modal modal-lg modal-no-scroll">
+        <div class="modal-header"><h2>➕ 新增客户</h2><button class="modal-close" onclick="closeModal('modal-add')">✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group"><label class="form-label required">公司 ID</label><input type="text" class="form-input" placeholder="请输入公司 ID"></div>
+            <div class="form-group"><label class="form-label required">客户名称</label><input type="text" class="form-input" placeholder="请输入客户名称"></div>
+            <div class="form-group full-width"><label class="form-label">邮箱</label><input type="email" class="form-input" placeholder="请输入邮箱地址"></div>
+            <div class="form-group"><label class="form-label">账号类型</label><select class="form-select"><option value="">请选择</option><option>正式账号</option><option>测试账号</option></select></div>
+            <div class="form-group"><label class="form-label">行业类型</label><select class="form-select"><option value="">请选择</option><option>房产</option><option>SaaS</option><option>电商</option><option>贸易</option><option>商业服务</option><option>传媒</option><option>能源</option></select></div>
+            <div class="form-group"><label class="form-label">结算方式</label><select class="form-select"><option value="">请选择</option><option value="prepaid">预付费</option><option value="postpaid">后付费</option></select></div>
+            <div class="form-group"><label class="form-label">结算周期</label><select class="form-select"><option value="">请选择</option><option value="daily">日结</option><option value="weekly">周结</option><option value="monthly">月结</option><option value="quarterly">季结</option></select></div>
+            <div class="form-group"><label class="form-label">是否房产客户</label><select class="form-select"><option value="">请选择</option><option value="true">是</option><option value="false">否</option></select></div>
+            <div class="form-group"><label class="form-label">重点客户</label><label class="form-switch"><input type="checkbox"><span>设为重点客户</span></label></div>
+            <div class="form-group"><label class="form-label">运营经理</label><select class="form-select"><option value="">请选择</option><option>王明</option><option>李娜</option><option>陈涛</option><option>张经理</option></select></div>
+            <div class="form-group"><label class="form-label">商务经理</label><select class="form-select"><option value="">请选择</option><option>赵磊</option><option>孙芳</option><option>周杰</option><option>吴敏</option></select></div>
+          </div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-add')">取消</button><button class="btn primary">确认新增</button></div>
+      </div>
+    </div>
+    <!-- 客户管理：编辑客户弹窗 -->
+    <div class="modal-overlay" id="modal-edit" style="display:none" onclick="if(event.target===this)closeModal('modal-edit')">
+      <div class="modal modal-xl modal-edit">
+        <div class="modal-header"><h2>✎ 编辑客户</h2><button class="modal-close" onclick="closeModal('modal-edit')">✕</button></div>
+        <div class="modal-body">
+          <!-- 分区 1：基础信息 -->
+          <div class="edit-block">
+            <div class="edit-block-title">基础信息</div>
+            <div class="edit-fields">
+              <div class="form-group"><label class="form-label required">客户名称</label><input type="text" class="form-input" value="万科华东"></div>
+              <div class="form-group"><label class="form-label required">公司 ID</label><input type="text" class="form-input" value="10001"></div>
+              <div class="form-group full-row"><label class="form-label">邮箱</label><input type="email" class="form-input" value="contact@vanke.com"></div>
+              <div class="form-group"><label class="form-label">账号类型</label><select class="form-select"><option value="">请选择</option><option selected>正式账号</option><option>测试账号</option></select></div>
+              <div class="form-group"><label class="form-label">行业类型</label><select class="form-select"><option value="">请选择</option><option selected>房产</option><option>SaaS</option><option>电商</option><option>贸易</option><option>商业服务</option><option>传媒</option><option>能源</option></select></div>
+              <div class="form-group"><label class="form-label">运营经理</label><select class="form-select"><option value="">请选择</option><option selected>王明</option><option>李娜</option><option>陈涛</option><option>张经理</option></select></div>
+              <div class="form-group"><label class="form-label">商务经理</label><select class="form-select"><option value="">请选择</option><option selected>赵磊</option><option>孙芳</option><option>周杰</option><option>吴敏</option></select></div>
+            </div>
+          </div>
+          <!-- 分区 2：结算与业务 -->
+          <div class="edit-block">
+            <div class="edit-block-title">结算与业务</div>
+            <div class="edit-fields">
+              <div class="form-group"><label class="form-label required">结算方式</label><select class="form-select"><option value="">请选择</option><option value="prepaid" selected>预付费</option><option value="postpaid">后付费</option></select></div>
+              <div class="form-group"><label class="form-label">结算周期</label><select class="form-select"><option value="">请选择</option><option value="daily">日结</option><option value="weekly">周结</option><option value="monthly" selected>月结</option><option value="quarterly">季结</option><option value="yearly">年结</option></select></div>
+              <div class="form-group"><label class="form-label">合作状态</label><select class="form-select"><option value="">请选择</option><option value="active" selected>合作中</option><option value="suspended">暂停</option><option value="terminated">终止</option></select></div>
+              <div class="form-group"><label class="form-label">价格策略</label><select class="form-select"><option value="">请选择</option><option value="pricing" selected>定价</option><option value="tiered">阶梯</option><option value="yearly">包年</option></select></div>
+              <div class="form-group"><label class="form-label">ERP 系统</label><select class="form-select"><option value="">请选择</option><option>SAP</option><option>Oracle</option><option>用友</option><option>金蝶</option><option>自研</option></select></div>
+              <div class="form-group"><label class="form-label">是否房产客户</label><select class="form-select"><option value="">请选择</option><option value="true" selected>是</option><option value="false">否</option></select></div>
+            </div>
+          </div>
+          <!-- 分区 3：等级与消费 -->
+          <div class="edit-block">
+            <div class="edit-block-title">等级与消费</div>
+            <div class="edit-fields">
+              <div class="form-group"><label class="form-label">规模等级</label><select class="form-select"><option value="">请选择</option><option>S1</option><option selected>S2</option><option>S3</option><option>S4</option><option>S5</option><option>S6</option></select></div>
+              <div class="form-group"><label class="form-label">消费等级</label><select class="form-select"><option value="">请选择</option><option>C1</option><option>C2</option><option>C3</option><option>C4</option><option>C5</option><option selected>C6</option></select></div>
+              <div class="form-group"><label class="form-label">首次回款时间</label><input type="date" class="form-input" value="2024-03-15"></div>
+              <div class="form-group"><label class="form-label">接入时间</label><input type="date" class="form-input" value="2023-06-01"></div>
+            </div>
+          </div>
+          <!-- 分区 4：状态控制 -->
+          <div class="edit-block">
+            <div class="edit-block-title">状态控制</div>
+            <div class="edit-switch-row">
+              <label class="form-switch"><input type="checkbox" checked><span>重点客户</span></label>
+              <label class="form-switch"><input type="checkbox" checked><span>启用结算</span></label>
+              <label class="form-switch"><input type="checkbox"><span>停用客户</span></label>
+            </div>
+          </div>
+          <!-- 分区 5：备注 -->
+          <div class="edit-block">
+            <div class="edit-block-title">备注</div>
+            <div class="form-group" style="margin-bottom:0"><textarea class="form-textarea" placeholder="请输入备注信息..." rows="2"></textarea></div>
+          </div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-edit')">取消</button><button class="btn primary">保存修改</button></div>
+      </div>
+    </div>
+    <!-- 客户管理：列设置弹窗 -->
+    <div class="modal-overlay" id="modal-col-settings" style="display:none" onclick="if(event.target===this)closeModal('modal-col-settings')">
+      <div class="modal">
+        <div class="modal-header"><h2>⚙ 列设置</h2><button class="modal-close" onclick="closeModal('modal-col-settings')">✕</button></div>
+        <div class="modal-body">
+          <p class="subtle" style="margin:0 0 14px">勾选要显示的列，取消勾选的列将隐藏。</p>
+          <div class="checkbox-grid" id="modal-col-settings-grid">
+            <label class="checkbox-item"><input type="checkbox" checked data-col="customer"> 客户名称</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="industry"> 行业/标签</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="scale"> 规模等级</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="consume"> 消费等级</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="balance"> 余额</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="usage"> 30天消耗</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="health"> 健康度</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="ops-manager"> 运营经理</label>
+            <label class="checkbox-item"><input type="checkbox" checked data-col="sales-manager"> 销售经理</label>
+            <label class="checkbox-item"><input type="checkbox" data-col="contact"> 联系方式</label>
+            <label class="checkbox-item"><input type="checkbox" data-col="created"> 创建时间</label>
+            <label class="checkbox-item"><input type="checkbox" data-col="active"> 最近活跃</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" onclick="resetColSettingsModal()">重置默认</button>
+          <button class="btn primary" onclick="applyColSettingsModal()">应用</button>
+        </div>
+      </div>
+    </div>
+    <!-- 客户管理：批量编辑弹窗 -->
+    <div class="modal-overlay" id="modal-batch-edit" style="display:none" onclick="if(event.target===this)closeModal('modal-batch-edit')">
+      <div class="modal modal-lg">
+        <div class="modal-header"><h2>✎ 批量编辑</h2><button class="modal-close" onclick="closeModal('modal-batch-edit')">✕</button></div>
+        <div class="modal-body">
+          <p class="subtle" style="margin:0 0 14px">已选择 <b id="batch-edit-count">0</b> 个客户。勾选要修改的字段，仅勾选的字段会被更新。</p>
+          <div class="batch-field-grid">
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="manager_id"> 运营经理</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option>王明</option><option>李娜</option><option>陈涛</option><option>张经理</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="sales_manager_id"> 销售经理</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option>赵磊</option><option>孙芳</option><option>周杰</option><option>吴敏</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="scale_level"> 规模等级</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option>S（超大型）</option><option>A（大型）</option><option>B（中型）</option><option>C（小型）</option><option>D（微型）</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="consume_level"> 消费等级</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option>S（高价值）</option><option>A（高消费）</option><option>B（中消费）</option><option>C（低消费）</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="is_key_customer"> 重点客户</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option value="true">是</option><option value="false">否</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="settlement_type"> 结算方式</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option value="prepaid">预付费</option><option value="postpaid">后付费</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="account_type"> 账号类型</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option>正式账号</option><option>测试账号</option><option>客户测试账号</option><option>内部账号</option></select></div>
+            </div>
+            <div class="batch-field-card" onclick="this.querySelector('input').click()">
+              <label><input type="checkbox" data-batch-field="price_policy"> 计费策略</label>
+              <div class="batch-field-control"><select class="form-select" style="padding:8px 12px"><option>请选择</option><option value="pricing">定价</option><option value="tiered">阶梯</option><option value="yearly">包年</option></select></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" onclick="closeModal('modal-batch-edit')">取消</button>
+          <button class="btn" onclick="showBatchEditPreview()">预览</button>
+          <button class="btn primary" onclick="confirmBatchEdit()">确认提交</button>
+        </div>
+      </div>
+    </div>
+    <!-- 客户管理：批量分配负责人弹窗 -->
+    <div class="modal-overlay" id="modal-batch-assign" style="display:none" onclick="if(event.target===this)closeModal('modal-batch-assign')">
+      <div class="modal">
+        <div class="modal-header"><h2>👥 分配负责人</h2><button class="modal-close" onclick="closeModal('modal-batch-assign')">✕</button></div>
+        <div class="modal-body">
+          <p class="subtle" style="margin:0 0 14px">将选中的客户分配给指定负责人。</p>
+          <div class="form-group"><label class="form-label">运营经理</label><select class="form-select"><option>请选择</option><option>王明</option><option>李娜</option><option>陈涛</option><option>张经理</option></select></div>
+          <div class="form-group"><label class="form-label">销售经理</label><select class="form-select"><option>请选择</option><option>赵磊</option><option>孙芳</option><option>周杰</option><option>吴敏</option></select></div>
+          <div class="form-group"><label class="form-label">备注</label><textarea class="form-textarea" placeholder="分配原因说明（选填）..." rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-batch-assign')">取消</button><button class="btn primary" onclick="closeModal('modal-batch-assign')">确认分配</button></div>
+      </div>
+    </div>
+    <!-- 客户管理：批量导出弹窗 -->
+    <div class="modal-overlay" id="modal-batch-export" style="display:none" onclick="if(event.target===this)closeModal('modal-batch-export')">
+      <div class="modal">
+        <div class="modal-header"><h2>📤 批量导出</h2><button class="modal-close" onclick="closeModal('modal-batch-export')">✕</button></div>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">导出范围</label><div class="radio-group"><label class="radio-item"><input type="radio" name="batch-export-scope" value="selected" checked> <span>已选择（<b id="batch-export-count">0</b> 条）</span></label><label class="radio-item"><input type="radio" name="batch-export-scope" value="filtered"> <span>当前筛选结果</span></label></div></div>
+          <div class="form-group"><label class="form-label">导出格式</label><div class="radio-group"><label class="radio-item"><input type="radio" name="batch-export-format" value="xlsx" checked> <span>Excel (.xlsx)</span></label><label class="radio-item"><input type="radio" name="batch-export-format" value="csv"> <span>CSV (.csv)</span></label></div></div>
+          <div class="form-group"><label class="form-label">导出列</label><div class="checkbox-grid"><label class="checkbox-item"><input type="checkbox" checked> 客户名称</label><label class="checkbox-item"><input type="checkbox" checked> 行业</label><label class="checkbox-item"><input type="checkbox" checked> 规模等级</label><label class="checkbox-item"><input type="checkbox" checked> 消费等级</label><label class="checkbox-item"><input type="checkbox" checked> 余额</label><label class="checkbox-item"><input type="checkbox" checked> 30天消耗</label><label class="checkbox-item"><input type="checkbox" checked> 健康度</label><label class="checkbox-item"><input type="checkbox" checked> 运营经理</label><label class="checkbox-item"><input type="checkbox" checked> 销售经理</label></div></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-batch-export')">取消</button><button class="btn primary" onclick="closeModal('modal-batch-export')">确认导出</button></div>
+      </div>
+    </div>
+    <!-- 客户管理：批量设标签弹窗 -->
+    <div class="modal-overlay" id="modal-batch-tags" style="display:none" onclick="if(event.target===this)closeModal('modal-batch-tags')">
+      <div class="modal">
+        <div class="modal-header"><h2>🏷 设标签</h2><button class="modal-close" onclick="closeModal('modal-batch-tags')">✕</button></div>
+        <div class="modal-body">
+          <p class="subtle" style="margin:0 0 14px">为选中的客户添加或移除标签。</p>
+          <div class="form-group"><label class="form-label">操作方式</label><div class="radio-group"><label class="radio-item"><input type="radio" name="batch-tag-action" value="add" checked> <span>添加标签</span></label><label class="radio-item"><input type="radio" name="batch-tag-action" value="remove"> <span>移除标签</span></label></div></div>
+          <div class="form-group"><label class="form-label">选择标签</label><div class="checkbox-grid"><label class="checkbox-item"><input type="checkbox"> 重点客户</label><label class="checkbox-item"><input type="checkbox"> 战略合作</label><label class="checkbox-item"><input type="checkbox"> 待完善</label><label class="checkbox-item"><input type="checkbox"> 包年</label><label class="checkbox-item"><input type="checkbox"> 高价值</label><label class="checkbox-item"><input type="checkbox"> 低余额预警</label></div></div>
+        </div>
+        <div class="modal-footer"><button class="btn" onclick="closeModal('modal-batch-tags')">取消</button><button class="btn primary" onclick="closeModal('modal-batch-tags')">确认</button></div>
+      </div>
+    </div>
+    <!-- 客户管理：预览抽屉 -->
+    <div class="preview-drawer" id="preview-drawer">
+      <div class="drawer-header"><h3>客户 360 预览</h3><button class="drawer-close" onclick="closePreviewDrawer()">✕</button></div>
+      <div class="drawer-body">
+        <div class="drawer-customer-info"><span class="logo" style="width:40px;height:40px;border-radius:12px;font-size:18px" id="drawer-logo">万</span><div><h4 id="drawer-name">万科华东</h4><span class="subtle" id="drawer-meta">房产 · 规模 A · 消费 S</span></div></div>
+        <div class="drawer-kpi-grid"><div class="drawer-kpi"><span>当前余额</span><b id="drawer-balance">¥820,000</b></div><div class="drawer-kpi"><span>30天消耗</span><b id="drawer-usage">¥482,000</b></div><div class="drawer-kpi"><span>健康度</span><b class="amber" id="drawer-health">关注</b></div><div class="drawer-kpi"><span>预计耗尽</span><b class="danger">5 天</b></div></div>
+        <div class="drawer-section"><h5>最近操作</h5><div class="drawer-timeline"><div class="drawer-event"><span>今天 10:24</span><b>生成 6 月结算单</b></div><div class="drawer-event"><span>昨天 16:12</span><b>余额预警已推送</b></div><div class="drawer-event"><span>07-01</span><b>消费等级调整为 S</b></div></div></div>
+        <div class="drawer-actions"><button class="btn primary" data-page-link="detail" onclick="closePreviewDrawer()">查看详情</button><button class="btn">生成结算单</button><button class="btn">提醒充值</button></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script src="js/common.js"></script>
+<script src="js/customers.js"></script>
+</body>
+</html>

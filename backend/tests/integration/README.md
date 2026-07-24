@@ -128,20 +128,20 @@ pytest tests/integration/ --cov=app --cov-report=html
 ## 故障排查
 
 ### 问题：`'ChunkedIteratorResult' object can't be awaited`
-**原因**: 服务层使用了 await 但 Session 是同步的  
+**原因**: 服务层使用了 await 但 Session 是同步的
 **解决**: 在服务类中添加 `_is_async` 检查，条件使用 await
 
 ### 问题：`404 Not Found`
-**原因**: 路由前缀不正确  
+**原因**: 路由前缀不正确
 **解决**: 检查路由蓝图的前缀（如 `/api/v1/`）
 
 ### 问题：`AttributeError: 'UserService' object has no attribute 'verify_password'`
-**原因**: 服务类缺少静态方法  
+**原因**: 服务类缺少静态方法
 **解决**: 添加 `verify_password` 静态方法
 
 ### 问题：数据库连接失败
-**原因**: 测试数据库不存在或配置错误  
-**解决**: 
+**原因**: 测试数据库不存在或配置错误
+**解决**:
 ```bash
 createdb customer_platform_test
 # 检查 conftest.py 中的 TEST_DATABASE_URL
@@ -195,6 +195,6 @@ pytest --cov=app --cov-report=html
 
 ---
 
-**最后更新**: 2026-04-03  
-**维护者**: Backend Team  
+**最后更新**: 2026-04-03
+**维护者**: Backend Team
 **测试状态**: ✅ 全部通过 (5/5 集成测试，30/30 单元测试)

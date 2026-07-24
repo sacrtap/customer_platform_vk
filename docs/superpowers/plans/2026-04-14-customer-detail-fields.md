@@ -675,7 +675,7 @@ git commit -m "feat: extend API function parameters with new customer fields"
                   <span class="metric-label">月均拍摄量（实际）</span>
                   <span class="metric-value">{{ profile.monthly_avg_shots ?? '-' }}</span>
                 </div>
-                
+
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
                 </div>
@@ -683,7 +683,7 @@ git commit -m "feat: extend API function parameters with new customer fields"
                   <span class="metric-label">月均拍摄量（测算）</span>
                   <span class="metric-value">{{ profile.monthly_avg_shots_estimated ?? '-' }}</span>
                 </div>
-                
+
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
                 </div>
@@ -691,7 +691,7 @@ git commit -m "feat: extend API function parameters with new customer fields"
                   <span class="metric-label">预估年消费</span>
                   <span class="metric-value">{{ profile.estimated_annual_spend ? formatCurrency(Number(profile.estimated_annual_spend)) : '-' }}</span>
                 </div>
-                
+
                 <div v-if="profileLoading" class="metric-card loading">
                   <SkeletonCard height="72px" />
                 </div>

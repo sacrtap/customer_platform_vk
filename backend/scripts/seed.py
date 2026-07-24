@@ -62,6 +62,8 @@ ALL_PERMISSIONS = [
     ("billing:import", "导入余额", "批量导入充值数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
     ("billing:pay", "结算付款", "标记付款和完成结算", "billing"),
+    ("billing:ops_approve", "运营经理确认", "运营经理确认结算单（第一步）", "billing"),
+    ("billing:sales_approve", "销售经理确认", "销售经理确认结算单（第二步）", "billing"),
     # ============================================================
     # 客户分析 (4)
     # ============================================================
@@ -119,6 +121,32 @@ ALL_PERMISSIONS = [
 
 # 超级管理员角色名称
 SUPER_ADMIN_ROLE_NAME = "超级管理员"
+
+# 预置业务角色定义：角色名 → (描述, 权限 code 列表)
+PRESET_ROLES = {
+    "运营经理": (
+        "负责客户日常运营，可确认结算单（第一步）",
+        [
+            "customers:view",
+            "customers:edit",
+            "billing:view",
+            "billing:edit",
+            "billing:ops_approve",
+            "billing:confirm",
+            "analytics:view",
+            "tags:view",
+        ],
+    ),
+    "销售经理": (
+        "负责客户商务对接，可确认结算单（第二步）",
+        [
+            "customers:view",
+            "billing:view",
+            "billing:sales_approve",
+            "analytics:view",
+        ],
+    ),
+}
 
 
 def get_or_create_permission(session: Session, code: str, name: str, description: str, module: str):
@@ -186,6 +214,31 @@ def seed(reset: bool = False):
             if perm not in role.permissions:
                 role.permissions.append(perm)
         print(f"  ✅ 已关联 {len(permissions)} 个权限")
+        session.flush()
+
+        # ---- 2.1 创建预置业务角色（运营经理、销售经理）----
+        print("\n📋 步骤 2.5/3: 创建预置业务角色...")
+        for role_name, (role_desc, perm_codes) in PRESET_ROLES.items():
+            result = session.execute(select(Role).where(Role.name == role_name))
+            biz_role = result.scalar_one_or_none()
+            if biz_role is None:
+                biz_role = Role(
+                    name=role_name,
+                    description=role_desc,
+                    is_system=True,
+                )
+                session.add(biz_role)
+                session.flush()
+                print(f"  ✅ 创建角色: {role_name}")
+            else:
+                print(f"  ⏭️  角色已存在: {role_name}")
+
+            # 关联指定权限
+            for code in perm_codes:
+                perm = permissions.get(code)
+                if perm and perm not in biz_role.permissions:
+                    biz_role.permissions.append(perm)
+            print(f"  ✅ {role_name} 已关联 {len(perm_codes)} 个权限")
         session.flush()
 
         # ---- 3. 创建 admin 用户并分配超级管理员角色 ----

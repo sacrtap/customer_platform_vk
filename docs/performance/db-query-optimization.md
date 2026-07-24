@@ -1,8 +1,8 @@
 # 数据库查询优化分析报告
 
-**项目**: customer_platform_vk  
-**分析日期**: 2026-04-04  
-**分析范围**: backend/app/services/, backend/app/routes/, backend/app/models/  
+**项目**: customer_platform_vk
+**分析日期**: 2026-04-04
+**分析范围**: backend/app/services/, backend/app/routes/, backend/app/models/
 **技术栈**: Python 3.11 + Sanic + SQLAlchemy 2.0 + PostgreSQL
 
 ---
@@ -26,8 +26,8 @@
 
 ### 1.1 `analytics.py` - `get_inactive_customers()` 中的 N+1 查询
 
-**文件**: `backend/app/services/analytics.py`  
-**行号**: 367-409  
+**文件**: `backend/app/services/analytics.py`
+**行号**: 367-409
 **问题描述**: 方法先查询所有有消耗记录的客户 ID，然后对每个客户 ID 单独查询详情
 
 ```python
@@ -38,7 +38,7 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     all_customers_with_usage = set(
         row[0] for row in self.db.execute(has_usage_stmt).all()
     )
-    
+
     # 第二次查询：获取最近有消耗的客户
     recent_usage_stmt = select(func.distinct(ConsumptionRecord.customer_id)).where(
         ConsumptionRecord.created_at >= cutoff_date
@@ -46,10 +46,10 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     recent_customers = set(
         row[0] for row in self.db.execute(recent_usage_stmt).all()
     )
-    
+
     # N+1 问题：对每个 inactive customer 单独查询
     inactive_customer_ids = all_customers_with_usage - recent_customers
-    
+
     # 虽然使用了 .in_() 批量查询，但前面的集合操作效率低
     stmt = (
         select(Customer.id, Customer.name, Customer.company_id, ...)
@@ -58,7 +58,7 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     )
 ```
 
-**影响**: 
+**影响**:
 - 当有 1000 个 inactive customers 时，`IN` 列表可能超过 PostgreSQL 参数限制 (65535)
 - 集合操作在 Python 层面进行，无法利用数据库优化
 
@@ -69,19 +69,19 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
 def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     from datetime import timedelta
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
+
     # 使用子查询一次性完成
     recent_customer_subq = (
         select(func.distinct(ConsumptionRecord.customer_id))
         .where(ConsumptionRecord.created_at >= cutoff_date)
         .subquery()
     )
-    
+
     has_usage_subq = (
         select(func.distinct(ConsumptionRecord.customer_id))
         .subquery()
     )
-    
+
     stmt = (
         select(
             Customer.id,
@@ -103,7 +103,7 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
             )
         )
     )
-    
+
     result = self.db.execute(stmt).all()
     return [...]
 ```
@@ -112,8 +112,8 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
 
 ### 1.2 `analytics.py` - `get_customer_health_stats()` 中的多次独立查询
 
-**文件**: `backend/app/services/analytics.py`  
-**行号**: 275-318  
+**文件**: `backend/app/services/analytics.py`
+**行号**: 275-318
 **问题描述**: 6 次独立查询获取健康度统计，可合并为 1-2 次查询
 
 ```python
@@ -122,17 +122,17 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
     # 查询 1: 活跃客户数
     active_stmt = select(func.count(func.distinct(ConsumptionRecord.customer_id)))
     active_count = self.db.execute(active_stmt).scalar() or 0
-    
+
     # 查询 2: 总客户数
     total_stmt = select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
     total_count = self.db.execute(total_stmt).scalar() or 0
-    
+
     # 查询 3: 余额预警客户
     warning_stmt = select(func.count(CustomerBalance.id)).where(
         CustomerBalance.total_amount < 1000
     )
     warning_count = self.db.execute(warning_stmt).scalar() or 0
-    
+
     # 查询 4-6: 流失风险客户 (更复杂的多步查询)
     ...
 ```
@@ -146,7 +146,7 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
 def get_customer_health_stats(self) -> Dict[str, Any]:
     from datetime import timedelta
     ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-    
+
     # 使用 CASE 表达式单次查询获取所有统计
     stmt = select(
         func.count(Customer.id).label("total_count"),
@@ -176,7 +176,7 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
     ).where(
         Customer.deleted_at.is_(None)
     )
-    
+
     result = self.db.execute(stmt).first()
     return {
         "total_customers": result.total_count,
@@ -189,8 +189,8 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
 
 ### 1.3 `tags.py` - `get_tag_usage_count()` 可优化
 
-**文件**: `backend/app/services/tags.py`  
-**行号**: 78-94  
+**文件**: `backend/app/services/tags.py`
+**行号**: 78-94
 **当前状态**: ⚠️ 已部分优化，但仍可改进
 
 ```python
@@ -202,14 +202,14 @@ async def get_tag_usage_count(self, tag_id: int) -> dict:
         .where(CustomerTag.tag_id == tag_id, CustomerTag.deleted_at.is_(None))
     )
     customer_count = customer_count.scalar() or 0
-    
+
     profile_count = await self.db.execute(
         select(func.count())
         .select_from(ProfileTag)
         .where(ProfileTag.tag_id == tag_id, ProfileTag.deleted_at.is_(None))
     )
     profile_count = profile_count.scalar() or 0
-    
+
     return {"customer_count": customer_count, "profile_count": profile_count}
 ```
 
@@ -286,7 +286,7 @@ async def get_tag_usage_count(self, tag_id: int) -> dict:
 
 ### 3.1 `customers.py` - `get_all_customers()`
 
-**文件**: `backend/app/services/customers.py`  
+**文件**: `backend/app/services/customers.py`
 **行号**: 45-85
 
 ```python
@@ -302,7 +302,7 @@ async def get_all_customers(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 ```
 
-**问题**: 
+**问题**:
 - OFFSET 10000 时，数据库需要扫描并丢弃前 10000 行
 - 性能随页码增加线性下降
 
@@ -317,27 +317,27 @@ async def get_all_customers(
     cursor: Optional[int] = None,  # 最后一条记录的 ID
 ) -> Tuple[List[Customer], int]:
     stmt = select(Customer).where(Customer.deleted_at.is_(None))
-    
+
     # 应用筛选条件
     if filters:
         ...
-    
+
     # 游标分页 (基于 ID)
     if cursor:
         stmt = stmt.where(Customer.id < cursor)
-    
+
     # 始终按 ID 降序
     stmt = stmt.order_by(Customer.id.desc()).limit(page_size + 1)
-    
+
     result = await self.db.execute(stmt)
     customers = list(result.scalars().all())
-    
+
     has_next = len(customers) > page_size
     if has_next:
         customers = customers[:-1]
-    
+
     next_cursor = customers[-1].id if customers else None
-    
+
     return customers, next_cursor, has_next
 ```
 
@@ -345,7 +345,7 @@ async def get_all_customers(
 
 ### 3.2 `tags.py` - `get_all_tags()`
 
-**文件**: `backend/app/services/tags.py`  
+**文件**: `backend/app/services/tags.py`
 **行号**: 25-52
 
 ```python
@@ -360,7 +360,7 @@ stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
 ### 3.3 `billing.py` - `get_recharge_records()`
 
-**文件**: `backend/app/services/billing.py`  
+**文件**: `backend/app/services/billing.py`
 **行号**: 211-233
 
 ```python
@@ -375,7 +375,7 @@ stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
 ### 3.4 `groups.py` - `get_group_members()`
 
-**文件**: `backend/app/services/groups.py`  
+**文件**: `backend/app/services/groups.py`
 **行号**: 67-94
 
 ```python
@@ -394,7 +394,7 @@ stmt = (
 
 ### 4.1 `analytics.py` - `get_payment_analysis()`
 
-**文件**: `backend/app/services/analytics.py`  
+**文件**: `backend/app/services/analytics.py`
 **行号**: 181-236
 
 ```python
@@ -407,7 +407,7 @@ def get_payment_analysis(self, start_date, end_date, customer_id=None):
         func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_final"),
     ).where(...)
     invoice_result = self.db.execute(invoice_stmt).first()
-    
+
     # 查询 2: 回款金额 (独立查询)
     payment_stmt = select(
         func.sum(RechargeRecord.real_amount).label("total_paid")
@@ -421,7 +421,7 @@ def get_payment_analysis(self, start_date, end_date, customer_id=None):
 # ✅ 优化方案
 def get_payment_analysis(self, start_date, end_date, customer_id=None):
     from sqlalchemy import literal_column
-    
+
     # 使用 CTE 合并查询
     invoice_cte = (
         select(
@@ -437,7 +437,7 @@ def get_payment_analysis(self, start_date, end_date, customer_id=None):
     )
     if customer_id:
         invoice_cte = invoice_cte.where(Invoice.customer_id == customer_id)
-    
+
     payment_cte = (
         select(
             func.sum(RechargeRecord.real_amount).label("total_paid")
@@ -449,7 +449,7 @@ def get_payment_analysis(self, start_date, end_date, customer_id=None):
     )
     if customer_id:
         payment_cte = payment_cte.where(RechargeRecord.customer_id == customer_id)
-    
+
     # 交叉连接获取所有数据
     stmt = select(invoice_cte, payment_cte)
     result = self.db.execute(stmt).first()
@@ -459,7 +459,7 @@ def get_payment_analysis(self, start_date, end_date, customer_id=None):
 
 ### 4.2 `analytics.py` - `get_dashboard_stats()`
 
-**文件**: `backend/app/services/analytics.py`  
+**文件**: `backend/app/services/analytics.py`
 **行号**: 675-750
 
 **问题**: 8 次独立查询获取仪表盘统计
@@ -482,7 +482,7 @@ month_consumption = self.db.execute(select(func.sum(Invoice.total_amount))...).s
 
 ### 5.1 `groups.py` - `_apply_dynamic_filter()`
 
-**文件**: `backend/app/services/groups.py`  
+**文件**: `backend/app/services/groups.py`
 **行号**: 96-127
 
 ```python
@@ -509,7 +509,7 @@ stmt = select(
 
 ### 6.1 `billing.py` - `recharge()` 可优化事务
 
-**文件**: `backend/app/services/billing.py`  
+**文件**: `backend/app/services/billing.py`
 **行号**: 58-99
 
 ```python
@@ -517,11 +517,11 @@ stmt = select(
 async def recharge(self, customer_id, real_amount, bonus_amount, ...):
     record = RechargeRecord(...)
     self.db.add(record)
-    
+
     balance = await self.get_or_create_balance(customer_id)
     balance.real_amount += real_amount
     ...
-    
+
     await self.db.commit()
 ```
 
@@ -533,7 +533,7 @@ async def recharge(self, customer_id, real_amount, bonus_amount, ...):
     async with self.db.begin():
         record = RechargeRecord(...)
         self.db.add(record)
-        
+
         balance = await self.get_or_create_balance(customer_id)
         balance.real_amount += real_amount
         ...
@@ -572,7 +572,7 @@ def upgrade() -> None:
         ['created_at'],
         unique=False
     )
-    
+
     # === invoice_items ===
     # 用于 GROUP BY device_type 聚合
     op.create_index(
@@ -581,7 +581,7 @@ def upgrade() -> None:
         ['device_type'],
         unique=False
     )
-    
+
     # === consumption_records ===
     # 用于 WHERE created_at 时间范围查询
     op.create_index(
@@ -590,7 +590,7 @@ def upgrade() -> None:
         ['created_at'],
         unique=False
     )
-    
+
     # === customer_tags ===
     # 用于 WHERE customer_id 和 tag_id 查询
     op.create_index(
@@ -605,7 +605,7 @@ def upgrade() -> None:
         ['tag_id'],
         unique=False
     )
-    
+
     # === profile_tags ===
     # 用于 WHERE profile_id 和 tag_id 查询
     op.create_index(
@@ -620,7 +620,7 @@ def upgrade() -> None:
         ['tag_id'],
         unique=False
     )
-    
+
     # === daily_usage ===
     # 添加 device_type 索引用于 GROUP BY
     op.create_index(
@@ -729,6 +729,6 @@ wrk -t12 -c400 -d30s http://localhost:8000/api/v1/customers?page=100
 
 ---
 
-**报告生成时间**: 2026-04-04  
-**分析师**: Backend Architect Agent  
+**报告生成时间**: 2026-04-04
+**分析师**: Backend Architect Agent
 **版本**: 1.0

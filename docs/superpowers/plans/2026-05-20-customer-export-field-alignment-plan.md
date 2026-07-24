@@ -1,7 +1,7 @@
 # 客户导出功能字段对齐计划
 
-**创建日期**: 2026-05-20  
-**目标**: 使客户管理页面的导出表格字段与导入模板字段完全一致  
+**创建日期**: 2026-05-20
+**目标**: 使客户管理页面的导出表格字段与导入模板字段完全一致
 **影响范围**: `backend/app/routes/customers.py` - `export_customers` 函数
 
 ---
@@ -52,7 +52,7 @@ settlement_type, is_key_customer, email
 
 ### Task 1: 修改导出函数 - 添加缺失字段
 
-**文件**: `backend/app/routes/customers.py`  
+**文件**: `backend/app/routes/customers.py`
 **位置**: `export_customers()` 函数，第 803-820 行
 
 **修改内容**:
@@ -145,7 +145,7 @@ data.append(
 
 ### Task 2: 更新字段一致性测试
 
-**文件**: `backend/tests/integration/test_customers_api.py`  
+**文件**: `backend/tests/integration/test_customers_api.py`
 **位置**: `test_export_customers_field_consistency()` 函数，第 1108-1142 行
 
 **修改内容**:

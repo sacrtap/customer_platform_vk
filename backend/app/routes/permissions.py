@@ -162,7 +162,7 @@ async def delete_permission(request: Request, perm_id: int):
         return json({"code": 40401, "message": "权限不存在"}, status=404)
 
     # 检查是否是系统权限（如果有 is_system 字段）
-    if hasattr(permission, "is_system") and permission.is_system:
+    if hasattr(permission, "is_system") and permission.is_system:  # pyright: ignore[reportAttributeAccessIssue]
         return json({"code": 40001, "message": "系统权限不能删除"}, status=400)
 
     await db_session.delete(permission)

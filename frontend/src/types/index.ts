@@ -119,9 +119,21 @@ export interface Customer {
   industry_type_id: number | null
   scale_level: string | null
   consume_level: string | null
+  balance: number | null
+  // 画像分析字段（列表接口返回，可为 null）
+  usage_30d?: number | null
+  usage_30d_amount?: number | null
+  health?: string | null
+  consumption_history?: ConsumptionHistoryItem[]
   // 可选关联对象（详情接口返回）
   profile?: CustomerProfile
-  balance?: Balance
+}
+
+export interface ConsumptionHistoryItem {
+  id: number
+  description: string
+  amount: number
+  created_at: string
 }
 
 /** 客户画像 */
@@ -181,9 +193,13 @@ export interface Invoice {
   approver_id: number | null
   approved_at: string | null
   customer_confirmed_at: string | null
+  customer_confirmed_by?: number | null
+  customer_confirmed_name?: string | null
   payment_proof: string | null
   paid_at: string | null
   completed_at: string | null
+  completed_by?: number | null
+  completed_name?: string | null
   is_auto_generated: boolean
   created_at: string
 }

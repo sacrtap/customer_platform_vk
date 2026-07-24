@@ -53,11 +53,11 @@
 async def test_get_balances_filter_is_real_estate(test_client, auth_headers, db_session):
     """测试余额列表按房产客户筛选"""
     from sqlalchemy import text
-    
+
     # 清理已有数据
     db_session.execute(text("DELETE FROM customer_balances"))
     db_session.execute(text("DELETE FROM customers"))
-    
+
     # 创建测试客户
     customers = [
         {"name": "房产客户A", "is_real_estate": True},
@@ -68,21 +68,21 @@ async def test_get_balances_filter_is_real_estate(test_client, auth_headers, db_
             INSERT INTO customers (company_id, name, account_type, is_real_estate, created_at)
             VALUES (:company_id, :name, '正式账号', :is_real_estate, NOW())
         """), {"company_id": f"TEST{cust['name']}", "name": cust["name"], "is_real_estate": cust["is_real_estate"]})
-    
+
     # 创建余额记录
     db_session.execute(text("""
         INSERT INTO customer_balances (customer_id, total_amount, used_total, created_at)
         SELECT id, 1000.0, 0.0, NOW() FROM customers WHERE name LIKE '房产客户%' OR name LIKE '非房产客户%'
     """))
     await db_session.commit()
-    
+
     # 测试筛选 is_real_estate=true
     response = await test_client.get("/api/v1/billing/balances?is_real_estate=true", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
     assert "房产客户" in data["items"][0]["customer_name"]
-    
+
     # 测试筛选 is_real_estate=false
     response = await test_client.get("/api/v1/billing/balances?is_real_estate=false", headers=auth_headers)
     assert response.status_code == 200
@@ -95,11 +95,11 @@ async def test_get_balances_filter_is_real_estate(test_client, auth_headers, db_
 async def test_get_balances_filter_settlement_type(test_client, auth_headers, db_session):
     """测试余额列表按结算方式筛选"""
     from sqlalchemy import text
-    
+
     # 清理已有数据
     db_session.execute(text("DELETE FROM customer_balances"))
     db_session.execute(text("DELETE FROM customers"))
-    
+
     # 创建测试客户
     customers = [
         {"name": "预付费客户A", "settlement_type": "prepaid"},
@@ -110,21 +110,21 @@ async def test_get_balances_filter_settlement_type(test_client, auth_headers, db
             INSERT INTO customers (company_id, name, account_type, settlement_type, created_at)
             VALUES (:company_id, :name, '正式账号', :settlement_type, NOW())
         """), {"company_id": f"TEST{cust['name']}", "name": cust["name"], "settlement_type": cust["settlement_type"]})
-    
+
     # 创建余额记录
     db_session.execute(text("""
         INSERT INTO customer_balances (customer_id, total_amount, used_total, created_at)
         SELECT id, 1000.0, 0.0, NOW() FROM customers WHERE name LIKE '预付费%' OR name LIKE '后付费%'
     """))
     await db_session.commit()
-    
+
     # 测试筛选 prepaid
     response = await test_client.get("/api/v1/billing/balances?settlement_type=prepaid", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
     assert "预付费" in data["items"][0]["customer_name"]
-    
+
     # 测试筛选 postpaid
     response = await test_client.get("/api/v1/billing/balances?settlement_type=postpaid", headers=auth_headers)
     assert response.status_code == 200

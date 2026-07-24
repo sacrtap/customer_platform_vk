@@ -241,20 +241,71 @@ margin: 8px 0;
 
 ### 3.3 按钮
 
+按钮分为两种上下文样式：**常规页面按钮**（列表筛选、页头操作、表格行内操作）和**表单/认证按钮**（登录、重置密码等全宽提交按钮）。
+
+> ⚠️ **Arco Design CSS 变量冲突警告**
+>
+> Arco Design 在 `body` 上设置了 `--primary-1` ~ `--primary-10` 等 CSS 变量（RGB 分量格式，如 `--primary-2: 190,218,255`），会覆盖我们在 `:root` 上定义的同名变量（hex 格式，如 `--primary-2: #2563EB`）。
+>
+> **影响**：所有 `var(--primary-2)` / `var(--primary-7)` 等引用都会解析为 Arco 的值（浅色/RGB 分量），导致 `linear-gradient(135deg, var(--primary), var(--primary-2))` 等表达式失效。
+>
+> **解决方案**：在 `arco-theme.css` 和组件 scoped CSS 中，**必须使用硬编码 hex 值**（`#1D4ED8` / `#2563EB` / `#1E40AF`），不能使用 `var(--primary-2)` 等 Arco 可能覆盖的变量。
+
+#### 3.3.1 常规页面按钮
+
+> 来源：`prototype/index.html` `.btn` / `.btn.primary`，实际开发中使用 Arco `a-button` 组件 + `arco-theme.css` 全局覆盖。
+
 | 类型 | 样式 |
 |------|------|
-| 主按钮 | `background: linear-gradient(135deg, #1D4ED8, #2563EB); color: white; border-radius: 12px; box-shadow: 0 8px 20px rgba(29,78,216,.25); padding: 9px 12px; border: none;` |
-| 主按钮 hover | `transform: translateY(-1px); box-shadow: 0 12px 28px rgba(29,78,216,.35);` |
-| 主按钮 active | `transform: translateY(0);` |
-| 次按钮 | `background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px;` |
-| 次按钮 hover | `background: var(--soft);` |
-| 表单主按钮 | `width: 100%; padding: 13px 20px;` + 同上渐变 |
-| 表单次按钮 | `width: 100%; padding: 13px 20px; background: var(--bg); color: var(--ink); border: 1px solid var(--line);` |
-| 侧边栏按钮 | `background: transparent; color: #CBD5E1; border-radius: 12px; padding: 8px 10px;` |
-| 侧边栏 active | `background: linear-gradient(90deg, rgba(59,130,246,.24), rgba(6,182,212,.12)); color: white; box-shadow: inset 0 0 0 1px rgba(125,211,252,.12);` |
-| 侧边栏 active 图标 | `color: #67E8F9` |
+| 主按钮 | `background: linear-gradient(135deg, #1D4ED8, #2563EB); color: white; border: 1px solid var(--primary); border-radius: 12px; box-shadow: 0 8px 20px rgba(29,78,216,.25); padding: 9px 12px; font-weight: 700;` |
+| 主按钮 hover | `background: linear-gradient(135deg, #2563EB, #1D4ED8); border-color: #2563EB; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(29,78,216,.35);` |
+| 主按钮 active | `background: #1E40AF; transform: translateY(0);` |
+| 次按钮 | `background: white; color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; font-weight: 700;` |
+| 次按钮 hover | `border-color: #93C5FD; background: #EFF6FF; color: var(--primary);` |
+| 小表格内操作 | `padding: 4px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink);` |
 | 链接 | `color: var(--primary); text-decoration: none; font-weight: 500;` |
 | 按钮组合 | `display: flex; gap: 8px; flex-wrap: wrap;` |
+
+> **注意**：原型 `index.html` 中 `.btn.primary` 使用纯色 `var(--primary)` 无渐变和阴影。实际开发中通过 `arco-theme.css` 统一增强为渐变 + 阴影，以提升视觉层次。Arco `a-button` 组件映射：主按钮 → `type="primary"`，次按钮 → 默认或 `type="outline"`。
+
+#### 3.3.2 表单/认证按钮
+
+> 来源：`prototype/login.html` `.btn` / `.btn-primary`，用于登录页、重置密码页等全宽表单提交场景。
+
+| 类型 | 样式 |
+|------|------|
+| 表单主按钮 | `width: 100%; padding: 13px 20px; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #1D4ED8, #2563EB); color: white; box-shadow: 0 8px 20px rgba(29,78,216,.25); display: flex; align-items: center; justify-content: center; gap: 8px;` |
+| 表单主按钮 hover | `transform: translateY(-1px); box-shadow: 0 12px 28px rgba(29,78,216,.35); background: linear-gradient(135deg, #2563EB, #1D4ED8);` |
+| 表单主按钮 active | `transform: translateY(0);` |
+| 表单次按钮 | `width: 100%; padding: 13px 20px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; font-size: 14px; font-weight: 600;` |
+| 表单次按钮 hover | `background: var(--soft);` |
+
+**表单主按钮与常规主按钮的差异**：
+
+| 属性 | 常规主按钮 | 表单主按钮 |
+|------|------------|------------|
+| `border` | `1px solid var(--primary)` | `none` |
+| `width` | auto | `100%` |
+| `padding` | `9px 12px` | `13px 20px` |
+| `font-weight` | `700` | `600` |
+| `display` | inline-flex | flex（居中 + gap: 8px） |
+| 箭头图标 | 无 | 有（登录按钮右侧 → 箭头，loading 时隐藏） |
+
+**登录按钮箭头图标**：
+
+```html
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <path d="M5 12h14M12 5l7 7-7 7"/>
+</svg>
+```
+
+**实现要点（原生 `<button>` 方案）**：
+- 登录/SSO 按钮使用原生 `<button type="submit" class="btn btn-primary">` 而非 Arco `a-button`，避免 Arco 内部 DOM 结构和 CSS 优先级冲突
+- `.btn` 为基类（布局 + 通用样式），`.btn-primary` / `.btn-secondary` 为修饰类（颜色/边框/阴影）
+- 原生按钮无需 `!important`，scoped CSS 直接生效
+- loading 状态：`:disabled="loading"` + 条件渲染旋转 SVG + 文案切换为"登录中..."
+- 箭头图标在非 loading 时显示，loading 时隐藏
+- 表单提交：原生 `<button type="submit">` 触发 `a-form` 的 `@submit` 自定义事件（Arco 表单拦截原生 submit → 验证 → 发射自定义事件）
 
 ### 3.4 输入框
 
@@ -435,13 +486,38 @@ display: flex; gap: 12px;
 
 ### 3.16 操作按钮（ActionButton）
 
+> 与 3.3 常规页面按钮一致，此处补充表格内操作按钮的尺寸变体。
+
 | 场景 | 样式 |
 |------|------|
-| 主操作 | `padding: 9px 12px; background: var(--primary); color: white; border-radius: 12px; border: none;` |
-| 次操作 | `padding: 9px 12px; background: white; border: 1px solid var(--line); border-radius: 12px;` |
-| 小表格内操作 | `padding: 4px 10px; font-size: 12px;` |
-| 按钮 hover | `border-color: #93C5FD; background: #EFF6FF;` |
-| 主按钮 hover | `background: #1E40AF;` |
+| 主操作 | `padding: 9px 12px; background: linear-gradient(135deg, #1D4ED8, #2563EB); color: white; border: 1px solid #1D4ED8; border-radius: 12px; box-shadow: 0 8px 20px rgba(29,78,216,.25);` |
+| 次操作 | `padding: 9px 12px; background: white; border: 1px solid var(--line); border-radius: 12px; font-weight: 700;` |
+| 小表格内操作 | `padding: 4px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink);` |
+| 按钮 hover | `border-color: #93C5FD; background: #EFF6FF; color: #1D4ED8;` |
+| 主按钮 hover | `background: linear-gradient(135deg, #2563EB, #1D4ED8); border-color: #2563EB; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(29,78,216,.35);` |
+
+#### 表格操作列按钮统一规范
+
+> 来源：`prototype/index.html` 用户管理/余额管理/结算单等页面的操作列
+>
+> 原型中所有表格操作列按钮统一为**白底带边框的紧凑按钮**，不使用主色调（蓝色）。通过 `arco-theme.css` 全局覆盖 `.arco-table .arco-btn-size-small` 实现，无需修改各页面 `a-button` 的 `type` 属性。
+
+| 属性 | 值 |
+|------|------|
+| `background` | `white` |
+| `border` | `1px solid var(--line)` (#DBE3EF) |
+| `border-radius` | `8px` |
+| `padding` | `4px 10px` |
+| `font-size` | `12px` |
+| `font-weight` | `600` |
+| `color` | `var(--ink)` (#0F172A) |
+| `box-shadow` | `none` |
+| hover `border-color` | `#93C5FD` |
+| hover `background` | `#EFF6FF` |
+| hover `color` | `#1D4ED8` |
+| danger `color` | `#DC2626` |
+| danger `border-color` | `#FCA5A5` |
+| danger hover `background` | `#FEF2F2` |
 
 ### 3.17 输入框和表单状态
 
@@ -1359,11 +1435,11 @@ function show(id) {
   // 1. 切换页面显示
   pages.forEach(p => p.classList.toggle('active',
     p.id === id || (id === 'consumption' && p.id === 'analytics')));
-  
+
   // 2. 激活对应叶子节点
   leafButtons.forEach(b => b.classList.toggle('active',
     b.dataset.page === id || (id === 'consumption' && b.dataset.page === 'analytics')));
-  
+
   // 3. 激活对应父节点并保持展开状态
   parents.forEach(p => {
     const active = p.dataset.page === id
@@ -1374,10 +1450,10 @@ function show(id) {
       p.setAttribute('aria-expanded', String(active));
     }
   });
-  
+
   // 4. URL hash 同步
   location.hash = id;
-  
+
   // 5. 滚动到顶部
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1447,7 +1523,7 @@ document.querySelectorAll('[data-page-link]')
 | 折叠按钮 hover | `transform: translateX(2px)`，`box-shadow` 增强 |
 | 主按钮 hover | `transform: translateY(-1px)`，`box-shadow` 增强 |
 | 主按钮 active | `transform: translateY(0)` |
-| 次按钮 hover | `background: var(--soft)` |
+| 次按钮 hover | `border-color: #93C5FD; background: #EFF6FF; color: var(--primary)` |
 | 输入框 focus | `border-color` + `box-shadow: 0 0 0 3px rgba(29,78,216,.1)` |
 | 登录页品牌区光晕 | `pulse 8s ease-in-out infinite` |
 | 顶部栏 | `backdrop-filter: blur(14px)` 毛玻璃效果 |
@@ -1749,4 +1825,3 @@ document.querySelectorAll('[data-page-link]')
 }
 ```
  </longcat_think>
-

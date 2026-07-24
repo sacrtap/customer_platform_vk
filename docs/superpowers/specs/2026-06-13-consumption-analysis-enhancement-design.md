@@ -1,7 +1,7 @@
 # 消耗分析页面增强 - 技术设计文档
 
-**创建日期**: 2026-06-13  
-**关联 PRD**: `docs/specs/consumption-analysis-enhancement.md`  
+**创建日期**: 2026-06-13
+**关联 PRD**: `docs/specs/consumption-analysis-enhancement.md`
 **版本**: v1.0
 
 ---
@@ -93,7 +93,7 @@
 ```python
 class DailyOrder(Base):
     __tablename__ = 'daily_orders'
-    
+
     id = Column(Integer, primary_key=True)
     order_code = Column(String(50), nullable=False)  # 订单 ID（外部系统）
     custom_code = Column(String(50))  # 房源编号
@@ -106,7 +106,7 @@ class DailyOrder(Base):
     device_type = Column(String(10))  # 设备类型（X/N/L）
     sync_date = Column(Date, nullable=False)  # 同步日期
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # 索引
     __table_args__ = (
         Index('idx_daily_orders_customer_date', 'customer_id', 'create_date'),
@@ -128,7 +128,7 @@ class DailyOrder(Base):
 ```python
 class DailyConsumption(Base):
     __tablename__ = 'daily_consumption'
-    
+
     id = Column(Integer, primary_key=True)
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
     consumption_date = Column(Date, nullable=False)
@@ -140,12 +140,12 @@ class DailyConsumption(Base):
     has_pricing_rule = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # 索引
     __table_args__ = (
         Index('idx_daily_consumption_customer_date', 'customer_id', 'consumption_date'),
         Index('idx_daily_consumption_date', 'consumption_date'),
-        UniqueConstraint('customer_id', 'consumption_date', 'device_type', 'layer_type', 
+        UniqueConstraint('customer_id', 'consumption_date', 'device_type', 'layer_type',
                         name='uq_consumption_unique'),
     )
 ```
@@ -198,7 +198,7 @@ class CustomerCalcResult:
 ```python
 class OrderSyncService:
     """订单同步服务"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.external_engine = create_async_engine(
@@ -207,23 +207,23 @@ class OrderSyncService:
             pool_recycle=3600,
             pool_pre_ping=True
         )
-    
+
     async def sync_orders(self, sync_date: date) -> SyncResult:
         """
         同步指定日期的订单数据
-        
+
         Args:
             sync_date: 同步日期
-            
+
         Returns:
             SyncResult: 同步结果（成功数、失败数、跳过数）
     async def sync_orders(self, sync_date: date) -> SyncResult:
         """
         同步指定日期的订单数据
-        
+
         Args:
             sync_date: 同步日期
-            
+
         Returns:
             SyncResult: 同步结果（成功数、失败数、跳过数）
         """
@@ -231,17 +231,17 @@ class OrderSyncService:
         existing_count = await self._check_existing(sync_date)
         if existing_count > 0:
             return SyncResult(skipped=existing_count, message="Already synced")
-        
+
         # 2. 从外部 MySQL 查询订单
         orders = await self._fetch_orders_with_retry(sync_date)
         if not orders:
             return SyncResult(success=0, message="No orders found")
-        
+
         # 3. 匹配客户并写入
         result = await self._match_and_save(orders, sync_date)
-        
+
         return result
-    
+
     async def _check_existing(self, sync_date: date) -> int:
         """检查指定日期是否已同步，返回已同步记录数"""
         result = await self.db.execute(
@@ -254,15 +254,15 @@ class OrderSyncService:
         orders = await self._fetch_orders_with_retry(sync_date)
         if not orders:
             return SyncResult(success=0, message="No orders found")
-        
+
         # 3. 匹配客户并写入
         result = await self._match_and_save(orders, sync_date)
-        
+
         return result
-    
+
     async def _fetch_orders_with_retry(
-        self, 
-        sync_date: date, 
+        self,
+        sync_date: date,
         max_retries: int = 3
     ) -> list[dict]:
         """带重试的订单查询"""
@@ -275,35 +275,35 @@ class OrderSyncService:
                 wait_time = 2 ** attempt  # 1s, 2s, 4s
                 await asyncio.sleep(wait_time)
                 logger.warning(f"Retry {attempt + 1}/{max_retries} after {wait_time}s")
-    
+
     async def _fetch_orders(self, sync_date: date) -> list[dict]:
         """从外部 MySQL 查询订单"""
         query = """
-            SELECT 
+            SELECT
                 id, custom_code, nest_id, company_name,
                 group_type, create_date, floor_count, device_type
             FROM 3dnest_engine_new.nest_model_order
             WHERE DATE(create_date) = %s
         """
-        
+
         async with self.external_engine.connect() as conn:
             result = await conn.execute(text(query), {"date": sync_date})
             return [dict(row._mapping) for row in result]
-    
+
     async def _match_and_save(
-        self, 
-        orders: list[dict], 
+        self,
+        orders: list[dict],
         sync_date: date
     ) -> SyncResult:
         """匹配客户并保存订单"""
         success_count = 0
         failed_count = 0
         unmatched = []
-        
+
         for order in orders:
             # 匹配客户
             customer = await self._match_customer(order['group_type'])
-            
+
             daily_order = DailyOrder(
                 order_code=str(order['id']),
                 custom_code=order.get('custom_code'),
@@ -316,28 +316,28 @@ class OrderSyncService:
                 device_type=order.get('device_type'),
                 sync_date=sync_date
             )
-            
+
             self.db.add(daily_order)
-            
+
             if customer:
                 success_count += 1
             else:
                 failed_count += 1
                 unmatched.append(order['id'])
-        
+
         await self.db.commit()
-        
+
         return SyncResult(
             success=success_count,
             failed=failed_count,
             unmatched=unmatched
         )
-    
+
     async def _match_customer(self, group_type: str) -> Optional[Customer]:
         """根据 external_id 匹配客户"""
         if not group_type:
             return None
-        
+
         result = await self.db.execute(
             select(Customer).where(Customer.external_id == group_type)
         )
@@ -349,28 +349,28 @@ class OrderSyncService:
 ```python
 class CostCalcService:
     """费用计算服务"""
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.invoice_service = InvoiceService(db)
-    
+
     async def calculate_daily_cost(self, consumption_date: date) -> CalcResult:
         """
         计算指定日期的消耗费用
-        
+
         Args:
             consumption_date: 消耗日期
-            
+
         Returns:
             CalcResult: 计算结果
         """
         # 1. 查询当日有订单的客户
         customer_ids = await self._get_customers_with_orders(consumption_date)
-        
+
         total_customers = len(customer_ids)
         calculated_count = 0
         no_rule_count = 0
-        
+
         # 2. 对每个客户计算费用
         for customer_id in customer_ids:
             result = await self._calculate_customer_cost(
@@ -380,34 +380,34 @@ class CostCalcService:
                 calculated_count += 1
             else:
                 no_rule_count += 1
-        
+
         return CalcResult(
             total_customers=total_customers,
             calculated=calculated_count,
             no_rule=no_rule_count
         )
-    
+
     async def _calculate_customer_cost(
-        self, 
-        customer_id: int, 
+        self,
+        customer_id: int,
         consumption_date: date
     ) -> CustomerCalcResult:
         """计算单个客户的消耗费用"""
         # 1. 查询当日订单（按设备类型+楼层类型分组）
         order_groups = await self._get_order_groups(customer_id, consumption_date)
-        
+
         # 2. 查询客户生效中的计费规则
         pricing_rule = await self._get_active_pricing_rule(customer_id)
-        
+
         has_rule = pricing_rule is not None
-        
+
         # 3. 计算费用
         for group in order_groups:
             if has_rule:
                 cost = self._calculate_cost(group, pricing_rule)
             else:
                 cost = Decimal('0')
-            
+
             # 4. 写入 daily_consumption
             consumption = DailyConsumption(
                 customer_id=customer_id,
@@ -420,57 +420,57 @@ class CostCalcService:
                 has_pricing_rule=has_rule
             )
             self.db.add(consumption)
-        
+
         await self.db.commit()
-        
+
         return CustomerCalcResult(has_rule=has_rule)
-    
+
     def _calculate_cost(
-        self, 
-        order_group: dict, 
+        self,
+        order_group: dict,
         pricing_rule: PricingRule
     ) -> Decimal:
         """根据计费规则计算费用"""
         quantity = order_group['total_floor_count']
-        
+
         if pricing_rule.pricing_type == 'fixed':
             return self._calc_fixed(quantity, pricing_rule.unit_price)
-        
+
         elif pricing_rule.pricing_type == 'tiered':
             return self._calc_tiered(quantity, pricing_rule)
-        
+
         elif pricing_rule.pricing_type == 'package':
             return self._calc_package(pricing_rule.base_fee)
-        
+
         else:
             logger.error(f"Unknown pricing_type: {pricing_rule.pricing_type}")
             return Decimal('0')
-    
+
     def _calc_fixed(self, quantity: int, unit_price: Decimal) -> Decimal:
         """定价结算：数量 × 单价"""
         return Decimal(quantity) * unit_price
-    
+
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯结算：按区间累加"""
         tiers = sorted(pricing_rule.tiers, key=lambda t: t.min_quantity)
         total_cost = Decimal('0')
         remaining = quantity
-        
+
         for tier in tiers:
             if remaining <= 0:
                 break
-            
+
             tier_range = tier.max_quantity - tier.min_quantity
             tier_quantity = min(remaining, tier_range)
             total_cost += Decimal(tier_quantity) * tier.unit_price
             remaining -= tier_quantity
-        
+
         return total_cost.quantize(Decimal('0.01'))
-    
+
     def _calc_package(self, base_fee: Decimal) -> Decimal:
         """包年结算：按日分摊"""
         return (base_fee / Decimal('365')).quantize(Decimal('0.01'))
-    
+
     async def _get_customers_with_orders(self, consumption_date: date) -> list[int]:
         """查询指定日期有订单的客户 ID 列表（去重）"""
         result = await self.db.execute(
@@ -480,13 +480,13 @@ class CostCalcService:
             ).distinct()
         )
         return [row[0] for row in result.all()]
-    
+
     async def _get_order_groups(
         self, customer_id: int, consumption_date: date
     ) -> list[dict]:
         """
         查询客户当日订单，按设备类型+楼层类型分组
-        
+
         layer_type 推导规则：
         - floor_count == 1 → 'single'
         - floor_count > 1  → 'multi'
@@ -503,7 +503,7 @@ class CostCalcService:
                 DailyOrder.create_date == consumption_date
             ).group_by(DailyOrder.device_type, DailyOrder.floor_count)
         )
-        
+
         groups = []
         for row in result.all():
             floor_count = row.floor_count or 1
@@ -514,9 +514,9 @@ class CostCalcService:
                 'order_count': row.order_count,
                 'total_floor_count': row.total_floor_count
             })
-        
+
         return groups
-    
+
     async def _get_active_pricing_rule(
         self, customer_id: int
     ) -> Optional[PricingRule]:
@@ -545,15 +545,15 @@ class CostCalcService:
 async def sync_daily_orders():
     """每日 01:00 同步订单数据"""
     sync_date = date.today() - timedelta(days=1)
-    
+
     logger.info(f"Starting order sync for {sync_date}")
-    
+
     async with get_db_session() as db:
         service = OrderSyncService(db)
-        
+
         try:
             result = await service.sync_orders(sync_date)
-            
+
             # 记录同步日志
             log = SyncTaskLog(
                 task_type="order_sync",
@@ -566,12 +566,12 @@ async def sync_daily_orders():
             )
             db.add(log)
             await db.commit()
-            
+
             logger.info(f"Order sync completed: {result}")
-            
+
         except Exception as e:
             logger.error(f"Order sync failed: {e}")
-            
+
             # 记录失败日志
             log = SyncTaskLog(
                 task_type="order_sync",
@@ -580,7 +580,7 @@ async def sync_daily_orders():
             )
             db.add(log)
             await db.commit()
-            
+
             # 发送告警通知
             await send_alert(f"订单同步失败: {e}")
 ```
@@ -594,15 +594,15 @@ async def sync_daily_orders():
 async def calc_daily_cost():
     """每日 01:30 计算消耗费用"""
     consumption_date = date.today() - timedelta(days=1)
-    
+
     logger.info(f"Starting cost calculation for {consumption_date}")
-    
+
     async with get_db_session() as db:
         service = CostCalcService(db)
-        
+
         try:
             result = await service.calculate_daily_cost(consumption_date)
-            
+
             # 记录计算日志
             log = SyncTaskLog(
                 task_type="cost_calc",
@@ -614,12 +614,12 @@ async def calc_daily_cost():
             )
             db.add(log)
             await db.commit()
-            
+
             logger.info(f"Cost calculation completed: {result}")
-            
+
         except Exception as e:
             logger.error(f"Cost calculation failed: {e}")
-            
+
             log = SyncTaskLog(
                 task_type="cost_calc",
                 status="failed",
@@ -627,7 +627,7 @@ async def calc_daily_cost():
             )
             db.add(log)
             await db.commit()
-            
+
             await send_alert(f"费用计算失败: {e}")
 ```
 
@@ -654,7 +654,7 @@ async def get_consumption_trend(
         end_date = date.today()
     if not start_date:
         start_date = end_date - timedelta(days=30)
-    
+
     # 构建查询
     query = select(
         DailyConsumption.consumption_date,
@@ -664,19 +664,19 @@ async def get_consumption_trend(
         DailyConsumption.consumption_date >= start_date,
         DailyConsumption.consumption_date <= end_date
     )
-    
+
     if keyword:
         query = query.join(Customer).where(
             Customer.name.ilike(f"%{keyword}%")
         )
-    
+
     query = query.group_by(DailyConsumption.consumption_date).order_by(
         DailyConsumption.consumption_date
     )
-    
+
     result = await db.execute(query)
     rows = result.all()
-    
+
     # 根据 metric 返回对应数据
     data = []
     for row in rows:
@@ -687,7 +687,7 @@ async def get_consumption_trend(
         }
         # 前端根据 metric 选择显示字段
         data.append(item)
-    
+
     return {"code": 0, "data": data}
 ```
 
@@ -708,7 +708,7 @@ async def get_device_distribution(
         end_date = date.today()
     if not start_date:
         start_date = end_date - timedelta(days=30)
-    
+
     query = select(
         DailyConsumption.device_type,
         func.sum(DailyConsumption.order_count).label('order_count'),
@@ -717,17 +717,17 @@ async def get_device_distribution(
         DailyConsumption.consumption_date >= start_date,
         DailyConsumption.consumption_date <= end_date
     )
-    
+
     if keyword:
         query = query.join(Customer).where(
             Customer.name.ilike(f"%{keyword}%")
         )
-    
+
     query = query.group_by(DailyConsumption.device_type)
-    
+
     result = await db.execute(query)
     rows = result.all()
-    
+
     data = []
     for row in rows:
         data.append({
@@ -735,7 +735,7 @@ async def get_device_distribution(
             "order_count": row.order_count,
             "cost": float(row.cost)
         })
-    
+
     return {"code": 0, "data": data}
 ```
 
@@ -756,7 +756,7 @@ async def get_top_customers(
         end_date = date.today()
     if not start_date:
         start_date = end_date - timedelta(days=30)
-    
+
     query = select(
         Customer.id,
         Customer.name,
@@ -766,18 +766,18 @@ async def get_top_customers(
         DailyConsumption.consumption_date >= start_date,
         DailyConsumption.consumption_date <= end_date
     ).group_by(Customer.id, Customer.name)
-    
+
     # 根据 metric 排序
     if metric == "order_count":
         query = query.order_by(desc('order_count'))
     else:
         query = query.order_by(desc('cost'))
-    
+
     query = query.limit(limit)
-    
+
     result = await db.execute(query)
     rows = result.all()
-    
+
     data = []
     for row in rows:
         data.append({
@@ -786,7 +786,7 @@ async def get_top_customers(
             "order_count": row.order_count,
             "cost": float(row.cost)
         })
-    
+
     return {"code": 0, "data": data}
 ```
 
@@ -804,10 +804,10 @@ async def manual_sync_orders(
     # 权限检查：仅管理员可调用
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admin can trigger sync")
-    
+
     if not sync_date:
         sync_date = date.today() - timedelta(days=1)
-    
+
     # 检查是否已同步
     existing = await db.execute(
         select(DailyOrder).where(DailyOrder.sync_date == sync_date).limit(1)
@@ -818,10 +818,10 @@ async def manual_sync_orders(
             "message": "Already synced",
             "data": {"status": "skipped", "date": sync_date.isoformat()}
         }
-    
+
     # 异步执行同步
     background_tasks.add_task(_run_sync, sync_date)
-    
+
     return {
         "code": 0,
         "message": "Sync task started",
@@ -852,7 +852,7 @@ const fetchTrendData = async () => {
     end_date: dateRange.value[1],
     metric: metricMode.value
   });
-  
+
   trendData.value = res.data.map(item => ({
     date: item.date,
     value: metricMode.value === 'cost' ? item.cost : item.order_count
@@ -876,7 +876,7 @@ const fetchDeviceDistribution = async () => {
     end_date: dateRange.value[1],
     metric: deviceMetricMode.value
   });
-  
+
   deviceData.value = res.data.map(item => ({
     name: item.device_type,
     value: deviceMetricMode.value === 'cost' ? item.cost : item.order_count
@@ -896,7 +896,7 @@ const fetchTopCustomers = async () => {
     limit: 10,
     metric: topMetricMode.value
   });
-  
+
   topData.value = res.data;
 };
 ```
@@ -1008,7 +1008,7 @@ EXTERNAL_MYSQL_URL=mysql+aiomysql://readonly_user:password@rm-uf699j4t96r5u634n.
 ### A. 外部 MySQL 查询 SQL
 
 ```sql
-SELECT 
+SELECT
     id,
     custom_code,
     nest_id,

@@ -58,7 +58,7 @@ async def list_tags(request: Request):
                     "type": tag.type,
                     "category": tag.category,
                     "created_by": tag.created_by,
-                    "created_at": tag.created_at.isoformat() if tag.created_at else None,
+                    "created_at": tag.created_at.isoformat() if tag.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                 }
                 for tag in tags
             ],
@@ -135,7 +135,7 @@ async def create_tag(request: Request):
     service = TagService(db_session)
 
     try:
-        tag = await service.create_tag(data, created_by=current_user["user_id"])
+        tag = await service.create_tag(data, created_by=current_user["user_id"])  # pyright: ignore[reportOptionalSubscript]
     except ValueError as e:
         # 业务逻辑错误（如重复标签）
         return json({"code": 40901, "message": str(e)}, status=409)

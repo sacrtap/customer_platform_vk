@@ -100,7 +100,7 @@ npx vue-tsc --noEmit
 
 ### 问题描述
 ```
-sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called; 
+sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called;
 can't call await_only() here. Was IO attempted in an unexpected place?
 ```
 
@@ -117,12 +117,12 @@ def run_migrations_online() -> None:
     """在线模式 - 执行迁移到数据库"""
     # 使用同步引擎（Alembic不支持asyncpg）
     from sqlalchemy import create_engine
-    
+
     # 将asyncpg URL转换为psycopg2 URL
     sync_url = settings.database_url.replace('postgresql+asyncpg://', 'postgresql+psycopg2://')
-    
+
     connectable = create_engine(sync_url, poolclass=pool.NullPool)
-    
+
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():

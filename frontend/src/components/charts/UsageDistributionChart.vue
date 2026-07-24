@@ -44,7 +44,7 @@ const chartOption = computed<EChartsOption>(() => {
     percentage: item.percentage,
   }))
 
-  const colors = ['#0369A1', '#0284C7', '#0EA5E9', '#38BDF8', '#7DD3FC', '#BAE6FD']
+  const colors = ['#1D4ED8', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED']
 
   const option = {
     color: colors,
@@ -62,7 +62,7 @@ const chartOption = computed<EChartsOption>(() => {
       itemHeight: 12,
       textStyle: {
         fontSize: 13,
-        color: '#374151',
+        color: '#475569',
       },
     },
     series: [
@@ -107,7 +107,7 @@ const chartOption = computed<EChartsOption>(() => {
         style: {
           text: '总用量',
           textAlign: 'center',
-          fill: '#6B7280',
+          fill: '#475569',
           fontSize: 14,
         },
       },
@@ -118,7 +118,7 @@ const chartOption = computed<EChartsOption>(() => {
         style: {
           text: props.totalQuantity.toLocaleString(),
           textAlign: 'center',
-          fill: '#111827',
+          fill: '#0F172A',
           fontSize: 24,
           fontWeight: 'bold',
         },

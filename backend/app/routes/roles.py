@@ -45,7 +45,7 @@ async def list_roles(request: Request):
                         "name": role.name,
                         "description": role.description,
                         "is_system": role.is_system,
-                        "created_at": role.created_at.isoformat() if role.created_at else None,
+                        "created_at": role.created_at.isoformat() if role.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for role in roles
                 ],
@@ -82,7 +82,7 @@ async def get_role(request: Request, role_id: int):
                 "permissions": [
                     {"id": p.id, "code": p.code, "name": p.name} for p in role.permissions
                 ],
-                "created_at": role.created_at.isoformat() if role.created_at else None,
+                "created_at": role.created_at.isoformat() if role.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
             },
         }
     )
@@ -187,7 +187,7 @@ async def delete_role(request: Request, role_id: int):
 
     # 检查是否是系统角色
     role = await service.get_role_by_id(role_id)
-    if role and role.is_system:
+    if role and role.is_system:  # pyright: ignore[reportGeneralTypeIssues]
         return json({"code": 40001, "message": "系统角色不能删除"}, status=400)
 
     success = await service.delete_role(role_id)

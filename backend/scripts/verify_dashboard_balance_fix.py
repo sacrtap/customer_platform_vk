@@ -96,14 +96,14 @@ def get_old_query_result(session: Session):
 
     result = session.execute(stats_stmt).first()
     return {
-        "total_customers": result.total_customers or 0,
-        "key_customers": result.key_customers or 0,
-        "total_balance": float(result.total_balance or 0),
-        "real_balance": float(result.real_balance or 0),
-        "bonus_balance": float(result.bonus_balance or 0),
-        "month_invoice_count": result.month_invoice_count or 0,
-        "pending_confirmation": result.pending_confirmation or 0,
-        "month_consumption": float(result.month_consumption or 0),
+        "total_customers": result.total_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "key_customers": result.key_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "total_balance": float(result.total_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "real_balance": float(result.real_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "bonus_balance": float(result.bonus_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "month_invoice_count": result.month_invoice_count or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "pending_confirmation": result.pending_confirmation or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "month_consumption": float(result.month_consumption or 0),  # pyright: ignore[reportOptionalMemberAccess]
     }
 
 
@@ -175,14 +175,14 @@ def get_new_query_result(session: Session):
     invoice_result = session.execute(invoice_stmt).first()
 
     return {
-        "total_customers": balance_result.total_customers or 0,
-        "key_customers": balance_result.key_customers or 0,
-        "total_balance": float(balance_result.total_balance or 0),
-        "real_balance": float(balance_result.real_balance or 0),
-        "bonus_balance": float(balance_result.bonus_balance or 0),
-        "month_invoice_count": invoice_result.month_invoice_count or 0,
-        "pending_confirmation": invoice_result.pending_confirmation or 0,
-        "month_consumption": float(invoice_result.month_consumption or 0),
+        "total_customers": balance_result.total_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "key_customers": balance_result.key_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "total_balance": float(balance_result.total_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "real_balance": float(balance_result.real_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "bonus_balance": float(balance_result.bonus_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
+        "month_invoice_count": invoice_result.month_invoice_count or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "pending_confirmation": invoice_result.pending_confirmation or 0,  # pyright: ignore[reportOptionalMemberAccess]
+        "month_consumption": float(invoice_result.month_consumption or 0),  # pyright: ignore[reportOptionalMemberAccess]
     }
 
 

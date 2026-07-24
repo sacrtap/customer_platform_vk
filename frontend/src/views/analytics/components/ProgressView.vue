@@ -63,7 +63,7 @@ const progressStatus = computed(() => {
 
 .status-text {
   font-size: 14px;
-  color: var(--color-text-2);
+  color: var(--muted);
   margin-bottom: 12px;
 }
 

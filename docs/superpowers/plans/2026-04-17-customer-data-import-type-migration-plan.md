@@ -26,12 +26,12 @@ from sqlalchemy import text
 with engine.connect() as conn:
     # 检查非数字 company_id
     result = conn.execute(text(\"\"\"
-        SELECT company_id FROM customers 
-        WHERE company_id !~ '^\d+$' 
+        SELECT company_id FROM customers
+        WHERE company_id !~ '^\d+$'
         LIMIT 10
     \"\"\"))
     non_numeric = result.fetchall()
-    
+
     if non_numeric:
         print('发现非数字 company_id:')
         for row in non_numeric:
@@ -694,8 +694,8 @@ from sqlalchemy import text
 
 with engine.connect() as conn:
     result = conn.execute(text(\"\"\"
-        SELECT column_name, data_type 
-        FROM information_schema.columns 
+        SELECT column_name, data_type
+        FROM information_schema.columns
         WHERE table_name = 'customers' AND column_name = 'company_id'
     \"\"\"))
     row = result.fetchone()

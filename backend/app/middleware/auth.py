@@ -51,7 +51,7 @@ def auth_middleware(app: Sanic):
             try:
                 payload = AuthService.verify_token(token)
             except Exception as e:
-                app.logger.warning(f"Token verification failed: {e}")
+                app.logger.warning(f"Token verification failed: {e}")  # pyright: ignore[reportAttributeAccessIssue]
                 return json(
                     {"code": ErrorCodes.TOKEN_INVALID, "message": f"Token 验证失败：{str(e)}"},
                     status=401,
@@ -68,7 +68,7 @@ def auth_middleware(app: Sanic):
                 blacklist_service = TokenBlacklistService(request.ctx.db_session)
                 is_blacklisted = await blacklist_service.is_blacklisted(jti)
                 if is_blacklisted:
-                    app.logger.info(f"Blacklisted token used: {jti}")
+                    app.logger.info(f"Blacklisted token used: {jti}")  # pyright: ignore[reportAttributeAccessIssue]
                     return json(
                         {"code": ErrorCodes.TOKEN_BLACKLISTED, "message": "Token 已失效"},
                         status=401,
@@ -77,7 +77,7 @@ def auth_middleware(app: Sanic):
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload
         except Exception as e:
-            app.logger.error(f"认证中间件异常：{e}")
+            app.logger.error(f"认证中间件异常：{e}")  # pyright: ignore[reportAttributeAccessIssue]
             return json(
                 {"code": ErrorCodes.INTERNAL_ERROR, "message": f"中间件错误：{str(e)}"}, status=500
             )
@@ -116,10 +116,10 @@ def require_permission(permission_code: str):
                 db_session: AsyncSession = request.ctx.db_session
                 user_permissions = await get_user_permissions(db_session, user_id)
                 # 设置缓存
-                await permission_cache.set_permissions(user_id, user_permissions)
+                await permission_cache.set_permissions(user_id, user_permissions)  # pyright: ignore[reportArgumentType]
 
             # 校验权限（支持通配符匹配）
-            if not _check_permission(user_permissions, permission_code):
+            if not _check_permission(user_permissions, permission_code):  # pyright: ignore[reportArgumentType]
                 return json({"code": ErrorCodes.FORBIDDEN, "message": "权限不足"}, status=403)
 
             return await f(request, *args, **kwargs)

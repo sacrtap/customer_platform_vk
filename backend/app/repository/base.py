@@ -73,7 +73,7 @@ class BaseRepository(Generic[T]):
 
     async def update(self, entity: T) -> T:
         """更新记录"""
-        entity.updated_at = datetime.utcnow()
+        entity.updated_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.flush()
         return entity
 

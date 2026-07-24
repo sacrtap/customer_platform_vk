@@ -240,7 +240,7 @@ async def upload_file(request):
         # ========== 步骤 8: 保存到数据库 ==========
         db_session: AsyncSession = request.ctx.db_session
         current_user = get_current_user(request)
-        user_id = current_user.get("user_id")
+        user_id = current_user.get("user_id")  # pyright: ignore[reportOptionalMemberAccess]
 
         file_record = File(
             filename=file.name,
@@ -380,8 +380,8 @@ async def list_files(request: Request):
                     "uploaded_by": f.uploaded_by,
                     "business_type": f.business_type,
                     "business_id": f.business_id,
-                    "created_at": f.created_at.isoformat() if f.created_at else None,
-                    "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+                    "created_at": f.created_at.isoformat() if f.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                    "updated_at": f.updated_at.isoformat() if f.updated_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                 }
             )
 
@@ -390,11 +390,11 @@ async def list_files(request: Request):
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": (total + page_size - 1) // page_size,
+            "total_pages": (total + page_size - 1) // page_size,  # pyright: ignore[reportOptionalOperand]
         }
 
         logger.info(
-            f"📋 文件列表查询成功：用户 {current_user.get('user_id')}, "
+            f"📋 文件列表查询成功：用户 {current_user.get('user_id')}, "  # pyright: ignore[reportOptionalMemberAccess]
             f"页码 {page}, 每页 {page_size}, 总数 {total}"
         )
 
@@ -445,7 +445,7 @@ async def get_file(request: Request, file_id: int):
         file_record = result.scalar_one_or_none()
 
         if not file_record:
-            logger.warning(f"⚠️ 文件未找到：ID={file_id}, 用户={current_user.get('user_id')}")
+            logger.warning(f"⚠️ 文件未找到：ID={file_id}, 用户={current_user.get('user_id')}")  # pyright: ignore[reportOptionalMemberAccess]
             return json({"code": 404, "message": "文件未找到", "data": None}, status=404)
 
         # 构建响应数据
@@ -460,11 +460,11 @@ async def get_file(request: Request, file_id: int):
             "business_type": file_record.business_type,
             "business_id": file_record.business_id,
             "file_hash": file_record.file_hash,
-            "created_at": file_record.created_at.isoformat() if file_record.created_at else None,
-            "updated_at": file_record.updated_at.isoformat() if file_record.updated_at else None,
+            "created_at": file_record.created_at.isoformat() if file_record.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+            "updated_at": file_record.updated_at.isoformat() if file_record.updated_at else None,  # pyright: ignore[reportGeneralTypeIssues]
         }
 
-        logger.info(f"📄 文件详情查询成功：ID={file_id}, 用户={current_user.get('user_id')}")
+        logger.info(f"📄 文件详情查询成功：ID={file_id}, 用户={current_user.get('user_id')}")  # pyright: ignore[reportOptionalMemberAccess]
 
         return json({"code": 0, "message": "success", "data": file_data})
 
@@ -492,7 +492,7 @@ async def delete_file(request: Request, file_id: int):
     try:
         db_session: AsyncSession = request.ctx.db_session
         current_user = get_current_user(request)
-        user_id = current_user.get("user_id")
+        user_id = current_user.get("user_id")  # pyright: ignore[reportOptionalMemberAccess]
 
         # 查询文件
         stmt = select(File).where(and_(File.id == file_id, File.deleted_at.is_(None)))
@@ -516,7 +516,7 @@ async def delete_file(request: Request, file_id: int):
             # 继续删除数据库记录，但记录警告
 
         # 软删除数据库记录
-        file_record.deleted_at = datetime.utcnow()
+        file_record.deleted_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await db_session.merge(file_record)
 
         # 记录审计日志

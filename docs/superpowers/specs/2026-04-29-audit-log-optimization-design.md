@@ -1,8 +1,8 @@
 # 审计日志全面优化设计文档
 
-**日期**: 2026-04-29  
-**状态**: 待审查  
-**作者**: AI Assistant  
+**日期**: 2026-04-29
+**状态**: 待审查
+**作者**: AI Assistant
 
 ---
 
@@ -101,9 +101,9 @@
 ```python
 class AuditLog(BaseModel):
     """审计日志表"""
-    
+
     __tablename__ = "audit_logs"
-    
+
     # 现有字段保持不变
     user_id = Column(Integer, ForeignKey("users.id"))
     action = Column(String(50), nullable=False)
@@ -112,15 +112,15 @@ class AuditLog(BaseModel):
     record_type = Column(String(50))
     changes = Column(JSON)  # {"before": {...}, "after": {...}}
     ip_address = Column(String(45))
-    
+
     # 新增字段
     operation_type = Column(
-        String(20), 
+        String(20),
         default="standard",
         comment="操作类型: standard/batch/relation/sensitive"
     )
     metadata = Column(
-        JSON, 
+        JSON,
         nullable=True,
         comment="扩展元数据: 批量统计、关系ID列表等"
     )
@@ -135,7 +135,7 @@ class AuditLog(BaseModel):
 ```python
 _MODULE_MODEL_MAP = {
     # ... 现有映射保持不变 ...
-    
+
     # 新增映射
     "profiles": CustomerProfile,  # 画像管理模块
     "webhooks": None,  # Webhook 模块（跳过审计）
@@ -176,28 +176,28 @@ def is_sensitive_operation(path: str) -> bool:
 def extract_record_id_from_path(path: str) -> int | None:
     """增强版：支持嵌套路径提取"""
     parts = path.strip("/").split("/")
-    
+
     # 标准路径: /api/v1/users/123
     if len(parts) >= 4:
         try:
             return int(parts[3])
         except ValueError:
             pass
-    
+
     # 嵌套路径: /api/v1/customers/123/tags/456
     if len(parts) >= 6:
         try:
             return int(parts[5])  # 返回关系 ID
         except ValueError:
             pass
-    
+
     # 动作路径: /api/v1/billing/invoices/123/submit
     if len(parts) >= 5:
         try:
             return int(parts[4])
         except ValueError:
             pass
-    
+
     return None
 ```
 
@@ -251,7 +251,7 @@ def build_batch_audit_summary(
     """构建批量操作审计摘要"""
     if failed_count is None:
         failed_count = total_count - success_count
-    
+
     return {
         "operation": operation,
         "total_count": total_count,
@@ -265,7 +265,7 @@ def mask_sensitive_data(data: dict, fields: list | None = None) -> dict:
     """敏感数据脱敏"""
     if fields is None:
         fields = ["password", "password_hash", "token", "secret"]
-    
+
     masked = data.copy()
     for field in fields:
         if field in masked:

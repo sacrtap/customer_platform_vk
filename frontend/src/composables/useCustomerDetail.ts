@@ -2,7 +2,13 @@ import { ref, reactive, computed, onMounted, onUnmounted, onUpdated, watch } fro
 import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { getCustomer, updateCustomer, getProfile, updateProfile, getIndustryTypes } from '@/api/customers'
+import {
+  getCustomer,
+  updateCustomer,
+  getProfile,
+  updateProfile,
+  getIndustryTypes,
+} from '@/api/customers'
 import { getCustomerBalance, getInvoices, getBalanceTrend } from '@/api/billing'
 import type { Invoice, BalanceTrendItem } from '@/api/billing'
 import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
@@ -40,14 +46,13 @@ export interface EditForm {
 
 export function useCustomerDetail() {
   const route = useRoute()
-  console.log('[useCustomerDetail] called, route.params.id =', route.params.id)
   const router = useRouter()
   const customerStore = useCustomerStore()
 
   const customerId = ref(Number(route.params.id))
 
   const customer = ref<Customer | null>(null)
-  const loading = ref(true)
+  const loading = ref(false)
   const activeTab = ref('basic')
 
   const balance = ref<Balance | undefined>(undefined)
@@ -152,7 +157,6 @@ export function useCustomerDetail() {
       return
     }
     loading.value = true
-    console.log('[loadDetail] started, loading =', loading.value)
     try {
       const [customerRes, profileRes, balanceRes, invoicesRes] = await Promise.all([
         getCustomer(customerId.value),
@@ -160,7 +164,6 @@ export function useCustomerDetail() {
         getCustomerBalance(customerId.value).catch(() => null),
         getInvoices({ customer_id: customerId.value, page_size: 100 }).catch(() => null),
       ])
-      console.log('[loadDetail] API all resolved')
       customer.value = customerRes.data
       profile.value = profileRes?.data || null
       balance.value = balanceRes?.data
@@ -170,7 +173,6 @@ export function useCustomerDetail() {
       Message.error('加载客户数据失败')
     } finally {
       loading.value = false
-      console.log('[loadDetail] finally block, loading =', loading.value)
     }
   }
 
@@ -265,20 +267,30 @@ export function useCustomerDetail() {
     if (tabKey === 'usage' && !usageData.value.length) loadUsage()
   }
 
-  const goBack = () => { router.back() }
+  const goBack = () => {
+    router.back()
+  }
 
   const getStatusClass = (status: string) => {
     const map: Record<string, string> = {
-      draft: 'warning', pending_customer: 'warning', customer_confirmed: 'success',
-      paid: 'success', completed: 'success', cancelled: 'danger',
+      draft: 'warning',
+      pending_customer: 'warning',
+      customer_confirmed: 'success',
+      paid: 'success',
+      completed: 'success',
+      cancelled: 'danger',
     }
     return map[status] || 'warning'
   }
 
   const getStatusText = (status: string) => {
     const map: Record<string, string> = {
-      draft: '草稿', pending_customer: '待客户确认', customer_confirmed: '客户已确认',
-      paid: '已付款', completed: '已完成', cancelled: '已取消',
+      draft: '草稿',
+      pending_customer: '待客户确认',
+      customer_confirmed: '客户已确认',
+      paid: '已付款',
+      completed: '已完成',
+      cancelled: '已取消',
     }
     return map[status] || status
   }
@@ -291,10 +303,13 @@ export function useCustomerDetail() {
     Object.assign(editForm, {
       name: customer.value?.name || '',
       company_id: Number(customer.value?.company_id) || 0,
-      email: customer.value?.email as string ?? '',
+      email: (customer.value?.email as string) ?? '',
       account_type: customer.value?.account_type || undefined,
-      industry_type_id: profile.value?.industry_type_id as number | null ?? null,
-      price_policy: customer.value?.price_policy ? { '定价': 'pricing', '阶梯': 'tiered', '包年': 'yearly' }[customer.value.price_policy] || customer.value.price_policy : undefined,
+      industry_type_id: (profile.value?.industry_type_id as number | null) ?? null,
+      price_policy: customer.value?.price_policy
+        ? { 定价: 'pricing', 阶梯: 'tiered', 包年: 'yearly' }[customer.value.price_policy] ||
+          customer.value.price_policy
+        : undefined,
       settlement_type: customer.value?.settlement_type || undefined,
       settlement_cycle: customer.value?.settlement_cycle || undefined,
       is_key_customer: customer.value?.is_key_customer || false,
@@ -307,7 +322,7 @@ export function useCustomerDetail() {
       is_settlement_enabled: customer.value?.is_settlement_enabled ?? true,
       is_disabled: customer.value?.is_disabled ?? false,
       notes: customer.value?.notes || undefined,
-      is_real_estate: customer.value?.is_real_estate as boolean | null ?? null,
+      is_real_estate: (customer.value?.is_real_estate as boolean | null) ?? null,
       scale_level: profile.value?.scale_level || undefined,
       consume_level: profile.value?.consume_level || undefined,
     })
@@ -337,7 +352,11 @@ export function useCustomerDetail() {
       customer.value = basicRes.data
       if (profileRes?.data) profile.value = profileRes.data
       if (basicRes.data) {
-        customerStore.updateCachedCustomerPart(customerId.value, 'customer', basicRes.data as Customer)
+        customerStore.updateCachedCustomerPart(
+          customerId.value,
+          'customer',
+          basicRes.data as Customer
+        )
       }
       closeEdit()
       Message.success('客户信息已更新')
@@ -460,43 +479,76 @@ export function useCustomerDetail() {
   }
 
   // 诊断: 追踪 loading 状态变化
-  watch(loading, (val) => {
-    console.log('[watch] loading changed to:', val)
-  }, { immediate: true })
+  watch(loading, (_val) => {}, { immediate: true })
 
   onMounted(() => {
-    console.log('[useCustomerDetail] onMounted fired')
     loadDetail()
     loadManagers()
     loadIndustryTypes()
   })
 
-  onUpdated(() => {
-    console.log('[onUpdated] loading =', loading.value)
-  })
+  onUpdated(() => {})
 
   onUnmounted(() => {
     if (tabLoadTimer) clearTimeout(tabLoadTimer)
   })
 
   return {
-    customer, loading, activeTab,
-    balance, balanceLoading,
-    profile, profileLoading,
+    customer,
+    loading,
+    activeTab,
+    balance,
+    balanceLoading,
+    profile,
+    profileLoading,
     invoices,
-    usageData, usageLoading, usagePagination,
-    healthScore, healthScoreLoading, balanceTrend, balanceTrendLoading, shouldRenderBalanceTrend,
-    usageDistribution, totalUsageQuantity,
-    editModalVisible, editForm, editFormRef, editLoading, modalWidth,
-    tagSelectorVisible, tagSelectorLoading, selectedTags,
-    customerTags, allTags, allTagsLoading,
-    managers, industryTypes, industryTypesLoading, pricePolicyOptions,
+    usageData,
+    usageLoading,
+    usagePagination,
+    healthScore,
+    healthScoreLoading,
+    balanceTrend,
+    balanceTrendLoading,
+    shouldRenderBalanceTrend,
+    usageDistribution,
+    totalUsageQuantity,
+    editModalVisible,
+    editForm,
+    editFormRef,
+    editLoading,
+    modalWidth,
+    tagSelectorVisible,
+    tagSelectorLoading,
+    selectedTags,
+    customerTags,
+    allTags,
+    allTagsLoading,
+    managers,
+    industryTypes,
+    industryTypesLoading,
+    pricePolicyOptions,
     keyCustomerLoading,
-    consumeLevelDisplay, profileExtensionList,
-    loadDetail, loadBalance, loadProfile, loadInvoices, loadUsage,
-    handleTabChange, getStatusClass, getStatusText,
-    goBack, openEdit, closeEdit, submitEdit, toggleKeyCustomer, viewInvoice,
-    openTagSelector, closeTagSelector, addTags, removeTag,
-    loadManagers, loadIndustryTypes,
+    consumeLevelDisplay,
+    profileExtensionList,
+    loadDetail,
+    loadBalance,
+    loadProfile,
+    loadInvoices,
+    loadUsage,
+    handleTabChange,
+    getStatusClass,
+    getStatusText,
+    goBack,
+    openEdit,
+    closeEdit,
+    submitEdit,
+    toggleKeyCustomer,
+    viewInvoice,
+    openTagSelector,
+    closeTagSelector,
+    addTags,
+    removeTag,
+    loadManagers,
+    loadIndustryTypes,
   }
 }

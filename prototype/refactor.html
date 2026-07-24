@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>重构优化方案总览 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="refactor" class="page active">
+      <div class="headline"><div><div class="eyebrow">Refactoring Plan</div><h1 class="h1">重构优化方案总览</h1><p class="desc">针对所有 22 个页面提供功能重构和优化的具体方案，包含交互设计示意。每个页面底部均有折叠式"优化方案"标注面板，展开可查看详细优化项。</p></div><div class="actions"><button class="btn primary" data-page-link="home">从首页开始</button><button class="btn" data-page-link="customers">查看客户管理</button></div></div>
+
+      <div class="callout" style="margin-bottom:18px">💡 <b>使用方式</b>：点击下方各卡片可跳转到对应原型页面，在页面底部找到 <span class="tag blue">优化方案</span> 折叠面板，展开查看具体优化项和交互设计示意。</div>
+
+      <div class="section-title"><h2>P0 — 核心页面（高频 & 高风险路径）</h2><span class="subtle">4 个页面 · 优先重构</span></div>
+      <div class="refactor-grid">
+        <div class="refactor-card" data-page-link="home">
+          <div class="rc-header"><div><div class="rc-title">运营工作台</div><div class="rc-page">Home.vue</div></div><span class="opt-priority p0">P0</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>KPI 卡片可点击下钻</div>
+            <div class="rc-item"><span class="dot p1"></span>快捷操作面板</div>
+            <div class="rc-item"><span class="dot p1"></span>异常自动排序开关</div>
+            <div class="rc-item"><span class="dot p2"></span>实时同步状态条</div>
+            <div class="rc-item"><span class="dot p1"></span>趋势图指标切换</div>
+            <div class="rc-item"><span class="dot p2"></span>优先跟进客户增强</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="customers">
+          <div class="rc-header"><div><div class="rc-title">客户管理列表</div><div class="rc-page">customers/Index.vue</div></div><span class="opt-priority p0">P0</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>保存筛选视图</div>
+            <div class="rc-item"><span class="dot p1"></span>列自定义</div>
+            <div class="rc-item"><span class="dot p0"></span>异常优先排序</div>
+            <div class="rc-item"><span class="dot p1"></span>卡片/表格视图切换</div>
+            <div class="rc-item"><span class="dot p1"></span>快速预览抽屉</div>
+            <div class="rc-item"><span class="dot p0"></span>KPI 联动筛选</div>
+            <div class="rc-item"><span class="dot p2"></span>批量操作增强</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/7</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="detail">
+          <div class="rc-header"><div><div class="rc-title">客户详情 360</div><div class="rc-page">customers/Detail.vue</div></div><span class="opt-priority p0">P0</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>Tab 分区导航</div>
+            <div class="rc-item"><span class="dot p0"></span>余额耗尽预测</div>
+            <div class="rc-item"><span class="dot p1"></span>健康度仪表盘</div>
+            <div class="rc-item"><span class="dot p1"></span>消耗趋势 mini 图</div>
+            <div class="rc-item"><span class="dot p1"></span>快捷操作栏</div>
+            <div class="rc-item"><span class="dot p2"></span>关联客户推荐</div>
+            <div class="rc-item"><span class="dot p2"></span>操作记录筛选</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/7</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="consumption">
+          <div class="rc-header"><div><div class="rc-title">消耗分析</div><div class="rc-page">analytics/Consumption.vue</div></div><span class="opt-priority p0">P0</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>同步质量提示条</div>
+            <div class="rc-item"><span class="dot p1"></span>图表解释 tooltip</div>
+            <div class="rc-item"><span class="dot p0"></span>点击联动明细</div>
+            <div class="rc-item"><span class="dot p1"></span>同比/环比对比</div>
+            <div class="rc-item"><span class="dot p1"></span>异常检测高亮</div>
+            <div class="rc-item"><span class="dot p2"></span>导出分析报告</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:18px"><h2>P1 — 结算管理 & 运营分析</h2><span class="subtle">8 个页面 · 核心业务流程</span></div>
+      <div class="refactor-grid">
+        <div class="refactor-card" data-page-link="billing">
+          <div class="rc-header"><div><div class="rc-title">结算管理总览</div><div class="rc-page">Billing Overview</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>失败预检查面板</div>
+            <div class="rc-item"><span class="dot p0"></span>结构化失败原因</div>
+            <div class="rc-item"><span class="dot p1"></span>金额影响排序</div>
+            <div class="rc-item"><span class="dot p1"></span>批量生成能力</div>
+            <div class="rc-item"><span class="dot p2"></span>付款提醒自动化</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/5</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="balance">
+          <div class="rc-header"><div><div class="rc-title">余额管理</div><div class="rc-page">billing/Balance.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>余额趋势 mini chart</div>
+            <div class="rc-item"><span class="dot p0"></span>余额预警阈值配置</div>
+            <div class="rc-item"><span class="dot p1"></span>批量充值</div>
+            <div class="rc-item"><span class="dot p1"></span>余额耗尽预测列</div>
+            <div class="rc-item"><span class="dot p2"></span>低余额自动高亮</div>
+            <div class="rc-item"><span class="dot p2"></span>充值记录抽屉</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="pricing">
+          <div class="rc-header"><div><div class="rc-title">计费规则</div><div class="rc-page">billing/PricingRules.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>规则生效预览</div>
+            <div class="rc-item"><span class="dot p0"></span>冲突检测可视化</div>
+            <div class="rc-item"><span class="dot p2"></span>定价对比视图</div>
+            <div class="rc-item"><span class="dot p2"></span>规则版本历史</div>
+            <div class="rc-item"><span class="dot p2"></span>批量导入</div>
+            <div class="rc-item"><span class="dot p1"></span>即将到期高亮</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="invoices">
+          <div class="rc-header"><div><div class="rc-title">结算单</div><div class="rc-page">billing/Invoices.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>生命周期可视化</div>
+            <div class="rc-item"><span class="dot p1"></span>批量操作</div>
+            <div class="rc-item"><span class="dot p0"></span>逾期自动高亮</div>
+            <div class="rc-item"><span class="dot p1"></span>金额汇总页脚</div>
+            <div class="rc-item"><span class="dot p2"></span>付款状态时间线</div>
+            <div class="rc-item"><span class="dot p1"></span>快速筛选标签</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="payment">
+          <div class="rc-header"><div><div class="rc-title">回款分析</div><div class="rc-page">analytics/Payment.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>预测 vs 实际对比图</div>
+            <div class="rc-item"><span class="dot p0"></span>结算单状态饼图</div>
+            <div class="rc-item"><span class="dot p1"></span>回款趋势折线图</div>
+            <div class="rc-item"><span class="dot p1"></span>回款周期分析</div>
+            <div class="rc-item"><span class="dot p2"></span>客户回款排行</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/5</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="health">
+          <div class="rc-header"><div><div class="rc-title">健康度分析</div><div class="rc-page">analytics/Health.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>健康度分布图</div>
+            <div class="rc-item"><span class="dot p1"></span>风险趋势图</div>
+            <div class="rc-item"><span class="dot p0"></span>预警客户一键跟进</div>
+            <div class="rc-item"><span class="dot p1"></span>天数选择器</div>
+            <div class="rc-item"><span class="dot p2"></span>健康度评分卡</div>
+            <div class="rc-item"><span class="dot p2"></span>导出预警清单</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="profile-analysis">
+          <div class="rc-header"><div><div class="rc-title">画像分析</div><div class="rc-page">analytics/Profile.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>行业分布饼图</div>
+            <div class="rc-item"><span class="dot p0"></span>规模等级柱图</div>
+            <div class="rc-item"><span class="dot p0"></span>消费等级环形图</div>
+            <div class="rc-item"><span class="dot p0"></span>房产占比环形图</div>
+            <div class="rc-item"><span class="dot p1"></span>交叉维度热力图</div>
+            <div class="rc-item"><span class="dot p2"></span>标签关联分析</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/6</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="forecast">
+          <div class="rc-header"><div><div class="rc-title">预测回款</div><div class="rc-page">analytics/Forecast.vue</div></div><span class="opt-priority p1">P1</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>置信区间阴影</div>
+            <div class="rc-item"><span class="dot p0"></span>风险评估标签</div>
+            <div class="rc-item"><span class="dot p1"></span>预测偏差分析</div>
+            <div class="rc-item"><span class="dot p1"></span>月度对比柱图</div>
+            <div class="rc-item"><span class="dot p2"></span>客户深度钻取</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/5</span></div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:18px"><h2>P2 — 系统管理 & 个人页面</h2><span class="subtle">12 个页面 · 辅助功能</span></div>
+      <div class="refactor-grid">
+        <div class="refactor-card" data-page-link="users">
+          <div class="rc-header"><div><div class="rc-title">用户管理</div><div class="rc-page">users/Index.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>角色筛选</div>
+            <div class="rc-item"><span class="dot p2"></span>活跃度热力图</div>
+            <div class="rc-item"><span class="dot p1"></span>批量操作</div>
+            <div class="rc-item"><span class="dot p2"></span>用户卡片视图</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="roles">
+          <div class="rc-header"><div><div class="rc-title">角色管理</div><div class="rc-page">roles/Index.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>权限矩阵可视化</div>
+            <div class="rc-item"><span class="dot p2"></span>用户数联动</div>
+            <div class="rc-item"><span class="dot p2"></span>角色对比</div>
+            <div class="rc-item"><span class="dot p1"></span>权限变更审计</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="tags">
+          <div class="rc-header"><div><div class="rc-title">标签管理</div><div class="rc-page">tags/Index.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>标签使用统计</div>
+            <div class="rc-item"><span class="dot p2"></span>标签颜色自定义</div>
+            <div class="rc-item"><span class="dot p2"></span>标签合并</div>
+            <div class="rc-item"><span class="dot p1"></span>标签搜索</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="sync-logs">
+          <div class="rc-header"><div><div class="rc-title">同步日志</div><div class="rc-page">system/SyncLogs.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>实时监控面板</div>
+            <div class="rc-item"><span class="dot p0"></span>失败自动重试</div>
+            <div class="rc-item"><span class="dot p2"></span>同步趋势图</div>
+            <div class="rc-item"><span class="dot p1"></span>错误信息展开</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="audit-logs">
+          <div class="rc-header"><div><div class="rc-title">审计日志</div><div class="rc-page">system/AuditLogs.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p1"></span>风险级别筛选</div>
+            <div class="rc-item"><span class="dot p0"></span>变更对比视图</div>
+            <div class="rc-item"><span class="dot p2"></span>操作热力图</div>
+            <div class="rc-item"><span class="dot p1"></span>快速筛选标签</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="industry-types">
+          <div class="rc-header"><div><div class="rc-title">行业类型</div><div class="rc-page">system/IndustryTypes.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>关联客户计数</div>
+            <div class="rc-item"><span class="dot p1"></span>批量操作</div>
+            <div class="rc-item"><span class="dot p2"></span>拖拽排序</div>
+            <div class="rc-item"><span class="dot p2"></span>颜色标识</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="database-management">
+          <div class="rc-header"><div><div class="rc-title">数据清空</div><div class="rc-page">system/DatabaseManagement.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>影响范围摘要</div>
+            <div class="rc-item"><span class="dot p0"></span>分模块清空</div>
+            <div class="rc-item"><span class="dot p1"></span>备份提醒</div>
+            <div class="rc-item"><span class="dot p1"></span>操作日志追溯</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="profile-page">
+          <div class="rc-header"><div><div class="rc-title">个人信息</div><div class="rc-page">Profile.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>密码安全强度</div>
+            <div class="rc-item"><span class="dot p1"></span>活动摘要卡片</div>
+            <div class="rc-item"><span class="dot p2"></span>头像裁剪</div>
+            <div class="rc-item"><span class="dot p2"></span>偏好设置</div>
+            <div class="rc-item"><span class="dot p2"></span>快捷键说明</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/5</span></div>
+        </div>
+        <div class="refactor-card" data-page-link="reset-password">
+          <div class="rc-header"><div><div class="rc-title">重置密码</div><div class="rc-page">ResetPassword.vue</div></div><span class="opt-priority p2">P2</span></div>
+          <div class="rc-items">
+            <div class="rc-item"><span class="dot p0"></span>密码强度指示器</div>
+            <div class="rc-item"><span class="dot p0"></span>密码要求清单</div>
+            <div class="rc-item"><span class="dot p1"></span>显示/隐藏密码</div>
+            <div class="rc-item"><span class="dot p1"></span>返回登录链接</div>
+          </div>
+          <div class="refactor-progress"><div class="refactor-progress-bar"><span style="width:0%"></span></div><span class="refactor-progress-text">0/4</span></div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:18px"><h2>交互设计通用规范</h2><span class="subtle">适用于所有页面</span></div>
+      <div class="grid-3">
+        <div class="card pad">
+          <div class="eyebrow">Loading</div>
+          <h2>加载状态</h2>
+          <div class="compact-list" style="margin-top:10px">
+            <div class="row"><span>页面首次加载</span><b>骨架屏</b></div>
+            <div class="row"><span>表格加载</span><b>Spin + 遮罩</b></div>
+            <div class="row"><span>图表加载</span><b>居中 Spin</b></div>
+            <div class="row"><span>按钮提交</span><b>loading + 禁用</b></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Empty State</div>
+          <h2>空状态</h2>
+          <div class="compact-list" style="margin-top:10px">
+            <div class="row"><span>表格无数据</span><b>图标+描述+操作</b></div>
+            <div class="row"><span>图表无数据</span><b>占位+引导</b></div>
+            <div class="row"><span>搜索无结果</span><b>提示+清除筛选</b></div>
+          </div>
+        </div>
+        <div class="card pad">
+          <div class="eyebrow">Feedback</div>
+          <h2>反馈与通知</h2>
+          <div class="compact-list" style="margin-top:10px">
+            <div class="row"><span>操作成功</span><b>Message.success</b></div>
+            <div class="row"><span>操作失败</span><b>Message.error</b></div>
+            <div class="row"><span>确认操作</span><b>Modal.confirm</b></div>
+            <div class="row"><span>批量进度</span><b>进度条+百分比</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

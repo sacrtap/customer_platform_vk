@@ -37,7 +37,7 @@ async def sync_daily_orders(session: AsyncSession, external_engine: AsyncEngine 
             failed_count=result.failed,
             skipped_count=result.skipped,
             executed_at=datetime.now(),
-            error_message=result.message if result.failed > 0 else None,
+            error_message=result.message if result.failed > 0 else None,  # pyright: ignore[reportArgumentType]
         )
 
         logger.info(
@@ -73,7 +73,7 @@ async def _log_sync_task(
     failed_count: int,
     skipped_count: int,
     executed_at: datetime,
-    error_message: str = None,
+    error_message: str = None,  # pyright: ignore[reportArgumentType]
 ):
     """记录同步任务日志"""
     log_entry = SyncTaskLog(

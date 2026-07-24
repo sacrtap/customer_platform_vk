@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>消耗分析 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="analytics" class="page active">
+      <div class="headline"><div><div class="eyebrow">Analytics</div><h1 class="h1">消耗分析</h1><p class="desc">重构为“同步状态 + 关键指标 + 趋势/排行 + 明细钻取”四层，图表旁保留解释和异常入口。</p></div><div class="actions"><button class="btn">同步日志</button><button class="btn">导出报告</button><button class="btn primary">同步消耗数据</button></div></div>
+      <!-- P0: 同步质量提示条 -->
+      <div class="sync-notice warn"><span>⚡ 数据已同步至 10:00，2 条待补偿</span><button class="btn" style="margin-left:auto;padding:4px 12px;font-size:12px">手动同步</button></div>
+      <div class="card pad"><div class="filters"><div class="field">时间范围 <b>近 30 天</b></div><div class="field">客户 <b>全部</b></div><div class="field">设备类型 <b>全部</b></div><div class="field">同步模式 <b>增量</b></div><button class="btn primary">应用</button></div><div class="kpi-strip"><div class="mini"><span>总消耗</span><b>¥8.42M</b><span class="up">+12.8%</span></div><div class="mini"><span>日均消耗</span><b>¥280k</b><span>稳定</span></div><div class="mini"><span>峰值日期</span><b>07-08</b><span>¥412k</span></div><div class="mini"><span>Top10 占比</span><b>61%</b><span class="warn">集中度高</span></div><div class="mini"><span>设备类型</span><b>4 类</b><span>移动端增长</span></div><div class="mini"><span>同步质量</span><b>98.6%</b><span class="up">2 条待补偿</span></div></div></div>
+      <div class="grid-2" style="margin-top:14px"><div class="card pad"><div class="section-title"><h2>消耗趋势 <span class="chart-help">?<span class="chart-help-tip">展示每日消耗金额趋势，支持同比/环比对比</span></span></h2><div style="display:flex;align-items:center;gap:8px"><label class="toggle-switch"><input type="checkbox"><span class="toggle-track"></span><span class="toggle-label-text">同比对比</span></label></div></div><div class="chart"><svg viewBox="0 0 640 260" preserveAspectRatio="none"><path class="axis" d="M30 45H610M30 100H610M30 155H610M30 210H610"/><path class="line" d="M35 198 C90 160 120 154 170 122 C220 90 260 140 310 118 C390 82 430 90 490 74 C545 62 580 88 610 54"/><path class="line2" d="M35 210 C120 190 155 170 220 168 C280 166 330 140 385 134 C455 128 515 100 610 96"/></svg></div></div><div class="card pad"><div class="section-title"><h2>设备类型分布</h2><span class="subtle">点击图例过滤明细</span></div><div class="grid-2"><div class="donut"></div><div class="legend"><div><span class="sw" style="background:#2563eb"></span>移动端 42%</div><div><span class="sw" style="background:#06b6d4"></span>桌面端 26%</div><div><span class="sw" style="background:#10b981"></span>API 16%</div><div><span class="sw" style="background:#f59e0b"></span>其他 16%</div></div></div></div></div>
+      <div class="card pad" style="margin-top:14px"><div class="section-title"><h2>Top 客户排行</h2><button class="btn">查看明细</button></div><table class="table"><thead><tr><th>排名</th><th>客户</th><th>消耗</th><th>占比</th><th>趋势</th><th>健康度</th><th>动作</th></tr></thead><tbody><tr><td>1</td><td>万科华东</td><td>¥482,000</td><td><div class="bar"><span style="width:82%"></span></div></td><td class="up">+18%</td><td><span class="tag amber">余额关注</span></td><td><button class="btn">跟进</button></td></tr><tr><td>2</td><td>龙湖集团</td><td>¥421,000</td><td><div class="bar"><span style="width:72%"></span></div></td><td class="up">+9%</td><td><span class="tag green">健康</span></td><td><button class="btn">复盘</button></td></tr></tbody></table></div>
+      <!-- 优化方案标注 -->
+      <div class="opt-panel">
+        <button class="opt-toggle"><span>🚀 消耗分析 — 重构优化方案</span><span class="opt-count">6 项优化 <span class="opt-arrow">⌄</span></span></button>
+        <div class="opt-content">
+          <div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">同步质量提示条</div><div class="opt-desc">筛选区上方添加同步状态提示条。“数据已同步至 10:00，2 条待补偿” + 手动同步按钮。</div></div><span class="opt-interaction">状态条 + 同步按钮</span></div>
+          <div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">点击联动明细</div><div class="opt-desc">环形图扇区点击联动 Top 排行表。点击“移动端 42%” → 表格自动筛选设备=移动端。</div></div><span class="opt-interaction">图表扇区 @click → 表格筛选</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">图表解释 tooltip</div><div class="opt-desc">图表标题旁添加“?” 图标。Hover 显示图表说明文字，帮助用户理解图表含义。</div></div><span class="opt-interaction">? 图标 + hover 说明</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">同比/环比对比</div><div class="opt-desc">趋势图添加对比模式开关。开启后显示双线：本期 + 上期，方便对比变化趋势。</div></div><span class="opt-interaction">Toggle + 双线图</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">异常检测高亮</div><div class="opt-desc">趋势图异常点自动标注。峰值/谷值点添加红色标注 + tooltip 说明原因。</div></div><span class="opt-interaction">异常点标注 + tooltip</span></div>
+          <div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">导出分析报告</div><div class="opt-desc">添加“导出分析报告”按钮。生成 PDF/Excel 报告（含图表截图 + 数据表格）。</div></div><span class="opt-interaction">导出 PDF/Excel</span></div>
+          <div class="opt-wireframe"><h4>交互流程示意</h4><div class="wire-flow"><div class="wire-box">进入页面</div><span class="wire-arrow">→</span><div class="wire-box">同步状态提示</div><span class="wire-arrow">→</span><div class="wire-box">筛选加载</div><span class="wire-arrow">→</span><div class="wire-box">6 KPI + 图表</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">点击环形图</div><span class="wire-arrow">→</span><div class="wire-box">筛选 Top 表</div><span class="wire-arrow">→</span><div class="wire-box">联动明细</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">开启同比对比</div><span class="wire-arrow">→</span><div class="wire-box">双线叠加</div><span class="wire-arrow">→</span><div class="wire-box">异常高亮</div></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

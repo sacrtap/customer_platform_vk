@@ -1,11 +1,6 @@
 <template>
   <div class="sync-logs-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>同步任务日志</h1>
-        <p class="header-subtitle">查看同步任务执行历史和状态</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="System" title="同步任务日志" subtitle="查看同步任务执行历史和状态" />
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -86,9 +81,7 @@
         <template #task_id="{ record }">
           {{ record.task_id.substring(0, 8) }}
         </template>
-        <template #period="{ record }">
-          {{ record.start_date }} ~ {{ record.end_date }}
-        </template>
+        <template #period="{ record }"> {{ record.start_date }} ~ {{ record.end_date }} </template>
         <template #sync_mode="{ record }">
           {{ record.sync_mode === 'skip_existing' ? '仅补充缺失' : '强制覆盖' }}
         </template>
@@ -147,6 +140,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import {
   getSyncTaskList,
@@ -383,16 +377,6 @@ onUnmounted(() => {
 <style scoped>
 .sync-logs-page {
   padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --primary-6: #0369a1;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .page-header {
@@ -402,13 +386,13 @@ onUnmounted(() => {
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .header-subtitle {
   font-size: 14px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .stats-grid {
@@ -422,7 +406,7 @@ onUnmounted(() => {
   background: white;
   padding: 24px;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   transition: all 200ms ease;
 }
@@ -434,29 +418,29 @@ onUnmounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
   margin-bottom: 12px;
 }
 
 .stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
 }
 
 .stat-value.success {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .stat-value.danger {
-  color: #ef4444;
+  color: var(--red);
 }
 
 .filter-section {
   background: white;
   padding: 24px;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
 }
@@ -464,7 +448,7 @@ onUnmounted(() => {
 .table-section {
   background: white;
   border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -474,13 +458,13 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--soft);
 }
 
 .table-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
 }
 
 .progress-cell {
@@ -495,7 +479,7 @@ onUnmounted(() => {
 
 .progress-text {
   font-size: 12px;
-  color: var(--neutral-6);
+  color: var(--muted);
   white-space: nowrap;
 }
 

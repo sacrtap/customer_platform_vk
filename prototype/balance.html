@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>余额管理 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="balance" class="page active">
+      <div class="headline"><div><div class="eyebrow">Billing</div><h1 class="h1">余额管理</h1><p class="desc">客户余额总览、充值操作与充值记录追溯</p></div><div class="actions"><button class="btn">导入</button><button class="btn primary">充值</button></div></div>
+      <div class="grid-4"><div class="card pad"><div class="mini"><span>总余额</span><b>¥24.6M</b><span class="up">+3.2%</span></div></div><div class="card pad"><div class="mini"><span>本月充值</span><b>¥5.8M</b><span>128 笔</span></div></div><div class="card pad"><div class="mini"><span>余额不足</span><b class="danger">7</b><span class="warn">需跟进</span></div></div><div class="card pad"><div class="mini"><span>零余额客户</span><b>23</b><span>已停用</span></div></div></div>
+      <div class="card pad" style="margin-top:14px">
+        <div class="filters"><div class="field">关键词 <b>公司名/ID</b></div><div class="field">账号类型 <b>全部</b></div><div class="field">行业 <b>全部</b></div><div class="field">余额范围 <b>全部</b></div><button class="btn primary">查询</button><button class="btn">重置</button></div>
+        <!-- P2: 批量操作工具栏 -->
+        <div class="batch-toolbar" style="display:none"><span class="batch-count">已选择 <b>0</b> 项</span><button class="btn">批量充值</button><button class="btn">批量导出</button></div>
+        <table class="table"><thead><tr><th><input type="checkbox"></th><th>客户</th><th>账号类型</th><th>行业</th><th>余额</th><th>趋势</th><th>预计耗尽</th><th>已消耗</th><th>最新充值</th><th>操作</th></tr></thead><tbody>
+          <tr><td><input type="checkbox"></td><td><b>杭州星辰科技有限公司</b><br><span class="subtle">C001</span></td><td>预付费</td><td>电商</td><td><b>¥328,000</b></td><td><span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,10 8,8 16,9 24,7 32,6 40,5 48,4" fill="none" stroke="#059669" stroke-width="1.5"/></svg></span></td><td><span class="tag green">安全</span></td><td>¥172,000</td><td>07-09</td><td><button class="btn" style="padding:4px 10px;font-size:12px">充值</button> <button class="btn" style="padding:4px 10px;font-size:12px">记录</button></td></tr>
+          <tr><td><input type="checkbox"></td><td><b>上海蓝海贸易集团</b><br><span class="subtle">C002</span></td><td>后付费</td><td>贸易</td><td><b>¥1,250,000</b></td><td><span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,5 8,6 16,5 24,7 32,6 40,8 48,7" fill="none" stroke="#059669" stroke-width="1.5"/></svg></span></td><td><span class="tag green">安全</span></td><td>¥890,000</td><td>07-08</td><td><button class="btn" style="padding:4px 10px;font-size:12px">充值</button> <button class="btn" style="padding:4px 10px;font-size:12px">记录</button></td></tr>
+          <tr class="row-warning"><td><input type="checkbox"></td><td><b>北京云峰数据服务</b><br><span class="subtle">C003</span></td><td>预付费</td><td>SaaS</td><td><b class="danger">¥12,400</b></td><td><span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,3 8,5 16,7 24,9 32,11 40,13 48,14" fill="none" stroke="#dc2626" stroke-width="1.5"/></svg></span></td><td><span class="tag red">3 天</span></td><td>¥287,600</td><td>06-28</td><td><button class="btn" style="padding:4px 10px;font-size:12px">充值</button> <button class="btn" style="padding:4px 10px;font-size:12px">记录</button></td></tr>
+          <tr class="row-warning"><td><input type="checkbox"></td><td><b>深圳绿能新能源</b><br><span class="subtle">C004</span></td><td>预付费</td><td>能源</td><td><b>¥86,000</b></td><td><span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,6 8,7 16,8 24,9 32,10 40,11 48,12" fill="none" stroke="#d97706" stroke-width="1.5"/></svg></span></td><td><span class="tag amber">12 天</span></td><td>¥414,000</td><td>07-05</td><td><button class="btn" style="padding:4px 10px;font-size:12px">充值</button> <button class="btn" style="padding:4px 10px;font-size:12px">记录</button></td></tr>
+          <tr><td><input type="checkbox"></td><td><b>广州鼎新传媒</b><br><span class="subtle">C005</span></td><td>后付费</td><td>传媒</td><td><b>¥520,000</b></td><td><span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,8 8,7 16,6 24,5 32,6 40,5 48,4" fill="none" stroke="#059669" stroke-width="1.5"/></svg></span></td><td><span class="tag green">安全</span></td><td>¥180,000</td><td>07-10</td><td><button class="btn" style="padding:4px 10px;font-size:12px">充值</button> <button class="btn" style="padding:4px 10px;font-size:12px">记录</button></td></tr>
+        </tbody></table>
+        <div class="pagination"><span class="page-total">共 186 条</span><span class="page-size">每页 <select class="page-size-select"><option>10</option><option selected>20</option><option>50</option></select> 条</span><div class="page-controls"><button class="page-btn" disabled>‹</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><span class="page-ellipsis">…</span><button class="page-btn">10</button><button class="page-btn">›</button></div><span class="page-jump">跳至 <input type="number" class="page-jump-input" value="1" min="1" max="10"> 页</span></div>
+      </div>
+      <div class="opt-panel"><button class="opt-toggle"><span>🚀 余额管理 — 重构优化方案</span><span class="opt-count">6 项优化 <span class="opt-arrow">⌄</span></span></button><div class="opt-content"><div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">余额预警阈值配置</div><div class="opt-desc">添加“预警设置”按钮。弹窗配置：余额 < X 元 / 可用 < X 天 → 自动预警。</div></div><span class="opt-interaction">弹窗配置阈值</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">余额趋势 mini chart</div><div class="opt-desc">每行余额列添加 30 天趋势缩略图 Sparkline。直观展示余额变化趋势。</div></div><span class="opt-interaction">Sparkline 行内嵌</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">余额耗尽预测列</div><div class="opt-desc">表格添加“预计耗尽”列。“5 天” / “安全” / “已耗尽” 标签。</div></div><span class="opt-interaction">预测标签列</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">批量充值</div><div class="opt-desc">批量工具栏添加“批量充值”按钮。多选客户 → 批量充值弹窗。</div></div><span class="opt-interaction">多选 + 批量弹窗</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">低余额自动高亮</div><div class="opt-desc">余额低于阈值的行自动高亮。行背景 rgba(220,38,38,.04) + 余额红色。</div></div><span class="opt-interaction">行背景 + 文字色</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">充值记录抽屉</div><div class="opt-desc">点击“记录”改为右侧 Drawer 展示。Drawer 滑出 → 时间线展示充值历史。</div></div><span class="opt-interaction">Drawer + 时间线</span></div></div></div>
+    </section>
+
+    <!-- ===== 计费规则 ===== -->
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

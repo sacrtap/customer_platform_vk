@@ -2,25 +2,84 @@
 # See https://pre-commit.com/hooks.html for more hooks
 
 repos:
+  # ==================== Universal hooks ====================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+
+  # ==================== Python backend - Ruff ====================
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.0
     hooks:
       - id: ruff
-        name: ruff check (linting)
-       # ruff 默认就是 check 模式
+        name: Ruff check (linting)
         files: ^backend/
         types: [python]
-
+        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-        name: ruff format (formatting)
+        name: Ruff format (formatting)
         files: ^backend/
         types: [python]
 
+  # ==================== Python type checking (pre-push only) ====================
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.380
+    hooks:
+      - id: pyright
+        name: Pyright type check
+        files: ^backend/
+        args: [--project=pyrightconfig.json]
+        stages: [pre-push]
+
+  # ==================== Frontend - ESLint ====================
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint (frontend)
+        entry: bash -c 'cd frontend && npx eslint --ext .vue,.js,.ts,.tsx src/'
+        language: system
+        files: ^frontend/
+        types_or: [javascript, ts, vue]
+        pass_filenames: false
+
+  # ==================== Frontend - Prettier (local, uses project's installed version) ====================
+  - repo: local
+    hooks:
+      - id: prettier
+        name: Prettier format (frontend)
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{vue,js,ts,css}"'
+        language: system
+        files: ^frontend/
+        types_or: [javascript, ts, vue, css]
+        pass_filenames: false
+
+  # ==================== Frontend - Vue TypeScript check (pre-push only) ====================
+  - repo: local
+    hooks:
+      - id: vue-tsc
+        name: Vue TypeScript Check
+        entry: bash -c 'cd frontend && npx vue-tsc --noEmit'
+        language: system
+        files: ^frontend/
+        types_or: [javascript, ts, vue]
+        pass_filenames: false
+        stages: [pre-push]
+
+  # ==================== Existing comprehensive check script ====================
   - repo: local
     hooks:
       - id: pre-commit-check
-        name: 提交前预验证脚本
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && bash scripts/pre-commit-check.sh'
+        name: Full pre-commit verification
+        entry: bash scripts/pre-commit-check.sh
         language: system
         pass_filenames: false
         stages: [pre-commit]
+        verbose: true

@@ -10,6 +10,9 @@ import {
   confirmInvoice,
   cancelInvoice,
   deleteInvoice,
+  confirmOps,
+  confirmSales,
+  retryDeduction,
 } from '@/api/billing'
 import type { Invoice, InvoiceItem } from '@/api/billing'
 
@@ -22,7 +25,7 @@ const defaultFilters = () => ({
 
 export interface SortState {
   sort_by: string
-  sort_order: 'ascend' | 'descend' | ''
+  sort_order: 'asc' | 'desc' | ''
 }
 
 export function useInvoice() {
@@ -43,9 +46,9 @@ export function useInvoice() {
   })
 
   const backendSortOrder = (): 'asc' | 'desc' => {
-    if (sortState.sort_order === 'ascend') return 'asc'
-    if (sortState.sort_order === 'descend') return 'desc'
-    return 'asc'
+    if (sortState.sort_order === 'asc') return 'asc'
+    if (sortState.sort_order === 'desc') return 'desc'
+    return 'desc'
   }
 
   const loadInvoices = async () => {
@@ -55,7 +58,7 @@ export function useInvoice() {
         page: pagination.current,
         page_size: pagination.pageSize,
         sort_by: sortState.sort_by || undefined,
-        sort_order: backendSortOrder(),
+        sort_order: sortState.sort_by ? backendSortOrder() : undefined,
       }
       if (filters.keyword) params.keyword = filters.keyword
       if (filters.status) params.status = filters.status
@@ -78,11 +81,29 @@ export function useInvoice() {
     }
   }
 
-  const handlePageChange = (page: number) => { pagination.current = page; loadInvoices() }
-  const handlePageSizeChange = (pageSize: number) => { pagination.pageSize = pageSize; pagination.current = 1; loadInvoices() }
-  const handleSortChange = (dataIndex: string, direction: string) => { sortState.sort_by = dataIndex; sortState.sort_order = direction as 'ascend' | 'descend' | ''; loadInvoices() }
-  const handleSearch = () => { pagination.current = 1; loadInvoices() }
-  const handleReset = () => { Object.assign(filters, defaultFilters()); pagination.current = 1; loadInvoices() }
+  const handlePageChange = (page: number) => {
+    pagination.current = page
+    loadInvoices()
+  }
+  const handlePageSizeChange = (pageSize: number) => {
+    pagination.pageSize = pageSize
+    pagination.current = 1
+    loadInvoices()
+  }
+  const handleSortChange = (dataIndex: string, direction: string) => {
+    sortState.sort_by = dataIndex
+    sortState.sort_order = direction as 'asc' | 'desc' | ''
+    loadInvoices()
+  }
+  const handleSearch = () => {
+    pagination.current = 1
+    loadInvoices()
+  }
+  const handleReset = () => {
+    Object.assign(filters, defaultFilters())
+    pagination.current = 1
+    loadInvoices()
+  }
 
   const fetchDetail = async (id: number): Promise<Invoice | null> => {
     loading.value = true
@@ -95,7 +116,12 @@ export function useInvoice() {
     }
   }
 
-  const doGenerate = async (data: { customer_id: number; period_start: string; period_end: string; items: InvoiceItem[] }) => {
+  const doGenerate = async (data: {
+    customer_id: number
+    period_start: string
+    period_end: string
+    items: InvoiceItem[]
+  }) => {
     await generateInvoice(data)
     Message.success('结算单生成成功')
     loadInvoices()
@@ -131,6 +157,30 @@ export function useInvoice() {
     loadInvoices()
   }
 
+  const doConfirmOps = async (invoiceId: number) => {
+    await confirmOps(invoiceId)
+    Message.success('运营经理确认成功')
+    loadInvoices()
+  }
+
+  const doConfirmSales = async (invoiceId: number) => {
+    await confirmSales(invoiceId)
+    Message.success('销售经理确认成功')
+    loadInvoices()
+  }
+
+  const doRetryDeduction = async (invoiceId: number) => {
+    try {
+      const res = await retryDeduction(invoiceId)
+      Message.success(res.data?.message || '重试扣款成功')
+      loadInvoices()
+    } catch (err) {
+      const msg = (err as { message?: string })?.message || '重试扣款失败'
+      Message.error(msg)
+      throw err
+    }
+  }
+
   const doDelete = async (invoiceId: number) => {
     await deleteInvoice(invoiceId)
     Message.success('已删除')
@@ -138,9 +188,29 @@ export function useInvoice() {
   }
 
   return {
-    loading, invoices, total, currentDetail,
-    filters, sortState, pagination,
-    loadInvoices, handlePageChange, handlePageSizeChange, handleSortChange, handleSearch, handleReset,
-    fetchDetail, doGenerate, doApplyDiscount, doPay, doSubmit, doConfirm, doCancel, doDelete,
+    loading,
+    invoices,
+    total,
+    currentDetail,
+    filters,
+    sortState,
+    pagination,
+    loadInvoices,
+    handlePageChange,
+    handlePageSizeChange,
+    handleSortChange,
+    handleSearch,
+    handleReset,
+    fetchDetail,
+    doGenerate,
+    doApplyDiscount,
+    doPay,
+    doSubmit,
+    doConfirm,
+    doConfirmOps,
+    doConfirmSales,
+    doRetryDeduction,
+    doCancel,
+    doDelete,
   }
 }

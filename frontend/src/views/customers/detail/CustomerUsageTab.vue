@@ -16,6 +16,9 @@
         <template #deviceType="{ record }">
           <a-tag>{{ record.device_type }}</a-tag>
         </template>
+        <template #layerType="{ record }">
+          <a-tag>{{ formatLayerType(record.layer_type) }}</a-tag>
+        </template>
         <template #quantity="{ record }">
           {{ formatNumber(record.quantity || 0) }}
         </template>
@@ -44,10 +47,21 @@ const emit = defineEmits<{
   pageChange: [page: number]
 }>()
 
+// 楼层类型映射
+const LAYER_TYPE_MAP: Record<string, string> = {
+  single: '单层',
+  multi: '多层',
+}
+
+const formatLayerType = (layerType: string | null | undefined): string => {
+  if (!layerType) return '-'
+  return LAYER_TYPE_MAP[layerType] || layerType
+}
+
 const usageColumns = [
   { title: '日期', dataIndex: 'usage_date', width: 120 },
   { title: '设备类型', slotName: 'deviceType', width: 120 },
-  { title: '图层类型', dataIndex: 'layer_type', width: 100 },
+  { title: '楼层类型', slotName: 'layerType', width: 100 },
   { title: '用量', slotName: 'quantity', width: 100, align: 'right' },
   { title: '同步时间', slotName: 'syncedAt', width: 170 },
 ]
@@ -62,10 +76,22 @@ const usageColumns = [
   margin-bottom: 24px;
 }
 
+.data-table-card :deep(.arco-table-th) {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.data-table-card :deep(.arco-table-tr:hover .arco-table-td) {
+  background: #f8fbff;
+}
+
 .data-table-card {
-  background: var(--color-bg-2);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0;
+  overflow: hidden;
 }
 </style>

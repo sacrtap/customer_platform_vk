@@ -51,11 +51,11 @@ from ..models.users import User, Role, Permission, user_roles, role_permissions
 async def get_user_permissions(session: AsyncSession, user_id: int) -> Set[str]:
     """
     获取用户所有权限代码
-    
+
     Args:
         session: 数据库会话
         user_id: 用户ID
-        
+
     Returns:
         权限代码集合
     """
@@ -69,10 +69,10 @@ async def get_user_permissions(session: AsyncSession, user_id: int) -> Set[str]:
         .join(Permission, Permission.id == role_permissions.c.permission_id)
         .where(User.id == user_id, User.deleted_at.is_(None))
     )
-    
+
     result = await session.execute(stmt)
     permissions = result.scalars().all()
-    
+
     return set(permissions)
 ```
 
@@ -127,12 +127,12 @@ import aioredis
 
 class PermissionCache:
     """权限缓存类"""
-    
+
     def __init__(self):
         self.redis_url = settings.redis_url
         self._redis: Optional[aioredis.Redis] = None
         self.default_ttl = 300  # 5 minutes
-    
+
     async def _get_redis(self) -> aioredis.Redis:
         """获取 Redis 连接"""
         if self._redis is None:
@@ -142,30 +142,30 @@ class PermissionCache:
                 decode_responses=True
             )
         return self._redis
-    
+
     async def get_permissions(self, user_id: int) -> Optional[Set[str]]:
         """
         从缓存获取用户权限
-        
+
         Args:
             user_id: 用户ID
-            
+
         Returns:
             权限代码集合，如果缓存不存在返回 None
         """
         redis = await self._get_redis()
         key = f"permissions:user:{user_id}"
         data = await redis.get(key)
-        
+
         if data is None:
             return None
-        
+
         return set(json.loads(data))
-    
+
     async def set_permissions(self, user_id: int, permissions: Set[str]) -> None:
         """
         设置用户权限到缓存
-        
+
         Args:
             user_id: 用户ID
             permissions: 权限代码集合
@@ -174,18 +174,18 @@ class PermissionCache:
         key = f"permissions:user:{user_id}"
         data = json.dumps(list(permissions))
         await redis.setex(key, self.default_ttl, data)
-    
+
     async def delete_permissions(self, user_id: int) -> None:
         """
         删除用户权限缓存
-        
+
         Args:
             user_id: 用户ID
         """
         redis = await self._get_redis()
         key = f"permissions:user:{user_id}"
         await redis.delete(key)
-    
+
     async def clear_all(self) -> None:
         """清空所有权限缓存"""
         redis = await self._get_redis()
@@ -289,14 +289,14 @@ def require_permission(permission_code: str):
             # 从缓存或数据库获取用户权限
             user_id = user["user_id"]
             user_permissions = await permission_cache.get_permissions(user_id)
-            
+
             if user_permissions is None:
                 # 缓存未命中，从数据库查询
                 db_session: AsyncSession = request.ctx.db_session
                 user_permissions = await get_user_permissions(db_session, user_id)
                 # 设置缓存
                 await permission_cache.set_permissions(user_id, user_permissions)
-            
+
             # 校验权限
             if permission_code not in user_permissions:
                 return json({

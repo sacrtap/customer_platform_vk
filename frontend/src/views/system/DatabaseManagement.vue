@@ -1,11 +1,6 @@
 <template>
   <div class="database-management">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>数据库管理</h1>
-        <p class="header-subtitle">系统级数据操作管理</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="System" title="数据库管理" subtitle="系统级数据操作管理" />
 
     <a-card :bordered="false">
       <template #title>
@@ -38,10 +33,7 @@
       </a-space>
 
       <div v-if="lastResult" class="result-info">
-        <a-alert
-          :type="lastResult.success ? 'success' : 'error'"
-          style="margin-top: 16px"
-        >
+        <a-alert :type="lastResult.success ? 'success' : 'error'" style="margin-top: 16px">
           {{ lastResult.message }}
         </a-alert>
       </div>
@@ -51,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import service from '@/api'
 import { handleError } from '@/utils/errorHandler'
@@ -132,13 +125,13 @@ const handleClearConfirm = () => {
 .header-title h1 {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .header-subtitle {
   font-size: 14px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .card-header {

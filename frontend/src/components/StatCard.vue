@@ -53,13 +53,13 @@ withDefaults(
 <style scoped>
 .stat-card {
   background: white;
-  border-radius: var(--radius-lg, 16px);
-  padding: var(--spacing-xl, 24px);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.04));
-  border: 1px solid var(--neutral-2, #eef0f3);
+  border-radius: var(--radius);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--line);
   transition:
-    box-shadow var(--transition-base, 250ms cubic-bezier(0.4, 0, 0.2, 1)),
-    transform var(--transition-base, 250ms cubic-bezier(0.4, 0, 0.2, 1));
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
   position: relative;
   overflow: hidden;
 }
@@ -71,23 +71,23 @@ withDefaults(
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
+  background: linear-gradient(90deg, #1d4ed8, #2563eb);
 }
 
 .stat-card.success::before {
-  background: linear-gradient(90deg, var(--success-5) 0%, var(--success-6) 100%);
+  background: linear-gradient(90deg, #34d399, var(--green));
 }
 
 .stat-card.warning::before {
-  background: linear-gradient(90deg, var(--warning-5) 0%, var(--warning-6) 100%);
+  background: linear-gradient(90deg, #fbbf24, var(--amber));
 }
 
 .stat-card.danger::before {
-  background: linear-gradient(90deg, var(--danger-5) 0%, var(--danger-6) 100%);
+  background: linear-gradient(90deg, #f87171, var(--red));
 }
 
 .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 
@@ -106,9 +106,9 @@ withDefaults(
 }
 
 .stat-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--neutral-6);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .stat-icon {
@@ -121,23 +121,23 @@ withDefaults(
 }
 
 .stat-icon.primary {
-  background: var(--primary-1);
-  color: var(--primary-6);
+  background: #dbeafe;
+  color: var(--primary);
 }
 
 .stat-icon.success {
-  background: var(--success-1);
-  color: var(--success-6);
+  background: #dcfce7;
+  color: var(--green);
 }
 
 .stat-icon.warning {
-  background: var(--warning-1);
-  color: var(--warning-6);
+  background: #fef3c7;
+  color: var(--amber);
 }
 
 .stat-icon.danger {
-  background: var(--danger-1);
-  color: var(--danger-6);
+  background: #fee2e2;
+  color: var(--red);
 }
 
 .stat-icon svg {
@@ -146,22 +146,22 @@ withDefaults(
 }
 
 .stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-size: 28px;
+  font-weight: 850;
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
 .stat-value.success {
-  color: var(--success-6);
+  color: var(--green);
 }
 
 .stat-value.warning {
-  color: var(--warning-6);
+  color: var(--amber);
 }
 
 .stat-value.danger {
-  color: var(--danger-6);
+  color: var(--red);
 }
 
 .stat-subtitle {
@@ -174,7 +174,7 @@ withDefaults(
 
 .stat-extra {
   font-size: 12px;
-  color: var(--neutral-5);
+  color: var(--muted);
   margin-top: 8px;
 }
 </style>

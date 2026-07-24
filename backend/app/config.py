@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "customer_platform_api"
     app_display_name: str = "客户运营中台 API"
     app_env: str = Field(default="development", description="应用环境：development/production")
-    debug: bool = True
+    debug: bool = False  # 默认关闭 debug 模式，开发环境通过环境变量 DEBUG=true 开启
     host: str = "0.0.0.0"  # nosec B104 -- 开发环境默认值，生产环境通过环境变量覆盖
     port: int = 8000
 
@@ -34,8 +34,14 @@ class Settings(BaseSettings):
     # CORS 配置
     cors_origins: list = ["http://localhost:5173", "http://localhost:3000"]
     cors_allow_credentials: bool = True
-    cors_allow_methods: list = ["*"]
-    cors_allow_headers: list = ["*"]
+    cors_allow_methods: list = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    cors_allow_headers: list = [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+    ]
 
     # 文件存储配置
     file_storage_path: str = "./uploads"
@@ -46,6 +52,9 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = "noreply@company.com"
     smtp_password: str = ""
+
+    # 前端应用 URL（用于邮件中的链接）
+    app_url: str = "http://localhost:5173"
 
     # 外部 API 配置
     external_api_base_url: str = "https://business-api.company.com"

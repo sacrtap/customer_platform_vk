@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万科华东 · 客户 360 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="detail" class="page active">
+      <div class="headline"><div><div class="eyebrow">Customer Detail</div><h1 class="h1">万科华东 · 客户 360</h1><p class="desc">详情页按"基础信息、画像、余额、消耗、结算、操作记录"聚合，支持运营在一个页面完成判断。</p></div><div class="actions"><button class="btn">编辑画像</button><button class="btn">生成结算单</button><button class="btn primary">发起充值提醒</button></div></div>
+      <!-- 快捷操作栏 -->
+      <div class="quick-actions" style="margin-bottom:14px"><button class="quick-action-btn"><span class="qa-icon">¥</span>充值</button><button class="quick-action-btn"><span class="qa-icon">📄</span>生成结算单</button><button class="quick-action-btn"><span class="qa-icon">✎</span>编辑画像</button><button class="quick-action-btn"><span class="qa-icon">⚑</span>发送提醒</button></div>
+      <div class="grid-4">
+        <div class="metric card"><div class="label">客户健康度</div><div class="value">78</div><div class="trend warn">关注：余额仅 5 天</div></div>
+        <!-- 余额耗尽预测 -->
+        <div class="metric card"><div class="label">当前余额</div><div class="value">¥820k</div><div class="trend"><span class="tag red" style="font-size:11px">预计 5 天后耗尽</span> <span class="sparkline"><svg width="50" height="16" viewBox="0 0 50 16"><polyline points="0,6 8,8 16,5 24,9 32,7 40,11 48,13" fill="none" stroke="#dc2626" stroke-width="1.5"/></svg></span></div></div>
+        <div class="metric card"><div class="label">月均消耗</div><div class="value">¥462k</div><div class="trend up">近 3 月 +14%</div></div>
+        <div class="metric card"><div class="label">待回款</div><div class="value">¥210k</div><div class="trend warn">1 单 7 天内到期</div></div>
+      </div>
+      <!-- Tab 分区导航 -->
+      <div class="detail-tabs" style="margin-top:16px">
+        <button class="detail-tab active" data-detail-tab="basic">基础信息</button>
+        <button class="detail-tab" data-detail-tab="profile">画像</button>
+        <button class="detail-tab" data-detail-tab="balance">余额</button>
+        <button class="detail-tab" data-detail-tab="consume">消耗</button>
+        <button class="detail-tab" data-detail-tab="invoice">结算</button>
+        <button class="detail-tab" data-detail-tab="record">操作记录</button>
+      </div>
+      <!-- 基础信息 Tab -->
+      <div class="detail-panel active" data-detail-panel="basic">
+        <div class="grid-2"><div class="card pad"><div class="section-title"><h2>客户画像</h2><button class="btn">维护标签</button></div><div class="compact-list"><div class="row"><span>行业</span><b>房地产</b></div><div class="row"><span>规模等级</span><b>A · 大型集团</b></div><div class="row"><span>消费等级</span><b>S · 高价值</b></div><div class="row"><span>计费模式</span><b>阶梯计费</b></div><div class="row"><span>关键标签</span><span><span class="tag blue">重点客户</span> <span class="tag violet">战略合作</span></span></div></div></div><div class="card pad"><div class="section-title"><h2>近 30 天消耗热力</h2><span class="subtle">深色代表高消耗</span></div><div class="heat"> <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+      </div>
+      <!-- 画像 Tab -->
+      <div class="detail-panel" data-detail-panel="profile">
+        <div class="grid-2">
+          <div class="card pad"><div class="section-title"><h2>健康度仪表盘</h2></div><div style="display:flex;justify-content:center;padding:20px"><div class="ring-chart" style="background:conic-gradient(#f59e0b 0 78%,#e2e8f0 78% 100%)"><div class="ring-center"><b style="color:#d97706">78</b><span>健康度评分</span></div></div></div><div class="compact-list" style="margin-top:14px"><div class="row"><span>余额健康</span><b class="down">45/100</b></div><div class="row"><span>消耗稳定</span><b class="up">85/100</b></div><div class="row"><span>回款及时</span><b class="up">92/100</b></div><div class="row"><span>画像完整</span><b class="warn">70/100</b></div></div></div>
+          <div class="card pad"><div class="section-title"><h2>关联客户推荐</h2><span class="subtle">同行业 · 同规模</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><div class="card pad" style="cursor:pointer" data-page-link="detail"><div class="customer"><span class="logo">保</span><b>保利发展</b></div><div style="font-size:12px;color:var(--muted);margin-top:6px">房产 · A级 · 健康</div></div><div class="card pad" style="cursor:pointer" data-page-link="detail"><div class="customer"><span class="logo">龙</span><b>龙湖集团</b></div><div style="font-size:12px;color:var(--muted);margin-top:6px">房产 · A级 · 健康</div></div><div class="card pad" style="cursor:pointer" data-page-link="detail"><div class="customer"><span class="logo">绿</span><b>绿城服务</b></div><div style="font-size:12px;color:var(--muted);margin-top:6px">房产 · A级 · 高风险</div></div><div class="card pad" style="cursor:pointer" data-page-link="detail"><div class="customer"><span class="logo">招</span><b>招商蛇口</b></div><div style="font-size:12px;color:var(--muted);margin-top:6px">房产 · A级 · 关注</div></div></div></div>
+        </div>
+      </div>
+      <!-- 余额 Tab -->
+      <div class="detail-panel" data-detail-panel="balance">
+        <div class="card pad"><div class="section-title"><h2>余额趋势（30天）</h2><span class="tag red">预计 5 天后耗尽</span></div><div class="chart"><svg viewBox="0 0 760 260" preserveAspectRatio="none"><path class="axis" d="M40 40H730M40 95H730M40 150H730M40 205H730"/><path class="area" d="M40 60 C130 80 150 95 230 110 C310 125 340 140 420 155 C500 170 540 185 620 200 C680 210 700 215 730 220 L730 240 L40 240Z"/><path class="line" d="M40 60 C130 80 150 95 230 110 C310 125 340 140 420 155 C500 170 540 185 620 200 C680 210 700 215 730 220" style="stroke:#dc2626"/></svg></div><div class="compact-list" style="margin-top:14px"><div class="row"><span>当前余额</span><b>¥820,000</b></div><div class="row"><span>赠送余额</span><b>¥120,000</b></div><div class="row"><span>实付余额</span><b>¥700,000</b></div><div class="row"><span>日均消耗</span><b>¥15,400</b></div></div></div>
+      </div>
+      <!-- 消耗 Tab -->
+      <div class="detail-panel" data-detail-panel="consume">
+        <div class="card pad"><div class="section-title"><h2>消耗趋势</h2><span class="subtle">近 30 天</span></div><div class="chart"><svg viewBox="0 0 760 260" preserveAspectRatio="none"><path class="axis" d="M40 40H730M40 95H730M40 150H730M40 205H730"/><path class="area" d="M40 180 C130 160 150 140 230 150 C310 160 340 100 420 110 C500 120 540 80 620 95 C680 105 700 70 730 80 L730 240 L40 240Z"/><path class="line" d="M40 180 C130 160 150 140 230 150 C310 160 340 100 420 110 C500 120 540 80 620 95 C680 105 700 70 730 80"/></svg></div></div>
+      </div>
+      <!-- 结算 Tab -->
+      <div class="detail-panel" data-detail-panel="invoice">
+        <div class="card pad"><div class="section-title"><h2>结算记录</h2></div><table class="table"><thead><tr><th>月份</th><th>金额</th><th>状态</th><th>生成时间</th></tr></thead><tbody><tr><td>2026-06</td><td>¥482,000</td><td><span class="tag green">已付款</span></td><td>07-01 10:24</td></tr><tr><td>2026-05</td><td>¥438,000</td><td><span class="tag green">已付款</span></td><td>06-01 09:15</td></tr><tr><td>2026-04</td><td>¥396,000</td><td><span class="tag green">已付款</span></td><td>05-01 11:30</td></tr></tbody></table></div>
+      </div>
+      <!-- 操作记录 Tab -->
+      <div class="detail-panel" data-detail-panel="record">
+        <div class="card pad"><div class="section-title"><h2>结算与操作记录</h2><div class="tabs"><span class="tab active" data-timeline-filter="all">全部</span><span class="tab" data-timeline-filter="invoice">结算</span><span class="tab" data-timeline-filter="recharge">充值</span><span class="tab" data-timeline-filter="profile">画像变更</span></div></div><div class="timeline"><div class="event" data-event-type="invoice"><span>今天 10:24</span><b>生成 6 月结算单</b><span class="tag green">成功</span></div><div class="event" data-event-type="recharge"><span>昨天 16:12</span><b>余额预警已推送负责人</b><span class="tag amber">待确认</span></div><div class="event" data-event-type="profile"><span>07-01</span><b>消费等级从 A 调整为 S</b><span class="tag blue">已记录</span></div></div></div>
+      </div>
+      <!-- 优化方案标注 -->
+      <div class="opt-panel">
+        <button class="opt-toggle"><span>🚀 客户详情 360 — 重构优化方案</span><span class="opt-count">7 项优化 <span class="opt-arrow">⌄</span></span></button>
+        <div class="opt-content">
+          <div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">Tab 分区导航</div><div class="opt-desc">将内容分为 6 个 Tab：基础信息 / 画像 / 余额 / 消耗 / 结算 / 操作记录。药丸标签切换，URL hash 同步。</div></div><span class="opt-interaction">药丸 Tab + hash 同步</span></div>
+          <div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">余额耗尽预测</div><div class="opt-desc">余额 KPI 卡片添加预测天数和趋势 mini chart。“预计 5 天后余额耗尽” + 30 天余额趋势缩略图。</div></div><span class="opt-interaction">预测天数 + Sparkline</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">健康度仪表盘</div><div class="opt-desc">画像 Tab 添加健康度可视化：半圆形 Gauge 图（0-100 分）+ 分项评分雷达图。</div></div><span class="opt-interaction">Gauge + 雷达图</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">消耗趋势 mini 图</div><div class="opt-desc">消耗 Tab 添加月度趋势缩略图。30 天折线 mini chart，hover 显示具体数值。</div></div><span class="opt-interaction">Mini chart + hover tooltip</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">快捷操作栏</div><div class="opt-desc">顶部操作区添加常用操作快捷按钮：充值 / 生成结算单 / 编辑画像 / 发送提醒。</div></div><span class="opt-interaction">快捷按钮组</span></div>
+          <div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">关联客户推荐</div><div class="opt-desc">画像 Tab 底部添加“关联客户”区块。同行业/同规模客户卡片列表，点击跳转。</div></div><span class="opt-interaction">推荐卡片网格</span></div>
+          <div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">操作记录筛选</div><div class="opt-desc">时间线添加 Tab 筛选：全部 / 结算 / 充值 / 画像变更。Tab 切换过滤时间线事件。</div></div><span class="opt-interaction">Tab 过滤时间线</span></div>
+          <div class="opt-wireframe"><h4>交互流程示意</h4><div class="wire-flow"><div class="wire-box">进入详情</div><span class="wire-arrow">→</span><div class="wire-box">4 KPI 加载</div><span class="wire-arrow">→</span><div class="wire-box">默认 Tab: 基础信息</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">切换余额 Tab</div><span class="wire-arrow">→</span><div class="wire-box">余额数据</div><span class="wire-arrow">→</span><div class="wire-box">趋势图</div><span class="wire-arrow">→</span><div class="wire-box">耗尽预测</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">点击“充值”</div><span class="wire-arrow">→</span><div class="wire-box">充值弹窗</div><span class="wire-arrow">→</span><div class="wire-box">成功</div><span class="wire-arrow">→</span><div class="wire-box">KPI 刷新</div></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="js/common.js"></script>
+<script src="js/detail.js"></script>
+</body>
+</html>

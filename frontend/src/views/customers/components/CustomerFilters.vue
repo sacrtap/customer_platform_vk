@@ -1,164 +1,77 @@
 <template>
-    <!-- 筛选区域 -->
-    <div class="filter-section">
-      <a-form layout="vertical" :model="filters">
-        <a-row :gutter="16">
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="关键词">
-              <KeywordAutoComplete
-                v-model="filters.keyword"
-                placeholder="公司名称/公司 ID"
-                @press-enter="handleSearch"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="账号类型">
-              <a-select v-model="filters.account_type" placeholder="请选择" allow-clear>
-                <a-option value="正式账号">正式账号</a-option>
-                <a-option value="测试账号">测试账号</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="行业类型">
-              <a-select
-                v-model="filters.industry"
-                placeholder="请选择行业类型"
-                allow-clear
-                multiple
-                :max-tag-count="1"
-                :max-tag-placeholder="(count: number) => `+${count}`"
-              >
-                <a-option v-for="item in industryTypes" :key="item.id" :value="item.name">
-                  {{ item.name }}
-                </a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="重点客户">
-              <a-select v-model="filters.is_key_customer" placeholder="请选择" allow-clear>
-                <a-option :value="true">是</a-option>
-                <a-option :value="false">否</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="房产客户">
-              <a-select v-model="filters.is_real_estate" placeholder="请选择" allow-clear>
-                <a-option :value="true">是</a-option>
-                <a-option :value="false">否</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="结算方式">
-              <a-select v-model="filters.settlement_type" placeholder="请选择" allow-clear>
-                <a-option value="prepaid">预付费</a-option>
-                <a-option value="postpaid">后付费</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="4">
-            <a-form-item label="&nbsp;">
-              <a-space>
-                <a-button type="primary" @click="handleSearch">查询</a-button>
-                <a-button @click="handleReset">重置</a-button>
-              </a-space>
-            </a-form-item>
-          </a-col>
-        </a-row>
-      </a-form>
+  <div class="filters-container">
+    <!-- 筛选行: 搜索框 + FilterDropdowns + 筛选按钮 -->
+    <div class="filters">
+      <CustomerSearchInput v-model="filters.keyword" @search="handleSearch" />
 
-      <!-- 高级筛选区域 -->
-      <a-collapse class="advanced-filter-collapse">
-        <a-collapse-item>
-          <template #header>
-            <div class="advanced-filter-toggle">
-              <span>高级筛选</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"
-                />
-              </svg>
-            </div>
-          </template>
-          <a-form layout="vertical" :model="advancedFilters">
-            <a-row :gutter="16">
-              <a-col :xs="24" :sm="12" :md="8" :lg="6">
-                <a-form-item label="运营经理">
-                  <a-select
-                    v-model="advancedFilters.manager_id"
-                    placeholder="请选择运营经理"
-                    allow-clear
-                    :loading="managersLoading"
-                  >
-                    <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                      {{ manager.real_name || manager.username }}
-                    </a-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :sm="12" :md="8" :lg="6">
-                <a-form-item label="商务经理">
-                  <a-select
-                    v-model="advancedFilters.sales_manager_id"
-                    placeholder="请选择商务经理"
-                    allow-clear
-                    :loading="managersLoading"
-                  >
-                    <a-option v-for="manager in managers" :key="manager.id" :value="manager.id">
-                      {{ manager.real_name || manager.username }}
-                    </a-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :sm="12" :md="8" :lg="6">
-                <a-form-item label="标签筛选">
-                  <a-select
-                    v-model="advancedFilters.tag_ids"
-                    placeholder="选择标签"
-                    multiple
-                    allow-clear
-                    :loading="tagsLoading"
-                  >
-                    <a-option v-for="tag in customerTags" :key="tag.id" :value="tag.id">
-                      {{ tag.name }}
-                    </a-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :sm="12" :md="8" :lg="6">
-                <a-form-item label="&nbsp;">
-                  <a-button type="primary" @click="handleAdvancedSearch">应用高级筛选</a-button>
-                </a-form-item>
-              </a-col>
-            </a-row>
-          </a-form>
-        </a-collapse-item>
-      </a-collapse>
+      <FilterDropdown
+        v-model="filters.account_type"
+        label="账号类型"
+        :options="accountTypeOptions"
+        @apply="handleSearch"
+      />
+      <FilterDropdown
+        v-model="industryValue"
+        label="行业"
+        :options="industryOptions"
+        multiple
+        @apply="handleSearch"
+      />
+      <FilterDropdown
+        v-model="filters.scale_level"
+        label="规模等级"
+        :options="scaleOptions"
+        @apply="handleSearch"
+      />
+      <FilterDropdown
+        v-model="filters.consume_level"
+        label="消费等级"
+        :options="consumeOptions"
+        @apply="handleSearch"
+      />
+      <FilterDropdown
+        v-model="managerValue"
+        label="运营经理"
+        :options="managerOptions"
+        @apply="handleSearch"
+      />
+      <FilterDropdown
+        v-model="salesValue"
+        label="销售经理"
+        :options="salesOptions"
+        @apply="handleSearch"
+      />
+
+      <button type="button" class="btn primary" @click="handleSearch">筛选</button>
     </div>
+
+    <!-- KPI 筛选徽章 -->
+    <div v-if="activeKpiBadge" class="kpi-badge-row">
+      <span class="kpi-filter-badge">
+        {{ activeKpiBadge }}
+        <span class="badge-close" @click="clearKpiBadge">✕</span>
+      </span>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { IndustryType } from '@/types'
-import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
+import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import CustomerSearchInput from './CustomerSearchInput.vue'
 
 interface Filters {
   keyword: string
   account_type: string
   industry: string[]
+  scale_level: string
+  consume_level: string
   is_key_customer: boolean | null
   is_real_estate: boolean | null
   settlement_type: string
+  incomplete_profile: boolean
+  mine: boolean
 }
 
 interface AdvancedFilters {
@@ -167,24 +80,175 @@ interface AdvancedFilters {
   tag_ids: number[]
 }
 
-
 const filters = defineModel<Filters>('filters', { required: true })
-const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', { required: true })
-defineProps<{
+const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', {
+  required: true,
+})
+
+const props = defineProps<{
   industryTypes: IndustryType[]
   managers: Array<Record<string, unknown>>
   customerTags: Array<Record<string, unknown>>
   managersLoading: boolean
   tagsLoading: boolean
+  activeKpiBadge?: string
 }>()
 
 const emit = defineEmits<{
   search: []
   reset: []
   'advanced-search': []
+  'clear-kpi': []
 }>()
 
+// 筛选选项 computed
+const accountTypeOptions = [
+  { label: '正式账号', value: '正式账号' },
+  { label: '测试账号', value: '测试账号' },
+]
+
+const industryOptions = computed(() =>
+  props.industryTypes.map((it) => ({ label: it.name, value: it.name }))
+)
+
+const scaleOptions = [
+  { label: 'S（超大型）', value: 'S' },
+  { label: 'A（大型）', value: 'A' },
+  { label: 'B（中型）', value: 'B' },
+  { label: 'C（小型）', value: 'C' },
+  { label: 'D（微型）', value: 'D' },
+  { label: 'E（极小型）', value: 'E' },
+]
+
+const consumeOptions = [
+  { label: 'C1 - 100万', value: 'C1' },
+  { label: 'C2 - 50万', value: 'C2' },
+  { label: 'C3 - 25万', value: 'C3' },
+  { label: 'C4 - 12万', value: 'C4' },
+  { label: 'C5 - 6万', value: 'C5' },
+  { label: 'C6 - 6万以下', value: 'C6' },
+]
+
+const managerOptions = computed(() =>
+  (props.managers as Array<{ id: number; real_name: string | null }>).map((m) => ({
+    label: m.real_name || `#${m.id}`,
+    value: String(m.id),
+  }))
+)
+
+const salesOptions = computed(() =>
+  (props.managers as Array<{ id: number; real_name: string | null }>).map((m) => ({
+    label: m.real_name || `#${m.id}`,
+    value: String(m.id),
+  }))
+)
+
+// 行业多选转换：composables 中存为 string[]，API 请求时 join(',')
+const industryValue = computed({
+  get: () => {
+    const v = filters.value.industry
+    if (!v) return []
+    if (Array.isArray(v)) return v
+    return (v as string).split(',')
+  },
+  set: (val: string[]) => {
+    filters.value.industry = val as unknown as string[]
+  },
+})
+
+// 运营经理 (单选 string -> number | null)
+const managerValue = computed({
+  get: () => {
+    if (advancedFilters.value.manager_id) return String(advancedFilters.value.manager_id)
+    return ''
+  },
+  set: (val: string) => {
+    advancedFilters.value.manager_id = val ? Number(val) : null
+  },
+})
+
+// 销售经理 (单选 string -> number | null)
+const salesValue = computed({
+  get: () => {
+    if (advancedFilters.value.sales_manager_id)
+      return String(advancedFilters.value.sales_manager_id)
+    return ''
+  },
+  set: (val: string) => {
+    advancedFilters.value.sales_manager_id = val ? Number(val) : null
+  },
+})
+
 const handleSearch = () => emit('search')
-const handleReset = () => emit('reset')
-const handleAdvancedSearch = () => emit('advanced-search')
+const clearKpiBadge = () => emit('clear-kpi')
 </script>
+
+<style scoped>
+.filters-container {
+  margin-bottom: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn.primary {
+  padding: 9px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.btn.primary:hover {
+  background: #1e40af;
+}
+
+/* KPI 筛选徽章 */
+.kpi-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.kpi-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+.badge-close {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  font-size: 14px;
+}
+.badge-close:hover {
+  opacity: 1;
+}
+
+@media (max-width: 1100px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .search-input-wrap {
+    width: 100%;
+    max-width: none;
+  }
+}
+</style>

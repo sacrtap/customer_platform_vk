@@ -45,8 +45,9 @@ const emit = defineEmits<{
 const selectedTagIds = ref<number[]>([])
 
 const availableTags = computed(() => {
-  const customerTagIds = new Set(props.customerTags.map(t => t.id))
-  return props.allTags.filter(t => !customerTagIds.has(t.id))
+  const customerTags = props.customerTags ?? []
+  const customerTagIds = new Set(customerTags.map((t) => t.id))
+  return (props.allTags ?? []).filter((t) => !customerTagIds.has(t.id))
 })
 
 const handleAddTag = () => {
@@ -60,3 +61,19 @@ const handleCancel = () => {
   emit('close')
 }
 </script>
+
+<style scoped>
+:deep(.arco-modal) {
+  border-radius: var(--radius-lg);
+}
+
+:deep(.arco-form-item-label) {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+:deep(.arco-select-view-multiple) {
+  border-radius: var(--radius-sm);
+}
+</style>

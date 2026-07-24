@@ -174,7 +174,7 @@ async def test_invoice_endpoints_exist():
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/api/v1/billing/invoices")
         assert response.status_code in [200, 401, 403]
-        
+
         response = await client.post("/api/v1/billing/invoices", json={
             "customer_id": 1, "items": []
         })
@@ -236,7 +236,7 @@ async def list_invoices(request: Request):
     page_size = request.args.get('page_size', 20, type=int)
     customer_id = request.args.get('customer_id', type=int)
     status = request.args.get('status')
-    
+
     service = InvoiceService(request.ctx.db)
     result = await service.list_invoices(page, page_size, customer_id, status)
     return JSONResponse(result)
@@ -361,7 +361,7 @@ async def get_payment_history(request: Request):
     customer_id = request.args.get('customer_id', type=int)
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
-    
+
     service = BalanceService(request.ctx.db)
     result = await service.get_payment_history(customer_id, page, page_size)
     return JSONResponse(result)
@@ -565,19 +565,19 @@ from app.services.billing import BalanceService, PricingService, InvoiceService
 async def test_balance_service_operations(db: AsyncSession):
     """测试余额服务操作"""
     service = BalanceService(db)
-    
+
     # 充值
     balance = await service.recharge({
         "customer_id": 1, "amount": 1000.0, "is_gift": False
     })
     assert balance.total_amount == 1000.0
-    
+
     # 扣款
     balance = await service.deduct({
         "customer_id": 1, "amount": 300.0, "reason": "测试扣款"
     })
     assert balance.total_amount == 700.0
-    
+
     # 查询余额
     balance = await service.get_balance(1)
     assert balance.total_amount == 700.0
@@ -586,21 +586,21 @@ async def test_balance_service_operations(db: AsyncSession):
 async def test_pricing_service_crud(db: AsyncSession):
     """测试定价服务 CRUD"""
     service = PricingService(db)
-    
+
     # 创建
     rule = await service.create_rule({
         "name": "测试规则", "mode_type": "fixed", "unit_price": 10.0
     })
     assert rule.id is not None
-    
+
     # 读取
     retrieved = await service.get_rule_detail(rule.id)
     assert retrieved.name == "测试规则"
-    
+
     # 更新
     updated = await service.update_rule(rule.id, {"unit_price": 12.0})
     assert updated.unit_price == 12.0
-    
+
     # 删除
     await service.delete_rule(rule.id)
 
@@ -608,7 +608,7 @@ async def test_pricing_service_crud(db: AsyncSession):
 async def test_invoice_calculation(db: AsyncSession):
     """测试结算计算"""
     from app.services.billing.invoice_calculation import calculate_items_from_rules
-    
+
     items = await calculate_items_from_rules(db, {
         "customer_id": 1,
         "rules": [{"product_id": 1, "quantity": 100}]
@@ -619,23 +619,23 @@ async def test_invoice_calculation(db: AsyncSession):
 async def test_invoice_service_workflow(db: AsyncSession):
     """测试结算单工作流"""
     service = InvoiceService(db)
-    
+
     # 创建
     invoice = await service.create_invoice({"customer_id": 1, "items": []})
     assert invoice.status == "draft"
-    
+
     # 提交
     invoice = await service.submit_invoice(invoice.id)
     assert invoice.status == "pending"
-    
+
     # 确认
     invoice = await service.confirm_invoice(invoice.id)
     assert invoice.status == "confirmed"
-    
+
     # 标记付款
     invoice = await service.mark_paid(invoice.id)
     assert invoice.status == "paid"
-    
+
     # 完成
     invoice = await service.complete_invoice(invoice.id)
     assert invoice.status == "completed"
@@ -665,31 +665,31 @@ from sqlalchemy.orm import with_for_update
 class BalanceService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def recharge(self, data: dict):
         """充值余额"""
         customer_id = data["customer_id"]
         amount = data["amount"]
         is_gift = data.get("is_gift", False)
-        
+
         result = await self.db.execute(
             select(CustomerBalance).where(CustomerBalance.customer_id == customer_id)
         )
         balance = result.scalar_one_or_none()
-        
+
         if not balance:
             balance = CustomerBalance(
                 customer_id=customer_id, total_amount=0,
                 gift_amount=0, real_amount=0
             )
             self.db.add(balance)
-        
+
         if is_gift:
             balance.gift_amount += amount
         else:
             balance.real_amount += amount
         balance.total_amount += amount
-        
+
         transaction = BalanceTransaction(
             customer_id=customer_id, amount=amount,
             transaction_type="recharge", is_gift=is_gift,
@@ -698,22 +698,22 @@ class BalanceService:
         self.db.add(transaction)
         await self.db.flush()
         return balance
-    
+
     async def deduct(self, data: dict):
         """扣款（先扣赠送余额，再扣实际余额）"""
         customer_id = data["customer_id"]
         amount = data["amount"]
-        
+
         result = await self.db.execute(
             select(CustomerBalance)
             .where(CustomerBalance.customer_id == customer_id)
             .with_for_update()
         )
         balance = result.scalar_one_or_none()
-        
+
         if not balance or balance.total_amount < amount:
             raise ValueError("Insufficient balance")
-        
+
         if balance.gift_amount >= amount:
             balance.gift_amount -= amount
         else:
@@ -722,7 +722,7 @@ class BalanceService:
             balance.gift_amount = 0
             balance.real_amount -= real_deducted
         balance.total_amount -= amount
-        
+
         transaction = BalanceTransaction(
             customer_id=customer_id, amount=-amount,
             transaction_type="deduction",
@@ -731,20 +731,20 @@ class BalanceService:
         self.db.add(transaction)
         await self.db.flush()
         return balance
-    
+
     async def get_balance(self, customer_id: int):
         """获取客户余额"""
         result = await self.db.execute(
             select(CustomerBalance).where(CustomerBalance.customer_id == customer_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def get_balance_list(self, page: int = 1, page_size: int = 20):
         """获取余额列表"""
         query = select(CustomerBalance).offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def get_payment_history(self, customer_id: int | None = None,
                                    page: int = 1, page_size: int = 20):
         """获取支付历史"""
@@ -755,14 +755,14 @@ class BalanceService:
                  .offset((page - 1) * page_size).limit(page_size))
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def get_payment_detail(self, payment_id: int):
         """获取支付详情"""
         result = await self.db.execute(
             select(BalanceTransaction).where(BalanceTransaction.id == payment_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def export_report(self):
         """导出余额报表"""
         result = await self.db.execute(select(CustomerBalance))
@@ -784,27 +784,27 @@ from app.models.billing import PricingRule
 class PricingService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def list_rules(self, page: int = 1, page_size: int = 20):
         """获取定价规则列表"""
         query = select(PricingRule).offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def create_rule(self, data: dict):
         """创建定价规则"""
         rule = PricingRule(**data)
         self.db.add(rule)
         await self.db.flush()
         return rule
-    
+
     async def get_rule_detail(self, rule_id: int):
         """获取定价规则详情"""
         result = await self.db.execute(
             select(PricingRule).where(PricingRule.id == rule_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def update_rule(self, rule_id: int, data: dict):
         """更新定价规则"""
         rule = await self.get_rule_detail(rule_id)
@@ -814,14 +814,14 @@ class PricingService:
             setattr(rule, key, value)
         await self.db.flush()
         return rule
-    
+
     async def delete_rule(self, rule_id: int):
         """删除定价规则"""
         rule = await self.get_rule_detail(rule_id)
         if rule:
             await self.db.delete(rule)
             await self.db.flush()
-    
+
     async def batch_update(self, data: dict):
         """批量更新定价规则"""
         rule_ids = data.get("rule_ids", [])
@@ -844,50 +844,50 @@ async def calculate_items_from_rules(db: AsyncSession, data: dict):
     """根据定价规则计算结算明细"""
     rules_data = data["rules"]
     items = []
-    
+
     for rule_data in rules_data:
         product_id = rule_data["product_id"]
         quantity = rule_data["quantity"]
-        
+
         result = await db.execute(
             select(PricingRule).where(PricingRule.product_id == product_id)
         )
         pricing_rule = result.scalar_one_or_none()
-        
+
         if not pricing_rule:
             continue
-        
+
         if pricing_rule.mode_type == "fixed":
             subtotal = quantity * pricing_rule.unit_price
         elif pricing_rule.mode_type == "tiered":
             subtotal = _calculate_tiered_price(quantity, pricing_rule.tiers)
         else:
             subtotal = 0
-        
+
         items.append({
             "product_id": product_id, "quantity": quantity,
             "unit_price": pricing_rule.unit_price, "subtotal": subtotal
         })
-    
+
     return items
 
 def _calculate_tiered_price(quantity: float, tiers: list) -> float:
     """阶梯计价"""
     total = Decimal("0")
     remaining = Decimal(str(quantity))
-    
+
     for tier in sorted(tiers, key=lambda x: x["start"]):
         tier_start = Decimal(str(tier["start"]))
         tier_end = Decimal(str(tier["end"])) if tier.get("end") else None
         price = Decimal(str(tier["price"]))
-        
+
         if remaining <= 0:
             break
-        
+
         tier_quantity = min(remaining, tier_end - tier_start) if tier_end else remaining
         total += tier_quantity * price
         remaining -= tier_quantity
-    
+
     return float(total)
 
 async def generate_invoice(db: AsyncSession, data: dict):
@@ -909,7 +909,7 @@ from .invoice_calculation import generate_invoice
 class InvoiceService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def list_invoices(self, page: int = 1, page_size: int = 20,
                             customer_id: int | None = None, status: str | None = None):
         """获取结算单列表"""
@@ -921,12 +921,12 @@ class InvoiceService:
         query = query.offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def get_invoice(self, invoice_id: int):
         """获取结算单详情"""
         result = await self.db.execute(select(Invoice).where(Invoice.id == invoice_id))
         return result.scalar_one_or_none()
-    
+
     async def create_invoice(self, data: dict):
         """创建结算单"""
         invoice_data = await generate_invoice(self.db, data)
@@ -936,13 +936,13 @@ class InvoiceService:
         )
         self.db.add(invoice)
         await self.db.flush()
-        
+
         for item_data in invoice_data["items"]:
             item = InvoiceItem(invoice_id=invoice.id, **item_data)
             self.db.add(item)
         await self.db.flush()
         return invoice
-    
+
     async def update_invoice(self, invoice_id: int, data: dict):
         """更新结算单"""
         invoice = await self.get_invoice(invoice_id)
@@ -952,14 +952,14 @@ class InvoiceService:
             setattr(invoice, key, value)
         await self.db.flush()
         return invoice
-    
+
     async def delete_invoice(self, invoice_id: int):
         """删除结算单"""
         invoice = await self.get_invoice(invoice_id)
         if invoice:
             await self.db.delete(invoice)
             await self.db.flush()
-    
+
     async def submit_invoice(self, invoice_id: int):
         """提交结算单"""
         invoice = await self.get_invoice(invoice_id)
@@ -967,7 +967,7 @@ class InvoiceService:
             invoice.status = "pending"
             await self.db.flush()
         return invoice
-    
+
     async def confirm_invoice(self, invoice_id: int):
         """确认结算单"""
         invoice = await self.get_invoice(invoice_id)
@@ -975,7 +975,7 @@ class InvoiceService:
             invoice.status = "confirmed"
             await self.db.flush()
         return invoice
-    
+
     async def cancel_invoice(self, invoice_id: int):
         """取消结算单"""
         invoice = await self.get_invoice(invoice_id)
@@ -983,7 +983,7 @@ class InvoiceService:
             invoice.status = "cancelled"
             await self.db.flush()
         return invoice
-    
+
     async def mark_paid(self, invoice_id: int):
         """标记已付款"""
         invoice = await self.get_invoice(invoice_id)
@@ -991,7 +991,7 @@ class InvoiceService:
             invoice.status = "paid"
             await self.db.flush()
         return invoice
-    
+
     async def complete_invoice(self, invoice_id: int):
         """完成结算单"""
         invoice = await self.get_invoice(invoice_id)
@@ -1078,7 +1078,7 @@ async def test_customer_crud_endpoints():
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/api/v1/customers")
         assert response.status_code in [200, 401, 403]
-        
+
         response = await client.post("/api/v1/customers", json={"name": "Test"})
         assert response.status_code in [200, 201, 401, 403, 422]
 
@@ -1095,7 +1095,7 @@ async def test_customer_import_export_endpoints():
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get("/api/v1/customers/export")
         assert response.status_code in [200, 401, 403]
-        
+
         response = await client.get("/api/v1/customers/import/template")
         assert response.status_code in [200, 401, 403]
 ```
@@ -1320,28 +1320,28 @@ from app.services.customers import CustomerService, ProfileService, ImportExport
 async def test_customer_service_crud(db: AsyncSession):
     """测试客户服务 CRUD"""
     service = CustomerService(db)
-    
+
     customer = await service.create_customer({"name": "Test"})
     assert customer.id is not None
-    
+
     retrieved = await service.get_customer(customer.id)
     assert retrieved.name == "Test"
-    
+
     updated = await service.update_customer(customer.id, {"name": "Updated"})
     assert updated.name == "Updated"
-    
+
     await service.delete_customer(customer.id)
 
 @pytest.mark.asyncio
 async def test_profile_service_operations(db: AsyncSession):
     """测试画像服务"""
     service = ProfileService(db)
-    
+
     profile = await service.update_profile(1, {
         "scale_level": "large", "consumption_level": "high"
     })
     assert profile.scale_level == "large"
-    
+
     retrieved = await service.get_profile(1)
     assert retrieved.scale_level == "large"
 
@@ -1349,10 +1349,10 @@ async def test_profile_service_operations(db: AsyncSession):
 async def test_import_export_service(db: AsyncSession):
     """测试导入导出服务"""
     service = ImportExportService(db)
-    
+
     result = await service.export_customers()
     assert isinstance(result, list)
-    
+
     template_path = await service.get_template()
     assert template_path.endswith('.csv')
 ```
@@ -1418,7 +1418,7 @@ from .constants import normalize_sort_field
 class CustomerService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def list_customers(self, page: int = 1, page_size: int = 20,
                               name: str | None = None, sort_by: str = 'created_at'):
         """获取客户列表"""
@@ -1430,19 +1430,19 @@ class CustomerService:
         query = query.offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def get_customer(self, customer_id: int):
         """获取客户详情"""
         result = await self.db.execute(select(Customer).where(Customer.id == customer_id))
         return result.scalar_one_or_none()
-    
+
     async def create_customer(self, data: dict):
         """创建客户"""
         customer = Customer(**data)
         self.db.add(customer)
         await self.db.flush()
         return customer
-    
+
     async def update_customer(self, customer_id: int, data: dict):
         """更新客户信息"""
         customer = await self.get_customer(customer_id)
@@ -1452,7 +1452,7 @@ class CustomerService:
             setattr(customer, key, value)
         await self.db.flush()
         return customer
-    
+
     async def batch_update(self, data: dict):
         """批量更新客户"""
         customer_ids = data.get("customer_ids", [])
@@ -1460,7 +1460,7 @@ class CustomerService:
         for customer_id in customer_ids:
             await self.update_customer(customer_id, updates)
         return {"updated": len(customer_ids)}
-    
+
     async def delete_customer(self, customer_id: int):
         """删除客户"""
         customer = await self.get_customer(customer_id)
@@ -1480,14 +1480,14 @@ from app.models.customer import CustomerProfile
 class ProfileService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def get_profile(self, customer_id: int):
         """获取客户画像"""
         result = await self.db.execute(
             select(CustomerProfile).where(CustomerProfile.customer_id == customer_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def update_profile(self, customer_id: int, data: dict):
         """更新客户画像"""
         profile = await self.get_profile(customer_id)
@@ -1514,16 +1514,16 @@ import io
 class ImportExportService:
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def import_customers(self, files: dict):
         """导入客户"""
         file = files.get('file')
         if not file:
             raise ValueError("No file provided")
-        
+
         content = file.body.decode('utf-8')
         reader = csv.DictReader(io.StringIO(content))
-        
+
         customers = []
         for row in reader:
             customer = Customer(**row)
@@ -1531,7 +1531,7 @@ class ImportExportService:
             customers.append(customer)
         await self.db.flush()
         return {"imported": len(customers)}
-    
+
     async def export_customers(self):
         """导出客户"""
         result = await self.db.execute(select(Customer))
@@ -1539,7 +1539,7 @@ class ImportExportService:
             {"name": c.name, "contact": c.contact, "address": c.address}
             for c in result.scalars().all()
         ]
-    
+
     async def get_template(self):
         """获取导入模板"""
         template_path = "/tmp/customer_import_template.csv"
@@ -1655,7 +1655,7 @@ async def test_consumption_service(db: AsyncSession):
     """测试消耗分析服务"""
     result = await consumption_service.get_consumption_stats(db, customer_id=1)
     assert isinstance(result, dict)
-    
+
     trend = await consumption_service.get_consumption_trend(db, customer_id=1, days=30)
     assert isinstance(trend, list)
 
@@ -1664,7 +1664,7 @@ async def test_payment_service(db: AsyncSession):
     """测试回款分析服务"""
     result = await payment_service.get_payment_stats(db, customer_id=1)
     assert isinstance(result, dict)
-    
+
     trend = await payment_service.get_payment_trend(db, customer_id=1)
     assert isinstance(trend, list)
 
@@ -1673,7 +1673,7 @@ async def test_health_service(db: AsyncSession):
     """测试健康度分析服务"""
     score = await health_service.get_health_score(db, customer_id=1)
     assert isinstance(score, (int, float))
-    
+
     indicators = await health_service.get_health_indicators(db, customer_id=1)
     assert isinstance(indicators, dict)
 
@@ -1682,7 +1682,7 @@ async def test_profile_service(db: AsyncSession):
     """测试画像分析服务"""
     result = await profile_service.get_profile_stats(db)
     assert isinstance(result, dict)
-    
+
     distribution = await profile_service.get_industry_distribution(db)
     assert isinstance(distribution, list)
 
@@ -1809,14 +1809,14 @@ async def get_consumption_stats(db: AsyncSession, customer_id: int | None = None
     cached = await get_cached_result(cache_key)
     if cached:
         return cached
-    
+
     query = select(func.sum(Invoice.amount))
     if customer_id:
         query = query.where(Invoice.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     total = result.scalar() or 0
-    
+
     # 本月消耗
     month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
     query_month = select(func.sum(Invoice.amount)).where(Invoice.created_at >= month_start)
@@ -1824,7 +1824,7 @@ async def get_consumption_stats(db: AsyncSession, customer_id: int | None = None
         query_month = query_month.where(Invoice.customer_id == customer_id)
     result_month = await db.execute(query_month)
     monthly = result_month.scalar() or 0
-    
+
     stats = {"total_consumption": float(total), "monthly_consumption": float(monthly)}
     await cache_result(cache_key, stats)
     return stats
@@ -1833,7 +1833,7 @@ async def get_consumption_trend(db: AsyncSession, customer_id: int | None = None
                                  days: int = 30):
     """获取消耗趋势"""
     start_date = datetime.now() - timedelta(days=days)
-    
+
     query = (
         select(func.date(Invoice.created_at).label('date'),
                func.sum(Invoice.amount).label('total'))
@@ -1843,7 +1843,7 @@ async def get_consumption_trend(db: AsyncSession, customer_id: int | None = None
     )
     if customer_id:
         query = query.where(Invoice.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     return [{"date": str(row.date), "total": float(row.total)} for row in result]
 
@@ -1859,7 +1859,7 @@ async def get_usage_distribution(db: AsyncSession, customer_id: int | None = Non
     )
     if customer_id:
         query = query.where(Invoice.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     return [
         {"product": row.product_name, "quantity": float(row.total_quantity),
@@ -1884,16 +1884,16 @@ async def get_payment_stats(db: AsyncSession, customer_id: int | None = None):
     cached = await get_cached_result(cache_key)
     if cached:
         return cached
-    
+
     query = select(func.sum(BalanceTransaction.amount)).where(
         BalanceTransaction.transaction_type == "deduction"
     )
     if customer_id:
         query = query.where(BalanceTransaction.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     total_paid = abs(result.scalar() or 0)
-    
+
     # 逾期分析
     overdue_query = select(func.count(Invoice.id)).where(
         Invoice.status == "pending",
@@ -1903,7 +1903,7 @@ async def get_payment_stats(db: AsyncSession, customer_id: int | None = None):
         overdue_query = overdue_query.where(Invoice.customer_id == customer_id)
     overdue_result = await db.execute(overdue_query)
     overdue_count = overdue_result.scalar() or 0
-    
+
     stats = {"total_paid": float(total_paid), "overdue_count": overdue_count}
     await cache_result(cache_key, stats)
     return stats
@@ -1912,7 +1912,7 @@ async def get_payment_trend(db: AsyncSession, customer_id: int | None = None,
                              days: int = 30):
     """获取回款趋势"""
     start_date = datetime.now() - timedelta(days=days)
-    
+
     query = (
         select(func.date(BalanceTransaction.created_at).label('date'),
                func.sum(BalanceTransaction.amount).label('total'))
@@ -1925,7 +1925,7 @@ async def get_payment_trend(db: AsyncSession, customer_id: int | None = None,
     )
     if customer_id:
         query = query.where(BalanceTransaction.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     return [{"date": str(row.date), "total": abs(float(row.total))} for row in result]
 
@@ -1937,10 +1937,10 @@ async def get_overdue_analysis(db: AsyncSession, customer_id: int | None = None)
     )
     if customer_id:
         query = query.where(Invoice.customer_id == customer_id)
-    
+
     result = await db.execute(query)
     invoices = result.scalars().all()
-    
+
     return [
         {
             "invoice_id": inv.id, "customer_id": inv.customer_id,
@@ -1969,9 +1969,9 @@ async def get_health_score(db: AsyncSession, customer_id: int) -> float:
     cached = await get_cached_result(cache_key)
     if cached:
         return cached["score"]
-    
+
     indicators = await get_health_indicators(db, customer_id)
-    
+
     score = (
         indicators["payment_timeliness"] * HEALTH_SCORE_WEIGHTS["payment_timeliness"] +
         indicators["consumption_growth"] * HEALTH_SCORE_WEIGHTS["consumption_growth"] +
@@ -1979,7 +1979,7 @@ async def get_health_score(db: AsyncSession, customer_id: int) -> float:
         indicators["cooperation_duration"] * HEALTH_SCORE_WEIGHTS["cooperation_duration"] +
         indicators["complaint_frequency"] * HEALTH_SCORE_WEIGHTS["complaint_frequency"]
     )
-    
+
     await cache_result(cache_key, {"score": score})
     return score
 
@@ -1998,13 +1998,13 @@ async def get_health_indicators(db: AsyncSession, customer_id: int) -> dict:
     payment_timeliness = (
         (paid_on_time.scalar() or 0) / max(total_invoices.scalar() or 1, 1)
     ) * 100
-    
+
     # 消耗增长 (0-100)
     consumption_growth = 50  # 默认值，需要更复杂的计算
-    
+
     # 余额充足性 (0-100)
     balance_sufficiency = 70  # 默认值
-    
+
     # 合作时长 (0-100)
     customer = await db.execute(
         select(Customer).where(Customer.id == customer_id)
@@ -2015,10 +2015,10 @@ async def get_health_indicators(db: AsyncSession, customer_id: int) -> dict:
         cooperation_duration = min(100, days / 365 * 100)
     else:
         cooperation_duration = 0
-    
+
     # 投诉频率 (0-100，越高越好)
     complaint_frequency = 80  # 默认值
-    
+
     return {
         "payment_timeliness": payment_timeliness,
         "consumption_growth": consumption_growth,
@@ -2056,10 +2056,10 @@ async def get_profile_stats(db: AsyncSession):
     cached = await get_cached_result(cache_key)
     if cached:
         return cached
-    
+
     total_customers = await db.execute(select(func.count(Customer.id)))
     with_profile = await db.execute(select(func.count(CustomerProfile.id)))
-    
+
     stats = {
         "total_customers": total_customers.scalar() or 0,
         "with_profile": with_profile.scalar() or 0,
@@ -2106,7 +2106,7 @@ async def forecast_payment(db: AsyncSession, customer_id: int, days: int = 30):
     cached = await get_cached_result(cache_key)
     if cached:
         return cached
-    
+
     # 基于历史数据的简单预测
     start_date = datetime.now() - timedelta(days=90)
     query = (
@@ -2119,11 +2119,11 @@ async def forecast_payment(db: AsyncSession, customer_id: int, days: int = 30):
     )
     result = await db.execute(query)
     historical_total = abs(result.scalar() or 0)
-    
+
     # 简单平均预测
     daily_average = historical_total / 90
     forecast_amount = daily_average * days
-    
+
     forecast = {
         "customer_id": customer_id,
         "forecast_days": days,
@@ -2145,10 +2145,10 @@ async def forecast_consumption(db: AsyncSession, customer_id: int, days: int = 3
     )
     result = await db.execute(query)
     historical_total = result.scalar() or 0
-    
+
     daily_average = historical_total / 90
     forecast_amount = daily_average * days
-    
+
     return {
         "customer_id": customer_id,
         "forecast_days": days,
@@ -2274,20 +2274,20 @@ mkdir -p frontend/src/views/customers/detail/__tests__
 <template>
   <div class="customer-detail">
     <el-page-header @back="goBack" :title="customer?.name || '客户详情'" />
-    
+
     <el-tabs v-model="activeTab" class="customer-tabs">
       <el-tab-pane label="基本信息" name="basic">
         <BasicInfoForm :customer="customer" @update="handleUpdate" />
       </el-tab-pane>
-      
+
       <el-tab-pane label="画像信息" name="profile">
         <ProfilePanel :customer-id="customerId" />
       </el-tab-pane>
-      
+
       <el-tab-pane label="标签管理" name="tags">
         <TagManager :customer-id="customerId" />
       </el-tab-pane>
-      
+
       <el-tab-pane label="结算信息" name="settlement">
         <SettlementPanel :customer-id="customerId" />
       </el-tab-pane>
@@ -2351,9 +2351,9 @@ onMounted(() => {
       <el-descriptions-item label="地址">{{ customer?.address }}</el-descriptions-item>
       <el-descriptions-item label="创建时间">{{ customer?.createdAt }}</el-descriptions-item>
     </el-descriptions>
-    
+
     <el-divider />
-    
+
     <el-form :model="editForm" label-width="100px">
       <el-form-item label="客户名称">
         <el-input v-model="editForm.name" />
@@ -2417,9 +2417,9 @@ const handleSave = async () => {
         {{ profile?.businessManager || '未设置' }}
       </el-descriptions-item>
     </el-descriptions>
-    
+
     <el-divider />
-    
+
     <el-form :model="profileForm" label-width="100px">
       <el-form-item label="规模等级">
         <el-select v-model="profileForm.scaleLevel">
@@ -2487,7 +2487,7 @@ onMounted(() => {
       <h3>标签列表</h3>
       <el-button type="primary" size="small" @click="showAddDialog = true">添加标签</el-button>
     </div>
-    
+
     <div class="tag-list">
       <el-tag
         v-for="tag in tags"
@@ -2500,7 +2500,7 @@ onMounted(() => {
       </el-tag>
       <el-tag v-if="tags.length === 0" type="info">暂无标签</el-tag>
     </div>
-    
+
     <el-dialog v-model="showAddDialog" title="添加标签" width="500px">
       <el-form :model="tagForm" label-width="80px">
         <el-form-item label="标签名称">
@@ -2573,9 +2573,9 @@ onMounted(() => {
         {{ settlementInfo?.lastPaymentDate || '无' }}
       </el-descriptions-item>
     </el-descriptions>
-    
+
     <el-divider>结算历史</el-divider>
-    
+
     <el-table :data="invoices" style="width: 100%">
       <el-table-column prop="invoiceNo" label="结算单号" />
       <el-table-column prop="amount" label="金额" />
@@ -2736,16 +2736,16 @@ mkdir -p frontend/src/views/customers/index/__tests__
         <el-button @click="handleExport">导出</el-button>
       </div>
     </div>
-    
+
     <CustomerFilter v-model:filters="filters" @search="loadData" @reset="handleReset" />
-    
+
     <BatchToolbar
       v-if="selectedRows.length > 0"
       :count="selectedRows.length"
       @batch-edit="showBatchEditModal = true"
       @cancel="selectedRows = []"
     />
-    
+
     <CustomerTable
       :data="customerList"
       :loading="loading"
@@ -2754,19 +2754,19 @@ mkdir -p frontend/src/views/customers/index/__tests__
       @edit="handleEdit"
       @delete="handleDelete"
     />
-    
+
     <CustomerFormModal
       v-model:visible="showFormModal"
       :customer="editingCustomer"
       @success="loadData"
     />
-    
+
     <BatchEditModal
       v-model:visible="showBatchEditModal"
       :customer-ids="selectedRows.map(r => r.id)"
       @success="handleBatchSuccess"
     />
-    
+
     <CustomerImportModal
       v-model:visible="showImportModal"
       @success="loadData"
@@ -2867,7 +2867,7 @@ onMounted(() => {
     <el-form-item label="客户名称">
       <el-input v-model="filters.name" placeholder="请输入客户名称" clearable />
     </el-form-item>
-    
+
     <el-form-item label="客户等级">
       <el-select v-model="filters.level" placeholder="选择等级" clearable>
         <el-option label="大型客户" value="large" />
@@ -2875,7 +2875,7 @@ onMounted(() => {
         <el-option label="小型客户" value="small" />
       </el-select>
     </el-form-item>
-    
+
     <el-form-item>
       <el-button type="primary" @click="$emit('search')">查询</el-button>
       <el-button @click="$emit('reset')">重置</el-button>
@@ -3316,7 +3316,7 @@ defineEmits<{ toggleSidebar: [] }>()
       </el-dropdown-menu>
     </template>
   </el-dropdown>
-  
+
   <ChangePasswordDialog v-model:visible="showPasswordDialog" />
 </template>
 
@@ -3492,13 +3492,13 @@ mkdir -p frontend/src/views/billing/balance/__tests__
       @recharge="handleRecharge"
       @deduct="handleDeduct"
     />
-    
+
     <RechargeDialog
       v-model:visible="showRechargeDialog"
       :customer="selectedCustomer"
       @success="loadData"
     />
-    
+
     <DeductionDialog
       v-model:visible="showDeductionDialog"
       :customer="selectedCustomer"

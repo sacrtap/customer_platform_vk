@@ -1,8 +1,8 @@
 # Repository 模式实施计划
 
-**创建日期**: 2026-07-02  
-**关联设计文档**: `docs/superpowers/specs/2026-07-02-repository-pattern-design.md`  
-**技术债务**: TD-005  
+**创建日期**: 2026-07-02
+**关联设计文档**: `docs/superpowers/specs/2026-07-02-repository-pattern-design.md`
+**技术债务**: TD-005
 **预计工作量**: 5-7 天
 
 ---

@@ -1,12 +1,9 @@
 <template>
   <a-timeline>
-    <a-timeline-item
-      v-for="(event, index) in timelineEvents"
-      :key="index"
-      :color="event.dotColor"
-    >
+    <a-timeline-item v-for="(event, index) in timelineEvents" :key="index" :color="event.dotColor">
       <div :class="['timeline-content', event.textClass]">
         <strong>{{ event.label }}</strong>
+        <p v-if="event.operator" class="timeline-operator">操作人：{{ event.operator }}</p>
         <p v-if="event.time" class="timeline-time">{{ event.time }}</p>
         <p v-if="event.detail" class="timeline-detail">{{ event.detail }}</p>
       </div>
@@ -21,14 +18,23 @@ const props = defineProps<{
   invoice: {
     status: string
     created_at: string
+    created_by_name?: string | null
     discount_amount?: number
     discount_reason?: string
     discount_applied_at?: string
     approved_at?: string
+    approver_name?: string | null
+    ops_confirmed_at?: string
+    ops_confirmed_name?: string | null
+    sales_confirmed_at?: string
+    sales_confirmed_name?: string | null
     customer_confirmed_at?: string
+    customer_confirmed_name?: string | null
     paid_at?: string
     completed_at?: string
+    completed_name?: string | null
     cancelled_at?: string
+    cancelled_name?: string | null
     payment_proof?: string
   }
 }>()
@@ -38,11 +44,28 @@ const timelineEvents = computed(() => {
   const isCancelled = status === 'cancelled'
 
   // 定义所有可能的节点（按流程顺序）
-  type TimeField = 'created_at' | 'discount_applied_at' | 'approved_at' | 'customer_confirmed_at' | 'paid_at' | 'completed_at'
+  type TimeField =
+    | 'created_at'
+    | 'discount_applied_at'
+    | 'approved_at'
+    | 'ops_confirmed_at'
+    | 'sales_confirmed_at'
+    | 'customer_confirmed_at'
+    | 'paid_at'
+    | 'completed_at'
+  type OperatorField =
+    | 'created_by_name'
+    | 'approver_name'
+    | 'ops_confirmed_name'
+    | 'sales_confirmed_name'
+    | 'customer_confirmed_name'
+    | 'completed_name'
+    | null
   const allNodes: Array<{
     field: TimeField
     label: string
     statusKey: string
+    operatorField?: OperatorField
     condition?: () => boolean
     detail?: () => string | undefined
   }> = [
@@ -50,6 +73,7 @@ const timelineEvents = computed(() => {
       field: 'created_at',
       label: '创建结算单',
       statusKey: 'draft',
+      operatorField: 'created_by_name',
     },
     {
       field: 'discount_applied_at',
@@ -66,13 +90,27 @@ const timelineEvents = computed(() => {
     },
     {
       field: 'approved_at',
-      label: '商务审核通过',
+      label: '提交结算单',
+      statusKey: 'pending_ops',
+      operatorField: 'approver_name',
+    },
+    {
+      field: 'ops_confirmed_at',
+      label: '运营经理确认',
+      statusKey: 'pending_sales',
+      operatorField: 'ops_confirmed_name',
+    },
+    {
+      field: 'sales_confirmed_at',
+      label: '销售经理确认',
       statusKey: 'pending_customer',
+      operatorField: 'sales_confirmed_name',
     },
     {
       field: 'customer_confirmed_at',
       label: '客户确认',
       statusKey: 'customer_confirmed',
+      operatorField: 'customer_confirmed_name',
     },
     {
       field: 'paid_at',
@@ -85,6 +123,7 @@ const timelineEvents = computed(() => {
       field: 'completed_at',
       label: '完成结算',
       statusKey: 'completed',
+      operatorField: 'completed_name',
     },
   ]
 
@@ -102,6 +141,7 @@ const timelineEvents = computed(() => {
     label: string
     time?: string
     detail?: string
+    operator?: string
     dotColor: string
     textClass: string
   }> = []
@@ -109,7 +149,7 @@ const timelineEvents = computed(() => {
   // 添加正常流程节点
   filteredNodes.forEach((node, index) => {
     const timeValue = props.invoice[node.field]
-    if (!timeValue) return  // 只显示已发生的节点
+    if (!timeValue) return // 只显示已发生的节点
     const isCompleted = timeValue && index !== currentIndex
     const isCurrent = !isCancelled && index === currentIndex && !allCompleted
 
@@ -134,6 +174,9 @@ const timelineEvents = computed(() => {
       label: node.label,
       time: timeValue ? formatDate(timeValue) : undefined,
       detail: node.detail ? node.detail() : undefined,
+      operator: node.operatorField
+        ? (props.invoice[node.operatorField] as string | null | undefined) || undefined
+        : undefined,
       dotColor,
       textClass,
     })
@@ -144,6 +187,7 @@ const timelineEvents = computed(() => {
     events.push({
       label: '取消结算单',
       time: props.invoice.cancelled_at ? formatDate(props.invoice.cancelled_at) : undefined,
+      operator: (props.invoice.cancelled_name as string | null | undefined) || undefined,
       dotColor: 'red',
       textClass: 'cancelled-event',
     })
@@ -172,35 +216,42 @@ function formatDate(dateStr: string): string {
 
 /* 当前节点：蓝色加粗 */
 .current-event {
-  color: #1890ff;
+  color: var(--primary);
   font-weight: 600;
 }
 
 /* 已完成节点：绿色 */
 .completed-event {
-  color: #52c41a;
+  color: var(--green);
 }
 
 /* 未到达节点：灰色 */
 .pending-event {
-  color: #999;
+  color: var(--muted);
 }
 
 /* 取消节点：红色 */
 .cancelled-event {
-  color: #f5222d;
+  color: var(--red);
   font-weight: 600;
 }
 
 .timeline-time {
   font-size: 12px;
-  color: #666;
+  color: var(--muted);
   margin: 4px 0 0 0;
+}
+
+.timeline-operator {
+  font-size: 12px;
+  color: var(--ink);
+  margin: 2px 0 0 0;
+  font-weight: 500;
 }
 
 .timeline-detail {
   font-size: 12px;
-  color: #888;
+  color: var(--muted);
   margin: 4px 0 0 0;
 }
 </style>

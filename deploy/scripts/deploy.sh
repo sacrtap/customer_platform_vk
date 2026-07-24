@@ -38,19 +38,19 @@ CONTAINER_RUNTIME=""
 
 check_dependencies() {
     log_info "检查依赖..."
-    
+
     # 非交互式 shell（如 SSH 远程执行）PATH 可能不完整
     # 扩展 PATH 包含容器运行时常见安装路径（含 Homebrew Apple Silicon 路径和自定义 podman 路径）
     export PATH="$PATH:/usr/bin:/usr/local/bin:/usr/libexec:/usr/libexec/podman:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/podman/bin"
-    
+
     # 检测容器运行时：不仅检查命令存在，还要验证 daemon 可用
     detect_runtime() {
         local runtime=$1
         local cmd_path
-        
+
         # 查找命令路径
         cmd_path=$(command -v "$runtime" 2>/dev/null) || return 1
-        
+
         # 验证 daemon 是否可用
         if [ "$runtime" = "podman" ]; then
             # Podman 无 daemon 模式，只需验证命令可执行
@@ -67,11 +67,11 @@ check_dependencies() {
         fi
         return 1
     }
-    
+
     # Podman 优先
     if detect_runtime podman; then
         log_info "检测到 Podman"
-        
+
         # 配置 Podman 使用文件式认证（避免 macOS keychain 问题）
         if [ "$(uname)" = "Darwin" ]; then
             export REGISTRY_AUTH_FILE="${HOME}/.config/containers/auth.json"
@@ -87,7 +87,7 @@ check_dependencies() {
         log_error "Podman 或 Docker 未安装或 daemon 未运行，请先安装并启动"
         exit 1
     fi
-    
+
     # 检查 compose 命令
     if [ "$CONTAINER_RUNTIME" = "podman" ]; then
         # Podman 优先使用 podman compose 或 podman-compose
@@ -111,7 +111,7 @@ check_dependencies() {
             exit 1
         fi
     fi
-    
+
     log_info "使用 compose 命令：$COMPOSE_CMD"
     log_info "依赖检查通过"
 }
@@ -119,24 +119,24 @@ check_dependencies() {
 # 检查配置文件
 check_config() {
     log_info "检查配置文件..."
-    
+
     if [ ! -f "$COMPOSE_FILE" ]; then
         log_error "未找到 $COMPOSE_FILE"
         exit 1
     fi
-    
+
     if [ ! -f "deploy/docker/Containerfile" ]; then
         log_error "未找到 deploy/docker/Containerfile"
         exit 1
     fi
-    
+
     log_info "配置文件检查通过"
 }
 
 # 加载环境变量
 load_env() {
     log_info "加载环境变量..."
-    
+
     if [ -f ".env" ]; then
         set -a
         source .env
@@ -149,7 +149,7 @@ load_env() {
 # 部署前检查
 pre_deploy_check() {
     log_step "部署前检查..."
-    
+
     # 1. 检查磁盘空间（至少需要 2GB 可用空间）
     log_info "检查磁盘空间..."
     # 检查根目录磁盘空间（兼容 Docker 和 Podman）
@@ -162,7 +162,7 @@ pre_deploy_check() {
     else
         log_info "磁盘空间充足：${available_space}G"
     fi
-    
+
     # 2. 检查是否有其他部署进程在运行
     log_info "检查部署进程..."
     local current_pid=$$
@@ -184,7 +184,7 @@ pre_deploy_check() {
         log_info "残留进程已清理"
     fi
     log_info "无其他部署进程"
-    
+
     # 3. 检查 Docker/Podman 服务状态
     log_info "检查容器运行时..."
     if ! $CONTAINER_RUNTIME info > /dev/null 2>&1; then
@@ -192,8 +192,8 @@ pre_deploy_check() {
         return 1
     fi
     log_info "$CONTAINER_RUNTIME 服务正常"
-    
-    
+
+
     log_info "部署前检查完成"
 }
 
@@ -201,19 +201,19 @@ pre_deploy_check() {
 # 初始化服务器环境
 init_server() {
     log_step "初始化服务器环境..."
-    
+
     # 检查是否已有项目目录
     if [ -f "deploy/docker-compose.yml" ]; then
         log_warn "项目目录已存在，跳过初始化"
         return 0
     fi
-    
+
     # 检查是否在项目根目录
     if [ ! -d "deploy" ]; then
         log_error "请在项目根目录运行此脚本"
         exit 1
     fi
-    
+
     # 创建 .env 文件
     if [ ! -f ".env" ]; then
         log_info "创建 .env 配置文件..."
@@ -246,7 +246,7 @@ ENVEOF
         log_warn "⚠️  请编辑 .env 文件，修改默认配置（特别是密码和密钥）"
         log_warn "生成随机密钥命令: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
     fi
-    
+
     log_info "服务器初始化完成"
     log_info "下一步: 编辑 .env 文件，然后运行 ./deploy/scripts/deploy.sh"
 }
@@ -254,21 +254,21 @@ ENVEOF
 # 停止旧容器
 stop_containers() {
     log_info "停止旧容器..."
-    
+
     # 1. 先停止所有服务（优雅关闭，等待 10 秒）
     log_info "执行 compose stop..."
     $COMPOSE_CMD -f $COMPOSE_FILE stop -t 10 || true
-    
+
     # 2. 等待容器完全停止
     sleep 3
-    
+
     # 3. 移除所有容器（保留数据卷，避免数据丢失）
     log_info "执行 compose down..."
     down_output=$($COMPOSE_CMD -f $COMPOSE_FILE down --remove-orphans 2>&1) || {
         log_warn "compose down 返回非零退出码（可能无容器可停止）"
         log_warn "down 输出: ${down_output}"
     }
-    
+
     # 4. 强制移除所有 customer-platform- 前缀的容器
     # 使用循环重试：每次尝试删除所有残留容器，直到全部清除或达到最大重试次数
     # 这样可以处理未知名称的孤儿容器和复杂的依赖关系
@@ -281,19 +281,19 @@ stop_containers() {
             log_info "所有残留容器已清理"
             break
         fi
-        
+
         attempt=$((attempt + 1))
         log_info "第 ${attempt}/${max_attempts} 轮清理，发现残留容器:"
         echo "$remaining" | while read -r c; do log_info "  - $c"; done
-        
+
         # 尝试删除所有残留容器（忽略错误，继续下一轮）
         echo "$remaining" | while read -r c; do
             $CONTAINER_RUNTIME rm -f "$c" 2>&1 || true
         done
-        
+
         sleep 2
     done
-    
+
     # 最终检查
     final_remaining=$($CONTAINER_RUNTIME ps -a --format "{{.Names}}" | grep "^customer-platform-" || true)
     if [ -n "$final_remaining" ]; then
@@ -301,16 +301,16 @@ stop_containers() {
         echo "$final_remaining"
         return 1
     fi
-    
+
     log_info "旧容器已停止"
 }
 
 # 构建镜像
 build_images() {
     log_step "构建 Docker 镜像..."
-    
+
     $COMPOSE_CMD -f $COMPOSE_FILE build --no-cache
-    
+
     log_info "镜像构建完成"
 }
 
@@ -319,25 +319,25 @@ pull_remote_image() {
     local image_tag=$1
     local backend_image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}:${image_tag}"
     local frontend_image="ghcr.io/${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}-frontend:${image_tag}"
-    
+
     log_step "从 GHCR 拉取后端镜像: ${backend_image}"
-    
+
     $CONTAINER_RUNTIME pull "$backend_image" || {
         log_error "拉取后端镜像失败: ${backend_image}"
         exit 1
     }
-    
+
     # 重新打标签供 compose 使用
     $CONTAINER_RUNTIME tag "$backend_image" "customer_platform_app:latest"
     log_info "后端镜像已拉取并标记为 customer_platform_app:latest"
-    
+
     log_step "从 GHCR 拉取前端镜像: ${frontend_image}"
-    
+
     $CONTAINER_RUNTIME pull "$frontend_image" || {
         log_error "拉取前端镜像失败: ${frontend_image}"
         exit 1
     }
-    
+
     # 重新打标签供 compose 使用
     $CONTAINER_RUNTIME tag "$frontend_image" "customer_platform_frontend:latest"
     log_info "前端镜像已拉取并标记为 customer_platform_frontend:latest"
@@ -346,16 +346,16 @@ pull_remote_image() {
 # 拉取基础镜像
 pull_images() {
     log_info "拉取基础镜像..."
-    
+
     $COMPOSE_CMD -f $COMPOSE_FILE pull db redis
-    
+
     log_info "基础镜像拉取完成"
 }
 
 # 运行数据库迁移
 run_migrations() {
     log_step "运行数据库迁移..."
-    
+
     # 迁移前强制清理所有相关容器（避免名称冲突）
     # 注意：只删除容器，不删除数据卷，数据不会丢失
     log_info "清理所有相关容器..."
@@ -389,7 +389,7 @@ run_migrations() {
             log_info "容器 ${container_name} 已移除"
         fi
     done
-    
+
     # 清理残留网络（避免 label 不匹配导致 compose up 失败）
     # docker-compose 会按 <project>_<network> 命名网络，若旧网络 label 不匹配会报错
     local network_name="customer_platform_vk_customer-platform-network"
@@ -403,16 +403,16 @@ run_migrations() {
         fi
         log_info "残留网络已清理"
     fi
-    
-    
+
+
     # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
     if ! $COMPOSE_CMD -f $COMPOSE_FILE up migrate; then
         log_error "数据库迁移失败！"
         return 1
     fi
-    
+
     log_info "数据库迁移完成"
-    
+
     # 运行种子数据（幂等，已存在则跳过）
     log_step "初始化种子数据..."
     if ! $COMPOSE_CMD -f $COMPOSE_FILE up seed; then
@@ -425,9 +425,9 @@ run_migrations() {
 # 启动所有服务
 start_services() {
     log_step "启动所有服务..."
-    
+
     $COMPOSE_CMD -f $COMPOSE_FILE up -d app nginx
-    
+
     log_info "服务启动完成"
 }
 
@@ -436,28 +436,28 @@ health_check() {
     local health_url="${HEALTH_URL:-http://localhost:8082/health}"
     local max_retries="${HEALTH_MAX_RETRIES:-30}"
     local retry_interval="${HEALTH_RETRY_INTERVAL:-2}"
-    
+
     log_info "健康检查: ${health_url}..."
-    
+
     local retry_count=0
     while [ $retry_count -lt $max_retries ]; do
         if curl -sf "${health_url}" | grep -q '"healthy"'; then
             log_info "健康检查通过"
             return 0
         fi
-        
+
         retry_count=$((retry_count + 1))
         log_warn "健康检查失败，重试 ${retry_count}/${max_retries}..."
         sleep "$retry_interval"
     done
-    
+
     log_error "健康检查失败 (${health_url})"
     return 1
 }
 # 部署后验证
 post_deploy_verify() {
     log_step "部署后验证..."
-    
+
     # 1. 验证所有服务都在运行
     log_info "检查服务运行状态..."
     local services=("customer-platform-db" "customer-platform-redis" "customer-platform-app" "customer-platform-nginx")
@@ -468,7 +468,7 @@ post_deploy_verify() {
         fi
         log_info "✓ ${service} 运行正常"
     done
-    
+
     # 2. 验证数据库连接
     log_info "检查数据库连接..."
     if ! $CONTAINER_RUNTIME exec customer-platform-db pg_isready -U ${DB_USER:-user} > /dev/null 2>&1; then
@@ -476,7 +476,7 @@ post_deploy_verify() {
         return 1
     fi
     log_info "✓ 数据库连接正常"
-    
+
     # 3. 验证应用健康端点
     log_info "检查应用健康端点..."
     local max_retries=10
@@ -493,7 +493,7 @@ post_deploy_verify() {
         fi
         sleep 3
     done
-    
+
     # 4. 验证前端可访问
     log_info "检查前端访问..."
     if ! curl -f -s http://localhost:8082 > /dev/null 2>&1; then
@@ -501,7 +501,7 @@ post_deploy_verify() {
         return 1
     fi
     log_info "✓ 前端访问正常"
-    
+
     log_info "部署后验证完成"
 }
 
@@ -547,10 +547,10 @@ show_info() {
 cleanup() {
     if [ "${CLEANUP:-false}" = "true" ]; then
         log_info "清理未使用的资源..."
-        
+
         docker image prune -f 2>/dev/null || podman image prune -f 2>/dev/null || true
         docker volume prune -f 2>/dev/null || podman volume prune -f 2>/dev/null || true
-        
+
         log_info "清理完成"
     fi
 }
@@ -625,34 +625,34 @@ main() {
         init_server
         exit 0
     fi
-    
+
     log_info "开始部署流程..."
     log_info "部署版本：$VERSION"
-    
+
     check_dependencies
     check_config
     load_env
     pre_deploy_check
     stop_containers
-    
+
     if [ "$USE_REMOTE_IMAGE" = true ]; then
         pull_remote_image "${VERSION}"
     elif [ "$SKIP_BUILD" = false ]; then
         pull_images
         build_images
     fi
-    
+
     if [ "$SKIP_MIGRATE" = false ]; then
         run_migrations
     fi
-    
+
     start_services
     health_check
     post_deploy_verify
     cleanup
     show_status
     show_info
-    
+
     log_info "🎉 部署成功！"
 }
 

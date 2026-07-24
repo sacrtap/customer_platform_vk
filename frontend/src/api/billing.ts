@@ -7,6 +7,10 @@ export interface Balance {
   customer_id: number
   company_id?: number
   customer_name?: string
+  account_type?: string
+  industry_type?: string
+  settlement_type?: string
+  is_key_customer?: boolean
   total_amount: number
   real_amount: number
   bonus_amount: number
@@ -14,6 +18,17 @@ export interface Balance {
   used_real: number
   used_bonus: number
   last_recharge_at?: string
+}
+
+export interface BalanceStats {
+  total_balance: number
+  total_customers: number
+  this_month_count: number
+  this_month_amount: number
+  this_month_real_amount: number
+  this_month_bonus_amount: number
+  low_balance_count: number
+  zero_balance_count: number
 }
 
 export function getBalances(params?: {
@@ -26,10 +41,21 @@ export function getBalances(params?: {
   recharge_date_from?: string
   recharge_date_to?: string
   tag_ids?: string
+  is_key_customer?: string
+  is_real_estate?: string
+  settlement_type?: string
+  balance_min?: number
+  balance_max?: number
+  sort_by?: string
+  sort_order?: string
   page?: number
   page_size?: number
 }) {
   return api.get('/billing/balances', { params })
+}
+
+export function getBalanceStats(params?: { industry?: string; account_type?: string }) {
+  return api.get<BalanceStats>('/billing/balance-stats', { params })
 }
 
 export function getCustomerBalance(customerId: number) {
@@ -94,15 +120,16 @@ export function getConsumptionRecords(params?: {
 export interface PricingRule {
   id: number
   customer_id?: number
+  customer_name?: string
   device_type: string
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
-  tiers?: Record<string, unknown>
+  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
-  expiry_date?: string
+  expiry_date?: string | null
 }
 
 export function getPricingRules(params?: {
@@ -173,6 +200,10 @@ export interface Invoice {
   invoice_no: string
   customer_id: number
   customer_name?: string
+  /** 客户指定的运营经理 ID（用于前端判断确认按钮是否可点击） */
+  customer_manager_id?: number | null
+  /** 客户指定的销售经理 ID（用于前端判断确认按钮是否可点击） */
+  customer_sales_manager_id?: number | null
   period_start: string
   period_end: string
   total_amount: number
@@ -180,16 +211,39 @@ export interface Invoice {
   discount_reason?: string
   discount_attachment?: string
   final_amount: number
-  status: 'draft' | 'pending_customer' | 'customer_confirmed' | 'paid' | 'completed' | 'cancelled'
+  status:
+    | 'draft'
+    | 'pending_ops'
+    | 'pending_sales'
+    | 'pending_customer'
+    | 'customer_confirmed'
+    | 'paid'
+    | 'completed'
+    | 'cancelled'
   is_auto_generated: boolean
   items?: InvoiceItem[]
   approver_id?: number
+  approver_name?: string | null
   approved_at?: string
   discount_applied_at?: string
+  ops_confirmed_by?: number | null
+  ops_confirmed_name?: string | null
+  ops_confirmed_at?: string
+  sales_confirmed_by?: number | null
+  sales_confirmed_name?: string | null
+  sales_confirmed_at?: string
   customer_confirmed_at?: string
+  customer_confirmed_by?: number | null
+  customer_confirmed_name?: string | null
   paid_at?: string
   completed_at?: string
+  completed_by?: number | null
+  completed_name?: string | null
   cancelled_at?: string
+  cancelled_by?: number | null
+  cancelled_name?: string | null
+  created_by?: number | null
+  created_by_name?: string | null
   created_at: string
 }
 
@@ -226,6 +280,73 @@ export interface CalculateInvoiceItemsParams {
 
 export function calculateInvoiceItems(data: CalculateInvoiceItemsParams) {
   return api.post('/billing/invoices/calculate-items', data)
+}
+
+// ==================== 批量生成结算单 ====================
+
+export interface BatchGenerateParams {
+  pricing_type?: 'fixed' | 'tiered' | 'package'
+  industry_type_ids?: number[]
+  scale_levels?: string[]
+  consume_levels?: string[]
+  is_real_estate?: boolean
+}
+
+export interface PreviewBatchCustomer {
+  id: number
+  name: string
+  manager_id: number | null
+  sales_manager_id: number | null
+  has_manager: boolean
+  has_sales_manager: boolean
+}
+
+export interface PreviewBatchResult {
+  total: number
+  customers: PreviewBatchCustomer[]
+}
+
+export function previewBatchCustomers(data: BatchGenerateParams) {
+  return api.post<PreviewBatchResult>('/billing/invoices/preview-batch', data)
+}
+
+export interface GenerateBatchParams extends BatchGenerateParams {
+  period_start: string
+  period_end: string
+}
+
+export interface BatchGenerateResult {
+  success_count: number
+  generated: Array<{
+    customer_id: number
+    name: string
+    invoice_id: number
+    invoice_no: string
+    total_amount: number
+  }>
+  skipped: Array<{
+    customer_id: number
+    name: string
+    reason: string
+  }>
+}
+
+export function generateInvoicesBatch(data: GenerateBatchParams) {
+  return api.post<BatchGenerateResult>('/billing/invoices/generate-batch', data)
+}
+
+// ==================== 多角色确认流程 ====================
+
+export function confirmOps(invoiceId: number) {
+  return api.post(`/billing/invoices/${invoiceId}/confirm-ops`)
+}
+
+export function confirmSales(invoiceId: number) {
+  return api.post(`/billing/invoices/${invoiceId}/confirm-sales`)
+}
+
+export function retryDeduction(invoiceId: number) {
+  return api.post(`/billing/invoices/${invoiceId}/retry-deduction`)
 }
 
 export interface ApplyDiscountParams {
@@ -296,4 +417,47 @@ export function downloadBalanceImportTemplate() {
   return api.get('/billing/import-template', {
     responseType: 'blob',
   })
+}
+
+// ==================== 包年套餐管理 ====================
+
+export interface PackagePlan {
+  id: number
+  name: string
+  package_type: string
+  device_type?: string
+  layer_type?: string
+  is_unlimited: boolean
+  limit_count?: number | null
+  base_fee: number
+  description?: string
+  status: 'active' | 'inactive'
+  created_at?: string
+  updated_at?: string
+}
+
+export function getPackagePlans(params?: {
+  keyword?: string
+  status?: string
+  is_unlimited?: string
+  page?: number
+  page_size?: number
+}) {
+  return api.get('/billing/package-plans', { params })
+}
+
+export function getPackagePlan(id: number) {
+  return api.get(`/billing/package-plans/${id}`)
+}
+
+export function createPackagePlan(data: Partial<PackagePlan>) {
+  return api.post('/billing/package-plans', data)
+}
+
+export function updatePackagePlan(id: number, data: Partial<PackagePlan>) {
+  return api.put(`/billing/package-plans/${id}`, data)
+}
+
+export function deletePackagePlan(id: number) {
+  return api.delete(`/billing/package-plans/${id}`)
 }

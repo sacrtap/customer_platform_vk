@@ -256,7 +256,7 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
    # 后端
     make test-parallel
     ruff format app/ tests/ && ruff check app/ tests/
-   
+
    # 前端
    npm run type-check
    npm run lint

@@ -89,6 +89,11 @@ jobs:
           cd frontend
           npx vue-tsc --noEmit
 
+      - name: Run unit tests
+        run: |
+          cd frontend
+          npx vitest run --reporter=verbose
+
       - name: Build
         run: |
           cd frontend

@@ -31,17 +31,11 @@ export function getErrorCategory(code: number): ErrorCategory {
 }
 
 /** 获取用户友好的错误提示 */
-export function getUserFriendlyMessage(
-  code: number,
-  backendMessage: string
-): string {
+export function getUserFriendlyMessage(code: number, backendMessage: string): string {
   const category = getErrorCategory(code)
 
   // 对于参数错误和业务错误，优先使用后端返回的具体信息
-  if (
-    category === ErrorCategory.CLIENT_ERROR ||
-    category === ErrorCategory.BUSINESS_ERROR
-  ) {
+  if (category === ErrorCategory.CLIENT_ERROR || category === ErrorCategory.BUSINESS_ERROR) {
     return backendMessage || '请求参数有误，请检查后重试'
   }
 
