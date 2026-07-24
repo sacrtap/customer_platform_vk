@@ -3,7 +3,7 @@ import { test, expect } from './fixtures';
 /**
  * 余额充值 E2E 测试
  */
-test.describe('余额充值', () => {
+test.describe('余额充值 @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });

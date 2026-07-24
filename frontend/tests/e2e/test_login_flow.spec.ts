@@ -8,7 +8,7 @@ import { test, expect } from './fixtures';
  * 3. 用户不存在显示错误提示
  * 4. 未登录访问受保护页面重定向到登录页
  */
-test.describe('登录流程', () => {
+test.describe('登录流程 @smoke', () => {
   test('成功登录并跳转到首页', async ({ loginPage, page }) => {
     await loginPage.fill('input[field="username"], input[type="text"]', 'admin');
     await loginPage.fill('input[field="password"], input[type="password"]', 'admin123');

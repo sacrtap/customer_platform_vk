@@ -14,7 +14,7 @@ import {
 /**
  * 客户筛选功能 E2E 测试
  */
-test.describe('客户筛选功能', () => {
+test.describe('客户筛选功能 @smoke', () => {
   let authToken: string;
   let createdIds: number[] = [];
 

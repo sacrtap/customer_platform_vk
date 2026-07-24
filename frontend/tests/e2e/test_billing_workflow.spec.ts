@@ -14,7 +14,7 @@ import { getVisibleModal, waitForModal } from './test-helpers';
  * 筛选器使用自定义 FilterDropdown 组件（.filter-trigger 类，非 .arco-select）。
  * 状态流程：draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
  */
-test.describe('结算单管理工作流', () => {
+test.describe('结算单管理工作流 @smoke', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/billing/invoices');
     await page.waitForLoadState('networkidle');

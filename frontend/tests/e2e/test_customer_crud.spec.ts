@@ -22,7 +22,7 @@ import {
  *
  * 测试用例（9 个）
  */
-test.describe('客户管理 CRUD', () => {
+test.describe('客户管理 CRUD @smoke', () => {
   let authToken: string;
 
   test.beforeAll(async () => {

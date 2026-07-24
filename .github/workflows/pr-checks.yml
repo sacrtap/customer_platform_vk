@@ -280,18 +280,18 @@ jobs:
           cd frontend
           npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      - name: Run E2E tests (smoke suite only)
         env:
           API_BASE_URL: http://localhost:8000
         run: |
           cd frontend
-          npx playwright test --project=chromium --reporter=list
+          npx playwright test --project=chromium --grep="@smoke" --reporter=list
 
       - name: Upload E2E test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pr-e2e-results
+          name: pr-e2e-smoke-results
           path: frontend/tests/e2e/playwright-report/
           retention-days: 7
 
@@ -299,7 +299,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: pr-e2e-failures
+          name: pr-e2e-smoke-failures
           path: frontend/tests/e2e/test-results/
           retention-days: 3
 
@@ -333,7 +333,8 @@ jobs:
           fi
 
           if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
-            echo "⚠️  E2E tests have failures (non-blocking, tracked in TD-012)"
+            echo "⚠️  E2E smoke tests have failures (non-blocking, tracked in TD-012)"
+            echo "   Full E2E suite runs nightly — see e2e-nightly.yml"
           fi
 
           echo "✅ All PR quality checks passed"

@@ -10,7 +10,7 @@ import { getVisibleModal, waitForModal } from './test-helpers';
  * - 状态流程：draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
  * - 行点击打开详情抽屉（InvoiceDetailDrawer），非弹窗
  */
-test.describe('结算单工作流', () => {
+test.describe('结算单工作流 @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.fill('input[field="username"], input[type="text"]', 'admin');
