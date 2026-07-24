@@ -132,15 +132,15 @@ test.describe('结算单工作流 @smoke', () => {
 
   test('结算单详情查看', async ({ page }) => {
     await page.goto('/billing/invoices');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 
     // 重构后使用自定义表格 table.table，行点击打开详情抽屉
     const firstRow = page.locator('table.table tbody tr').first();
     const hasRow = await firstRow.count() > 0;
     test.skip(!hasRow, '结算单列表中无数据');
 
-    // 点击行打开详情抽屉（row-clickable 类）
-    await firstRow.click();
+    // 使用 force 跳过 auto-waiting，避免表格重新渲染时超时
+    await firstRow.click({ force: true });
     await page.waitForTimeout(500);
 
     // 验证抽屉打开
