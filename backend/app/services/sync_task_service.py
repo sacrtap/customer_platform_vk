@@ -42,13 +42,35 @@ class SyncTaskService:
 
         # 尝试获取分布式锁
         lock_key = f"sync_lock:{start_date}:{end_date}"
-        lock_acquired = await self.redis_client.set(
+
+        # 先检查数据库中是否有相同日期范围的活跃任务（pending/running）
+        # 如果没有活跃任务但 Redis 锁仍然存在（任务已 failed/cancelled/completed 但锁未释放），
+        # 则清理过期锁后再获取新锁
+        active_task_result = await self.db.execute(
+            select(SyncTask).where(
+                SyncTask.start_date == start_date,
+                SyncTask.end_date == end_date,
+                SyncTask.status.in_(["pending", "running"]),
+            )
+        )
+        active_tasks = active_task_result.scalars().all()
+
+        if active_tasks:
+            # 确实有活跃任务，拒绝创建
+            raise Exception("已有相同周期的同步任务正在执行")
+
+        # 没有活跃任务，清理可能存在的过期锁
+        await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
+
+        # 获取新锁
+        lock_acquired = await self.redis_client.set(  # pyright: ignore[reportOptionalMemberAccess]
             lock_key,
             "1",
             nx=True,
             ex=1800,  # 30分钟TTL
         )
         if not lock_acquired:
+            # 极端情况：并发竞争，锁刚被其他请求获取
             raise Exception("已有相同周期的同步任务正在执行")
 
         try:
@@ -84,7 +106,7 @@ class SyncTaskService:
             return task
         except Exception:
             # 创建失败时释放锁
-            await self.redis_client.delete(lock_key)
+            await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
             raise
 
     async def execute_task(self, task_id: UUID) -> None:
@@ -97,7 +119,7 @@ class SyncTaskService:
             logger.error(f"[{task_id}] 任务不存在")
             # 任务不存在时尝试释放锁
             lock_key = f"sync_lock:{task_id}"
-            await self.redis_client.delete(lock_key)
+            await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
             raise ValueError(f"任务不存在: {task_id}")
 
         logger.info(
@@ -108,17 +130,17 @@ class SyncTaskService:
 
         try:
             # 检查任务是否在 pending 阶段已被取消
-            if await self.redis_client.exists(cancel_key):
+            if await self.redis_client.exists(cancel_key):  # pyright: ignore[reportOptionalMemberAccess]
                 logger.info(f"[{task_id}] 任务在 pending 阶段已被取消")
-                task.status = "cancelled"
-                task.completed_at = datetime.now(timezone.utc)
+                task.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
+                task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
                 await self.db.commit()
                 await self._update_redis_progress(task)
                 return
 
             # 更新状态为 running
             logger.info(f"[{task_id}] 更新状态为 running")
-            task.status = "running"
+            task.status = "running"  # pyright: ignore[reportAttributeAccessIssue]
             await self.db.commit()
             await self._update_redis_progress(task)
 
@@ -128,9 +150,9 @@ class SyncTaskService:
                 # 生成日期列表
                 current_date = task.start_date
                 dates = []
-                while current_date <= task.end_date:
+                while current_date <= task.end_date:  # pyright: ignore[reportGeneralTypeIssues]
                     dates.append(current_date)
-                    current_date += timedelta(days=1)
+                    current_date += timedelta(days=1)  # pyright: ignore[reportOperatorIssue]
 
                 logger.info(
                     f"[{task_id}] 待处理日期: {len(dates)} 天, 从 {dates[0]} 到 {dates[-1]}"
@@ -141,10 +163,10 @@ class SyncTaskService:
                     logger.info(f"[{task_id}] 处理第 {idx + 1}/{len(dates)} 天: {sync_date}")
 
                     # 检查取消标志
-                    if await self.redis_client.exists(cancel_key):
+                    if await self.redis_client.exists(cancel_key):  # pyright: ignore[reportOptionalMemberAccess]
                         logger.info(f"[{task_id}] 检测到取消标志，停止处理")
-                        task.status = "cancelled"
-                        task.completed_at = datetime.now(timezone.utc)
+                        task.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
+                        task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
                         duration = (task.completed_at - start_time).total_seconds()
                         await self._update_audit_log(task, "cancelled", duration)
                         await self.db.commit()
@@ -157,18 +179,18 @@ class SyncTaskService:
 
                     try:
                         # skip_existing 模式：检查是否已有数据
-                        if task.sync_mode == "skip_existing":
+                        if task.sync_mode == "skip_existing":  # pyright: ignore[reportGeneralTypeIssues]
                             has_data = await self._check_data_exists(sync_date)
                             if has_data:
                                 logger.info(f"[{task_id}] {sync_date} 已有数据，跳过")
-                                task.skipped_days += 1
-                                task.completed_days += 1
+                                task.skipped_days += 1  # pyright: ignore[reportAttributeAccessIssue]
+                                task.completed_days += 1  # pyright: ignore[reportAttributeAccessIssue]
                                 await self.db.commit()
                                 await self._update_redis_progress(task)
                                 continue
 
                         # force_overwrite 模式：删除旧数据
-                        if task.sync_mode == "force_overwrite":
+                        if task.sync_mode == "force_overwrite":  # pyright: ignore[reportGeneralTypeIssues]
                             logger.info(f"[{task_id}] {sync_date} 强制覆盖模式，清除旧数据")
                             await self._clear_data(sync_date)
 
@@ -191,9 +213,9 @@ class SyncTaskService:
                         await self.db.refresh(task)
 
                         # 更新统计
-                        task.completed_days += 1
-                        task.success_count += order_result.success
-                        task.failed_count += order_result.failed
+                        task.completed_days += 1  # pyright: ignore[reportAttributeAccessIssue]
+                        task.success_count += order_result.success  # pyright: ignore[reportAttributeAccessIssue]
+                        task.failed_count += order_result.failed  # pyright: ignore[reportAttributeAccessIssue]
                         await self.db.commit()  # 立即提交进度，使前端轮询能读取到最新值
                         logger.info(
                             f"[{task_id}] {sync_date} 处理完成，累计完成 {task.completed_days}/{len(dates)} 天"
@@ -209,7 +231,7 @@ class SyncTaskService:
                         await self.db.rollback()
                         # 重新加载任务对象，避免 MissingGreenlet 错误
                         await self.db.refresh(task)
-                        task.failed_count += 1
+                        task.failed_count += 1  # pyright: ignore[reportAttributeAccessIssue]
                         await self.db.commit()
 
                     # 更新 Redis 进度
@@ -217,14 +239,16 @@ class SyncTaskService:
 
                 # 任务完成
                 logger.info(f"[{task_id}] 所有日期处理完成，更新状态为 completed")
-                task.status = "completed"
-                task.completed_at = datetime.now(timezone.utc)
+                task.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
+                task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
                 duration = (task.completed_at - start_time).total_seconds()
                 logger.info(f"[{task_id}] 任务执行耗时: {duration:.2f} 秒")
 
                 # 更新审计日志
                 await self._update_audit_log(
-                    task, "success" if task.status == "completed" else "failed", duration
+                    task,
+                    "success" if task.status == "completed" else "failed",
+                    duration,  # pyright: ignore[reportGeneralTypeIssues]
                 )
                 logger.info(f"[{task_id}] 审计日志已更新")
 
@@ -232,9 +256,9 @@ class SyncTaskService:
                 logger.error(
                     f"[{task_id}] 任务执行过程中发生异常: {type(e).__name__}: {e}", exc_info=True
                 )
-                task.status = "failed"
-                task.error_message = str(e)
-                task.completed_at = datetime.now(timezone.utc)
+                task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+                task.error_message = str(e)  # pyright: ignore[reportAttributeAccessIssue]
+                task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
                 duration = (task.completed_at - start_time).total_seconds()
 
                 await self._update_audit_log(task, "failed", duration, str(e))
@@ -247,16 +271,16 @@ class SyncTaskService:
         finally:
             # 无论发生什么，确保释放锁和清理取消标志
             logger.info(f"[{task_id}] 清理 Redis 锁和取消标志")
-            await self.redis_client.delete(lock_key)
-            await self.redis_client.delete(cancel_key)
+            await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
+            await self.redis_client.delete(cancel_key)  # pyright: ignore[reportOptionalMemberAccess]
             logger.info(f"[{task_id}] 任务执行流程结束")
 
     async def cancel_task(self, task_id: UUID) -> bool:
         """取消同步任务
 
-        - pending: 后台执行尚未开始，立即标记为 cancelled
+        - pending: 后台执行尚未开始，立即标记为 cancelled 并释放锁
         - running: 后台执行进行中，设置 Redis 取消标志 + 立即更新状态为 cancelled，
-          执行循环检测到标志后会跳过剩余天数
+          执行循环检测到标志后会跳过剩余天数，锁由 execute_task 的 finally 块释放
         """
         task = await self.db.get(SyncTask, task_id)
         if not task:
@@ -265,17 +289,30 @@ class SyncTaskService:
         if task.status not in ["pending", "running"]:
             raise ValueError(f"任务状态为 {task.status}，无法取消")
 
+        original_status = task.status  # 记录原始状态，用于决定是否主动释放锁
+
         # 设置 Redis 取消标志，供 execute_task 循环检测
         cancel_key = f"sync_cancel:{task_id}"
-        await self.redis_client.set(cancel_key, "1", ex=3600)
+        await self.redis_client.set(cancel_key, "1", ex=3600)  # pyright: ignore[reportOptionalMemberAccess]
 
         # 立即更新数据库状态为 cancelled，让前端列表即时反映取消结果
-        task.status = "cancelled"
-        task.completed_at = datetime.now(timezone.utc)
+        task.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
+        task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         # 更新 Redis 进度缓存
         await self._update_redis_progress(task)
+
+        # 如果任务原来是 pending 状态（execute_task 尚未启动或尚未执行到 finally 块），
+        # 主动释放分布式锁，避免锁残留导致无法重新创建相同日期范围的任务。
+        # running 状态的任务锁由 execute_task 的 finally 块负责释放。
+        if original_status == "pending":  # pyright: ignore[reportGeneralTypeIssues]
+            lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
+            try:
+                await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
+                logger.info(f"[{task_id}] 已释放分布式锁 {lock_key}（pending 任务取消）")
+            except Exception as e:
+                logger.warning(f"[{task_id}] 释放锁失败，将等待自动过期: {e}")
 
         return True
 
@@ -304,7 +341,7 @@ class SyncTaskService:
             reason = ""
 
             # 检查 1: Redis 进度 key 是否存在
-            if not await self.redis_client.exists(progress_key):
+            if not await self.redis_client.exists(progress_key):  # pyright: ignore[reportOptionalMemberAccess]
                 should_recover = True
                 reason = "任务执行进程异常终止（Redis 进度信息已消失）"
             else:
@@ -317,9 +354,9 @@ class SyncTaskService:
                     reason = f"任务运行超过 {max_running_minutes} 分钟（实际 {running_minutes:.1f} 分钟），疑似卡住"
 
             if should_recover:
-                task.status = "failed"
-                task.error_message = reason
-                task.completed_at = now
+                task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+                task.error_message = reason  # pyright: ignore[reportAttributeAccessIssue]
+                task.completed_at = now  # pyright: ignore[reportAttributeAccessIssue]
                 await self.db.commit()
                 recovered += 1
 
@@ -347,9 +384,9 @@ class SyncTaskService:
         stuck_tasks = result.scalars().all()
 
         for task in stuck_tasks:
-            task.status = "failed"
-            task.error_message = f"任务运行超过 {max_running_minutes} 分钟，疑似卡住"
-            task.completed_at = datetime.now()
+            task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+            task.error_message = f"任务运行超过 {max_running_minutes} 分钟，疑似卡住"  # pyright: ignore[reportAttributeAccessIssue]
+            task.completed_at = datetime.now()  # pyright: ignore[reportAttributeAccessIssue]
             await self.db.commit()
 
         return len(stuck_tasks)
@@ -358,7 +395,7 @@ class SyncTaskService:
         """获取任务进度"""
         # 优先从 Redis 读取
         progress_key = f"sync_progress:{task_id}"
-        progress_data = await self.redis_client.hgetall(progress_key)
+        progress_data = await self.redis_client.hgetall(progress_key)  # pyright: ignore[reportOptionalMemberAccess]
 
         if progress_data:
             # 辅助函数：安全解码 bytes 值
@@ -394,7 +431,7 @@ class SyncTaskService:
             raise ValueError(f"任务不存在: {task_id}")
 
         # percentage 转换为 0-1 小数（Arco Design 期望格式）
-        percentage: float = task.completed_days / task.total_days if task.total_days > 0 else 0.0
+        percentage: float = task.completed_days / task.total_days if task.total_days > 0 else 0.0  # pyright: ignore[reportGeneralTypeIssues, reportAssignmentType]
 
         return {
             "task_id": str(task.id),
@@ -403,7 +440,7 @@ class SyncTaskService:
             "total_days": task.total_days,
             "completed_days": task.completed_days,
             "skipped_days": task.skipped_days,
-            "current_date": task.current_date.isoformat() if task.current_date else None,
+            "current_date": task.current_date.isoformat() if task.current_date else None,  # pyright: ignore[reportGeneralTypeIssues]
             "success_count": task.success_count,
             "failed_count": task.failed_count,
             "percentage": percentage,  # 0-1 小数
@@ -421,7 +458,7 @@ class SyncTaskService:
         self,
         page: int = 1,
         page_size: int = 20,
-        status: str = None,
+        status: str = None,  # pyright: ignore[reportArgumentType]
     ) -> dict:
         """获取任务列表（分页）"""
         from sqlalchemy import desc as sa_desc
@@ -516,8 +553,8 @@ class SyncTaskService:
             "error_message": task.error_message,
             "operator_id": task.operator_id,
             "operator_name": task.operator.real_name if task.operator else None,
-            "created_at": task.created_at.isoformat() if task.created_at else None,
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "created_at": task.created_at.isoformat() if task.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,  # pyright: ignore[reportGeneralTypeIssues]
         }
 
     async def _update_redis_progress(self, task: SyncTask) -> None:
@@ -525,7 +562,7 @@ class SyncTaskService:
         progress_key = f"sync_progress:{task.id}"
         total_days = task.total_days or 0
         completed_days = task.completed_days or 0
-        percentage = int((completed_days / total_days) * 100) if total_days > 0 else 0
+        percentage = int((completed_days / total_days) * 100) if total_days > 0 else 0  # pyright: ignore[reportGeneralTypeIssues, reportArgumentType]
 
         progress_data = {
             "status": task.status,
@@ -533,15 +570,17 @@ class SyncTaskService:
             "total_days": str(task.total_days),
             "completed_days": str(task.completed_days),
             "skipped_days": str(task.skipped_days),
-            "current_date": task.current_date.isoformat() if task.current_date else "",
+            "current_date": task.current_date.isoformat() if task.current_date else "",  # pyright: ignore[reportGeneralTypeIssues]
             "success_count": str(task.success_count),
             "failed_count": str(task.failed_count),
             "percentage": str(percentage),
             "error_message": task.error_message or "",
         }
 
-        await self.redis_client.hset(progress_key, mapping=progress_data)
-        await self.redis_client.expire(progress_key, 3600)  # 1小时TTL
+        await self.redis_client.hset(progress_key, mapping=progress_data)  # pyright: ignore[reportOptionalMemberAccess]
+        await self.redis_client.expire(
+            progress_key, 3600
+        )  # 1小时TTL  # pyright: ignore[reportOptionalMemberAccess]
 
     async def _check_data_exists(self, sync_date: date) -> bool:
         """检查指定日期是否已有数据"""
@@ -550,24 +589,28 @@ class SyncTaskService:
         result = await self.db.execute(
             select(func.count(DailyOrder.id)).where(DailyOrder.sync_date == sync_date)
         )
-        return result.scalar() > 0
+        return result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
 
     async def _clear_data(self, sync_date: date) -> None:
         """清空指定日期的数据"""
         # 删除订单
         await self.db.execute(
-            DailyOrder.__table__.delete().where(DailyOrder.sync_date == sync_date)
+            DailyOrder.__table__.delete().where(DailyOrder.sync_date == sync_date)  # pyright: ignore[reportAttributeAccessIssue]
         )
         # 删除消费记录
         await self.db.execute(
-            DailyConsumption.__table__.delete().where(
+            DailyConsumption.__table__.delete().where(  # pyright: ignore[reportAttributeAccessIssue]
                 DailyConsumption.consumption_date == sync_date
             )
         )
         await self.db.commit()
 
     async def _update_audit_log(
-        self, task: SyncTask, status: str, duration: float, error: str = None
+        self,
+        task: SyncTask,
+        status: str,
+        duration: float,
+        error: str = None,  # pyright: ignore[reportArgumentType]
     ) -> None:
         """更新审计日志"""
         from sqlalchemy import update

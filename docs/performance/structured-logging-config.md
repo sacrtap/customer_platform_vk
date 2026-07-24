@@ -1,7 +1,7 @@
 # 结构化日志配置方案
 
-**项目**: 客户运营中台 (customer_platform_vk)  
-**创建日期**: 2026-04-04  
+**项目**: 客户运营中台 (customer_platform_vk)
+**创建日期**: 2026-04-04
 **状态**: 待实施
 
 ---
@@ -67,18 +67,18 @@ def filter_sensitive_data(
         "refresh_token", "private_key", "encryption_key", "jwt_secret",
         "webhook_secret", "credit_card", "bank_account", "id_card",
     ]
-    
+
     # 检查 event_dict 中的敏感字段
     for field in sensitive_fields:
         if field in event_dict:
             event_dict[field] = "***REDACTED***"
-    
+
     # 检查嵌套数据
     if "data" in event_dict and isinstance(event_dict["data"], dict):
         for field in sensitive_fields:
             if field in event_dict["data"]:
                 event_dict["data"][field] = "***REDACTED***"
-    
+
     return event_dict
 
 
@@ -88,7 +88,7 @@ def setup_logging() -> None:
     """
     # 确定日志级别
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-    
+
     # 开发环境：控制台输出，带颜色
     # 生产环境：JSON 格式，便于日志系统解析
     if settings.APP_ENV == "production":
@@ -98,17 +98,17 @@ def setup_logging() -> None:
                 # 添加时间戳
                 structlog.processors.add_log_level,
                 structlog.processors.TimeStamper(fmt="iso"),
-                
+
                 # 添加请求 ID 和上下文
                 structlog.processors.StackInfoRenderer(),
                 structlog.processors.format_exc_info,
-                
+
                 # 过滤敏感数据
                 filter_sensitive_data,
-                
+
                 # 移除颜色相关键
                 drop_color_message_key,
-                
+
                 # 输出 JSON
                 structlog.processors.JSONRenderer(),
             ],
@@ -139,7 +139,7 @@ def setup_logging() -> None:
 def get_logger(name: str = __name__) -> structlog.BoundLogger:
     """
     获取结构化日志记录器
-    
+
     Usage:
         logger = get_logger(__name__)
         logger.info("用户登录", user_id=123, ip="192.168.1.1")
@@ -173,7 +173,7 @@ async def request_logging_middleware(
 ) -> HTTPResponse:
     """
     请求日志中间件
-    
+
     功能:
     1. 生成唯一请求 ID
     2. 记录请求开始时间
@@ -183,19 +183,19 @@ async def request_logging_middleware(
     # 生成请求 ID
     request_id = str(uuid.uuid4())
     request.ctx.request_id = request_id
-    
+
     # 获取用户信息 (如果已认证)
     user_id = None
     user_email = None
-    
+
     # 尝试从认证中间件获取用户信息
     if hasattr(request.ctx, "user"):
         user_id = getattr(request.ctx.user, "id", None)
         user_email = getattr(request.ctx.user, "email", None)
-    
+
     # 记录请求开始
     start_time = time.time()
-    
+
     logger.info(
         "请求开始",
         request_id=request_id,
@@ -207,21 +207,21 @@ async def request_logging_middleware(
         user_id=user_id,
         user_email=user_email,
     )
-    
+
     try:
         # 处理请求
         response = await call_next(request)
-        
+
         # 计算响应时间
         duration_ms = (time.time() - start_time) * 1000
-        
+
         # 记录响应
         log_level = logging.INFO
         if response.status >= 500:
             log_level = logging.ERROR
         elif response.status >= 400:
             log_level = logging.WARNING
-        
+
         logger.log(
             log_level,
             "请求完成",
@@ -232,7 +232,7 @@ async def request_logging_middleware(
             duration_ms=round(duration_ms, 2),
             user_id=user_id,
         )
-        
+
         # 慢请求告警 (> 2000ms)
         if duration_ms > 2000:
             logger.warning(
@@ -242,13 +242,13 @@ async def request_logging_middleware(
                 duration_ms=round(duration_ms, 2),
                 threshold_ms=2000,
             )
-        
+
         return response
-        
+
     except Exception as e:
         # 记录异常
         duration_ms = (time.time() - start_time) * 1000
-        
+
         logger.error(
             "请求异常",
             request_id=request_id,
@@ -287,18 +287,18 @@ SLOW_QUERY_THRESHOLD = 500
 def setup_db_logging(engine):
     """
     配置数据库查询日志
-    
+
     Args:
         engine: SQLAlchemy 引擎
     """
-    
+
     @event.listens_for(engine, "before_cursor_execute")
     def receive_before_cursor_execute(
         conn, cursor, statement, parameters, context, executemany
     ):
         """记录 SQL 执行开始"""
         conn.info.setdefault("query_start_time", []).append(time.time())
-    
+
     @event.listens_for(engine, "after_cursor_execute")
     def receive_after_cursor_execute(
         conn, cursor, statement, parameters, context, executemany
@@ -306,7 +306,7 @@ def setup_db_logging(engine):
         """记录 SQL 执行完成"""
         total = time.time() - conn.info["query_start_time"].pop(-1)
         duration_ms = total * 1000
-        
+
         # 慢查询日志
         if duration_ms > SLOW_QUERY_THRESHOLD:
             logger.warning(
@@ -345,10 +345,10 @@ logger = get_logger(__name__)
 
 class AuditLogger:
     """审计日志记录器"""
-    
+
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
-    
+
     async def log_action(
         self,
         action: str,
@@ -361,7 +361,7 @@ class AuditLogger:
     ) -> None:
         """
         记录审计日志
-        
+
         Args:
             action: 操作类型 (create/update/delete/approve/reject)
             resource_type: 资源类型 (customer/invoice/balance)
@@ -381,13 +381,13 @@ class AuditLogger:
             "user_agent": user_agent,
             "created_at": datetime.utcnow(),
         }
-        
+
         # 记录到数据库
         await self.db.execute(
             insert("audit_logs"),  # 需要定义 audit_logs 表
             values=audit_data,
         )
-        
+
         # 同时记录到日志系统
         logger.info(
             "审计日志",
@@ -397,7 +397,7 @@ class AuditLogger:
             user_id=user_id,
             changes=changes,
         )
-    
+
     async def log_price_change(
         self,
         customer_id: int,
@@ -417,7 +417,7 @@ class AuditLogger:
                 "after": new_price,
             },
         )
-    
+
     async def log_balance_adjustment(
         self,
         customer_id: int,
@@ -485,13 +485,13 @@ filter {
     match => ["timestamp", "ISO8601"]
     target => "@timestamp"
   }
-  
+
   # 添加环境标签
   mutate {
     add_field => { "environment" => "production" }
     add_field => { "service" => "customer-platform" }
   }
-  
+
   # 过滤敏感数据
   mutate {
     gsub => ["message", "password.*?(?=,|$)", "password=***REDACTED***"]
@@ -558,19 +558,19 @@ audit_action: *
 
 ```sql
 -- 查询某用户的所有操作
-SELECT * FROM audit_logs 
-WHERE user_id = 123 
-ORDER BY created_at DESC 
+SELECT * FROM audit_logs
+WHERE user_id = 123
+ORDER BY created_at DESC
 LIMIT 100;
 
 -- 查询价格变更历史
-SELECT * FROM audit_logs 
-WHERE action = 'price_change' 
+SELECT * FROM audit_logs
+WHERE action = 'price_change'
   AND resource_type = 'customer'
 ORDER BY created_at DESC;
 
 -- 查询某时间段内的余额调整
-SELECT * FROM audit_logs 
+SELECT * FROM audit_logs
 WHERE action = 'balance_adjustment'
   AND created_at BETWEEN '2026-04-01' AND '2026-04-30';
 ```
@@ -601,6 +601,6 @@ WHERE action = 'balance_adjustment'
 
 ---
 
-**预计实施时间**: 1 天  
-**负责人**: 后端开发团队  
+**预计实施时间**: 1 天
+**负责人**: 后端开发团队
 **审核状态**: 待审核

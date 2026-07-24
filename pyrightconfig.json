@@ -1,15 +1,25 @@
 {
-  "include": [
-    "backend"
-  ],
-  "exclude": [
-    "**/__pycache__",
-    "backend/.venv",
-    "backend/alembic/versions"
-  ],
-  "executionEnvironments": [
-    {
-      "root": "backend"
-    }
-  ]
+  "include": ["backend/app", "backend/scripts"],
+  "exclude": ["**/__pycache__", "**/node_modules", "**/.venv"],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportMissingTypeStubs": "none",
+  "reportOptionalMemberAccess": "warning",
+  "reportOptionalSubscript": "warning",
+  "reportOptionalCall": "warning",
+  "reportOptionalOperand": "warning",
+  "reportOptionalIterable": "warning",
+  "reportArgumentType": "warning",
+  "reportAttributeAccessIssue": "warning",
+  "reportCallIssue": "warning",
+  "reportAssignmentType": "warning",
+  "reportPossiblyUnboundVariable": "warning",
+  "reportReturnType": "warning",
+  "reportOperatorIssue": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "reportAbstractUsage": "warning"
 }

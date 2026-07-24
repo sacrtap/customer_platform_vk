@@ -1,7 +1,7 @@
 # 设计文档：is_real_estate 字段迁移至 customers 主表
 
-**创建日期**: 2026-05-26  
-**状态**: 待用户审查  
+**创建日期**: 2026-05-26
+**状态**: 待用户审查
 **作者**: Prometheus + 用户协作
 
 ---
@@ -72,18 +72,18 @@
 ```python
 def upgrade():
     # 1. customers 表新增列
-    op.add_column("customers", 
+    op.add_column("customers",
         sa.Column("is_real_estate", sa.Boolean(), nullable=True, server_default=sa.text("NULL")))
-    
+
     # 2. 从 profile 表复制数据到主表
     op.execute("""
         UPDATE customers SET is_real_estate = (
-            SELECT customer_profiles.is_real_estate 
-            FROM customer_profiles 
+            SELECT customer_profiles.is_real_estate
+            FROM customer_profiles
             WHERE customer_profiles.customer_id = customers.id
         )
         WHERE EXISTS (
-            SELECT 1 FROM customer_profiles 
+            SELECT 1 FROM customer_profiles
             WHERE customer_profiles.customer_id = customers.id
         )
     """)

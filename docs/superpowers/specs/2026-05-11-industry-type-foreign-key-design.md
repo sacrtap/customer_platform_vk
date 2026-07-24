@@ -39,7 +39,7 @@ def upgrade():
     # Step 1: 新增 industry_type_id 列（允许 NULL）
     op.add_column('customer_profiles',
         sa.Column('industry_type_id', sa.Integer(), nullable=True))
-    
+
     # Step 2: 数据回填 - 根据 industry 名称匹配 industry_types.id
     op.execute("""
         UPDATE customer_profiles cp
@@ -47,7 +47,7 @@ def upgrade():
         FROM industry_types it
         WHERE cp.industry = it.name
     """)
-    
+
     # Step 3: 添加外键约束（ON DELETE SET NULL）
     op.create_foreign_key(
         'fk_customer_profiles_industry_type',
@@ -55,7 +55,7 @@ def upgrade():
         ['industry_type_id'], ['id'],
         ondelete='SET NULL'
     )
-    
+
     # Step 4: 删除旧的 industry 列
     op.drop_column('customer_profiles', 'industry')
 
@@ -100,7 +100,7 @@ class CustomerProfile(BaseModel):
     is_real_estate = Column(Boolean, default=False)
     description = Column(Text)
     # ... 其他字段
-    
+
     customer = relationship("Customer", back_populates="profile")
     tags = relationship("ProfileTag", back_populates="profile", lazy="selectin")
 ```
@@ -116,7 +116,7 @@ class CustomerProfile(BaseModel):
     is_real_estate = Column(Boolean, default=False)
     description = Column(Text)
     # ... 其他字段
-    
+
     customer = relationship("Customer", back_populates="profile")
     industry_type = relationship("IndustryType")  # 新增关联
     tags = relationship("ProfileTag", back_populates="profile", lazy="selectin")

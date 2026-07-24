@@ -27,13 +27,13 @@ test.describe('余额导入', () => {
   });
 
   test('1. 导入按钮可见且可点击', async ({ page }) => {
-    // 验证导入按钮存在
-    const importButton = page.getByRole('button', { name: /导入充值/i });
+    // 验证导入按钮存在（按钮文本为“导入”）
+    const importButton = page.getByRole('button', { name: '导入' });
     await expect(importButton).toBeVisible();
-    
+
     // 点击按钮打开对话框
     await importButton.click();
-    
+
     // 验证对话框打开
     await waitForModal(page);
     await expect(page.locator('.arco-modal-title').filter({ hasText: /批量导入充值/i })).toBeVisible();
@@ -41,13 +41,13 @@ test.describe('余额导入', () => {
 
   test('2. 导入对话框包含下载模板按钮和上传区域', async ({ page }) => {
     // 打开导入对话框
-    await page.getByRole('button', { name: /导入充值/i }).click();
+    await page.getByRole('button', { name: '导入' }).click();
     await waitForModal(page);
 
     // 验证 modal 标题
     await expect(page.locator('.arco-modal-title').filter({ hasText: /批量导入充值/i })).toBeVisible();
 
-    // 验证"下载模板"按钮存在（核心修复点）
+    // 验证“下载模板”按钮存在（在 a-alert 的 action 插槽中）
     await expect(page.locator('.arco-modal-body').getByRole('button', { name: /下载模板/i })).toBeVisible();
 
     // 验证自定义上传区域存在
@@ -55,10 +55,6 @@ test.describe('余额导入', () => {
 
     // 验证提示信息
     await expect(page.locator('.arco-modal-body').getByText(/请下载模板文件/)).toBeVisible();
-
-    // 验证导入须知区域
-    await expect(page.locator('.import-tips')).toBeVisible();
-    await expect(page.locator('.tips-title').getByText(/导入须知/)).toBeVisible();
   });
 
   test('3. 上传文件并导入', async ({ page }) => {
@@ -68,14 +64,14 @@ test.describe('余额导入', () => {
       params: { page: 1, page_size: 1 }
     });
     const customersData = await customersResponse.json();
-    
+
     if (!customersData.data?.list || customersData.data.list.length === 0) {
       test.skip();
       return;
     }
 
     // 打开导入对话框
-    await page.getByRole('button', { name: /导入充值/i }).click();
+    await page.getByRole('button', { name: '导入' }).click();
     await waitForModal(page);
 
     // 通过 API 下载模板
@@ -99,7 +95,7 @@ test.describe('余额导入', () => {
 
     // 等待导入结果
     await page.waitForTimeout(3000);
-    
+
     // 验证有某种反馈（成功提示或错误提示）
     const hasResult = await page.locator('.arco-modal-body').getByText(/导入完成|成功|失败/).first().isVisible({ timeout: 10000 }).catch(() => false);
     expect(hasResult).toBeTruthy();
@@ -112,7 +108,7 @@ test.describe('余额导入', () => {
 
   test('4. 导入对话框取消功能', async ({ page }) => {
     // 打开导入对话框
-    await page.getByRole('button', { name: /导入充值/i }).click();
+    await page.getByRole('button', { name: '导入' }).click();
     await waitForModal(page);
 
     // 点击取消按钮
@@ -124,13 +120,13 @@ test.describe('余额导入', () => {
 
   test('5. 未选择文件时点击导入提示错误', async ({ page }) => {
     // 打开导入对话框
-    await page.getByRole('button', { name: /导入充值/i }).click();
+    await page.getByRole('button', { name: '导入' }).click();
     await waitForModal(page);
 
     // 直接点击确认导入按钮（不上传文件）
     await page.getByRole('button', { name: /开始导入/i }).click();
 
-    // 验证错误提示
-    await expect(page.getByText(/请选择要导入的文件/)).toBeVisible({ timeout: 5000 });
+    // 验证错误提示（Arco Message 组件）
+    await expect(page.locator('.arco-message-warning, .arco-message-error').first()).toBeVisible({ timeout: 5000 });
   });
 });

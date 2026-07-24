@@ -50,15 +50,15 @@ check_containers() {
     echo "========================================"
     echo "  1. 检查容器状态"
     echo "========================================"
-    
+
     local containers=$($COMPOSE_CMD -f $COMPOSE_FILE ps --format json 2>/dev/null)
-    
+
     if [ -z "$containers" ]; then
         log_fail "未找到运行的容器"
         FAIL_COUNT=$((FAIL_COUNT + 1))
         return 1
     fi
-    
+
     # 检查数据库容器
     if $COMPOSE_CMD -f $COMPOSE_FILE ps db 2>/dev/null | grep -q "running"; then
         log_pass "数据库容器运行中"
@@ -67,7 +67,7 @@ check_containers() {
         log_fail "数据库容器未运行"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    
+
     # 检查 Redis 容器
     if $COMPOSE_CMD -f $COMPOSE_FILE ps redis 2>/dev/null | grep -q "running"; then
         log_pass "Redis 容器运行中"
@@ -76,7 +76,7 @@ check_containers() {
         log_fail "Redis 容器未运行"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    
+
     # 检查应用容器
     if $COMPOSE_CMD -f $COMPOSE_FILE ps app 2>/dev/null | grep -q "running"; then
         log_pass "应用容器运行中"
@@ -93,12 +93,12 @@ check_health_endpoint() {
     echo "========================================"
     echo "  2. 检查健康端点"
     echo "========================================"
-    
+
     local response
     response=$(curl -s -w "\n%{http_code}" http://localhost:8000/health 2>/dev/null)
     local http_code=$(echo "$response" | tail -n1)
     local body=$(echo "$response" | head -n-1)
-    
+
     if [ "$http_code" = "200" ]; then
         log_pass "健康端点响应正常 (HTTP 200)"
         PASS_COUNT=$((PASS_COUNT + 1))
@@ -107,7 +107,7 @@ check_health_endpoint() {
         FAIL_COUNT=$((FAIL_COUNT + 1))
         return 1
     fi
-    
+
     # 检查响应内容
     if echo "$body" | grep -q '"healthy"'; then
         log_pass "健康状态正确"
@@ -116,7 +116,7 @@ check_health_endpoint() {
         log_fail "健康状态异常"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    
+
     # 显示响应
     echo ""
     log_info "响应内容:"
@@ -129,7 +129,7 @@ check_database() {
     echo "========================================"
     echo "  3. 检查数据库连接"
     echo "========================================"
-    
+
     # 尝试连接数据库
     if command -v psql &> /dev/null; then
         if psql -h localhost -U user -d customer_platform -c "SELECT 1" &>/dev/null; then
@@ -140,10 +140,10 @@ check_database() {
             FAIL_COUNT=$((FAIL_COUNT + 1))
             return 1
         fi
-        
+
         # 检查表是否存在
         local table_count=$(psql -h localhost -U user -d customer_platform -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null | tr -d ' ')
-        
+
         if [ "$table_count" -gt 10 ]; then
             log_pass "数据库表数量正常 ($table_count 张表)"
             PASS_COUNT=$((PASS_COUNT + 1))
@@ -163,7 +163,7 @@ check_redis() {
     echo "========================================"
     echo "  4. 检查 Redis 连接"
     echo "========================================"
-    
+
     if command -v redis-cli &> /dev/null; then
         if redis-cli -h localhost ping 2>/dev/null | grep -q "PONG"; then
             log_pass "Redis 连接正常"
@@ -185,7 +185,7 @@ check_api_endpoints() {
     echo "========================================"
     echo "  5. 检查 API 端点"
     echo "========================================"
-    
+
     # 检查根路径
     local response=$(curl -s http://localhost:8000/ 2>/dev/null)
     if echo "$response" | grep -q "客户运营中台"; then
@@ -195,7 +195,7 @@ check_api_endpoints() {
         log_fail "根路径响应异常"
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
-    
+
     # 检查 CORS
     local cors=$(curl -s -I -X OPTIONS http://localhost:8000/ \
         -H "Origin: http://localhost:5173" \
@@ -215,10 +215,10 @@ check_logs() {
     echo "========================================"
     echo "  6. 检查容器日志"
     echo "========================================"
-    
+
     # 检查应用日志是否有错误
     local error_count=$($COMPOSE_CMD -f $COMPOSE_FILE logs app 2>&1 | grep -ci "error" || echo "0")
-    
+
     if [ "$error_count" -gt 0 ]; then
         log_warn "应用日志中发现 $error_count 个错误"
         WARN_COUNT=$((WARN_COUNT + 1))
@@ -226,10 +226,10 @@ check_logs() {
         log_pass "应用日志无明显错误"
         PASS_COUNT=$((PASS_COUNT + 1))
     fi
-    
+
     # 检查数据库日志
     local db_errors=$($COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | grep -ci "error" || echo "0")
-    
+
     if [ "$db_errors" -gt 0 ]; then
         log_warn "数据库日志中发现 $db_errors 个错误"
         WARN_COUNT=$((WARN_COUNT + 1))
@@ -250,7 +250,7 @@ show_summary() {
     echo -e "  ${RED}失败${NC}: $FAIL_COUNT"
     echo -e "  ${YELLOW}警告${NC}: $WARN_COUNT"
     echo ""
-    
+
     if [ $FAIL_COUNT -gt 0 ]; then
         echo -e "${RED}❌ 验证失败，请检查上述错误${NC}"
         echo ""

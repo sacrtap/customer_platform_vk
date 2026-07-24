@@ -208,7 +208,7 @@ class TestIndustryTypeService_Create:
     async def test_creates_industry_type(self, service, mock_db_session):
         """成功创建行业类型"""
         mock_db_session.refresh = AsyncMock()
-        
+
         result = await service.create("测试行业", 10)
 
         mock_db_session.add.assert_called_once()

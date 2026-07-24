@@ -39,6 +39,12 @@ from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
+# 清除可能已注册的 Sanic app 实例（单元测试可能已导入 app.main 触发模块级 app = create_app()），
+# 避免下方 import app.main 时再次执行 create_app() 报 "already in use" 错误
+from sanic import Sanic  # noqa: E402
+
+Sanic._app_registry.clear()
+
 from app.main import create_app  # noqa: E402
 from app.models.base import BaseModel  # noqa: E402
 

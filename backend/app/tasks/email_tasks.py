@@ -28,8 +28,8 @@ async def send_overdue_emails(session: AsyncSession):
         # 获取所有逾期未付款的结算单
         result = await session.execute(
             select(Invoice)
-            .options(selectinload(Invoice.customer), selectinload(Invoice.created_by_user))
-            .where(Invoice.status == InvoiceStatus.OVERDUE, Invoice.deleted_at.is_(None))
+            .options(selectinload(Invoice.customer), selectinload(Invoice.created_by_user))  # pyright: ignore[reportAttributeAccessIssue]
+            .where(Invoice.status == InvoiceStatus.OVERDUE, Invoice.deleted_at.is_(None))  # pyright: ignore[reportAttributeAccessIssue]
         )
         invoices = result.scalars().all()
 
@@ -42,7 +42,7 @@ async def send_overdue_emails(session: AsyncSession):
         # 按商务分组
         sales_invoices = {}
         for invoice in invoices:
-            creator = invoice.created_by_user
+            creator = invoice.created_by_user  # pyright: ignore[reportAttributeAccessIssue]
             if creator and creator.email:
                 if creator.email not in sales_invoices:
                     sales_invoices[creator.email] = {"user": creator, "invoices": []}
@@ -129,7 +129,7 @@ async def _log_email_task(
     sent_count: int,
     failed_count: int,
     executed_at: datetime,
-    error_message: str = None,
+    error_message: str = None,  # pyright: ignore[reportArgumentType]
 ):
     """记录邮件任务日志"""
     from ..models.billing import SyncTaskLog

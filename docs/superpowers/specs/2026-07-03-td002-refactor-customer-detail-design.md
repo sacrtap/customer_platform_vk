@@ -1,7 +1,7 @@
 # TD-002 Refactor Customer Detail
 
-**Date**: 2026-07-03  
-**Author**: brainstorming session  
+**Date**: 2026-07-03
+**Author**: brainstorming session
 **Status**: Draft for Review
 
 ## Context

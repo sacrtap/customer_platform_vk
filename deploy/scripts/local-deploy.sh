@@ -49,12 +49,12 @@ check_postgres() {
         local version=$(psql --version | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
         local major_version=$(psql --version | grep -oE '[0-9]+' | head -1)
         success "PostgreSQL 已安装 (版本：$version)"
-        
+
         # 检查是否是 Postgres.app
         if pg_config --version 2>/dev/null | grep -q "Postgres.app"; then
             info "检测到 Postgres.app"
         fi
-        
+
         return 0
     fi
     return 1
@@ -70,13 +70,13 @@ install_postgres() {
 # 启动 PostgreSQL 服务
 start_postgres() {
     info "检查 PostgreSQL 服务状态..."
-    
+
     # 检查是否已经在运行
     if pg_isready &>/dev/null; then
         success "PostgreSQL 服务已在运行"
         return 0
     fi
-    
+
     # 检查是否是 Postgres.app
     if pg_config --version 2>/dev/null | grep -q "Postgres.app"; then
         info "Postgres.app 已安装，请确保应用已启动"
@@ -94,7 +94,7 @@ start_postgres() {
         brew services start postgresql 2>/dev/null || \
         warning "无法通过 brew services 启动，请手动启动 PostgreSQL"
     fi
-    
+
     # 等待服务启动
     info "等待数据库就绪..."
     for i in {1..10}; do
@@ -104,29 +104,29 @@ start_postgres() {
         fi
         sleep 1
     done
-    
+
     warning "数据库可能未就绪，但将继续尝试..."
 }
 
 # 创建数据库
 create_databases() {
     info "创建数据库..."
-    
+
     # 删除已存在的数据库
     dropdb ${DB_NAME} 2>/dev/null || true
     dropdb ${DB_TEST_NAME} 2>/dev/null || true
-    
+
     # 创建新数据库
     createdb ${DB_NAME}
     createdb ${DB_TEST_NAME}
-    
+
     success "数据库已创建：${DB_NAME}, ${DB_TEST_NAME}"
 }
 
 # 验证数据库连接
 verify_connection() {
     info "验证数据库连接..."
-    
+
     if psql -d ${DB_NAME} -c "SELECT version();" &>/dev/null; then
         success "数据库连接正常"
     else
@@ -138,34 +138,34 @@ verify_connection() {
 # 运行数据库迁移
 run_migrations() {
     info "运行数据库迁移 (Alembic)..."
-    
+
     cd backend
     source .venv/bin/activate
-    
+
     export DATABASE_URL="postgresql://localhost/${DB_NAME}"
-    
+
     python -m alembic upgrade head
-    
+
     deactivate
     cd ..
-    
+
     success "数据库迁移完成"
 }
 
 # 创建测试数据
 create_test_data() {
     info "创建测试数据..."
-    
+
     cd backend
     source .venv/bin/activate
-    
+
     export DATABASE_URL="postgresql://localhost/${DB_NAME}"
-    
+
     python scripts/create_test_data.py
-    
+
     deactivate
     cd ..
-    
+
     success "测试数据已创建"
 }
 
@@ -204,10 +204,10 @@ main() {
     echo "   客户运营中台 - 本地部署"
     echo "======================================"
     echo ""
-    
+
     # 检查 Homebrew
     check_brew
-    
+
     # 检查/安装 PostgreSQL
     if check_postgres; then
         # PostgreSQL 已安装，检查版本
@@ -223,22 +223,22 @@ main() {
     else
         install_postgres
     fi
-    
+
     # 启动服务
     start_postgres
-    
+
     # 创建数据库
     create_databases
-    
+
     # 验证连接
     verify_connection
-    
+
     # 运行迁移
     run_migrations
-    
+
     # 创建测试数据
     create_test_data
-    
+
     # 显示信息
     show_info
 }

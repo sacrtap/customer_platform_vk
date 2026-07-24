@@ -91,8 +91,8 @@ class IndustryTypeService:
         if existing:
             raise ValueError(f"行业类型名称 '{name}' 已存在")
 
-        industry_type.name = name
-        industry_type.sort_order = sort_order
+        industry_type.name = name  # pyright: ignore[reportAttributeAccessIssue]
+        industry_type.sort_order = sort_order  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db_session.commit()
         await self.db_session.refresh(industry_type)
@@ -114,7 +114,7 @@ class IndustryTypeService:
         # 注意：BaseModel.deleted_at 使用 TIMESTAMP WITHOUT TIME ZONE
         # 因此使用 datetime.utcnow() 而非 datetime.now(timezone.utc)
         # 以避免时区转换问题
-        industry_type.deleted_at = datetime.utcnow()
+        industry_type.deleted_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db_session.commit()
 
         return True

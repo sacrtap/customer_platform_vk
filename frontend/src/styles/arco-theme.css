@@ -1,26 +1,50 @@
-/* Arco Design 主题覆盖 - 统一使用设计系统颜色 */
+/* Arco Design 主题覆盖 — 来源: prototype/design.md + prototype/index.html
+   主色: #1D4ED8 (var(--primary))
+   渐变: linear-gradient(135deg, #1D4ED8, #2563EB)
+
+   ⚠️ 注意: Arco Design 组件内部会覆盖 --primary-2 / --primary-7 等 CSS 变量
+   （Arco 的 --primary-2 是浅色 #BEDAFF，与我们的 #2563EB 冲突）
+   因此在 button 相关规则中必须使用硬编码 hex 值，不能使用 var(--primary-2)
+*/
+
+/* Set --primary-6 for Arco Design theme */
+:root {
+  --primary-6: #1d4ed8;
+}
 
 /* ==========================================
-   主色覆盖 (Design System Primary: #0F172A)
+   Button — 通用圆角覆盖
    ========================================== */
 
-/* Primary Button */
+.arco-btn {
+  border-radius: 12px !important;
+}
+
+/* ==========================================
+   Primary Button — 渐变主色
+   ========================================== */
+
 .arco-btn-primary {
-  background-color: #0f172a !important;
-  border-color: #0f172a !important;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+  border-color: #1d4ed8 !important;
   color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.25) !important;
 }
 
 .arco-btn-primary:hover {
-  background-color: #1e293b !important;
-  border-color: #1e293b !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  border-color: #2563eb !important;
   color: white !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.35) !important;
 }
 
 .arco-btn-primary:active {
-  background-color: #020617 !important;
-  border-color: #020617 !important;
+  background: #1e40af !important;
+  border-color: #1e40af !important;
   color: white !important;
+  transform: translateY(0) !important;
 }
 
 /* Primary Button - Loading State */
@@ -32,118 +56,286 @@
 /* Primary Button - Disabled State */
 .arco-btn-primary.arco-btn-disabled,
 .arco-btn-primary[disabled] {
-  background-color: #64748b !important;
-  border-color: #64748b !important;
+  background: #93a4b8 !important;
+  border-color: #93a4b8 !important;
   color: white !important;
   opacity: 0.6 !important;
   cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* ==========================================
-   其他组件主色覆盖
+   Secondary Button (Outline)
    ========================================== */
 
-/* Progress Bar */
-.arco-progress-bar .arco-progress-bar-bg {
-  background-color: #0f172a !important;
+.arco-btn-secondary {
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  background: white !important;
+  border-radius: 12px !important;
 }
 
-/* Radio & Checkbox */
-.arco-radio-checked .arco-radio-icon {
-  border-color: #0f172a !important;
-  background-color: #0f172a !important;
+.arco-btn-secondary:hover {
+  border-color: #93c5fd !important;
+  color: var(--primary) !important;
+  background: #eff6ff !important;
 }
 
-.arco-checkbox-checked .arco-checkbox-icon {
-  border-color: #0f172a !important;
-  background-color: #0f172a !important;
-}
+/* ==========================================
+   Input / Textarea Focus
+   ========================================== */
 
-/* Switch */
-.arco-switch-checked .arco-switch-button {
-  background-color: #0f172a !important;
-}
-
-/* Input Focus */
 .arco-input-focus .arco-input-wrapper,
 .arco-input-wrapper:hover,
 .arco-textarea:focus,
 .arco-textarea:hover {
-  border-color: #0f172a !important;
+  border-color: var(--primary) !important;
+}
+
+.arco-input-focus .arco-input-wrapper,
+.arco-select-focused .arco-select-view {
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1) !important;
 }
 
 /* Select & Cascader */
 .arco-select-focused .arco-select-view,
 .arco-cascader-focused .arco-cascader-view {
-  border-color: #0f172a !important;
-}
-
-/* Pagination */
-.arco-pagination-item-active {
-  background-color: #0f172a !important;
-  border-color: #0f172a !important;
-  color: white !important;
-}
-
-/* Tag Primary */
-.arco-tag-primary {
-  background-color: #e8f3ff !important;
-  border-color: #0f172a !important;
-  color: #0f172a !important;
-}
-
-/* Alert Info */
-.arco-alert-info {
-  background-color: #e8f3ff !important;
-  border-color: #0f172a !important;
-  color: #0f172a !important;
-}
-
-/* Modal Header */
-.arco-modal-header {
-  border-bottom-color: #eef0f3 !important;
-}
-
-/* Badge */
-.arco-badge-status-dot.arco-badge-status-primary {
-  background-color: #0f172a !important;
-}
-
-/* Tooltip */
-.arco-tooltip-content {
-  background-color: #0f172a !important;
+  border-color: var(--primary) !important;
 }
 
 /* ==========================================
-   强调色/CTA 色 (#0369A1) 用于特殊场景
+   Radio & Checkbox
    ========================================== */
 
-/* 保留 Arco 的 blue-6 作为强调色，用于链接、次要操作等 */
-/* 排除侧边栏子菜单，保持白色 */
+.arco-radio-checked .arco-radio-icon {
+  border-color: var(--primary) !important;
+  background-color: var(--primary) !important;
+}
+
+.arco-checkbox-checked .arco-checkbox-icon {
+  border-color: var(--primary) !important;
+  background-color: var(--primary) !important;
+}
+
+/* ==========================================
+   Switch
+   ========================================== */
+
+.arco-switch-checked .arco-switch-button {
+  background-color: var(--primary) !important;
+}
+
+/* ==========================================
+   Progress Bar
+   ========================================== */
+
+.arco-progress-bar .arco-progress-bar-bg {
+  background-color: var(--primary) !important;
+}
+
+/* ==========================================
+   Pagination
+   ========================================== */
+
+.arco-pagination-item-active {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: white !important;
+}
+
+/* ==========================================
+   Tag
+   ========================================== */
+
+.arco-tag-primary {
+  background-color: #dbeafe !important;
+  border-color: #bfdbfe !important;
+  color: var(--primary) !important;
+}
+
+/* ==========================================
+   Link
+   ========================================== */
+
 .arco-link,
-a:not(.nav-subitem) {
-  color: #0369a1 !important;
+a:not(.nav-subitem):not(.nav-parent):not(.nav-btn) {
+  color: var(--primary) !important;
 }
 
 .arco-link:hover,
-a:not(.nav-subitem):hover {
-  color: #0284c7 !important;
+a:not(.nav-subitem):not(.nav-parent):not(.nav-btn):hover {
+  color: #2563eb !important;
 }
 
-/* 确保侧边栏子菜单文字为白色（覆盖全局 a 标签样式） */
+/* Ensure sidebar links remain white */
 .sidebar .nav-subitem,
-.sidebar .nav-subitem * {
-  color: #ffffff !important;
+.sidebar .nav-subitem *,
+.sidebar .nav-parent,
+.sidebar .nav-parent *,
+.sidebar .nav-btn,
+.sidebar .nav-btn * {
+  color: #cbd5e1 !important;
 }
 
-/* Secondary Button (Outline) 使用强调色 */
-.arco-btn-secondary {
-  border-color: #0369a1 !important;
-  color: #0369a1 !important;
+.sidebar .nav-parent.active,
+.sidebar .nav-parent.active *,
+.sidebar .nav-btn.active,
+.sidebar .nav-btn.active * {
+  color: white !important;
 }
 
-.arco-btn-secondary:hover {
-  border-color: #0284c7 !important;
-  color: #0284c7 !important;
-  background-color: #e8f3ff !important;
+/* ==========================================
+   Alert Info
+   ========================================== */
+
+.arco-alert-info {
+  background-color: #dbeafe !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+/* ==========================================
+   Modal
+   ========================================== */
+
+.arco-modal-header {
+  border-bottom-color: var(--line) !important;
+}
+
+.arco-modal {
+  border-radius: 18px !important;
+}
+
+/* ==========================================
+   Badge
+   ========================================== */
+
+.arco-badge-status-dot.arco-badge-status-primary {
+  background-color: var(--primary) !important;
+}
+
+/* ==========================================
+   Tooltip
+   ========================================== */
+
+.arco-tooltip-content {
+  background-color: var(--ink) !important;
+}
+
+/* ==========================================
+   Tabs (Pill Style)
+   ========================================== */
+
+.arco-tabs-tab-active {
+  color: var(--primary) !important;
+}
+
+.arco-tabs-tab-active .arco-tabs-tab-title {
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+
+.arco-tabs-nav::before {
+  border-bottom-color: var(--line) !important;
+}
+
+.arco-tabs-ink {
+  background-color: var(--primary) !important;
+}
+
+/* ==========================================
+   Form Labels
+   ========================================== */
+
+.arco-form-item-label {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+}
+
+/* ==========================================
+   Table Header
+   ========================================== */
+
+.arco-table-th {
+  background-color: #f8fafc !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.arco-table-tr:hover .arco-table-td {
+  background-color: #f8fbff !important;
+}
+
+/* ==========================================
+   Card
+   ========================================== */
+
+.arco-card {
+  border-radius: 18px !important;
+  border-color: var(--line) !important;
+}
+
+/* ==========================================
+   Table Action Column Buttons
+   匹配 prototype/index.html 的紧凑 .btn 样式
+   原型: <button class="btn" style="padding:4px 10px;font-size:12px">
+   白底 + 边框 + 12px 字号 + 紧凑 padding
+   ⚠️ 覆盖所有 type（text/primary/outline）使表格内按钮统一
+   ========================================== */
+
+.arco-table .arco-btn-size-small {
+  border: 1px solid var(--line) !important;
+  background: white !important;
+  background-image: none !important;
+  color: var(--ink) !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.arco-table .arco-btn-size-small:hover {
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+  background-image: none !important;
+  color: #1d4ed8 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.arco-table .arco-btn-size-small:active {
+  background: #dbeafe !important;
+  background-image: none !important;
+  border-color: #93c5fd !important;
+  transform: none !important;
+}
+
+/* Danger buttons in tables — 红色文字 + 浅红边框 */
+.arco-table .arco-btn-status-danger.arco-btn-size-small {
+  color: #dc2626 !important;
+  border-color: #fca5a5 !important;
+  background: white !important;
+}
+
+.arco-table .arco-btn-status-danger.arco-btn-size-small:hover {
+  background: #fef2f2 !important;
+  border-color: #dc2626 !important;
+  color: #dc2626 !important;
+}
+
+/* Disabled buttons in tables */
+.arco-table .arco-btn-size-small.arco-btn-disabled,
+.arco-table .arco-btn-size-small[disabled] {
+  background: #f1f5f9 !important;
+  border-color: var(--line) !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  opacity: 0.7 !important;
 }

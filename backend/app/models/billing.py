@@ -21,14 +21,25 @@ from .base import BaseModel
 
 
 class InvoiceStatus(str, Enum):
-    """结算单状态枚举"""
+    """结算单状态枚举
 
-    DRAFT = "draft"
-    PENDING_CUSTOMER = "pending_customer"
-    CUSTOMER_CONFIRMED = "customer_confirmed"
-    PAID = "paid"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
+    新流程（多角色协作）：
+        draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
+
+    旧流程（兼容历史数据）：
+        draft → pending_customer → customer_confirmed → paid → completed
+
+    任意非 completed 状态均可 → cancelled
+    """
+
+    DRAFT = "draft"  # 草稿（生成）
+    PENDING_OPS = "pending_ops"  # 待运营经理确认
+    PENDING_SALES = "pending_sales"  # 待销售经理确认
+    PENDING_CUSTOMER = "pending_customer"  # 待客户确认（线下）
+    CUSTOMER_CONFIRMED = "customer_confirmed"  # 客户已确认（自动扣款中/扣款失败可重试）
+    PAID = "paid"  # 已付款（旧流程兼容）
+    COMPLETED = "completed"  # 已完成（扣款成功）
+    CANCELLED = "cancelled"  # 已取消
 
 
 class CustomerBalance(BaseModel):
@@ -103,17 +114,26 @@ class Invoice(BaseModel):
     # final_amount = total_amount - discount_amount
     status = Column(
         String(20), default="draft", index=True
-    )  # draft/pending_customer/customer_confirmed/paid/completed/cancelled
+    )  # draft/pending_ops/pending_sales/pending_customer/customer_confirmed/paid/completed/cancelled
     approver_id = Column(Integer, ForeignKey("users.id"))
     approved_at = Column(String(50))
     discount_applied_at = Column(String(50))  # 折扣申请时间
     customer_confirmed_at = Column(String(50))
+    customer_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 客户确认操作人
     payment_proof = Column(String(255))
     paid_at = Column(String(50))
     completed_at = Column(String(50))
+    completed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 完成结算操作人
     cancelled_at = Column(String(50))  # 取消时间
+    cancelled_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 取消操作人
     is_auto_generated = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"))
+
+    # 多角色协作确认追踪
+    ops_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 运营经理确认人
+    ops_confirmed_at = Column(String(50), nullable=True)  # 运营经理确认时间
+    sales_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 销售经理确认人
+    sales_confirmed_at = Column(String(50), nullable=True)  # 销售经理确认时间
 
     # 关联
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
@@ -195,6 +215,34 @@ class SyncTaskLog(BaseModel):
         String(20),
         nullable=True,
         comment="同步模式: skip_existing/force_overwrite",
+    )
+
+
+class PackagePlan(BaseModel):
+    """包年套餐表
+
+    管理包年结算的套餐明细，支持"限量"和"不限量"两种模式。
+    与 PricingRule.package_type 通过 package_type 字段关联。
+    """
+
+    __tablename__ = "package_plans"
+
+    name = Column(String(100), nullable=False, comment="套餐名称")  # 如 "A 套餐"
+    package_type = Column(
+        String(20), nullable=False, unique=True, index=True, comment="套餐类型标识"
+    )  # 如 A/B/C/D
+    device_type = Column(String(20), nullable=True, comment="设备类型 (X/N/L)，为空表示通用")
+    layer_type = Column(String(20), nullable=True, comment="楼层类型 (single/multi)，为空表示通用")
+    is_unlimited = Column(
+        Boolean, default=False, nullable=False, comment="是否不限量：true=不限量，false=限量"
+    )
+    limit_count = Column(
+        Integer, nullable=True, comment="限量数量（is_unlimited=false 时必填，否则为空）"
+    )
+    base_fee = Column(DECIMAL(12, 2), nullable=False, comment="套餐基础费用（年费）")
+    description = Column(Text, nullable=True, comment="套餐描述")
+    status = Column(
+        String(20), default="active", nullable=False, index=True, comment="状态：active/inactive"
     )
 
 

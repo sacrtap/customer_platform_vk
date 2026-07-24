@@ -24,7 +24,7 @@ withDefaults(
   background: white;
   border-radius: 12px;
   padding: 20px 16px;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   overflow: hidden;
 }
 
@@ -38,11 +38,11 @@ withDefaults(
   height: 16px;
   background: linear-gradient(
     90deg,
-    var(--neutral-1) 0%,
-    var(--neutral-2) 25%,
-    var(--neutral-1) 50%,
-    var(--neutral-2) 75%,
-    var(--neutral-1) 100%
+    var(--bg) 0%,
+    var(--soft) 25%,
+    var(--bg) 50%,
+    var(--soft) 75%,
+    var(--bg) 100%
   );
   background-size: 400% 100%;
   border-radius: 4px;
@@ -78,7 +78,7 @@ withDefaults(
 @media (prefers-reduced-motion: reduce) {
   .skeleton-line {
     animation: none;
-    background: var(--neutral-2);
+    background: var(--soft);
   }
 }
 </style>

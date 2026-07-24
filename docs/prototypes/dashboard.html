@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>仪表盘 - 客户运营中台</title>
-    
+
     <!-- Google Fonts: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <style>
         :root {
             /* Enterprise Color Palette */
@@ -20,19 +20,19 @@
             --primary-5: #3296f7;
             --primary-6: #0369A1;
             --primary-7: #035a8a;
-            
+
             --success-1: #e8ffea;
             --success-5: #4ade80;
             --success-6: #22c55e;
-            
+
             --warning-1: #fff7e8;
             --warning-5: #fbbf24;
             --warning-6: #f59e0b;
-            
+
             --danger-1: #ffe8e8;
             --danger-5: #f87171;
             --danger-6: #ef4444;
-            
+
             --neutral-1: #f7f8fa;
             --neutral-2: #eef0f3;
             --neutral-3: #e0e2e7;
@@ -43,34 +43,34 @@
             --neutral-8: #3b4252;
             --neutral-9: #2f3645;
             --neutral-10: #1d2330;
-            
+
             /* Layout */
             --sidebar-width: 260px;
             --sidebar-collapsed-width: 64px;
             --header-height: 64px;
-            
+
             /* Shadows */
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
             --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
             --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
-            
+
             /* Transitions */
             --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
             --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--neutral-1);
             min-height: 100vh;
         }
-        
+
         /* Sidebar */
         .sidebar {
             position: fixed;
@@ -85,11 +85,11 @@
             transition: width var(--transition-base);
             overflow: hidden;
         }
-        
+
         .sidebar.collapsed {
             width: var(--sidebar-collapsed-width);
         }
-        
+
         .sidebar-logo {
             height: var(--header-height);
             display: flex;
@@ -99,12 +99,12 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             flex-shrink: 0;
         }
-        
+
         .sidebar.collapsed .sidebar-logo {
             padding: 0 16px;
             justify-content: center;
         }
-        
+
         .logo-icon {
             width: 36px;
             height: 36px;
@@ -116,13 +116,13 @@
             box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
             flex-shrink: 0;
         }
-        
+
         .logo-icon svg {
             width: 22px;
             height: 22px;
             color: white;
         }
-        
+
         .logo-text {
             font-size: 16px;
             font-weight: 700;
@@ -131,32 +131,32 @@
             white-space: nowrap;
             transition: opacity var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .logo-text {
             opacity: 0;
             width: 0;
             overflow: hidden;
         }
-        
+
         .sidebar-nav {
             flex: 1;
             padding: 16px 12px;
             overflow-y: auto;
             overflow-x: hidden;
         }
-        
+
         .sidebar.collapsed .sidebar-nav {
             padding: 16px 8px;
         }
-        
+
         .nav-section {
             margin-bottom: 24px;
         }
-        
+
         .sidebar.collapsed .nav-section {
             margin-bottom: 16px;
         }
-        
+
         .nav-section-title {
             font-size: 11px;
             font-weight: 600;
@@ -169,13 +169,13 @@
             overflow: hidden;
             transition: opacity var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .nav-section-title {
             opacity: 0;
             width: 0;
             padding: 0;
         }
-        
+
         .nav-item {
             display: flex;
             align-items: center;
@@ -190,33 +190,33 @@
             position: relative;
             white-space: nowrap;
         }
-        
+
         .sidebar.collapsed .nav-item {
             padding: 12px;
         }
-        
+
         /* Ensure icon is always centered in collapsed state */
         .sidebar.collapsed .nav-item-icon {
             margin: 0 auto;
         }
-        
+
         .sidebar.collapsed .nav-item-label,
         .sidebar.collapsed .nav-item-badge,
         .sidebar.collapsed .nav-item-arrow {
             display: none;
         }
-        
+
         .nav-item:hover {
             background: rgba(255, 255, 255, 0.08);
             color: white;
         }
-        
+
         .nav-item.active {
             background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
             color: white;
             box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
         }
-        
+
         .nav-item-icon {
             width: 20px;
             height: 20px;
@@ -225,24 +225,24 @@
             justify-content: center;
             flex-shrink: 0;
         }
-        
+
         .nav-item-icon svg {
             width: 18px;
             height: 18px;
         }
-        
+
         .nav-item-label {
             font-size: 14px;
             font-weight: 500;
             transition: opacity var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .nav-item-label {
             opacity: 0;
             width: 0;
             overflow: hidden;
         }
-        
+
         .nav-item-badge {
             margin-left: auto;
             padding: 2px 8px;
@@ -254,7 +254,7 @@
             flex-shrink: 0;
             transition: all var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .nav-item-badge {
             opacity: 0;
             width: 0;
@@ -262,7 +262,7 @@
             margin: 0;
             padding: 0;
         }
-        
+
         /* Nav Item Expand Arrow */
         .nav-item-arrow {
             margin-left: auto;
@@ -272,18 +272,18 @@
             transition: transform var(--transition-fast);
             flex-shrink: 0;
         }
-        
+
         .sidebar.collapsed .nav-item-arrow {
             opacity: 0;
             width: 0;
             overflow: hidden;
             margin: 0;
         }
-        
+
         .nav-item.expanded .nav-item-arrow {
             transform: rotate(90deg);
         }
-        
+
         /* Submenu */
         .nav-submenu {
             margin-top: 4px;
@@ -291,16 +291,16 @@
             overflow: hidden;
             transition: all var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .nav-submenu {
             display: none;
         }
-        
+
         .nav-submenu.collapsed {
             max-height: 0;
             margin-top: 0;
         }
-        
+
         .nav-subitem {
             display: flex;
             align-items: center;
@@ -313,21 +313,21 @@
             transition: all var(--transition-fast);
             margin-bottom: 2px;
         }
-        
+
         .sidebar.collapsed .nav-subitem {
             padding: 10px;
         }
-        
+
         .nav-subitem:hover {
             background: rgba(255, 255, 255, 0.06);
             color: white;
         }
-        
+
         .nav-subitem.active {
             color: var(--primary-3);
             background: rgba(3, 105, 161, 0.2);
         }
-        
+
         .nav-subitem::before {
             content: '';
             width: 6px;
@@ -336,7 +336,7 @@
             background: currentColor;
             flex-shrink: 0;
         }
-        
+
         .sidebar-user {
             padding: 12px 16px;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -348,7 +348,7 @@
             transition: all var(--transition-fast);
             position: relative;
         }
-        
+
         .sidebar-user-info {
             display: flex;
             align-items: center;
@@ -356,15 +356,15 @@
             flex: 1;
             overflow: hidden;
         }
-        
+
         .sidebar.collapsed .sidebar-user {
             overflow: visible;
         }
-        
+
         .sidebar.collapsed .sidebar-user-info {
             display: none;
         }
-        
+
         .user-avatar {
             width: 40px;
             height: 40px;
@@ -378,32 +378,32 @@
             font-size: 16px;
             flex-shrink: 0;
         }
-        
+
         .user-info {
             flex: 1;
             overflow: hidden;
             transition: opacity var(--transition-fast);
         }
-        
+
         .sidebar.collapsed .user-info {
             opacity: 0;
             width: 0;
         }
-        
+
         .user-name {
             font-size: 14px;
             font-weight: 600;
             color: white;
             white-space: nowrap;
         }
-        
+
         .user-role {
             font-size: 12px;
             color: rgba(255, 255, 255, 0.5);
             margin-top: 2px;
             white-space: nowrap;
         }
-        
+
         /* Sidebar Toggle Button - Redesigned */
         .sidebar-toggle {
             width: 32px;
@@ -418,34 +418,34 @@
             transition: all var(--transition-fast);
             flex-shrink: 0;
         }
-        
+
         .sidebar-toggle:hover {
             background: rgba(255, 255, 255, 0.15);
             border-color: rgba(255, 255, 255, 0.25);
         }
-        
+
         .sidebar-toggle:active {
             transform: scale(0.95);
         }
-        
+
         .sidebar-toggle svg {
             width: 16px;
             height: 16px;
             color: rgba(255, 255, 255, 0.6);
             transition: transform var(--transition-fast);
         }
-        
+
         .sidebar-toggle:hover svg {
             color: white;
         }
-        
+
         /* Sidebar collapsed state - toggle button positioning */
         .sidebar.collapsed .sidebar-user {
             padding: 12px 8px;
             justify-content: center;
             overflow: visible;
         }
-        
+
         .sidebar.collapsed .sidebar-toggle {
             position: absolute;
             right: -14px;
@@ -453,57 +453,57 @@
             transform: translateY(-50%) rotate(180deg);
             z-index: 10;
         }
-        
+
         .sidebar.collapsed .sidebar-toggle:hover {
             transform: translateY(-50%) rotate(180deg) scale(1.05);
         }
-        
+
         .sidebar.collapsed .sidebar-toggle {
             position: relative;
             transform: rotate(180deg);
             right: auto;
             top: auto;
         }
-        
+
         .sidebar.collapsed .sidebar-toggle:hover {
             transform: rotate(180deg) scale(1.05);
         }
-        
+
         .sidebar-toggle:hover {
             background: rgba(255, 255, 255, 0.15);
             border-color: rgba(255, 255, 255, 0.25);
         }
-        
+
         .sidebar-toggle:active {
             transform: scale(0.95);
         }
-        
+
         .sidebar.collapsed .sidebar-toggle:hover {
             transform: translateY(-50%) rotate(180deg) scale(1.05);
         }
-        
+
         .sidebar-toggle svg {
             width: 16px;
             height: 16px;
             color: rgba(255, 255, 255, 0.6);
             transition: transform var(--transition-fast);
         }
-        
+
         .sidebar-toggle:hover svg {
             color: white;
         }
-        
+
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
             transition: margin-left var(--transition-base);
         }
-        
+
         .sidebar.collapsed ~ .main-content {
             margin-left: var(--sidebar-collapsed-width);
         }
-        
+
         /* Header */
         .header {
             height: var(--header-height);
@@ -518,19 +518,19 @@
             z-index: 50;
             box-shadow: var(--shadow-sm);
         }
-        
+
         .header-left {
             display: flex;
             align-items: center;
             gap: 20px;
         }
-        
+
         .header-title {
             font-size: 20px;
             font-weight: 700;
             color: var(--neutral-10);
         }
-        
+
         .header-breadcrumb {
             display: flex;
             align-items: center;
@@ -538,23 +538,23 @@
             font-size: 13px;
             color: var(--neutral-5);
         }
-        
+
         .header-breadcrumb a {
             color: var(--neutral-5);
             text-decoration: none;
         }
-        
+
         .header-breadcrumb .current {
             color: var(--neutral-7);
             font-weight: 500;
         }
-        
+
         .header-right {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        
+
         /* Header Action with Tooltip */
         .header-action {
             width: 40px;
@@ -568,17 +568,17 @@
             transition: all var(--transition-fast);
             position: relative;
         }
-        
+
         .header-action:hover {
             background: var(--neutral-1);
             color: var(--neutral-9);
         }
-        
+
         .header-action svg {
             width: 20px;
             height: 20px;
         }
-        
+
         .action-badge {
             position: absolute;
             top: 8px;
@@ -589,7 +589,7 @@
             border-radius: 50%;
             border: 2px solid white;
         }
-        
+
         /* Tooltip */
         .tooltip {
             position: absolute;
@@ -610,7 +610,7 @@
             z-index: 1000;
             box-shadow: var(--shadow-md);
         }
-        
+
         .tooltip::before {
             content: '';
             position: absolute;
@@ -621,25 +621,25 @@
             background: var(--neutral-10);
             transform: rotate(45deg);
         }
-        
+
         .header-action:hover .tooltip {
             opacity: 1;
             visibility: visible;
             transform: translateY(0);
         }
-        
+
         .header-divider {
             width: 1px;
             height: 24px;
             background: var(--neutral-2);
             margin: 0 4px;
         }
-        
+
         /* Page Content */
         .page-content {
             padding: 32px;
         }
-        
+
         /* Stats Grid */
         .stats-grid {
             display: grid;
@@ -647,7 +647,7 @@
             gap: 24px;
             margin-bottom: 32px;
         }
-        
+
         .stat-card {
             background: white;
             border-radius: 16px;
@@ -658,7 +658,7 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .stat-card::before {
             content: '';
             position: absolute;
@@ -668,37 +668,37 @@
             height: 3px;
             background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
         }
-        
+
         .stat-card.success::before {
             background: linear-gradient(90deg, var(--success-5) 0%, var(--success-6) 100%);
         }
-        
+
         .stat-card.warning::before {
             background: linear-gradient(90deg, var(--warning-5) 0%, var(--warning-6) 100%);
         }
-        
+
         .stat-card.danger::before {
             background: linear-gradient(90deg, var(--danger-5) 0%, var(--danger-6) 100%);
         }
-        
+
         .stat-card:hover {
             box-shadow: var(--shadow-md);
             transform: translateY(-2px);
         }
-        
+
         .stat-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
         }
-        
+
         .stat-title {
             font-size: 14px;
             font-weight: 500;
             color: var(--neutral-6);
         }
-        
+
         .stat-icon {
             width: 40px;
             height: 40px;
@@ -707,39 +707,39 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .stat-icon.primary {
             background: var(--primary-1);
             color: var(--primary-6);
         }
-        
+
         .stat-icon.success {
             background: var(--success-1);
             color: var(--success-6);
         }
-        
+
         .stat-icon.warning {
             background: var(--warning-1);
             color: var(--warning-6);
         }
-        
+
         .stat-icon.danger {
             background: var(--danger-1);
             color: var(--danger-6);
         }
-        
+
         .stat-icon svg {
             width: 22px;
             height: 22px;
         }
-        
+
         .stat-value {
             font-size: 32px;
             font-weight: 700;
             color: var(--neutral-10);
             margin-bottom: 8px;
         }
-        
+
         .stat-change {
             display: flex;
             align-items: center;
@@ -747,22 +747,22 @@
             font-size: 13px;
             font-weight: 500;
         }
-        
+
         .stat-change.positive {
             color: var(--success-6);
         }
-        
+
         .stat-change.negative {
             color: var(--danger-6);
         }
-        
+
         /* Dashboard Grid */
         .dashboard-grid {
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 24px;
         }
-        
+
         /* Cards */
         .card {
             background: white;
@@ -771,7 +771,7 @@
             box-shadow: var(--shadow-sm);
             overflow: hidden;
         }
-        
+
         .card-header {
             display: flex;
             justify-content: space-between;
@@ -779,22 +779,22 @@
             padding: 20px 24px;
             border-bottom: 1px solid var(--neutral-2);
         }
-        
+
         .card-title {
             font-size: 16px;
             font-weight: 600;
             color: var(--neutral-10);
         }
-        
+
         .card-actions {
             display: flex;
             gap: 8px;
         }
-        
+
         .card-body {
             padding: 24px;
         }
-        
+
         /* Chart Placeholder */
         .chart-placeholder {
             height: 300px;
@@ -806,17 +806,17 @@
             color: var(--primary-6);
             font-size: 14px;
         }
-        
+
         /* Table */
         .table-container {
             overflow-x: auto;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         th {
             text-align: left;
             padding: 12px 16px;
@@ -826,22 +826,22 @@
             background: var(--neutral-1);
             border-bottom: 1px solid var(--neutral-2);
         }
-        
+
         td {
             padding: 16px;
             font-size: 14px;
             color: var(--neutral-7);
             border-bottom: 1px solid var(--neutral-2);
         }
-        
+
         tr:last-child td {
             border-bottom: none;
         }
-        
+
         tr:hover td {
             background: var(--neutral-1);
         }
-        
+
         /* Status Badge */
         .status-badge {
             display: inline-flex;
@@ -852,34 +852,34 @@
             font-size: 12px;
             font-weight: 500;
         }
-        
+
         .status-badge.success {
             background: var(--success-1);
             color: var(--success-6);
         }
-        
+
         .status-badge.warning {
             background: var(--warning-1);
             color: var(--warning-6);
         }
-        
+
         .status-badge.danger {
             background: var(--danger-1);
             color: var(--danger-6);
         }
-        
+
         .status-badge.info {
             background: var(--primary-1);
             color: var(--primary-6);
         }
-        
+
         .status-dot {
             width: 6px;
             height: 6px;
             border-radius: 50%;
             background: currentColor;
         }
-        
+
         /* Progress Bar */
         .progress-bar {
             height: 6px;
@@ -887,14 +887,14 @@
             border-radius: 3px;
             overflow: hidden;
         }
-        
+
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, var(--primary-5) 0%, var(--primary-6) 100%);
             border-radius: 3px;
             transition: width 0.3s ease;
         }
-        
+
         /* Buttons */
         .btn {
             display: inline-flex;
@@ -912,53 +912,53 @@
             text-decoration: none;
             white-space: nowrap;
         }
-        
+
         .btn-default {
             background: white;
             border-color: var(--neutral-3);
             color: var(--neutral-7);
         }
-        
+
         .btn-default:hover {
             border-color: var(--primary-5);
             color: var(--primary-6);
             background: var(--primary-1);
         }
-        
+
         .btn-primary {
             background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
             color: white;
             box-shadow: 0 2px 8px rgba(3, 105, 161, 0.2);
         }
-        
+
         .btn-primary:hover {
             background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
             box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
         }
-        
+
         .btn-text {
             background: transparent;
             color: var(--primary-6);
             padding: 6px 12px;
         }
-        
+
         .btn-text:hover {
             background: var(--primary-1);
             color: var(--primary-7);
         }
-        
+
         .btn-sm {
             padding: 4px 12px;
             font-size: 12px;
         }
-        
+
         /* Todo List - Improved Design */
         .todo-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
-        
+
         .todo-item {
             display: flex;
             align-items: flex-start;
@@ -969,24 +969,24 @@
             transition: all var(--transition-base);
             border: 1px solid transparent;
         }
-        
+
         .todo-item:hover {
             background: white;
             border-color: var(--neutral-2);
             box-shadow: var(--shadow-sm);
             transform: translateX(4px);
         }
-        
+
         /* Custom Checkbox for Todo */
         .todo-checkbox-wrapper {
             position: relative;
             flex-shrink: 0;
         }
-        
+
         .todo-checkbox-wrapper input[type="checkbox"] {
             display: none;
         }
-        
+
         .todo-checkbox {
             width: 20px;
             height: 20px;
@@ -999,7 +999,7 @@
             transition: all var(--transition-fast);
             background: white;
         }
-        
+
         .todo-checkbox svg {
             width: 14px;
             height: 14px;
@@ -1008,26 +1008,26 @@
             transform: scale(0);
             transition: all var(--transition-fast);
         }
-        
+
         .todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox {
             background: var(--primary-6);
             border-color: var(--primary-6);
         }
-        
+
         .todo-checkbox-wrapper input[type="checkbox"]:checked + .todo-checkbox svg {
             opacity: 1;
             transform: scale(1);
         }
-        
+
         .todo-checkbox-wrapper:hover .todo-checkbox {
             border-color: var(--primary-5);
         }
-        
+
         .todo-content {
             flex: 1;
             min-width: 0;
         }
-        
+
         .todo-title {
             font-size: 14px;
             font-weight: 500;
@@ -1035,19 +1035,19 @@
             margin-bottom: 8px;
             line-height: 1.4;
         }
-        
+
         .todo-checkbox-wrapper input[type="checkbox"]:checked ~ .todo-content .todo-title {
             text-decoration: line-through;
             color: var(--neutral-5);
         }
-        
+
         .todo-meta {
             display: flex;
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
         }
-        
+
         .todo-priority {
             display: inline-flex;
             align-items: center;
@@ -1059,22 +1059,22 @@
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
-        
+
         .todo-priority.high {
             background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
             color: #dc2626;
         }
-        
+
         .todo-priority.medium {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             color: #d97706;
         }
-        
+
         .todo-priority.low {
             background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
             color: #4338ca;
         }
-        
+
         .todo-due {
             display: inline-flex;
             align-items: center;
@@ -1082,23 +1082,23 @@
             font-size: 12px;
             color: var(--neutral-5);
         }
-        
+
         .todo-due svg {
             width: 13px;
             height: 13px;
         }
-        
+
         .todo-actions {
             display: flex;
             gap: 8px;
             opacity: 0;
             transition: opacity var(--transition-fast);
         }
-        
+
         .todo-item:hover .todo-actions {
             opacity: 1;
         }
-        
+
         .todo-action-btn {
             width: 28px;
             height: 28px;
@@ -1112,43 +1112,43 @@
             cursor: pointer;
             transition: all var(--transition-fast);
         }
-        
+
         .todo-action-btn:hover {
             background: var(--neutral-1);
             color: var(--neutral-7);
             border-color: var(--neutral-3);
         }
-        
+
         .todo-action-btn.delete:hover {
             background: var(--danger-1);
             color: var(--danger-6);
             border-color: var(--danger-5);
         }
-        
+
         /* Responsive */
         @media (max-width: 1200px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
-            
+
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
             }
-            
+
             .sidebar.mobile-open {
                 transform: translateX(0);
             }
-            
+
             .main-content {
                 margin-left: 0;
             }
-            
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
@@ -1166,11 +1166,11 @@
             </div>
             <span class="logo-text">Customer Platform VK</span>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="nav-section">
                 <div class="nav-section-title">核心功能</div>
-                
+
                 <a class="nav-item active" href="/">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1179,7 +1179,7 @@
                     </div>
                     <span class="nav-item-label">仪表盘</span>
                 </a>
-                
+
                 <a class="nav-item" href="/customers">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1188,7 +1188,7 @@
                     </div>
                     <span class="nav-item-label">客户管理</span>
                 </a>
-                
+
                 <a class="nav-item" href="javascript:void(0)" onclick="toggleSubmenu(event, 'billing-submenu')">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1201,12 +1201,12 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </a>
-                
+
                 <div class="nav-submenu collapsed" id="billing-submenu">
                     <a class="nav-subitem" href="/billing/balances">余额管理</a>
                     <a class="nav-subitem" href="/billing/pricing-rules">计费规则</a>
                 </div>
-                
+
                 <a class="nav-item" href="/profiles">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1215,7 +1215,7 @@
                     </div>
                     <span class="nav-item-label">画像管理</span>
                 </a>
-                
+
                 <a class="nav-item" href="/analytics">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1225,10 +1225,10 @@
                     <span class="nav-item-label">客户分析</span>
                 </a>
             </div>
-            
+
             <div class="nav-section">
                 <div class="nav-section-title">系统管理</div>
-                
+
                 <a class="nav-item" href="/users">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1237,7 +1237,7 @@
                     </div>
                     <span class="nav-item-label">用户管理</span>
                 </a>
-                
+
                 <a class="nav-item" href="/roles">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1246,7 +1246,7 @@
                     </div>
                     <span class="nav-item-label">角色权限</span>
                 </a>
-                
+
                 <a class="nav-item" href="/tags">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1255,7 +1255,7 @@
                     </div>
                     <span class="nav-item-label">标签管理</span>
                 </a>
-                
+
                 <a class="nav-item" href="javascript:void(0)" onclick="toggleSubmenu(event, 'system-submenu')">
                     <div class="nav-item-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1268,14 +1268,14 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                 </a>
-                
+
                 <div class="nav-submenu collapsed" id="system-submenu">
                     <a class="nav-subitem" href="/system/sync-logs">同步日志</a>
                     <a class="nav-subitem" href="/system/audit-logs">审计日志</a>
                 </div>
             </div>
         </nav>
-        
+
         <div class="sidebar-user">
             <div class="sidebar-user-info">
                 <div class="user-avatar">李</div>
@@ -1291,7 +1291,7 @@
             </div>
         </div>
     </aside>
-    
+
     <!-- Main Content -->
     <main class="main-content">
         <!-- Header -->
@@ -1304,7 +1304,7 @@
                     <span class="current">仪表盘</span>
                 </div>
             </div>
-            
+
             <div class="header-right">
                 <!-- Search -->
                 <div class="header-action">
@@ -1313,7 +1313,7 @@
                     </svg>
                     <span class="tooltip">搜索</span>
                 </div>
-                
+
                 <!-- Notifications -->
                 <div class="header-action">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1322,7 +1322,7 @@
                     <span class="action-badge"></span>
                     <span class="tooltip">消息通知</span>
                 </div>
-                
+
                 <!-- Settings -->
                 <div class="header-action">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1330,9 +1330,9 @@
                     </svg>
                     <span class="tooltip">系统设置</span>
                 </div>
-                
+
                 <div class="header-divider"></div>
-                
+
                 <!-- Logout -->
                 <div class="header-action">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1342,7 +1342,7 @@
                 </div>
             </div>
         </header>
-        
+
         <!-- Page Content -->
         <div class="page-content">
             <!-- Stats Grid -->
@@ -1364,7 +1364,7 @@
                         +12.5% 较上月
                     </div>
                 </div>
-                
+
                 <div class="stat-card success">
                     <div class="stat-header">
                         <span class="stat-title">本月回款</span>
@@ -1382,7 +1382,7 @@
                         +8.2% 较上月
                     </div>
                 </div>
-                
+
                 <div class="stat-card warning">
                     <div class="stat-header">
                         <span class="stat-title">待确认账单</span>
@@ -1400,7 +1400,7 @@
                         +3 待处理
                     </div>
                 </div>
-                
+
                 <div class="stat-card danger">
                     <div class="stat-header">
                         <span class="stat-title">余额预警</span>
@@ -1419,7 +1419,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Dashboard Grid -->
             <div class="dashboard-grid">
                 <!-- Revenue Trend Chart -->
@@ -1445,7 +1445,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Todo List - Improved Design -->
                 <div class="card">
                     <div class="card-header">
@@ -1494,7 +1494,7 @@
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div class="todo-item">
                                 <label class="todo-checkbox-wrapper">
                                     <input type="checkbox">
@@ -1535,7 +1535,7 @@
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div class="todo-item">
                                 <label class="todo-checkbox-wrapper">
                                     <input type="checkbox">
@@ -1576,7 +1576,7 @@
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div class="todo-item">
                                 <label class="todo-checkbox-wrapper">
                                     <input type="checkbox">
@@ -1620,7 +1620,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Recent Invoices -->
                 <div class="card" style="grid-column: 1 / -1;">
                     <div class="card-header">
@@ -1714,32 +1714,32 @@
             </div>
         </div>
     </main>
-    
+
     <script>
         // Toggle sidebar collapse/expand
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.toggle('collapsed');
         }
-        
+
         // Toggle submenu expand/collapse
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const parentItem = submenu.previousElementSibling;
-            
+
             // Toggle current submenu
             submenu.classList.toggle('collapsed');
             parentItem.classList.toggle('expanded');
-            
+
             // Close other submenus in the same section
             const section = parentItem.closest('.nav-section');
             if (section) {
                 const otherSubmenus = section.querySelectorAll('.nav-submenu');
                 const otherItems = section.querySelectorAll('.nav-item');
-                
+
                 otherSubmenus.forEach((menu, index) => {
                     if (menu.id !== submenuId && !menu.classList.contains('collapsed')) {
                         menu.classList.add('collapsed');

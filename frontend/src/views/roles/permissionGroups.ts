@@ -60,7 +60,7 @@ export const MODULE_ORDER: string[] = [
  * 每组内的权限按 id 升序排列以确保稳定顺序。
  */
 export function buildPermissionGroups<T extends PermissionLike>(
-  permissions: T[],
+  permissions: T[]
 ): PermissionGroup<T>[] {
   const groups: Record<string, T[]> = {}
 

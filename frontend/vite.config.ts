@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { configDefaults } from 'vitest/config'
 
 export default defineConfig({
   plugins: [vue()],
@@ -27,6 +28,10 @@ export default defineConfig({
     },
     globals: true,
     pool: 'forks',
+    exclude: [
+      ...configDefaults.exclude,
+      'tests/e2e/**',
+    ],
     coverage: {
       provider: 'istanbul',
       reporter: ['text', 'html'],

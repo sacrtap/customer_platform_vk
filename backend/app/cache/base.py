@@ -22,7 +22,7 @@ class CacheService:
     def __init__(self):
         self._redis = None
         self._ttl_config = {
-            "customer_list": 300,  # 5 分钟
+            "customer_list": 600,  # 10 分钟
             "customer_detail": 600,  # 10 分钟
             "tag_list": 3600,  # 1 小时
             "tag_stats": 1800,  # 30 分钟
@@ -54,6 +54,20 @@ class CacheService:
                 decode_responses=True,
             )
         return self._redis
+
+    async def check_redis_available(self) -> bool:
+        """检查 Redis 是否可用（执行 PING）。
+
+        Returns:
+            True 如果 Redis 可用，False 如果不可用。
+        """
+        try:
+            redis = await self._get_redis()
+            await redis.ping()
+            return True
+        except Exception as e:
+            logger.error(f"Redis 连接检查失败: {e}")
+            return False
 
     def _build_key(self, prefix: str, *parts: Any) -> str:
         """构建缓存键"""

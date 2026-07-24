@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright 测试配置
- * 
+ *
  * 运行测试:
  * - npx playwright test              # 运行所有测试
  * - npx playwright test --ui         # UI 模式
@@ -15,6 +15,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+  timeout: 60000,
+  expect: { timeout: 15000 },
   reporter: [
     ['html', { outputFolder: 'tests/e2e/playwright-report' }],
     ['list'],
@@ -32,7 +34,7 @@ export default defineConfig({
     },
     {
       name: 'Mobile Chrome',
-      use: { 
+      use: {
         ...devices['Pixel 5'],
         timeout: 60000, // 增加超时时间到 60s
       },

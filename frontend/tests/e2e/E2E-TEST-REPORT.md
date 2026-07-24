@@ -1,7 +1,7 @@
 # 客户运营中台 E2E 测试报告
 
-**生成日期**: 2026-04-06  
-**测试框架**: Playwright 1.59.1  
+**生成日期**: 2026-04-06
+**测试框架**: Playwright 1.59.1
 **项目状态**: ✅ 测试框架已就绪
 
 ---
@@ -222,5 +222,5 @@ npx playwright show-trace tests/e2e/test-results/<test-name>/trace.zip
 
 ---
 
-**报告生成工具**: Frontend Developer Agent  
+**报告生成工具**: Frontend Developer Agent
 **最后更新**: 2026-04-06

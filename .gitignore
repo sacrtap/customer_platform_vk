@@ -38,6 +38,7 @@ secrets/
 
 # codegraph
 .codegraph/
+.catpaw
 
 # Testing & Coverage
 .pytest_cache/
@@ -52,6 +53,7 @@ docs/testing/coverage-reports/
 .tox/
 .nox/
 .hypothesis/
+frontend/tests/e2e/test_visual_regression.spec.ts-snapshots/
 
 # IDE & OS
 .vscode/
@@ -82,6 +84,8 @@ frontend/tests/e2e/test-results/
 backend/uploads/
 backend/static/files/
 backend/media/
+backend/customer_platform.db
+*.db
 *.log
 logs/
 dump.rdb
@@ -125,6 +129,10 @@ dmypy.json
 *.temp
 *.bak
 *.manifest
+
+# Debug scripts
+frontend/debug-*.mjs
+backend/tests/debug_*.py
 *.spec
 MANIFEST
 

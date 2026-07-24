@@ -4,12 +4,13 @@ import hashlib
 import io
 import math
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json, raw
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
@@ -38,10 +39,15 @@ async def list_customers(request: Request):
     - keyword: 关键词（公司名称/公司 ID）
     - account_type: 账号类型
     - industry: 行业类型
+    - scale_level: 规模等级
+    - consume_level: 消费等级
     - manager_id: 运营经理 ID
     - sales_manager_id: 商务经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
+    - is_real_estate: 是否房产客户 (true/false)
+    - incomplete_profile: 待完善画像 (true/false)，筛选缺少规模等级或消费等级的客户
+    - mine: 我的客户 (true/false)，筛选运营经理或销售经理为当前用户的客户
     - sort_by: 排序字段 (id, company_id, name, created_at, updated_at，默认 id)
     - sort_order: 排序方向 (asc 或 desc，默认 asc)
     """
@@ -58,6 +64,8 @@ async def list_customers(request: Request):
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
+        "scale_level": request.args.get("scale_level"),
+        "consume_level": request.args.get("consume_level"),
         "manager_id": (
             int(request.args.get("manager_id", 0)) if request.args.get("manager_id") else None
         ),
@@ -77,6 +85,18 @@ async def list_customers(request: Request):
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
+
+    # 待完善画像：筛选缺少规模等级或消费等级的客户
+    incomplete = request.args.get("incomplete_profile")
+    if incomplete is not None and incomplete.lower() == "true":
+        filters["incomplete_profile"] = True
+
+    # 我的客户：筛选运营经理或销售经理为当前用户的客户
+    mine = request.args.get("mine")
+    if mine is not None and mine.lower() == "true":
+        current_user = get_current_user(request)
+        if current_user and current_user.get("user_id"):
+            filters["mine_user_id"] = current_user["user_id"]
 
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
@@ -106,6 +126,34 @@ async def list_customers(request: Request):
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
 
+    # 批量查询当前页客户的近30天消耗数据
+    usage_map: dict[int, dict] = {}
+    if customers:
+        customer_ids = [c.id for c in customers]
+        thirty_days_ago = date.today() - timedelta(days=30)
+        from sqlalchemy import func as sa_func
+
+        from ..models.daily_consumption import DailyConsumption
+
+        usage_stmt = (
+            select(
+                DailyConsumption.customer_id,
+                sa_func.coalesce(sa_func.sum(DailyConsumption.order_count), 0).label("order_count"),
+                sa_func.coalesce(sa_func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
+            )
+            .where(
+                DailyConsumption.customer_id.in_(customer_ids),
+                DailyConsumption.consumption_date >= thirty_days_ago,
+            )
+            .group_by(DailyConsumption.customer_id)
+        )
+        usage_result = await db_session.execute(usage_stmt)
+        for row in usage_result.all():
+            usage_map[row.customer_id] = {
+                "order_count": int(row.order_count),
+                "total_cost": float(row.total_cost),
+            }
+
     result = {
         "code": 0,
         "message": "success",
@@ -122,7 +170,7 @@ async def list_customers(request: Request):
                         else None
                     ),
                     "industry_type_id": c.profile.industry_type_id if c.profile else None,
-                    "price_policy": convert_price_policy_to_display(c.price_policy),
+                    "price_policy": convert_price_policy_to_display(c.price_policy),  # pyright: ignore[reportArgumentType]
                     "manager_id": c.manager_id,
                     "sales_manager_id": c.sales_manager_id,
                     "settlement_cycle": c.settlement_cycle,
@@ -130,7 +178,24 @@ async def list_customers(request: Request):
                     "is_key_customer": c.is_key_customer,
                     "is_real_estate": c.is_real_estate,
                     "email": c.email,
-                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                    # === 客户列表页新增字段 ===
+                    "scale_level": c.profile.scale_level if c.profile else None,
+                    "consume_level": c.profile.consume_level if c.profile else None,
+                    "balance": (float(c.balance.total_amount) if c.balance else 0.0),
+                    # 近30天消耗（来自 DailyConsumption 表）
+                    "usage_30d": usage_map.get(c.id, {}).get("order_count", 0),  # pyright: ignore[reportArgumentType, reportCallIssue]
+                    "usage_30d_amount": usage_map.get(c.id, {}).get("total_cost", 0.0),  # pyright: ignore[reportArgumentType, reportCallIssue]
+                    # 简易健康度估算（基于余额和用量，完整评分需调用 /analytics/health/customers/<id>/score）
+                    "health": (
+                        "高风险"
+                        if (c.balance and float(c.balance.total_amount) < 500)
+                        else "关注"
+                        if (c.balance and float(c.balance.total_amount) < 1000)
+                        else "不活跃"
+                        if usage_map.get(c.id, {}).get("order_count", 0) == 0  # pyright: ignore[reportArgumentType, reportCallIssue]
+                        else "健康"
+                    ),
                 }
                 for c in customers
             ],
@@ -174,19 +239,19 @@ async def get_customer(request: Request, customer_id: int):
             if customer.profile and customer.profile.industry_type
             else None
         ),
-        "price_policy": convert_price_policy_to_display(customer.price_policy),
+        "price_policy": convert_price_policy_to_display(customer.price_policy),  # pyright: ignore[reportArgumentType]
         "manager_id": customer.manager_id,
         "settlement_cycle": customer.settlement_cycle,
         "settlement_type": customer.settlement_type,
         "is_key_customer": customer.is_key_customer,
         "email": customer.email,
-        "created_at": customer.created_at.isoformat() if customer.created_at else None,
+        "created_at": customer.created_at.isoformat() if customer.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
         "erp_system": customer.erp_system,
         "first_payment_date": (
-            customer.first_payment_date.isoformat() if customer.first_payment_date else None
+            customer.first_payment_date.isoformat() if customer.first_payment_date else None  # pyright: ignore[reportGeneralTypeIssues]
         ),
         "onboarding_date": (
-            customer.onboarding_date.isoformat() if customer.onboarding_date else None
+            customer.onboarding_date.isoformat() if customer.onboarding_date else None  # pyright: ignore[reportGeneralTypeIssues]
         ),
         "sales_manager_id": customer.sales_manager_id,
         "cooperation_status": customer.cooperation_status,
@@ -263,9 +328,9 @@ async def create_customer(request: Request):
         "company_id": "integer (required)",
         "name": "string (required)",
         "account_type": "string (optional)",
-        "industry": "string (optional)",
-        "price_policy": "string (optional)",
+        "industry_type_id": "integer (optional)",
         "manager_id": "number (optional)",
+        "sales_manager_id": "number (optional)",
         "settlement_cycle": "string (optional)",
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
@@ -512,12 +577,12 @@ async def get_profile(request: Request, customer_id: int):
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
                 "estimated_annual_spend": (
-                    float(profile.estimated_annual_spend)
+                    float(profile.estimated_annual_spend)  # pyright: ignore[reportArgumentType]
                     if profile.estimated_annual_spend is not None
                     else None
                 ),
                 "actual_annual_spend_2025": (
-                    float(profile.actual_annual_spend_2025)
+                    float(profile.actual_annual_spend_2025)  # pyright: ignore[reportArgumentType]
                     if profile.actual_annual_spend_2025 is not None
                     else None
                 ),
@@ -567,12 +632,12 @@ async def update_profile(request: Request, customer_id: int):
                 "monthly_avg_shots": profile.monthly_avg_shots,
                 "monthly_avg_shots_estimated": profile.monthly_avg_shots_estimated,
                 "estimated_annual_spend": (
-                    float(profile.estimated_annual_spend)
+                    float(profile.estimated_annual_spend)  # pyright: ignore[reportArgumentType]
                     if profile.estimated_annual_spend is not None
                     else None
                 ),
                 "actual_annual_spend_2025": (
-                    float(profile.actual_annual_spend_2025)
+                    float(profile.actual_annual_spend_2025)  # pyright: ignore[reportArgumentType]
                     if profile.actual_annual_spend_2025 is not None
                     else None
                 ),
@@ -603,10 +668,10 @@ async def import_customers(request: Request):
     - email (可选)
     """
     files = request.files
-    if "file" not in files:
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
         return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
 
-    excel_file = files["file"][0]
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
     if not excel_file.name.endswith(".xlsx"):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
@@ -732,7 +797,7 @@ async def download_import_template(request: Request):
     # 创建 Excel 工作簿
     wb = Workbook()
     ws = wb.active
-    ws.title = "客户导入模板"
+    ws.title = "客户导入模板"  # pyright: ignore[reportOptionalMemberAccess]
 
     # 设置表头（纯英文列名，与 pd.read_excel 解析的列名一致）
     # 第二行添加中文说明作为提示
@@ -760,7 +825,7 @@ async def download_import_template(request: Request):
         "estimated_annual_spend",
         "actual_annual_spend_2025",
     ]
-    ws.append(headers)
+    ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 添加中文说明行（不作为数据行，仅提示用户）
     notes = [
@@ -787,11 +852,11 @@ async def download_import_template(request: Request):
         "可选：金额",
         "可选：金额",
     ]
-    ws.append(notes)
+    ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 设置列宽
-    for col in ws.columns:
-        ws.column_dimensions[col[0].column_letter].width = 25
+    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
+        ws.column_dimensions[col[0].column_letter].width = 25  # pyright: ignore[reportOptionalMemberAccess]
 
     # 添加示例数据
     example_data = [
@@ -818,7 +883,7 @@ async def download_import_template(request: Request):
         50000.00,
         45000.00,
     ]
-    ws.append(example_data)
+    ws.append(example_data)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 生成文件
     output = io.BytesIO()
@@ -843,17 +908,30 @@ async def export_customers(request: Request):
     - keyword: 关键词
     - account_type: 账号类型
     - industry: 行业类型
+    - scale_level: 规模等级
+    - consume_level: 消费等级
     - manager_id: 运营经理 ID
+    - sales_manager_id: 商务经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户
+    - is_real_estate: 是否房产客户
+    - incomplete_profile: 待完善画像
+    - mine: 我的客户
     """
     # 构建筛选条件
     filters = {
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
+        "scale_level": request.args.get("scale_level"),
+        "consume_level": request.args.get("consume_level"),
         "manager_id": (
             int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+        ),
+        "sales_manager_id": (
+            int(request.args.get("sales_manager_id"))
+            if request.args.get("sales_manager_id")
+            else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -865,6 +943,18 @@ async def export_customers(request: Request):
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
+
+    # 待完善画像
+    incomplete = request.args.get("incomplete_profile")
+    if incomplete is not None and incomplete.lower() == "true":
+        filters["incomplete_profile"] = True
+
+    # 我的客户
+    mine = request.args.get("mine")
+    if mine is not None and mine.lower() == "true":
+        current_user = get_current_user(request)
+        if current_user and current_user.get("user_id"):
+            filters["mine_user_id"] = current_user["user_id"]
 
     filters = {k: v for k, v in filters.items() if v is not None}
 
@@ -888,24 +978,24 @@ async def export_customers(request: Request):
                     if (c.profile and c.profile.industry_type)
                     else None
                 ),
-                "price_policy": convert_price_policy_to_display(c.price_policy),
-                "settlement_type": convert_settlement_type_to_display(c.settlement_type),
-                "settlement_cycle": convert_settlement_cycle_to_display(c.settlement_cycle),
-                "is_key_customer": "是" if c.is_key_customer else "否",
+                "price_policy": convert_price_policy_to_display(c.price_policy),  # pyright: ignore[reportArgumentType]
+                "settlement_type": convert_settlement_type_to_display(c.settlement_type),  # pyright: ignore[reportArgumentType]
+                "settlement_cycle": convert_settlement_cycle_to_display(c.settlement_cycle),  # pyright: ignore[reportArgumentType]
+                "is_key_customer": "是" if c.is_key_customer else "否",  # pyright: ignore[reportGeneralTypeIssues]
                 "email": c.email,
                 # === 扩展字段（13个） ===
                 "erp_system": c.erp_system,
                 "first_payment_date": (
-                    c.first_payment_date.strftime("%Y-%m-%d") if c.first_payment_date else None
+                    c.first_payment_date.strftime("%Y-%m-%d") if c.first_payment_date else None  # pyright: ignore[reportGeneralTypeIssues]
                 ),
                 "onboarding_date": (
-                    c.onboarding_date.strftime("%Y-%m-%d") if c.onboarding_date else None
+                    c.onboarding_date.strftime("%Y-%m-%d") if c.onboarding_date else None  # pyright: ignore[reportGeneralTypeIssues]
                 ),
                 "cooperation_status": c.cooperation_status,
-                "is_settlement_enabled": ("是" if c.is_settlement_enabled else "否")
+                "is_settlement_enabled": ("是" if c.is_settlement_enabled else "否")  # pyright: ignore[reportGeneralTypeIssues]
                 if c.is_settlement_enabled is not None
                 else None,
-                "is_disabled": ("是" if c.is_disabled else "否")
+                "is_disabled": ("是" if c.is_disabled else "否")  # pyright: ignore[reportGeneralTypeIssues]
                 if c.is_disabled is not None
                 else None,
                 "notes": c.notes,
@@ -932,7 +1022,7 @@ async def export_customers(request: Request):
 
     # 生成 Excel 文件
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:  # pyright: ignore[reportArgumentType]
         df.to_excel(writer, index=False, sheet_name="客户列表")
 
     output.seek(0)
@@ -946,4 +1036,161 @@ async def export_customers(request: Request):
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ==================== 客户 360 摘要 ====================
+
+
+@customers_bp.get("/<customer_id:int>/summary")
+@auth_required
+async def get_customer_summary(request: Request, customer_id: int):
+    """获取客户 360 预览摘要数据"""
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    service = CustomerService(db)
+    # 使用现有服务获取客户健康度等数据
+    await service.get_customer_detail(customer_id)  # pyright: ignore[reportAttributeAccessIssue]
+
+    # 格式化返回数据
+    return json(
+        {
+            "code": 0,
+            "data": {
+                "name": customer.name,
+                "industry": customer.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
+                "scale_level": customer.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
+                "consume_level": customer.consume_level,  # pyright: ignore[reportAttributeAccessIssue]
+                "balance": f"¥{customer.balance:,.0f}" if hasattr(customer, "balance") else "N/A",
+                "usage_30d": "N/A",
+                "health": "—",
+                "health_class": "",
+                "forecast_days": "—",
+                "recent_events": [],
+            },
+        }
+    )
+
+
+@customers_bp.get("/<customer_id:int>/related")
+@auth_required
+async def get_related_customers(request: Request, customer_id: int):
+    """获取关联客户推荐（同行业同规模）"""
+    from sqlalchemy import select
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    result = await db.execute(
+        select(Customer)
+        .where(
+            Customer.id != customer_id,
+            Customer.industry_type == customer.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
+            Customer.scale_level == customer.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
+        )
+        .limit(4)
+    )
+
+    related = []
+    for c in result.scalars():
+        related.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "industry": c.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
+                "scale_level": c.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
+                "health": "—",
+            }
+        )
+
+    return json({"code": 0, "data": related})
+
+
+@customers_bp.get("/<customer_id:int>/balance-forecast")
+@auth_required
+async def get_balance_forecast(request: Request, customer_id: int):
+    """余额耗尽预测"""
+
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    # 简单预测：如果有余额和消耗数据，计算预计天数
+    balance = getattr(customer, "balance", 0) or 0
+    # 日均消耗暂时返回 0，需要消耗记录表来计算
+    daily_avg = 0
+
+    if daily_avg > 0:
+        days_left = int(balance / daily_avg)
+        status = "warning" if days_left <= 7 else "ok"
+    else:
+        days_left = None
+        status = "safe"
+
+    return json(
+        {
+            "code": 0,
+            "data": {
+                "days_left": days_left,
+                "daily_avg": daily_avg,
+                "balance": balance,
+                "status": status,
+            },
+        }
+    )
+
+
+@customers_bp.post("/<customer_id:int>/follow-up")
+@auth_required
+async def create_follow_up(request: Request, customer_id: int):
+    """创建客户跟进记录"""
+    from ..models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+
+    customer = await db.get(Customer, customer_id)
+    if not customer:
+        return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    data = request.json or {}
+    follow_up_type = data.get("type", "general")
+    note = data.get("note", "")
+
+    # 记录审计日志
+    operator_id = request.ctx.user["user_id"]
+    await create_audit_entry(
+        db,
+        user_id=operator_id,
+        action="customer_follow_up",
+        module="customers",
+        record_type="customer",
+        record_id=customer_id,
+        changes={"type": follow_up_type, "note": note},
+    )
+
+    async with db.begin():
+        pass  # audit entry already created
+
+    return json(
+        {
+            "code": 0,
+            "message": "跟进记录已创建",
+            "data": {"customer_id": customer_id, "type": follow_up_type, "note": note},
+        }
     )

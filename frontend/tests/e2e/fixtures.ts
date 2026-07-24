@@ -2,7 +2,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 
 /**
  * Playwright 测试夹具
- * 
+ *
  * 提供预配置的测试页面和认证状态
  */
 
@@ -18,7 +18,7 @@ export const test = base.extend<{
     await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
     await use(page);
   },
-  
+
   authenticatedPage: async ({ page }, use) => {
     // 登录
     await page.goto('/login');

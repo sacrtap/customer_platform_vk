@@ -18,6 +18,9 @@ export function getConsumptionTrend(params?: {
   customer_id?: number
   keyword?: string
   metric?: 'cost' | 'order_count'
+  account_type?: string
+  manager_id?: number
+  sales_manager_id?: number
   force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/trend', { params })
@@ -28,7 +31,7 @@ export interface TopCustomer {
   customer_name: string
   order_count: number
   cost: number
-  company_id?: number
+  company_id: string
   total_amount?: number
 }
 
@@ -37,6 +40,13 @@ export function getTopCustomers(params?: {
   end_date?: string
   limit?: number
   metric?: 'cost' | 'order_count'
+  keyword?: string
+  account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
+  manager_id?: number
+  sales_manager_id?: number
   force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/top', { params })
@@ -58,6 +68,9 @@ export function getDeviceDistribution(params?: {
   customer_id?: number
   keyword?: string
   metric?: 'cost' | 'order_count'
+  account_type?: string
+  manager_id?: number
+  sales_manager_id?: number
   force_refresh?: boolean
 }) {
   return api.get('/analytics/consumption/device-distribution', { params })
@@ -91,27 +104,70 @@ export interface PaymentAnalysis {
   total_invoiced: number
   total_discount: number
   total_final: number
-  total_received: number
-  pending_amount: number
-  collection_rate: number
+  total_paid: number
+  completion_rate: number
+  difference: number
 }
 
 export function getPaymentAnalysis(params?: {
   start_date?: string
   end_date?: string
   keyword?: string
+  customer_id?: number
+  account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
+  manager_id?: number
+  sales_manager_id?: number
+  force_refresh?: boolean
 }) {
   return api.get('/analytics/payment/analysis', { params })
 }
 
-export interface InvoiceStatusStats {
-  total: number
+export interface PaymentTrendItem {
+  period: string
+  invoiced: number
+  discount: number
   paid: number
-  unpaid: number
-  overdue: number
+  completion_rate: number
 }
 
-export function getInvoiceStatusStats(params?: { start_date?: string; end_date?: string }) {
+export function getPaymentTrend(params?: {
+  months?: number
+  keyword?: string
+  customer_id?: number
+  account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
+  manager_id?: number
+  sales_manager_id?: number
+  force_refresh?: boolean
+}) {
+  return api.get('/analytics/payment/trend', { params })
+}
+
+export interface InvoiceStatusStats {
+  name: string
+  count: number
+  percentage: number
+  total_amount: number
+}
+
+export function getInvoiceStatusStats(params?: {
+  start_date?: string
+  end_date?: string
+  keyword?: string
+  customer_id?: number
+  account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
+  manager_id?: number
+  sales_manager_id?: number
+  force_refresh?: boolean
+}) {
   return api.get('/analytics/payment/invoice-status', { params })
 }
 
@@ -119,14 +175,15 @@ export function getInvoiceStatusStats(params?: { start_date?: string; end_date?:
 
 export interface HealthStats {
   total_customers: number
-  healthy_count: number
-  warning_count: number
-  danger_count: number
-  health_rate: number
+  active_customers: number
+  inactive_customers: number
+  warning_customers: number
+  churn_risk_customers: number
+  active_rate: number
 }
 
-export function getHealthStats() {
-  return api.get('/analytics/health/stats')
+export function getHealthStats(params?: { force_refresh?: boolean }) {
+  return api.get('/analytics/health/stats', { params })
 }
 
 export interface WarningCustomer {
@@ -139,7 +196,7 @@ export interface WarningCustomer {
   manager_name: string
 }
 
-export function getWarningList(params?: { threshold?: number }) {
+export function getWarningList(params?: { threshold?: number; force_refresh?: boolean }) {
   return api.get('/analytics/health/warning-list', { params })
 }
 
@@ -149,18 +206,19 @@ export interface InactiveCustomer {
   customer_name: string
   manager_name: string
   days: number
+  last_consumption_date?: string
   days_inactive?: number
 }
 
-export function getInactiveList(params?: { days?: number }) {
+export function getInactiveList(params?: { days?: number; force_refresh?: boolean }) {
   return api.get('/analytics/health/inactive-list', { params })
 }
 
 // ==================== 画像分析 ====================
 
 export interface IndustryDistributionItem {
-  industry_type: string
-  customer_count: number
+  industry: string
+  count: number
   percentage: number
 }
 
@@ -170,7 +228,7 @@ export function getIndustryDistribution(params?: { force_refresh?: boolean }) {
 
 export interface ScaleLevelStatsItem {
   scale_level: string
-  customer_count: number
+  count: number
   percentage: number
 }
 
@@ -180,7 +238,7 @@ export function getScaleStats(params?: { force_refresh?: boolean }) {
 
 export interface ConsumeLevelStatsItem {
   consume_level: string
-  customer_count: number
+  count: number
   percentage: number
 }
 
@@ -189,9 +247,12 @@ export function getConsumeLevelStats(params?: { force_refresh?: boolean }) {
 }
 
 export interface RealEstateStats {
-  is_real_estate: boolean
-  customer_count: number
-  percentage: number
+  total_customers: number
+  real_estate_customers: number
+  non_real_estate_customers: number
+  real_estate_percentage: number
+  profile_count: number
+  profile_coverage_rate: number
 }
 
 export function getRealEstateStats(params?: { force_refresh?: boolean }) {
@@ -199,8 +260,8 @@ export function getRealEstateStats(params?: { force_refresh?: boolean }) {
 }
 
 export interface RealEstateIndustryItem {
-  industry_type: string
-  customer_count: number
+  industry: string
+  count: number
   percentage: number
 }
 
@@ -214,17 +275,40 @@ export interface PaymentPrediction {
   customer_id: number
   customer_name: string
   company_id: string
-  month: string
+  device_type: string
+  quantity: number
+  pricing_type: string
   predicted_amount: number
-  confidence: number
+}
+
+export interface PredictionSummary {
+  total_predicted: number
+  confirmed_amount: number
+  pending_amount: number
+  completion_rate: number
+  predicted_customers: number
+}
+
+export interface PredictionTrendItem {
+  month: string
+  predicted: number
+  actual: number
 }
 
 export function getMonthlyPrediction(params?: {
   year?: number
   month?: number
   keyword?: string
+  force_refresh?: boolean
 }) {
-  return api.get('/analytics/prediction/monthly', { params })
+  return api.get<{ predictions: PaymentPrediction[]; summary: PredictionSummary }>(
+    '/analytics/prediction/monthly',
+    { params }
+  )
+}
+
+export function getPredictionTrend(params?: { year?: number; force_refresh?: boolean }) {
+  return api.get<PredictionTrendItem[]>('/analytics/prediction/trend', { params })
 }
 
 // ==================== 首页仪表盘 ====================
@@ -315,4 +399,21 @@ export interface CustomerHealthScore {
 
 export function getCustomerHealthScore(customerId: number) {
   return api.get(`/analytics/health/customers/${customerId}/score`)
+}
+
+// ==================== 优先跟进客户 ====================
+
+export interface PriorityCustomer {
+  id: number
+  name: string
+  health: string
+  health_class: string
+  consumption: string
+  balance_days: string
+  risk: string
+  manager: string
+}
+
+export function getPriorityCustomers(limit = 20) {
+  return api.get('/analytics/priority-customers', { params: { limit } })
 }

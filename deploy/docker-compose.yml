@@ -20,6 +20,9 @@ services:
       - customer-platform-network
 
   # PostgreSQL 数据库
+  # 开发/测试环境使用 PostgreSQL 18（最新主版本）
+  # 生产环境建议使用 PostgreSQL 16 或 17（经过更充分验证的稳定版本）
+  # 升级时需测试扩展兼容性和备份恢复工具
   db:
     image: postgres:18-alpine
     container_name: customer-platform-db
@@ -70,17 +73,18 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-secret-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in environment}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:?WEBHOOK_SECRET must be set in environment}
       SMTP_HOST: ${SMTP_HOST:-smtp.company.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-noreply@company.com}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      APP_URL: ${APP_URL:-http://localhost:5173}
       EXTERNAL_API_BASE_URL: ${EXTERNAL_API_BASE_URL:-}
       EXTERNAL_API_TOKEN: ${EXTERNAL_API_TOKEN:-}
       EXTERNAL_MYSQL_URL: ${EXTERNAL_MYSQL_URL:-}
       APP_ENV: ${APP_ENV:-development}
-      DEBUG: ${DEBUG:-true}
+      DEBUG: ${DEBUG:-false}
     volumes:
       - app_uploads:/app/uploads
     # 后端不再对外暴露端口，只通过 Nginx 反向代理访问

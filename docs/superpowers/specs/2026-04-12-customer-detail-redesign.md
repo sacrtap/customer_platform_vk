@@ -1,9 +1,9 @@
 # 客户详情页面重构设计文档
 
-**文档 ID**: SPEC-2026-04-12-001  
-**创建日期**: 2026-04-12  
-**状态**: 待审批  
-**负责人**: @frontend-dev  
+**文档 ID**: SPEC-2026-04-12-001
+**创建日期**: 2026-04-12
+**状态**: 待审批
+**负责人**: @frontend-dev
 
 ---
 
@@ -97,7 +97,7 @@
 
 #### 3.1.1 布局变更
 
-**原设计**：传统两列表格  
+**原设计**：传统两列表格
 **新设计**：卡片式网格布局
 
 ```
@@ -444,8 +444,8 @@ function getHealthColor(score: number): string {
     <div class="progress-track">
       <div class="progress-bar" :style="{ width: progress + '%' }" />
       <div class="segments">
-        <div v-for="seg in segments" :key="seg.level" 
-             class="segment" 
+        <div v-for="seg in segments" :key="seg.level"
+             class="segment"
              :class="{ active: isActive(seg.level) }" />
       </div>
     </div>

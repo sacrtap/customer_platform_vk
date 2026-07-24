@@ -29,9 +29,7 @@ describe('buildPermissionGroups', () => {
   })
 
   it('places permissions with no module under "other" group', () => {
-    const permissions: PermissionLike[] = [
-      { id: 9, code: 'misc:view', name: '查看其他' },
-    ]
+    const permissions: PermissionLike[] = [{ id: 9, code: 'misc:view', name: '查看其他' }]
 
     const groups = buildPermissionGroups(permissions)
     const otherGroup = groups.find((g) => g.key === 'other')

@@ -251,7 +251,7 @@ git commit -m "feat: add field mapping functions for customer import extension"
             new_customers = [c for c in self.db.new if isinstance(c, Customer)]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
             self.db.add_all(balances)
-            
+
             # 关联 profile 到正确的 customer_id
             new_profiles = [p for p in self.db.new if isinstance(p, CustomerProfile)]
             # 通过 company_id 匹配

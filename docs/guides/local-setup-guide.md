@@ -117,7 +117,7 @@ psql -U postgres -d customer_platform -c "SELECT version();"
 # PostgreSQL 检查
 psql -U postgres -c "SELECT 1;"
 # 预期输出:
-#  ?column? 
+#  ?column?
 # ----------
 #         1
 # (1 row)
@@ -430,6 +430,6 @@ brew services stop postgresql@18
 
 ---
 
-**最后更新**: 2026-04-15  
-**适用平台**: macOS  
+**最后更新**: 2026-04-15
+**适用平台**: macOS
 **维护者**: 开发团队

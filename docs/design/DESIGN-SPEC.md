@@ -1,8 +1,8 @@
 # 客户运营中台 - UI 设计规范文档
 
-> **版本**: 1.1  
-> **创建日期**: 2026-04-06  
-> **最后更新**: 2026-04-08  
+> **版本**: 1.1
+> **创建日期**: 2026-04-06
+> **最后更新**: 2026-04-08
 > **适用项目**: Customer Platform VK
 
 ---
@@ -755,7 +755,7 @@ tr:hover td {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
@@ -766,15 +766,15 @@ tr:hover td {
   .stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .sidebar {
     transform: translateX(-100%);
   }
-  
+
   .sidebar.mobile-open {
     transform: translateX(0);
   }
-  
+
   .main-content {
     margin-left: 0;
   }

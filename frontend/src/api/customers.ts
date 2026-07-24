@@ -1,6 +1,20 @@
 import api from './index'
 import type { PricePolicy } from '@/types'
 
+export interface CustomerCreate {
+  company_id: number
+  name: string
+  email?: string
+  account_type?: string
+  industry_type_id?: number
+  settlement_type?: string
+  is_real_estate?: boolean
+  settlement_cycle?: string
+  is_key_customer?: boolean
+  manager_id?: number
+  sales_manager_id?: number
+}
+
 // 获取客户列表
 export function getCustomers(params?: {
   page?: number
@@ -8,13 +22,18 @@ export function getCustomers(params?: {
   keyword?: string
   account_type?: string
   industry?: string
+  scale_level?: string
+  consume_level?: string
   manager_id?: number
   sales_manager_id?: number
   settlement_type?: string
-  is_key_customer?: boolean
-  is_real_estate?: boolean
+  is_key_customer?: boolean | string
+  is_real_estate?: boolean | string
+  incomplete_profile?: string
+  mine?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  force_refresh?: boolean
 }) {
   return api.get('/customers', { params })
 }
@@ -120,11 +139,15 @@ export function exportCustomers(params?: {
   keyword?: string
   account_type?: string
   industry?: string
+  scale_level?: string
+  consume_level?: string
   manager_id?: number
   sales_manager_id?: number
   settlement_type?: string
   is_key_customer?: boolean
   is_real_estate?: boolean
+  incomplete_profile?: string
+  mine?: string
 }) {
   return api.get('/customers/export', {
     params,

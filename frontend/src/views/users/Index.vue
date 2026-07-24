@@ -1,11 +1,7 @@
 <template>
   <div class="user-management-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>用户管理</h1>
-        <p class="header-subtitle">系统账号与权限管理</p>
-      </div>
-      <div class="header-actions">
+    <PageHeader eyebrow="System" title="用户管理" subtitle="系统账号与权限管理">
+      <template #actions>
         <a-input-search
           v-model="searchKeyword"
           placeholder="搜索用户名、姓名或邮箱"
@@ -15,24 +11,11 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button v-if="can('users:create')" type="primary" @click="handleCreate">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-              />
-            </svg>
-          </template>
-          新建用户
-        </a-button>
-      </div>
-    </div>
+        <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
+          >新建用户</a-button
+        >
+      </template>
+    </PageHeader>
 
     <div class="table-section">
       <a-table
@@ -175,6 +158,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -540,48 +524,42 @@ onMounted(() => {
 
 <style scoped>
 .user-management-page {
-  padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --success-1: #e8ffea;
-  --success-6: #22c55e;
-  --danger-1: #ffe8e8;
-  --danger-6: #ef4444;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
+  margin: 0;
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
 }
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -591,17 +569,17 @@ onMounted(() => {
 }
 
 :deep(.arco-table th) {
-  background: var(--neutral-1);
-  color: var(--neutral-6);
+  background: #f8fafc;
+  color: #334155;
   font-weight: 600;
 }
 
 :deep(.arco-table td) {
-  color: var(--neutral-7);
+  color: #334155;
 }
 
 :deep(.arco-table tr:hover td) {
-  background: var(--neutral-1);
+  background: #f8fafc;
 }
 
 .status-badge {
@@ -609,19 +587,19 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .status-badge.success {
-  background: var(--success-1);
-  color: var(--success-6);
+  background: #dcfce7;
+  color: var(--green);
 }
 
 .status-badge.danger {
-  background: var(--danger-1);
-  color: var(--danger-6);
+  background: #fee2e2;
+  color: var(--red);
 }
 
 .status-dot {

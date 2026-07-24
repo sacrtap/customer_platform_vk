@@ -71,11 +71,7 @@ async function doRefreshToken(): Promise<string> {
 }
 
 // 不需要尝试刷新 token 的端点
-const skipRefreshEndpoints = [
-  '/auth/login',
-  '/auth/forgot-password',
-  '/auth/reset-password',
-]
+const skipRefreshEndpoints = ['/auth/login', '/auth/forgot-password', '/auth/reset-password']
 
 // 响应拦截器
 service.interceptors.response.use(
@@ -113,7 +109,7 @@ service.interceptors.response.use(
     // HTTP 401 响应
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       // 检查是否是应该跳过刷新 token 的端点
-      const shouldSkipRefresh = skipRefreshEndpoints.some(endpoint =>
+      const shouldSkipRefresh = skipRefreshEndpoints.some((endpoint) =>
         originalRequest.url?.includes(endpoint)
       )
 
@@ -165,9 +161,7 @@ service.interceptors.response.use(
 
     // 提取后端返回的错误信息
     // 优先使用 response.data.message，其次是 statusText
-    const backendMessage = error.response.data?.message || 
-                           error.response.statusText || 
-                           '请求失败'
+    const backendMessage = error.response.data?.message || error.response.statusText || '请求失败'
     const code = error.response.data?.code || error.response.status * 100
 
     return Promise.reject({

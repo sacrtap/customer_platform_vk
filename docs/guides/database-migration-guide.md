@@ -93,7 +93,7 @@ VALUES (
 );
 
 INSERT INTO roles (name, description, is_system)
-VALUES 
+VALUES
   ('系统管理员', '系统超级管理员', true),
   ('运营经理', '负责客户运营管理', false),
   ('销售人员', '负责客户开发', false);

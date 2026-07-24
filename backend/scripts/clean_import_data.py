@@ -141,13 +141,13 @@ def clean_value(val, field_name):
     # 首次回款时间
     if field_name == "first_payment_date":
         if hasattr(val, "strftime"):
-            return val.strftime("%Y-%m-%d")
+            return val.strftime("%Y-%m-%d")  # pyright: ignore[reportAttributeAccessIssue]
         return None
 
     # 接入时间（文字描述，返回 None，由调用方处理追加到 notes）
     if field_name == "onboarding_date":
         if hasattr(val, "strftime"):
-            return val.strftime("%Y-%m-%d")
+            return val.strftime("%Y-%m-%d")  # pyright: ignore[reportAttributeAccessIssue]
         # 文字描述如 "25上半年" 不转为日期
         return None
 
@@ -207,10 +207,10 @@ def main():
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
-    ws_out.title = "客户导入模板"
+    ws_out.title = "客户导入模板"  # pyright: ignore[reportOptionalMemberAccess]
 
     # 写入表头
-    ws_out.append(OUTPUT_FIELDS)
+    ws_out.append(OUTPUT_FIELDS)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 添加说明行
     notes_row = [
@@ -237,10 +237,10 @@ def main():
         "可选：金额",
         "可选：金额",
     ]
-    ws_out.append(notes_row)
+    ws_out.append(notes_row)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 读取输入数据
-    input_headers = [cell.value for cell in next(ws_in.iter_rows(min_row=1, max_row=1))]
+    input_headers = [cell.value for cell in next(ws_in.iter_rows(min_row=1, max_row=1))]  # pyright: ignore[reportOptionalMemberAccess]
 
     # 建立列索引
     col_indices = {}
@@ -273,7 +273,8 @@ def main():
     skipped = 0
 
     for row_idx, row in enumerate(
-        ws_in.iter_rows(min_row=2, max_row=ws_in.max_row, values_only=True), 2
+        ws_in.iter_rows(min_row=2, max_row=ws_in.max_row, values_only=True),
+        2,  # pyright: ignore[reportOptionalMemberAccess]
     ):
         # 获取关键字段
         company_id = row[col_indices["company_id"]] if "company_id" in col_indices else None
@@ -382,7 +383,7 @@ def main():
             else:
                 output_row.append(None)
 
-        ws_out.append(output_row)
+        ws_out.append(output_row)  # pyright: ignore[reportOptionalMemberAccess]
         cleaned_count += 1
 
     wb_out.save(OUTPUT_FILE)

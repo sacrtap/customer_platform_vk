@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标签管理 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="tags" class="page active">
+      <div class="headline"><div><div class="eyebrow">Core</div><h1 class="h1">标签管理</h1><p class="desc">客户标签分类与分组管理，支持搜索和合并</p></div><div class="actions"><button class="btn">合并标签</button><button class="btn primary">新建标签</button></div></div>
+      <div class="card pad">
+        <!-- P2: 标签搜索 -->
+        <div class="search-box" style="margin-bottom:14px;max-width:300px"><input placeholder="搜索标签名称..."></div>
+        <div class="tabs"><span class="tab active">全部 (48)</span><span class="tab">业务标签 (24)</span><span class="tab">风险标签 (12)</span><span class="tab">自定义标签 (12)</span></div>
+        <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:10px">
+          <span class="tag blue" style="padding:8px 14px;font-size:13px">重点客户 ×42</span>
+          <span class="tag green" style="padding:8px 14px;font-size:13px">长期合作 ×28</span>
+          <span class="tag amber" style="padding:8px 14px;font-size:13px">余额预警 ×7</span>
+          <span class="tag red" style="padding:8px 14px;font-size:13px">高风险 ×3</span>
+          <span class="tag" style="padding:8px 14px;font-size:13px">新客户 ×15</span>
+          <span class="tag blue" style="padding:8px 14px;font-size:13px">房产行业 ×42</span>
+          <span class="tag" style="padding:8px 14px;font-size:13px">SaaS ×36</span>
+          <span class="tag" style="padding:8px 14px;font-size:13px">电商 ×52</span>
+          <span class="tag green" style="padding:8px 14px;font-size:13px">高消费 ×32</span>
+          <span class="tag amber" style="padding:8px 14px;font-size:13px">合同临期 ×5</span>
+          <span class="tag" style="padding:8px 14px;font-size:13px">需激活 ×23</span>
+          <span class="tag" style="padding:8px 14px;font-size:13px">VIP ×8</span>
+        </div>
+        <div class="pagination" style="margin-top:20px"><span class="page-total">共 48 个标签</span><span class="page-size">每页 <select class="page-size-select"><option>10</option><option selected>20</option><option>50</option></select> 条</span><div class="page-controls"><button class="page-btn" disabled>‹</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><button class="page-btn">›</button></div><span class="page-jump">跳至 <input type="number" class="page-jump-input" value="1" min="1" max="3"> 页</span></div>
+      </div>
+<div class="opt-panel"><button class="opt-toggle"><span>🚀 标签管理 — 重构优化方案</span><span class="opt-count">6 项优化 <span class="opt-arrow">⌄</span></span></button><div class="opt-content"><div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">标签使用统计</div><div class="opt-desc">每个标签显示使用次数和客户数。“重点客户 ×42” → 点击跳转客户列表（带筛选）。</div></div><span class="opt-interaction">点击 → 筛选跳转</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">标签分类管理</div><div class="opt-desc">Tab 分为：全部/业务标签/风险标签/自定义。Tab 切换过滤标签类型。</div></div><span class="opt-interaction">Tab 切换</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">标签颜色自定义</div><div class="opt-desc">编辑标签时可选择颜色。6 色选择器（蓝/绿/橙/红/紫/灰）。</div></div><span class="opt-interaction">颜色选择器</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">标签合并</div><div class="opt-desc">添加“合并标签”功能。选择 2+ 标签 → 合并到主标签 → 副标签自动迁移客户关联。</div></div><span class="opt-interaction">多选 + 合并弹窗</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">批量删除</div><div class="opt-desc">添加批量删除功能。多选标签 → 批量删除（确认弹窗）。</div></div><span class="opt-interaction">多选 + 确认弹窗</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">标签搜索</div><div class="opt-desc">添加搜索框。关键词模糊匹配标签名称，实时过滤。</div></div><span class="opt-interaction">搜索 + 实时过滤</span></div></div></div>
+    </section>
+
+    <!-- ===== 同步日志 ===== -->
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

@@ -71,11 +71,7 @@
           <a-spin size="large" />
         </div>
         <div v-else class="chart-content">
-          <HealthGauge
-            v-if="healthScore"
-            :score="healthScore.score"
-            :level="healthScore.level"
-          />
+          <HealthGauge v-if="healthScore" :score="healthScore.score" :level="healthScore.level" />
         </div>
       </div>
 
@@ -152,7 +148,7 @@ const consumeLevelDisplay = computed(() => {
   border-radius: 12px;
   min-height: 72px;
   background: #ffffff;
-  border: 1px solid var(--neutral-2);
+  border: 1px solid var(--soft);
   transition: all 200ms ease;
   position: relative;
   overflow: hidden;
@@ -160,7 +156,7 @@ const consumeLevelDisplay = computed(() => {
 
 /* 加载状态 */
 .metric-card.loading {
-  background: var(--neutral-1);
+  background: var(--bg);
   border-color: transparent;
   pointer-events: none;
 }
@@ -171,7 +167,7 @@ const consumeLevelDisplay = computed(() => {
 
 /* 主色指标卡片 - 规模等级 */
 .metric-card.primary {
-  background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -188,7 +184,7 @@ const consumeLevelDisplay = computed(() => {
 
 .metric-card.primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(3, 105, 161, 0.25);
+  box-shadow: 0 8px 24px rgba(29, 78, 216, 0.25);
 }
 
 /* 成功色指标卡片 - 消费等级 */
@@ -215,7 +211,7 @@ const consumeLevelDisplay = computed(() => {
 
 /* 警告色指标卡片 - 预估年消费 */
 .metric-card.warning {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+  background: linear-gradient(135deg, var(--amber) 0%, #fbbf24 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -239,7 +235,7 @@ const consumeLevelDisplay = computed(() => {
 .metric-card .metric-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--neutral-5);
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -248,15 +244,15 @@ const consumeLevelDisplay = computed(() => {
 .metric-card .metric-value {
   font-size: 18px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
   line-height: 1.2;
 }
 
 /* 指标卡片 Hover 效果 - 简化版 */
 .metric-card:not(.primary):not(.success):not(.warning):not(.loading):hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: var(--primary-1);
+  box-shadow: var(--shadow-md);
+  border-color: #bfdbfe;
   background: #fafbfc;
 }
 
@@ -276,14 +272,14 @@ const consumeLevelDisplay = computed(() => {
 .chart-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
   margin: 0 0 4px 0;
   line-height: 1.4;
 }
 
 .chart-description {
   font-size: 12px;
-  color: var(--neutral-5);
+  color: #94a3b8;
   margin: 0 0 16px 0;
   line-height: 1.5;
 }

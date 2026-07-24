@@ -143,7 +143,7 @@ const formatNumber = (num: number) => {
 .level-label {
   font-size: 14px;
   font-weight: 600;
-  color: #646a73;
+  color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -151,7 +151,7 @@ const formatNumber = (num: number) => {
 .level-value {
   font-size: 24px;
   font-weight: 700;
-  color: #0369a1;
+  color: #1d4ed8;
 }
 
 .progress-container {
@@ -168,7 +168,7 @@ const formatNumber = (num: number) => {
 
 .level-segment {
   flex: 1;
-  background: #e5e7eb;
+  background: #e2e8f0;
   border-radius: 6px;
   position: relative;
   display: flex;
@@ -179,11 +179,11 @@ const formatNumber = (num: number) => {
 }
 
 .level-segment.completed {
-  background: #22c55e;
+  background: #059669;
 }
 
 .level-segment.current {
-  background: linear-gradient(90deg, #0369a1, #0ea5e9);
+  background: linear-gradient(90deg, #1d4ed8, #2563eb);
 }
 
 .segment-label {
@@ -191,12 +191,12 @@ const formatNumber = (num: number) => {
   bottom: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #646a73;
+  color: #475569;
 }
 
 .level-segment.completed .segment-label,
 .level-segment.current .segment-label {
-  color: #1d2330;
+  color: #0f172a;
 }
 
 .progress-indicator {
@@ -211,7 +211,7 @@ const formatNumber = (num: number) => {
   height: 0;
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-top: 10px solid #0369a1;
+  border-top: 10px solid #1d4ed8;
 }
 
 .progress-info {
@@ -220,6 +220,6 @@ const formatNumber = (num: number) => {
 
 .info-text {
   font-size: 13px;
-  color: #646a73;
+  color: #475569;
 }
 </style>

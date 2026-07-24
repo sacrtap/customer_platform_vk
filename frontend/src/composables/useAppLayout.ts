@@ -75,7 +75,12 @@ export function useAppLayout() {
           { key: 'tags', label: '标签管理', to: '/tags', permission: 'tags:view' },
           { key: 'users', label: '用户管理', to: '/users', permission: 'users:view' },
           { key: 'roles', label: '角色权限', to: '/roles', permission: 'roles:view' },
-          { key: 'industry-types', label: '行业类型', to: '/system/industry-types', permission: 'industry_types:manage' },
+          {
+            key: 'industry-types',
+            label: '行业类型',
+            to: '/system/industry-types',
+            permission: 'industry_types:manage',
+          },
         ],
       },
       {
@@ -83,20 +88,25 @@ export function useAppLayout() {
         title: '系统工具',
         items: [
           { key: 'sync-logs', label: '同步日志', to: '/system/sync-logs', permission: 'sync:view' },
-          { key: 'audit-logs', label: '审计日志', to: '/system/audit-logs', permission: 'audit:view' },
+          {
+            key: 'audit-logs',
+            label: '审计日志',
+            to: '/system/audit-logs',
+            permission: 'audit:view',
+          },
         ],
       },
     ]
 
     const filterItems = (items: NavItem[]): NavItem[] =>
       items
-        .filter(item => !item.permission || userStore.hasPermission(item.permission))
-        .map(item => item.children ? { ...item, children: filterItems(item.children) } : item)
-        .filter(item => !item.children || item.children.length > 0)
+        .filter((item) => !item.permission || userStore.hasPermission(item.permission))
+        .map((item) => (item.children ? { ...item, children: filterItems(item.children) } : item))
+        .filter((item) => !item.children || item.children.length > 0)
 
     return sections
-      .map(s => ({ ...s, items: filterItems(s.items) }))
-      .filter(s => s.items.length > 0)
+      .map((s) => ({ ...s, items: filterItems(s.items) }))
+      .filter((s) => s.items.length > 0)
   })
 
   // ─── 当前页面标题（保留原 route.name 映射） ─────────────────────
@@ -125,10 +135,14 @@ export function useAppLayout() {
   // ─── 方法 ──────────────────────────────────────────────────────
   const toggleSidebar = () => {
     sidebarCollapsed.value = !sidebarCollapsed.value
-    localStorage.setItem('sidebar_collapsed', String(sidebarCollapsed.value))
+    localStorage.setItem('prototype-sidebar-collapsed', String(sidebarCollapsed.value))
   }
-  const toggleMobileMenu = () => { mobileMenuOpen.value = !mobileMenuOpen.value }
-  const closeMobileMenu = () => { mobileMenuOpen.value = false }
+  const toggleMobileMenu = () => {
+    mobileMenuOpen.value = !mobileMenuOpen.value
+  }
+  const closeMobileMenu = () => {
+    mobileMenuOpen.value = false
+  }
   const toggleSubmenu = (menu: string) => {
     if (sidebarCollapsed.value) return
     expandedSubmenu.value = expandedSubmenu.value === menu ? null : menu
@@ -140,7 +154,8 @@ export function useAppLayout() {
     const p = route.path
     if (submenu === 'billing') return p.startsWith('/billing')
     if (submenu === 'analytics') return p.startsWith('/analytics')
-    if (submenu === 'system') return p === '/tags' || p === '/users' || p === '/roles' || p === '/system/industry-types'
+    if (submenu === 'system')
+      return p === '/tags' || p === '/users' || p === '/roles' || p === '/system/industry-types'
     return false
   }
   const isParentMenuActive = (menu: string): boolean =>
@@ -157,18 +172,31 @@ export function useAppLayout() {
   // ─── 监听（仅注册一次） ─────────────────────────────────────────
   if (!initialized) {
     initialized = true
-    watch(() => route.path, (newPath) => {
-      if (newPath.startsWith('/billing')) expandedSubmenu.value = 'billing'
-      else if (newPath.startsWith('/analytics')) expandedSubmenu.value = 'analytics'
-      else if (newPath === '/tags' || newPath === '/users' || newPath === '/roles' || newPath === '/system/industry-types' || newPath === '/system/database-management') expandedSubmenu.value = 'system'
-      else expandedSubmenu.value = null
-      mobileMenuOpen.value = false
-    }, { immediate: true })
+    watch(
+      () => route.path,
+      (newPath) => {
+        if (newPath.startsWith('/billing')) expandedSubmenu.value = 'billing'
+        else if (newPath.startsWith('/analytics')) expandedSubmenu.value = 'analytics'
+        else if (
+          newPath === '/tags' ||
+          newPath === '/users' ||
+          newPath === '/roles' ||
+          newPath === '/system/industry-types' ||
+          newPath === '/system/database-management'
+        )
+          expandedSubmenu.value = 'system'
+        else expandedSubmenu.value = null
+        mobileMenuOpen.value = false
+      },
+      { immediate: true }
+    )
 
-    watch(sidebarCollapsed, (c) => { if (c) expandedSubmenu.value = null })
+    watch(sidebarCollapsed, (c) => {
+      if (c) expandedSubmenu.value = null
+    })
 
     onMounted(() => {
-      const saved = localStorage.getItem('sidebar_collapsed')
+      const saved = localStorage.getItem('prototype-sidebar-collapsed')
       if (saved !== null) sidebarCollapsed.value = saved === 'true'
       if (userStore.isTokenExpired()) {
         userStore.logout()
@@ -179,10 +207,22 @@ export function useAppLayout() {
   }
 
   return {
-    sidebarCollapsed, expandedSubmenu, hoveredSubmenu, mobileMenuOpen,
-    navSections, pageTitle, currentUser, userPermissions,
-    can, toggleSidebar, toggleMobileMenu, closeMobileMenu,
-    toggleSubmenu, handleSubmenuHover, isSubmenuActive, isParentMenuActive,
+    sidebarCollapsed,
+    expandedSubmenu,
+    hoveredSubmenu,
+    mobileMenuOpen,
+    navSections,
+    pageTitle,
+    currentUser,
+    userPermissions,
+    can,
+    toggleSidebar,
+    toggleMobileMenu,
+    closeMobileMenu,
+    toggleSubmenu,
+    handleSubmenuHover,
+    isSubmenuActive,
+    isParentMenuActive,
     handleLogout,
   }
 }

@@ -28,27 +28,27 @@ class TestBalanceTrendService:
         """测试获取余额趋势成功场景"""
         from app.services.analytics import AnalyticsService
         from datetime import date
-        
+
         service = AnalyticsService(mock_db_session)
         result = await service.get_balance_trend(
             customer_id=1,
             months=6
         )
-        
+
         assert len(result) == 6
         assert all('month' in item for item in result)
         assert all('total_amount' in item for item in result)
         assert all('real_amount' in item for item in result)
         assert all('bonus_amount' in item for item in result)
-    
+
     @pytest.mark.asyncio
     async def test_get_balance_trend_no_data(self, mock_db_session):
         """测试无余额数据时返回空列表"""
         from app.services.analytics import AnalyticsService
-        
+
         service = AnalyticsService(mock_db_session)
         result = await service.get_balance_trend(customer_id=999, months=6)
-        
+
         assert result == []
 ```
 
@@ -76,10 +76,10 @@ async def get_balance_trend(
         RechargeRecord,
         ConsumptionRecord,
     )
-    
+
     end_date = datetime.utcnow().date()
     start_date = end_date - timedelta(days=months * 30)
-    
+
     stmt = (
         select(
             extract('year', ConsumptionRecord.created_at).label('year'),
@@ -108,10 +108,10 @@ async def get_balance_trend(
             extract('month', ConsumptionRecord.created_at),
         )
     )
-    
+
     result = (await self.db.execute(stmt)).all()
     current_balance = await self._get_current_balance(customer_id)
-    
+
     trend = []
     for row in result:
         trend.append({
@@ -120,30 +120,30 @@ async def get_balance_trend(
             'real_amount': 0,
             'bonus_amount': 0,
         })
-    
+
     if trend:
         trend[-1]['total_amount'] = current_balance.get('total_amount', 0)
         trend[-1]['real_amount'] = current_balance.get('real_amount', 0)
         trend[-1]['bonus_amount'] = current_balance.get('bonus_amount', 0)
-    
+
     return trend
 
 async def _get_current_balance(self, customer_id: int) -> Dict[str, float]:
     """获取客户当前余额"""
     from sqlalchemy import select
     from app.models.billing import CustomerBalance
-    
+
     stmt = select(CustomerBalance).where(
         CustomerBalance.customer_id == customer_id,
         CustomerBalance.deleted_at.is_(None),
     )
-    
+
     result = await self.db.execute(stmt)
     balance = result.scalars().first()
-    
+
     if not balance:
         return {'total_amount': 0, 'real_amount': 0, 'bonus_amount': 0}
-    
+
     return {
         'total_amount': float(balance.total_amount) if balance.total_amount else 0,
         'real_amount': float(balance.real_amount) if balance.real_amount else 0,
@@ -202,16 +202,16 @@ class TestBalanceTrendApi:
 async def get_balance_trend(request: Request, customer_id: int):
     months = int(request.args.get("months", 6))
     months = min(months, 12)
-    
+
     cache_key = f"{customer_id}:{months}"
     cached = await cache_service.get("analytics_balance_trend", cache_key)
     if cached is not None:
         return json(cached)
-    
+
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
     trend = await service.get_balance_trend(customer_id, months)
-    
+
     result = {
         "code": 0,
         "message": "success",
@@ -242,7 +242,7 @@ class TestCustomerHealthScoreService:
         from app.services.analytics import AnalyticsService
         service = AnalyticsService(mock_db_session)
         result = await service.get_customer_health_score(customer_id=1)
-        
+
         assert 'health_score' in result
         assert 'health_level' in result
         assert 'components' in result
@@ -256,22 +256,22 @@ class TestCustomerHealthScoreService:
 ```python
 async def get_customer_health_score(self, customer_id: int) -> Dict[str, Any]:
     """获取客户健康度评分
-    
+
     健康度 = 用量达标率 × 50% + 余额充足率 × 30% + 回款及时率 × 20%
     """
     usage_rate = await self._calculate_usage_rate(customer_id)
     balance_rate = await self._calculate_balance_rate(customer_id)
     payment_rate = await self._calculate_payment_rate(customer_id)
-    
+
     health_score = usage_rate * 0.5 + balance_rate * 0.3 + payment_rate * 0.2
-    
+
     if health_score >= 80:
         health_level = '健康'
     elif health_score >= 60:
         health_level = '亚健康'
     else:
         health_level = '不健康'
-    
+
     return {
         'health_score': round(health_score, 2),
         'health_level': health_level,
@@ -324,7 +324,7 @@ async def get_customer_health_score(request: Request, customer_id: int):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
     result = await service.get_customer_health_score(customer_id)
-    
+
     return json({
         "code": 0,
         "message": "success",

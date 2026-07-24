@@ -16,17 +16,28 @@ from ..repository import CustomerRepositoryProtocol
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 # 允许排序的字段白名单
+# Customer 表原生字段
 ALLOWED_SORT_FIELDS = {
     "id",
     "company_id",
     "name",
+    "account_type",
     "created_at",
     "updated_at",
+    "settlement_type",
+    "manager_id",
+    "sales_manager_id",
+    "is_key_customer",
+    # CustomerProfile 表字段（需 JOIN）
     "industry_type_id",
-    "settlement_type",  # 结算方式 (Customer 表)
-    "manager_id",  # 运营经理 (Customer 表)
-    "sales_manager_id",  # 商务经理 (Customer 表)
-    "is_key_customer",  # 重点客户 (Customer 表)
+    "industry",
+    "scale_level",
+    "consume_level",
+    # CustomerBalance 表字段（需 JOIN）
+    "balance",
+    # 占位字段（无实际 DB 列，排序时退化为按 id 排序）
+    "usage_30d",
+    "health",
 }
 VALID_SORT_ORDERS = {"asc", "desc"}
 
@@ -163,7 +174,7 @@ class CustomerService:
         else:
             from ..repository import CustomerRepository
 
-            self.customer_repo = CustomerRepository(db_session)
+            self.customer_repo = CustomerRepository(db_session)  # pyright: ignore[reportArgumentType]
 
     async def get_customer_by_id(self, customer_id: int) -> Optional[Customer]:
         """根据 ID 获取客户"""
@@ -239,6 +250,20 @@ class CustomerService:
             else:
                 conditions.append(IndustryType.name.in_(industry_list))
 
+        # 规模等级筛选
+        if scale_level := filters.get("scale_level"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(CustomerProfile.scale_level == scale_level)
+
+        # 消费等级筛选
+        if consume_level := filters.get("consume_level"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(CustomerProfile.consume_level == consume_level)
+
         # 运营经理筛选
         if manager_id := filters.get("manager_id"):
             conditions.append(Customer.manager_id == manager_id)
@@ -259,15 +284,38 @@ class CustomerService:
         if (is_real_estate := filters.get("is_real_estate")) is not None:
             conditions.append(Customer.is_real_estate == is_real_estate)
 
+        # 待完善画像：缺少规模等级或消费等级的客户
+        if filters.get("incomplete_profile"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(
+                or_(
+                    CustomerProfile.scale_level.is_(None),
+                    CustomerProfile.scale_level == "",
+                    CustomerProfile.consume_level.is_(None),
+                    CustomerProfile.consume_level == "",
+                )
+            )
+
+        # 我的客户：运营经理或销售经理为当前用户
+        if mine_user_id := filters.get("mine_user_id"):
+            conditions.append(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
         # 获取总数
         count_stmt = select(func.count()).select_from(stmt.subquery())
         if self._is_async:
-            total = (await self.db.execute(count_stmt)).scalar()
+            total = (await self.db.execute(count_stmt)).scalar()  # pyright: ignore[reportGeneralTypeIssues]
         else:
-            total = self.db.execute(count_stmt).scalar()
+            total = self.db.execute(count_stmt).scalar()  # pyright: ignore[reportAttributeAccessIssue]
 
         # 验证排序参数
         if sort_by not in ALLOWED_SORT_FIELDS:
@@ -275,11 +323,49 @@ class CustomerService:
         if sort_order not in VALID_SORT_ORDERS:
             raise ValueError(f"Invalid sort order: {sort_order}")
 
-        # 动态排序
-        if sort_by == "industry_type_id":
+        # 动态排序：根据字段名决定 JOIN 和排序列
+
+        if sort_by in ("industry_type_id", "industry"):
             if not joined_profile:
                 stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
             sort_column = CustomerProfile.industry_type_id
+        elif sort_by == "scale_level":
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            sort_column = CustomerProfile.scale_level
+        elif sort_by == "consume_level":
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            sort_column = CustomerProfile.consume_level
+        elif sort_by == "balance":
+            from ..models.billing import CustomerBalance
+
+            stmt = stmt.outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
+            sort_column = CustomerBalance.total_amount
+        elif sort_by == "usage_30d":
+            # 按近30天订单数排序：JOIN DailyConsumption 聚合子查询
+            from datetime import timedelta
+
+            from ..models.daily_consumption import DailyConsumption
+
+            thirty_days_ago = date.today() - timedelta(days=30)
+            usage_subquery = (
+                select(
+                    DailyConsumption.customer_id,
+                    func.coalesce(func.sum(DailyConsumption.order_count), 0).label("usage_30d_sum"),
+                )
+                .where(DailyConsumption.consumption_date >= thirty_days_ago)
+                .group_by(DailyConsumption.customer_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(usage_subquery, Customer.id == usage_subquery.c.customer_id)
+            sort_column = func.coalesce(usage_subquery.c.usage_30d_sum, 0)
+        elif sort_by == "health":
+            # 占位字段：无实际 DB 列，退化为按 id 排序
+            sort_column = Customer.id
         else:
             sort_column = getattr(Customer, sort_by)
 
@@ -296,12 +382,12 @@ class CustomerService:
         )
 
         if self._is_async:
-            result = await self.db.execute(stmt)
+            result = await self.db.execute(stmt)  # pyright: ignore[reportGeneralTypeIssues]
         else:
             result = self.db.execute(stmt)
-        customers = result.scalars().all()
+        customers = result.scalars().all()  # pyright: ignore[reportAttributeAccessIssue]
 
-        return list(customers), total
+        return list(customers), total  # pyright: ignore[reportReturnType]
 
     async def create_customer(self, data: dict) -> Customer:
         """创建客户"""
@@ -311,14 +397,16 @@ class CustomerService:
             account_type=data.get("account_type"),
             price_policy=data.get("price_policy"),
             manager_id=data.get("manager_id"),
+            sales_manager_id=data.get("sales_manager_id"),
             settlement_cycle=data.get("settlement_cycle"),
             settlement_type=data.get("settlement_type"),
             is_key_customer=data.get("is_key_customer", False),
+            is_real_estate=data.get("is_real_estate"),
             email=data.get("email"),
         )
 
         self.db.add(customer)
-        await self.db.flush()
+        await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
 
         # 创建初始余额记录
         balance = CustomerBalance(customer_id=customer.id)
@@ -332,8 +420,8 @@ class CustomerService:
             )
             self.db.add(profile)
 
-        await self.db.commit()
-        await self.db.refresh(customer)
+        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        await self.db.refresh(customer)  # pyright: ignore[reportGeneralTypeIssues]
 
         # 方案 2: 数据变更时主动清除画像分析缓存
         await clear_analytics_cache()
@@ -349,7 +437,7 @@ class CustomerService:
         # company_id 唯一性校验（如果修改了 company_id）
         new_company_id = data.get("company_id")
         if new_company_id and new_company_id != customer.company_id:
-            existing = await self.db.execute(
+            existing = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                 select(Customer.id).where(
                     Customer.company_id == new_company_id,
                     Customer.deleted_at.is_(None),
@@ -393,7 +481,7 @@ class CustomerService:
 
         # 如果提供了 industry_type_id，更新 profile
         if "industry_type_id" in data:
-            profile = await self.get_customer_profile(customer.id)
+            profile = await self.get_customer_profile(customer.id)  # pyright: ignore[reportArgumentType]
             if profile:
                 profile.industry_type_id = data["industry_type_id"]
             else:
@@ -402,8 +490,8 @@ class CustomerService:
                 )
                 self.db.add(profile)
 
-        await self.db.commit()
-        await self.db.refresh(customer)
+        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        await self.db.refresh(customer)  # pyright: ignore[reportGeneralTypeIssues]
 
         # 方案 2: 数据变更时主动清除画像分析缓存
         await clear_analytics_cache()
@@ -486,7 +574,7 @@ class CustomerService:
                 if "industry_type_id" in fields and fields["industry_type_id"] is not None:
                     from ..models.industry_type import IndustryType
 
-                    ind_result = await self.db.execute(
+                    ind_result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                         select(IndustryType).where(IndustryType.id == fields["industry_type_id"])
                     )
                     if not ind_result.scalar_one_or_none():
@@ -496,7 +584,7 @@ class CustomerService:
                 # company_id 唯一性校验
                 new_company_id = fields.get("company_id")
                 if new_company_id and new_company_id != customer.company_id:
-                    existing = await self.db.execute(
+                    existing = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                         select(Customer.id).where(
                             Customer.company_id == new_company_id,
                             Customer.deleted_at.is_(None),
@@ -523,7 +611,7 @@ class CustomerService:
                 # Profile 更新
                 profile_fields = {"industry_type_id", "scale_level", "consume_level"}
                 if any(f in fields_to_apply for f in profile_fields):
-                    profile = await self.get_customer_profile(customer.id)
+                    profile = await self.get_customer_profile(customer.id)  # pyright: ignore[reportArgumentType]
                     if profile:
                         for pf in profile_fields:
                             if pf in fields_to_apply:
@@ -537,8 +625,8 @@ class CustomerService:
                         profile = CustomerProfile(**profile_data)
                         self.db.add(profile)
 
-                await self.db.commit()
-                await self.db.refresh(customer)
+                await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+                await self.db.refresh(customer)  # pyright: ignore[reportGeneralTypeIssues]
                 success_list.append(cid)
 
             except Exception as e:  # pragma: no cover
@@ -554,7 +642,7 @@ class CustomerService:
                 details=failed_list[:10],
             )
             await create_audit_entry(
-                db_session=self.db,
+                db_session=self.db,  # pyright: ignore[reportArgumentType]
                 user_id=current_user.get("user_id"),
                 action="batch_update",
                 module="customers",
@@ -582,14 +670,14 @@ class CustomerService:
         if not customer:
             return False
 
-        customer.deleted_at = func.now()
-        await self.db.commit()
+        customer.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
+        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
 
         return True
 
     async def get_customer_profile(self, customer_id: int) -> Optional[CustomerProfile]:
         """获取客户画像"""
-        result = await self.db.execute(
+        result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
             select(CustomerProfile).where(
                 CustomerProfile.customer_id == customer_id,
                 CustomerProfile.deleted_at.is_(None),
@@ -608,7 +696,7 @@ class CustomerService:
 
             from ..models.industry_type import IndustryType
 
-            result = await self.db.execute(
+            result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                 select(IndustryType).where(IndustryType.name == industry_name)
             )
             industry_type = result.scalar_one_or_none()
@@ -656,8 +744,8 @@ class CustomerService:
             if industry_name is not None and industry_type:
                 profile.industry_type = industry_type
             self.db.add(profile)
-        await self.db.commit()
-        await self.db.refresh(profile, ["industry_type"])
+        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        await self.db.refresh(profile, ["industry_type"])  # pyright: ignore[reportGeneralTypeIssues]
 
         return profile
 
@@ -673,7 +761,7 @@ class CustomerService:
         """
         # 批量获取已存在的 company_id，避免 N+1 查询
         existing_stmt = select(Customer.company_id)
-        existing_result = await self.db.execute(existing_stmt)
+        existing_result = await self.db.execute(existing_stmt)  # pyright: ignore[reportGeneralTypeIssues]
         existing_company_ids = {row[0] for row in existing_result.all()}
 
         pending_profiles: list[dict] = []
@@ -882,7 +970,7 @@ class CustomerService:
         # 批量创建余额记录和 profile
         if success_count > 0:
             # flush 后 customer.id 可用
-            await self.db.flush()
+            await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
             self.db.add_all(balances)
 
@@ -891,7 +979,7 @@ class CustomerService:
                 company_id_to_id = {c.company_id: c.id for c in new_customers}
                 for p_info in pending_profiles:
                     customer_id = company_id_to_id.get(p_info["company_id"])
-                    if customer_id:
+                    if customer_id:  # pyright: ignore[reportGeneralTypeIssues]
                         pd = p_info["data"]
                         profile = CustomerProfile(
                             customer_id=customer_id,
@@ -904,7 +992,7 @@ class CustomerService:
                         )
                         self.db.add(profile)
 
-        await self.db.commit()
+        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
         return success_count, errors
 
 

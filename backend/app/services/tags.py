@@ -80,7 +80,7 @@ class TagService:
         result = await self.db.execute(stmt)
         tags = result.scalars().all()
 
-        return list(tags), total
+        return list(tags), total  # pyright: ignore[reportReturnType]
 
     async def create_tag(self, data: dict, created_by: int) -> Tag:
         """创建标签
@@ -128,7 +128,7 @@ class TagService:
         if not tag:
             return False
 
-        tag.deleted_at = datetime.utcnow()
+        tag.deleted_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True
@@ -210,7 +210,7 @@ class TagService:
         if not customer_tag:
             return False
 
-        customer_tag.deleted_at = datetime.utcnow()
+        customer_tag.deleted_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True
@@ -303,7 +303,7 @@ class TagService:
         removed_count = len(tags_to_remove)
 
         for tag in tags_to_remove:
-            tag.deleted_at = now
+            tag.deleted_at = now  # pyright: ignore[reportAttributeAccessIssue]
 
         if tags_to_remove:
             await self.db.commit()
@@ -369,7 +369,7 @@ class TagService:
         if not profile_tag:
             return False
 
-        profile_tag.deleted_at = datetime.utcnow()
+        profile_tag.deleted_at = datetime.utcnow()  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
         return True

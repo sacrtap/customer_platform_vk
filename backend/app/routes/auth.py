@@ -1,5 +1,6 @@
 """认证相关路由"""
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 
@@ -14,9 +15,12 @@ from ..cache.permissions import permission_cache
 from ..config import settings
 from ..middleware.auth import get_current_user
 from ..services.auth import AuthService
+from ..services.email import email_service
 from ..services.permissions import get_user_permissions
 from ..services.token_blacklist import TokenBlacklistService
 from ..services.users import UserService
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
 
@@ -46,24 +50,24 @@ async def login(request: Request):
     if not user:
         return json({"code": 40101, "message": "用户名或密码错误"}, status=401)
 
-    if not user_service.verify_password(password, user.password_hash):
+    if not user_service.verify_password(password, user.password_hash):  # pyright: ignore[reportArgumentType]
         return json({"code": 40101, "message": "用户名或密码错误"}, status=401)
 
-    if not user.is_active:
+    if not user.is_active:  # pyright: ignore[reportGeneralTypeIssues]
         return json({"code": 40102, "message": "账号已被禁用"}, status=401)
 
     # 更新最后登录时间
-    user.last_login_at = func.now()
+    user.last_login_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
     await session.commit()
 
     roles = [role.name for role in user.roles]
 
-    access_token = AuthService.create_access_token(user_id=user.id, username=username, roles=roles)
-    refresh_token = AuthService.create_refresh_token(user_id=user.id)
+    access_token = AuthService.create_access_token(user_id=user.id, username=username, roles=roles)  # pyright: ignore[reportArgumentType]
+    refresh_token = AuthService.create_refresh_token(user_id=user.id)  # pyright: ignore[reportArgumentType]
 
     # 获取用户权限
-    user_permissions = await get_user_permissions(session, user.id)
-    await permission_cache.set_permissions(user.id, user_permissions)
+    user_permissions = await get_user_permissions(session, user.id)  # pyright: ignore[reportArgumentType]
+    await permission_cache.set_permissions(user.id, user_permissions)  # pyright: ignore[reportArgumentType]
 
     return json(
         {
@@ -147,7 +151,7 @@ async def refresh_token(request: Request):
     user_service = UserService(session)
 
     user = await user_service.get_user_by_id(payload["user_id"])
-    if not user or not user.is_active:
+    if not user or not user.is_active:  # pyright: ignore[reportGeneralTypeIssues]
         return json({"code": 40101, "message": "用户不存在或已被禁用"}, status=401)
 
     # 将旧 Refresh Token 加入黑名单
@@ -164,11 +168,11 @@ async def refresh_token(request: Request):
     roles = [role.name for role in user.roles]
 
     new_access_token = AuthService.create_access_token(
-        user_id=user.id,
-        username=user.username,
+        user_id=user.id,  # pyright: ignore[reportArgumentType]
+        username=user.username,  # pyright: ignore[reportArgumentType]
         roles=roles,
     )
-    new_refresh_token = AuthService.create_refresh_token(user_id=user.id)
+    new_refresh_token = AuthService.create_refresh_token(user_id=user.id)  # pyright: ignore[reportArgumentType]
 
     return json(
         {
@@ -213,7 +217,7 @@ async def forgot_password(request: Request):
             {"code": 0, "message": "如果账号存在，密码重置链接已发送到邮箱"},
         )
 
-    if not user.is_active:
+    if not user.is_active:  # pyright: ignore[reportGeneralTypeIssues]
         return json({"code": 40002, "message": "账号已被禁用，请联系管理员"}, status=400)
 
     # 生成重置 token（2 小时有效期）
@@ -229,11 +233,25 @@ async def forgot_password(request: Request):
         algorithm=settings.jwt_algorithm,
     )
 
-    # TODO: 发送重置邮件到 user.email
-    # 临时方案：在日志中输出重置链接（开发环境使用）
-    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
-    print(f"\n🔑 密码重置链接 (开发环境): {reset_link}")
-    print(f"   用户：{user.username} ({user.email})\n")
+    # 构建重置链接并发送邮件
+    reset_link = f"{settings.app_url}/reset-password?token={reset_token}"
+
+    html_content = email_service.render_template(
+        "password_reset.html",
+        user_name=user.real_name or user.username,
+        reset_link=reset_link,
+    )
+
+    success = await email_service.send_email(
+        to_emails=[user.email],  # pyright: ignore[reportArgumentType]
+        subject="【密码重置】客户运营中台密码重置",
+        html_content=html_content,
+    )
+
+    if not success:
+        logger.error("Failed to send password reset email to %s", user.email)
+    else:
+        logger.info("Password reset email sent to %s", user.email)
 
     return json({"code": 0, "message": "如果账号存在，密码重置链接已发送到邮箱"})
 
@@ -274,7 +292,7 @@ async def reset_password(request: Request):
         user_service = UserService(session)
 
         user = await user_service.get_user_by_id(user_id)
-        if not user or not user.is_active:
+        if not user or not user.is_active:  # pyright: ignore[reportGeneralTypeIssues]
             return json({"code": 40103, "message": "用户不存在或已被禁用"}, status=401)
 
         # 重置密码

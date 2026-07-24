@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>回款分析 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="payment" class="page active">
+      <div class="headline"><div><div class="eyebrow">Analytics</div><h1 class="h1">回款分析</h1><p class="desc">结算单回款进度与完成率分析，预测对比与客户回款排行</p></div><div class="actions"><button class="btn">导出报告</button></div></div>
+      <div class="card pad">
+        <div class="filters"><div class="field">时间范围 <b>近 12 个月</b></div><div class="field">客户 <b>全部</b></div><button class="btn primary">查询</button></div>
+        <!-- P1: 回款周期分析 KPI -->
+        <div class="kpi-strip"><div class="mini kpi-clickable"><span>回款率</span><b>78.5%</b><span class="up">+5.2%</span></div><div class="mini"><span>应收总额</span><b>¥18.6M</b><span>本年度</span></div><div class="mini"><span>已回款</span><b>¥14.6M</b><span class="up">进度良好</span></div><div class="mini"><span>平均回款周期</span><b>18 天</b><span class="up">-3 天</span></div><div class="mini"><span>逾期金额</span><b class="danger">¥180k</b><span class="warn">3 笔</span></div><div class="mini"><span>预测偏差</span><b>±6.3%</b><span>近 3 月</span></div></div>
+      </div>
+      <!-- P0: 预测 vs 实际对比 + 状态饼图 -->
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card pad"><div class="section-title"><h2>预测 vs 实际对比 <span class="chart-help">?<span class="chart-help-tip">蓝色柱=预测回款金额，绿色柱=实际回款金额，按月对比</span></span></h2><div class="legend" style="display:flex;gap:14px"><div><span class="sw" style="background:#2563eb"></span>预测</div><div><span class="sw" style="background:#059669"></span>实际</div></div></div>
+          <div style="display:flex;align-items:flex-end;gap:6px;height:220px;padding:12px 4px;border:1px solid #edf2f7;border-radius:12px;background:linear-gradient(180deg,#fff,#f8fafc)">
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:55%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:48%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:62%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:58%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:70%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:75%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:65%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:60%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:78%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:82%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:85%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:80%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:72%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:78%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:90%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:88%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:82%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:85%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:88%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:92%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:95%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:90%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:3px"><div style="flex:1;height:100%;border-radius:4px 4px 0 0;background:#2563eb;opacity:.6"></div><div style="flex:1;height:78%;border-radius:4px 4px 0 0;background:#059669"></div></div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px;padding:0 4px"><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">1月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">2月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">3月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">4月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">5月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">6月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">7月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">8月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">9月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">10月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">11月</span><span style="flex:1;text-align:center;font-size:10px;color:var(--muted)">12月</span></div>
+        </div>
+        <!-- P0: 结算单状态饼图 -->
+        <div class="card pad"><div class="section-title"><h2>结算单状态分布</h2><span class="subtle">点击扇区联动</span></div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center">
+            <div class="ring-chart" style="width:180px;height:180px;background:conic-gradient(#94a3b8 0 5%,#d97706 5% 20%,#2563eb 20% 45%,#059669 45% 85%,#10b981 85% 97%,#dc2626 97% 100%)"><div class="ring-center"><b>42</b><span>结算单</span></div></div>
+            <div class="legend" style="display:grid;gap:6px"><div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="this.style.opacity='1'"><span class="sw" style="background:#94a3b8"></span>草稿 <b>2 (5%)</b></div><div style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="sw" style="background:#d97706"></span>待确认 <b>6 (15%)</b></div><div style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="sw" style="background:#2563eb"></span>已确认 <b>10 (25%)</b></div><div style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="sw" style="background:#059669"></span>已付款 <b>16 (40%)</b></div><div style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="sw" style="background:#10b981"></span>已完成 <b>5 (12%)</b></div><div style="display:flex;align-items:center;gap:8px;cursor:pointer"><span class="sw" style="background:#dc2626"></span>逾期 <b>3 (3%)</b></div></div>
+          </div>
+        </div>
+      </div>
+      <!-- P1: 回款趋势折线图 (双 Y 轴: 金额柱 + 回款率线) -->
+      <div class="card pad" style="margin-top:14px"><div class="section-title"><h2>回款趋势 <span class="chart-help">?<span class="chart-help-tip">蓝色柱=月度回款金额，折线=累计回款率</span></span></h2><div class="legend" style="display:flex;gap:14px"><div><span class="sw" style="background:#2563eb"></span>月度回款</div><div><span class="sw" style="background:#06b6d4"></span>累计回款率</div></div></div>
+        <div class="chart"><svg viewBox="0 0 760 260" preserveAspectRatio="none">
+          <defs><linearGradient id="paygrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfdbfe"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>
+          <path class="axis" d="M40 40H730M40 95H730M40 150H730M40 205H730"/>
+          <text x="6" y="44" font-size="10" fill="#94a3b8">¥2M</text><text x="6" y="99" font-size="10" fill="#94a3b8">¥1.5M</text><text x="6" y="154" font-size="10" fill="#94a3b8">¥1M</text><text x="6" y="209" font-size="10" fill="#94a3b8">¥0</text>
+          <text x="735" y="44" font-size="10" fill="#06b6d4">100%</text><text x="735" y="99" font-size="10" fill="#06b6d4">75%</text><text x="735" y="154" font-size="10" fill="#06b6d2">50%</text><text x="735" y="209" font-size="10" fill="#06b6d4">25%</text>
+          <rect x="55" y="155" width="40" height="50" fill="#2563eb" opacity=".3" rx="3"/><rect x="115" y="140" width="40" height="65" fill="#2563eb" opacity=".3" rx="3"/><rect x="175" y="120" width="40" height="85" fill="#2563eb" opacity=".3" rx="3"/><rect x="235" y="130" width="40" height="75" fill="#2563eb" opacity=".3" rx="3"/><rect x="295" y="95" width="40" height="110" fill="#2563eb" opacity=".3" rx="3"/><rect x="355" y="80" width="40" height="125" fill="#2563eb" opacity=".3" rx="3"/><rect x="415" y="100" width="40" height="105" fill="#2563eb" opacity=".3" rx="3"/><rect x="475" y="70" width="40" height="135" fill="#2563eb" opacity=".3" rx="3"/><rect x="535" y="85" width="40" height="120" fill="#2563eb" opacity=".3" rx="3"/><rect x="595" y="60" width="40" height="145" fill="#2563eb" opacity=".3" rx="3"/><rect x="655" y="50" width="40" height="155" fill="#2563eb" opacity=".3" rx="3"/>
+          <path class="line2" d="M75 180 C130 165 180 155 235 145 C290 130 340 120 395 110 C450 95 500 85 555 75 C610 65 660 58 715 52" stroke="#06b6d4" stroke-width="2.5" fill="none"/>
+          <circle cx="75" cy="180" r="3" fill="#06b6d4"/><circle cx="235" cy="145" r="3" fill="#06b6d4"/><circle cx="395" cy="110" r="3" fill="#06b6d4"/><circle cx="555" cy="75" r="3" fill="#06b6d4"/><circle cx="715" cy="52" r="3" fill="#06b6d4"/>
+        </svg></div>
+      </div>
+      <!-- P2: 客户回款排行表 -->
+      <div class="card pad" style="margin-top:14px"><div class="section-title"><h2>客户回款排行</h2><div style="display:flex;align-items:center;gap:8px"><div class="tabs"><span class="tab active">按金额</span><span class="tab">按回款率</span></div><button class="btn" style="padding:4px 12px;font-size:12px">导出</button></div></div>
+        <table class="table"><thead><tr><th>排名</th><th>客户</th><th>应收</th><th>已回款</th><th>回款率</th><th>平均周期</th><th>状态</th></tr></thead><tbody>
+          <tr><td>1</td><td><b>上海蓝海贸易</b></td><td>¥3.56M</td><td>¥3.28M</td><td><div class="bar" style="width:80px"><span style="width:92%"></span></div> <b>92%</b></td><td>15 天</td><td><span class="tag green">优秀</span></td></tr>
+          <tr><td>2</td><td><b>万科华东</b></td><td>¥2.82M</td><td>¥2.41M</td><td><div class="bar" style="width:80px"><span style="width:85%"></span></div> <b>85%</b></td><td>18 天</td><td><span class="tag green">良好</span></td></tr>
+          <tr><td>3</td><td><b>龙湖集团</b></td><td>¥2.11M</td><td>¥1.68M</td><td><div class="bar" style="width:80px"><span style="width:80%"></span></div> <b>80%</b></td><td>20 天</td><td><span class="tag green">良好</span></td></tr>
+          <tr><td>4</td><td><b>杭州星辰科技</b></td><td>¥1.28M</td><td>¥0.96M</td><td><div class="bar" style="width:80px"><span style="width:75%"></span></div> <b>75%</b></td><td>22 天</td><td><span class="tag amber">关注</span></td></tr>
+          <tr class="row-warning"><td>5</td><td><b>广州鼎新传媒</b></td><td>¥0.45M</td><td>¥0.27M</td><td><div class="bar" style="width:80px"><span style="width:60%"></span></div> <b>60%</b></td><td>35 天</td><td><span class="tag red">逾期</span></td></tr>
+        </tbody><tfoot><tr><td colspan="2">合计</td><td>¥10.22M</td><td>¥8.60M</td><td colspan="2">整体回款率 84.1%</td><td><span class="tag amber">3 笔逾期</span></td></tr></tfoot></table>
+      </div>
+      <div class="opt-panel"><button class="opt-toggle"><span>🚀 回款分析 — 重构优化方案</span><span class="opt-count">5 项优化 <span class="opt-arrow">⌄</span></span></button><div class="opt-content"><div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">预测 vs 实际对比图</div><div class="opt-desc">柱状图展示月度预测与实际回款。双色柱图：蓝色=预测 / 绿色=实际。</div></div><span class="opt-interaction">双色柱图</span></div><div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">结算单状态饼图</div><div class="opt-desc">饼图展示 6 种状态分布。点击扇区 → 联动明细表。</div></div><span class="opt-interaction">饼图 + 点击联动</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">回款趋势折线图</div><div class="opt-desc">12 个月趋势 + 累计回款率。双 Y 轴：金额(柱) + 回款率(线)。</div></div><span class="opt-interaction">双 Y 轴图表</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">回款周期分析</div><div class="opt-desc">新增"回款周期"KPI 卡片。平均回款天数 + 趋势。</div></div><span class="opt-interaction">KPI 卡片</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">客户回款排行</div><div class="opt-desc">新增 Top 客户回款排行表。按回款金额/回款率排序。</div></div><span class="opt-interaction">排行表</span></div></div></div>
+    </section>
+
+    <!-- ===== 健康度分析 ===== -->
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

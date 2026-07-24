@@ -125,11 +125,11 @@
   .info-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .info-item .label {
     font-size: 11px;
   }
-  
+
   .info-item .value {
     font-size: 13px;
   }
@@ -290,7 +290,7 @@ const handleEditSubmit = async () => {
         consume_level: editForm.value.consume_level || undefined,
       }),
     ])
-    
+
     Message.success('更新成功')
     editModalVisible.value = false
     customerStore.invalidateCustomerCache(customerId.value)

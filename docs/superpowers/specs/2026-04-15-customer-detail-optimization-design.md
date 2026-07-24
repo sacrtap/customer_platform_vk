@@ -1,7 +1,7 @@
 # 客户详情页功能优化设计文档
 
-**创建日期**: 2026-04-15  
-**状态**: 待实现  
+**创建日期**: 2026-04-15
+**状态**: 待实现
 **涉及模块**: 客户详情页面 (前端)
 
 ---
@@ -24,14 +24,14 @@
 
 **当前实现**: 使用 `<table>` 标签，单列布局（label-cell + value-cell），共 18 行数据。
 
-**修改方案**: 
+**修改方案**:
 - 将 `<table>` 结构改为使用 Arco Design 的 `<a-descriptions>` 组件
 - 设置 `:column="2"` 属性实现双列布局
 - 保持原有数据字段不变
 
 **影响文件**: `frontend/src/views/customers/Detail.vue`
 
-**改动范围**: 
+**改动范围**:
 - 模板部分：替换 `<table class="info-table">` 为 `<a-descriptions>`
 - 样式部分：移除 `.info-table` 相关 CSS，改用 Arco 默认样式或微调
 
@@ -51,7 +51,7 @@
 
 **数据存储**: 该字段属于 `CustomerProfile` 模型，但编辑入口在客户编辑对话框中。需要通过现有 API 同时更新 profile 数据。
 
-**影响文件**: 
+**影响文件**:
 - `frontend/src/views/customers/Detail.vue` (编辑表单)
 - 可能需要调整 `handleEditSubmit` 逻辑，确保同时更新 profile 数据
 
@@ -107,11 +107,11 @@
 
 现有更新客户的 API (`updateCustomer`) 仅更新 `Customer` 表字段。规模等级和消费等级存储在 `CustomerProfile` 表中。
 
-**确认结果**: 
+**确认结果**:
 - ✅ 后端有独立的 `PUT /customers/<id>/profile` 接口 (`updateProfile` API)
 - ✅ 前端已有 `updateProfile` 函数 (位于 `frontend/src/api/customers.ts`)
 
-**实现方案**: 
+**实现方案**:
 - 在 `handleEditSubmit` 中，使用 `Promise.all` 同时调用 `updateCustomer` 和 `updateProfile`
 - 两个 API 调用并行执行，任一失败则整体回滚提示
 - 成功后刷新页面数据并清除缓存

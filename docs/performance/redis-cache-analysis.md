@@ -1,7 +1,7 @@
 # Redis 缓存优化分析报告
 
-**分析日期**: 2026-04-04  
-**分析范围**: 后端服务层与 API 路由  
+**分析日期**: 2026-04-04
+**分析范围**: 后端服务层与 API 路由
 **目标**: 识别最适合 Redis 缓存优化的候选函数
 
 ---
@@ -21,8 +21,8 @@
 
 ### 1. 仪表盘统计数据
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_dashboard_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_dashboard_stats()`
 **行号**: L673-L750
 
 **返回数据**:
@@ -45,16 +45,16 @@
 - ✅ **数据稳定性**: 分钟级变化可接受，无需实时
 - ✅ **现有缓存缺失**: 路由层未实现缓存
 
-**建议 TTL**: `300 秒 (5 分钟)`  
-**缓存键**: `dashboard:stats:{date}` (按日期分区)  
+**建议 TTL**: `300 秒 (5 分钟)`
+**缓存键**: `dashboard:stats:{date}` (按日期分区)
 **失效策略**: 客户创建/删除、结算单生成/支付时主动失效
 
 ---
 
 ### 2. 仪表盘图表数据
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_dashboard_chart_data()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_dashboard_chart_data()`
 **行号**: L752-L796
 
 **返回数据**:
@@ -70,16 +70,16 @@
 - ✅ **计算密集**: 调用 6 次 `get_payment_analysis()`，每次涉及 2 次聚合查询
 - ✅ **数据稳定性**: 历史数据不变，仅月末变化
 
-**建议 TTL**: `900 秒 (15 分钟)`  
-**缓存键**: `dashboard:chart:{months}:{end_date}`  
+**建议 TTL**: `900 秒 (15 分钟)`
+**缓存键**: `dashboard:chart:{months}:{end_date}`
 **失效策略**: 结算单状态变更时失效
 
 ---
 
 ### 3. 客户健康度统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_customer_health_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_customer_health_stats()`
 **行号**: L270-L323
 
 **返回数据**:
@@ -99,16 +99,16 @@
 - ✅ **高频访问**: 运营监控仪表盘
 - ✅ **数据稳定性**: 90 天无消耗判定，日内变化小
 
-**建议 TTL**: `600 秒 (10 分钟)`  
-**缓存键**: `analytics:health:stats`  
+**建议 TTL**: `600 秒 (10 分钟)`
+**缓存键**: `analytics:health:stats`
 **失效策略**: 客户创建/删除、消耗记录写入时失效
 
 ---
 
 ### 4. 行业分布统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_industry_distribution()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_industry_distribution()`
 **行号**: L431-L463
 
 **返回数据**:
@@ -124,16 +124,16 @@
 - ✅ **聚合查询**: 涉及 CustomerProfile 关联统计
 - ✅ **高频访问**: 客户分析页面
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `analytics:profile:industry`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `analytics:profile:industry`
 **失效策略**: 客户画像更新时失效
 
 ---
 
 ### 5. 客户等级统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_customer_level_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_customer_level_stats()`
 **行号**: L465-L487
 
 **返回数据**:
@@ -149,16 +149,16 @@
 - ✅ **简单聚合**: 单表 GROUP BY 查询
 - ✅ **高频访问**: 客户分析页面
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `analytics:profile:level`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `analytics:profile:level`
 **失效策略**: 客户等级变更时失效
 
 ---
 
 ### 6. 客户规模等级统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_scale_level_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_scale_level_stats()`
 **行号**: L489-L511
 
 **返回数据**:
@@ -173,16 +173,16 @@
 - ✅ **读多写少**: 规模等级极少变更
 - ✅ **关联查询**: 涉及 Customer-CustomerProfile JOIN
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `analytics:profile:scale`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `analytics:profile:scale`
 **失效策略**: 客户画像更新时失效
 
 ---
 
 ### 7. 客户消费等级统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_consume_level_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_consume_level_stats()`
 **行号**: L513-L535
 
 **返回数据**:
@@ -197,16 +197,16 @@
 - ✅ **读多写少**: 消费等级月度调整
 - ✅ **关联查询**: 涉及 Customer-CustomerProfile JOIN
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `analytics:profile:consume-level`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `analytics:profile:consume-level`
 **失效策略**: 客户画像更新时失效
 
 ---
 
 ### 8. 房产客户统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_real_estate_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_real_estate_stats()`
 **行号**: L537-L563
 
 **返回数据**:
@@ -223,16 +223,16 @@
 - ✅ **读多写少**: 房产标识极少变更
 - ✅ **关联查询**: 涉及 Customer-CustomerProfile JOIN
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `analytics:profile:real-estate`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `analytics:profile:real-estate`
 **失效策略**: 客户画像更新时失效
 
 ---
 
 ### 9. 结算单状态统计
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_invoice_status_stats()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_invoice_status_stats()`
 **行号**: L237-L266
 
 **返回数据**:
@@ -248,16 +248,16 @@
 - ✅ **聚合查询**: 按状态 GROUP BY 统计
 - ⚠️ **数据变化**: 结算单状态变更时更新
 
-**建议 TTL**: `300 秒 (5 分钟)`  
-**缓存键**: `analytics:invoice:status:{start_date}:{end_date}`  
+**建议 TTL**: `300 秒 (5 分钟)`
+**缓存键**: `analytics:invoice:status:{start_date}:{end_date}`
 **失效策略**: 结算单状态变更时失效
 
 ---
 
 ### 10. 余额预警客户列表
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_balance_warning_list()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_balance_warning_list()`
 **行号**: L325-L356
 
 **返回数据**:
@@ -279,16 +279,16 @@
 - ✅ **关联查询**: Customer-CustomerBalance JOIN
 - ⚠️ **数据变化**: 充值/消费后余额变化
 
-**建议 TTL**: `180 秒 (3 分钟)`  
-**缓存键**: `analytics:health:warning-list:{threshold}`  
+**建议 TTL**: `180 秒 (3 分钟)`
+**缓存键**: `analytics:health:warning-list:{threshold}`
 **失效策略**: 充值/消费记录写入时失效
 
 ---
 
 ### 11. 长期未消耗客户列表
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_inactive_customers()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_inactive_customers()`
 **行号**: L358-L429
 
 **返回数据**:
@@ -309,16 +309,16 @@
 - ✅ **数据稳定性**: 90 天判定，日内变化小
 - ✅ **高频访问**: 客户流失预警
 
-**建议 TTL**: `600 秒 (10 分钟)`  
-**缓存键**: `analytics:health:inactive-list:{days}`  
+**建议 TTL**: `600 秒 (10 分钟)`
+**缓存键**: `analytics:health:inactive-list:{days}`
 **失效策略**: 消耗记录写入时失效
 
 ---
 
 ### 12. 定价规则列表
 
-**文件路径**: `backend/app/services/billing.py`  
-**函数名**: `get_pricing_rules()`  
+**文件路径**: `backend/app/services/billing.py`
+**函数名**: `get_pricing_rules()`
 **行号**: L248-L275
 
 **返回数据**:
@@ -331,8 +331,8 @@
 - ✅ **高频访问**: 结算单生成、费用计算
 - ✅ **条件过滤**: 支持 customer_id/device_type/pricing_type 筛选
 
-**建议 TTL**: `3600 秒 (1 小时)`  
-**缓存键**: `billing:pricing:{customer_id}:{device_type}:{pricing_type}`  
+**建议 TTL**: `3600 秒 (1 小时)`
+**缓存键**: `billing:pricing:{customer_id}:{device_type}:{pricing_type}`
 **失效策略**: 定价规则创建/更新/删除时失效
 
 ---
@@ -341,8 +341,8 @@
 
 ### 1. 消耗趋势分析
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_consumption_trend()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_consumption_trend()`
 **行号**: L29-L68
 
 **缓存理由**:
@@ -350,45 +350,45 @@
 - ⚠️ **参数多变**: 日期范围 + 客户 ID 组合多
 - ⚠️ **数据变化**: 新结算单生成时更新
 
-**建议 TTL**: `900 秒 (15 分钟)`  
+**建议 TTL**: `900 秒 (15 分钟)`
 **缓存键**: `analytics:consumption:trend:{start_date}:{end_date}:{customer_id}`
 
 ---
 
 ### 2. Top 消耗客户
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_top_customers()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_top_customers()`
 **行号**: L70-L105
 
 **缓存理由**:
 - ✅ **聚合查询**: JOIN + GROUP BY + ORDER BY
 - ⚠️ **参数多变**: 日期范围 + limit 组合
 
-**建议 TTL**: `900 秒 (15 分钟)`  
+**建议 TTL**: `900 秒 (15 分钟)`
 **缓存键**: `analytics:consumption:top:{start_date}:{end_date}:{limit}`
 
 ---
 
 ### 3. 设备类型分布
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_device_type_distribution()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_device_type_distribution()`
 **行号**: L107-L144
 
 **缓存理由**:
 - ✅ **聚合查询**: 多表 JOIN + GROUP BY
 - ⚠️ **参数多变**: 日期范围 + 客户 ID 组合
 
-**建议 TTL**: `900 秒 (15 分钟)`  
+**建议 TTL**: `900 秒 (15 分钟)`
 **缓存键**: `analytics:consumption:device:{start_date}:{end_date}:{customer_id}`
 
 ---
 
 ### 4. 回款分析
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `get_payment_analysis()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `get_payment_analysis()`
 **行号**: L181-L235
 
 **缓存理由**:
@@ -396,22 +396,22 @@
 - ⚠️ **参数多变**: 日期范围 + 客户 ID 组合
 - ⚠️ **数据变化**: 充值/结算单状态变更时更新
 
-**建议 TTL**: `600 秒 (10 分钟)`  
+**建议 TTL**: `600 秒 (10 分钟)`
 **缓存键**: `analytics:payment:{start_date}:{end_date}:{customer_id}`
 
 ---
 
 ### 5. 月度回款预测
 
-**文件路径**: `backend/app/services/analytics.py`  
-**函数名**: `predict_monthly_payment()`  
+**文件路径**: `backend/app/services/analytics.py`
+**函数名**: `predict_monthly_payment()`
 **行号**: L565-L671
 
 **缓存理由**:
 - ✅ **计算密集**: 定价规则查询 + 用量查询 + 金额计算
 - ⚠️ **参数多变**: 年月 + 客户 ID 组合
 
-**建议 TTL**: `1800 秒 (30 分钟)`  
+**建议 TTL**: `1800 秒 (30 分钟)`
 **缓存键**: `analytics:prediction:{year}:{month}:{customer_id}`
 
 ---
@@ -420,8 +420,8 @@
 
 ### 客户列表缓存
 
-**文件路径**: `backend/app/routes/customers.py`  
-**函数名**: `list_customers()`  
+**文件路径**: `backend/app/routes/customers.py`
+**函数名**: `list_customers()`
 **行号**: L17-L101
 
 **现状**:
@@ -442,8 +442,8 @@ cache_key = f"customer_list:{keyword or 'all'}:{account_type or 'all'}:{manager_
 
 ### 客户详情缓存
 
-**文件路径**: `backend/app/routes/customers.py`  
-**函数名**: `get_customer()`  
+**文件路径**: `backend/app/routes/customers.py`
+**函数名**: `get_customer()`
 **行号**: L103-L180
 
 **现状**:
@@ -544,5 +544,5 @@ cache_ttl_pricing_rules: int = 3600
 
 ---
 
-**文档维护**: 后端架构组  
+**文档维护**: 后端架构组
 **下次审查**: 缓存实施后 2 周进行效果评估

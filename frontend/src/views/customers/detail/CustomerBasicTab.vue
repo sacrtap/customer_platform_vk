@@ -228,18 +228,18 @@ const salesManagerName = computed(() => {
   display: flex;
   flex-direction: column;
   padding: 14px 16px;
-  border-bottom: 1px solid #eef0f3;
-  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid var(--line);
+  transition: background-color var(--transition-fast);
 }
 
 .info-item:hover {
-  background-color: #f7f8fa;
+  background-color: var(--bg);
 }
 
 .info-item .label {
   font-size: 13px;
   font-weight: 600;
-  color: #646a73;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 6px;
@@ -247,7 +247,7 @@ const salesManagerName = computed(() => {
 
 .info-item .value {
   font-size: 14px;
-  color: #1d2330;
+  color: var(--ink);
   font-weight: 500;
   line-height: 1.5;
 }
@@ -268,18 +268,18 @@ const salesManagerName = computed(() => {
 .tags-container :deep(.arco-btn-text) {
   height: 28px;
   padding: 0 12px;
-  border-radius: 6px;
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px dashed #646a73;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  border: 1px dashed var(--muted);
   background: transparent;
-  color: #646a73;
+  color: var(--muted);
   font-size: 13px;
 }
 
 .tags-container :deep(.arco-btn-text:hover) {
-  border-color: #0369a1;
-  background: #e8f3ff;
-  color: #0369a1;
+  border-color: #1d4ed8;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 /* 备注文字样式 - 支持换行 */

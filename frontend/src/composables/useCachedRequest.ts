@@ -5,11 +5,7 @@ interface CacheEntry<T> {
   timestamp: number
 }
 
-export function useCachedRequest<T>(
-  key: string,
-  fetcher: () => Promise<T>,
-  ttl: number
-) {
+export function useCachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl: number) {
   const userStore = useUserStore()
   const userId = userStore.userInfo?.id || 'anonymous'
   const cacheKey = `dashboard_${key}_${userId}`

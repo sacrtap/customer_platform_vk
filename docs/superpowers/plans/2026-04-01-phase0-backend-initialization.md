@@ -544,14 +544,14 @@ from app.config import settings
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     """Create a new access token."""
     to_encode = data.copy()
-    
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
         )
-    
+
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(
         to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
@@ -562,14 +562,14 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
 def create_refresh_token(data: dict, expires_delta: timedelta = None) -> str:
     """Create a new refresh token."""
     to_encode = data.copy()
-    
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
             days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
         )
-    
+
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(
         to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
@@ -624,16 +624,16 @@ from app.services.auth import verify_token
 async def authenticate_request(request: Request) -> None:
     """Authenticate request using JWT token."""
     auth_header = request.headers.get("Authorization")
-    
+
     if not auth_header:
         raise Unauthorized("Missing Authorization header")
-    
+
     parts = auth_header.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise Unauthorized("Invalid Authorization header format")
-    
+
     token = parts[1]
-    
+
     try:
         payload = verify_token(token)
         request.ctx.user = payload
@@ -858,10 +858,10 @@ git commit -m "feat: add Alembic database migration configuration"
 ```ini
 [flake8]
 max-line-length = 88
-extend-ignore = 
+extend-ignore =
     E203,  # whitespace before ':'
     W503,  # line break before binary operator
-exclude = 
+exclude =
     .git,
     __pycache__,
     .venv,

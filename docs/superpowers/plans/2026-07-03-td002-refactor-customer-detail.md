@@ -1,8 +1,8 @@
 # TD-002 Refactor Customer Detail — Implementation Plan
 
-**Date**: 2026-07-03  
-**Spec**: `docs/superpowers/specs/2026-07-03-td002-refactor-customer-detail-design.md`  
-**Base**: `frontend/src/views/customers/Detail.vue` (2332 lines)  
+**Date**: 2026-07-03
+**Spec**: `docs/superpowers/specs/2026-07-03-td002-refactor-customer-detail-design.md`
+**Base**: `frontend/src/views/customers/Detail.vue` (2332 lines)
 **Strategy**: tab-after-tab 拆分，每步可回滚，E2E 验证贯穿始终
 
 ---

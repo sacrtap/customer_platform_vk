@@ -478,6 +478,141 @@ async def test_get_customer_balance_not_exists(test_client, auth_token, test_cus
 
 
 @pytest.mark.asyncio
+async def test_balance_stats_this_month_amount_includes_bonus(
+    test_client, auth_token, test_customer
+):
+    """测试 balance-stats 本月充值金额包含实充+赠送金额"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 充值：实充 1000 + 赠送 200 = 1200
+    await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 1000.00,
+            "bonus_amount": 200.00,
+        },
+        headers=headers,
+    )
+
+    # 查询 balance-stats
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    # this_month_amount 应包含 real_amount + bonus_amount = 1200
+    assert data["data"]["this_month_amount"] == 1200.00
+    # this_month_count 应为 1（一笔充值交易）
+    assert data["data"]["this_month_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_balance_stats_this_month_amount_multiple_recharges(
+    test_client, auth_token, test_customer
+):
+    """测试 balance-stats 本月多笔充值的金额累计"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 第一笔：实充 1000 + 赠送 200 = 1200
+    await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 1000.00,
+            "bonus_amount": 200.00,
+        },
+        headers=headers,
+    )
+
+    # 第二笔：实充 500 + 赠送 100 = 600
+    await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 500.00,
+            "bonus_amount": 100.00,
+        },
+        headers=headers,
+    )
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    # 总额 = 1200 + 600 = 1800（含赠送金额）
+    assert data["data"]["this_month_amount"] == 1800.00
+    assert data["data"]["this_month_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_balance_stats_total_balance(test_client, auth_token, test_customer):
+    """测试 balance-stats 总余额计算"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 充值 10000 + 2000 赠送
+    await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 10000.00,
+            "bonus_amount": 2000.00,
+        },
+        headers=headers,
+    )
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    # total_balance 应包含 real + bonus
+    assert data["data"]["total_balance"] == 12000.00
+
+
+@pytest.mark.asyncio
+async def test_balance_stats_low_balance_count(test_client, auth_token, test_customer):
+    """测试 balance-stats 余额不足客户数"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 充值 5000（余额 < 10000 且 > 0 → 余额不足）
+    await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 5000.00,
+            "bonus_amount": 0,
+        },
+        headers=headers,
+    )
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    # 该客户余额 5000 > 0 且 < 10000 → 余额不足
+    assert data["data"]["low_balance_count"] >= 1
+
+
+@pytest.mark.asyncio
 async def test_recharge_success(test_client, auth_token, test_customer):
     """测试充值 API - 成功"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -635,6 +770,106 @@ async def test_get_invoices_list(test_client, auth_token):
     assert data["code"] == 0
     assert "list" in data["data"]
     assert "total" in data["data"]
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_sort_by_total_amount_asc(test_client, auth_token):
+    """测试结算单列表按总金额升序排序"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=total_amount&sort_order=asc",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    amounts = [item["total_amount"] for item in data["data"]["list"]]
+    assert amounts == sorted(amounts)
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_sort_by_total_amount_desc(test_client, auth_token):
+    """测试结算单列表按总金额降序排序"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=total_amount&sort_order=desc",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    amounts = [item["total_amount"] for item in data["data"]["list"]]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_sort_by_invoice_no(test_client, auth_token):
+    """测试结算单列表按结算单号排序"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=invoice_no&sort_order=asc",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    nos = [item["invoice_no"] for item in data["data"]["list"]]
+    assert nos == sorted(nos)
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_sort_by_final_amount_desc(test_client, auth_token):
+    """测试结算单列表按实付金额降序排序"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=final_amount&sort_order=desc",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    amounts = [item["final_amount"] for item in data["data"]["list"]]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_sort_by_created_at_desc(test_client, auth_token):
+    """测试结算单列表按创建时间降序排序（默认排序）"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=created_at&sort_order=desc",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    dates = [item["created_at"] for item in data["data"]["list"]]
+    assert dates == sorted(dates, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_invalid_sort_order_fallback(test_client, auth_token):
+    """测试无效排序方向回退到默认值"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/invoices?sort_by=total_amount&sort_order=invalid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
 
 
 @pytest.mark.asyncio

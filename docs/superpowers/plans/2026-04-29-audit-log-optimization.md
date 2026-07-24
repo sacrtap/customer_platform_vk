@@ -54,7 +54,7 @@ class AuditLog(BaseModel):
 """add audit log operation_type and metadata fields
 
 Revision ID: 2026_04_29_audit_fields
-Revises: 
+Revises:
 Create Date: 2026-04-29
 
 """
@@ -455,7 +455,7 @@ skip_paths = [
 # 在 _MODULE_MODEL_MAP 中添加
 _MODULE_MODEL_MAP = {
     # ... 现有映射保持不变 ...
-    
+
     # 新增映射
     "profiles": CustomerProfile,  # 画像管理模块
 }

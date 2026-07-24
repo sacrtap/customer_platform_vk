@@ -1,8 +1,8 @@
 # 角色权限页面测试执行报告
 
-**测试计划版本**: v1.0  
-**测试执行日期**: 2026-04-09  
-**测试执行人**: AI Agent  
+**测试计划版本**: v1.0
+**测试执行日期**: 2026-04-09
+**测试执行人**: AI Agent
 **测试状态**: ✅ 已完成
 
 ---
@@ -145,7 +145,7 @@ mock_perm_cache.get_permissions = AsyncMock(
         "billing.manage", "billing.read", "billing.write", "billing.delete",
         "files.manage", "files.read", "files.write", "files.delete",
         "roles.manage", "roles.create", "roles.update", "roles.delete", "roles.view",
-        "permissions.manage", "permissions.create", "permissions.update", 
+        "permissions.manage", "permissions.create", "permissions.update",
         "permissions.delete", "permissions.view",
     }
 )
@@ -351,6 +351,6 @@ npx playwright test tests/e2e/test_roles.spec.ts
 
 ---
 
-**报告生成时间**: 2026-04-09  
-**最后更新**: 2026-04-09 (全部测试 100% 通过)  
+**报告生成时间**: 2026-04-09
+**最后更新**: 2026-04-09 (全部测试 100% 通过)
 **测试状态**: ✅ 全部完成 (后端 100% + 前端 E2E 100%)

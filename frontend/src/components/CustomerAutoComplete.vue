@@ -76,9 +76,12 @@ const handleSearch = (value: string) => {
       const nameToId = new Map<string, number>()
 
       for (const customer of list) {
+        const label = customer.company_id
+          ? `${customer.name}  #${customer.company_id}`
+          : customer.name
         options.push({
           value: customer.name,
-          label: customer.name,
+          label,
           id: customer.id,
         })
         nameToId.set(customer.name, customer.id)
@@ -104,7 +107,7 @@ watch(
       displayText.value = ''
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 onUnmounted(() => {

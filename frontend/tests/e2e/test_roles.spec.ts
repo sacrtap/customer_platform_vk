@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import { getVisibleModal } from './test-helpers';
 
 /**
  * 角色管理 E2E 测试
@@ -15,14 +16,14 @@ test.describe('角色管理', () => {
   test('访问角色管理页面', async ({ page }) => {
     await page.goto('/roles');
     await page.waitForTimeout(1000);
-    
+
     await expect(page).toHaveURL('/roles');
   });
 
   test('创建新角色', async ({ page }) => {
     await page.goto('/roles');
     await page.waitForTimeout(1000);
-    
+
     const newButton = page.locator('button:has-text("新建"), button:has-text("新建角色")').first();
     if (await newButton.isVisible()) {
       await newButton.click();
@@ -40,10 +41,10 @@ test.describe('角色管理', () => {
     await page.waitForTimeout(500);
 
     // 验证弹窗已打开
-    await expect(page.locator('.arco-modal')).toBeVisible();
+    await expect(getVisibleModal(page)).toBeVisible();
 
     // 弹窗包含标题"权限配置"
-    await expect(page.locator('.arco-modal-title')).toContainText('权限配置');
+    await expect(getVisibleModal(page).locator('.arco-modal-title')).toContainText('权限配置');
 
     // 验证至少有一个模块卡片标题可见（取决于当前角色拥有的权限）
     const moduleHeadings = ['客户管理', '结算管理', '客户分析', '角色权限'];
@@ -64,7 +65,7 @@ test.describe('角色管理', () => {
   test('角色列表展示', async ({ page }) => {
     await page.goto('/roles');
     await page.waitForTimeout(1000);
-    
+
     await expect(page).toHaveURL('/roles');
   });
 });

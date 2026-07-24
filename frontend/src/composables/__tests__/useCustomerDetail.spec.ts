@@ -93,11 +93,19 @@ describe('useCustomerDetail', () => {
   it('openEdit sets editModalVisible true', async () => {
     const { editModalVisible, profile, openEdit } = useCustomerDetail()
     profile.value = {
-      id: 1, customer_id: 1, scale_level: 'high', consume_level: null,
-      industry_type_id: null, is_real_estate: false, description: null,
-      created_at: '', updated_at: '',
-      monthly_avg_shots: null, monthly_avg_shots_estimated: null,
-      estimated_annual_spend: null, actual_annual_spend_2025: null,
+      id: 1,
+      customer_id: 1,
+      scale_level: 'high',
+      consume_level: null,
+      industry_type_id: null,
+      is_real_estate: false,
+      description: null,
+      created_at: '',
+      updated_at: '',
+      monthly_avg_shots: null,
+      monthly_avg_shots_estimated: null,
+      estimated_annual_spend: null,
+      actual_annual_spend_2025: null,
       industry: undefined,
     } as CustomerProfile
     openEdit()
@@ -137,10 +145,8 @@ describe('useCustomerDetail', () => {
     expect(customer.value).toBeTruthy()
   })
 
-
   it('initial loading is false before any data fetch', () => {
     const { loading } = useCustomerDetail()
     expect(loading.value).toBe(false)
   })
-
 })

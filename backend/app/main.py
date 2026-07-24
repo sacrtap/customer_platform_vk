@@ -56,13 +56,15 @@ def create_app(
 
     # 创建会话工厂
     if is_async:
-        async_session_maker = async_sessionmaker(
-            engine, class_=AsyncSession, expire_on_commit=False
+        async_session_maker = async_sessionmaker(  # pyright: ignore[reportCallIssue]
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,  # pyright: ignore[reportArgumentType]
         )
         # 存储到 app.ctx 供其他模块使用
         app.ctx.async_session_maker = async_session_maker
     else:
-        sync_session_maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+        sync_session_maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)  # pyright: ignore[reportCallIssue, reportArgumentType]
         app.ctx.sync_session_maker = sync_session_maker
 
     # 数据库会话中间件
@@ -201,7 +203,7 @@ def create_app(
     @app.after_server_stop
     async def on_shutdown(app, loop):
         if is_async:
-            await engine.dispose()
+            await engine.dispose()  # pyright: ignore[reportGeneralTypeIssues]
         else:
             engine.dispose()
         # 关闭外部 MySQL 引擎

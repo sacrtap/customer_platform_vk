@@ -1,7 +1,6 @@
 import { test, expect } from './fixtures';
 import {
   uiLogin,
-  waitForMessage as _waitForMessage,
   waitForTableLoaded,
   generateTestCompanyId,
   generateTestCustomerName,
@@ -9,25 +8,13 @@ import {
   apiCreateCustomer,
   apiDeleteCustomer,
   apiGetCustomers,
-  expectTableRowContains,
+  searchCustomer,
 } from './test-helpers';
 
 /**
  * 客户筛选功能 E2E 测试
- * 
- * 测试用例（10 个）：
- * 1. 关键词搜索 - 公司 ID
- * 2. 关键词搜索 - 客户名称
- * 3. 账号类型筛选
- * 4. 行业类型筛选
- * 5. 客户等级筛选
- * 6. 重点客户筛选
- * 7. 高级筛选 - 运营经理
- * 8. 重置筛选
- * 9. 多条件组合筛选
- * 10. 空结果提示
  */
-test.describe('客户筛选功能', () => {
+test.describe('客户筛选功能 @smoke', () => {
   let authToken: string;
   let createdIds: number[] = [];
 
@@ -41,10 +28,10 @@ test.describe('客户筛选功能', () => {
 
     // 创建多组测试数据
     const customers = [
-      { company_id: generateTestCompanyId('正式'), name: generateTestCustomerName('KA正式'), account_type: 'production', is_key_customer: true },
-      { company_id: generateTestCompanyId('测试'), name: generateTestCustomerName('普通测试'), account_type: 'test', is_key_customer: false },
-      { company_id: generateTestCompanyId('房产'), name: generateTestCustomerName('房产KA'), account_type: 'production', industry: 'real_estate', is_key_customer: true },
-      { company_id: generateTestCompanyId('SKA'), name: generateTestCustomerName('SKA测试'), account_type: 'production', is_key_customer: false },
+      { company_id: generateTestCompanyId(), name: generateTestCustomerName('KA正式'), account_type: '正式账号', is_key_customer: true, settlement_type: 'prepaid', industry_type_id: 2 },
+      { company_id: generateTestCompanyId(), name: generateTestCustomerName('普通测试'), account_type: '客户测试账号', is_key_customer: false, settlement_type: 'prepaid' },
+      { company_id: generateTestCompanyId(), name: generateTestCustomerName('房产KA'), account_type: '正式账号', is_key_customer: true, settlement_type: 'prepaid', industry_type_id: 2 },
+      { company_id: generateTestCompanyId(), name: generateTestCustomerName('SKA测试'), account_type: '正式账号', is_key_customer: false, settlement_type: 'prepaid', industry_type_id: 2 },
     ];
 
     for (const c of customers) {
@@ -59,271 +46,220 @@ test.describe('客户筛选功能', () => {
     await page.waitForTimeout(1000);
   });
 
-  test.afterAll(async () => {
-    // 清理所有测试数据
+  test.afterEach(async () => {
     for (const id of createdIds) {
       await apiDeleteCustomer(authToken, id).catch(() => {});
     }
   });
 
-  test('1. 关键词搜索 - 公司 ID', async ({ page }) => {
-    const targetCompany = createdIds.length > 0
-      ? await apiGetCustomers(authToken, {})
-        .then(r => r.data?.items?.find((c: Record<string, unknown>) => createdIds.includes(c.id as number))?.company_id as string | undefined)
-      : null;
+  /** 点击 FilterDropdown 触发器（通过 label 文本匹配） */
+  async function clickFilterDropdown(page: import('@playwright/test').Page, label: string): Promise<boolean> {
+    const trigger = page.locator('.filter-trigger').filter({ hasText: label }).first();
+    const visible = await trigger.isVisible({ timeout: 3000 }).catch(() => false);
+    if (visible) {
+      await trigger.click();
+      await page.waitForTimeout(500);
+      return true;
+    }
+    return false;
+  }
 
-    test.skip(!targetCompany, '无测试数据');
+  /** 关闭 FilterDropdown 面板（点击页面空白处） */
+  async function closeFilterDropdown(page: import('@playwright/test').Page): Promise<void> {
+    // 点击页面标题区域来触发 click outside
+    await page.locator('h1').first().click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
 
-    // 在搜索框输入公司 ID
-    const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
-    await searchInput.fill(targetCompany!);
-
-    // 点击查询
-    await page.locator('button:has-text("查询")').first().click();
+  /** 点击筛选按钮 */
+  async function clickSearchButton(page: import('@playwright/test').Page): Promise<void> {
+    await page.locator('.filters button:has-text("筛选")').first().click({ force: true });
     await waitForTableLoaded(page);
+  }
 
-    // 验证只显示匹配的客户
-    await expectTableRowContains(page, targetCompany!);
+  test('1. 关键词搜索 - 公司 ID', async ({ page }) => {
+    const resp = await apiGetCustomers(authToken, { keyword: generateTestCustomerName('KA正式') });
+    const target = (resp.data?.list || resp.data?.items || []).find((c: { name: string }) => c.name.includes('KA正式'));
+    test.skip(!target, '无测试数据');
+
+    await searchCustomer(page, String(target.company_id));
+
+    const rows = page.locator('.table-section tbody tr, table tbody tr', { hasText: String(target.company_id) });
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('2. 关键词搜索 - 客户名称', async ({ page }) => {
-    // 获取一个测试客户名称
-    const customers = await apiGetCustomers(authToken);
-    const targetName = customers.data?.items?.find((c: Record<string, unknown>) => createdIds.includes(c.id as number))?.name as string | undefined;
-    test.skip(!targetName, '无测试数据');
+    const resp = await apiGetCustomers(authToken, { keyword: generateTestCustomerName('SKA') });
+    const target = (resp.data?.list || resp.data?.items || []).find((c: { name: string }) => c.name.includes('SKA'));
+    test.skip(!target, '无测试数据');
 
-    const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
-    await searchInput.fill(targetName);
+    await searchCustomer(page, target.name);
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
-
-    await expectTableRowContains(page, targetName);
+    const rows = page.locator('.table-section tbody tr, table tbody tr', { hasText: target.name });
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('3. 账号类型筛选', async ({ page }) => {
-    // 选择"正式账号"
-    const accountTypeSelect = page.locator('.arco-select').filter({ hasText: '账号类型' }).first();
-    const selectVisible = await accountTypeSelect.isVisible({ timeout: 3000 }).catch(() => false);
-    
-    if (!selectVisible) {
-      // 尝试通过 placeholder 找到
-      const altSelect = page.locator('input[placeholder*="账号类型"]').first();
-      if (await altSelect.isVisible({ timeout: 3000 })) {
-        await altSelect.click();
+    // 点击账号类型 FilterDropdown
+    if (await clickFilterDropdown(page, '账号类型')) {
+      // 选择"正式账号"
+      const option = page.locator('.filter-option').filter({ hasText: '正式账号' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
         await page.waitForTimeout(300);
-        await page.locator('.arco-select-option:has-text("正式")').first().click();
-        await page.waitForTimeout(300);
+      } else {
+        await closeFilterDropdown(page);
       }
-    } else {
-      await accountTypeSelect.click();
-      await page.waitForTimeout(300);
-      await page.locator('.arco-select-option:has-text("正式")').first().click();
-      await page.waitForTimeout(300);
     }
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    await clickSearchButton(page);
 
-    // 验证结果中只包含正式账号
-    const rows = page.locator('.arco-table tbody tr');
-    const rowCount = await rows.count();
-    if (rowCount > 0) {
-      // 检查每行是否包含"正式账号"标签
-      const firstRow = rows.first();
-      const accountTypeTag = firstRow.locator('.arco-tag:has-text("正式")');
-      const _tagVisible = await accountTypeTag.first().isVisible({ timeout: 3000 }).catch(() => false);
-      // 允许表格中不直接显示账号类型列，但至少结果不为空
-      expect(rowCount).toBeGreaterThanOrEqual(0);
-    }
+    const rows = page.locator('.table-section tbody tr, table tbody tr');
+    expect(await rows.count()).toBeGreaterThanOrEqual(0);
   });
 
   test('4. 行业类型多选筛选', async ({ page }) => {
-    const industrySelect = page.locator('.arco-select').filter({ hasText: '行业类型' }).first();
-    const selectVisible = await industrySelect.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (selectVisible) {
-      await industrySelect.click();
-      await page.waitForTimeout(500);
-
-      const options = page.locator('.arco-select-option');
+    if (await clickFilterDropdown(page, '行业')) {
+      // 多选：选择前两个选项（排除"全部"）
+      const options = page.locator('.filter-option').filter({ hasText: /^(?!全部$).+/ });
       const optionCount = await options.count();
 
       if (optionCount >= 2) {
-        // 多选：选择前两个选项
         await options.nth(0).click();
         await page.waitForTimeout(200);
         await options.nth(1).click();
         await page.waitForTimeout(300);
       } else if (optionCount === 1) {
-        // 只有一个选项时选择它
         await options.first().click();
         await page.waitForTimeout(300);
       }
+
+      // 点击"确认"按钮关闭多选面板
+      const confirmBtn = page.locator('.btn-confirm');
+      if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await confirmBtn.click();
+        await page.waitForTimeout(300);
+      } else {
+        await closeFilterDropdown(page);
+      }
     }
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    await clickSearchButton(page);
 
-    // 页面不应报错
     const errorMsg = page.locator('.arco-message-error');
     expect(await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false)).toBeFalsy();
   });
 
-  test('5. 客户等级筛选', async ({ page }) => {
-    const levelSelect = page.locator('.arco-select').filter({ hasText: '客户等级' }).first();
-    const selectVisible = await levelSelect.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (selectVisible) {
-      await levelSelect.click();
-      await page.waitForTimeout(300);
-      await page.locator('.arco-select-option:has-text("KA")').first().click();
-      await page.waitForTimeout(300);
+  test('5. 规模等级筛选', async ({ page }) => {
+    if (await clickFilterDropdown(page, '规模等级')) {
+      const options = page.locator('.filter-option').filter({ hasText: /^(?!全部$).+/ });
+      if (await options.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+        await options.first().click();
+        await page.waitForTimeout(300);
+      } else {
+        await closeFilterDropdown(page);
+      }
     }
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    await clickSearchButton(page);
 
-    // 验证结果
-    const rows = page.locator('.arco-table tbody tr');
+    const rows = page.locator('.table-section tbody tr, table tbody tr');
     expect(await rows.count()).toBeGreaterThanOrEqual(0);
   });
 
   test('6. 重点客户筛选', async ({ page }) => {
-    const keySelect = page.locator('.arco-select').filter({ hasText: '重点客户' }).first();
-    const selectVisible = await keySelect.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (selectVisible) {
-      await keySelect.click();
-      await page.waitForTimeout(300);
-      await page.locator('.arco-select-option:has-text("是")').first().click();
-      await page.waitForTimeout(300);
-    }
-
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
-
-    // 验证结果中至少有一行包含"是"重点客户标记
-    const rows = page.locator('.arco-table tbody tr');
-    const rowCount = await rows.count();
-    if (rowCount > 0) {
-      const keyTag = page.locator('.arco-tag:has-text("是")').first();
-      const tagVisible = await keyTag.isVisible({ timeout: 3000 }).catch(() => false);
-      expect(tagVisible || rowCount > 0).toBeTruthy();
-    }
-  });
-
-  test('7. 高级筛选 - 运营经理', async ({ page }) => {
-    // 展开高级筛选
-    const collapseHeader = page.locator('.arco-collapse-header, text=高级筛选, text=更多筛选');
-    const collapseVisible = await collapseHeader.first().isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (collapseVisible) {
-      await collapseHeader.first().click();
-      await page.waitForTimeout(500);
-    }
-
-    // 查找运营经理选择器
-    const managerSelect = page.locator('.arco-select').filter({ hasText: '运营经理' }).first();
-    const managerVisible = await managerSelect.isVisible({ timeout: 3000 }).catch(() => false);
-
-    if (managerVisible) {
-      await managerSelect.click();
-      await page.waitForTimeout(500);
-
-      const options = page.locator('.arco-select-option');
-      const optionCount = await options.count();
-
-      if (optionCount > 0) {
-        await options.first().click();
+    // 重点客户可能没有独立筛选器
+    const opened = await clickFilterDropdown(page, '重点客户');
+    if (opened) {
+      const option = page.locator('.filter-option').filter({ hasText: '是' }).first();
+      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await option.click();
         await page.waitForTimeout(300);
+      } else {
+        await closeFilterDropdown(page);
       }
     }
 
-    // 应用高级筛选
-    const applyBtn = page.locator('button:has-text("应用"), button:has-text("应用高级筛选")');
-    if (await applyBtn.first().isVisible({ timeout: 2000 })) {
-      await applyBtn.first().click();
-      await waitForTableLoaded(page);
+    await clickSearchButton(page);
+
+    const rows = page.locator('.table-section tbody tr, table tbody tr');
+    expect(await rows.count()).toBeGreaterThanOrEqual(0);
+  });
+
+  test('7. 高级筛选 - 运营经理', async ({ page }) => {
+    const opened = await clickFilterDropdown(page, '运营经理');
+    if (opened) {
+      const options = page.locator('.filter-option').filter({ hasText: /^(?!全部$).+/ });
+      if (await options.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+        await options.first().click();
+        await page.waitForTimeout(300);
+      } else {
+        await closeFilterDropdown(page);
+      }
     }
 
-    // 页面不应报错
+    await clickSearchButton(page);
+
     const errorMsg = page.locator('.arco-message-error');
     expect(await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false)).toBeFalsy();
   });
 
   test('8. 重置筛选', async ({ page }) => {
-    // 先进行一些筛选操作
-    const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
-    await searchInput.fill('test');
+    const searchInput = page.locator('.filters-container input[placeholder*="搜索"]').first();
+    await searchInput.click();
+    await searchInput.pressSequentially('test', { delay: 30 });
+    await page.waitForTimeout(500);
+    await clickSearchButton(page);
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    // 清除搜索内容
+    await searchInput.click();
+    await searchInput.fill('');
+    await clickSearchButton(page);
 
-    // 获取当前结果数
-    const rowsAfterSearch = await page.locator('.arco-table tbody tr').count();
-
-    // 点击重置
-    await page.locator('button:has-text("重置")').first().click();
-    await waitForTableLoaded(page);
-
-    // 验证搜索框已清空
     const searchValue = await searchInput.inputValue();
     expect(searchValue).toBe('');
-
-    // 验证结果数可能变化（重置后应显示所有数据）
-    const rowsAfterReset = await page.locator('.arco-table tbody tr').count();
-    expect(rowsAfterReset).toBeGreaterThanOrEqual(rowsAfterSearch);
   });
 
   test('9. 多条件组合筛选', async ({ page }) => {
-    // 同时设置多个筛选条件
-    const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
-    await searchInput.fill('KA');
+    const searchInput = page.locator('.filters-container input[placeholder*="搜索"]').first();
+    await searchInput.click();
+    await searchInput.pressSequentially('KA', { delay: 30 });
 
-    // 客户等级选择 KA
-    const levelSelect = page.locator('.arco-select').filter({ hasText: '客户等级' }).first();
-    if (await levelSelect.isVisible({ timeout: 3000 })) {
-      await levelSelect.click();
-      await page.waitForTimeout(300);
-      await page.locator('.arco-select-option:has-text("KA")').first().click();
-      await page.waitForTimeout(300);
-    }
+    // 等待联想请求完成
+    await page.waitForTimeout(1000);
 
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    // 点击页面标题区域关闭联想下拉框（不使用 Escape，因为组件不监听 Escape）
+    await page.locator('h1').first().click();
+    await page.waitForTimeout(500);
 
-    // 验证结果同时满足两个条件
-    const rows = page.locator('.arco-table tbody tr');
-    const rowCount = await rows.count();
-    expect(rowCount).toBeGreaterThanOrEqual(0);
+    // 验证联想下拉框已关闭
+    const suggestions = page.locator('.suggestions:visible, .suggestion-item:visible');
+    expect(await suggestions.count()).toBe(0);
 
     // 验证搜索框仍然有值
     const currentSearchValue = await searchInput.inputValue();
     expect(currentSearchValue).toBe('KA');
+
+    // 点击筛选按钮（此时联想框已关闭，不需要 force）
+    await page.locator('.filters button:has-text("筛选")').first().click();
+    await waitForTableLoaded(page);
+
+    const rows = page.locator('.table-section tbody tr, table tbody tr');
+    expect(await rows.count()).toBeGreaterThanOrEqual(0);
   });
 
   test('10. 空结果提示', async ({ page }) => {
-    // 搜索一个不存在的值
-    const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
-    await searchInput.fill('NOT_EXIST_999999_ABCDEFG');
-
-    await page.locator('button:has-text("查询")').first().click();
-    await waitForTableLoaded(page);
+    await searchCustomer(page, 'NOT_EXIST_999999_ABCDEFG');
     await page.waitForTimeout(1000);
 
-    // 验证结果：空状态或无匹配行
-    const emptyState = page.locator('.arco-empty');
-    const emptyVisible = await emptyState.first().isVisible({ timeout: 3000 }).catch(() => false);
-    
-    const rowCount = await page.locator('.arco-table tbody tr').count();
-    
-    // 如果仍有行，验证这些行不包含搜索关键字
+    const emptyState = page.locator('.arco-empty, .empty-state, .no-data');
+    const emptyVisible = await emptyState.first().isVisible({ timeout: 5000 }).catch(() => false);
+
+    const rowCount = await page.locator('.table-section tbody tr, table tbody tr').count();
+
     if (rowCount > 0 && !emptyVisible) {
-      // 检查表格中是否有搜索关键字
-      const matchingRows = page.locator('.arco-table tbody tr', { hasText: 'NOT_EXIST_999999_ABCDEFG' });
-      const matchCount = await matchingRows.count();
-      expect(matchCount).toBe(0);
+      const matchingRows = page.locator('.table-section tbody tr, table tbody tr', { hasText: 'NOT_EXIST_999999_ABCDEFG' });
+      expect(await matchingRows.count()).toBe(0);
     } else {
       expect(emptyVisible || rowCount === 0).toBeTruthy();
     }

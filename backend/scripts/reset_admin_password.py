@@ -59,7 +59,7 @@ def reset_admin_password(new_password: str = ""):
         print(f"找到用户：{user.username} ({user.email})")
 
         hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
-        user.password_hash = hashed.decode()
+        user.password_hash = hashed.decode()  # pyright: ignore[reportAttributeAccessIssue]
 
         session.commit()
         print(f"✅ admin 用户密码已重置为：{new_password}")

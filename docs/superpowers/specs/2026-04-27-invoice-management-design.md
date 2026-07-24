@@ -1,7 +1,7 @@
 # 结算单管理功能设计文档
 
-**创建日期**: 2026-04-27  
-**状态**: 已确认  
+**创建日期**: 2026-04-27
+**状态**: 已确认
 **相关模块**: 结算管理 (Billing)
 
 ---
@@ -60,7 +60,7 @@ draft (草稿)
     → confirm → customer_confirmed (客户已确认)
       → pay → paid (已付款)
         → complete → completed (已完成)
-          
+
 任意状态 → cancel → cancelled (已取消) [仅 draft/pending_customer]
 ```
 

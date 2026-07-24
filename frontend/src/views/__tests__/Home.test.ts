@@ -45,6 +45,22 @@ vi.mock('@/api/analytics', () => ({
       },
     ],
   }),
+  getPriorityCustomers: vi.fn().mockResolvedValue({
+    data: {
+      customers: [
+        {
+          id: 1,
+          name: '测试客户A',
+          health: 'good',
+          health_class: 'green',
+          consumption: '50000',
+          balance_days: '30',
+          risk: 'low',
+          manager: '张三',
+        },
+      ],
+    },
+  }),
 }))
 
 vi.mock('@/api/billing', () => ({
@@ -100,7 +116,7 @@ interface HomeVM {
   invoicesLoading: boolean
   stats: { totalCustomers: number }
   todos: unknown[]
-  invoices: unknown[]
+  priorityCustomers: unknown[]
 }
 
 describe('Home.vue', () => {
@@ -124,7 +140,7 @@ describe('Home.vue', () => {
     // Verify data was loaded
     expect(vm.stats.totalCustomers).toBe(100)
     expect(vm.todos).toHaveLength(1)
-    expect(vm.invoices).toHaveLength(1)
+    expect(vm.priorityCustomers).toHaveLength(1)
   })
 
   it('should use cache on subsequent loads', async () => {

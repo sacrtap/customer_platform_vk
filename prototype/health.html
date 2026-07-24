@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>健康度分析 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+    <section id="health" class="page active">
+<div class="headline"><div><div class="eyebrow">Analytics</div><h1 class="h1">健康度分析</h1><p class="desc">客户活跃度监控与风险预警，支持一键跟进和趋势追踪</p></div><div class="actions"><button class="btn">导出预警清单</button></div></div>
+<div class="grid-4"><div class="card pad"><div class="mini"><span>客户总数</span><b>186</b></div></div><div class="card pad"><div class="mini"><span>健康</span><b class="success">142</b><span class="up">76.3%</span></div></div><div class="card pad"><div class="mini"><span>预警</span><b class="amber">31</b><span class="warn">16.7%</span></div></div><div class="card pad"><div class="mini"><span>高风险</span><b class="danger">13</b><span class="warn">需跟进</span></div></div></div>
+<!-- P1: 健康度分布环形图 + 风险趋势折线图 -->
+<div class="grid-2" style="margin-top:14px">
+<div class="card pad"><div class="section-title"><h2>健康度分布</h2></div>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center">
+<div class="ring-chart" style="background:conic-gradient(#059669 0 76.3%,#d97706 76.3% 93%,#dc2626 93% 100%)"><div class="ring-center"><b>186</b><span>客户总数</span></div></div>
+<div class="legend" style="display:grid;gap:8px"><div style="display:flex;align-items:center;gap:8px"><span class="sw" style="background:#059669"></span>健康 <b>142 (76.3%)</b></div><div style="display:flex;align-items:center;gap:8px"><span class="sw" style="background:#d97706"></span>预警 <b>31 (16.7%)</b></div><div style="display:flex;align-items:center;gap:8px"><span class="sw" style="background:#dc2626"></span>高风险 <b>13 (7.0%)</b></div></div>
+</div></div>
+<div class="card pad"><div class="section-title"><h2>风险趋势 <span class="chart-help">?<span class="chart-help-tip">近 30 天预警和高风险客户数变化趋势</span></span></h2></div>
+<div class="chart"><svg viewBox="0 0 640 260" preserveAspectRatio="none"><path class="axis" d="M30 45H610M30 100H610M30 155H610M30 210H610"/><path class="line" d="M35 180 C90 165 120 155 170 145 C220 150 260 140 310 135 C390 125 430 120 490 110 C545 105 580 95 610 90" style="stroke:#d97706"/><path class="line2" d="M35 200 C120 195 155 190 220 185 C280 178 330 170 385 162 C455 155 515 140 610 130" style="stroke:#dc2626"/><circle cx="35" cy="180" r="3" fill="#d97706"/><circle cx="310" cy="135" r="3" fill="#d97706"/><circle cx="610" cy="90" r="3" fill="#d97706"/><circle cx="35" cy="200" r="3" fill="#dc2626"/><circle cx="385" cy="162" r="3" fill="#dc2626"/><circle cx="610" cy="130" r="3" fill="#dc2626"/></svg></div>
+<div class="legend" style="display:flex;gap:14px;margin-top:8px"><div><span class="sw" style="background:#d97706"></span>预警客户</div><div><span class="sw" style="background:#dc2626"></span>高风险客户</div></div></div>
+</div>
+<!-- P0: 预警客户表 + 一键跟进 -->
+<div class="card pad" style="margin-top:14px">
+<div class="section-title"><h2>预警客户</h2><span class="tag amber">31 个</span></div>
+<table class="table"><thead><tr><th>客户</th><th>健康度</th><th>最近活跃</th><th>余额</th><th>风险项</th><th>操作</th></tr></thead><tbody>
+<tr><td><b>北京云峰数据</b></td><td><span class="tag amber">38</span></td><td>15 天前</td><td class="danger">¥12,400</td><td>余额不足 + 活跃度下降</td><td><div class="row-dropdown"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="this.parentElement.classList.toggle('open')">一键跟进 ▾</button><div class="dropdown-menu"><button>📞 电话跟进</button><button>✉ 邮件提醒</button><button>👥 上门拜访</button></div></div></td></tr>
+<tr><td><b>武汉天宇通信</b></td><td><span class="tag amber">42</span></td><td>12 天前</td><td>¥45,000</td><td>消耗骤降 60%</td><td><div class="row-dropdown"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="this.parentElement.classList.toggle('open')">一键跟进 ▾</button><div class="dropdown-menu"><button>📞 电话跟进</button><button>✉ 邮件提醒</button><button>👥 上门拜访</button></div></div></td></tr>
+<tr><td><b>成都锦绣文化</b></td><td><span class="tag amber">51</span></td><td>8 天前</td><td>¥68,000</td><td>合同即将到期</td><td><div class="row-dropdown"><button class="btn" style="padding:4px 10px;font-size:12px" onclick="this.parentElement.classList.toggle('open')">一键跟进 ▾</button><div class="dropdown-menu"><button>📞 电话跟进</button><button>✉ 邮件提醒</button><button>👥 上门拜访</button></div></div></td></tr>
+</tbody></table>
+<div class="pagination"><span class="page-total">共 31 条</span><span class="page-size">每页 <select class="page-size-select"><option>10</option><option selected>20</option><option>50</option></select> 条</span><div class="page-controls"><button class="page-btn" disabled>‹</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">›</button></div><span class="page-jump">跳至 <input type="number" class="page-jump-input" value="1" min="1" max="2"> 页</span></div>
+</div>
+<!-- P1: 长期未消耗客户 + 天数选择器 -->
+<div class="card pad" style="margin-top:14px">
+<div class="section-title"><h2>长期未消耗客户</h2><div style="display:flex;align-items:center;gap:8px"><span class="tag">23 个</span><div class="day-selector"><button class="active">30 天</button><button>60 天</button><button>90 天</button><button>180 天</button></div></div></div>
+<table class="table"><thead><tr><th>客户</th><th>最后消耗</th><th>历史总消耗</th><th>余额</th><th>操作</th></tr></thead><tbody>
+<tr><td><b>南京紫金科技</b></td><td>62 天前</td><td>¥1,280,000</td><td>¥0</td><td><button class="btn" style="padding:4px 10px;font-size:12px">激活</button></td></tr>
+<tr><td><b>重庆山城数据</b></td><td>45 天前</td><td>¥560,000</td><td>¥2,400</td><td><button class="btn" style="padding:4px 10px;font-size:12px">激活</button></td></tr>
+</tbody></table>
+<div class="pagination"><span class="page-total">共 23 条</span><span class="page-size">每页 <select class="page-size-select"><option>10</option><option selected>20</option><option>50</option></select> 条</span><div class="page-controls"><button class="page-btn" disabled>‹</button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">›</button></div><span class="page-jump">跳至 <input type="number" class="page-jump-input" value="1" min="1" max="2"> 页</span></div>
+</div>
+      <div class="opt-panel"><button class="opt-toggle"><span>🚀 健康度分析 — 重构优化方案</span><span class="opt-count">6 项优化 <span class="opt-arrow">⌄</span></span></button><div class="opt-content"><div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">预警客户一键跟进</div><div class="opt-desc">表格添加“一键跟进”按钮。点击 → 弹窗选择跟进方式（电话/邮件/拜访）。</div></div><span class="opt-interaction">弹窗选择跟进方式</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">健康度分布图</div><div class="opt-desc">新增饼图/环形图展示健康度分布。健康/预警/高风险三色环形图。</div></div><span class="opt-interaction">环形图</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">风险趋势图</div><div class="opt-desc">新增折线图展示风险客户数趋势。30 天风险客户数变化。</div></div><span class="opt-interaction">折线趋势图</span></div><div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">天数选择器</div><div class="opt-desc">长期未消耗表添加天数选择。30/60/90/180 天切换 → 列表刷新。</div></div><span class="opt-interaction">天数切换 + 列表刷新</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">健康度评分卡</div><div class="opt-desc">新增客户健康度评分卡片视图。网格卡片：客户名 + 健康度 Gauge + 关键指标。</div></div><span class="opt-interaction">卡片网格</span></div><div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">导出预警清单</div><div class="opt-desc">添加“导出预警清单”按钮。导出 Excel：预警客户 + 风险项 + 建议操作。</div></div><span class="opt-interaction">导出 Excel</span></div></div></div>
+    </section>
+
+    <!-- ===== 画像分析 ===== -->
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

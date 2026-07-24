@@ -1,14 +1,9 @@
 <template>
   <div class="forecast-analysis-page">
-    <div class="page-header">
-      <div class="header-title">
-        <h1>预测回款</h1>
-        <p class="header-subtitle">基于历史数据的智能回款预测</p>
-      </div>
-    </div>
+    <PageHeader eyebrow="Analytics" title="预测回款" subtitle="基于历史数据的智能回款预测" />
 
     <!-- 筛选区域 -->
-    <div class="filter-section">
+    <div class="filter-card">
       <a-form layout="inline" :model="filters">
         <a-form-item label="年份">
           <a-year-picker v-model="selectedYear" style="width: 150px" @change="loadData" />
@@ -36,7 +31,11 @@
           </a-select>
         </a-form-item>
         <a-form-item label="客户">
-          <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" width="200" />
+          <KeywordAutoComplete
+            v-model="filters.keyword"
+            placeholder="公司名称/公司 ID"
+            width="200"
+          />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -125,15 +124,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
+import {
+  getMonthlyPrediction,
+  getPredictionTrend,
+  type PaymentPrediction,
+  type PredictionTrendItem,
+} from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
+
+/** ECharts 统一配色 */
+const TEXT_MUTED = '#475569'
+const AXIS_LINE = '#DBE3EF'
+const SPLIT_LINE = '#F1F5F9'
 
 const router = useRouter()
 
@@ -212,18 +222,40 @@ const loadPredictionData = async () => {
     year: filters.year,
     month: filters.month,
     keyword: filters.keyword || undefined,
+    force_refresh: true,
   })
 
-  predictionList.value = res.data || []
+  const responseData = res.data || { predictions: [], summary: null }
+  predictionList.value = responseData.predictions || []
   pagination.total = predictionList.value.length
 
-  // 计算统计数据
-  totalPredicted.value = predictionList.value.reduce((sum, item) => sum + item.predicted_amount, 0)
-  predictedCustomers.value = new Set(predictionList.value.map((c) => c.customer_id)).size
-  confirmedAmount.value = Math.round(totalPredicted.value * 0.6)
-  pendingAmount.value = totalPredicted.value - confirmedAmount.value
-  completionRate.value = Math.round((confirmedAmount.value / totalPredicted.value) * 100) || 0
+  // 使用后端返回的汇总统计（而非前端硬编码）
+  const summary = responseData.summary
+  if (summary) {
+    totalPredicted.value = summary.total_predicted || 0
+    confirmedAmount.value = summary.confirmed_amount || 0
+    pendingAmount.value = summary.pending_amount || 0
+    completionRate.value = summary.completion_rate || 0
+    predictedCustomers.value = summary.predicted_customers || 0
+  }
 
+  // 加载图表趋势数据
+  await loadTrendData()
+}
+
+// 加载趋势数据（全年 12 个月预测 vs 实际）
+const trendData = ref<PredictionTrendItem[]>([])
+
+const loadTrendData = async () => {
+  try {
+    const res = await getPredictionTrend({
+      year: filters.year,
+      force_refresh: true,
+    })
+    trendData.value = res.data || []
+  } catch {
+    trendData.value = []
+  }
   initForecastChart()
 }
 
@@ -237,8 +269,6 @@ const initForecastChart = () => {
 
   forecastChart = echarts.init(forecastChartRef.value)
 
-  // TODO: 替换为真实 API 数据
-  // 生成月度预测数据（临时使用 0 或占位数据）
   const months = [
     '1 月',
     '2 月',
@@ -255,9 +285,15 @@ const initForecastChart = () => {
   ]
   const currentMonth = new Date().getMonth()
 
-  // 移除 Math.random() 模拟数据，使用 0 作为临时值
-  const predictedData = months.map(() => 0)
-  const actualData = months.map(() => 0)
+  // 使用后端趋势数据
+  const predictedData = months.map((_, index) => {
+    const item = trendData.value[index]
+    return item ? item.predicted : 0
+  })
+  const actualData = months.map((_, index) => {
+    const item = trendData.value[index]
+    return item ? item.actual : 0
+  })
 
   const option = {
     tooltip: {
@@ -265,11 +301,20 @@ const initForecastChart = () => {
       axisPointer: {
         type: 'shadow',
       },
+      formatter: (params: Array<{ seriesName: string; name: string; value: number }>) => {
+        let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].name}</div>`
+        for (const p of params) {
+          if (p.value !== null && p.value !== undefined) {
+            html += `<div>${p.seriesName}：¥${Number(p.value).toLocaleString()}</div>`
+          }
+        }
+        return html
+      },
     },
     legend: {
       data: ['预测回款', '实际回款'],
       textStyle: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     grid: {
@@ -284,22 +329,22 @@ const initForecastChart = () => {
       data: months,
       axisLine: {
         lineStyle: {
-          color: '#e0e2e7',
+          color: AXIS_LINE,
         },
       },
       axisLabel: {
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
     },
     yAxis: {
       type: 'value',
       axisLabel: {
         formatter: '¥{value}',
-        color: '#646a73',
+        color: TEXT_MUTED,
       },
       splitLine: {
         lineStyle: {
-          color: '#f0f0f0',
+          color: SPLIT_LINE,
         },
       },
     },
@@ -310,8 +355,8 @@ const initForecastChart = () => {
         data: predictedData,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#0369A1' },
-            { offset: 1, color: '#075985' },
+            { offset: 0, color: '#1D4ED8' },
+            { offset: 1, color: '#1E40AF' },
           ]),
         },
       },
@@ -322,7 +367,7 @@ const initForecastChart = () => {
         data: actualData.map((val, index) => (index <= currentMonth ? val : null)),
         connectNulls: false,
         itemStyle: {
-          color: '#22c55e',
+          color: '#059669',
         },
         lineStyle: {
           width: 3,
@@ -355,64 +400,61 @@ onMounted(() => {
   loadData()
   window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  forecastChart?.dispose()
+})
 </script>
 
 <style scoped>
 .forecast-analysis-page {
-  padding: 0;
-  --neutral-1: #f7f8fa;
-  --neutral-2: #eef0f3;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-10: #1d2330;
-  --primary-6: #0369a1;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.header-title h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+.header-info h1 {
+  margin: 4px 0 2px 0;
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 .header-subtitle {
-  font-size: 14px;
-  color: var(--neutral-6);
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.filter-section {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+.filter-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  margin-bottom: 24px;
+  padding: 20px 24px;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 14px;
 }
 
 .stat-card {
-  background: white;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  padding: 20px;
   transition: all 200ms ease;
 }
 
@@ -423,22 +465,22 @@ onMounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
   margin-bottom: 12px;
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--neutral-10);
+  font-size: 26px;
+  font-weight: 850;
+  color: var(--ink);
 }
 
 .stat-value.success {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .stat-value.warning {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .stat-trend {
@@ -450,22 +492,22 @@ onMounted(() => {
 }
 
 .trend-label {
-  color: var(--neutral-5);
+  color: var(--muted);
 }
 
 .trend-value {
   font-weight: 600;
-  color: var(--primary-6);
+  color: var(--primary);
 }
 
 .chart-section {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .chart-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -476,13 +518,14 @@ onMounted(() => {
 
 .chart-header {
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .chart-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
+  margin: 0;
 }
 
 .chart-container {
@@ -491,9 +534,9 @@ onMounted(() => {
 }
 
 .table-section {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--neutral-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
@@ -503,18 +546,27 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--neutral-2);
+  border-bottom: 1px solid var(--line);
 }
 
 .table-header h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
-  color: var(--neutral-10);
+  color: var(--ink);
+  margin: 0;
+}
+
+/* 表头样式 */
+.table-section :deep(.arco-table-th) {
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .predicted-amount {
-  font-weight: 600;
-  color: var(--primary-6);
+  font-weight: 700;
+  color: var(--primary);
 }
 
 @media (max-width: 1200px) {
