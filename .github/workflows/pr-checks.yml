@@ -76,6 +76,7 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -131,7 +132,7 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest --cov=app --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+          pytest -n auto --cov=app --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
 
       - name: Upload JUnit test results
         if: always()
@@ -183,6 +184,7 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
