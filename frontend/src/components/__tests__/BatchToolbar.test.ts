@@ -14,8 +14,8 @@ describe('BatchToolbar', () => {
     const wrapper = mount(BatchToolbar, {
       props: { selectedCount: 3 },
     })
-    expect(wrapper.text()).toContain('分配运营经理')
-    expect(wrapper.text()).toContain('设置等级')
+    expect(wrapper.text()).toContain('批量编辑')
+    expect(wrapper.text()).toContain('分配负责人')
   })
 
   it('emits batch-action event', async () => {
@@ -24,6 +24,6 @@ describe('BatchToolbar', () => {
     })
     const buttons = wrapper.findAll('button')
     await buttons[0].trigger('click')
-    expect(wrapper.emitted('batch-action')).toBeTruthy()
+    expect(wrapper.emitted('batchAction')).toBeTruthy()
   })
 })

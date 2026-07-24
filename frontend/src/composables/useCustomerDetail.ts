@@ -52,7 +52,7 @@ export function useCustomerDetail() {
   const customerId = ref(Number(route.params.id))
 
   const customer = ref<Customer | null>(null)
-  const loading = ref(true)
+  const loading = ref(false)
   const activeTab = ref('basic')
 
   const balance = ref<Balance | undefined>(undefined)
