@@ -54,15 +54,15 @@ defineEmits<{
 }
 
 .quick-tag:hover {
-  border-color: #93C5FD;
-  background: #EFF6FF;
+  border-color: #93c5fd;
+  background: #eff6ff;
   color: var(--primary);
 }
 
 .quick-tag.active {
-  background: #DBEAFE;
-  border-color: #BFDBFE;
-  color: #1D4ED8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 .tag-count {

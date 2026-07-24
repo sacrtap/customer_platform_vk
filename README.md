@@ -725,5 +725,5 @@ MIT License
 
 ---
 
-**项目维护者**: Alex  
+**项目维护者**: Alex
 **联系方式**: alex@company.com

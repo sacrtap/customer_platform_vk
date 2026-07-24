@@ -86,7 +86,7 @@ psql -U user -d customer_platform_test -c "\dt"
 
 ```
               List of relations
- Schema |          Name           | Type  |  Owner   
+ Schema |          Name           | Type  |  Owner
 --------+-------------------------+-------+----------
  public | users                   | table | user
  public | roles                   | table | user
@@ -178,7 +178,7 @@ pytest tests/ --cov=app --cov-report=html
 ```bash
 # 删除所有测试数据但保留表结构
 psql -U user -d customer_platform_test << EOF
-TRUNCATE TABLE 
+TRUNCATE TABLE
     consumption_records,
     invoice_items,
     invoices,

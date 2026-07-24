@@ -1,7 +1,6 @@
 <template>
   <div class="database-management">
-    <PageHeader eyebrow="System" title="数据库管理"
-      subtitle="系统级数据操作管理" />
+    <PageHeader eyebrow="System" title="数据库管理" subtitle="系统级数据操作管理" />
 
     <a-card :bordered="false">
       <template #title>
@@ -34,10 +33,7 @@
       </a-space>
 
       <div v-if="lastResult" class="result-info">
-        <a-alert
-          :type="lastResult.success ? 'success' : 'error'"
-          style="margin-top: 16px"
-        >
+        <a-alert :type="lastResult.success ? 'success' : 'error'" style="margin-top: 16px">
           {{ lastResult.message }}
         </a-alert>
       </div>

@@ -1,106 +1,83 @@
 <template>
-  <a-drawer
-    :visible="visible"
-    width="420"
-    placement="right"
-    :closable="true"
-    :footer="null"
-    popup-container="#app-root"
-    @cancel="emit('close')"
-  >
-    <div v-if="customer" class="preview-container">
-      <!-- 客户头部信息 -->
-      <div class="preview-header">
-        <div class="customer-logo lg">{{ getInitials(customer.name) }}</div>
-        <div class="preview-header-info">
-          <div class="preview-name-line">
-            <span class="preview-name">{{ customer.name }}</span>
-            <Tag v-if="customer.is_key_customer" variant="blue" size="sm">重点客户</Tag>
-          </div>
-          <div class="preview-meta">
-            <span v-if="customer.industry">{{ customer.industry }}</span>
-            <span>规模: {{ customer.scale_level || '-' }}</span>
-            <span>余额: ¥{{ formatNumber(customer.balance) }}</span>
-          </div>
-        </div>
+  <Teleport to="body">
+    <div v-if="visible" class="preview-drawer-overlay" @click="emit('close')"></div>
+    <div class="preview-drawer" :class="{ open: visible }">
+      <div class="drawer-header">
+        <h3>客户 360 预览</h3>
+        <button class="drawer-close" @click="emit('close')">✕</button>
       </div>
-
-      <!-- KPI 四宫格 -->
-      <div class="preview-kpi-grid">
-        <div class="preview-kpi-item">
-          <span class="preview-kpi-label">30天消耗</span>
-          <span class="preview-kpi-value">
-            ¥{{ formatNumber(customer.usage_30d_amount || 0) }}
-          </span>
-          <ProgressBar
-            :value="Math.min(100, customer.usage_30d || 0)"
-            :color="getUsageColor(customer.usage_30d || 0)"
-          />
-        </div>
-        <div class="preview-kpi-item">
-          <span class="preview-kpi-label">健康度</span>
-          <span class="preview-kpi-value">
-            <Tag :variant="getHealthVariant(customer.health)" size="md">
-              {{ getHealthLabel(customer.health) }}
-            </Tag>
-          </span>
-        </div>
-        <div class="preview-kpi-item">
-          <span class="preview-kpi-label">余额</span>
-          <span class="preview-kpi-value">¥{{ formatNumber(customer.balance) }}</span>
-        </div>
-        <div class="preview-kpi-item">
-          <span class="preview-kpi-label">消费等级</span>
-          <span class="preview-kpi-value">{{ customer.consume_level || '-' }}</span>
-        </div>
-      </div>
-
-      <!-- 快捷操作 -->
-      <div class="preview-quick-actions">
-        <button class="quick-action" @click="emit('viewDetail', customer.id)">
-          <span class="qa-icon">�</span>
-          <span>查看详情</span>
-        </button>
-        <button class="quick-action" @click="emit('edit', customer)">
-          <span class="qa-icon">✎</span>
-          <span>编辑信息</span>
-        </button>
-        <button class="quick-action" @click="emit('addTag', customer)">
-          <span class="qa-icon">🏷</span>
-          <span>打标签</span>
-        </button>
-      </div>
-
-      <!-- 最近消费历程 -->
-      <div class="preview-timeline-section">
-        <h4 class="section-title">最近消费历程</h4>
-        <div class="timeline">
-          <div v-for="item in customer.consumption_history" :key="item.id" class="timeline-item">
-            <div class="timeline-dot" />
-            <div class="timeline-content">
-              <span class="timeline-description">{{ item.description }}</span>
-              <span class="timeline-time">{{ formatDate(item.created_at) }}</span>
-            </div>
-            <span class="timeline-amount" :class="{ negative: item.amount < 0 }">
-              ¥{{ formatNumber(Math.abs(item.amount)) }}
+      <div v-if="customer" class="drawer-body">
+        <!-- 客户信息 -->
+        <div class="drawer-customer-info">
+          <span class="logo lg">{{ getInitials(customer.name) }}</span>
+          <div>
+            <h4>{{ customer.name }}</h4>
+            <span class="subtle">
+              {{ customer.industry || '-' }}
+              <template v-if="customer.scale_level"> · 规模 {{ customer.scale_level }}</template>
+              <template v-if="customer.consume_level">
+                · 消费 {{ customer.consume_level }}</template
+              >
             </span>
           </div>
-          <div
-            v-if="!customer.consumption_history || customer.consumption_history.length === 0"
-            class="empty-timeline"
-          >
-            暂无消费记录
+        </div>
+
+        <!-- KPI 四宫格 -->
+        <div class="drawer-kpi-grid">
+          <div class="drawer-kpi">
+            <span>当前余额</span>
+            <b>¥{{ formatNumber(customer.balance) }}</b>
           </div>
+          <div class="drawer-kpi">
+            <span>30天消耗</span>
+            <b>¥{{ formatNumber(customer.usage_30d_amount || 0) }}</b>
+          </div>
+          <div class="drawer-kpi">
+            <span>健康度</span>
+            <b :class="getHealthClass(customer.health)">{{ getHealthLabel(customer.health) }}</b>
+          </div>
+          <div class="drawer-kpi">
+            <span>预计耗尽</span>
+            <b :class="{ danger: getDaysUntilDepleted(customer) <= 5 }"
+              >{{ getDaysUntilDepleted(customer) }} 天</b
+            >
+          </div>
+        </div>
+
+        <!-- 最近操作时间轴 -->
+        <div class="drawer-section">
+          <h5>最近操作</h5>
+          <div class="drawer-timeline">
+            <div
+              v-for="item in (customer.consumption_history || []).slice(0, 5)"
+              :key="item.id"
+              class="drawer-event"
+            >
+              <span>{{ formatDate(item.created_at) }}</span>
+              <b>{{ item.description }}</b>
+            </div>
+            <div
+              v-if="!customer.consumption_history || customer.consumption_history.length === 0"
+              class="drawer-empty"
+            >
+              暂无操作记录
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="drawer-actions">
+          <button class="btn primary" @click="emit('viewDetail', customer.id)">查看详情</button>
+          <button class="btn">生成结算单</button>
+          <button class="btn">提醒充值</button>
         </div>
       </div>
     </div>
-  </a-drawer>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import type { Customer } from '@/types'
-import Tag from '@/components/ui/Tag.vue'
-import ProgressBar from '@/components/ui/ProgressBar.vue'
 
 defineProps<{
   visible: boolean
@@ -121,227 +98,255 @@ const getInitials = (name: string) => {
 
 const formatNumber = (num: number | string | null) => {
   const n = typeof num === 'string' ? parseFloat(num) : num
-  if (n == null || isNaN(n)) return '0.00'
-  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (n == null || isNaN(n)) return '0'
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 const formatDate = (date: string | null) => {
   if (!date) return ''
   const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const getUsageColor = (value: number) => {
-  if (value >= 80) return '#059669'
-  if (value >= 50) return '#3B82F6'
-  return '#94A3B8'
-}
-
-const getHealthVariant = (health: string): 'green' | 'amber' | 'red' | 'gray' => {
-  const map: Record<string, 'green' | 'amber' | 'red' | 'gray'> = {
-    healthy: 'green',
-    attention: 'amber',
-    high_risk: 'red',
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDay === 0) {
+    return `今天 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
-  return map[health] || 'gray'
+  if (diffDay === 1) {
+    return `昨天 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const getHealthLabel = (health: string) => {
+const getHealthLabel = (health: string | null | undefined) => {
   const map: Record<string, string> = {
     healthy: '健康',
     attention: '关注',
     high_risk: '高风险',
   }
-  return map[health] || health
+  return (health && map[health]) || '-'
+}
+
+const getHealthClass = (health: string | null | undefined) => {
+  if (health === 'attention') return 'amber'
+  if (health === 'high_risk') return 'danger'
+  return ''
+}
+
+const getDaysUntilDepleted = (customer: Customer) => {
+  const usage = customer.usage_30d_amount || 0
+  if (usage <= 0) return 0
+  const dailyUsage = usage / 30
+  const balance = customer.balance || 0
+  return Math.max(0, Math.round(balance / dailyUsage))
 }
 </script>
 
 <style scoped>
-.preview-container {
-  height: 100%;
-  overflow-y: auto;
-  padding: 24px;
-  margin-top: 20px;
+/* 遮罩层 */
+.preview-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.25);
+  z-index: 89;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 抽屉 */
+.preview-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -8px 0 32px rgba(15, 23, 42, 0.12);
+  z-index: 90;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+}
+.preview-drawer.open {
+  transform: translateX(0);
 }
 
 /* 头部 */
-.preview-header {
+.drawer-header {
   display: flex;
-  gap: 16px;
+  justify-content: space-between;
   align-items: center;
-  padding-bottom: 20px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--line);
-}
-
-.customer-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: #e0f2fe;
-  color: #0369a1;
-  font-size: 13px;
-  font-weight: 700;
   flex-shrink: 0;
 }
-.customer-logo.lg {
-  width: 48px;
-  height: 48px;
-  font-size: 20px;
+.drawer-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+.drawer-close {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.drawer-close:hover {
+  background: #f1f5f9;
 }
 
-.preview-header-info {
-  min-width: 0;
+/* 内容区 */
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px;
 }
 
-.preview-name-line {
+/* 客户信息 */
+.drawer-customer-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 18px;
 }
-
-.preview-name {
+.drawer-customer-info .logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   font-size: 18px;
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.preview-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-/* KPI 四宫格 */
-.preview-kpi-grid {
+  background: #e0f2fe;
+  color: #0369a1;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin: 20px 0;
+  place-items: center;
+  font-weight: 850;
+  flex-shrink: 0;
+}
+.drawer-customer-info h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+.subtle {
+  color: var(--muted);
+  font-size: 12px;
 }
 
-.preview-kpi-item {
+/* KPI 网格 */
+.drawer-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.drawer-kpi {
   background: #f8fafc;
   border: 1px solid #edf2f7;
   border-radius: 12px;
   padding: 12px;
 }
-
-.preview-kpi-label {
+.drawer-kpi span {
+  display: block;
   font-size: 12px;
   color: var(--muted);
-  display: block;
   margin-bottom: 4px;
 }
-
-.preview-kpi-value {
+.drawer-kpi b {
   font-size: 18px;
-  font-weight: 700;
-  color: var(--ink);
+  font-weight: 800;
 }
-
-/* 快捷操作 */
-.preview-quick-actions {
-  display: flex;
-  gap: 8px;
-  margin: 16px 0;
+.drawer-kpi b.amber {
+  color: var(--amber);
 }
-
-.quick-action {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 12px;
-  flex: 1;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: white;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--ink);
-  transition: all 0.2s;
-}
-.quick-action:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: #f8fbff;
-}
-
-.qa-icon {
-  font-size: 18px;
-}
-
-/* 时间轴 */
-.preview-timeline-section {
-  margin-top: 20px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-  margin: 0 0 12px 0;
-}
-
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.timeline-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.timeline-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
-}
-
-.timeline-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.timeline-description {
-  display: block;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.timeline-time {
-  display: block;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 2px;
-}
-
-.timeline-amount {
-  font-size: 13px;
-  font-weight: 600;
-  color: #059669;
-}
-.timeline-amount.negative {
+.drawer-kpi b.danger {
   color: var(--red);
 }
 
-.empty-timeline {
+/* 时间轴 */
+.drawer-section {
+  margin-bottom: 18px;
+}
+.drawer-section h5 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.drawer-timeline {
+  display: grid;
+  gap: 8px;
+}
+.drawer-event {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf2f7;
+  font-size: 13px;
+}
+.drawer-event > span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  min-width: 80px;
+}
+.drawer-event > b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.drawer-empty {
   text-align: center;
-  padding: 24px;
+  padding: 20px;
   color: var(--muted);
   font-size: 13px;
+}
+
+/* 操作按钮 */
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.btn {
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.btn.primary:hover {
+  background: #1e40af;
+}
+
+@media (max-width: 1100px) {
+  .preview-drawer {
+    width: 100%;
+  }
 }
 </style>

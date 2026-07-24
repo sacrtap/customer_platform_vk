@@ -49,7 +49,7 @@ def db_session(test_engine) -> Session:
 ```python
 def create_app(app_name: str = "customer_platform", database_engine=None):
     # ...
-    
+
     # 检测引擎类型并创建对应的会话工厂
     if database_engine:
         from sqlalchemy.engine import Engine
@@ -69,7 +69,7 @@ class UserService:
     def __init__(self, session: Session, is_async: bool = None):
         self.session = session
         self._is_async = is_async or hasattr(session, '_is_asyncio_session')
-    
+
     async def get_by_username(self, username: str):
         if self._is_async:
             result = await self.session.execute(...)
@@ -88,13 +88,13 @@ def test_login_success(client, db_session: Session):
     # 创建测试用户（同步）
     db_session.execute(text("INSERT INTO users ..."))
     db_session.commit()
-    
+
     # 执行 HTTP 请求（同步）
     request, response = client.post(
         "/api/v1/auth/login",
         json={"username": username, "password": password},
     )
-    
+
     # 断言（同步）
     assert response.status_code == 200
 ```
@@ -226,6 +226,6 @@ backend/
 
 ---
 
-**创建日期**: 2026-04-03  
-**作者**: Backend Architect  
+**创建日期**: 2026-04-03
+**作者**: Backend Architect
 **状态**: ✅ 解决方案已验证，所有测试通过

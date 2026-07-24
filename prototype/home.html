@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>运营工作台 - 客户运营中台</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">VK</div><div>客户运营中台<br><span class="subtle">Prototype v1</span></div></div>
+    <nav class="nav" aria-label="原型页面导航">
+       <div class="nav-group">
+         <div class="nav-title">总览</div>
+         <button class="active" data-page="overview" title="设计总览"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-text">设计总览</span></button>
+         <button data-page="home" title="运营工作台"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg></span><span class="nav-text">运营工作台</span></button>
+         <button data-page="refactor" title="重构优化方案"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg></span><span class="nav-text">重构优化方案</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">核心功能</div>
+         <button data-page="customers" title="客户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-text">客户管理</span></button>
+         <button class="nav-parent" data-page="billing" aria-expanded="false" title="结算管理"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span><span class="nav-text">结算管理</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="balance"><span class="nav-text">余额管理</span></button>
+           <button data-page="pricing"><span class="nav-text">计费规则</span></button>
+           <button data-page="invoices"><span class="nav-text">结算单管理</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">运营分析</div>
+         <button class="nav-parent" data-page="analytics" aria-expanded="false" title="客户分析"><span class="nav-main"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">客户分析</span></span><span class="chev" aria-hidden="true">⌄</span></button>
+         <div class="subnav">
+           <button data-page="consumption"><span class="nav-text">消耗分析</span></button>
+           <button data-page="payment"><span class="nav-text">回款分析</span></button>
+           <button data-page="health"><span class="nav-text">健康度分析</span></button>
+           <button data-page="profile-analysis"><span class="nav-text">画像分析</span></button>
+           <button data-page="forecast"><span class="nav-text">预测回款</span></button>
+         </div>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统管理</div>
+         <button data-page="tags" title="标签管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span><span class="nav-text">标签管理</span></button>
+         <button data-page="users" title="用户管理"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-text">用户管理</span></button>
+         <button data-page="roles" title="角色权限"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="nav-text">角色权限</span></button>
+         <button data-page="industry-types" title="行业类型"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span><span class="nav-text">行业类型</span></button>
+         <button data-page="database-management" title="数据清空"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg></span><span class="nav-text">数据清空</span></button>
+       </div>
+       <div class="nav-group">
+         <div class="nav-title">系统工具</div>
+         <button data-page="sync-logs" title="同步日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span><span class="nav-text">同步日志</span></button>
+         <button data-page="audit-logs" title="审计日志"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span class="nav-text">审计日志</span></button>
+       </div>
+     </nav>
+    <div class="side-note">设计目标：信息更紧凑，核心指标先行；筛选、表格、图表同屏协作；减少页面跳转。</div>
+    <button class="toggle-btn" type="button" aria-label="折叠侧边栏" aria-expanded="true" title="折叠侧边栏"><span class="toggle-icon" aria-hidden="true">‹</span><span class="toggle-label">收起</span></button>
+  </aside>
+  <main class="main">
+    <header class="top">
+      <div class="search" role="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m21 21-4.35-4.35M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="#64748b" stroke-width="2" stroke-linecap="round"/></svg>
+        <input aria-label="全局搜索" placeholder="搜索客户、结算单、标签、任务；支持快捷键 /" />
+      </div>
+      <span class="pill">今日同步 98.6%</span><span class="pill desktop-only">待处理预警 12</span><div class="avatar">管</div>
+    </header>
+
+        <section id="home" class="page active">
+      <div class="headline"><div><div class="eyebrow">Home</div><h1 class="h1">运营工作台</h1><p class="desc">首屏回答三个问题：今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。</p></div><div class="actions"><button class="btn">保存视图</button><button class="btn primary">新建同步任务</button></div></div>
+      <!-- P2: 实时同步状态条 -->
+      <div class="sync-status-bar"><span class="pulse-dot"></span><span>数据同步正常 · 最近同步 10:00 · 下次同步 11:00</span><button class="btn" style="margin-left:auto;padding:4px 12px;font-size:12px" data-page-link="sync-logs">查看日志</button></div>
+      <!-- P0: KPI 卡片可点击下钻 -->
+      <div class="kpi-strip">
+        <div class="mini kpi-clickable" data-page-link="customers"><span>活跃客户</span><b>1,248</b><span class="up">较上月 +8.4%</span></div>
+        <div class="mini kpi-clickable" data-page-link="analytics"><span>本月消耗</span><b>¥8.42M</b><span class="up">完成 73%</span></div>
+        <div class="mini kpi-clickable" data-page-link="payment"><span>待回款</span><b>¥1.36M</b><span class="warn">18 单临期</span></div>
+        <div class="mini kpi-clickable" data-page-link="balance"><span>低余额客户</span><b>42</b><span class="down">需跟进</span></div>
+        <div class="mini kpi-clickable" data-page-link="sync-logs"><span>同步成功率</span><b>98.6%</b><span class="up">稳定</span></div>
+        <div class="mini kpi-clickable" data-page-link="sync-logs"><span>异常任务</span><b>7</b><span class="warn">待重试</span></div>
+      </div>
+      <div class="hero" style="margin-top:14px">
+        <div class="card pad">
+          <div class="section-title"><h2>经营趋势</h2><div class="tabs"><span class="tab active" data-chart-tab="consume">消耗</span><span class="tab" data-chart-tab="payment">回款</span><span class="tab" data-chart-tab="customers">客户数</span><span class="tab" data-chart-tab="health">健康度</span></div></div>
+          <div class="chart"><svg viewBox="0 0 760 260" preserveAspectRatio="none"><defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfdbfe"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><path class="axis" d="M40 40H730M40 95H730M40 150H730M40 205H730"/><path class="area" d="M40 205 C130 160 150 120 230 134 C310 148 340 82 420 94 C500 106 540 70 620 88 C680 101 700 58 730 66 L730 240 L40 240Z"/><path class="line" d="M40 205 C130 160 150 120 230 134 C310 148 340 82 420 94 C500 106 540 70 620 88 C680 101 700 58 730 66"/><path class="line2" d="M40 190 C120 170 170 164 240 155 C330 146 360 132 430 126 C530 117 570 110 640 101 C690 96 710 92 730 86"/></svg></div>
+        </div>
+        <div class="card pad">
+          <div class="section-title"><h2>异常与待办</h2><div style="display:flex;align-items:center;gap:10px"><span class="tag amber">12 项</span><label class="toggle-switch" title="切换排序方式"><input type="checkbox" id="todo-sort-toggle"><span class="toggle-track"></span><span class="toggle-label-text">按金额排序</span></label></div></div>
+          <div class="compact-list" id="todo-list"><div class="row" data-amount="420000" data-urgency="5"><span>余额低于 7 天</span><b>42</b></div><div class="row" data-amount="860000" data-urgency="3"><span>结算单生成失败</span><b>5</b></div><div class="row" data-amount="120000" data-urgency="7"><span>同步任务待重试</span><b>7</b></div><div class="row" data-amount="2400000" data-urgency="2"><span>长期未消耗客户</span><b>16</b></div><div class="row" data-amount="0" data-urgency="1"><span>权限变更待审核</span><b>3</b></div></div>
+          <!-- P1: 快捷操作面板 -->
+          <div class="quick-actions">
+            <button class="quick-action-btn" data-page-link="customers"><span class="qa-icon">＋</span>新建客户</button>
+            <button class="quick-action-btn" data-page-link="invoices"><span class="qa-icon">¥</span>生成结算单</button>
+            <button class="quick-action-btn" data-page-link="sync-logs"><span class="qa-icon">⟳</span>数据同步</button>
+            <button class="quick-action-btn"><span class="qa-icon">↓</span>导出报告</button>
+          </div>
+        </div>
+      </div>
+      <!-- P2: 优先跟进客户增强 -->
+      <div class="card pad"><div class="section-title"><h2>今日优先跟进客户</h2><button class="btn">批量分配</button></div><table class="table"><thead><tr><th>客户</th><th>健康度</th><th>本月消耗</th><th>余额可用</th><th>风险</th><th>负责人</th><th>下一步</th></tr></thead><tbody>
+        <tr><td><div class="customer"><span class="logo">万</span>万科华东</div></td><td><span class="tag amber">关注</span></td><td>¥482,000</td><td>5 天</td><td>余额不足</td><td>王明</td><td><div class="row-dropdown"><button class="btn" onclick="this.parentElement.classList.toggle('open')">操作 ▾</button><div class="dropdown-menu"><button data-page-link="detail">查看详情</button><button>提醒充值</button><button data-page-link="invoices">生成结算单</button><button>分配负责人</button></div></div></td></tr>
+        <tr><td><div class="customer"><span class="logo">绿</span>绿城服务</div></td><td><span class="tag red">高风险</span></td><td>¥196,000</td><td>2 天</td><td>结算失败</td><td>李娜</td><td><div class="row-dropdown"><button class="btn" onclick="this.parentElement.classList.toggle('open')">操作 ▾</button><div class="dropdown-menu"><button data-page-link="detail">查看详情</button><button>查看账单</button><button data-page-link="invoices">生成结算单</button><button>分配负责人</button></div></div></td></tr>
+        <tr><td><div class="customer"><span class="logo">龙</span>龙湖集团</div></td><td><span class="tag green">健康</span></td><td>¥711,000</td><td>18 天</td><td>无</td><td>陈涛</td><td><div class="row-dropdown"><button class="btn" onclick="this.parentElement.classList.toggle('open')">操作 ▾</button><div class="dropdown-menu"><button data-page-link="detail">查看详情</button><button>复盘增长</button><button data-page-link="invoices">生成结算单</button><button>分配负责人</button></div></div></td></tr>
+      </tbody></table></div>
+      <!-- 优化方案标注 -->
+      <div class="opt-panel">
+        <button class="opt-toggle"><span>🚀 运营工作台 — 重构优化方案</span><span class="opt-count">6 项优化 <span class="opt-arrow">⌄</span></span></button>
+        <div class="opt-content">
+          <div class="opt-item"><span class="opt-priority p0">P0</span><div><div class="opt-title">KPI 卡片可点击下钻</div><div class="opt-desc">每个 KPI 卡片点击跳转到对应分析页或带筛选的列表页。例如点击"低余额客户 42"跳转客户列表并自动筛选余额不足。</div></div><span class="opt-interaction">@click → 路由跳转</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">快捷操作面板</div><div class="opt-desc">Hero 区右侧待办下方新增"快捷操作"4 宫格卡片：新建客户 / 生成结算单 / 数据同步 / 导出报告。</div></div><span class="opt-interaction">4 宫格按钮网格</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">异常自动排序开关</div><div class="opt-desc">待办列表添加排序切换 Toggle：按影响金额排序 / 按临期程度排序。切换时列表实时重排。</div></div><span class="opt-interaction">Toggle + 列表重排</span></div>
+          <div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">实时同步状态条</div><div class="opt-desc">顶部添加同步状态指示条（脉冲动画）。绿色=同步正常 / 红色=同步异常，点击跳转同步日志。</div></div><span class="opt-interaction">脉冲圆点 + 状态文案</span></div>
+          <div class="opt-item"><span class="opt-priority p1">P1</span><div><div class="opt-title">趋势图指标切换</div><div class="opt-desc">图表 Tab 添加更多维度：消耗 / 回款 / 客户数 / 健康度。Tab 切换触发图表数据平滑切换。</div></div><span class="opt-interaction">Tab 切换 + 图表动画</span></div>
+          <div class="opt-item"><span class="opt-priority p2">P2</span><div><div class="opt-title">优先跟进客户增强</div><div class="opt-desc">表格行添加"一键操作"下拉菜单：提醒充值 / 生成结算单 / 查看详情 / 分配负责人。</div></div><span class="opt-interaction">行内下拉菜单</span></div>
+          <div class="opt-wireframe"><h4>交互流程示意</h4><div class="wire-flow"><div class="wire-box">首屏加载</div><span class="wire-arrow">→</span><div class="wire-box">6 KPI 淡入</div><span class="wire-arrow">→</span><div class="wire-box">趋势图渲染</div><span class="wire-arrow">→</span><div class="wire-box">待办加载</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">点击 KPI</div><span class="wire-arrow">→</span><div class="wire-box">跳转分析页</div><span class="wire-arrow">→</span><div class="wire-box">带筛选条件</div></div><div class="wire-row" style="margin-top:8px"><div class="wire-box">切换趋势 Tab</div><span class="wire-arrow">→</span><div class="wire-box">图表切换</div><span class="wire-arrow">→</span><div class="wire-box">时间轴不变</div></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="js/common.js"></script>
+</body>
+</html>

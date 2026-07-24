@@ -20,10 +20,10 @@ defineProps<{
 <style scoped>
 .chart-card {
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
-  padding: 20px;
+  box-shadow: var(--shadow);
+  padding: 18px;
 }
 
 .section-title {

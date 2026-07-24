@@ -62,7 +62,7 @@ def upgrade() -> None:
     # Step 1: 新增 industry_type_id 列（允许 NULL）
     op.add_column('customer_profiles',
         sa.Column('industry_type_id', sa.Integer(), nullable=True))
-    
+
     # Step 2: 数据回填 - 根据 industry 名称匹配 industry_types.id
     op.execute("""
         UPDATE customer_profiles cp
@@ -70,7 +70,7 @@ def upgrade() -> None:
         FROM industry_types it
         WHERE cp.industry = it.name
     """)
-    
+
     # Step 3: 添加外键约束（ON DELETE SET NULL）
     op.create_foreign_key(
         'fk_customer_profiles_industry_type',
@@ -78,7 +78,7 @@ def upgrade() -> None:
         ['industry_type_id'], ['id'],
         ondelete='SET NULL'
     )
-    
+
     # Step 4: 删除旧的 industry 列
     op.drop_column('customer_profiles', 'industry')
 
@@ -119,20 +119,20 @@ async def check():
         ))
         cols = [r[0] for r in result.all()]
         print('industry_type_id column exists:', 'industry_type_id' in cols)
-        
+
         # 检查 industry 列是否已删除
         result = await session.execute(text(
             \"SELECT column_name FROM information_schema.columns WHERE table_name='customer_profiles' AND column_name='industry'\"
         ))
         cols = [r[0] for r in result.all()]
         print('industry column removed:', 'industry' not in cols)
-        
+
         # 检查数据回填情况
         result = await session.execute(text(
             'SELECT COUNT(*) FROM customer_profiles WHERE industry_type_id IS NOT NULL'
         ))
         print('Profiles with industry_type_id:', result.scalar())
-        
+
         result = await session.execute(text(
             'SELECT COUNT(*) FROM customer_profiles WHERE industry_type_id IS NULL'
         ))

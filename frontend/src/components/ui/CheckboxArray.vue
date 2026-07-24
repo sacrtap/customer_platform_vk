@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue: string[]
     options: Array<{ label: string; value: string }>

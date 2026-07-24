@@ -1,5 +1,12 @@
 <template>
-  <a-modal v-model:visible="isVisible" title="付款确认" width="500px" :confirm-loading="loading" @before-ok="handleSubmit" @cancel="emit('update:visible', false)">
+  <a-modal
+    v-model:visible="isVisible"
+    title="付款确认"
+    width="500px"
+    :confirm-loading="loading"
+    @before-ok="handleSubmit"
+    @cancel="emit('update:visible', false)"
+  >
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
       <a-form-item field="payment_method" label="付款方式" required>
         <a-select v-model="form.payment_method" placeholder="请选择付款方式" allow-clear>
@@ -10,10 +17,19 @@
         </a-select>
       </a-form-item>
       <a-form-item field="payment_date" label="付款日期" required>
-        <a-date-picker v-model="form.payment_date" placeholder="请选择付款日期" style="width: 100%" />
+        <a-date-picker
+          v-model="form.payment_date"
+          placeholder="请选择付款日期"
+          style="width: 100%"
+        />
       </a-form-item>
       <a-form-item field="remark" label="备注">
-        <a-textarea v-model="form.remark" placeholder="请输入备注" :max-length="200" show-word-limit />
+        <a-textarea
+          v-model="form.remark"
+          placeholder="请输入备注"
+          :max-length="200"
+          show-word-limit
+        />
       </a-form-item>
     </a-form>
   </a-modal>

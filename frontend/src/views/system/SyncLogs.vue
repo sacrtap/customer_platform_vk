@@ -1,7 +1,6 @@
 <template>
   <div class="sync-logs-page">
-    <PageHeader eyebrow="System" title="同步任务日志"
-      subtitle="查看同步任务执行历史和状态" />
+    <PageHeader eyebrow="System" title="同步任务日志" subtitle="查看同步任务执行历史和状态" />
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -82,9 +81,7 @@
         <template #task_id="{ record }">
           {{ record.task_id.substring(0, 8) }}
         </template>
-        <template #period="{ record }">
-          {{ record.start_date }} ~ {{ record.end_date }}
-        </template>
+        <template #period="{ record }"> {{ record.start_date }} ~ {{ record.end_date }} </template>
         <template #sync_mode="{ record }">
           {{ record.sync_mode === 'skip_existing' ? '仅补充缺失' : '强制覆盖' }}
         </template>

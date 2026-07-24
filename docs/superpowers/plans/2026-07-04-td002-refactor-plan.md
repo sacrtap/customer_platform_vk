@@ -133,7 +133,7 @@ export function useAppLayout() {
     return allMenus.filter(menu => {
       if (menu.permission && !userStore.hasPermission(menu.permission)) return false
       if (menu.children) {
-        menu.children = menu.children.filter(child => 
+        menu.children = menu.children.filter(child =>
           !child.permission || userStore.hasPermission(child.permission)
         )
       }

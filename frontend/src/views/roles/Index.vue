@@ -1,7 +1,6 @@
 <template>
   <div class="role-management-page">
-    <PageHeader eyebrow="System" title="角色权限"
-      subtitle="角色管理与权限配置">
+    <PageHeader eyebrow="System" title="角色权限" subtitle="角色管理与权限配置">
       <template #actions>
         <a-input-search
           v-model="searchKeyword"
@@ -12,7 +11,9 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button v-if="can('roles:create')" type="primary" @click="handleCreate">新建角色</a-button>
+        <a-button v-if="can('roles:create')" type="primary" @click="handleCreate"
+          >新建角色</a-button
+        >
       </template>
     </PageHeader>
 
@@ -124,7 +125,11 @@
               <div>
                 <div class="permission-group-title">{{ group.title }}</div>
                 <div class="permission-group-count">
-                  {{ group.permissions.filter((perm) => selectedPermissionIds.includes(perm.id)).length }} / {{ group.permissions.length }} 项
+                  {{
+                    group.permissions.filter((perm) => selectedPermissionIds.includes(perm.id))
+                      .length
+                  }}
+                  / {{ group.permissions.length }} 项
                 </div>
               </div>
               <a-button size="small" @click="togglePermissionGroup(group)">
@@ -246,8 +251,8 @@ const selectedPermissionIds = ref<number[]>([])
 const permissionGroups = computed(() => buildPermissionGroups(allPermissions.value))
 
 const isGroupAllSelected = (group: PermissionGroup<Permission>) =>
-  group.permissions.length > 0 && group.permissions.every((perm) => selectedPermissionIds.value.includes(perm.id))
-
+  group.permissions.length > 0 &&
+  group.permissions.every((perm) => selectedPermissionIds.value.includes(perm.id))
 
 const togglePermissionGroup = (group: PermissionGroup<Permission>) => {
   const groupIds = group.permissions.map((perm) => perm.id)

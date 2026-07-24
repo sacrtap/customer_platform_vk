@@ -8,7 +8,6 @@ from sqlalchemy import and_, case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import (
-    ConsumptionRecord,
     CustomerBalance,
     Invoice,
     InvoiceItem,
@@ -86,8 +85,11 @@ class AnalyticsService:
         metric: str = "cost",
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取消耗趋势（支持订单数量和结算费用切换）"""
+        """获取消耗趋势（支持订单数量和结算费用切换，支持多维度筛选）"""
         from ..models.daily_consumption import DailyConsumption
 
         # 按日期聚合
@@ -111,6 +113,12 @@ class AnalyticsService:
             stmt = stmt.where(DailyConsumption.customer_id == customer_id)
         if keyword:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if account_type:
+            stmt = stmt.where(Customer.account_type == account_type)
+        if manager_id:
+            stmt = stmt.where(Customer.manager_id == manager_id)
+        if sales_manager_id:
+            stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
 
         stmt = stmt.group_by(DailyConsumption.consumption_date).order_by(
             DailyConsumption.consumption_date
@@ -133,8 +141,11 @@ class AnalyticsService:
         metric: str = "cost",
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取设备类型分布（支持订单数量和结算费用切换）"""
+        """获取设备类型分布（支持订单数量和结算费用切换，支持多维度筛选）"""
         from ..models.daily_consumption import DailyConsumption
 
         stmt = (
@@ -157,6 +168,12 @@ class AnalyticsService:
             stmt = stmt.where(DailyConsumption.customer_id == customer_id)
         if keyword:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if account_type:
+            stmt = stmt.where(Customer.account_type == account_type)
+        if manager_id:
+            stmt = stmt.where(Customer.manager_id == manager_id)
+        if sales_manager_id:
+            stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
 
         stmt = stmt.group_by(DailyConsumption.device_type)
 
@@ -224,14 +241,21 @@ class AnalyticsService:
         metric: str = "cost",
         limit: int = 10,
         keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取 Top10 客户排行（支持订单数量和结算费用切换）"""
+        """获取 Top 客户排行（支持多维度筛选）"""
         from ..models.daily_consumption import DailyConsumption
 
         stmt = (
             select(
                 Customer.id,
                 Customer.name,
+                Customer.company_id,
                 func.sum(DailyConsumption.order_count).label("order_count"),
                 func.sum(DailyConsumption.total_cost).label("cost"),
             )
@@ -247,8 +271,27 @@ class AnalyticsService:
 
         if keyword:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if account_type:
+            stmt = stmt.where(Customer.account_type == account_type)
+        if scale_level:
+            stmt = stmt.where(Customer.scale_level == scale_level)
+        if consume_level:
+            stmt = stmt.where(Customer.consume_level == consume_level)
+        if manager_id:
+            stmt = stmt.where(Customer.manager_id == manager_id)
+        if sales_manager_id:
+            stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
 
-        stmt = stmt.group_by(Customer.id, Customer.name)
+        # 行业筛选需要 JOIN CustomerProfile + IndustryType
+        if industry:
+            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+            if industry_names:
+                stmt = stmt.outerjoin(
+                    CustomerProfile, Customer.id == CustomerProfile.customer_id
+                ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+                stmt = stmt.where(IndustryType.name.in_(industry_names))
+
+        stmt = stmt.group_by(Customer.id, Customer.name, Customer.company_id)
 
         # 根据 metric 排序
         if metric == "order_count":
@@ -262,6 +305,7 @@ class AnalyticsService:
         return [
             {
                 "customer_id": row.id,
+                "company_id": row.company_id,
                 "customer_name": row.name,
                 "order_count": int(row.order_count) if row.order_count else 0,
                 "cost": float(row.cost) if row.cost else 0.0,
@@ -338,15 +382,82 @@ class AnalyticsService:
 
     # ========== 回款分析 ==========
 
+    def _apply_customer_filters(
+        self,
+        stmt,
+        *,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
+    ):
+        """对已 JOIN Customer 的查询追加多维度筛选条件，返回新 stmt"""
+        if customer_id:
+            stmt = stmt.where(Invoice.customer_id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if account_type:
+            stmt = stmt.where(Customer.account_type == account_type)
+        if scale_level:
+            stmt = stmt.where(Customer.scale_level == scale_level)
+        if consume_level:
+            stmt = stmt.where(Customer.consume_level == consume_level)
+        if manager_id:
+            stmt = stmt.where(Customer.manager_id == manager_id)
+        if sales_manager_id:
+            stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        if industry:
+            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+            if industry_names:
+                stmt = stmt.outerjoin(
+                    CustomerProfile, Customer.id == CustomerProfile.customer_id
+                ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+                stmt = stmt.where(IndustryType.name.in_(industry_names))
+        return stmt
+
     async def get_payment_analysis(
         self,
         start_date: date,
         end_date: date,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """获取回款分析数据"""
-        # 总结算金额
+        """获取回款分析数据
+
+        应收总额：非草稿、非取消的结算单 total_amount 之和
+        减免总额：同上范围的 discount_amount 之和
+        已回款：状态为 paid/completed 的结算单 (total_amount - discount_amount) 之和
+        回款率：已回款 / 应收净额 × 100
+        待回款：应收净额 - 已回款
+        """
+        # 排除草稿和已取消的结算单（草稿尚未发出，不计入应收）
+        active_status_filter = and_(
+            Invoice.status != "cancelled",
+            Invoice.status != "draft",
+        )
+
+        filter_kwargs = dict(
+            customer_id=customer_id,
+            keyword=keyword,
+            account_type=account_type,
+            industry=industry,
+            scale_level=scale_level,
+            consume_level=consume_level,
+            manager_id=manager_id,
+            sales_manager_id=sales_manager_id,
+        )
+
+        # 应收金额（非草稿、非取消）
         invoice_stmt = (
             select(
                 func.sum(Invoice.total_amount).label("total_invoiced"),
@@ -358,42 +469,34 @@ class AnalyticsService:
                 and_(
                     Invoice.period_start >= start_date,
                     Invoice.period_end <= end_date,
-                    Invoice.status != "cancelled",
+                    active_status_filter,
                     Customer.deleted_at.is_(None),
                 )
             )
         )
+        invoice_stmt = self._apply_customer_filters(invoice_stmt, **filter_kwargs)
 
-        if customer_id:
-            invoice_stmt = invoice_stmt.where(Invoice.customer_id == customer_id)
-        if keyword:
-            invoice_stmt = invoice_stmt.where(Customer.name.ilike(f"%{keyword}%"))
-
-        # 已回款金额
-        payment_stmt = (
-            select(func.sum(RechargeRecord.real_amount).label("total_paid"))
-            .join(Customer, RechargeRecord.customer_id == Customer.id)
+        # 已回款金额（状态为 paid/completed 的结算单净额）
+        paid_stmt = (
+            select(func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_paid"))
+            .join(Customer, Invoice.customer_id == Customer.id)
             .where(
                 and_(
-                    RechargeRecord.created_at >= datetime.combine(start_date, datetime.min.time()),
-                    RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
+                    Invoice.period_start >= start_date,
+                    Invoice.period_end <= end_date,
+                    Invoice.status.in_(["paid", "completed"]),
                     Customer.deleted_at.is_(None),
                 )
             )
         )
-
-        if customer_id:
-            payment_stmt = payment_stmt.where(RechargeRecord.customer_id == customer_id)
-        if keyword:
-            payment_stmt = payment_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        paid_stmt = self._apply_customer_filters(paid_stmt, **filter_kwargs)
 
         invoice_result = (await self.db.execute(invoice_stmt)).first()
-
-        payment_result = (await self.db.execute(payment_stmt)).first()
+        paid_result = (await self.db.execute(paid_stmt)).first()
 
         total_invoiced = float(invoice_result.total_invoiced or 0)
         total_final = float(invoice_result.total_final or 0)
-        total_paid = float(payment_result.total_paid or 0)
+        total_paid = float(paid_result.total_paid or 0)
 
         return {
             "total_invoiced": total_invoiced,
@@ -401,119 +504,192 @@ class AnalyticsService:
             "total_final": total_final,
             "total_paid": total_paid,
             "completion_rate": round(total_paid / total_final * 100, 2) if total_final > 0 else 0,
-            "difference": total_final - total_paid,
+            "difference": round(total_final - total_paid, 2),
         }
 
     async def get_invoice_status_stats(
-        self, start_date: date, end_date: date
+        self,
+        start_date: date,
+        end_date: date,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取结算单状态统计"""
+        """获取结算单状态统计
+
+        返回字段包含 name（状态标识）、count（数量）、percentage（占比）、total_amount（金额）
+        """
+        filter_kwargs = dict(
+            customer_id=customer_id,
+            keyword=keyword,
+            account_type=account_type,
+            industry=industry,
+            scale_level=scale_level,
+            consume_level=consume_level,
+            manager_id=manager_id,
+            sales_manager_id=sales_manager_id,
+        )
+
         stmt = (
             select(
                 Invoice.status,
                 func.count(Invoice.id).label("count"),
                 func.sum(Invoice.total_amount - Invoice.discount_amount).label("total_amount"),
             )
+            .join(Customer, Invoice.customer_id == Customer.id)
             .where(
                 and_(
                     Invoice.period_start >= start_date,
                     Invoice.period_end <= end_date,
+                    Customer.deleted_at.is_(None),
                 )
             )
-            .group_by(Invoice.status)
         )
+        stmt = self._apply_customer_filters(stmt, **filter_kwargs)
+        stmt = stmt.group_by(Invoice.status)
 
         result = (await self.db.execute(stmt)).all()
+        total_count = sum(row.count for row in result)
+
         return [
             {
-                "status": row.status,
+                "name": row.status,
                 "count": row.count,
+                "percentage": round(row.count / total_count * 100, 1) if total_count > 0 else 0,
                 "total_amount": float(row.total_amount) if row.total_amount else 0.0,
             }
             for row in result
         ]
 
+    async def get_payment_trend(
+        self,
+        start_date: date,
+        end_date: date,
+        months: int = 6,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """获取月度回款趋势数据
+
+        按月聚合应收和已回款金额，用于图表展示。
+        """
+        from dateutil.relativedelta import relativedelta
+
+        trend: List[Dict[str, Any]] = []
+        now = datetime.utcnow().date()
+
+        for i in range(months - 1, -1, -1):
+            month_date = now - relativedelta(months=i)
+            month_start = date(month_date.year, month_date.month, 1)
+            month_end = date(
+                month_date.year,
+                month_date.month,
+                monthrange(month_date.year, month_date.month)[1],
+            )
+
+            data = await self.get_payment_analysis(
+                month_start,
+                month_end,
+                customer_id=customer_id,
+                keyword=keyword,
+                account_type=account_type,
+                industry=industry,
+                scale_level=scale_level,
+                consume_level=consume_level,
+                manager_id=manager_id,
+                sales_manager_id=sales_manager_id,
+            )
+            trend.append(
+                {
+                    "period": f"{month_date.year}-{month_date.month:02d}",
+                    "invoiced": data["total_invoiced"],
+                    "discount": data["total_discount"],
+                    "paid": data["total_paid"],
+                    "completion_rate": data["completion_rate"],
+                }
+            )
+
+        return trend
+
     # ========== 健康度分析 ==========
 
     async def get_customer_health_stats(self) -> Dict[str, Any]:
-        """获取客户健康度统计（优化：6次查询 → 2次查询）"""
+        """获取客户健康度统计
+
+        活跃客户：最近 90 天有 DailyConsumption 记录的客户
+        余额预警：余额 < 1000 的客户
+        流失风险：曾有过消耗但最近 90 天无消耗的客户
+        """
         from datetime import timedelta
 
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
 
-        # 查询 1: 总客户数 + 活跃客户数 + 余额预警数（单次聚合查询）
-        stats_stmt = (
-            select(
-                func.count(func.distinct(Customer.id)).label("total_count"),
-                func.count(
-                    func.distinct(
-                        case(
-                            (
-                                ConsumptionRecord.id.isnot(None),
-                                ConsumptionRecord.customer_id,
-                            )
-                        )
-                    )
-                ).label("active_count"),
-                func.count(
-                    case(
-                        (
-                            and_(
-                                CustomerBalance.id.isnot(None),
-                                CustomerBalance.total_amount < 1000,
-                            ),
-                            1,
-                        )
-                    )
-                ).label("warning_count"),
-            )
-            .select_from(Customer)
-            .outerjoin(
-                ConsumptionRecord,
+        # 查询 1: 总客户数 + 活跃客户数（通过 DailyConsumption 关联）
+        # 拆分为独立查询避免与 CustomerBalance 的笛卡尔积
+        active_stmt = (
+            select(func.count(func.distinct(DailyConsumption.customer_id)))
+            .join(Customer, DailyConsumption.customer_id == Customer.id)
+            .where(
                 and_(
-                    Customer.id == ConsumptionRecord.customer_id,
-                    ConsumptionRecord.deleted_at.is_(None),
-                ),
-            )
-            .outerjoin(
-                CustomerBalance,
-                and_(
-                    Customer.id == CustomerBalance.customer_id,
-                    CustomerBalance.deleted_at.is_(None),
-                ),
-            )
-            .where(Customer.deleted_at.is_(None))
-        )
-
-        stats_result = (await self.db.execute(stats_stmt)).first()
-        if stats_result is None:
-            return {
-                "total_customers": 0,
-                "active_customers": 0,
-                "inactive_customers": 0,
-                "warning_customers": 0,
-                "churn_risk_customers": 0,
-                "active_rate": 0,
-            }
-        total_count = stats_result.total_count or 0
-        active_count = stats_result.active_count or 0
-        warning_count = stats_result.warning_count or 0
-
-        # 查询 2: 流失风险客户（90天无消耗）- 使用 NOT EXISTS 子查询
-        churn_stmt = select(func.count(Customer.id)).where(
-            and_(
-                Customer.deleted_at.is_(None),
-                ~select(ConsumptionRecord.id)
-                .where(
-                    and_(
-                        ConsumptionRecord.customer_id == Customer.id,
-                        ConsumptionRecord.created_at >= ninety_days_ago,
-                    )
+                    DailyConsumption.consumption_date >= ninety_days_ago.date(),
+                    Customer.deleted_at.is_(None),
                 )
-                .exists(),
-                select(ConsumptionRecord.id)
-                .where(ConsumptionRecord.customer_id == Customer.id)
-                .exists(),  # 曾经有消耗记录
+            )
+        )
+        active_count = (await self.db.execute(active_stmt)).scalar() or 0
+
+        # 查询 2: 总客户数
+        total_stmt = select(func.count(Customer.id)).where(
+            and_(Customer.deleted_at.is_(None), Customer.is_disabled.is_(False))
+        )
+        total_count = (await self.db.execute(total_stmt)).scalar() or 0
+
+        # 查询 3: 余额预警数（独立查询避免笛卡尔积）
+        warning_stmt = select(func.count(CustomerBalance.customer_id)).where(
+            and_(
+                CustomerBalance.total_amount < 1000,
+                CustomerBalance.deleted_at.is_(None),
+            )
+        )
+        warning_count = (await self.db.execute(warning_stmt)).scalar() or 0
+
+        # 查询 4: 流失风险客户（曾有过消耗但最近 90 天无消耗）
+        # 使用 DailyConsumption 而非 ConsumptionRecord
+        has_usage_subq = (
+            select(func.distinct(DailyConsumption.customer_id).label("customer_id"))
+            .where(DailyConsumption.deleted_at.is_(None))
+            .subquery()
+        )
+        recent_usage_subq = (
+            select(func.distinct(DailyConsumption.customer_id).label("customer_id"))
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= ninety_days_ago.date(),
+                    DailyConsumption.deleted_at.is_(None),
+                )
+            )
+            .subquery()
+        )
+        churn_stmt = (
+            select(func.count(Customer.id))
+            .join(has_usage_subq, Customer.id == has_usage_subq.c.customer_id)
+            .outerjoin(recent_usage_subq, Customer.id == recent_usage_subq.c.customer_id)
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    recent_usage_subq.c.customer_id.is_(None),
+                )
             )
         )
         churn_count = (await self.db.execute(churn_stmt)).scalar() or 0
@@ -537,8 +713,10 @@ class AnalyticsService:
                 CustomerBalance.total_amount,
                 CustomerBalance.real_amount,
                 CustomerBalance.bonus_amount,
+                User.real_name.label("manager_name"),
             )
             .join(CustomerBalance, Customer.id == CustomerBalance.customer_id)
+            .outerjoin(User, Customer.manager_id == User.id)
             .where(
                 and_(
                     CustomerBalance.total_amount < threshold,
@@ -557,29 +735,39 @@ class AnalyticsService:
                 "total_amount": float(row.total_amount) if row.total_amount else 0.0,
                 "real_amount": float(row.real_amount) if row.real_amount else 0.0,
                 "bonus_amount": float(row.bonus_amount) if row.bonus_amount else 0.0,
+                "manager_name": row.manager_name or "未分配",
             }
             for row in result
         ]
 
-    async def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
-        """获取长期未消耗客户列表（优化：使用子查询替代 Python 集合操作）"""
+    async def get_inactive_customers(self, days: int = 30) -> List[Dict[str, Any]]:
+        """获取长期未消耗客户列表
+
+        基于 DailyConsumption 表查找：曾经有消耗记录但最近 N 天无消耗的客户。
+        返回 days 字段表示距离上次消耗的天数。
+        """
         from datetime import timedelta
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
 
-        # 使用子查询一次性完成：有消耗记录但最近无消耗的客户
-        has_usage_subq = (
-            select(func.distinct(ConsumptionRecord.customer_id).label("customer_id"))
-            .where(ConsumptionRecord.deleted_at.is_(None))
+        # 子查询：每个客户最近一次消耗日期
+        last_usage_subq = (
+            select(
+                DailyConsumption.customer_id.label("customer_id"),
+                func.max(DailyConsumption.consumption_date).label("last_date"),
+            )
+            .where(DailyConsumption.deleted_at.is_(None))
+            .group_by(DailyConsumption.customer_id)
             .subquery()
         )
 
+        # 子查询：最近 N 天内有消耗的客户
         recent_usage_subq = (
-            select(func.distinct(ConsumptionRecord.customer_id).label("customer_id"))
+            select(func.distinct(DailyConsumption.customer_id).label("customer_id"))
             .where(
                 and_(
-                    ConsumptionRecord.created_at >= cutoff_date,
-                    ConsumptionRecord.deleted_at.is_(None),
+                    DailyConsumption.consumption_date >= cutoff_date,
+                    DailyConsumption.deleted_at.is_(None),
                 )
             )
             .subquery()
@@ -592,8 +780,9 @@ class AnalyticsService:
                 Customer.company_id,
                 Customer.manager_id,
                 User.real_name.label("manager_name"),
+                last_usage_subq.c.last_date.label("last_consumption_date"),
             )
-            .join(has_usage_subq, Customer.id == has_usage_subq.c.customer_id)
+            .join(last_usage_subq, Customer.id == last_usage_subq.c.customer_id)
             .outerjoin(recent_usage_subq, Customer.id == recent_usage_subq.c.customer_id)
             .outerjoin(User, Customer.manager_id == User.id)
             .where(
@@ -602,8 +791,10 @@ class AnalyticsService:
                     recent_usage_subq.c.customer_id.is_(None),
                 )
             )
+            .order_by(last_usage_subq.c.last_date.asc())
         )
 
+        now = datetime.utcnow().date()
         result = (await self.db.execute(stmt)).all()
         return [
             {
@@ -612,6 +803,12 @@ class AnalyticsService:
                 "customer_name": row.name,
                 "manager_id": row.manager_id,
                 "manager_name": row.manager_name or "未分配",
+                "last_consumption_date": (
+                    row.last_consumption_date.isoformat() if row.last_consumption_date else None
+                ),
+                "days": (now - row.last_consumption_date).days
+                if row.last_consumption_date
+                else days,
             }
             for row in result
         ]
@@ -619,17 +816,39 @@ class AnalyticsService:
     # ========== 画像分析 ==========
 
     async def get_industry_distribution(self) -> List[Dict[str, Any]]:
-        """获取行业分布"""
+        """获取行业分布
+
+        以 Customer 为主表 LEFT JOIN CustomerProfile + IndustryType，
+        确保所有未删除客户都被统计（无画像的客户归入"未分类"）。
+        """
         stmt = (
             select(
                 IndustryType.name,
-                func.count(CustomerProfile.id).label("count"),
+                func.count(Customer.id).label("count"),
             )
-            .join(Customer, CustomerProfile.customer_id == Customer.id)
-            .outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-            .where(Customer.deleted_at.is_(None))
+            .select_from(Customer)
+            .outerjoin(
+                CustomerProfile,
+                and_(
+                    Customer.id == CustomerProfile.customer_id,
+                    CustomerProfile.deleted_at.is_(None),
+                ),
+            )
+            .outerjoin(
+                IndustryType,
+                and_(
+                    CustomerProfile.industry_type_id == IndustryType.id,
+                    IndustryType.deleted_at.is_(None),
+                ),
+            )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    Customer.is_disabled.is_(False),
+                )
+            )
             .group_by(IndustryType.name)
-            .order_by(func.count(CustomerProfile.id).desc())
+            .order_by(func.count(Customer.id).desc())
         )
 
         result = (await self.db.execute(stmt)).all()
@@ -647,6 +866,7 @@ class AnalyticsService:
     async def get_scale_level_stats(self) -> List[Dict[str, Any]]:
         """获取客户规模等级统计
 
+        以 Customer 为主表 LEFT JOIN CustomerProfile，确保所有未删除客户都被统计。
         将非标准值（NULL 或不在 S/A/B/C/D/E 中的旧值）归类为"未分类"，
         并按 S→A→B→C→D→E→未分类 的固定顺序返回。
         """
@@ -659,10 +879,22 @@ class AnalyticsService:
         stmt = (
             select(
                 normalized_level,
-                func.count(CustomerProfile.id).label("count"),
+                func.count(Customer.id).label("count"),
             )
-            .join(Customer, CustomerProfile.customer_id == Customer.id)
-            .where(Customer.deleted_at.is_(None))
+            .select_from(Customer)
+            .outerjoin(
+                CustomerProfile,
+                and_(
+                    Customer.id == CustomerProfile.customer_id,
+                    CustomerProfile.deleted_at.is_(None),
+                ),
+            )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    Customer.is_disabled.is_(False),
+                )
+            )
             .group_by(normalized_level)
         )
 
@@ -684,16 +916,31 @@ class AnalyticsService:
         ]
 
     async def get_consume_level_stats(self) -> List[Dict[str, Any]]:
-        """获取客户消费等级统计"""
+        """获取客户消费等级统计
+
+        以 Customer 为主表 LEFT JOIN CustomerProfile，确保所有未删除客户都被统计。
+        """
         stmt = (
             select(
                 CustomerProfile.consume_level,
-                func.count(CustomerProfile.id).label("count"),
+                func.count(Customer.id).label("count"),
             )
-            .join(Customer, CustomerProfile.customer_id == Customer.id)
-            .where(Customer.deleted_at.is_(None))
+            .select_from(Customer)
+            .outerjoin(
+                CustomerProfile,
+                and_(
+                    Customer.id == CustomerProfile.customer_id,
+                    CustomerProfile.deleted_at.is_(None),
+                ),
+            )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    Customer.is_disabled.is_(False),
+                )
+            )
             .group_by(CustomerProfile.consume_level)
-            .order_by(func.count(CustomerProfile.id).desc())
+            .order_by(func.count(Customer.id).desc())
         )
 
         result = (await self.db.execute(stmt)).all()
@@ -709,46 +956,87 @@ class AnalyticsService:
         ]
 
     async def get_real_estate_stats(self) -> Dict[str, Any]:
-        """获取房产客户统计"""
-        total_stmt = select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
+        """获取房产客户统计
+
+        is_real_estate 是 Customer 表字段，无需 JOIN CustomerProfile。
+        同时返回有画像的客户数，供前端计算"画像覆盖率"。
+        """
+        total_stmt = select(func.count(Customer.id)).where(
+            and_(
+                Customer.deleted_at.is_(None),
+                Customer.is_disabled.is_(False),
+            )
+        )
         total = (await self.db.execute(total_stmt)).scalar() or 0
 
-        real_estate_stmt = (
-            select(func.count(Customer.id))
-            .join(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+        # 房产客户数：直接查 Customer 表，不 JOIN Profile
+        real_estate_stmt = select(func.count(Customer.id)).where(
+            and_(
+                Customer.deleted_at.is_(None),
+                Customer.is_disabled.is_(False),
+                Customer.is_real_estate.is_(True),
+            ),
+        )
+        real_estate = (await self.db.execute(real_estate_stmt)).scalar() or 0
+
+        # 有画像的客户数（用于画像覆盖率）
+        profile_stmt = (
+            select(func.count(CustomerProfile.id))
+            .join(Customer, CustomerProfile.customer_id == Customer.id)
             .where(
                 and_(
                     Customer.deleted_at.is_(None),
-                    Customer.is_real_estate,
+                    Customer.is_disabled.is_(False),
+                    CustomerProfile.deleted_at.is_(None),
                 )
             )
         )
-        real_estate = (await self.db.execute(real_estate_stmt)).scalar() or 0
+        profile_count = (await self.db.execute(profile_stmt)).scalar() or 0
 
         return {
             "total_customers": total,
             "real_estate_customers": real_estate,
             "non_real_estate_customers": total - real_estate,
             "real_estate_percentage": round(real_estate / total * 100, 2) if total > 0 else 0,
+            "profile_count": profile_count,
+            "profile_coverage_rate": round(profile_count / total * 100, 2) if total > 0 else 0,
         }
 
     async def get_real_estate_industry_stats(self) -> List[Dict[str, Any]]:
-        """获取房产客户行业子分类统计"""
+        """获取房产客户行业子分类统计
+
+        以 Customer 为主表 LEFT JOIN CustomerProfile + IndustryType，
+        确保所有房产客户都被统计（无画像的归入"未分类"）。
+        """
         stmt = (
             select(
                 IndustryType.name,
-                func.count(CustomerProfile.id).label("count"),
+                func.count(Customer.id).label("count"),
             )
-            .join(Customer, CustomerProfile.customer_id == Customer.id)
-            .outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+            .select_from(Customer)
+            .outerjoin(
+                CustomerProfile,
+                and_(
+                    Customer.id == CustomerProfile.customer_id,
+                    CustomerProfile.deleted_at.is_(None),
+                ),
+            )
+            .outerjoin(
+                IndustryType,
+                and_(
+                    CustomerProfile.industry_type_id == IndustryType.id,
+                    IndustryType.deleted_at.is_(None),
+                ),
+            )
             .where(
                 and_(
                     Customer.deleted_at.is_(None),
-                    Customer.is_real_estate,
+                    Customer.is_disabled.is_(False),
+                    Customer.is_real_estate.is_(True),
                 )
             )
             .group_by(IndustryType.name)
-            .order_by(func.count(CustomerProfile.id).desc())
+            .order_by(func.count(Customer.id).desc())
         )
 
         result = (await self.db.execute(stmt)).all()
@@ -768,37 +1056,79 @@ class AnalyticsService:
     async def predict_monthly_payment(
         self,
         year: int,
-        month: int,
+        month: Optional[int] = None,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """预测月度回款"""
-        from calendar import monthrange
+        """预测月度回款
 
-        # 获取该月的定价规则
-        mid_month = date(year, month, 15)
+        基于客户该时段的实际消耗数据（DailyConsumption.total_cost）预测回款金额。
+        month=None 表示全年汇总。
+
+        以 DailyConsumption 为主表聚合（按 customer_id + device_type），
+        再 LEFT JOIN PricingRule 获取计费类型，避免定价规则重复导致的笛卡尔积膨胀。
+
+        Returns:
+            预测明细列表，每条记录包含客户、设备类型、用量（订单数）、预测金额等信息。
+        """
+        # 确定查询的时间范围
+        if month is not None:
+            period_start = date(year, month, 1)
+            period_end = date(year, month, monthrange(year, month)[1])
+        else:
+            period_start = date(year, 1, 1)
+            period_end = date(year, 12, 31)
+
+        # 以 DailyConsumption 为主表聚合消耗，再关联 Customer 和 PricingRule
+        # 使用子查询先聚合消耗，避免 LEFT JOIN PricingRule 多行导致 SUM 翻倍
+        usage_subq = (
+            select(
+                DailyConsumption.customer_id.label("customer_id"),
+                DailyConsumption.device_type.label("device_type"),
+                func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
+                func.coalesce(func.sum(DailyConsumption.order_count), 0).label("total_orders"),
+            )
+            .where(
+                DailyConsumption.consumption_date >= period_start,
+                DailyConsumption.consumption_date <= period_end,
+            )
+            .group_by(DailyConsumption.customer_id, DailyConsumption.device_type)
+            .subquery()
+        )
 
         stmt = (
             select(
+                Customer.id.label("customer_id"),
+                Customer.name.label("customer_name"),
+                Customer.company_id,
+                usage_subq.c.device_type,
+                usage_subq.c.total_cost,
+                usage_subq.c.total_orders,
+                func.max(PricingRule.pricing_type).label("pricing_type"),
+            )
+            .select_from(usage_subq)
+            .join(Customer, usage_subq.c.customer_id == Customer.id)
+            .outerjoin(
+                PricingRule,
+                and_(
+                    Customer.id == PricingRule.customer_id,
+                    usage_subq.c.device_type == PricingRule.device_type,
+                    PricingRule.deleted_at.is_(None),
+                    PricingRule.effective_date <= period_end,
+                    or_(
+                        PricingRule.expiry_date.is_(None),
+                        PricingRule.expiry_date >= period_start,
+                    ),
+                ),
+            )
+            .where(Customer.deleted_at.is_(None))
+            .group_by(
                 Customer.id,
                 Customer.name,
                 Customer.company_id,
-                PricingRule.device_type,
-                PricingRule.pricing_type,
-                PricingRule.unit_price,
-                PricingRule.tiers,
-                PricingRule.package_type,
-            )
-            .join(PricingRule, Customer.id == PricingRule.customer_id)
-            .where(
-                and_(
-                    PricingRule.effective_date <= mid_month,
-                    or_(
-                        PricingRule.expiry_date.is_(None),
-                        PricingRule.expiry_date >= mid_month,
-                    ),
-                    Customer.deleted_at.is_(None),
-                )
+                usage_subq.c.device_type,
+                usage_subq.c.total_cost,
+                usage_subq.c.total_orders,
             )
         )
 
@@ -811,82 +1141,131 @@ class AnalyticsService:
 
         predictions = []
         for row in result:
-            # 获取该客户该月的实际用量
-            usage_stmt = (
-                select(
-                    DailyConsumption.device_type,
-                    func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
-                )
-                .where(
-                    and_(
-                        DailyConsumption.customer_id == row.id,
-                        DailyConsumption.consumption_date >= date(year, month, 1),
-                        DailyConsumption.consumption_date
-                        <= date(year, month, monthrange(year, month)[1]),
-                    )
-                )
-                .group_by(DailyConsumption.device_type)
+            predicted_amount = float(row.total_cost or 0)
+            if predicted_amount <= 0:
+                continue
+
+            predictions.append(
+                {
+                    "customer_id": row.customer_id,
+                    "company_id": row.company_id,
+                    "customer_name": row.customer_name,
+                    "device_type": row.device_type,
+                    "quantity": int(row.total_orders or 0),
+                    "pricing_type": row.pricing_type or "unknown",
+                    "predicted_amount": predicted_amount,
+                }
             )
 
-            usage_result = (await self.db.execute(usage_stmt)).all()
-
-            for usage_row in usage_result:
-                predicted_amount = float(usage_row.total_cost or 0)
-
-                predictions.append(
-                    {
-                        "customer_id": row.id,
-                        "company_id": row.company_id,
-                        "customer_name": row.name,
-                        "device_type": usage_row.device_type,
-                        "quantity": predicted_amount,
-                        "pricing_type": row.pricing_type,
-                        "predicted_amount": predicted_amount,
-                    }
-                )
+        # 按预测金额降序排列
+        predictions.sort(key=lambda x: x["predicted_amount"], reverse=True)
 
         return predictions
 
-    async def _calculate_predicted_amount(
+    async def get_prediction_summary(
         self,
-        pricing_type: str,
-        unit_price: float,
-        tiers: Optional[Dict],
-        package_type: Optional[str],
-        quantity: float,
-    ) -> float:
-        """计算预测金额"""
-        if pricing_type == "fixed":
-            return round(quantity * unit_price, 2)
+        year: int,
+        month: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """获取预测回款汇总统计
 
-        elif pricing_type == "tiered" and tiers:
-            # 阶梯定价计算
-            remaining = quantity
-            total = 0
-            sorted_tiers = sorted(tiers, key=lambda x: x["threshold"])
+        返回预测总额、已确认回款（已支付结算单）、待确认回款、完成率等。
+        """
+        from calendar import monthrange
 
-            for tier in sorted_tiers:
-                threshold = tier["threshold"]
-                tier_price = tier["price"]
-                if remaining <= threshold:
-                    total += remaining * tier_price
-                    remaining = 0
-                    break
-                else:
-                    total += threshold * tier_price
-                    remaining -= threshold
+        predictions = await self.predict_monthly_payment(year, month, customer_id, keyword)
 
-            if remaining > 0:
-                total += remaining * unit_price
+        total_predicted = sum(p["predicted_amount"] for p in predictions)
+        predicted_customers = len({p["customer_id"] for p in predictions})
 
-            return round(total, 2)
+        # 查询已确认回款（已支付/已完成的结算单净额）
+        if month is not None:
+            period_start = date(year, month, 1)
+            period_end = date(year, month, monthrange(year, month)[1])
+        else:
+            period_start = date(year, 1, 1)
+            period_end = date(year, 12, 31)
 
-        elif pricing_type == "package" and package_type:
-            # 包年套餐计算（简化处理）
-            package_prices = {"A": 10000, "B": 20000, "C": 30000, "D": 50000}
-            return package_prices.get(package_type, 0)
+        confirmed_stmt = (
+            select(
+                func.coalesce(func.sum(Invoice.total_amount - Invoice.discount_amount), 0).label(
+                    "confirmed_amount"
+                )
+            )
+            .join(Customer, Invoice.customer_id == Customer.id)
+            .where(
+                and_(
+                    Invoice.period_start >= period_start,
+                    Invoice.period_end <= period_end,
+                    Invoice.status.in_(["paid", "completed"]),
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        )
+        if customer_id:
+            confirmed_stmt = confirmed_stmt.where(Invoice.customer_id == customer_id)
+        if keyword:
+            confirmed_stmt = confirmed_stmt.where(Customer.name.ilike(f"%{keyword}%"))
 
-        return round(quantity * unit_price, 2)
+        confirmed_amount = float((await self.db.execute(confirmed_stmt)).scalar() or 0)
+
+        pending_amount = round(total_predicted - confirmed_amount, 2)
+        completion_rate = (
+            round(confirmed_amount / total_predicted * 100, 2) if total_predicted > 0 else 0
+        )
+
+        return {
+            "total_predicted": round(total_predicted, 2),
+            "confirmed_amount": round(confirmed_amount, 2),
+            "pending_amount": pending_amount,
+            "completion_rate": completion_rate,
+            "predicted_customers": predicted_customers,
+        }
+
+    async def get_prediction_trend(self, year: int) -> List[Dict[str, Any]]:
+        """获取全年 12 个月预测 vs 实际回款趋势
+
+        每月返回预测金额（消耗总额）和实际回款（已支付结算单净额）。
+        """
+        from calendar import monthrange
+
+        trend = []
+        for m in range(1, 13):
+            month_start = date(year, m, 1)
+            month_end = date(year, m, monthrange(year, m)[1])
+
+            # 预测金额 = 当月消耗总额
+            predicted_stmt = select(
+                func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("predicted")
+            ).where(
+                DailyConsumption.consumption_date >= month_start,
+                DailyConsumption.consumption_date <= month_end,
+            )
+            predicted = float((await self.db.execute(predicted_stmt)).scalar() or 0)
+
+            # 实际回款 = 当月已支付/已完成结算单净额
+            actual_stmt = select(
+                func.coalesce(func.sum(Invoice.total_amount - Invoice.discount_amount), 0).label(
+                    "actual"
+                )
+            ).where(
+                Invoice.period_start >= month_start,
+                Invoice.period_end <= month_end,
+                Invoice.status.in_(["paid", "completed"]),
+            )
+            actual = float((await self.db.execute(actual_stmt)).scalar() or 0)
+
+            trend.append(
+                {
+                    "month": f"{year}-{m:02d}",
+                    "predicted": round(predicted, 2),
+                    "actual": round(actual, 2),
+                }
+            )
+
+        return trend
 
     # ========== 余额趋势 ==========
 
@@ -1101,11 +1480,13 @@ class AnalyticsService:
         balance_result = await self._get_current_balance(customer_id)
         current_balance = balance_result["total_amount"] if balance_result else 0.0
 
-        # 4. 获取月均消耗（过去90天）
-        avg_consumption_stmt = select(func.avg(ConsumptionRecord.amount).label("avg_amount")).where(
+        # 4. 获取月均消耗（过去90天，基于 DailyConsumption）
+        avg_consumption_stmt = select(
+            func.avg(DailyConsumption.total_cost).label("avg_amount")
+        ).where(
             and_(
-                ConsumptionRecord.customer_id == customer_id,
-                ConsumptionRecord.created_at >= ninety_days_ago,
+                DailyConsumption.customer_id == customer_id,
+                DailyConsumption.consumption_date >= ninety_days_ago.date(),
             )
         )
         avg_result = (await self.db.execute(avg_consumption_stmt)).first()

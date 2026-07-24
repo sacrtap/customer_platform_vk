@@ -1,8 +1,7 @@
 <template>
   <div class="profile-page">
     <!-- PageHeader -->
-    <PageHeader eyebrow="Account" title="个人信息"
-      subtitle="管理你的账号资料与安全设置">
+    <PageHeader eyebrow="Account" title="个人信息" subtitle="管理你的账号资料与安全设置">
       <template #actions>
         <a-button @click="changePasswordVisible = true">修改密码</a-button>
       </template>
@@ -39,9 +38,7 @@
               accept="image/jpeg,image/png,.jpg,.jpeg,.png"
               :custom-request="handleAvatarUpload"
             >
-              <a-button type="primary" size="small" :loading="avatarUploading">
-                更换头像
-              </a-button>
+              <a-button type="primary" size="small" :loading="avatarUploading"> 更换头像 </a-button>
             </a-upload>
             <a-button v-if="formData.avatar_url" size="small" @click="removeAvatar">
               移除
@@ -82,9 +79,7 @@
 
             <!-- 操作按钮 -->
             <div class="form-actions">
-              <a-button type="primary" html-type="submit" :loading="submitLoading">
-                保存
-              </a-button>
+              <a-button type="primary" html-type="submit" :loading="submitLoading"> 保存 </a-button>
               <a-button @click="handleCancel">取消</a-button>
             </div>
           </a-form>
@@ -158,7 +153,13 @@ import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import type { RequestOption } from '@arco-design/web-vue/es/upload/interfaces'
-import { getProfile, updateProfile, changePassword, uploadAvatar, type UserProfile } from '@/api/users'
+import {
+  getProfile,
+  updateProfile,
+  changePassword,
+  uploadAvatar,
+  type UserProfile,
+} from '@/api/users'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -318,7 +319,7 @@ const removeAvatar = async () => {
       avatar_url: '',
     })
     Message.success('头像已移除')
-  } catch (error) {
+  } catch {
     Message.error('移除头像失败')
   }
 }
@@ -453,7 +454,7 @@ onMounted(() => {
 }
 
 .avatar-default {
-  background: #DBEAFE;
+  background: #dbeafe;
   color: var(--primary);
   font-weight: 700;
   font-size: 32px;
@@ -467,7 +468,7 @@ onMounted(() => {
 }
 
 .avatar-meta {
-  color: #94A3B8;
+  color: #94a3b8;
   font-size: 13px;
   text-align: center;
 }

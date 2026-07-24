@@ -1,7 +1,8 @@
 """同步状态端点单元测试"""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -9,12 +10,14 @@ async def test_sync_status_returns_ok():
     """测试同步状态端点返回正确格式"""
     # 模拟 SyncTaskService
     mock_service = MagicMock()
-    mock_service.get_stats = AsyncMock(return_value={
-        "failed_count": 0,
-        "today_total": 10,
-        "today_success": 10,
-        "last_sync_time": None,
-    })
+    mock_service.get_stats = AsyncMock(
+        return_value={
+            "failed_count": 0,
+            "today_total": 10,
+            "today_success": 10,
+            "last_sync_time": None,
+        }
+    )
 
     # 模拟 request
     mock_request = MagicMock()
@@ -36,12 +39,14 @@ async def test_sync_status_returns_ok():
 async def test_sync_status_with_errors():
     """测试有错误时的同步状态"""
     mock_service = MagicMock()
-    mock_service.get_stats = AsyncMock(return_value={
-        "failed_count": 3,
-        "today_total": 100,
-        "today_success": 97,
-        "last_sync_time": MagicMock(),
-    })
+    mock_service.get_stats = AsyncMock(
+        return_value={
+            "failed_count": 3,
+            "today_total": 100,
+            "today_success": 97,
+            "last_sync_time": MagicMock(),
+        }
+    )
 
     stats = await mock_service.get_stats()
     error_count = stats.get("failed_count", 0)

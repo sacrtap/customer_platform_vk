@@ -5,8 +5,11 @@
     </div>
     <template v-else>
       <!-- PageHeader -->
-      <PageHeader :eyebrow="'Customer Detail'" :title="customer?.name || '客户详情'"
-        subtitle="详情页按基础信息、画像、余额、消耗、结算、操作记录聚合，支持运营在一个页面完成判断。">
+      <PageHeader
+        :eyebrow="'Customer Detail'"
+        :title="customer?.name || '客户详情'"
+        subtitle="详情页按基础信息、画像、余额、消耗、结算、操作记录聚合，支持运营在一个页面完成判断。"
+      >
         <template #actions>
           <a-button @click="goBack">返回</a-button>
           <a-button @click="openEdit">编辑</a-button>
@@ -23,9 +26,9 @@
             <CustomerBasicTab
               v-if="customer"
               :key="customer?.id"
-              :customer="customer as any"
-              :managers="managers as any"
-              :customer-tags="customerTags as any"
+              :customer="customer!"
+              :managers="managers"
+              :customer-tags="customerTags"
               @open-tag-selector="openTagSelector"
               @remove-tag="removeTag"
             />
@@ -34,34 +37,31 @@
             <CustomerProfileTab
               v-if="profile"
               :key="profile?.id"
-              :profile="profile as any"
-              :profile-loading="profileLoading as boolean"
-              :health-score="healthScore as any"
-              :health-score-loading="healthScoreLoading as boolean"
+              :profile="profile!"
+              :profile-loading="profileLoading"
+              :health-score="healthScore"
+              :health-score-loading="healthScoreLoading"
             />
           </a-tab-pane>
           <a-tab-pane key="balance" title="余额信息">
             <CustomerBalanceTab
               v-if="balance"
               :key="balance?.customer_id"
-              :balance="balance as any"
-              :balance-loading="balanceLoading as boolean"
-              :balance-trend="balanceTrend as any"
-              :balance-trend-loading="balanceTrendLoading as boolean"
-              :should-render-balance-trend="shouldRenderBalanceTrend as any"
+              :balance="balance!"
+              :balance-loading="balanceLoading"
+              :balance-trend="balanceTrend"
+              :balance-trend-loading="balanceTrendLoading"
+              :should-render-balance-trend="shouldRenderBalanceTrend"
             />
           </a-tab-pane>
           <a-tab-pane key="invoices" title="结算单">
-            <CustomerInvoicesTab
-              :invoices="invoices as any"
-              @view-invoice="viewInvoice"
-            />
+            <CustomerInvoicesTab :invoices="invoices" @view-invoice="viewInvoice" />
           </a-tab-pane>
           <a-tab-pane key="usage" title="用量分析">
             <CustomerUsageTab
-              :usage-data="usageData as any"
-              :usage-loading="usageLoading as boolean"
-              :usage-pagination="usagePagination as any"
+              :usage-data="usageData"
+              :usage-loading="usageLoading"
+              :usage-pagination="usagePagination"
               @page-change="loadUsage"
             />
           </a-tab-pane>
@@ -70,25 +70,20 @@
 
       <!-- 编辑客户对话框 -->
       <EditCustomerDialog
-        :visible="editModalVisible as boolean"
-        :customer="customer as any"
-        :edit-loading="editLoading as boolean"
-        :modal-width="modalWidth as any"
-        :industry-types="industryTypes as any"
-        :industry-types-loading="industryTypesLoading as boolean"
-        :managers="managers as any"
-        :price-policy-options="pricePolicyOptions as any"
-        @submit="(form) => submitEdit(form as any)"
-        @close="editModalVisible = false"
+        :visible="editModalVisible"
+        :customer-id="customer?.id ?? null"
+        :industry-types="industryTypes"
+        @saved="onEditSaved"
+        @update:visible="editModalVisible = $event"
       />
 
       <!-- 标签选择器对话框 -->
       <TagSelectorDialog
-        :visible="tagSelectorVisible as boolean"
-        :loading="tagSelectorLoading as boolean"
-        :all-tags="allTags as any"
-        :all-tags-loading="allTagsLoading as boolean"
-        :customer-tags="customerTags as any"
+        :visible="tagSelectorVisible"
+        :loading="tagSelectorLoading"
+        :all-tags="allTags"
+        :all-tags-loading="allTagsLoading"
+        :customer-tags="customerTags"
         @add="addTags"
         @close="closeTagSelector"
       />
@@ -110,22 +105,50 @@ import CustomerUsageTab from './detail/CustomerUsageTab.vue'
 
 // 使用 composable 管理详情页所有状态和逻辑
 const {
-  customer, loading, activeTab,
-  balance, balanceLoading, balanceTrend, balanceTrendLoading, shouldRenderBalanceTrend,
-  profile, profileLoading,
+  customer,
+  loading,
+  activeTab,
+  balance,
+  balanceLoading,
+  balanceTrend,
+  balanceTrendLoading,
+  shouldRenderBalanceTrend,
+  profile,
+  profileLoading,
   invoices,
-  usageData, usageLoading, usagePagination,
-  healthScore, healthScoreLoading,
-  editModalVisible, editLoading, modalWidth,
-  tagSelectorVisible, tagSelectorLoading,
-  customerTags, allTags, allTagsLoading,
-  managers, industryTypes, industryTypesLoading, pricePolicyOptions,
+  usageData,
+  usageLoading,
+  usagePagination,
+  healthScore,
+  healthScoreLoading,
+  editModalVisible,
+  tagSelectorVisible,
+  tagSelectorLoading,
+  customerTags,
+  allTags,
+  allTagsLoading,
+  managers,
+  industryTypes,
+  industryTypesLoading: _industryTypesLoading,
+  pricePolicyOptions: _pricePolicyOptions,
   keyCustomerLoading,
-  loadUsage, viewInvoice,
+  loadUsage,
+  viewInvoice,
   handleTabChange,
-  goBack, openEdit, submitEdit, toggleKeyCustomer,
-  openTagSelector, closeTagSelector, addTags, removeTag,
+  goBack,
+  openEdit,
+  toggleKeyCustomer,
+  openTagSelector,
+  closeTagSelector,
+  addTags,
+  removeTag,
+  loadDetail,
 } = useCustomerDetail()
+
+// 编辑保存后刷新详情
+const onEditSaved = () => {
+  loadDetail()
+}
 </script>
 
 <style scoped>
@@ -206,8 +229,8 @@ const {
 }
 
 .tabs-card :deep(.arco-tabs-tab-active) {
-  background: #DBEAFE;
-  border-color: #BFDBFE;
+  background: #dbeafe;
+  border-color: #bfdbfe;
   color: var(--primary);
 }
 
@@ -247,7 +270,7 @@ const {
 
 /* 表格表头 */
 :deep(.arco-table-th) {
-  background: #F8FAFC;
+  background: #f8fafc;
   color: #334155;
   font-size: 12px;
   font-weight: 600;
@@ -255,7 +278,7 @@ const {
 
 /* 表格行 hover */
 :deep(.arco-table-tr:hover .arco-table-td) {
-  background: #F8FBFF;
+  background: #f8fbff;
 }
 
 /* 空状态 */

@@ -1,39 +1,21 @@
 <template>
-  <div class="filter-section">
-    <a-form layout="vertical" :model="filters">
-      <a-row :gutter="16">
-        <a-col :xs="24" :sm="12" :md="8" :lg="4">
-          <a-form-item label="客户">
-            <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" :width="'100%'" />
-          </a-form-item>
-        </a-col>
-        <a-col :xs="24" :sm="12" :md="8" :lg="4">
-          <a-form-item label="状态">
-            <a-select v-model="filters.status" placeholder="请选择" allow-clear style="width: 100%">
-              <a-option value="draft">草稿</a-option>
-              <a-option value="pending_customer">待客户确认</a-option>
-              <a-option value="customer_confirmed">客户已确认</a-option>
-              <a-option value="paid">已付款</a-option>
-              <a-option value="completed">已完成</a-option>
-              <a-option value="cancelled">已取消</a-option>
-            </a-select>
-          </a-form-item>
-        </a-col>
-        <a-col :xs="24" :sm="12" :md="8" :lg="4">
-          <a-form-item label="&nbsp;">
-            <a-space>
-              <a-button type="primary" @click="emit('search')">查询</a-button>
-              <a-button @click="emit('reset')">重置</a-button>
-            </a-space>
-          </a-form-item>
-        </a-col>
-      </a-row>
-    </a-form>
+  <div class="filters-container">
+    <div class="filters">
+      <CustomerSearchInput v-model="filters.keyword" @search="emit('search')" />
+      <FilterDropdown
+        v-model="filters.status"
+        label="状态"
+        :options="statusOptions"
+        @apply="emit('search')"
+      />
+      <button type="button" class="btn primary" @click="emit('search')">筛选</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
+import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
+import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 
 interface Filters {
   keyword: string
@@ -46,8 +28,50 @@ const emit = defineEmits<{
   search: []
   reset: []
 }>()
+
+const statusOptions = [
+  { label: '草稿', value: 'draft' },
+  { label: '待客户确认', value: 'pending_customer' },
+  { label: '客户已确认', value: 'customer_confirmed' },
+  { label: '已付款', value: 'paid' },
+  { label: '已完成', value: 'completed' },
+  { label: '已取消', value: 'cancelled' },
+]
 </script>
 
 <style scoped>
-.filter-section { background: #fff; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.filters-container {
+  margin-bottom: 12px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn.primary {
+  padding: 9px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.btn.primary:hover {
+  background: #1e40af;
+}
+
+@media (max-width: 1100px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 </style>

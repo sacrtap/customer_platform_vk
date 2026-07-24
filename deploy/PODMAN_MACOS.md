@@ -128,7 +128,7 @@ sleep 5
 # 进入 Podman VM 运行迁移
 podman machine ssh "
   podman exec customer-platform-db createdb -U user customer_platform_test
-  
+
   podman run --rm --network container:customer-platform-db \
     python:3.14-slim \
     bash -c '

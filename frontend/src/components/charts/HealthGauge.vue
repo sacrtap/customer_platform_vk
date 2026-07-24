@@ -19,9 +19,9 @@ const chartRef = ref<HTMLElement>()
 let chartInstance: echarts.ECharts | null = null
 
 const getColorByScore = (score: number) => {
-  if (score >= 80) return '#22c55e'
-  if (score >= 60) return '#f59e0b'
-  return '#ef4444'
+  if (score >= 80) return '#059669'
+  if (score >= 60) return '#D97706'
+  return '#DC2626'
 }
 
 const initChart = () => {
@@ -57,7 +57,7 @@ const initChart = () => {
           {
             value: 100 - score,
             itemStyle: {
-              color: '#e5e7eb',
+              color: '#E2E8F0',
             },
           },
         ],
@@ -73,7 +73,7 @@ const initChart = () => {
             text: `${score}`,
             fontSize: 36,
             fontWeight: 700,
-            fill: '#1d2330',
+            fill: '#0F172A',
           },
         },
         {
@@ -84,7 +84,7 @@ const initChart = () => {
             text: props.level,
             fontSize: 14,
             fontWeight: 500,
-            fill: '#646a73',
+            fill: '#475569',
           },
         },
       ],

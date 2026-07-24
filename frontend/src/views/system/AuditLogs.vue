@@ -1,7 +1,6 @@
 <template>
   <div class="audit-logs-page">
-    <PageHeader eyebrow="System" title="审计日志"
-      subtitle="查看系统操作记录" />
+    <PageHeader eyebrow="System" title="审计日志" subtitle="查看系统操作记录" />
 
     <!-- 筛选区域 -->
     <div class="filter-section">
@@ -104,7 +103,10 @@
             <template #content>
               <div class="changes-content">
                 <!-- 批量操作摘要 -->
-                <div v-if="record.operation_type === 'batch' && record.extra_metadata" class="batch-summary">
+                <div
+                  v-if="record.operation_type === 'batch' && record.extra_metadata"
+                  class="batch-summary"
+                >
                   <strong>操作摘要:</strong>
                   <pre>{{ JSON.stringify(record.extra_metadata, null, 2) }}</pre>
                 </div>
@@ -152,7 +154,7 @@ interface AuditLog {
   changes: { before?: Record<string, unknown>; after?: Record<string, unknown> } | null
   ip_address: string | null
   created_at: string | null
-  operation_type: string | null  // standard/batch/relation/sensitive
+  operation_type: string | null // standard/batch/relation/sensitive
   extra_metadata: Record<string, unknown> | null
 }
 
@@ -321,7 +323,7 @@ onMounted(() => {
 }
 
 .text-gray {
-  color: #94A3B8;
+  color: #94a3b8;
 }
 
 .changes-content {

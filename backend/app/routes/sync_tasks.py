@@ -65,20 +65,24 @@ async def get_sync_status(request: Request):
         # 最近同步时间
         last_sync = stats.get("last_sync_time")
         if last_sync:
-            last_sync_str = last_sync.strftime("%H:%M") if hasattr(last_sync, "strftime") else str(last_sync)
+            last_sync_str = (
+                last_sync.strftime("%H:%M") if hasattr(last_sync, "strftime") else str(last_sync)
+            )
         else:
             last_sync_str = None
 
-        return json({
-            "code": 0,
-            "data": {
-                "status": "ok" if error_count == 0 else "warning",
-                "last_sync": last_sync_str,
-                "next_sync": None,
-                "sync_rate": rate,
-                "error_count": error_count,
+        return json(
+            {
+                "code": 0,
+                "data": {
+                    "status": "ok" if error_count == 0 else "warning",
+                    "last_sync": last_sync_str,
+                    "next_sync": None,
+                    "sync_rate": rate,
+                    "error_count": error_count,
+                },
             }
-        })
+        )
     except Exception as e:
         logger.error(f"获取同步状态失败: {e}")
         return json({"code": 500, "message": f"获取同步状态失败: {str(e)}"}, status=500)
@@ -119,6 +123,17 @@ async def create_sync_task(request: Request):
 
         # 获取操作人
         operator_id = request.ctx.user["user_id"]
+
+        # 检查 Redis 是否可用（同步任务依赖 Redis 做分布式锁和进度跟踪）
+        redis_available = await cache_service.check_redis_available()
+        if not redis_available:
+            return json(
+                {
+                    "code": 503,
+                    "message": "Redis 缓存服务未启动，无法创建同步任务。请先启动 Redis 服务（如 brew services start redis）",
+                },
+                status=503,
+            )
 
         # 创建服务
         redis_client = await cache_service._get_redis()
@@ -161,8 +176,19 @@ async def create_sync_task(request: Request):
     except Exception as e:
         if "已有相同周期的同步任务正在执行" in str(e):
             return json({"code": 409, "message": str(e)}, status=409)
+        # Redis 连接异常给出友好提示
+        err_str = str(e)
+        if "connecting to" in err_str and "6379" in err_str:
+            logger.error(f"创建同步任务失败（Redis 不可用）: {e}")
+            return json(
+                {
+                    "code": 503,
+                    "message": "Redis 缓存服务未启动，无法创建同步任务。请先启动 Redis 服务（如 brew services start redis）",
+                },
+                status=503,
+            )
         logger.error(f"创建同步任务失败: {e}")
-        return json({"code": 500, "message": f"创建任务失败: {str(e)}"}, status=500)
+        return json({"code": 500, "message": f"创建任务失败: {err_str}"}, status=500)
 
 
 @sync_tasks_bp.get("/<task_id:uuid>")
@@ -216,8 +242,15 @@ async def get_sync_task_progress(request: Request, task_id: UUID):
     except ValueError as e:
         return json({"code": 404, "message": str(e)}, status=404)
     except Exception as e:
+        err_str = str(e)
+        if "connecting to" in err_str and "6379" in err_str:
+            logger.error(f"获取任务进度失败（Redis 不可用）: {e}")
+            return json(
+                {"code": 503, "message": "Redis 缓存服务未启动，无法获取任务进度"},
+                status=503,
+            )
         logger.error(f"获取任务进度失败: {e}")
-        return json({"code": 500, "message": f"获取进度失败: {str(e)}"}, status=500)
+        return json({"code": 500, "message": f"获取进度失败: {err_str}"}, status=500)
 
 
 @sync_tasks_bp.post("/<task_id:uuid>/cancel")
@@ -239,5 +272,12 @@ async def cancel_sync_task(request: Request, task_id: UUID):
     except ValueError as e:
         return json({"code": 400, "message": str(e)}, status=400)
     except Exception as e:
+        err_str = str(e)
+        if "connecting to" in err_str and "6379" in err_str:
+            logger.error(f"取消任务失败（Redis 不可用）: {e}")
+            return json(
+                {"code": 503, "message": "Redis 缓存服务未启动，无法取消任务"},
+                status=503,
+            )
         logger.error(f"取消任务失败: {e}")
-        return json({"code": 500, "message": f"取消失败: {str(e)}"}, status=500)
+        return json({"code": 500, "message": f"取消失败: {err_str}"}, status=500)

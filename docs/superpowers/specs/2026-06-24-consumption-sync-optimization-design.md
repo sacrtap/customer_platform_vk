@@ -1,8 +1,8 @@
 # 消费分析数据同步优化 - 技术设计文档
 
-**日期**: 2026-06-24  
-**作者**: Technical Architect  
-**状态**: Draft  
+**日期**: 2026-06-24
+**作者**: Technical Architect
+**状态**: Draft
 **关联 PRD**: `docs/specs/consumption-sync-optimization.md`
 
 ---
@@ -315,7 +315,7 @@ Consumption.vue（现有页面）
       {{ statusText }}
     </div>
     <div class="summary" v-if="isFinished">
-      成功 {{ progress.success_count }} 条 / 
+      成功 {{ progress.success_count }} 条 /
       失败 {{ progress.failed_count }} 条
       <span v-if="progress.skipped_days > 0">
         / 跳过 {{ progress.skipped_days }} 天
@@ -338,7 +338,7 @@ const pollProgress = async (taskId: string) => {
   const interval = setInterval(async () => {
     const res = await api.get(`/sync-tasks/${taskId}/progress`)
     progress.value = res.data
-    
+
     if (res.data.status === 'completed' || res.data.status === 'failed') {
       clearInterval(interval)
       state = 'result'

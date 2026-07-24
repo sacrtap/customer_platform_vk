@@ -61,7 +61,7 @@ const initChart = () => {
       data: ['总余额', '实充余额', '赠送余额'],
       top: 0,
       textStyle: {
-        color: '#646a73',
+        color: '#475569',
       },
     },
     grid: {
@@ -76,22 +76,22 @@ const initChart = () => {
       data: props.trend.map((item) => item.month),
       axisLine: {
         lineStyle: {
-          color: '#e0e2e7',
+          color: '#DBE3EF',
         },
       },
       axisLabel: {
-        color: '#646a73',
+        color: '#475569',
       },
     },
     yAxis: {
       type: 'value',
       axisLabel: {
         formatter: '¥{value}',
-        color: '#646a73',
+        color: '#475569',
       },
       splitLine: {
         lineStyle: {
-          color: '#f0f0f0',
+          color: '#F1F5F9',
         },
       },
     },
@@ -102,7 +102,7 @@ const initChart = () => {
         smooth: true,
         data: props.trend.map((item) => item.total_amount),
         itemStyle: {
-          color: '#0369A1',
+          color: '#1D4ED8',
         },
         lineStyle: {
           width: 3,
@@ -114,7 +114,7 @@ const initChart = () => {
         smooth: true,
         data: props.trend.map((item) => item.real_amount),
         itemStyle: {
-          color: '#22C55E',
+          color: '#0891B2',
         },
         lineStyle: {
           width: 2,
@@ -126,7 +126,7 @@ const initChart = () => {
         smooth: true,
         data: props.trend.map((item) => item.bonus_amount),
         itemStyle: {
-          color: '#F59E0B',
+          color: '#D97706',
         },
         lineStyle: {
           width: 2,

@@ -18,6 +18,7 @@ withDefaults(
   {
     trendType: 'neutral',
     active: false,
+    trend: '',
   }
 )
 
@@ -26,16 +27,21 @@ defineEmits<{ click: [] }>()
 
 <style scoped>
 .kpi-card {
-  background: #f8fafc;
-  border: 1px solid #edf2f7;
-  border-radius: 14px;
-  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 .kpi-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 20px rgba(29, 78, 216, 0.12);
+  border-color: #93c5fd;
 }
 .kpi-card.active {
   border-color: var(--primary);
@@ -43,18 +49,22 @@ defineEmits<{ click: [] }>()
     0 0 0 2px rgba(29, 78, 216, 0.15),
     0 6px 20px rgba(29, 78, 216, 0.12);
 }
+.kpi-card.active .kpi-value {
+  color: var(--primary);
+}
 .kpi-label {
   font-size: 12px;
   color: var(--muted);
 }
 .kpi-value {
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 850;
   color: var(--ink);
-  margin: 4px 0;
+  margin-top: 5px;
 }
 .kpi-trend {
   font-size: 12px;
+  margin-top: 8px;
 }
 .kpi-trend.up {
   color: #059669;
@@ -66,6 +76,6 @@ defineEmits<{ click: [] }>()
   color: #d97706;
 }
 .kpi-trend.neutral {
-  color: var(--muted);
+  color: var(--ink);
 }
 </style>

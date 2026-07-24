@@ -51,12 +51,12 @@ import { computed } from 'vue'
 
 // 统一的消费等级配置（从低到高）
 const CONSUME_LEVELS = [
-  { value: 'C6', label: 'C6级', color: '#a855f7' },
-  { value: 'C5', label: 'C5级', color: '#f59e0b' },
-  { value: 'C4', label: 'C4级', color: '#3296f7' },
-  { value: 'C3', label: 'C3级', color: '#22c55e' },
-  { value: 'C2', label: 'C2级', color: '#d97706' },
-  { value: 'C1', label: 'C1级', color: '#ef4444' },
+  { value: 'C6', label: 'C6级', color: '#7C3AED' },
+  { value: 'C5', label: 'C5级', color: '#D97706' },
+  { value: 'C4', label: 'C4级', color: '#1D4ED8' },
+  { value: 'C3', label: 'C3级', color: '#059669' },
+  { value: 'C2', label: 'C2级', color: '#D97706' },
+  { value: 'C1', label: 'C1级', color: '#DC2626' },
 ] as const
 
 const props = defineProps<{
@@ -92,10 +92,10 @@ const getLevelLabel = (level: string) => {
 
 <style scoped>
 .consume-level-progress {
-  background: white;
+  background: var(--panel);
   border-radius: 16px;
   padding: 24px;
-  border: 1px solid var(--neutral-2, #eef0f3);
+  border: 1px solid var(--line);
 }
 
 .level-labels {
@@ -116,7 +116,7 @@ const getLevelLabel = (level: string) => {
 
 .level-label.current .level-badge {
   transform: scale(1.1);
-  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.1);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
 }
 
 .level-badge {
@@ -133,33 +133,33 @@ const getLevelLabel = (level: string) => {
 
 /* 等级颜色 - 从低到高 */
 .level-badge.e {
-  background: #f3e8ff;
-  color: #a855f7;
+  background: #ede9fe;
+  color: var(--violet);
 }
 
 .level-badge.d {
-  background: #fff7e8;
-  color: #f59e0b;
+  background: #fef3c7;
+  color: var(--amber);
 }
 
 .level-badge.c {
-  background: #e8f3ff;
-  color: #3296f7;
+  background: #dbeafe;
+  color: var(--primary);
 }
 
 .level-badge.b {
-  background: #e8ffea;
-  color: #22c55e;
+  background: #dcfce7;
+  color: var(--green);
 }
 
 .level-badge.a {
   background: #fef3c7;
-  color: #d97706;
+  color: var(--amber);
 }
 
 .level-badge.s {
   background: #fee2e2;
-  color: #ef4444;
+  color: var(--red);
 }
 
 .progress-bar-container {
@@ -167,7 +167,7 @@ const getLevelLabel = (level: string) => {
   height: 12px;
   border-radius: 6px;
   overflow: hidden;
-  background: var(--neutral-2, #eef0f3);
+  background: var(--line);
 }
 
 .progress-segments {
@@ -185,27 +185,27 @@ const getLevelLabel = (level: string) => {
 }
 
 .progress-segment.e {
-  background: #a855f7;
+  background: var(--violet);
 }
 
 .progress-segment.d {
-  background: #f59e0b;
+  background: var(--amber);
 }
 
 .progress-segment.c {
-  background: #3296f7;
+  background: var(--primary);
 }
 
 .progress-segment.b {
-  background: #22c55e;
+  background: var(--green);
 }
 
 .progress-segment.a {
-  background: #d97706;
+  background: var(--amber);
 }
 
 .progress-segment.s {
-  background: #ef4444;
+  background: var(--red);
 }
 
 .progress-fill {
@@ -215,12 +215,12 @@ const getLevelLabel = (level: string) => {
   height: 100%;
   background: linear-gradient(
     90deg,
-    #a855f7 0%,
-    #f59e0b 16%,
-    #3296f7 33%,
-    #22c55e 50%,
-    #d97706 66%,
-    #ef4444 100%
+    var(--violet) 0%,
+    var(--amber) 16%,
+    var(--primary) 33%,
+    var(--green) 50%,
+    var(--amber) 66%,
+    var(--red) 100%
   );
   transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 6px;
@@ -243,27 +243,27 @@ const getLevelLabel = (level: string) => {
 }
 
 .marker-dot.e {
-  background: #a855f7;
+  background: var(--violet);
 }
 
 .marker-dot.d {
-  background: #f59e0b;
+  background: var(--amber);
 }
 
 .marker-dot.c {
-  background: #3296f7;
+  background: var(--primary);
 }
 
 .marker-dot.b {
-  background: #22c55e;
+  background: var(--green);
 }
 
 .marker-dot.a {
-  background: #d97706;
+  background: var(--amber);
 }
 
 .marker-dot.s {
-  background: #ef4444;
+  background: var(--red);
 }
 
 .level-info {
@@ -283,7 +283,7 @@ const getLevelLabel = (level: string) => {
 .info-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--neutral-5, #8f959e);
+  color: var(--muted);
 }
 
 .level-value {
@@ -292,27 +292,27 @@ const getLevelLabel = (level: string) => {
 }
 
 .level-value.e {
-  color: #a855f7;
+  color: var(--violet);
 }
 
 .level-value.d {
-  color: #f59e0b;
+  color: var(--amber);
 }
 
 .level-value.c {
-  color: #3296f7;
+  color: var(--primary);
 }
 
 .level-value.b {
-  color: #22c55e;
+  color: var(--green);
 }
 
 .level-value.a {
-  color: #d97706;
+  color: var(--amber);
 }
 
 .level-value.s {
-  color: #ef4444;
+  color: var(--red);
 }
 
 .progress-percentage {
@@ -322,6 +322,6 @@ const getLevelLabel = (level: string) => {
 .percentage-value {
   font-size: 24px;
   font-weight: 700;
-  color: var(--neutral-10, #1d2330);
+  color: var(--ink);
 }
 </style>

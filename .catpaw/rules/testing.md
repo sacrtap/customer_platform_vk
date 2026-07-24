@@ -1,6 +1,6 @@
 ---
 name: testing
-description: "测试策略、覆盖率要求和测试规范：pytest/Vitest/Playwright 框架配置、分层测试、TDD 策略和 Superpowers 测试门禁"
+description: "测试策略、覆盖率要求和测试规范：pytest/Vitest/Playwright 框架配置、分层测试、TDD 策略和测试门禁"
 ruleType: Model Request
 ---
 
@@ -45,7 +45,7 @@ ruleType: Model Request
 | 客户分析 | 数据聚合逻辑 TDD，报表 UI Tests-after |
 | 系统/通用 | Tests-after |
 
-### Superpowers 测试门禁
+### 测试门禁
 
 - 涉及结算金额、余额扣款、账单金额、客户确认、付款状态的变更必须使用 `test-driven-development`：先写能失败的测试，再实现最小代码，再重构。
 - Bug、测试失败或异常行为必须先用 `systematic-debugging` 定位根因；未证明根因前不得直接改实现。

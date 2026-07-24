@@ -1,5 +1,6 @@
 """认证相关路由"""
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 
@@ -14,9 +15,12 @@ from ..cache.permissions import permission_cache
 from ..config import settings
 from ..middleware.auth import get_current_user
 from ..services.auth import AuthService
+from ..services.email import email_service
 from ..services.permissions import get_user_permissions
 from ..services.token_blacklist import TokenBlacklistService
 from ..services.users import UserService
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", url_prefix="/api/v1/auth")
 
@@ -229,11 +233,25 @@ async def forgot_password(request: Request):
         algorithm=settings.jwt_algorithm,
     )
 
-    # TODO: 发送重置邮件到 user.email
-    # 临时方案：在日志中输出重置链接（开发环境使用）
-    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
-    print(f"\n🔑 密码重置链接 (开发环境): {reset_link}")
-    print(f"   用户：{user.username} ({user.email})\n")
+    # 构建重置链接并发送邮件
+    reset_link = f"{settings.app_url}/reset-password?token={reset_token}"
+
+    html_content = email_service.render_template(
+        "password_reset.html",
+        user_name=user.real_name or user.username,
+        reset_link=reset_link,
+    )
+
+    success = await email_service.send_email(
+        to_emails=[user.email],
+        subject="【密码重置】客户运营中台密码重置",
+        html_content=html_content,
+    )
+
+    if not success:
+        logger.error("Failed to send password reset email to %s", user.email)
+    else:
+        logger.info("Password reset email sent to %s", user.email)
 
     return json({"code": 0, "message": "如果账号存在，密码重置链接已发送到邮箱"})
 

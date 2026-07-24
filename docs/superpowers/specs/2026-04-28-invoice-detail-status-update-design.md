@@ -1,7 +1,7 @@
 # 结算单详情状态实时更新优化设计
 
-**日期**: 2026-04-28  
-**状态**: 待审核  
+**日期**: 2026-04-28
+**状态**: 待审核
 **范围**: 结算单详情 Drawer 中操作按钮和时间线的实时更新
 
 ---
@@ -66,19 +66,19 @@ cancelled_at = Column(String(50))  # 取消时间
 async def cancel_invoice(self, invoice_id: int) -> Tuple[bool, str]:
     """取消结算单"""
     invoice = await self.get_invoice_by_id(invoice_id)
-    
+
     if not invoice:
         return False, "结算单不存在"
-    
+
     # 只有草稿和待客户确认状态可以取消
     if invoice.status not in ("draft", "pending_customer"):
         return False, f"当前状态不能取消：{invoice.status}"
-    
+
     invoice.status = "cancelled"
     invoice.cancelled_at = datetime.now().isoformat()
-    
+
     await self.db.commit()
-    
+
     return True, "取消成功"
 ```
 
@@ -94,14 +94,14 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
     """取消结算单"""
     db: AsyncSession = request.ctx.db_session
     invoice_service = InvoiceService(db)
-    
+
     success, message = await invoice_service.cancel_invoice(invoice_id=invoice_id)
-    
+
     if not success:
         return json({"code": 40001, "message": message}, status=400)
-    
+
     await cache_service.invalidate_billing_cache()
-    
+
     return json({"code": 0, "message": message})
 ```
 

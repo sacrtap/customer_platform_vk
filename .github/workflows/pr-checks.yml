@@ -65,6 +65,11 @@ jobs:
           cd frontend
           npx vue-tsc --noEmit
 
+      - name: Frontend unit tests
+        run: |
+          cd frontend
+          npx vitest run --reporter=verbose
+
   # ============================================================
   # 后端测试 (需要数据库)
   # ============================================================
@@ -173,12 +178,138 @@ jobs:
           retention-days: 3
 
   # ============================================================
+  # E2E 测试 (Playwright)
+  # ============================================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python -m alembic upgrade head
+
+      - name: Seed test data
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python scripts/seed.py --reset
+
+      - name: Start backend server
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-for-ci
+          DEBUG: "false"
+          APP_ENV: testing
+        run: |
+          cd backend
+          python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+          curl -s http://localhost:8000/api/v1/health | grep -q "ok" || exit 1
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Start frontend preview server
+        run: |
+          cd frontend
+          npx vite preview --port 5173 --host 0.0.0.0 &
+          sleep 3
+
+      - name: Install Playwright browsers
+        run: |
+          cd frontend
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          API_BASE_URL: http://localhost:8000
+        run: |
+          cd frontend
+          npx playwright test --project=chromium --reporter=list
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-e2e-results
+          path: frontend/tests/e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload E2E test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-e2e-failures
+          path: frontend/tests/e2e/test-results/
+          retention-days: 3
+
+  # ============================================================
   # PR 质量门禁
   # ============================================================
   pr-quality-gate:
     name: PR Quality Gate
     runs-on: ubuntu-latest
-    needs: [quick-checks, backend-tests, frontend-build]
+    needs: [quick-checks, backend-tests, frontend-build, e2e-tests]
     if: always()
 
     steps:
@@ -190,13 +321,19 @@ jobs:
           echo "Quick Checks:    ${{ needs.quick-checks.result }}"
           echo "Backend Tests:   ${{ needs.backend-tests.result }}"
           echo "Frontend Build:  ${{ needs.frontend-build.result }}"
+          echo "E2E Tests:       ${{ needs.e2e-tests.result }}"
           echo "========================================="
 
+          # E2E 测试当前为非阻塞（已知失败用例，待 TD-012 修复后改为阻塞）
           if [ "${{ needs.quick-checks.result }}" != "success" ] || \
              [ "${{ needs.backend-tests.result }}" != "success" ] || \
              [ "${{ needs.frontend-build.result }}" != "success" ]; then
             echo "❌ PR quality gate failed"
             exit 1
+          fi
+
+          if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
+            echo "⚠️  E2E tests have failures (non-blocking, tracked in TD-012)"
           fi
 
           echo "✅ All PR quality checks passed"

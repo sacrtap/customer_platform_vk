@@ -3,8 +3,20 @@
     <div class="reset-box">
       <div class="reset-header">
         <div class="reset-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="28"
+            height="28"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+            />
           </svg>
         </div>
         <h1 class="reset-title">重置密码</h1>
@@ -30,9 +42,15 @@
           <!-- 密码强度指示器 -->
           <div v-if="formData.new_password" class="password-strength">
             <div class="strength-bar">
-              <div class="strength-fill" :class="passwordStrength.level" :style="{ width: passwordStrength.percent + '%' }" />
+              <div
+                class="strength-fill"
+                :class="passwordStrength.level"
+                :style="{ width: passwordStrength.percent + '%' }"
+              />
             </div>
-            <span class="strength-label" :class="passwordStrength.level">{{ passwordStrength.text }}</span>
+            <span class="strength-label" :class="passwordStrength.level">{{
+              passwordStrength.text
+            }}</span>
           </div>
           <!-- 密码要求清单 -->
           <div v-if="formData.new_password" class="password-requirements">
@@ -129,8 +147,12 @@ const reqs = computed(() => ({
   special: /[^A-Za-z0-9]/.test(formData.new_password),
 }))
 
-const validatePasswordMatch = (value: string | undefined) => {
-  return value === formData.new_password
+const validatePasswordMatch = (value: string | undefined, callback: (error?: string) => void) => {
+  if (value !== formData.new_password) {
+    callback('两次输入的密码不一致')
+  } else {
+    callback()
+  }
 }
 
 const handleSubmit = async () => {
@@ -199,7 +221,7 @@ const handleSubmit = async () => {
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  background: rgba(29, 78, 216, .10);
+  background: rgba(29, 78, 216, 0.1);
   display: grid;
   place-items: center;
   color: var(--primary);
@@ -242,7 +264,7 @@ const handleSubmit = async () => {
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   height: 46px;
-  transition: all .2s ease;
+  transition: all 0.2s ease;
 }
 
 :deep(.arco-input-inner-wrapper:hover) {
@@ -251,7 +273,7 @@ const handleSubmit = async () => {
 
 :deep(.arco-input-inner-wrapper:focus-within) {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, .1);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
 }
 
 /* ─── 主按钮 ─── */
@@ -262,18 +284,18 @@ const handleSubmit = async () => {
   border-radius: var(--radius-sm) !important;
   font-size: 14px;
   font-weight: 600;
-  background: linear-gradient(135deg, #1D4ED8, #2563EB) !important;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
   color: white !important;
-  box-shadow: 0 8px 20px rgba(29, 78, 216, .25) !important;
-  transition: all .2s ease;
+  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.25) !important;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .btn-primary:hover {
   border: none !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 12px 28px rgba(29, 78, 216, .35) !important;
-  background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.35) !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
   color: white !important;
 }
 
@@ -292,11 +314,11 @@ const handleSubmit = async () => {
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  transition: color .2s ease;
+  transition: color 0.2s ease;
 }
 
 .link:hover {
-  color: #2563EB;
+  color: #2563eb;
 }
 
 @media (max-width: 640px) {
@@ -320,22 +342,39 @@ const handleSubmit = async () => {
 .strength-bar {
   flex: 1;
   height: 4px;
-  background: #E2E8F0;
+  background: #e2e8f0;
   border-radius: 2px;
   overflow: hidden;
 }
 .strength-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width .3s ease, background .3s ease;
+  transition:
+    width 0.3s ease,
+    background 0.3s ease;
 }
-.strength-fill.weak { background: #DC2626; }
-.strength-fill.medium { background: #D97706; }
-.strength-fill.strong { background: #059669; }
-.strength-label { font-size: 12px; font-weight: 600; }
-.strength-label.weak { color: #DC2626; }
-.strength-label.medium { color: #D97706; }
-.strength-label.strong { color: #059669; }
+.strength-fill.weak {
+  background: #dc2626;
+}
+.strength-fill.medium {
+  background: #d97706;
+}
+.strength-fill.strong {
+  background: #059669;
+}
+.strength-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.strength-label.weak {
+  color: #dc2626;
+}
+.strength-label.medium {
+  color: #d97706;
+}
+.strength-label.strong {
+  color: #059669;
+}
 
 /* 密码要求清单 */
 .password-requirements {

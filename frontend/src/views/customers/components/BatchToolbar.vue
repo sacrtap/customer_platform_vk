@@ -1,41 +1,13 @@
 <template>
   <transition name="fade">
     <div v-if="selectedCount > 0" class="batch-toolbar">
-      <div class="batch-info">
-        <svg
-          class="batch-icon"
-          width="20"
-          height="20"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-        <span>已选 {{ selectedCount }} 个客户</span>
-      </div>
-
-      <div class="batch-actions">
-        <button class="btn-batch" @click="emit('batchAction', 'assign')">
-          分配运营经理
-        </button>
-        <button class="btn-batch" @click="emit('batchAction', 'setLevel')">
-          设置等级
-        </button>
-        <button class="btn-batch" @click="$emit('addTag')">
-          打标签
-        </button>
-        <button class="btn-batch" @click="emit('batchAction', 'export')">
-          导出数据
-        </button>
-        <button class="btn-batch" @click="emit('batchAction', 'email')">
-          群发邮件
-        </button>
-        <button class="btn-batch danger" @click="emit('batchAction', 'delete')">
-          批量删除
-        </button>
-      </div>
+      <span class="batch-count"
+        >已选择 <b>{{ selectedCount }}</b> 项</span
+      >
+      <button class="btn" @click="emit('batchAction', 'edit')">批量编辑</button>
+      <button class="btn" @click="emit('batchAction', 'assign')">分配负责人</button>
+      <button class="btn" @click="emit('batchAction', 'export')">批量导出</button>
+      <button class="btn" @click="$emit('addTag')">设标签</button>
     </div>
   </transition>
 </template>
@@ -53,58 +25,43 @@ const emit = defineEmits<{
 .batch-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 10px 14px;
   background: #eff6ff;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0 0 0 0;
-  animation: slideDown 0.25s ease-out;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  margin-bottom: 12px;
 }
 
-.batch-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary);
+.batch-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-right: auto;
 }
 
-.batch-icon {
-  color: var(--primary);
-  font-weight: 600;
+.batch-count b {
+  font-weight: 850;
 }
 
-.batch-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.btn-batch {
-  padding: 8px 16px;
+.btn {
+  padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 12px;
   background: white;
   color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
 }
-.btn-batch:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-.btn-batch.danger {
-  color: var(--red);
-  border-color: #fecaca;
-}
-.btn-batch.danger:hover {
-  background: #fef2f2;
-  border-color: var(--red);
+
+.btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .fade-enter-active,
@@ -115,16 +72,5 @@ const emit = defineEmits<{
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 </style>

@@ -185,7 +185,7 @@ changes={
 ```
 audit_middleware() (community 349)
   ← called by create_app() (main.py)
-  
+
 create_audit_entry() (community 81)
   ← called by: users.py, customers.py, tags.py, billing.py, database_management.py
 ```

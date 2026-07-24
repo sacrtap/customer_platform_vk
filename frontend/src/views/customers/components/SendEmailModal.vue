@@ -4,7 +4,7 @@
     title="群发邮件"
     width="560px"
     :confirm-loading="loading"
-    @confirm="handleConfirm"
+    @ok="handleConfirm"
     @cancel="emit('update:visible', false)"
   >
     <a-form :model="form" layout="vertical">
@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean

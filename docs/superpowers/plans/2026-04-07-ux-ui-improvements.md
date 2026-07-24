@@ -404,7 +404,7 @@ transition: all var(--transition-fast); /* Keep this one as it's a complex hover
 - [ ] **Step 8: Verify accessibility improvements**
 
 Run: `cd frontend && npm run dev`
-Expected: 
+Expected:
 - Tab navigation shows focus rings on all header buttons
 - Screen readers announce button labels
 - No console errors
@@ -510,8 +510,8 @@ const columns = [
 ```vue
 <!-- frontend/src/views/customers/Index.vue - Add after a-table closing tag -->
 <template #empty>
-  <EmptyState 
-    title="暂无客户数据" 
+  <EmptyState
+    title="暂无客户数据"
     description="点击「新建客户」添加第一个客户"
   >
     <template #action>
@@ -571,7 +571,7 @@ const columns = [
 - [ ] **Step 8: Verify table improvements**
 
 Run: `cd frontend && npm run dev`
-Expected: 
+Expected:
 - Long text in tables shows ellipsis with tooltip on hover
 - Empty tables show custom empty state with action button
 
@@ -1053,7 +1053,7 @@ const handleSubmenuClick = (menu: string) => {
 - [ ] **Step 7: Verify mobile responsiveness**
 
 Run: `cd frontend && npm run dev`
-Expected: 
+Expected:
 - Mobile menu button visible below 1200px
 - Sidebar slides in/out on mobile
 - Overlay closes sidebar on tap
@@ -1247,11 +1247,11 @@ const loadForecastStats = async () => {
       getForecastConfirmedAmount({ year: filters.year, month: filters.month, customer_id: filters.customer_id }),
       getForecastPendingAmount({ year: filters.year, month: filters.month, customer_id: filters.customer_id }),
     ])
-    
+
     confirmedAmount.value = confirmedRes.data?.amount || 0
     pendingAmount.value = pendingRes.data?.amount || 0
-    completionRate.value = totalPredicted.value > 0 
-      ? Math.round((confirmedAmount.value / totalPredicted.value) * 100) 
+    completionRate.value = totalPredicted.value > 0
+      ? Math.round((confirmedAmount.value / totalPredicted.value) * 100)
       : 0
   } catch (error) {
     console.error('加载预测统计失败:', error)

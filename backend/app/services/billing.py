@@ -1,6 +1,7 @@
 """结算与余额管理服务"""
 
-import uuid
+import random
+import string
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -765,10 +766,9 @@ class InvoiceService:
         Returns:
             Invoice
         """
-        # 生成结算单号
-        invoice_no = (
-            f"INV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8].upper()}"
-        )
+        # 生成结算单号：INV-生成日期-客户ID-4位随机码
+        random_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_id}-{random_code}"
 
         # 计算总金额
         total_amount = sum(
@@ -815,8 +815,10 @@ class InvoiceService:
         period_end: Optional[date] = None,
         page: int = 1,
         page_size: int = 20,
+        sort_by: str = "",
+        sort_order: str = "desc",
     ) -> Tuple[List[Invoice], int]:
-        """获取结算单列表"""
+        """获取结算单列表（支持服务端排序）"""
         stmt = (
             select(Invoice)
             .options(selectinload(Invoice.items), selectinload(Invoice.customer))
@@ -839,8 +841,25 @@ class InvoiceService:
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total = (await self.db.execute(count_stmt)).scalar()
 
+        # 排序字段映射（前端字段 -> SQLAlchemy 列表达式）
+        sort_field_map = {
+            "invoice_no": Invoice.invoice_no,
+            "total_amount": Invoice.total_amount,
+            "final_amount": Invoice.total_amount - (Invoice.discount_amount or 0),
+            "created_at": Invoice.created_at,
+        }
+
+        if sort_by and sort_by in sort_field_map:
+            order_expr = sort_field_map[sort_by]
+            if sort_order == "asc":
+                stmt = stmt.order_by(order_expr.asc(), Invoice.id.asc())
+            else:
+                stmt = stmt.order_by(order_expr.desc(), Invoice.id.asc())
+        else:
+            # 默认排序：按创建时间降序
+            stmt = stmt.order_by(Invoice.created_at.desc(), Invoice.id.asc())
+
         # 分页
-        stmt = stmt.order_by(Invoice.created_at.desc())
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         result = await self.db.execute(stmt)
@@ -873,7 +892,7 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status not in ["draft", "pending_customer"]:
+        if invoice.status not in ["draft", "pending_ops", "pending_sales", "pending_customer"]:
             return False, f"当前状态不能修改减免：{invoice.status}"
 
         if discount_amount > invoice.total_amount:
@@ -889,7 +908,11 @@ class InvoiceService:
         return True, "减免应用成功"
 
     async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
-        """提交结算单（商务确认）"""
+        """提交结算单（进入运营经理确认阶段）
+
+        新流程：draft → pending_ops
+        旧流程兼容：draft → pending_customer（当客户未指定运营经理时回退）
+        """
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
@@ -898,7 +921,14 @@ class InvoiceService:
         if invoice.status != "draft":
             return False, f"当前状态不能提交：{invoice.status}"
 
-        invoice.status = "pending_customer"
+        # 查询客户是否指定了运营经理
+        customer = await self._get_customer(invoice.customer_id)
+        if customer and customer.manager_id:
+            invoice.status = "pending_ops"
+        else:
+            # 未指定运营经理，回退到旧流程（直接待客户确认）
+            invoice.status = "pending_customer"
+
         invoice.approver_id = approver_id
         invoice.approved_at = datetime.now().isoformat()
 
@@ -906,8 +936,70 @@ class InvoiceService:
 
         return True, "提交成功"
 
-    async def confirm_invoice(self, invoice_id: int) -> Tuple[bool, str]:
-        """客户确认结算单"""
+    async def confirm_ops(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
+        """运营经理确认（第一步）
+
+        pending_ops → pending_sales
+        校验：操作人必须为该客户指定的运营经理（customer.manager_id）
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status != "pending_ops":
+            return False, f"当前状态不能进行运营经理确认：{invoice.status}"
+
+        customer = await self._get_customer(invoice.customer_id)
+        if not customer:
+            return False, "客户不存在"
+
+        if customer.manager_id != user_id:
+            return False, "您不是该客户指定的运营经理，无权确认"
+
+        invoice.status = "pending_sales"
+        invoice.ops_confirmed_by = user_id
+        invoice.ops_confirmed_at = datetime.now().isoformat()
+
+        await self.db.commit()
+
+        return True, "运营经理确认成功"
+
+    async def confirm_sales(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
+        """销售经理确认（第二步）
+
+        pending_sales → pending_customer
+        校验：操作人必须为该客户指定的销售经理（customer.sales_manager_id）
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status != "pending_sales":
+            return False, f"当前状态不能进行销售经理确认：{invoice.status}"
+
+        customer = await self._get_customer(invoice.customer_id)
+        if not customer:
+            return False, "客户不存在"
+
+        if customer.sales_manager_id != user_id:
+            return False, "您不是该客户指定的销售经理，无权确认"
+
+        invoice.status = "pending_customer"
+        invoice.sales_confirmed_by = user_id
+        invoice.sales_confirmed_at = datetime.now().isoformat()
+
+        await self.db.commit()
+
+        return True, "销售经理确认成功"
+
+    async def confirm_invoice(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
+        """客户确认结算单（第三步，线下确认后线上录入）
+
+        pending_customer → customer_confirmed → 自动扣款 → completed
+        扣款失败时保持 customer_confirmed 状态，可调用 retry_deduction 重试
+        """
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
@@ -918,10 +1010,69 @@ class InvoiceService:
 
         invoice.status = "customer_confirmed"
         invoice.customer_confirmed_at = datetime.now().isoformat()
-
+        invoice.customer_confirmed_by = user_id
         await self.db.commit()
 
-        return True, "确认成功"
+        # 自动执行扣款
+        return await self._execute_deduction(invoice, user_id=user_id)
+
+    async def retry_deduction(self, invoice_id: int, user_id: int = 1) -> Tuple[bool, str]:
+        """重试扣款（扣款失败后手动重试）
+
+        仅当状态为 customer_confirmed 时可执行
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status != "customer_confirmed":
+            return False, f"当前状态不能重试扣款：{invoice.status}"
+
+        success, message = await self._execute_deduction(invoice, user_id=user_id)
+
+        if success:
+            return True, "重试扣款成功"
+        else:
+            # _execute_deduction 返回的 message 带有 "客户确认成功，但扣款失败：" 前缀
+            # 对重试场景需要去掉该前缀
+            clean_msg = message.replace("客户确认成功，但扣款失败：", "")
+            return False, f"扣款失败：{clean_msg}"
+
+    async def _execute_deduction(self, invoice: Invoice, user_id: int = 1) -> Tuple[bool, str]:
+        """执行余额扣款（内部方法）
+
+        customer_confirmed → completed（扣款成功）
+        失败时保持 customer_confirmed
+        """
+        # 提交当前事务，避免与 consume 内部的 db.begin() 冲突
+        await self.db.commit()
+
+        final_amount = invoice.total_amount - (invoice.discount_amount or 0)
+        balance_service = BalanceService(BalanceRepository(self.db))
+        success, message = await balance_service.consume(
+            customer_id=invoice.customer_id,
+            amount=final_amount,
+            invoice_id=invoice.id,
+        )
+
+        if not success:
+            # 扣款失败，保持 customer_confirmed 状态
+            return False, f"客户确认成功，但扣款失败：{message}"
+
+        invoice.status = "completed"
+        invoice.completed_at = datetime.now().isoformat()
+        invoice.completed_by = user_id
+        await self.db.commit()
+
+        return True, "客户确认成功，已自动完成扣款"
+
+    async def _get_customer(self, customer_id: int) -> Optional[Customer]:
+        """查询客户信息（内部方法）"""
+        result = await self.db.execute(
+            select(Customer).where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
 
     async def pay_invoice(
         self, invoice_id: int, payment_proof: Optional[str] = None
@@ -943,7 +1094,7 @@ class InvoiceService:
 
         return True, "付款成功"
 
-    async def complete_invoice(self, invoice_id: int) -> Tuple[bool, str]:
+    async def complete_invoice(self, invoice_id: int, user_id: int = 1) -> Tuple[bool, str]:
         """完成结算（扣款）"""
         invoice = await self.get_invoice_by_id(invoice_id)
 
@@ -971,24 +1122,26 @@ class InvoiceService:
 
         invoice.status = "completed"
         invoice.completed_at = datetime.now().isoformat()
+        invoice.completed_by = user_id
 
         await self.db.commit()
 
         return True, "结算完成"
 
-    async def cancel_invoice(self, invoice_id: int) -> Tuple[bool, str]:
+    async def cancel_invoice(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
         """取消结算单"""
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
             return False, "结算单不存在"
 
-        # 只有草稿和待客户确认状态可以取消
-        if invoice.status not in ("draft", "pending_customer"):
+        # 草稿、待运营经理确认、待销售经理确认、待客户确认状态可以取消
+        if invoice.status not in ("draft", "pending_ops", "pending_sales", "pending_customer"):
             return False, f"当前状态不能取消：{invoice.status}"
 
         invoice.status = "cancelled"
         invoice.cancelled_at = datetime.now().isoformat()
+        invoice.cancelled_by = user_id
 
         await self.db.commit()
 
@@ -1005,3 +1158,166 @@ class InvoiceService:
         await self.db.commit()
 
         return True
+
+    async def get_customers_for_batch(
+        self,
+        pricing_type: Optional[str] = None,
+        industry_type_ids: Optional[List[int]] = None,
+        scale_levels: Optional[List[str]] = None,
+        consume_levels: Optional[List[str]] = None,
+        is_real_estate: Optional[bool] = None,
+    ) -> List[Dict[str, Any]]:
+        """按条件查询匹配的客户列表（用于批量生成结算单预览）
+
+        Args:
+            pricing_type: 计费类型（fixed/tiered/package），通过 PricingRule 关联
+            industry_type_ids: 行业类型 ID 列表
+            scale_levels: 规模等级列表（S/A/B/C/D/E）
+            consume_levels: 消费等级列表（C1-C6）
+            is_real_estate: 是否房产客户
+
+        Returns:
+            客户列表 [{ id, name, company_id, manager_id, sales_manager_id }]
+        """
+        from ..models.customers import CustomerProfile
+
+        stmt = select(
+            Customer.id,
+            Customer.name,
+            Customer.company_id,
+            Customer.manager_id,
+            Customer.sales_manager_id,
+        ).where(Customer.deleted_at.is_(None), Customer.is_disabled.is_(False))
+
+        # 通过 PricingRule 关联筛选计费类型
+        if pricing_type:
+            stmt = stmt.where(
+                Customer.id.in_(
+                    select(PricingRule.customer_id).where(
+                        PricingRule.deleted_at.is_(None),
+                        PricingRule.pricing_type == pricing_type,
+                    )
+                )
+            )
+
+        # 是否房产客户
+        if is_real_estate is not None:
+            stmt = stmt.where(Customer.is_real_estate.is_(is_real_estate))
+
+        # 通过 CustomerProfile 关联筛选行业/规模/消费等级
+        needs_profile_join = any([industry_type_ids, scale_levels, consume_levels])
+        if needs_profile_join:
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            if industry_type_ids:
+                stmt = stmt.where(CustomerProfile.industry_type_id.in_(industry_type_ids))
+            if scale_levels:
+                stmt = stmt.where(CustomerProfile.scale_level.in_(scale_levels))
+            if consume_levels:
+                stmt = stmt.where(CustomerProfile.consume_level.in_(consume_levels))
+
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        return [
+            {
+                "id": row.id,
+                "name": row.name,
+                "company_id": row.company_id,
+                "manager_id": row.manager_id,
+                "sales_manager_id": row.sales_manager_id,
+            }
+            for row in rows
+        ]
+
+    async def generate_invoices_batch(
+        self,
+        pricing_type: Optional[str] = None,
+        industry_type_ids: Optional[List[int]] = None,
+        scale_levels: Optional[List[str]] = None,
+        consume_levels: Optional[List[str]] = None,
+        is_real_estate: Optional[bool] = None,
+        period_start: Optional[date] = None,
+        period_end: Optional[date] = None,
+        created_by: int = 1,
+    ) -> Dict[str, Any]:
+        """批量生成结算单
+
+        为每个匹配的客户独立生成一张结算单（状态 draft）。
+        跳过无用量数据/无计费规则/未指定经理的客户。
+
+        Returns:
+            {
+                "success_count": int,
+                "skipped": [{"customer_id": int, "name": str, "reason": str}],
+                "generated": [{"customer_id": int, "name": str, "invoice_id": int, "invoice_no": str, "total_amount": float}]
+            }
+        """
+        customers = await self.get_customers_for_batch(
+            pricing_type=pricing_type,
+            industry_type_ids=industry_type_ids,
+            scale_levels=scale_levels,
+            consume_levels=consume_levels,
+            is_real_estate=is_real_estate,
+        )
+
+        generated: List[Dict[str, Any]] = []
+        skipped: List[Dict[str, Any]] = []
+
+        for cust in customers:
+            # 校验客户已指定运营经理和销售经理
+            if not cust["manager_id"]:
+                skipped.append(
+                    {"customer_id": cust["id"], "name": cust["name"], "reason": "未指定运营经理"}
+                )
+                continue
+            if not cust["sales_manager_id"]:
+                skipped.append(
+                    {"customer_id": cust["id"], "name": cust["name"], "reason": "未指定销售经理"}
+                )
+                continue
+
+            # 计算结算明细
+            try:
+                items, total_amount = await self.calculate_items_from_rules(
+                    customer_id=cust["id"],
+                    period_start=period_start,
+                    period_end=period_end,
+                )
+            except Exception:
+                items, total_amount = [], Decimal(0)
+
+            if not items:
+                skipped.append(
+                    {
+                        "customer_id": cust["id"],
+                        "name": cust["name"],
+                        "reason": "结算周期内无用量数据或无匹配的计费规则",
+                    }
+                )
+                continue
+
+            # 生成结算单（状态 draft）
+            invoice = await self.generate_invoice(
+                customer_id=cust["id"],
+                period_start=period_start,
+                period_end=period_end,
+                items=items,
+                created_by=created_by,
+                is_auto_generated=True,
+            )
+
+            generated.append(
+                {
+                    "customer_id": cust["id"],
+                    "name": cust["name"],
+                    "invoice_id": invoice.id,
+                    "invoice_no": invoice.invoice_no,
+                    "total_amount": float(total_amount),
+                }
+            )
+
+        return {
+            "success_count": len(generated),
+            "skipped": skipped,
+            "generated": generated,
+        }

@@ -157,7 +157,7 @@ async def test_get_industry_types_returns_sorted_list(dict_service, mock_session
         IndustryType(id=2, name="房产经纪", sort_order=2),
         IndustryType(id=1, name="项目", sort_order=1),
     ]
-    
+
     mock_scalars = MagicMock()
     mock_scalars.all.return_value = types
     mock_result = MagicMock()
@@ -347,7 +347,7 @@ def upgrade():
     )
     op.create_index('ix_industry_types_name', 'industry_types', ['name'])
     op.create_index('ix_industry_types_sort_order', 'industry_types', ['sort_order'])
-    
+
     # 插入 8 条预置数据
     op.bulk_insert(
         sa.table('industry_types',

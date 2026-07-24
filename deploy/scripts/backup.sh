@@ -37,19 +37,19 @@ podman exec ${DB_CONTAINER} pg_dump -U ${DB_USER} ${DB_NAME} > ${BACKUP_FILE}
 
 if [ $? -eq 0 ]; then
     log_info "备份成功：${BACKUP_FILE}"
-    
+
     # 压缩备份
     gzip ${BACKUP_FILE}
     log_info "压缩完成：${BACKUP_FILE}.gz"
-    
+
     # 清理旧备份
     log_info "清理 ${RETENTION_DAYS} 天前的备份..."
     find ${BACKUP_DIR} -name "db_*.sql.gz" -mtime +${RETENTION_DAYS} -delete
-    
+
     # 显示备份信息
     BACKUP_SIZE=$(du -h ${BACKUP_FILE}.gz | cut -f1)
     log_info "备份大小：${BACKUP_SIZE}"
-    
+
     # 列出所有备份
     echo ""
     log_info "当前备份列表:"

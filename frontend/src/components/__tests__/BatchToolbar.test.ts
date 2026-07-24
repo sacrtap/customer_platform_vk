@@ -23,7 +23,7 @@ describe('BatchToolbar', () => {
       props: { selectedCount: 2 },
     })
     const buttons = wrapper.findAll('button')
-    await buttons[0].click()
+    await buttons[0].trigger('click')
     expect(wrapper.emitted('batch-action')).toBeTruthy()
   })
 })

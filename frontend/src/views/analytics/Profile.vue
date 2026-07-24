@@ -1,7 +1,6 @@
 <template>
   <div class="profile-analysis-page">
-    <PageHeader eyebrow="Analytics" title="画像分析"
-      subtitle="客户画像多维度统计分析">
+    <PageHeader eyebrow="Analytics" title="画像分析" subtitle="客户画像多维度统计分析">
       <template #actions>
         <a-button :loading="loading" @click="handleRefresh">刷新</a-button>
       </template>
@@ -23,7 +22,7 @@
         <div class="stat-extra">占比 {{ realEstateRate }}%</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">数据完整率</div>
+        <div class="stat-label">画像覆盖率</div>
         <div class="stat-value success">{{ dataCompleteRate }}%</div>
       </div>
     </div>
@@ -157,8 +156,10 @@ const handleRefresh = async () => {
 const loadIndustryData = async (options?: { force_refresh?: boolean }) => {
   const res = await getIndustryDistribution(options)
   const data = res.data || []
-  industryCount.value = data.length
-  totalCustomers.value = data.reduce((sum: number, item: { count: number }) => sum + item.count, 0)
+  industryCount.value = data.filter((item: IndustryData) => item.industry !== '未分类').length
+  // totalCustomers 由 loadRealEstateData 中的 getRealEstateStats 返回，
+  // 这里不再从行业分布汇总计算（行业分布可能因 LEFT JOIN 导致汇总值等于总数，
+  // 但语义上应使用权威的客户总数接口）
   initIndustryChart(data)
 }
 
@@ -179,12 +180,12 @@ const loadRealEstateData = async (options?: { force_refresh?: boolean }) => {
   // 统计卡片数据：调用 getRealEstateStats
   const statsRes = await getRealEstateStats(options)
   const stats = statsRes.data || {}
+  // 客户总数使用后端权威值，而非行业分布汇总
+  totalCustomers.value = stats.total_customers || 0
   realEstateCustomers.value = stats.real_estate_customers || 0
   realEstateRate.value = stats.real_estate_percentage || 0
-  dataCompleteRate.value =
-    Math.round(
-      ((totalCustomers.value > 0 ? realEstateCustomers.value : 0) / totalCustomers.value) * 100
-    ) || 85
+  // 画像覆盖率 = 有画像的客户数 / 客户总数（由后端计算返回）
+  dataCompleteRate.value = stats.profile_coverage_rate || 0
 
   // 饼图数据：调用 getRealEstateIndustryStats
   const industryRes = await getRealEstateIndustryStats(options)
@@ -298,7 +299,6 @@ const initScaleChart = (data: ScaleData[]) => {
       ],
     }
 
-    console.log('[规模等级分布] 数据尚未完善，客户规模等级字段待手动维护')
     scaleChart.setOption(option)
     return
   }
@@ -471,15 +471,16 @@ const initRealEstateChart = (data: RealEstateIndustryData[]) => {
         labelLine: {
           show: false,
         },
-        data: data.length > 0
-          ? data.map((item, index) => ({
-              name: item.industry || '其他',
-              value: item.count,
-              itemStyle: {
-                color: REAL_ESTATE_COLORS[index % REAL_ESTATE_COLORS.length],
-              },
-            }))
-          : [{ name: '暂无数据', value: 0, itemStyle: { color: '#E2E8F0' } }],
+        data:
+          data.length > 0
+            ? data.map((item, index) => ({
+                name: item.industry || '其他',
+                value: item.count,
+                itemStyle: {
+                  color: REAL_ESTATE_COLORS[index % REAL_ESTATE_COLORS.length],
+                },
+              }))
+            : [{ name: '暂无数据', value: 0, itemStyle: { color: '#E2E8F0' } }],
       },
     ],
   }

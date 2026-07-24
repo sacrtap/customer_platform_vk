@@ -31,23 +31,23 @@ FRONTEND_LOG="$LOG_DIR/frontend-test.log"
 cleanup() {
     echo ""
     echo -e "${YELLOW}[清理] 停止服务...${NC}"
-    
+
     # 停止前端服务
     if [ ! -z "$FRONTEND_PID" ]; then
         kill $FRONTEND_PID 2>/dev/null || true
         echo "  ✓ 前端服务已停止"
     fi
-    
+
     # 停止后端服务
     if [ ! -z "$BACKEND_PID" ]; then
         kill $BACKEND_PID 2>/dev/null || true
         echo "  ✓ 后端服务已停止"
     fi
-    
+
     # 清理端口
     lsof -ti:5173 | xargs kill -9 2>/dev/null || true
     lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-    
+
     echo -e "${GREEN}[完成] 清理完成${NC}"
 }
 

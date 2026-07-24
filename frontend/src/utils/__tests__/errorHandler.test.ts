@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  getErrorCategory,
-  getUserFriendlyMessage,
-  ErrorCategory,
-} from '../errorHandler'
+import { getErrorCategory, getUserFriendlyMessage, ErrorCategory } from '../errorHandler'
 
 describe('getErrorCategory', () => {
   it('should return SUCCESS for code 0', () => {

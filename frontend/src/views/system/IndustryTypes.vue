@@ -1,9 +1,10 @@
 <template>
   <div class="industry-types-page">
-    <PageHeader eyebrow="System" title="行业类型"
-      subtitle="管理系统行业类型字典">
+    <PageHeader eyebrow="System" title="行业类型" subtitle="管理系统行业类型字典">
       <template #actions>
-        <a-button v-if="can('industry_types:manage')" type="primary" @click="handleCreate">新增行业类型</a-button>
+        <a-button v-if="can('industry_types:manage')" type="primary" @click="handleCreate"
+          >新增行业类型</a-button
+        >
       </template>
     </PageHeader>
 

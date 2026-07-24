@@ -1,254 +1,233 @@
 <template>
-  <div class="pricing-rules">
+  <div class="pricing-rules-page">
     <!-- PageHeader -->
-    <PageHeader eyebrow="Billing" title="计费规则"
-      subtitle="管理客户定价、阶梯与包年计费规则">
+    <PageHeader eyebrow="Billing" title="计费规则" subtitle="管理客户定价、阶梯与包年计费规则">
       <template #actions>
-        <a-button v-if="can('billing:edit')" type="primary" @click="showCreateModal">
-          <template #icon><icon-plus /></template>
+        <button v-if="can('billing:edit')" class="btn primary" @click="showCreateModal">
           新建规则
-        </a-button>
+        </button>
       </template>
     </PageHeader>
 
-    <!-- 筛选区域 -->
-    <div class="filter-card">
-      <a-form :model="filters" layout="inline" class="filter-form">
-        <a-form-item label="客户">
-          <KeywordAutoComplete
-            v-model="filters.keyword"
-            placeholder="公司名称/公司 ID"
-            width="200"
-          />
-        </a-form-item>
-        <a-form-item label="设备类型">
-          <a-select
+    <!-- 筛选 + 表格 在同一卡片内 -->
+    <div class="card pad main-card">
+      <!-- 筛选器 -->
+      <div class="filters-container">
+        <div class="filters">
+          <CustomerSearchInput v-model="filters.keyword" @search="handleSearch" />
+          <FilterDropdown
             v-model="filters.device_type"
-            placeholder="请选择"
-            style="width: 150px"
-            allow-clear
-          >
-            <a-option value="X">X 系列</a-option>
-            <a-option value="N">N 系列</a-option>
-            <a-option value="L">L 系列</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="计费类型">
-          <a-select
+            label="设备类型"
+            :options="deviceTypeOptions"
+            @apply="handleSearch"
+          />
+          <FilterDropdown
             v-model="filters.pricing_type"
-            placeholder="请选择"
-            style="width: 150px"
-            allow-clear
-          >
-            <a-option value="fixed">定价结算</a-option>
-            <a-option value="tiered">阶梯结算</a-option>
-            <a-option value="package">包年结算</a-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item>
-          <a-space>
-            <a-button type="primary" @click="handleSearch">查询</a-button>
-            <a-button @click="handleReset">重置</a-button>
-          </a-space>
-        </a-form-item>
-      </a-form>
-    </div>
+            label="计费类型"
+            :options="pricingTypeOptions"
+            @apply="handleSearch"
+          />
+          <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+        </div>
+      </div>
 
-    <!-- 表格 -->
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="data"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="onPageChange"
-        @page-size-change="onPageSizeChange"
-      >
-        <template #customer_name="{ record }">
-          <span>{{ record.customer_name || `客户${record.customer_id}` }}</span>
-        </template>
-        <template #device_type="{ record }">
-          <a-tag
-            :color="
-              record.device_type === 'X'
-                ? 'arcoblue'
-                : record.device_type === 'N'
-                  ? 'green'
-                  : 'orange'
-            "
-          >
-            {{ record.device_type }}系列
-          </a-tag>
-        </template>
-        <template #layer_type="{ record }">
-          <a-tag :color="record.layer_type === 'multi' ? 'purple' : 'blue'">
-            {{ record.layer_type === 'multi' ? '多层' : '单层' }}
-          </a-tag>
-        </template>
-        <template #pricing_type="{ record }">
-          <a-tag
-            :color="
-              record.pricing_type === 'fixed'
-                ? 'blue'
-                : record.pricing_type === 'tiered'
-                  ? 'green'
-                  : 'orange'
-            "
-          >
-            {{ getPricingTypeText(record.pricing_type) }}
-          </a-tag>
-        </template>
-        <template #unit_price="{ record }">
-          <span v-if="record.unit_price">¥{{ record.unit_price.toFixed(2) }}</span>
-          <span v-else>-</span>
-        </template>
-        <template #valid_period="{ record }">
-          <span v-if="record.effective_date && record.expiry_date">
-            {{ record.effective_date }} 至 {{ record.expiry_date }}
-          </span>
-          <span v-else-if="record.effective_date"> {{ record.effective_date }} 起 </span>
-          <span v-else>-</span>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('billing:edit')"
-              type="text"
-              size="small"
-              @click="showEditModal(record)"
-              >编辑</a-button
-            >
-            <a-popconfirm
-              v-if="can('billing:delete')"
-              content="确定要删除此定价规则吗？"
-              @ok="handleDelete(record)"
-            >
-              <a-button type="text" size="small" status="danger">删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </a-table>
+      <!-- 表格 -->
+      <div class="table-section">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width: 200px">客户</th>
+                <th style="width: 100px">设备类型</th>
+                <th style="width: 100px">楼层类型</th>
+                <th style="width: 120px">计费类型</th>
+                <th style="width: 100px">单价</th>
+                <th style="width: 100px">套餐类型</th>
+                <th style="width: 200px">有效期</th>
+                <th style="width: 150px">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="record in data" :key="record.id">
+                <!-- 客户 -->
+                <td>
+                  <span v-if="record.customer_name" class="cust-name">{{
+                    record.customer_name
+                  }}</span>
+                  <span v-else class="subtle">客户{{ record.customer_id }}</span>
+                </td>
+                <!-- 设备类型 -->
+                <td>
+                  <span class="tag" :class="getDeviceTypeTagClass(record.device_type)">
+                    {{ record.device_type }}系列
+                  </span>
+                </td>
+                <!-- 楼层类型 -->
+                <td>
+                  <span
+                    v-if="record.layer_type"
+                    class="tag"
+                    :class="record.layer_type === 'multi' ? 'violet' : 'blue'"
+                  >
+                    {{ record.layer_type === 'multi' ? '多层' : '单层' }}
+                  </span>
+                  <span v-else class="subtle">-</span>
+                </td>
+                <!-- 计费类型 -->
+                <td>
+                  <span class="tag" :class="getPricingTypeTagClass(record.pricing_type)">
+                    {{ getPricingTypeText(record.pricing_type) }}
+                  </span>
+                </td>
+                <!-- 单价 -->
+                <td>
+                  <template v-if="record.pricing_type === 'fixed'">
+                    <span v-if="record.unit_price" class="amount"
+                      >¥{{ record.unit_price.toFixed(2) }}</span
+                    >
+                    <span v-else class="subtle">-</span>
+                  </template>
+                  <template v-else-if="record.pricing_type === 'tiered'">
+                    <span
+                      v-if="record.tiers"
+                      class="tag green has-tooltip"
+                      :data-tooltip="formatTiersTooltip(record.tiers)"
+                    >
+                      阶梯计价
+                    </span>
+                    <span v-else class="subtle">未配置</span>
+                  </template>
+                  <template v-else-if="record.pricing_type === 'package'">
+                    <span class="tag amber">包年计费</span>
+                  </template>
+                  <span v-else class="subtle">-</span>
+                </td>
+                <!-- 套餐类型 -->
+                <td>
+                  <span v-if="record.package_type" class="tag violet"
+                    >{{ record.package_type }} 套餐</span
+                  >
+                  <span v-else class="subtle">-</span>
+                </td>
+                <!-- 有效期 -->
+                <td>
+                  <span v-if="record.effective_date && record.expiry_date" class="cell-nowrap">
+                    {{ record.effective_date }} 至 {{ record.expiry_date }}
+                  </span>
+                  <span v-else-if="record.effective_date" class="cell-nowrap">
+                    {{ record.effective_date }} 起
+                  </span>
+                  <span v-else class="subtle">-</span>
+                </td>
+                <!-- 操作 -->
+                <td style="white-space: nowrap">
+                  <button
+                    v-if="can('billing:edit')"
+                    class="btn"
+                    style="padding: 4px 10px; font-size: 12px"
+                    @click="showEditModal(record)"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    v-if="can('billing:delete')"
+                    class="btn btn-danger"
+                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+                    @click="handleDelete(record)"
+                  >
+                    删除
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="data.length === 0 && !loading">
+                <td :colspan="8" class="empty-state">暂无计费规则数据</td>
+              </tr>
+              <tr v-if="loading">
+                <td :colspan="8" class="loading-state">加载中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+          <span class="page-total">共 {{ pagination.total.toLocaleString() }} 条</span>
+          <div class="pagination-right">
+            <span class="page-size">
+              每页
+              <select
+                class="page-size-select"
+                :value="pagination.pageSize"
+                @change="onPageSizeChange"
+              >
+                <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                  {{ size }}
+                </option>
+              </select>
+              条
+            </span>
+            <div class="page-controls">
+              <button
+                class="page-btn"
+                :disabled="pagination.current <= 1"
+                @click="onPageChange(pagination.current - 1)"
+              >
+                ‹
+              </button>
+              <button
+                v-for="p in displayPages"
+                :key="p"
+                class="page-btn"
+                :class="{ active: p === pagination.current, ellipsis: p === -1 }"
+                :disabled="p === -1"
+                @click="p > 0 && onPageChange(p)"
+              >
+                {{ p === -1 ? '…' : p }}
+              </button>
+              <button
+                class="page-btn"
+                :disabled="pagination.current >= totalPages"
+                @click="onPageChange(pagination.current + 1)"
+              >
+                ›
+              </button>
+            </div>
+            <span class="page-jump">
+              跳至
+              <input
+                type="number"
+                class="page-jump-input"
+                :value="pagination.current"
+                :min="1"
+                :max="totalPages"
+                @keydown.enter="onJumpPage(($event.target as HTMLInputElement).value)"
+              />
+              页
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 创建/编辑规则弹窗 -->
-    <a-modal
+    <PricingRuleModal
       v-model:visible="modalVisible"
-      :title="modalTitle"
-      :confirm-loading="modalLoading"
-      width="600px"
-      @before-ok="handleSubmit"
-    >
-      <a-form :model="formData" layout="vertical">
-        <a-form-item label="客户" :rules="[{ required: true, message: '请选择客户' }]">
-          <CustomerAutoComplete
-            v-model="formData.customer_id"
-            placeholder="请输入客户名称搜索"
-            width="100%"
-          />
-        </a-form-item>
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="设备类型" :rules="[{ required: true, message: '请选择设备类型' }]">
-              <a-select v-model="formData.device_type" placeholder="请选择">
-                <a-option value="X">X 系列</a-option>
-                <a-option value="N">N 系列</a-option>
-                <a-option value="L">L 系列</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="楼层类型" :rules="[{ required: true, message: '请选择楼层类型' }]">
-              <a-select v-model="formData.layer_type" placeholder="请选择">
-                <a-option value="single">单层</a-option>
-                <a-option value="multi">多层</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="计费类型" :rules="[{ required: true, message: '请选择计费类型' }]">
-              <a-select
-                v-model="formData.pricing_type"
-                placeholder="请选择"
-                @change="onPricingTypeChange"
-              >
-                <a-option value="fixed">定价结算</a-option>
-                <a-option value="tiered">阶梯结算</a-option>
-                <a-option value="package">包年结算</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <!-- 定价结算 -->
-        <a-form-item
-          v-if="formData.pricing_type === 'fixed'"
-          label="单价"
-          :rules="[{ required: true, message: '请输入单价' }]"
-        >
-          <a-input-number
-            v-model="formData.unit_price"
-            placeholder="请输入单价"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-          >
-            <template #prefix>¥</template>
-          </a-input-number>
-        </a-form-item>
-
-        <!-- 阶梯结算 -->
-        <a-form-item v-if="formData.pricing_type === 'tiered'" label="阶梯配置">
-          <a-alert type="info" style="margin-bottom: 12px">
-            阶梯配置需要通过 JSON
-            格式输入，例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]
-          </a-alert>
-          <a-textarea
-            v-model="formData.tiersJson"
-            placeholder='例如：[{"min":0,"max":100,"price":10},{"min":101,"max":500,"price":8}]'
-            :rows="4"
-          />
-        </a-form-item>
-
-        <!-- 包年结算 -->
-        <a-form-item
-          v-if="formData.pricing_type === 'package'"
-          label="套餐类型"
-          :rules="[{ required: true, message: '请选择套餐类型' }]"
-        >
-          <a-select v-model="formData.package_type" placeholder="请选择">
-            <a-option value="A">A 套餐</a-option>
-            <a-option value="B">B 套餐</a-option>
-            <a-option value="C">C 套餐</a-option>
-            <a-option value="D">D 套餐</a-option>
-          </a-select>
-        </a-form-item>
-
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="生效日期" :rules="[{ required: true, message: '请选择生效日期' }]">
-              <a-date-picker v-model="formData.effective_date" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="失效日期">
-              <a-date-picker v-model="formData.expiry_date" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-      </a-form>
-    </a-modal>
+      :edit-data="editData"
+      :package-plan-options="packagePlanOptions"
+      @saved="onModalSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { Message } from '@arco-design/web-vue'
-import { IconPlus } from '@arco-design/web-vue/es/icon'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
-import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
-import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
+import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import PricingRuleModal from './components/PricingRuleModal.vue'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -261,58 +240,48 @@ interface PricingRule {
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
-  tiers?: Record<string, unknown>
+  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
-  expiry_date?: string
+  expiry_date?: string | null
 }
 
-const columns = [
-  { title: '客户', dataIndex: 'customer_name', slotName: 'customer_name', width: 200 },
-  { title: '设备类型', dataIndex: 'device_type', slotName: 'device_type', width: 100 },
-  { title: '楼层类型', dataIndex: 'layer_type', slotName: 'layer_type', width: 100 },
-  { title: '计费类型', dataIndex: 'pricing_type', slotName: 'pricing_type', width: 120 },
-  { title: '单价', dataIndex: 'unit_price', slotName: 'unit_price', width: 100 },
-  { title: '套餐类型', dataIndex: 'package_type', width: 100 },
-  { title: '有效期', slotName: 'valid_period', width: 200 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' },
+// 筛选选项
+const deviceTypeOptions = [
+  { label: 'X 系列', value: 'X' },
+  { label: 'N 系列', value: 'N' },
+  { label: 'L 系列', value: 'L' },
+]
+
+const pricingTypeOptions = [
+  { label: '定价结算', value: 'fixed' },
+  { label: '阶梯结算', value: 'tiered' },
+  { label: '包年结算', value: 'package' },
 ]
 
 const data = ref<PricingRule[]>([])
 const loading = ref(false)
+const packagePlanOptions = ref<billingApi.PackagePlan[]>([])
+
 const pagination = reactive({
   current: 1,
   pageSize: 20,
   total: 0,
-  showTotal: true,
-  showPageSize: true,
 })
+
+const pageSizeOptions = [10, 20, 50, 100]
 
 const filters = reactive({
   keyword: '',
-  device_type: undefined as string | undefined,
-  pricing_type: undefined as string | undefined,
+  device_type: '',
+  pricing_type: '',
 })
 
 const modalVisible = ref(false)
-const modalTitle = ref('新建规则')
-const modalLoading = ref(false)
-const isEdit = ref(false)
+const editData = ref<PricingRule | null>(null)
 
-const formData = reactive({
-  id: null as number | null,
-  customer_id: undefined as number | undefined,
-  device_type: 'X',
-  layer_type: 'single' as 'single' | 'multi',
-  pricing_type: 'fixed' as 'fixed' | 'tiered' | 'package',
-  unit_price: undefined as number | undefined,
-  tiersJson: '',
-  package_type: undefined as string | undefined,
-  effective_date: undefined as string | undefined,
-  expiry_date: undefined as string | undefined,
-})
-
+// --- 标签样式辅助 ---
 const getPricingTypeText = (type: string) => {
   const map: Record<string, string> = {
     fixed: '定价结算',
@@ -322,6 +291,76 @@ const getPricingTypeText = (type: string) => {
   return map[type] || type
 }
 
+const getDeviceTypeTagClass = (type: string) => {
+  const map: Record<string, string> = {
+    X: 'blue',
+    N: 'green',
+    L: 'amber',
+  }
+  return map[type] || 'gray'
+}
+
+const getPricingTypeTagClass = (type: string) => {
+  const map: Record<string, string> = {
+    fixed: 'blue',
+    tiered: 'green',
+    package: 'amber',
+  }
+  return map[type] || 'gray'
+}
+
+// 获取启用的包年套餐选项
+const fetchPackagePlanOptions = async () => {
+  try {
+    const res = await billingApi.getPackagePlans({ status: 'active', page_size: 100 })
+    packagePlanOptions.value = res.data.list || []
+  } catch {
+    packagePlanOptions.value = []
+  }
+}
+
+// --- 分页计算 ---
+const totalPages = computed(() => Math.ceil(pagination.total / pagination.pageSize) || 1)
+
+const displayPages = computed(() => {
+  const current = pagination.current
+  const total = totalPages.value
+  const pages: number[] = []
+
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (current > 3) pages.push(-1)
+    const start = Math.max(2, current - 1)
+    const end = Math.min(total - 1, current + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+    if (current < total - 2) pages.push(-1)
+    pages.push(total)
+  }
+  return pages
+})
+
+const onPageChange = (page: number) => {
+  if (page < 1 || page > totalPages.value) return
+  pagination.current = page
+  fetchData()
+}
+
+const onPageSizeChange = (e: Event) => {
+  pagination.pageSize = Number((e.target as HTMLSelectElement).value)
+  pagination.current = 1
+  fetchData()
+}
+
+const onJumpPage = (val: string) => {
+  const page = parseInt(val)
+  if (page >= 1 && page <= totalPages.value) {
+    onPageChange(page)
+  }
+}
+
+// --- 数据请求 ---
 const fetchData = async () => {
   loading.value = true
   try {
@@ -349,250 +388,438 @@ const handleSearch = () => {
   fetchData()
 }
 
-const handleReset = () => {
+const _handleReset = () => {
   filters.keyword = ''
-  filters.device_type = undefined
-  filters.pricing_type = undefined
-  pagination.current = 1
-  fetchData()
-}
-
-const onPageChange = (page: number) => {
-  pagination.current = page
-  fetchData()
-}
-
-const onPageSizeChange = (pageSize: number) => {
-  pagination.pageSize = pageSize
+  filters.device_type = ''
+  filters.pricing_type = ''
   pagination.current = 1
   fetchData()
 }
 
 const showCreateModal = () => {
-  isEdit.value = false
-  modalTitle.value = '新建规则'
-  Object.assign(formData, {
-    id: null,
-    customer_id: undefined,
-    device_type: 'X',
-    layer_type: 'single',
-    pricing_type: 'fixed',
-    unit_price: undefined,
-    tiersJson: '',
-    package_type: undefined,
-    effective_date: undefined,
-    expiry_date: undefined,
-  })
+  editData.value = null
   modalVisible.value = true
 }
 
 const showEditModal = (record: PricingRule) => {
-  isEdit.value = true
-  modalTitle.value = '编辑规则'
-  Object.assign(formData, {
-    id: record.id,
-    customer_id: record.customer_id,
-    device_type: record.device_type,
-    layer_type: record.layer_type || 'single',
-    pricing_type: record.pricing_type,
-    unit_price: record.unit_price,
-    tiersJson: record.tiers ? JSON.stringify(record.tiers) : '',
-    package_type: record.package_type,
-    effective_date: record.effective_date,
-    expiry_date: record.expiry_date,
-  })
+  editData.value = record
   modalVisible.value = true
 }
 
-const onPricingTypeChange = () => {
-  formData.tiersJson = ''
-  formData.package_type = undefined
-  formData.unit_price = undefined
+const onModalSaved = () => {
+  fetchData()
 }
 
-const handleSubmit = async () => {
-  if (!formData.customer_id) {
-    Message.warning('请选择客户')
-    return false
+// 格式化阶梯配置的 tooltip 内容
+const formatTiersTooltip = (tiers: Record<string, unknown> | undefined): string => {
+  if (!tiers) return '未配置阶梯'
+  let ranges: Array<{ min: number; max: number | null; price: number }> = []
+  if (Array.isArray(tiers)) {
+    ranges = tiers as Array<{ min: number; max: number | null; price: number }>
+  } else if (typeof tiers === 'object' && tiers !== null && 'ranges' in tiers) {
+    ranges = (tiers as { ranges: Array<{ min: number; max: number | null; price: number }> }).ranges
   }
-  if (!formData.effective_date) {
-    Message.warning('请选择生效日期')
-    return false
-  }
-
-  modalLoading.value = true
-  try {
-    // 提交前检查冲突
-    const conflictRes = await billingApi.checkPricingRuleConflict({
-      customer_id: formData.customer_id,
-      device_type: formData.device_type,
-      layer_type: formData.layer_type,
-      effective_date: formData.effective_date,
-      expiry_date: formData.expiry_date,
-      exclude_id: isEdit.value && formData.id ? formData.id : undefined,
+  if (!ranges || ranges.length === 0) return '未配置阶梯'
+  return ranges
+    .map((r) => {
+      const maxStr = r.max === null || r.max === undefined ? '不限' : r.max
+      return `${r.min}-${maxStr}: ¥${r.price}`
     })
-
-    if (conflictRes.data.has_conflict) {
-      const conflictRules = conflictRes.data.conflicting_rules
-      const conflictMsg = conflictRules
-        .map(
-          (r: billingApi.ConflictRule) =>
-            `规则ID ${r.id}（${r.pricing_type}）：${r.effective_date} ~ ${r.expiry_date || '永久'}`
-        )
-        .join('\n')
-      Message.error({
-        content: `有效期冲突，已存在以下规则：\n${conflictMsg}`,
-        duration: 5000,
-      })
-      return false
-    }
-
-    const data: Partial<PricingRule> = {
-      customer_id: formData.customer_id,
-      device_type: formData.device_type,
-      layer_type: formData.layer_type,
-      pricing_type: formData.pricing_type,
-      effective_date: formData.effective_date,
-      expiry_date: formData.expiry_date,
-    }
-
-    if (formData.pricing_type === 'fixed' && formData.unit_price) {
-      data.unit_price = formData.unit_price
-    } else if (formData.pricing_type === 'tiered') {
-      if (formData.tiersJson) {
-        try {
-          data.tiers = JSON.parse(formData.tiersJson)
-        } catch (e) {
-          Message.error('阶梯配置 JSON 格式不正确')
-          modalLoading.value = false
-          return false
-        }
-      }
-    } else if (formData.pricing_type === 'package' && formData.package_type) {
-      data.package_type = formData.package_type
-    }
-
-    if (isEdit.value && formData.id) {
-      await billingApi.updatePricingRule(formData.id, data)
-      Message.success('更新成功')
-    } else {
-      await billingApi.createPricingRule(data)
-      Message.success('创建成功')
-    }
-    fetchData()
-    return true
-  } catch (err: unknown) {
-    Message.error((err as Error)?.message || '操作失败')
-    return false
-  } finally {
-    modalLoading.value = false
-  }
+    .join('\n')
 }
 
-const handleDelete = async (record: PricingRule) => {
-  try {
-    await billingApi.deletePricingRule(record.id)
-    Message.success('删除成功')
-    fetchData()
-  } catch (err: unknown) {
-    Message.error((err as Error)?.message || '删除失败')
-  }
+const handleDelete = (record: PricingRule) => {
+  Modal.confirm({
+    title: '确认删除',
+    content: '确定要删除此定价规则吗？此操作不可恢复。',
+    onOk: async () => {
+      try {
+        await billingApi.deletePricingRule(record.id)
+        Message.success('删除成功')
+        fetchData()
+      } catch (err: unknown) {
+        Message.error((err as Error)?.message || '删除失败')
+      }
+    },
+  })
 }
 
 onMounted(() => {
   fetchData()
+  fetchPackagePlanOptions()
 })
 </script>
 
 <style scoped>
-.pricing-rules {
+.pricing-rules-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  padding: 22px 24px 44px;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.header-info h1 {
-  margin: 4px 0 2px 0;
-  font-size: 26px;
-  font-weight: 850;
-  color: var(--ink);
-  line-height: 1.2;
-}
-
-.header-subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.filter-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 20px 24px;
-}
-
-.filter-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.filter-form :deep(.arco-form-item) {
+/* 覆盖 PageHeader 的 margin-bottom，使用 gap 控制间距 */
+.pricing-rules-page :deep(.page-header) {
   margin-bottom: 0;
 }
 
-.filter-form :deep(.arco-form-item-label) {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.table-section {
-  background: var(--panel);
+/* 按钮样式 */
+.btn {
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 20px 24px;
-  overflow: hidden;
+  background: white;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.btn.primary:hover {
+  background: #1e40af;
+}
+.btn.btn-danger {
+  color: var(--red);
+  border-color: #fecaca;
+}
+.btn.btn-danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
 }
 
-/* 表头样式 */
-.table-section :deep(.arco-table-th) {
-  background: #F8FAFC;
+/* 筛选器 */
+.filters-container {
+  margin-bottom: 12px;
+}
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 表格容器 */
+.table-section {
+  display: flex;
+  flex-direction: column;
+}
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+
+/* 表格 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  table-layout: auto;
+}
+.table th,
+.table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid #edf2f7;
+  text-align: left;
+  white-space: nowrap;
+}
+.table th {
+  background: #f8fafc;
   color: #334155;
   font-size: 12px;
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.table tbody tr {
+  transition: background 0.15s;
+}
+.table tbody tr:hover td {
+  background: #f8fbff;
 }
 
-/* 行 hover */
-.table-section :deep(.arco-table-tr:hover .arco-table-td) {
-  background: #F8FBFF;
-}
-
-/* Modal 样式 */
-:deep(.arco-modal) {
-  border-radius: var(--radius-lg);
-}
-
-:deep(.arco-form-item-label) {
-  font-size: 13px;
+/* 客户名称 */
+.cust-name {
   font-weight: 600;
   color: var(--ink);
+}
+
+/* 阶梯配置编辑器 */
+.tier-editor {
+  margin-bottom: 16px;
+}
+.tier-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.tier-editor-title {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+}
+.tier-add-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.tier-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--muted);
+  background: #f8fafc;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.tier-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.tier-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.tier-field {
+  flex: 1;
+  min-width: 0;
+}
+.tier-label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.tier-max-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tier-max-wrap :deep(.arco-checkbox) {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tier-min-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tier-auto-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: #f1f5f9;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 32px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.tier-auto-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #eff6ff;
+}
+/* 阶梯输入框校验错误时的红色边框 */
+.tier-input-error :deep(.arco-input-wrapper) {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+}
+.tier-input-error :deep(.arco-input-wrapper:hover) {
+  border-color: #ef4444 !important;
+}
+.tier-del-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.tier-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.tier-error {
+  margin-top: 4px;
+  margin-left: 36px;
+  font-size: 12px;
+  color: var(--red, #ef4444);
+  line-height: 1.4;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* 金额 */
+.amount {
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-nowrap {
+  white-space: nowrap;
+}
+
+/* 空状态 / 加载状态 */
+.empty-state,
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* 分页 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #edf2f7;
+}
+.page-total {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+.page-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.page-size-select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: #fff;
+  cursor: pointer;
+}
+.page-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-btn:hover:not(:disabled):not(.active) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.page-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  cursor: default;
+}
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.page-btn.ellipsis {
+  border: none;
+  background: transparent;
+  cursor: default;
+  opacity: 1;
+}
+.page-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.page-jump-input {
+  width: 48px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink);
+  background: #fff;
+}
+.page-jump-input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.2);
+}
+
+@media (max-width: 640px) {
+  .pagination {
+    justify-content: center;
+  }
+  .page-size,
+  .page-jump {
+    display: none;
+  }
 }
 </style>

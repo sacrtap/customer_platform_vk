@@ -193,9 +193,13 @@ export interface Invoice {
   approver_id: number | null
   approved_at: string | null
   customer_confirmed_at: string | null
+  customer_confirmed_by?: number | null
+  customer_confirmed_name?: string | null
   payment_proof: string | null
   paid_at: string | null
   completed_at: string | null
+  completed_by?: number | null
+  completed_name?: string | null
   is_auto_generated: boolean
   created_at: string
 }

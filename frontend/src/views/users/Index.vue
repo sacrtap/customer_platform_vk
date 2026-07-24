@@ -1,7 +1,6 @@
 <template>
   <div class="user-management-page">
-    <PageHeader eyebrow="System" title="用户管理"
-      subtitle="系统账号与权限管理">
+    <PageHeader eyebrow="System" title="用户管理" subtitle="系统账号与权限管理">
       <template #actions>
         <a-input-search
           v-model="searchKeyword"
@@ -12,7 +11,9 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
-        <a-button v-if="can('users:create')" type="primary" @click="handleCreate">新建用户</a-button>
+        <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
+          >新建用户</a-button
+        >
       </template>
     </PageHeader>
 
@@ -568,7 +569,7 @@ onMounted(() => {
 }
 
 :deep(.arco-table th) {
-  background: #F8FAFC;
+  background: #f8fafc;
   color: #334155;
   font-weight: 600;
 }
@@ -578,7 +579,7 @@ onMounted(() => {
 }
 
 :deep(.arco-table tr:hover td) {
-  background: #F8FAFC;
+  background: #f8fafc;
 }
 
 .status-badge {
@@ -592,12 +593,12 @@ onMounted(() => {
 }
 
 .status-badge.success {
-  background: #DCFCE7;
+  background: #dcfce7;
   color: var(--green);
 }
 
 .status-badge.danger {
-  background: #FEE2E2;
+  background: #fee2e2;
   color: var(--red);
 }
 

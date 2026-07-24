@@ -1,7 +1,6 @@
 <template>
   <div class="forecast-analysis-page">
-    <PageHeader eyebrow="Analytics" title="预测回款"
-      subtitle="基于历史数据的智能回款预测" />
+    <PageHeader eyebrow="Analytics" title="预测回款" subtitle="基于历史数据的智能回款预测" />
 
     <!-- 筛选区域 -->
     <div class="filter-card">
@@ -32,7 +31,11 @@
           </a-select>
         </a-form-item>
         <a-form-item label="客户">
-          <KeywordAutoComplete v-model="filters.keyword" placeholder="公司名称/公司 ID" width="200" />
+          <KeywordAutoComplete
+            v-model="filters.keyword"
+            placeholder="公司名称/公司 ID"
+            width="200"
+          />
         </a-form-item>
         <a-form-item>
           <a-space>
@@ -127,7 +130,12 @@ import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
-import { getMonthlyPrediction, type PaymentPrediction } from '@/api/analytics'
+import {
+  getMonthlyPrediction,
+  getPredictionTrend,
+  type PaymentPrediction,
+  type PredictionTrendItem,
+} from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import { formatCurrency } from '@/utils/formatters'
@@ -214,18 +222,40 @@ const loadPredictionData = async () => {
     year: filters.year,
     month: filters.month,
     keyword: filters.keyword || undefined,
+    force_refresh: true,
   })
 
-  predictionList.value = res.data || []
+  const responseData = res.data || { predictions: [], summary: null }
+  predictionList.value = responseData.predictions || []
   pagination.total = predictionList.value.length
 
-  // 计算统计数据
-  totalPredicted.value = predictionList.value.reduce((sum, item) => sum + item.predicted_amount, 0)
-  predictedCustomers.value = new Set(predictionList.value.map((c) => c.customer_id)).size
-  confirmedAmount.value = Math.round(totalPredicted.value * 0.6)
-  pendingAmount.value = totalPredicted.value - confirmedAmount.value
-  completionRate.value = Math.round((confirmedAmount.value / totalPredicted.value) * 100) || 0
+  // 使用后端返回的汇总统计（而非前端硬编码）
+  const summary = responseData.summary
+  if (summary) {
+    totalPredicted.value = summary.total_predicted || 0
+    confirmedAmount.value = summary.confirmed_amount || 0
+    pendingAmount.value = summary.pending_amount || 0
+    completionRate.value = summary.completion_rate || 0
+    predictedCustomers.value = summary.predicted_customers || 0
+  }
 
+  // 加载图表趋势数据
+  await loadTrendData()
+}
+
+// 加载趋势数据（全年 12 个月预测 vs 实际）
+const trendData = ref<PredictionTrendItem[]>([])
+
+const loadTrendData = async () => {
+  try {
+    const res = await getPredictionTrend({
+      year: filters.year,
+      force_refresh: true,
+    })
+    trendData.value = res.data || []
+  } catch {
+    trendData.value = []
+  }
   initForecastChart()
 }
 
@@ -240,20 +270,45 @@ const initForecastChart = () => {
   forecastChart = echarts.init(forecastChartRef.value)
 
   const months = [
-    '1 月', '2 月', '3 月', '4 月', '5 月', '6 月',
-    '7 月', '8 月', '9 月', '10 月', '11 月', '12 月',
+    '1 月',
+    '2 月',
+    '3 月',
+    '4 月',
+    '5 月',
+    '6 月',
+    '7 月',
+    '8 月',
+    '9 月',
+    '10 月',
+    '11 月',
+    '12 月',
   ]
   const currentMonth = new Date().getMonth()
 
-  // 移除 Math.random() 模拟数据，使用 0 作为临时值
-  const predictedData = months.map(() => 0)
-  const actualData = months.map(() => 0)
+  // 使用后端趋势数据
+  const predictedData = months.map((_, index) => {
+    const item = trendData.value[index]
+    return item ? item.predicted : 0
+  })
+  const actualData = months.map((_, index) => {
+    const item = trendData.value[index]
+    return item ? item.actual : 0
+  })
 
   const option = {
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow',
+      },
+      formatter: (params: Array<{ seriesName: string; name: string; value: number }>) => {
+        let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].name}</div>`
+        for (const p of params) {
+          if (p.value !== null && p.value !== undefined) {
+            html += `<div>${p.seriesName}：¥${Number(p.value).toLocaleString()}</div>`
+          }
+        }
+        return html
       },
     },
     legend: {
@@ -503,7 +558,7 @@ onUnmounted(() => {
 
 /* 表头样式 */
 .table-section :deep(.arco-table-th) {
-  background: #F8FAFC;
+  background: #f8fafc;
   color: #334155;
   font-size: 12px;
   font-weight: 600;

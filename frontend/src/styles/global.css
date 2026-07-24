@@ -6,27 +6,27 @@
 
 :root {
   /* Neutral Colors */
-  --bg: #F6F8FB;
-  --panel: #FFFFFF;
-  --ink: #0F172A;
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --ink: #0f172a;
   --muted: #475569;
-  --soft: #E2E8F0;
-  --line: #DBE3EF;
+  --soft: #e2e8f0;
+  --line: #dbe3ef;
 
   /* Primary / Semantic Colors */
-  --primary: #1D4ED8;
-  --primary-2: #2563EB;
-  --cyan: #0891B2;
+  --primary: #1d4ed8;
+  --primary-2: #2563eb;
+  --cyan: #0891b2;
   --green: #059669;
-  --amber: #D97706;
-  --red: #DC2626;
-  --violet: #7C3AED;
+  --amber: #d97706;
+  --red: #dc2626;
+  --violet: #7c3aed;
 
   /* Shadows */
-  --shadow: 0 14px 40px rgba(15, 23, 42, .08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, .08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, .12);
+  --shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 
   /* Border Radius */
   --radius: 18px;
@@ -157,7 +157,7 @@ a {
 /* ---- Hero Section ---- */
 .hero {
   display: grid;
-  grid-template-columns: 1.35fr .65fr;
+  grid-template-columns: 1.35fr 0.65fr;
   gap: 18px;
   margin-bottom: 18px;
 }
@@ -172,6 +172,7 @@ a {
 
 .section-title h2 {
   font-size: 17px;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -189,23 +190,23 @@ a {
 
 /* ---- KPI Compact Card (design.md 3.12) ---- */
 .mini {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 14px;
   padding: 11px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .mini > span {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
 }
 
 .mini > b {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 850;
   color: var(--ink);
 }
@@ -245,10 +246,10 @@ a {
 }
 
 .prototype-note .wire {
-  border: 1px dashed #BFDBFE;
+  border: 1px dashed #bfdbfe;
   border-radius: 16px;
   padding: 12px;
-  background: #F8FBFF;
+  background: #f8fbff;
 }
 
 /* ---- Chart Placeholder (design.md 3.21.5) ---- */
@@ -273,33 +274,33 @@ a {
 }
 
 .tag.blue {
-  background: #DBEAFE;
-  color: #1D4ED8;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .tag.green {
-  background: #DCFCE7;
+  background: #dcfce7;
   color: #047857;
 }
 
 .tag.amber {
-  background: #FEF3C7;
-  color: #B45309;
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .tag.red {
-  background: #FEE2E2;
-  color: #B91C1C;
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .tag.gray {
-  background: #F1F5F9;
+  background: #f1f5f9;
   color: #475569;
 }
 
 .tag.violet {
-  background: #EDE9FE;
-  color: #6D28D9;
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
 /* ---- Empty State ---- */
@@ -316,7 +317,7 @@ a {
 .empty-state .empty-icon {
   font-size: 40px;
   margin-bottom: 12px;
-  opacity: .4;
+  opacity: 0.4;
 }
 
 .empty-state .empty-text {
@@ -341,7 +342,7 @@ a {
   color: var(--primary);
   font-weight: 800;
   font-size: 12px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -354,10 +355,10 @@ a {
 /* ---- Callout ---- */
 .callout {
   border-left: 4px solid var(--primary);
-  background: #EFF6FF;
+  background: #eff6ff;
   border-radius: 14px;
   padding: 14px;
-  color: #1E3A8A;
+  color: #1e3a8a;
 }
 
 /* ---- Responsive Breakpoints ---- */

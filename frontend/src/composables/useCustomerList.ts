@@ -3,12 +3,7 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { handleError } from '@/utils/errorHandler'
-import {
-  getCustomers,
-  deleteCustomer,
-  exportCustomers,
-  getIndustryTypes,
-} from '@/api/customers'
+import { getCustomers, deleteCustomer, exportCustomers, getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
 import type { IndustryType, Customer } from '@/types'
@@ -32,6 +27,8 @@ export function useCustomerList() {
     is_key_customer: null as boolean | null,
     is_real_estate: null as boolean | null,
     settlement_type: '',
+    incomplete_profile: false,
+    mine: false,
   })
 
   const filters = reactive(createDefaultFilters())
@@ -62,6 +59,7 @@ export function useCustomerList() {
     total: 0,
     showTotal: true,
     showPageSize: true,
+    showJumper: true,
     pageSizeOptions: [10, 20, 50, 100],
   })
 
@@ -76,25 +74,40 @@ export function useCustomerList() {
   const batchEditDialogVisible = ref(false)
   const importModalVisible = ref(false)
 
+  // ---------- 排序状态 ----------
+  const sortBy = ref('company_id')
+  const sortOrder = ref<'asc' | 'desc'>('asc')
+
+  // ---------- 构建请求参数 ----------
+  const buildParams = (forceRefresh = false): Record<string, unknown> => {
+    const params: Record<string, unknown> = {
+      page: pagination.current,
+      page_size: pagination.pageSize,
+    }
+    if (forceRefresh) params.force_refresh = true
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.industry && filters.industry.length > 0)
+      params.industry = filters.industry.join(',')
+    if (filters.scale_level) params.scale_level = filters.scale_level
+    if (filters.consume_level) params.consume_level = filters.consume_level
+    if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
+    if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (filters.incomplete_profile) params.incomplete_profile = 'true'
+    if (filters.mine) params.mine = 'true'
+    if (sortBy.value) params.sort_by = sortBy.value
+    if (sortOrder.value) params.sort_order = sortOrder.value
+    return params
+  }
+
   // ---------- 数据加载 ----------
-  const loadCustomers = async () => {
+  const loadCustomers = async (forceRefresh = false) => {
     loading.value = true
     try {
-      const params: Record<string, unknown> = {
-        page: pagination.current,
-        page_size: pagination.pageSize,
-        force_refresh: true,
-      }
-      if (filters.keyword) params.keyword = filters.keyword
-      if (filters.account_type) params.account_type = filters.account_type
-      if (filters.industry && filters.industry.length > 0)
-        params.industry = filters.industry.join(',')
-      if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
-      if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
-      if (filters.settlement_type) params.settlement_type = filters.settlement_type
-      if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
-      if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
-
+      const params = buildParams(forceRefresh)
       const res = await getCustomers(params)
       customers.value = res.data.list || []
       pagination.total = res.data.total || 0
@@ -107,33 +120,8 @@ export function useCustomerList() {
   }
 
   const handleRefresh = async () => {
-    loading.value = true
-    try {
-      const params: Record<string, unknown> = {
-        page: pagination.current,
-        page_size: pagination.pageSize,
-        force_refresh: true,
-      }
-      if (filters.keyword) params.keyword = filters.keyword
-      if (filters.account_type) params.account_type = filters.account_type
-      if (filters.industry && filters.industry.length > 0)
-        params.industry = filters.industry.join(',')
-      if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
-      if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
-      if (filters.settlement_type) params.settlement_type = filters.settlement_type
-      if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
-      if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
-
-      const res = await getCustomers(params)
-      customers.value = res.data.list || []
-      pagination.total = res.data.total || 0
-      pagination.current = res.data.page || 1
-      Message.success('已刷新')
-    } catch (error: unknown) {
-      handleError(error, '刷新失败')
-    } finally {
-      loading.value = false
-    }
+    await loadCustomers(true)
+    Message.success('数据已刷新')
   }
 
   // ---------- 分页 ----------
@@ -149,8 +137,16 @@ export function useCustomerList() {
   }
 
   const handleSort = (dataIndex: string, direction: string) => {
-    // 排序逻辑（当前后端已实现）
-    console.debug('sort:', dataIndex, direction)
+    if (direction) {
+      sortBy.value = dataIndex
+      sortOrder.value = direction as 'asc' | 'desc'
+    } else {
+      // 恢复默认排序
+      sortBy.value = 'company_id'
+      sortOrder.value = 'asc'
+    }
+    pagination.current = 1
+    loadCustomers()
   }
 
   // ---------- 客户操作 ----------
@@ -239,7 +235,7 @@ export function useCustomerList() {
 
   const handleBatchSelectAll = (checked: boolean) => {
     if (checked) {
-      selectedCustomerIds.value = customers.value.map(c => c.id)
+      selectedCustomerIds.value = customers.value.map((c) => c.id)
     } else {
       selectedCustomerIds.value = []
     }
@@ -257,9 +253,9 @@ export function useCustomerList() {
   // ---------- 导出 ----------
   const handleExport = async () => {
     try {
-      const params: Record<string, unknown> = {}
-      if (filters.keyword) params.keyword = filters.keyword
-      if (filters.account_type) params.account_type = filters.account_type
+      const params = buildParams()
+      delete params.page
+      delete params.page_size
 
       const res = await exportCustomers(params)
       const blob = new Blob([res.data], {
@@ -316,28 +312,58 @@ export function useCustomerList() {
   return {
     // 权限
     can,
+    // 用户
+    userStore,
     // 筛选
-    filters, advancedFilters,
+    filters,
+    advancedFilters,
     // 字典
-    managers, managersLoading, customerTags, tagsLoading, industryTypes,
+    managers,
+    managersLoading,
+    customerTags,
+    tagsLoading,
+    industryTypes,
     // 表格
-    loading, customers, pagination,
+    loading,
+    customers,
+    pagination,
     // 批量选择
-    selectedCustomerIds, hasSelectedCustomers,
+    selectedCustomerIds,
+    hasSelectedCustomers,
     // 模态框
-    customerModalVisible, isEditMode, editingCustomerData,
-    batchEditDialogVisible, importModalVisible,
+    customerModalVisible,
+    isEditMode,
+    editingCustomerData,
+    batchEditDialogVisible,
+    importModalVisible,
+    // 排序
+    sortBy,
+    sortOrder,
     // 数据方法
-    loadCustomers, handleRefresh, handleSearch, handleReset, handleAdvancedSearch,
+    loadCustomers,
+    handleRefresh,
+    handleSearch,
+    handleReset,
+    handleAdvancedSearch,
+    buildParams,
     // 分页
-    handlePageChange, handlePageSizeChange, handleSort,
+    handlePageChange,
+    handlePageSizeChange,
+    handleSort,
     // 客户操作
     handleDelete,
     // 批量操作
-    handleBatchSelect, handleBatchSelectAll, openBatchEditDialog, clearBatchSelection,
+    handleBatchSelect,
+    handleBatchSelectAll,
+    openBatchEditDialog,
+    clearBatchSelection,
     // 导出
     handleExport,
     // 模态框方法
-    openCreateModal, openEditModal, viewCustomer, viewProfile, openImportModal,
+    openCreateModal,
+    openEditModal,
+    viewCustomer,
+    viewProfile,
+    openImportModal,
   }
 }

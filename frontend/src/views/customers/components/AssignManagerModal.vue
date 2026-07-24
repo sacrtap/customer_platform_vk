@@ -4,7 +4,7 @@
     title="分配运营经理"
     width="480px"
     :confirm-loading="loading"
-    @confirm="handleConfirm"
+    @ok="handleConfirm"
     @cancel="emit('update:visible', false)"
   >
     <a-form layout="vertical">

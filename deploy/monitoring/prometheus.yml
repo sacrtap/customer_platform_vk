@@ -11,12 +11,12 @@ scrape_configs:
     static_configs:
       - targets: ['app:8000']
     metrics_path: '/metrics'
-    
+
   # 数据库监控 (需要 postgres_exporter)
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres-exporter:9187']
-    
+
   # Redis 监控 (需要 redis_exporter)
   - job_name: 'redis'
     static_configs:

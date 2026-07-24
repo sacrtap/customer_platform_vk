@@ -24,7 +24,7 @@ defineProps<{
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .header-info h1 {

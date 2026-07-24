@@ -4,12 +4,13 @@ import hashlib
 import io
 import math
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json, raw
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
@@ -38,10 +39,15 @@ async def list_customers(request: Request):
     - keyword: 关键词（公司名称/公司 ID）
     - account_type: 账号类型
     - industry: 行业类型
+    - scale_level: 规模等级
+    - consume_level: 消费等级
     - manager_id: 运营经理 ID
     - sales_manager_id: 商务经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户 (true/false)
+    - is_real_estate: 是否房产客户 (true/false)
+    - incomplete_profile: 待完善画像 (true/false)，筛选缺少规模等级或消费等级的客户
+    - mine: 我的客户 (true/false)，筛选运营经理或销售经理为当前用户的客户
     - sort_by: 排序字段 (id, company_id, name, created_at, updated_at，默认 id)
     - sort_order: 排序方向 (asc 或 desc，默认 asc)
     """
@@ -80,6 +86,18 @@ async def list_customers(request: Request):
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
 
+    # 待完善画像：筛选缺少规模等级或消费等级的客户
+    incomplete = request.args.get("incomplete_profile")
+    if incomplete is not None and incomplete.lower() == "true":
+        filters["incomplete_profile"] = True
+
+    # 我的客户：筛选运营经理或销售经理为当前用户的客户
+    mine = request.args.get("mine")
+    if mine is not None and mine.lower() == "true":
+        current_user = get_current_user(request)
+        if current_user and current_user.get("user_id"):
+            filters["mine_user_id"] = current_user["user_id"]
+
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
 
@@ -107,6 +125,34 @@ async def list_customers(request: Request):
         )
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 批量查询当前页客户的近30天消耗数据
+    usage_map: dict[int, dict] = {}
+    if customers:
+        customer_ids = [c.id for c in customers]
+        thirty_days_ago = date.today() - timedelta(days=30)
+        from sqlalchemy import func as sa_func
+
+        from ..models.daily_consumption import DailyConsumption
+
+        usage_stmt = (
+            select(
+                DailyConsumption.customer_id,
+                sa_func.coalesce(sa_func.sum(DailyConsumption.order_count), 0).label("order_count"),
+                sa_func.coalesce(sa_func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
+            )
+            .where(
+                DailyConsumption.customer_id.in_(customer_ids),
+                DailyConsumption.consumption_date >= thirty_days_ago,
+            )
+            .group_by(DailyConsumption.customer_id)
+        )
+        usage_result = await db_session.execute(usage_stmt)
+        for row in usage_result.all():
+            usage_map[row.customer_id] = {
+                "order_count": int(row.order_count),
+                "total_cost": float(row.total_cost),
+            }
 
     result = {
         "code": 0,
@@ -136,15 +182,20 @@ async def list_customers(request: Request):
                     # === 客户列表页新增字段 ===
                     "scale_level": c.profile.scale_level if c.profile else None,
                     "consume_level": c.profile.consume_level if c.profile else None,
-                    "balance": (
-                        float(c.balance.total_amount)
-                        if c.balance
-                        else 0.0
+                    "balance": (float(c.balance.total_amount) if c.balance else 0.0),
+                    # 近30天消耗（来自 DailyConsumption 表）
+                    "usage_30d": usage_map.get(c.id, {}).get("order_count", 0),
+                    "usage_30d_amount": usage_map.get(c.id, {}).get("total_cost", 0.0),
+                    # 简易健康度估算（基于余额和用量，完整评分需调用 /analytics/health/customers/<id>/score）
+                    "health": (
+                        "高风险"
+                        if (c.balance and float(c.balance.total_amount) < 500)
+                        else "关注"
+                        if (c.balance and float(c.balance.total_amount) < 1000)
+                        else "不活跃"
+                        if usage_map.get(c.id, {}).get("order_count", 0) == 0
+                        else "健康"
                     ),
-                    # 以下字段暂为占位，后续画像分析模块完善后补全
-                    "usage_30d": None,
-                    "usage_30d_amount": None,
-                    "health": None,
                 }
                 for c in customers
             ],
@@ -277,9 +328,9 @@ async def create_customer(request: Request):
         "company_id": "integer (required)",
         "name": "string (required)",
         "account_type": "string (optional)",
-        "industry": "string (optional)",
-        "price_policy": "string (optional)",
+        "industry_type_id": "integer (optional)",
         "manager_id": "number (optional)",
+        "sales_manager_id": "number (optional)",
         "settlement_cycle": "string (optional)",
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
@@ -857,17 +908,30 @@ async def export_customers(request: Request):
     - keyword: 关键词
     - account_type: 账号类型
     - industry: 行业类型
+    - scale_level: 规模等级
+    - consume_level: 消费等级
     - manager_id: 运营经理 ID
+    - sales_manager_id: 商务经理 ID
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户
+    - is_real_estate: 是否房产客户
+    - incomplete_profile: 待完善画像
+    - mine: 我的客户
     """
     # 构建筛选条件
     filters = {
         "keyword": request.args.get("keyword"),
         "account_type": request.args.get("account_type"),
         "industry": request.args.get("industry"),
+        "scale_level": request.args.get("scale_level"),
+        "consume_level": request.args.get("consume_level"),
         "manager_id": (
             int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+        ),
+        "sales_manager_id": (
+            int(request.args.get("sales_manager_id"))
+            if request.args.get("sales_manager_id")
+            else None
         ),
         "settlement_type": request.args.get("settlement_type"),
     }
@@ -879,6 +943,18 @@ async def export_customers(request: Request):
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
+
+    # 待完善画像
+    incomplete = request.args.get("incomplete_profile")
+    if incomplete is not None and incomplete.lower() == "true":
+        filters["incomplete_profile"] = True
+
+    # 我的客户
+    mine = request.args.get("mine")
+    if mine is not None and mine.lower() == "true":
+        current_user = get_current_user(request)
+        if current_user and current_user.get("user_id"):
+            filters["mine_user_id"] = current_user["user_id"]
 
     filters = {k: v for k, v in filters.items() if v is not None}
 
@@ -984,21 +1060,23 @@ async def get_customer_summary(request: Request, customer_id: int):
     await service.get_customer_detail(customer_id)
 
     # 格式化返回数据
-    return json({
-        "code": 0,
-        "data": {
-            "name": customer.name,
-            "industry": customer.industry_type,
-            "scale_level": customer.scale_level,
-            "consume_level": customer.consume_level,
-            "balance": f"¥{customer.balance:,.0f}" if hasattr(customer, "balance") else "N/A",
-            "usage_30d": "N/A",
-            "health": "—",
-            "health_class": "",
-            "forecast_days": "—",
-            "recent_events": [],
+    return json(
+        {
+            "code": 0,
+            "data": {
+                "name": customer.name,
+                "industry": customer.industry_type,
+                "scale_level": customer.scale_level,
+                "consume_level": customer.consume_level,
+                "balance": f"¥{customer.balance:,.0f}" if hasattr(customer, "balance") else "N/A",
+                "usage_30d": "N/A",
+                "health": "—",
+                "health_class": "",
+                "forecast_days": "—",
+                "recent_events": [],
+            },
         }
-    })
+    )
 
 
 @customers_bp.get("/<customer_id:int>/related")
@@ -1027,13 +1105,15 @@ async def get_related_customers(request: Request, customer_id: int):
 
     related = []
     for c in result.scalars():
-        related.append({
-            "id": c.id,
-            "name": c.name,
-            "industry": c.industry_type,
-            "scale_level": c.scale_level,
-            "health": "—",
-        })
+        related.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "industry": c.industry_type,
+                "scale_level": c.scale_level,
+                "health": "—",
+            }
+        )
 
     return json({"code": 0, "data": related})
 
@@ -1063,15 +1143,17 @@ async def get_balance_forecast(request: Request, customer_id: int):
         days_left = None
         status = "safe"
 
-    return json({
-        "code": 0,
-        "data": {
-            "days_left": days_left,
-            "daily_avg": daily_avg,
-            "balance": balance,
-            "status": status,
+    return json(
+        {
+            "code": 0,
+            "data": {
+                "days_left": days_left,
+                "daily_avg": daily_avg,
+                "balance": balance,
+                "status": status,
+            },
         }
-    })
+    )
 
 
 @customers_bp.post("/<customer_id:int>/follow-up")
@@ -1104,8 +1186,10 @@ async def create_follow_up(request: Request, customer_id: int):
     async with db.begin():
         pass  # audit entry already created
 
-    return json({
-        "code": 0,
-        "message": "跟进记录已创建",
-        "data": {"customer_id": customer_id, "type": follow_up_type, "note": note},
-    })
+    return json(
+        {
+            "code": 0,
+            "message": "跟进记录已创建",
+            "data": {"customer_id": customer_id, "type": follow_up_type, "note": note},
+        }
+    )

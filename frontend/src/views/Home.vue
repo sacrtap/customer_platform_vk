@@ -1,8 +1,11 @@
 <template>
   <div class="home-page">
     <!-- PageHeader -->
-    <PageHeader eyebrow="Home" title="运营工作台"
-      subtitle="首屏回答三个问题：今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。">
+    <PageHeader
+      eyebrow="Home"
+      title="运营工作台"
+      subtitle="首屏回答三个问题：今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。"
+    >
       <template #actions>
         <a-button @click="saveView">保存视图</a-button>
         <a-button type="primary" :loading="loading" @click="refreshData">刷新数据</a-button>
@@ -10,7 +13,7 @@
     </PageHeader>
 
     <!-- 同步状态条 -->
-    <SyncStatusBar status="ok" lastSync="10:00" nextSync="11:00">
+    <SyncStatusBar status="ok" last-sync="10:00" next-sync="11:00">
       <template #action>
         <a-button size="mini" @click="$router.push('/system/sync-logs')">查看日志</a-button>
       </template>
@@ -58,9 +61,14 @@
       <ChartCard title="经营趋势">
         <template #actions>
           <div class="tabs">
-            <span v-for="tab in trendTabs" :key="tab.key"
-              class="tab" :class="{ active: activeTrendTab === tab.key }"
-              @click="activeTrendTab = tab.key">{{ tab.label }}</span>
+            <span
+              v-for="tab in trendTabs"
+              :key="tab.key"
+              class="tab"
+              :class="{ active: activeTrendTab === tab.key }"
+              @click="activeTrendTab = tab.key"
+              >{{ tab.label }}</span
+            >
           </div>
         </template>
         <a-spin :loading="chartLoading" style="width: 100%">
@@ -73,7 +81,7 @@
         <template #actions>
           <span class="tag amber">{{ todos.length }} 项</span>
           <label class="toggle-switch">
-            <input type="checkbox" v-model="sortByAmount">
+            <input v-model="sortByAmount" type="checkbox" />
             <span class="toggle-label-text">按金额排序</span>
           </label>
         </template>
@@ -131,7 +139,9 @@
                     <b>{{ customer.name }}</b>
                   </div>
                 </td>
-                <td><span class="tag" :class="customer.healthClass">{{ customer.health }}</span></td>
+                <td>
+                  <span class="tag" :class="customer.healthClass">{{ customer.health }}</span>
+                </td>
                 <td>{{ customer.consumption }}</td>
                 <td>{{ customer.balanceDays }}</td>
                 <td>{{ customer.risk }}</td>
@@ -160,9 +170,13 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { getDashboardStats, getDashboardChartData, getPendingTasks } from '@/api/analytics'
-import { getRecentInvoices, type Invoice } from '@/api/billing'
-import { formatCurrency, formatCurrencyWan, formatDate, formatNumber } from '@/utils/formatters'
+import {
+  getDashboardStats,
+  getDashboardChartData,
+  getPendingTasks,
+  getPriorityCustomers,
+} from '@/api/analytics'
+import { formatCurrencyWan, formatNumber } from '@/utils/formatters'
 import { useCachedRequest } from '@/composables/useCachedRequest'
 import PageHeader from '@/components/PageHeader.vue'
 import ChartCard from '@/components/ChartCard.vue'
@@ -181,7 +195,11 @@ const loadEcharts = async () => {
 const router = useRouter()
 
 const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000)
-const chartRequest = useCachedRequest('chart', () => getDashboardChartData({ months: 12 }), 15 * 60 * 1000)
+const chartRequest = useCachedRequest(
+  'chart',
+  () => getDashboardChartData({ months: 12 }),
+  15 * 60 * 1000
+)
 const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000)
 
 const statsLoading = ref(false)
@@ -232,11 +250,39 @@ const sortedTodos = computed(() => {
     : list.sort((a, b) => b.urgency - a.urgency)
 })
 
-const priorityCustomers = ref([
-  { id: 1, name: '万科华东', health: '关注', healthClass: 'amber', consumption: '¥482,000', balanceDays: '5 天', risk: '余额不足', manager: '王明' },
-  { id: 2, name: '绿城服务', health: '高风险', healthClass: 'red', consumption: '¥196,000', balanceDays: '2 天', risk: '结算失败', manager: '李娜' },
-  { id: 3, name: '龙湖集团', health: '健康', healthClass: 'green', consumption: '¥711,000', balanceDays: '18 天', risk: '无', manager: '陈涛' },
-])
+const priorityCustomers = ref<
+  Array<{
+    id: number
+    name: string
+    health: string
+    healthClass: string
+    consumption: string
+    balanceDays: string
+    risk: string
+    manager: string
+  }>
+>([])
+
+const loadPriorityCustomers = async () => {
+  invoicesLoading.value = true
+  try {
+    const res = await getPriorityCustomers(20)
+    priorityCustomers.value = (res.data.customers || []).map((c: Record<string, unknown>) => ({
+      id: c.id as number,
+      name: c.name as string,
+      health: c.health as string,
+      healthClass: c.health_class as string,
+      consumption: c.consumption as string,
+      balanceDays: c.balance_days as string,
+      risk: c.risk as string,
+      manager: c.manager as string,
+    }))
+  } catch (error) {
+    console.error('加载优先跟进客户失败:', error)
+  } finally {
+    invoicesLoading.value = false
+  }
+}
 
 const loadStats = async (forceRefresh = false) => {
   statsLoading.value = true
@@ -341,7 +387,10 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
         areaStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: 'rgba(29, 78, 216, 0.2)' },
               { offset: 1, color: 'rgba(29, 78, 216, 0.02)' },
@@ -360,16 +409,18 @@ const loadTodos = async (forceRefresh = false) => {
   todosLoading.value = true
   try {
     const res = await todosRequest.execute(forceRefresh)
-    todos.value = res.tasks.map((item: { id: number; title: string; type: string; created_at: string }) => ({
-      id: item.id,
-      title: item.title,
-      count: Math.floor(Math.random() * 50) + 1,
-      amount: Math.floor(Math.random() * 1000000),
-      urgency: Math.floor(Math.random() * 10) + 1,
-      priority: item.type === 'warning' ? 'high' : 'medium',
-      priorityText: item.type === 'warning' ? '警告' : '信息',
-      due: item.created_at,
-    }))
+    todos.value = res.tasks.map(
+      (item: { id: number; title: string; type: string; created_at: string }) => ({
+        id: item.id,
+        title: item.title,
+        count: Math.floor(Math.random() * 50) + 1,
+        amount: Math.floor(Math.random() * 1000000),
+        urgency: Math.floor(Math.random() * 10) + 1,
+        priority: item.type === 'warning' ? 'high' : 'medium',
+        priorityText: item.type === 'warning' ? '警告' : '信息',
+        due: item.created_at,
+      })
+    )
   } catch (error) {
     console.error('加载待办事项失败:', error)
     Message.error('加载待办事项失败')
@@ -383,6 +434,7 @@ const loadAllData = async (forceRefresh = false) => {
     loadStats(forceRefresh),
     loadChartData(forceRefresh),
     loadTodos(forceRefresh),
+    loadPriorityCustomers(),
   ])
 }
 
@@ -431,7 +483,7 @@ onUnmounted(() => {
 /* KPI 可点击下钻 */
 .kpi-clickable {
   cursor: pointer;
-  transition: all .18s ease;
+  transition: all 0.18s ease;
 }
 .kpi-clickable:hover {
   transform: translateY(-2px);
@@ -441,43 +493,40 @@ onUnmounted(() => {
 /* 趋势图 Tab */
 .tabs {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 .tab {
-  padding: 4px 10px;
+  padding: 7px 10px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 700;
   color: var(--muted);
   cursor: pointer;
-  transition: all .18s ease;
+  border: 1px solid var(--line);
+  background: white;
+  transition: all 0.18s ease;
 }
 .tab.active {
-  background: #DBEAFE;
-  color: #1D4ED8;
-  font-weight: 600;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 /* 紧凑列表 */
 .compact-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  gap: 9px;
 }
 .compact-list .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #EDF2F7;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf2f7;
   font-size: 13px;
 }
-.compact-list .row span {
-  color: var(--muted);
-}
-.compact-list .row b {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--ink);
+.compact-list .row:last-child {
+  border-bottom: 0;
 }
 
 /* 快捷操作面板 */
@@ -485,30 +534,39 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 .quick-action-btn {
   border: 1px solid var(--line);
-  background: var(--bg);
-  border-radius: 10px;
-  padding: 10px;
+  background: white;
+  border-radius: 12px;
+  padding: 14px 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--muted);
-  transition: all .18s ease;
+  transition: all 0.18s ease;
 }
 .quick-action-btn:hover {
-  border-color: #93C5FD;
-  color: var(--primary);
-  background: #EFF6FF;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+  transform: translateY(-1px);
 }
 .qa-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
   font-size: 16px;
   font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 /* 排序开关 */
@@ -520,34 +578,43 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--muted);
 }
-.toggle-switch input[type="checkbox"] {
-  accent-color: #1D4ED8;
+.toggle-switch input[type='checkbox'] {
+  accent-color: #1d4ed8;
 }
 
 /* 标签 */
 .tag {
   font-size: 12px;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 700;
 }
-.tag.amber { background: #FEF3C7; color: #D97706; }
-.tag.red { background: #FEE2E2; color: #DC2626; }
-.tag.green { background: #DCFCE7; color: #059669; }
+.tag.amber {
+  background: #fef3c7;
+  color: #d97706;
+}
+.tag.red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.tag.green {
+  background: #dcfce7;
+  color: #059669;
+}
 
 /* 客户 Logo */
 .customer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .customer .logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #DBEAFE;
-  color: #1D4ED8;
-  font-weight: 700;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 850;
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -556,7 +623,7 @@ onUnmounted(() => {
 }
 .customer b {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink);
 }
 
@@ -578,24 +645,30 @@ onUnmounted(() => {
 .table th,
 .table td {
   padding: 12px;
-  border-bottom: 1px solid #EDF2F7;
+  border-bottom: 1px solid #edf2f7;
   text-align: left;
   white-space: nowrap;
 }
 .table th {
-  background: var(--bg);
+  background: #f8fafc;
   color: #334155;
   font-size: 12px;
   font-weight: 600;
 }
 .table tr:hover td {
-  background: #F8FBFF;
+  background: #f8fbff;
 }
 
 /* 趋势指示 */
-.up { color: #059669; }
-.warn { color: #D97706; }
-.down { color: #DC2626; }
+.up {
+  color: #059669;
+}
+.warn {
+  color: #d97706;
+}
+.down {
+  color: #dc2626;
+}
 
 /* 响应式 */
 @media (max-width: 1100px) {

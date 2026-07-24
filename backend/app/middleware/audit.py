@@ -9,6 +9,7 @@
 """
 
 import json
+import logging
 
 from sanic import Sanic
 from sanic.request import Request
@@ -17,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import get_current_user
 from ..models.billing import AuditLog
+
+logger = logging.getLogger(__name__)
 
 
 def audit_middleware(app: Sanic):
@@ -113,7 +116,7 @@ def audit_middleware(app: Sanic):
             try:
                 request_json = request.json
             except Exception:
-                pass
+                logger.debug("Failed to parse request JSON for audit log", exc_info=True)
 
             # 提取记录 ID 和类型
             record_id, record_type = extract_record_info(request.path, request_json, response)
@@ -317,21 +320,21 @@ def extract_record_id_from_path(path: str) -> int | None:
         try:
             return int(parts[5])
         except ValueError:
-            pass
+            logger.debug("Path segment [5] is not an integer: %s", parts[5])
 
     # 动作路径: /api/v1/billing/invoices/123/submit
     if len(parts) >= 5:
         try:
             return int(parts[4])
         except ValueError:
-            pass
+            logger.debug("Path segment [4] is not an integer: %s", parts[4])
 
     # 标准路径: /api/v1/users/123
     if len(parts) >= 4:
         try:
             return int(parts[3])
         except ValueError:
-            pass
+            logger.debug("Path segment [3] is not an integer: %s", parts[3])
 
     return None
 
@@ -389,7 +392,7 @@ def extract_record_info(path: str, body: dict | None, response) -> tuple[int | N
                 record_id = int(parts[3])
                 return record_id, parts[2].rstrip("s")
             except ValueError:
-                pass
+                logger.debug("Path segment [3] is not an integer: %s", parts[3])
 
         # 如果是创建操作，从响应中获取新 ID
         if response and hasattr(response, "body"):
@@ -398,7 +401,7 @@ def extract_record_info(path: str, body: dict | None, response) -> tuple[int | N
                 if data.get("code") == 0 and data.get("data", {}).get("id"):
                     return data["data"]["id"], parts[2].rstrip("s")
             except Exception:
-                pass
+                logger.warning("Failed to extract record ID from response body", exc_info=True)
 
         return None, None
     except Exception:

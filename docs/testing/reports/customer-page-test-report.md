@@ -1,8 +1,8 @@
 # 客户页面功能测试执行报告
 
-**测试日期**: 2026-04-09  
-**测试版本**: v1.0.0  
-**测试人员**: AI Agent  
+**测试日期**: 2026-04-09
+**测试版本**: v1.0.0
+**测试人员**: AI Agent
 **测试环境**: Playwright + Chromium
 
 ---
@@ -109,9 +109,9 @@
 ### 主要问题分类
 
 #### 1. 登录超时问题 (4 个失败)
-**症状**: `page.waitForURL('/'): Test timeout of 30000ms exceeded`  
-**影响用例**: TC-INDEX-001, 002, 003, 005  
-**根本原因**: 
+**症状**: `page.waitForURL('/'): Test timeout of 30000ms exceeded`
+**影响用例**: TC-INDEX-001, 002, 003, 005
+**根本原因**:
 - 后端服务可能未启动
 - 登录 API 响应慢
 - fixtures.ts 中登录逻辑需要优化
@@ -123,9 +123,9 @@ await page.waitForURL('/', { timeout: 60000 });
 ```
 
 #### 2. 加载遮罩问题 (6 个失败)
-**症状**: `<div class="arco-spin-mask">…</div> intercepts pointer events`  
-**影响用例**: TC-DETAIL-003, 004, 005, 007, 008/009, 010, 012  
-**根本原因**: 
+**症状**: `<div class="arco-spin-mask">…</div> intercepts pointer events`
+**影响用例**: TC-DETAIL-003, 004, 005, 007, 008/009, 010, 012
+**根本原因**:
 - 详情页数据加载时显示 loading 遮罩
 - 遮罩未正确消失或消失太慢
 
@@ -136,9 +136,9 @@ await authenticatedPage.waitForSelector('.arco-spin-mask', { state: 'hidden' });
 ```
 
 #### 3. 元素选择器问题 (3 个失败)
-**症状**: 按钮不可见或选择器不匹配  
-**影响用例**: TC-INDEX-006, 007, DETAIL-001  
-**根本原因**: 
+**症状**: 按钮不可见或选择器不匹配
+**影响用例**: TC-INDEX-006, 007, DETAIL-001
+**根本原因**:
 - Popconfirm 确认按钮选择器不准确
 - SVG 选择器需要调整
 
@@ -149,8 +149,8 @@ const confirmBtn = authenticatedPage.locator('.arco-popconfirm .arco-btn-primary
 ```
 
 #### 4. 下拉选择器问题 (1 个失败)
-**症状**: `div[role="option"]` 点击超时  
-**影响用例**: TC-INDEX-010  
+**症状**: `div[role="option"]` 点击超时
+**影响用例**: TC-INDEX-010
 **根本原因**: Arco Design 下拉菜单需要特殊处理
 
 **建议修复**:
@@ -204,7 +204,7 @@ await authenticatedPage.click('.arco-select-option:has-text("正式账号")');
 ## Bug 发现
 
 ### BUG-001: 删除确认对话框按钮不可见
-**Severity**: High  
+**Severity**: High
 **复现步骤**:
 1. 访问客户列表页
 2. 点击删除按钮
@@ -215,7 +215,7 @@ await authenticatedPage.click('.arco-select-option:has-text("正式账号")');
 ---
 
 ### BUG-002: 详情页加载遮罩持续存在
-**Severity**: Medium  
+**Severity**: Medium
 **复现步骤**:
 1. 访问客户详情页
 2. 点击画像信息/余额信息/结算单 Tab
@@ -226,7 +226,7 @@ await authenticatedPage.click('.arco-select-option:has-text("正式账号")');
 ---
 
 ### BUG-003: 登录流程超时
-**Severity**: High  
+**Severity**: High
 **复现步骤**:
 1. 使用 authenticatedPage fixture
 2. 执行登录操作
@@ -385,5 +385,5 @@ npm run test:e2e:report
 
 ---
 
-**报告生成时间**: 2026-04-09  
+**报告生成时间**: 2026-04-09
 **下次测试计划**: 修复问题后重新执行

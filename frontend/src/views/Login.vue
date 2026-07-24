@@ -1,104 +1,101 @@
 <template>
   <div class="login-container">
-    <!-- 背景效果 -->
-    <div class="bg-gradient-orb bg-gradient-orb-1"></div>
-    <div class="bg-gradient-orb bg-gradient-orb-2"></div>
-    <div class="bg-gradient-orb bg-gradient-orb-3"></div>
-    <div class="bg-grid-pattern"></div>
-
     <!-- 登录框 -->
     <div class="login-box">
-      <!-- 左侧品牌区域 -->
+      <!-- 左侧品牌展示区 -->
       <div class="login-brand">
-        <div class="brand-logo">
-          <div class="brand-logo-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
+        <div class="brand-header">
+          <div class="brand-logo">
+            <div class="brand-mark">VK</div>
+            <div class="brand-identity">
+              <div class="brand-title">客户运营中台</div>
+              <div class="brand-subtitle">Customer Operations Platform</div>
+            </div>
           </div>
-          <span class="brand-logo-text">Customer Platform VK</span>
         </div>
 
         <div class="brand-content">
-          <h1 class="brand-title">客户运营中台</h1>
-          <p class="brand-subtitle">统一管理客户信息、结算、画像，实现高效运营分析与决策支持</p>
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M3 3v18h18" />
+                <path d="M18.7 8l-5.1 5.2-2.8-2.8L7 14.3" />
+              </svg>
+            </div>
+            <div class="feature-text">
+              <h3>数据驱动决策</h3>
+              <p>实时监控客户消耗、回款、健康度等核心指标，快速识别异常与机会</p>
+            </div>
+          </div>
 
-          <div class="brand-features">
-            <div v-for="(feature, index) in features" :key="index" class="brand-feature">
-              <div class="brand-feature-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2.5"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-              <span>{{ feature }}</span>
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+            </div>
+            <div class="feature-text">
+              <h3>高效运营管理</h3>
+              <p>统一的客户管理、结算管理、画像分析工作台，提升运营效率</p>
+            </div>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <div class="feature-text">
+              <h3>安全可控</h3>
+              <p>RBAC 权限模型、完整审计日志、并发安全保障</p>
             </div>
           </div>
         </div>
 
-        <div class="brand-footer">
-          <div class="brand-stats">
-            <div v-for="(stat, index) in stats" :key="index" class="brand-stat">
-              <span class="brand-stat-value">{{ stat.value }}</span>
-              <span class="brand-stat-label">{{ stat.label }}</span>
-            </div>
-          </div>
-        </div>
+        <div class="brand-footer">© 2026 客户运营中台 · 企业内部系统</div>
       </div>
 
-      <!-- 右侧登录表单 -->
+      <!-- 右侧登录表单区 -->
       <div class="login-form-panel">
         <div class="login-header">
-          <h2 class="login-welcome">欢迎回来</h2>
-          <p class="login-subtitle">请输入您的账号信息登录系统</p>
+          <h1 class="login-welcome">欢迎回来</h1>
+          <p class="login-subtitle">请登录您的账号以继续使用系统</p>
         </div>
 
         <a-form ref="formRef" layout="vertical" :model="formData" @submit="handleSubmit">
           <a-form-item
             field="username"
             label="账号"
-            :rules="[{ required: true, message: '请输入用户名' }]"
+            :rules="[{ required: true, message: '请输入用户名或邮箱' }]"
           >
             <a-input
               v-model="formData.username"
-              placeholder="请输入用户名/邮箱"
+              placeholder="请输入用户名或邮箱"
               size="large"
               :disabled="loading"
               allow-clear
-            >
-              <template #prefix>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  fill="currentColor"
-                  viewBox="0 0 16 16"
-                >
-                  <path
-                    d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4Zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10Z"
-                  />
-                </svg>
-              </template>
-            </a-input>
+              @keydown.enter="handleEnter"
+            />
           </a-form-item>
 
           <a-form-item
@@ -111,21 +108,8 @@
               placeholder="请输入密码"
               size="large"
               :disabled="loading"
-            >
-              <template #prefix>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  fill="currentColor"
-                  viewBox="0 0 16 16"
-                >
-                  <path
-                    d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2Zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM5 8v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8H5Z"
-                  />
-                </svg>
-              </template>
-            </a-input-password>
+              @keydown.enter="handleEnter"
+            />
           </a-form-item>
 
           <div class="login-options">
@@ -135,21 +119,46 @@
             >
           </div>
 
-          <a-form-item>
-            <a-button
-              type="primary"
-              html-type="submit"
-              size="large"
-              long
-              :loading="loading"
-              class="login-submit-btn"
+          <button type="submit" class="login-submit-btn" :disabled="loading">
+            <a-spin v-if="loading" size="small" style="margin-right: 8px" />
+            <span>{{ loading ? '登录中...' : '登录' }}</span>
+            <svg
+              v-if="!loading"
+              class="btn-arrow"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
             >
-              登 录
-            </a-button>
-          </a-form-item>
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
         </a-form>
 
-        <div class="login-footer">还没有账号？<a href="#">联系管理员</a></div>
+        <div class="divider"><span>或</span></div>
+
+        <button type="button" class="btn-sso" @click="handleSSO">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span>使用企业 SSO 登录</span>
+        </button>
+
+        <div class="login-footer">
+          还没有账号？<a href="#" @click.prevent="contactAdmin">联系管理员开通</a>
+        </div>
       </div>
     </div>
 
@@ -202,14 +211,6 @@ import { handleError } from '@/utils/errorHandler'
 const router = useRouter()
 const userStore = useUserStore()
 
-const features = ['RBAC 权限模型 + 自定义角色', '客户信息与画像统一管理', '多维度数据分析与洞察']
-
-const stats = [
-  { value: '99.9%', label: '系统可用性' },
-  { value: '500+', label: '企业客户' },
-  { value: '24/7', label: '技术支持' },
-]
-
 const formRef = ref<FormInstance>()
 const formData = reactive({
   username: '',
@@ -228,14 +229,18 @@ const forgotForm = reactive({
 })
 const forgotLoading = ref(false)
 
+const handleEnter = (e: KeyboardEvent) => {
+  // 输入法组合输入过程中不触发登录
+  if (e.isComposing) return
+  handleSubmit()
+}
+
 const handleSubmit = async () => {
-  // 先进行表单验证
   if (!formRef.value) return
 
   try {
     await formRef.value.validate()
-  } catch (error) {
-    // 验证失败，不继续提交
+  } catch {
     return
   }
 
@@ -244,7 +249,6 @@ const handleSubmit = async () => {
   try {
     const res = await api.post('/auth/login', formData)
 
-    // 记住我功能：保存或移除用户名
     if (formData.remember) {
       localStorage.setItem('remembered_username', formData.username)
     } else {
@@ -263,7 +267,14 @@ const handleSubmit = async () => {
   }
 }
 
-// 页面加载时恢复记住的用户名
+const handleSSO = () => {
+  Message.info('企业 SSO 登录功能开发中')
+}
+
+const contactAdmin = () => {
+  Message.info('请联系系统管理员开通账号')
+}
+
 onMounted(() => {
   const rememberedUsername = localStorage.getItem('remembered_username')
   if (rememberedUsername) {
@@ -272,13 +283,12 @@ onMounted(() => {
   }
 })
 
-// 忘记密码处理
 const handleForgotPassword = async () => {
   if (!forgotFormRef.value) return
 
   try {
     await forgotFormRef.value.validate()
-  } catch (error) {
+  } catch {
     return
   }
 
@@ -286,11 +296,8 @@ const handleForgotPassword = async () => {
 
   try {
     await api.post('/auth/forgot-password', forgotForm)
-
     Message.success('密码重置链接已发送到您的邮箱，请查收')
     forgotPasswordVisible.value = false
-
-    // 重置表单
     forgotForm.username = ''
     forgotForm.email = ''
   } catch (error) {
@@ -302,126 +309,55 @@ const handleForgotPassword = async () => {
 </script>
 
 <style scoped>
-/* CSS 变量 */
+/* ==========================================
+   设计令牌 — 对齐 prototype/css/login.css
+   ========================================== */
 .login-container {
-  --primary-1: #e8f3ff;
-  --primary-5: #3296f7;
-  --primary-6: #0369a1;
-  --primary-7: #035a8a;
-  --neutral-1: #f7f8fa;
-  --neutral-3: #e0e2e7;
-  --neutral-5: #8f959e;
-  --neutral-6: #646a73;
-  --neutral-7: #4c5360;
-  --neutral-9: #2f3645;
-  --neutral-10: #1d2330;
-  --bg-deep: #0f172a;
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #dbe3ef;
+  --primary: #1d4ed8;
+  --primary-hover: #2563eb;
+  --shadow: 0 14px 40px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --radius: 18px;
+  --radius-sm: 12px;
 }
 
 .login-container {
-  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--bg-deep) 0%, #1e293b 50%, #0f172a 100%);
-  overflow: hidden;
+  background: var(--bg);
+  padding: 20px;
 }
 
-/* 背景动画效果 */
-.bg-gradient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.3;
-  animation: float 20s ease-in-out infinite;
-}
-
-.bg-gradient-orb-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(3, 105, 161, 0.4) 0%, transparent 70%);
-  top: -200px;
-  right: -200px;
-}
-
-.bg-gradient-orb-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
-  bottom: -150px;
-  left: -150px;
-  animation-delay: -7s;
-}
-
-.bg-gradient-orb-3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  animation-delay: -14s;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(30px, -30px) scale(1.05);
-  }
-  50% {
-    transform: translate(-20px, 20px) scale(0.95);
-  }
-  75% {
-    transform: translate(20px, 30px) scale(1.02);
-  }
-}
-
-.bg-grid-pattern {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  pointer-events: none;
-}
-
-/* 登录框 */
+/* ─── 登录框 ─── */
 .login-box {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  max-width: 1100px;
-  width: 90%;
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 24px;
+  grid-template-columns: 480px 520px;
+  max-width: 1000px;
+  width: 100%;
+  min-height: 600px;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.16);
   position: relative;
   z-index: 10;
-  animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 左侧品牌区域 */
+/* ==========================================
+   左侧品牌展示区
+   ========================================== */
 .login-brand {
-  background: linear-gradient(135deg, var(--bg-deep) 0%, #1e293b 100%);
-  padding: 64px 56px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.28), transparent 32%),
+    linear-gradient(180deg, #111c33 0%, #0b1220 100%);
+  color: #cbd5e1;
+  padding: 48px 40px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -432,148 +368,160 @@ const handleForgotPassword = async () => {
 .login-brand::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  opacity: 0.5;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 60%);
+  animation: brand-pulse 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes brand-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.brand-header {
+  position: relative;
+  z-index: 1;
 }
 
 .brand-logo {
   display: flex;
   align-items: center;
-  gap: 16px;
-  position: relative;
-  z-index: 1;
+  gap: 14px;
 }
 
-.brand-logo-icon {
+.brand-mark {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
-  border-radius: 12px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 900;
+  font-size: 20px;
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.34);
+  flex-shrink: 0;
+}
+
+.brand-identity {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 16px rgba(3, 105, 161, 0.4);
-}
-
-.brand-logo-icon svg {
-  width: 28px;
-  height: 28px;
-  color: white;
-}
-
-.brand-logo-text {
-  font-size: 24px;
-  font-weight: 700;
-  color: white;
-  letter-spacing: -0.5px;
-}
-
-.brand-content {
-  position: relative;
-  z-index: 1;
+  flex-direction: column;
 }
 
 .brand-title {
-  font-size: 36px;
-  font-weight: 700;
   color: white;
+  font-size: 24px;
+  font-weight: 850;
   line-height: 1.2;
-  margin-bottom: 16px;
 }
 
 .brand-subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.6;
-  margin-bottom: 32px;
+  color: #94a3b8;
+  font-size: 13px;
+  margin-top: 4px;
 }
 
-.brand-features {
+/* ─── 品牌内容（特性卡片）─── */
+.brand-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: center;
+  gap: 32px;
 }
 
-.brand-feature {
+.feature-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
+  gap: 16px;
+  align-items: flex-start;
 }
 
-.brand-feature-icon {
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.15);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.feature-icon svg {
   width: 20px;
   height: 20px;
-  background: rgba(3, 105, 161, 0.3);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  stroke: #3b82f6;
+  fill: none;
+  stroke-width: 2;
 }
 
-.brand-feature-icon svg {
-  width: 12px;
-  height: 12px;
-  color: var(--primary-1);
+.feature-text h3 {
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.feature-text p {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .brand-footer {
   position: relative;
   z-index: 1;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
 }
 
-.brand-stats {
-  display: flex;
-  gap: 32px;
-}
-
-.brand-stat {
-  text-align: left;
-}
-
-.brand-stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: white;
-  display: block;
-}
-
-.brand-stat-label {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-top: 4px;
-  display: block;
-}
-
-/* 右侧表单区域 */
+/* ==========================================
+   右侧登录表单区
+   ========================================== */
 .login-form-panel {
-  padding: 64px 56px;
-  background: white;
+  padding: 48px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--panel);
 }
 
 .login-header {
-  margin-bottom: 40px;
+  margin-bottom: 36px;
 }
 
 .login-welcome {
   font-size: 28px;
-  font-weight: 700;
-  color: var(--neutral-10);
-  margin-bottom: 8px;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 8px;
 }
 
 .login-subtitle {
-  font-size: 15px;
-  color: var(--neutral-6);
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
 }
 
-/* 表单样式 */
+/* ─── Arco 表单覆盖 ─── */
 :deep(.arco-form) {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 :deep(.arco-form-item) {
@@ -581,115 +529,220 @@ const handleForgotPassword = async () => {
 }
 
 :deep(.arco-form-item-label) {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--neutral-9);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
+:deep(.arco-input-wrapper),
 :deep(.arco-input-inner-wrapper) {
-  border-radius: 12px;
-  border: 1.5px solid var(--neutral-3);
-  height: 48px;
-  transition: all var(--transition-base);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  height: 46px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
+:deep(.arco-input-wrapper:hover),
 :deep(.arco-input-inner-wrapper:hover) {
-  border-color: var(--primary-5);
+  border-color: var(--primary);
 }
 
+:deep(.arco-input-focus .arco-input-wrapper),
 :deep(.arco-input-inner-wrapper:focus-within) {
-  border-color: var(--primary-6);
-  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
 }
 
 :deep(.arco-input) {
-  font-size: 15px;
+  font-size: 14px;
 }
 
-:deep(.arco-input-prefix) {
-  color: var(--neutral-5);
-  margin-right: 12px;
-}
-
+/* ─── 表单选项（记住我 / 忘记密码）─── */
 .login-options {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 4px;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-top: -4px;
 }
 
 :deep(.arco-checkbox) {
-  font-size: 14px;
-  color: var(--neutral-7);
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .login-forgot {
-  font-size: 14px;
-  color: var(--primary-6);
+  color: var(--primary);
   text-decoration: none;
   font-weight: 500;
-  transition: color var(--transition-fast);
+  transition: color 0.2s ease;
 }
 
 .login-forgot:hover {
-  color: var(--primary-7);
+  color: var(--primary-hover);
 }
 
+/* ─── 主登录按钮 ─── */
 .login-submit-btn {
-  height: 48px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  background: linear-gradient(135deg, var(--primary-5) 0%, var(--primary-6) 100%);
-  color: white;
+  width: 100%;
+  padding: 13px 20px;
   border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-stack);
+  color: white;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.25);
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.3);
-  transition: all var(--transition-base);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.45;
+  height: 46px;
 }
 
-.login-submit-btn:hover {
-  background: linear-gradient(135deg, var(--primary-6) 0%, var(--primary-7) 100%);
-  box-shadow: 0 6px 20px rgba(3, 105, 161, 0.4);
+.login-submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(29, 78, 216, 0.35);
 }
 
-.login-submit-btn:active {
+.login-submit-btn:active:not(:disabled) {
   transform: translateY(0);
 }
 
+.login-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* 箭头图标：hover 位移效果 */
+.btn-arrow {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.login-submit-btn:hover:not(:disabled) .btn-arrow {
+  transform: translateX(3px);
+}
+
+/* ─── 分隔线 ─── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 12px 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ─── SSO 按钮 ─── */
+.btn-sso {
+  width: 100%;
+  padding: 13px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-stack);
+  color: var(--ink);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.btn-sso:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.btn-sso:active {
+  transform: scale(0.98);
+}
+
+/* ─── 登录底部 ─── */
 .login-footer {
   margin-top: 32px;
   text-align: center;
-  font-size: 14px;
-  color: var(--neutral-6);
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .login-footer a {
-  color: var(--primary-6);
+  color: var(--primary);
   text-decoration: none;
   font-weight: 500;
+  transition: color 0.2s ease;
+  cursor: pointer;
 }
 
 .login-footer a:hover {
-  text-decoration: underline;
+  color: var(--primary-hover);
 }
 
-/* 响应式 */
-@media (max-width: 900px) {
+/* ==========================================
+   响应式
+   ========================================== */
+@media (max-width: 960px) {
   .login-box {
     grid-template-columns: 1fr;
-    max-width: 500px;
+    max-width: 520px;
   }
 
   .login-brand {
+    padding: 32px 28px;
+    min-height: 240px;
+  }
+
+  .brand-content {
+    gap: 20px;
+  }
+
+  .feature-item:nth-child(n + 3) {
     display: none;
   }
 
+  .brand-header .brand-logo {
+    margin-bottom: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-container {
+    padding: 0;
+  }
+
+  .login-box {
+    border-radius: 0;
+    min-height: 100vh;
+    max-width: 100%;
+  }
+
   .login-form-panel {
-    padding: 48px 32px;
+    padding: 32px 24px;
+  }
+
+  .login-brand {
+    padding: 28px 24px;
+    min-height: 200px;
   }
 }
 </style>

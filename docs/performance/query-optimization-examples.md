@@ -15,13 +15,13 @@
 def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     from datetime import timedelta
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
+
     # 查询 1: 所有有消耗记录的客户
     has_usage_stmt = select(func.distinct(ConsumptionRecord.customer_id))
     all_customers_with_usage = set(
         row[0] for row in self.db.execute(has_usage_stmt).all()
     )
-    
+
     # 查询 2: 最近有消耗的客户
     recent_usage_stmt = select(func.distinct(ConsumptionRecord.customer_id)).where(
         ConsumptionRecord.created_at >= cutoff_date
@@ -29,13 +29,13 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     recent_customers = set(
         row[0] for row in self.db.execute(recent_usage_stmt).all()
     )
-    
+
     # Python 集合操作
     inactive_customer_ids = all_customers_with_usage - recent_customers
-    
+
     if not inactive_customer_ids:
         return []
-    
+
     # 查询 3: 获取客户详情
     stmt = (
         select(
@@ -53,7 +53,7 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
         )
         .outerjoin(User, Customer.manager_id == User.id)
     )
-    
+
     result = self.db.execute(stmt).all()
     return [...]
 ```
@@ -64,19 +64,19 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
 # ✅ 优化后 - 单次查询
 def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
     """获取长期未消耗客户列表（优化版）
-    
+
     使用子查询替代 Python 集合操作，避免 IN 列表过长问题
     """
     from datetime import timedelta
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
+
     # 子查询：最近有消耗的客户
     recent_customer_subq = (
         select(func.distinct(ConsumptionRecord.customer_id))
         .where(ConsumptionRecord.created_at >= cutoff_date)
         .subquery()
     )
-    
+
     # 主查询：有消耗记录但最近无消耗的客户
     stmt = (
         select(
@@ -103,7 +103,7 @@ def get_inactive_customers(self, days: int = 90) -> List[Dict[str, Any]]:
         )
         .distinct()  # 避免重复
     )
-    
+
     result = self.db.execute(stmt).all()
     return [
         {
@@ -129,19 +129,19 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
     # 查询 1
     active_stmt = select(func.count(func.distinct(ConsumptionRecord.customer_id)))
     active_count = self.db.execute(active_stmt).scalar() or 0
-    
+
     # 查询 2
     total_stmt = select(func.count(Customer.id)).where(
         Customer.deleted_at.is_(None)
     )
     total_count = self.db.execute(total_stmt).scalar() or 0
-    
+
     # 查询 3
     warning_stmt = select(func.count(CustomerBalance.id)).where(
         CustomerBalance.total_amount < 1000
     )
     warning_count = self.db.execute(warning_stmt).scalar() or 0
-    
+
     # 查询 4-6: 流失风险客户 (更复杂)
     ...
 ```
@@ -152,12 +152,12 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
 # ✅ 优化后 - 单次聚合查询
 def get_customer_health_stats(self) -> Dict[str, Any]:
     """获取客户健康度统计（优化版）
-    
+
     使用 CASE 表达式和聚合函数，将 6 次查询合并为 1 次
     """
     from datetime import timedelta
     ninety_days_ago = datetime.utcnow() - timedelta(days=90)
-    
+
     # 子查询：每个客户最近消耗时间
     last_consumption_subq = (
         select(
@@ -167,7 +167,7 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
         .group_by(ConsumptionRecord.customer_id)
         .subquery()
     )
-    
+
     # 主查询：使用 CASE 表达式计算所有统计
     stmt = select(
         func.count(Customer.id).label("total_count"),
@@ -197,12 +197,12 @@ def get_customer_health_stats(self) -> Dict[str, Any]:
     ).where(
         Customer.deleted_at.is_(None)
     )
-    
+
     result = self.db.execute(stmt).first()
-    
+
     total_count = result.total_count or 0
     active_count = result.active_count or 0
-    
+
     return {
         "total_customers": total_count,
         "active_customers": active_count,
@@ -246,12 +246,12 @@ async def get_all_customers(
     cursor: Optional[int] = None,  # 最后一条记录的 ID
 ) -> Tuple[List[Customer], Optional[int], bool]:
     """获取客户列表（游标分页版）
-    
+
     Args:
         page_size: 每页数量
         filters: 筛选条件字典
         cursor: 游标（上一页最后一条记录的 ID）
-    
+
     Returns:
         (customers, next_cursor, has_next)
         - customers: 客户列表
@@ -259,7 +259,7 @@ async def get_all_customers(
         - has_next: 是否有下一页
     """
     stmt = select(Customer).where(Customer.deleted_at.is_(None))
-    
+
     # 应用筛选条件
     if filters:
         conditions = []
@@ -274,31 +274,31 @@ async def get_all_customers(
         # ... 其他筛选条件
         if conditions:
             stmt = stmt.where(and_(*conditions))
-    
+
     # 游标过滤：只获取 ID 小于游标的记录
     if cursor:
         stmt = stmt.where(Customer.id < cursor)
-    
+
     # 按 ID 降序，多取 1 条用于判断是否有下一页
     stmt = stmt.order_by(Customer.id.desc()).limit(page_size + 1)
-    
+
     # 添加 eager loading
     stmt = stmt.options(
         selectinload(Customer.profile),
         selectinload(Customer.balance),
     )
-    
+
     result = await self.db.execute(stmt)
     customers = list(result.scalars().all())
-    
+
     # 判断是否有下一页
     has_next = len(customers) > page_size
     if has_next:
         customers = customers[:-1]  # 移除多取的记录
-    
+
     # 计算下一页游标
     next_cursor = customers[-1].id if customers else None
-    
+
     return customers, next_cursor, has_next
 ```
 
@@ -309,7 +309,7 @@ async def get_all_customers(
 @customers_bp.get("")
 async def list_customers(request: Request):
     """获取客户列表（游标分页）
-    
+
     Query:
     - cursor: 游标（上一页最后一条记录的 ID）
     - page_size: 每页数量（默认 20，最大 100）
@@ -319,22 +319,22 @@ async def list_customers(request: Request):
     cursor = request.args.get("cursor", type=int)
     page_size = int(request.args.get("page_size", 20))
     page_size = min(page_size, 100)
-    
+
     # 构建筛选条件
     filters = {...}
-    
+
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
-    
+
     customers, next_cursor, has_next = await service.get_all_customers(
         page_size=page_size,
         filters=filters,
         cursor=cursor,
     )
-    
+
     # 构建上一页游标（可选，需要额外查询）
     prev_cursor = customers[0].id if customers and cursor else None
-    
+
     return json({
         "data": [...],
         "pagination": {
@@ -359,36 +359,36 @@ async def get_recharge_records(
     cursor: Optional[str] = None,  # ISO 8601 时间戳
 ) -> Tuple[List[RechargeRecord], Optional[str], bool]:
     """获取充值记录列表（游标分页版）
-    
+
     Args:
         customer_id: 客户 ID
         page_size: 每页数量
         cursor: 游标（上一页最后一条记录的 created_at）
-    
+
     Returns:
         (records, next_cursor, has_next)
     """
     stmt = select(RechargeRecord).where(RechargeRecord.deleted_at.is_(None))
-    
+
     if customer_id:
         stmt = stmt.where(RechargeRecord.customer_id == customer_id)
-    
+
     # 游标过滤
     if cursor:
         stmt = stmt.where(RechargeRecord.created_at < cursor)
-    
+
     # 按 created_at 降序
     stmt = stmt.order_by(RechargeRecord.created_at.desc()).limit(page_size + 1)
-    
+
     result = await self.db.execute(stmt)
     records = list(result.scalars().all())
-    
+
     has_next = len(records) > page_size
     if has_next:
         records = records[:-1]
-    
+
     next_cursor = records[-1].created_at.isoformat() if records else None
-    
+
     return records, next_cursor, has_next
 ```
 
@@ -406,11 +406,11 @@ def get_payment_analysis(
     self, start_date: date, end_date: date, customer_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """获取回款分析数据（优化版）
-    
+
     使用 CTE 将 2 次查询合并为 1 次
     """
     from sqlalchemy import literal_column
-    
+
     # CTE 1: 结算金额统计
     invoice_cte = (
         select(
@@ -428,7 +428,7 @@ def get_payment_analysis(
     )
     if customer_id:
         invoice_cte = invoice_cte.where(Invoice.customer_id == customer_id)
-    
+
     # CTE 2: 回款金额统计
     payment_cte = (
         select(
@@ -443,15 +443,15 @@ def get_payment_analysis(
     )
     if customer_id:
         payment_cte = payment_cte.where(RechargeRecord.customer_id == customer_id)
-    
+
     # 交叉连接获取所有数据
     stmt = select(invoice_cte, payment_cte)
     result = self.db.execute(stmt).first()
-    
+
     total_invoiced = float(result.total_invoiced or 0)
     total_final = float(result.total_final or 0)
     total_paid = float(result.total_paid or 0)
-    
+
     return {
         "total_invoiced": total_invoiced,
         "total_discount": float(result.total_discount or 0),
@@ -472,7 +472,7 @@ def get_payment_analysis(
 # ✅ 优化后 - 合并为 3 次查询
 def get_dashboard_stats(self) -> Dict[str, Any]:
     """获取仪表盘统计数据（优化版）
-    
+
     将 8 次查询合并为 3 次
     """
     today = datetime.utcnow()
@@ -480,7 +480,7 @@ def get_dashboard_stats(self) -> Dict[str, Any]:
     current_month_end = date(
         today.year, today.month, monthrange(today.year, today.month)[1]
     )
-    
+
     # 查询 1: 客户统计
     customer_stmt = select(
         func.count(Customer.id).label("total"),
@@ -489,7 +489,7 @@ def get_dashboard_stats(self) -> Dict[str, Any]:
         ).label("key_count"),
     ).where(Customer.deleted_at.is_(None))
     customer_result = self.db.execute(customer_stmt).first()
-    
+
     # 查询 2: 余额统计
     balance_stmt = select(
         func.sum(CustomerBalance.total_amount).label("total_balance"),
@@ -497,7 +497,7 @@ def get_dashboard_stats(self) -> Dict[str, Any]:
         func.sum(CustomerBalance.bonus_amount).label("bonus_balance"),
     )
     balance_result = self.db.execute(balance_stmt).first()
-    
+
     # 查询 3: 结算单统计
     invoice_stmt = select(
         func.count(Invoice.id).label("month_count"),
@@ -516,7 +516,7 @@ def get_dashboard_stats(self) -> Dict[str, Any]:
         ).label("month_consumption"),
     ).where(Invoice.deleted_at.is_(None))
     invoice_result = self.db.execute(invoice_stmt).first()
-    
+
     return {
         "total_customers": customer_result.total or 0,
         "key_customers": customer_result.key_count or 0,
@@ -549,7 +549,7 @@ async def _apply_dynamic_filter(
     self, conditions: Optional[Dict[str, Any]], page: int, page_size: int
 ) -> Tuple[List[Customer], int]:
     """应用动态筛选条件（优化版）
-    
+
     只查询需要的列，减少网络传输
     """
     # 只选择列表展示需要的列
@@ -564,20 +564,20 @@ async def _apply_dynamic_filter(
         Customer.is_key_customer,
         Customer.created_at,
     ).where(and_(*filters), Customer.deleted_at.is_(None))
-    
+
     # 总数查询
     count_stmt = select(func.count(Customer.id)).where(
         and_(*filters), Customer.deleted_at.is_(None)
     )
     total = (await self.db.execute(count_stmt)).scalar() or 0
-    
+
     # 分页排序
     stmt = stmt.order_by(Customer.created_at.desc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    
+
     result = await self.db.execute(stmt)
     customers = result.all()  # 注意：返回的是 Row 对象，不是 Customer 实体
-    
+
     # 转换为字典列表
     return [
         {
@@ -655,7 +655,7 @@ pg_stat_statements.max = 10000
 
 ```sql
 -- 查看最慢的 10 个查询
-SELECT 
+SELECT
     query,
     calls,
     total_exec_time,
@@ -670,7 +670,7 @@ LIMIT 10;
 
 ```sql
 -- 查看索引使用统计
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -683,5 +683,5 @@ ORDER BY idx_scan DESC;
 
 ---
 
-**文档版本**: 1.0  
+**文档版本**: 1.0
 **最后更新**: 2026-04-04

@@ -42,6 +42,27 @@ class SyncTaskService:
 
         # 尝试获取分布式锁
         lock_key = f"sync_lock:{start_date}:{end_date}"
+
+        # 先检查数据库中是否有相同日期范围的活跃任务（pending/running）
+        # 如果没有活跃任务但 Redis 锁仍然存在（任务已 failed/cancelled/completed 但锁未释放），
+        # 则清理过期锁后再获取新锁
+        active_task_result = await self.db.execute(
+            select(SyncTask).where(
+                SyncTask.start_date == start_date,
+                SyncTask.end_date == end_date,
+                SyncTask.status.in_(["pending", "running"]),
+            )
+        )
+        active_tasks = active_task_result.scalars().all()
+
+        if active_tasks:
+            # 确实有活跃任务，拒绝创建
+            raise Exception("已有相同周期的同步任务正在执行")
+
+        # 没有活跃任务，清理可能存在的过期锁
+        await self.redis_client.delete(lock_key)
+
+        # 获取新锁
         lock_acquired = await self.redis_client.set(
             lock_key,
             "1",
@@ -49,6 +70,7 @@ class SyncTaskService:
             ex=1800,  # 30分钟TTL
         )
         if not lock_acquired:
+            # 极端情况：并发竞争，锁刚被其他请求获取
             raise Exception("已有相同周期的同步任务正在执行")
 
         try:
@@ -254,9 +276,9 @@ class SyncTaskService:
     async def cancel_task(self, task_id: UUID) -> bool:
         """取消同步任务
 
-        - pending: 后台执行尚未开始，立即标记为 cancelled
+        - pending: 后台执行尚未开始，立即标记为 cancelled 并释放锁
         - running: 后台执行进行中，设置 Redis 取消标志 + 立即更新状态为 cancelled，
-          执行循环检测到标志后会跳过剩余天数
+          执行循环检测到标志后会跳过剩余天数，锁由 execute_task 的 finally 块释放
         """
         task = await self.db.get(SyncTask, task_id)
         if not task:
@@ -264,6 +286,8 @@ class SyncTaskService:
 
         if task.status not in ["pending", "running"]:
             raise ValueError(f"任务状态为 {task.status}，无法取消")
+
+        original_status = task.status  # 记录原始状态，用于决定是否主动释放锁
 
         # 设置 Redis 取消标志，供 execute_task 循环检测
         cancel_key = f"sync_cancel:{task_id}"
@@ -276,6 +300,17 @@ class SyncTaskService:
 
         # 更新 Redis 进度缓存
         await self._update_redis_progress(task)
+
+        # 如果任务原来是 pending 状态（execute_task 尚未启动或尚未执行到 finally 块），
+        # 主动释放分布式锁，避免锁残留导致无法重新创建相同日期范围的任务。
+        # running 状态的任务锁由 execute_task 的 finally 块负责释放。
+        if original_status == "pending":
+            lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
+            try:
+                await self.redis_client.delete(lock_key)
+                logger.info(f"[{task_id}] 已释放分布式锁 {lock_key}（pending 任务取消）")
+            except Exception as e:
+                logger.warning(f"[{task_id}] 释放锁失败，将等待自动过期: {e}")
 
         return True
 

@@ -4,7 +4,7 @@
     title="批量设置等级"
     width="480px"
     :confirm-loading="loading"
-    @confirm="handleConfirm"
+    @ok="handleConfirm"
     @cancel="emit('update:visible', false)"
   >
     <a-form layout="vertical">

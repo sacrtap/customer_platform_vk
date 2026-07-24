@@ -8,23 +8,45 @@
   >
     <a-form ref="formRef" :model="form" layout="vertical">
       <a-form-item field="customer_id" label="客户" required>
-        <CustomerAutoComplete v-model="form.customer_id" placeholder="请输入客户名称搜索" width="100%" />
+        <CustomerAutoComplete
+          v-model="form.customer_id"
+          :display-name="currentDisplayName"
+          placeholder="请输入客户名称搜索"
+          width="100%"
+        />
       </a-form-item>
       <a-form-item field="real_amount" label="充值金额" required>
-        <a-input-number v-model="form.real_amount" placeholder="请输入充值金额（负数表示扣减）" style="width: 100%" :precision="2" :step="100" />
+        <a-input-number
+          v-model="form.real_amount"
+          placeholder="请输入充值金额（负数表示扣减）"
+          style="width: 100%"
+          :precision="2"
+          :step="100"
+        />
       </a-form-item>
       <a-form-item field="bonus_amount" label="赠送金额">
-        <a-input-number v-model="form.bonus_amount" placeholder="请输入赠送金额（负数表示扣减）" style="width: 100%" :precision="2" :step="100" />
+        <a-input-number
+          v-model="form.bonus_amount"
+          placeholder="请输入赠送金额（负数表示扣减）"
+          style="width: 100%"
+          :precision="2"
+          :step="100"
+        />
       </a-form-item>
       <a-form-item field="remark" label="备注">
-        <a-textarea v-model="form.remark" placeholder="请输入备注" :max-length="200" show-word-limit />
+        <a-textarea
+          v-model="form.remark"
+          placeholder="请输入备注"
+          :max-length="200"
+          show-word-limit
+        />
       </a-form-item>
     </a-form>
   </a-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { recharge as rechargeApi } from '@/api/billing'
@@ -33,6 +55,8 @@ import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 const props = defineProps<{
   visible: boolean
+  customerId?: number
+  customerName?: string
 }>()
 
 const emit = defineEmits<{
@@ -48,12 +72,30 @@ const isVisible = computed({
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
+const currentDisplayName = ref('')
+
 const form = reactive({
   customer_id: undefined as number | undefined,
   real_amount: null as number | null,
   bonus_amount: null as number | null,
   remark: '',
 })
+
+// 当弹窗打开时，预设客户信息
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      if (props.customerId) {
+        form.customer_id = props.customerId
+        currentDisplayName.value = props.customerName || ''
+      } else {
+        form.customer_id = undefined
+        currentDisplayName.value = ''
+      }
+    }
+  }
+)
 
 const handleSubmit = async () => {
   if (!form.customer_id) {

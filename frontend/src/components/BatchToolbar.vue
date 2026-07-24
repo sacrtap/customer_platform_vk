@@ -1,8 +1,8 @@
 <template>
   <div class="batch-toolbar">
-    <a-tag color="arcoblue" size="large">
-      已选择 {{ count }} 条
-    </a-tag>
+    <span class="batch-count"
+      >已选择 <b>{{ count }}</b> 项</span
+    >
     <slot />
   </div>
 </template>
@@ -17,12 +17,19 @@ defineProps<{
 <style scoped>
 .batch-toolbar {
   margin-bottom: 16px;
-  padding: 12px 16px;
-  background: rgba(29, 78, 216, .06);
-  border: 1px solid rgba(29, 78, 216, .15);
+  padding: 10px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+}
+
+.batch-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-right: auto;
 }
 </style>

@@ -1,7 +1,7 @@
 # Sentry 错误追踪集成方案
 
-**项目**: 客户运营中台 (customer_platform_vk)  
-**创建日期**: 2026-04-04  
+**项目**: 客户运营中台 (customer_platform_vk)
+**创建日期**: 2026-04-04
 **状态**: 待实施
 
 ---
@@ -61,16 +61,16 @@ def init_sentry():
             ],
             # 性能监控配置
             traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-            
+
             # 错误追踪配置
             sample_rate=settings.SENTRY_ERRORS_SAMPLE_RATE,
-            
+
             # 环境配置
             environment=settings.SENTRY_ENVIRONMENT,
-            
+
             # 发布版本追踪
             release=f"customer-platform@{settings.APP_VERSION}",
-            
+
             # 敏感数据过滤
             before_send=before_send_handler,
         )
@@ -86,19 +86,19 @@ def before_send_handler(event, hint):
             for field in sensitive_fields:
                 if field in request_data['data']:
                     request_data['data'][field] = '[FILTERED]'
-    
+
     return event
 
 # 在 create_app() 中调用
 def create_app():
     app = Sanic("customer_platform")
-    
+
     # 初始化 Sentry (生产环境)
     if settings.APP_ENV == "production":
         init_sentry()
-    
+
     # ... 其他配置
-    
+
     return app
 ```
 
@@ -115,10 +115,10 @@ logger = logging.getLogger(__name__)
 
 async def exception_middleware(request, exception):
     """全局异常中间件"""
-    
+
     # 记录到 Sentry
     sentry_sdk.capture_exception(exception)
-    
+
     # 记录日志
     logger.error(
         f"未处理异常 | 路径：{request.path} | 错误：{str(exception)}",
@@ -128,7 +128,7 @@ async def exception_middleware(request, exception):
             "request_id": getattr(request.ctx, "request_id", None),
         }
     )
-    
+
     # 返回友好错误
     return json(
         {
@@ -151,30 +151,30 @@ from sanic.response import json
 
 async def performance_middleware(request, call_next):
     """性能监控中间件"""
-    
+
     # 开始事务
     transaction = sentry_sdk.start_transaction(
         name=request.path,
         op="http.server",
         sampled=True,
     )
-    
+
     start_time = time.time()
-    
+
     try:
         response = await call_next(request)
-        
+
         # 记录响应状态
         transaction.set_status("ok" if response.status < 400 else "error")
         transaction.set_data("response.status", response.status)
-        
+
         return response
-        
+
     except Exception as e:
         transaction.set_status("internal_error")
         transaction.set_data("error", str(e))
         raise
-        
+
     finally:
         # 记录响应时间
         duration = time.time() - start_time
@@ -217,26 +217,26 @@ if (import.meta.env.PROD) {
         tracingOrigins: ['localhost', /^\//],
       }),
     ],
-    
+
     // 性能监控
     tracesSampleRate: 0.1,
-    
+
     // 错误采样
     sampleRate: 1.0,
-    
+
     // 环境配置
     environment: import.meta.env.VITE_APP_ENV,
-    
+
     // 发布版本
     release: `customer-platform@${import.meta.env.PACKAGE_VERSION}`,
-    
+
     // 忽略特定错误
     ignoreErrors: [
       'NetworkError',
       'Request aborted',
       /Loading chunk \d+ failed/,
     ],
-    
+
     //  beforeSend 过滤敏感数据
     beforeSend(event, hint) {
       // 过滤用户敏感信息
@@ -250,7 +250,7 @@ if (import.meta.env.PROD) {
       }
       return event
     },
-    
+
     // 设置用户上下文
     beforeSendTransaction(event) {
       const userStore = useUserStore()
@@ -360,7 +360,7 @@ async def generate_invoice(invoice_id):
             parent=transaction,
         ):
             invoice_data = await fetch_invoice(invoice_id)
-        
+
         # 子事务：PDF 生成
         with start_transaction(
             name="generate_pdf",
@@ -368,7 +368,7 @@ async def generate_invoice(invoice_id):
             parent=transaction,
         ):
             pdf = await create_pdf(invoice_data)
-        
+
         return pdf
 ```
 
@@ -424,13 +424,13 @@ def set_user_context(user):
 SENSITIVE_FIELDS = [
     # 认证信息
     'password', 'token', 'api_key', 'secret', 'access_token',
-    
+
     # 个人信息
     'id_card', 'phone', 'email', 'address',
-    
+
     # 财务信息
     'bank_account', 'credit_card', 'balance',
-    
+
     # 系统信息
     'private_key', 'encryption_key', 'jwt_secret',
 ]
@@ -468,6 +468,6 @@ SENSITIVE_FIELDS = [
 
 ---
 
-**预计实施时间**: 1-2 天  
-**负责人**: 后端开发团队  
+**预计实施时间**: 1-2 天
+**负责人**: 后端开发团队
 **审核状态**: 待审核

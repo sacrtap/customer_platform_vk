@@ -2,7 +2,7 @@
   <a-modal
     v-model:visible="localVisible"
     title="自定义列"
-    @confirm="handleConfirm"
+    @ok="handleConfirm"
     @cancel="emit('update:visible', false)"
   >
     <p class="hint">选择要在表格中显示的列</p>
@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import CheckboxArray from '@/components/ui/CheckboxArray.vue'
 
 const props = defineProps<{
@@ -32,10 +32,20 @@ const localVisible = computed({
 
 const columnOptions = computed(() => props.columns.map((c) => ({ label: c.title, value: c.key })))
 
-const selectedColumns = ref([...props.modelValue])
+const selectedColumns = ref<string[]>([...props.modelValue])
+
+// 每次弹窗打开时，用最新的 modelValue 同步内部状态
+watch(
+  () => props.visible,
+  (visible) => {
+    if (visible) {
+      selectedColumns.value = [...props.modelValue]
+    }
+  }
+)
 
 const handleConfirm = () => {
-  emit('update:modelValue', selectedColumns.value)
+  emit('update:modelValue', [...selectedColumns.value])
   emit('update:visible', false)
 }
 </script>

@@ -14,7 +14,7 @@
   padding: 24px;
   border-radius: 16px;
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   margin-bottom: 24px;
 }
 </style>

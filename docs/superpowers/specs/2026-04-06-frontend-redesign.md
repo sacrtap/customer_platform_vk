@@ -1,7 +1,7 @@
 # 前端重构设计规范
 
-**日期**: 2026-04-06  
-**范围**: 所有前端页面基于已确认的设计规范和原型进行重构  
+**日期**: 2026-04-06
+**范围**: 所有前端页面基于已确认的设计规范和原型进行重构
 **技术栈**: Vue 3.4 + TypeScript + Arco Design 2.54
 
 ---
@@ -11,7 +11,7 @@
 1. **主设计规范**: `docs/design/DESIGN-SPEC.md`
 2. **快速参考**: `docs/design/QUICK-REFERENCE.md`
 3. **设计系统**: `docs/design-system/customer-platform-vk/MASTER.md`
-4. **原型参考**: 
+4. **原型参考**:
    - `docs/prototypes/login.html`
    - `docs/prototypes/dashboard.html`
 
@@ -217,8 +217,8 @@ const RADIUS = {
 ### 按钮组件
 ```vue
 <template>
-  <a-button 
-    :type="type" 
+  <a-button
+    :type="type"
     :size="size"
     :loading="loading"
     :disabled="disabled"
@@ -378,7 +378,7 @@ const BREAKPOINTS = {
   .sidebar {
     transform: translateX(-100%);
   }
-  
+
   .stats-grid {
     grid-template-columns: 1fr;
   }

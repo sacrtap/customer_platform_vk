@@ -31,28 +31,49 @@ defineProps<{
   margin-bottom: 14px;
 }
 .sync-status-bar.ok {
-  background: rgba(16, 185, 129, .08);
+  background: linear-gradient(90deg, #ecfdf5, #f0fdf4);
+  border: 1px solid #bbf7d0;
   color: #059669;
 }
 .sync-status-bar.warning {
-  background: rgba(245, 158, 11, .08);
-  color: #D97706;
+  background: linear-gradient(90deg, #fffbeb, #fef3c7);
+  border: 1px solid #fde68a;
+  color: #d97706;
 }
 .sync-status-bar.syncing {
-  background: rgba(29, 78, 216, .08);
-  color: #1D4ED8;
+  background: linear-gradient(90deg, #eff6ff, #dbeafe);
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
 }
 .pulse-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: currentColor;
-  animation: pulse 2s ease-in-out infinite;
+  position: relative;
   flex-shrink: 0;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: pulse 1.5s infinite;
 }
-.sync-text { flex: 1; }
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
 </style>

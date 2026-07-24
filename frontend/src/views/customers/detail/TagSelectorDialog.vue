@@ -46,8 +46,8 @@ const selectedTagIds = ref<number[]>([])
 
 const availableTags = computed(() => {
   const customerTags = props.customerTags ?? []
-  const customerTagIds = new Set(customerTags.map(t => t.id))
-  return (props.allTags ?? []).filter(t => !customerTagIds.has(t.id))
+  const customerTagIds = new Set(customerTags.map((t) => t.id))
+  return (props.allTags ?? []).filter((t) => !customerTagIds.has(t.id))
 })
 
 const handleAddTag = () => {

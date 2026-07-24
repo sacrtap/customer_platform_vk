@@ -11,21 +11,21 @@
 <style scoped>
 .table-section {
   background: white;
-  border-radius: 16px;
+  border-radius: var(--radius);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
 
 /* Arco 表格表头样式覆盖 — 对齐 design.md 4.3 */
 :deep(.arco-table-th) {
-  background-color: var(--bg) !important;
+  background-color: #f8fafc !important;
   color: #334155 !important;
   font-weight: 600 !important;
   font-size: 12px !important;
 }
 
 :deep(.arco-table-tr:hover .arco-table-td) {
-  background-color: #F8FBFF !important;
+  background-color: #f8fbff !important;
 }
 </style>

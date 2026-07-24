@@ -1,7 +1,6 @@
 <template>
   <div class="health-analysis-page">
-    <PageHeader eyebrow="Analytics" title="健康度分析"
-      subtitle="客户活跃度监控与风险预警" />
+    <PageHeader eyebrow="Analytics" title="健康度分析" subtitle="客户活跃度监控与风险预警" />
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -9,7 +8,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%)"
+            style="background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +57,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #D97706 0%, #B45309 100%)"
+            style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -82,7 +81,7 @@
         <div class="stat-header">
           <div
             class="stat-icon"
-            style="background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)"
+            style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -240,7 +239,7 @@ const warningPagination = reactive({
 
 // 未消耗客户列表
 const inactiveList = ref<InactiveCustomer[]>([])
-const inactiveDays = ref(90)
+const inactiveDays = ref(30)
 const inactivePagination = reactive({
   current: 1,
   pageSize: 10,
@@ -260,6 +259,7 @@ const warningColumns = [
   },
   { title: '实充余额', dataIndex: 'real_amount', width: 100 },
   { title: '赠送余额', dataIndex: 'bonus_amount', width: 100 },
+  { title: '运营经理', dataIndex: 'manager_name', width: 100 },
   { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
 ]
 
@@ -281,7 +281,7 @@ const inactiveColumns = [
 const loadHealthStats = async () => {
   loading.value = true
   try {
-    const res = await getHealthStats()
+    const res = await getHealthStats({ force_refresh: true })
     const data = res.data || {}
     totalCustomers.value = data.total_customers || 0
     activeCustomers.value = data.active_customers || 0
@@ -300,7 +300,7 @@ const loadHealthStats = async () => {
 const loadWarningList = async () => {
   loading.value = true
   try {
-    const res = await getWarningList({ threshold: 1000 })
+    const res = await getWarningList({ threshold: 1000, force_refresh: true })
     warningList.value = res.data || []
     warningPagination.total = warningList.value.length
   } catch (error: unknown) {
@@ -314,7 +314,7 @@ const loadWarningList = async () => {
 const loadInactiveList = async () => {
   loading.value = true
   try {
-    const res = await getInactiveList({ days: inactiveDays.value })
+    const res = await getInactiveList({ days: inactiveDays.value, force_refresh: true })
     inactiveList.value = (res.data || []).map((item: InactiveCustomer) => ({
       ...item,
       days_inactive: item.days || 0,
@@ -468,7 +468,7 @@ onMounted(() => {
 
 /* 表头样式 */
 .table-section :deep(.arco-table-th) {
-  background: #F8FAFC;
+  background: #f8fafc;
   color: #334155;
   font-size: 12px;
   font-weight: 600;

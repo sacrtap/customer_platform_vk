@@ -16,17 +16,28 @@ from ..repository import CustomerRepositoryProtocol
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
 # 允许排序的字段白名单
+# Customer 表原生字段
 ALLOWED_SORT_FIELDS = {
     "id",
     "company_id",
     "name",
+    "account_type",
     "created_at",
     "updated_at",
+    "settlement_type",
+    "manager_id",
+    "sales_manager_id",
+    "is_key_customer",
+    # CustomerProfile 表字段（需 JOIN）
     "industry_type_id",
-    "settlement_type",  # 结算方式 (Customer 表)
-    "manager_id",  # 运营经理 (Customer 表)
-    "sales_manager_id",  # 商务经理 (Customer 表)
-    "is_key_customer",  # 重点客户 (Customer 表)
+    "industry",
+    "scale_level",
+    "consume_level",
+    # CustomerBalance 表字段（需 JOIN）
+    "balance",
+    # 占位字段（无实际 DB 列，排序时退化为按 id 排序）
+    "usage_30d",
+    "health",
 }
 VALID_SORT_ORDERS = {"asc", "desc"}
 
@@ -273,6 +284,29 @@ class CustomerService:
         if (is_real_estate := filters.get("is_real_estate")) is not None:
             conditions.append(Customer.is_real_estate == is_real_estate)
 
+        # 待完善画像：缺少规模等级或消费等级的客户
+        if filters.get("incomplete_profile"):
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            conditions.append(
+                or_(
+                    CustomerProfile.scale_level.is_(None),
+                    CustomerProfile.scale_level == "",
+                    CustomerProfile.consume_level.is_(None),
+                    CustomerProfile.consume_level == "",
+                )
+            )
+
+        # 我的客户：运营经理或销售经理为当前用户
+        if mine_user_id := filters.get("mine_user_id"):
+            conditions.append(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
@@ -289,11 +323,49 @@ class CustomerService:
         if sort_order not in VALID_SORT_ORDERS:
             raise ValueError(f"Invalid sort order: {sort_order}")
 
-        # 动态排序
-        if sort_by == "industry_type_id":
+        # 动态排序：根据字段名决定 JOIN 和排序列
+
+        if sort_by in ("industry_type_id", "industry"):
             if not joined_profile:
                 stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
             sort_column = CustomerProfile.industry_type_id
+        elif sort_by == "scale_level":
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            sort_column = CustomerProfile.scale_level
+        elif sort_by == "consume_level":
+            if not joined_profile:
+                stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+                joined_profile = True
+            sort_column = CustomerProfile.consume_level
+        elif sort_by == "balance":
+            from ..models.billing import CustomerBalance
+
+            stmt = stmt.outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
+            sort_column = CustomerBalance.total_amount
+        elif sort_by == "usage_30d":
+            # 按近30天订单数排序：JOIN DailyConsumption 聚合子查询
+            from datetime import timedelta
+
+            from ..models.daily_consumption import DailyConsumption
+
+            thirty_days_ago = date.today() - timedelta(days=30)
+            usage_subquery = (
+                select(
+                    DailyConsumption.customer_id,
+                    func.coalesce(func.sum(DailyConsumption.order_count), 0).label("usage_30d_sum"),
+                )
+                .where(DailyConsumption.consumption_date >= thirty_days_ago)
+                .group_by(DailyConsumption.customer_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(usage_subquery, Customer.id == usage_subquery.c.customer_id)
+            sort_column = func.coalesce(usage_subquery.c.usage_30d_sum, 0)
+        elif sort_by == "health":
+            # 占位字段：无实际 DB 列，退化为按 id 排序
+            sort_column = Customer.id
         else:
             sort_column = getattr(Customer, sort_by)
 
@@ -325,9 +397,11 @@ class CustomerService:
             account_type=data.get("account_type"),
             price_policy=data.get("price_policy"),
             manager_id=data.get("manager_id"),
+            sales_manager_id=data.get("sales_manager_id"),
             settlement_cycle=data.get("settlement_cycle"),
             settlement_type=data.get("settlement_type"),
             is_key_customer=data.get("is_key_customer", False),
+            is_real_estate=data.get("is_real_estate"),
             email=data.get("email"),
         )
 

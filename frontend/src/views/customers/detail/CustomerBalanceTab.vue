@@ -82,13 +82,13 @@ defineProps<{
 }
 
 .balance-card {
-  background: linear-gradient(135deg, #ffffff 0%, var(--neutral-1) 100%);
-  padding: var(--space-lg, 20px) var(--space-md, 16px);
-  border-radius: var(--radius-lg, 12px);
+  background: linear-gradient(135deg, #ffffff 0%, var(--bg) 100%);
+  padding: var(--spacing-xl, 20px) var(--spacing-lg, 16px);
+  border-radius: var(--radius-lg);
   text-align: center;
-  border: 1px solid var(--neutral-2);
-  box-shadow: var(--shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.04));
-  transition: all var(--transition-base, 250ms) cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
   min-height: 110px;
   display: flex;
   flex-direction: column;
@@ -104,9 +104,9 @@ defineProps<{
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(3, 105, 161, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(29, 78, 216, 0.1) 0%, transparent 70%);
   opacity: 0;
-  transition: opacity var(--transition-base, 250ms) ease-out;
+  transition: opacity var(--transition-base);
   pointer-events: none;
 }
 
@@ -117,18 +117,18 @@ defineProps<{
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--primary-6), #0ea5e9, var(--primary-6));
+  background: linear-gradient(90deg, var(--primary), var(--cyan), var(--primary));
   transform: scaleX(0);
-  transition: transform var(--transition-base, 250ms) ease-out;
-  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
+  transition: transform var(--transition-base);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .balance-card:hover {
   transform: translateY(-6px) scale(1.02);
   box-shadow:
-    0 20px 40px rgba(3, 105, 161, 0.2),
+    0 20px 40px rgba(29, 78, 216, 0.2),
     0 8px 16px rgba(0, 0, 0, 0.1);
-  border-color: var(--primary-6);
+  border-color: var(--primary);
   background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
 }
 
@@ -142,7 +142,7 @@ defineProps<{
 
 .balance-label {
   font-size: 13px;
-  color: var(--neutral-6);
+  color: var(--muted);
   margin-bottom: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -152,23 +152,23 @@ defineProps<{
 .balance-value {
   font-size: 32px;
   font-weight: 700;
-  color: var(--neutral-10);
+  color: var(--ink);
   line-height: 1.2;
 }
 
 .balance-value.real {
-  color: var(--primary-6);
+  color: var(--primary);
 }
 
 .balance-value.bonus {
-  color: var(--success-color);
+  color: var(--green);
 }
 
 /* 余额趋势区域 */
 .balance-trend-section {
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid var(--neutral-2);
+  border-top: 1px solid var(--line);
   width: 100%;
   box-sizing: border-box;
   min-height: 400px;

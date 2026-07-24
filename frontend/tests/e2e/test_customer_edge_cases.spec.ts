@@ -18,7 +18,7 @@ import {
 
 /**
  * 客户管理边界/异常 E2E 测试
- * 
+ *
  * 测试用例（9 个）：
  * 1. 创建客户 - 超长公司名称
  * 2. 创建客户 - 超长公司 ID
@@ -55,10 +55,10 @@ test.describe('客户管理边界/异常场景', () => {
     const longName = '测试客户_' + 'A'.repeat(200);
     const companyId = generateTestCompanyId('超长名称');
 
-    await page.locator('button:has-text("新建客户")').first().click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    await fillFormField(page, '公司 ID', companyId);
+    await fillFormField(page, '公司 ID', String(companyId));
 
     // 填写超长名称
     const nameInput = page.locator('.arco-modal input[placeholder*="客户名称"], .arco-modal input').nth(1);
@@ -82,7 +82,7 @@ test.describe('客户管理边界/异常场景', () => {
 
     // 如果创建了，清理
     if (successVisible) {
-      const customers = await apiGetCustomers(authToken, { keyword: companyId });
+      const customers = await apiGetCustomers(authToken, { keyword: String(companyId) });
       if (customers.data?.items?.length > 0) {
         createdIds.push(customers.data.items[0].id);
       }
@@ -94,7 +94,7 @@ test.describe('客户管理边界/异常场景', () => {
   test('2. 创建客户 - 超长公司 ID', async ({ page }) => {
     const longCompanyId = 'TEST_' + 'B'.repeat(100);
 
-    await page.locator('button:has-text("新建客户")').first().click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
     await fillFormField(page, '公司 ID', longCompanyId);
@@ -126,10 +126,10 @@ test.describe('客户管理边界/异常场景', () => {
     const specialName = '测试客户<script>alert("xss")</script>';
     const companyId = generateTestCompanyId('特殊字符');
 
-    await page.locator('button:has-text("新建客户")').first().click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    await fillFormField(page, '公司 ID', companyId);
+    await fillFormField(page, '公司 ID', String(companyId));
 
     const nameInput = page.locator('.arco-modal input[placeholder*="客户名称"], .arco-modal input').nth(1);
     await nameInput.fill(specialName);
@@ -142,7 +142,7 @@ test.describe('客户管理边界/异常场景', () => {
     const successVisible = await successMsg.first().isVisible({ timeout: 3000 }).catch(() => false);
 
     if (successVisible) {
-      const customers = await apiGetCustomers(authToken, { keyword: companyId });
+      const customers = await apiGetCustomers(authToken, { keyword: String(companyId) });
       if (customers.data?.items?.length > 0) {
         createdIds.push(customers.data.items[0].id);
       }
@@ -157,7 +157,7 @@ test.describe('客户管理边界/异常场景', () => {
 
   test('4. 快速连续创建（防抖/竞态）', async ({ page }) => {
     // 验证：点击新建按钮能正常打开弹窗
-    const createBtn = page.locator('button:has-text("新建客户")').first();
+    const createBtn = page.locator('button:has-text("新增客户")').first();
     await createBtn.click();
     await page.waitForTimeout(1000);
 
@@ -201,7 +201,7 @@ test.describe('客户管理边界/异常场景', () => {
 
         // 验证表格仍然正常加载
         await waitForTableLoaded(page);
-        const rows = await page.locator('.arco-table tbody tr').count();
+        const rows = await page.locator('.table-section tbody tr, table tbody tr').count();
         expect(rows).toBeGreaterThanOrEqual(0);
       }
     }
@@ -231,7 +231,7 @@ test.describe('客户管理边界/异常场景', () => {
 
     // 验证页面恢复
     await expect(page).toHaveURL('/customers');
-    const rows = await page.locator('.arco-table tbody tr').count();
+    const rows = await page.locator('.table-section tbody tr, table tbody tr').count();
     expect(rows).toBeGreaterThanOrEqual(0);
   });
 
@@ -256,12 +256,12 @@ test.describe('客户管理边界/异常场景', () => {
     // 搜索一个确定不存在的关键字
     const searchInput = page.locator('input[placeholder*="关键词"], input[placeholder*="搜索"], .arco-input-wrapper input').first();
     await searchInput.fill('NONEXISTENT_EDGE_TEST_999999');
-    await page.locator('button:has-text("查询")').first().click();
+    await page.locator('button:has-text("筛选")').first().click();
     await waitForTableLoaded(page);
     await page.waitForTimeout(1000);
 
     // 验证搜索结果为空（检查表格中是否有匹配的行）
-    const matchingRows = page.locator('.arco-table tbody tr', { hasText: 'NONEXISTENT_EDGE_TEST_999999' });
+    const matchingRows = page.locator('.table-section tbody tr, table tbody tr', { hasText: 'NONEXISTENT_EDGE_TEST_999999' });
     const matchCount = await matchingRows.count();
     expect(matchCount).toBe(0);
 

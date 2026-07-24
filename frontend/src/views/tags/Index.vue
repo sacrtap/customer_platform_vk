@@ -1,7 +1,6 @@
 <template>
   <div class="tag-management-page">
-    <PageHeader eyebrow="System" title="标签管理"
-      subtitle="自定义标签分类与管理">
+    <PageHeader eyebrow="System" title="标签管理" subtitle="自定义标签分类与管理">
       <template #actions>
         <a-button v-if="can('tags:create')" type="primary" @click="handleCreate">新建标签</a-button>
       </template>

@@ -387,7 +387,7 @@ const openEditModal = () => {
     Message.warning('客户画像数据加载中，请稍后编辑')
     return
   }
-  
+
   editForm.value = {
     company_id: customer.value.company_id || '',  // 新增
     name: customer.value.name || '',

@@ -277,7 +277,7 @@ frontend/src/views/billing/components/
 
 ```
 frontend/src/views/Dashboard.vue        1689行 → ~250行
-frontend/src/views/billing/Balance.vue  1373行 → ~280行  
+frontend/src/views/billing/Balance.vue  1373行 → ~280行
 frontend/src/views/billing/Invoices.vue 1037行 → ~280行
 ```
 
