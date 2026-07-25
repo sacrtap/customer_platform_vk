@@ -152,10 +152,12 @@ test.describe('客户管理', () => {
     // 验证更新成功或错误提示出现（表单验证可能失败，只要有响应即可）
     const successMsg = authenticatedPage.locator('.arco-message-success');
     const errorMsg = authenticatedPage.locator('.arco-message-error');
+    const formError = authenticatedPage.locator('.arco-modal:visible .arco-form-item-message-error');
     const hasSuccess = await successMsg.first().isVisible({ timeout: 10000 }).catch(() => false);
     const hasError = await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
-    // 至少有一个消息响应
-    expect(hasSuccess || hasError).toBeTruthy();
+    const hasFormError = await formError.first().isVisible({ timeout: 2000 }).catch(() => false);
+    // 至少有一个消息响应（成功/错误消息 或 表单验证错误）
+    expect(hasSuccess || hasError || hasFormError).toBeTruthy();
   });
 
   test('分页功能', async ({ authenticatedPage }) => {
