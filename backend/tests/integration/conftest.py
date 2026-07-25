@@ -108,6 +108,20 @@ def sync_test_engine():
                 conn.execute(
                     text("ALTER TABLE invoices ADD COLUMN discount_applied_at VARCHAR(50)")
                 )
+            if "customer_confirmed_by" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN customer_confirmed_by INTEGER"))
+            if "completed_by" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN completed_by INTEGER"))
+            if "cancelled_by" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_by INTEGER"))
+            if "ops_confirmed_by" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN ops_confirmed_by INTEGER"))
+            if "ops_confirmed_at" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN ops_confirmed_at VARCHAR(50)"))
+            if "sales_confirmed_by" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN sales_confirmed_by INTEGER"))
+            if "sales_confirmed_at" not in columns:
+                conn.execute(text("ALTER TABLE invoices ADD COLUMN sales_confirmed_at VARCHAR(50)"))
         # 确保 customers.is_real_estate 列存在
         if "customers" in tables:
             columns = [col["name"] for col in inspector.get_columns("customers")]

@@ -586,7 +586,11 @@ async def test_prediction_monthly_success(test_client, auth_token, mock_cache):
     assert data["code"] == 0
     assert data["message"] == "success"
     assert "data" in data
-    assert isinstance(data["data"], list)
+    # API 返回格式已变更：data 是包含 predictions 和 summary 的 dict
+    assert isinstance(data["data"], dict)
+    assert "predictions" in data["data"]
+    assert "summary" in data["data"]
+    assert isinstance(data["data"]["predictions"], list)
 
 
 @pytest.mark.asyncio

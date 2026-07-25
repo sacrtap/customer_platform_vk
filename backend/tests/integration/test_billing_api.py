@@ -932,7 +932,11 @@ async def test_generate_invoice_empty_items(test_client, auth_token, test_custom
 
 @pytest.mark.asyncio
 async def test_invoice_workflow_full(test_client, auth_token, test_customer_with_balance):
-    """测试结算单完整工作流：生成 -> 提交 -> 确认 -> 付款 -> 完成"""
+    """测试结算单完整工作流：生成 -> 提交 -> 确认（自动扣款 -> 完成）
+
+    新流程中 confirm 步骤会自动执行余额扣款，成功后直接进入 completed 状态，
+    不再需要单独的 pay 和 complete 步骤。
+    """
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer_with_balance["id"]
 
@@ -957,7 +961,7 @@ async def test_invoice_workflow_full(test_client, auth_token, test_customer_with
     assert gen_res.status == 201
     invoice_id = gen_res.json["data"]["id"]
 
-    # 2. 提交结算单
+    # 2. 提交结算单（无 manager_id 时回退到 pending_customer）
     submit_req, submit_res = await test_client.post(
         f"/api/v1/billing/invoices/{invoice_id}/submit",
         headers=headers,
@@ -965,7 +969,7 @@ async def test_invoice_workflow_full(test_client, auth_token, test_customer_with
     assert submit_res.status == 200
     assert submit_res.json["code"] == 0
 
-    # 3. 确认结算单
+    # 3. 确认结算单（自动扣款 -> completed）
     confirm_req, confirm_res = await test_client.post(
         f"/api/v1/billing/invoices/{invoice_id}/confirm",
         headers=headers,
@@ -973,23 +977,13 @@ async def test_invoice_workflow_full(test_client, auth_token, test_customer_with
     assert confirm_res.status == 200
     assert confirm_res.json["code"] == 0
 
-    # 4. 付款
-    pay_req, pay_res = await test_client.post(
-        f"/api/v1/billing/invoices/{invoice_id}/pay",
-        json={"payment_proof": "/uploads/proof.png"},
+    # 4. 验证最终状态为 completed（confirm 已自动完成扣款）
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
         headers=headers,
     )
-    assert pay_res.status == 200
-    assert pay_res.json["code"] == 0
-
-    # 5. 完成结算（扣款）
-    complete_req, complete_res = await test_client.post(
-        f"/api/v1/billing/invoices/{invoice_id}/complete",
-        headers=headers,
-    )
-    assert complete_res.status == 200
-    assert complete_res.json["code"] == 0
-    assert complete_res.json["message"] == "结算完成"
+    assert detail_res.status == 200
+    assert detail_res.json["data"]["status"] == "completed"
 
 
 @pytest.mark.asyncio
@@ -1337,10 +1331,14 @@ async def test_cancel_invoice_success(test_client, auth_token, test_customer):
 
 
 @pytest.mark.asyncio
-async def test_cancel_invoice_wrong_state(test_client, auth_token, test_customer):
-    """测试取消结算单 API - 错误状态"""
+async def test_cancel_invoice_wrong_state(test_client, auth_token, test_customer_with_balance):
+    """测试取消结算单 API - 错误状态
+
+    新流程中 confirm 步骤会自动扣款并进入 completed 状态，
+    completed 状态不可取消，因此 cancel 应返回 400。
+    """
     headers = {"Authorization": f"Bearer {auth_token}"}
-    customer_id = test_customer["id"]
+    customer_id = test_customer_with_balance["id"]
 
     # 生成结算单
     gen_req, gen_res = await test_client.post(
@@ -1362,7 +1360,7 @@ async def test_cancel_invoice_wrong_state(test_client, auth_token, test_customer
     )
     invoice_id = gen_res.json["data"]["id"]
 
-    # 提交并确认，使其进入 customer_confirmed 状态
+    # 提交并确认（confirm 自动扣款 -> completed）
     submit_req, submit_res = await test_client.post(
         f"/api/v1/billing/invoices/{invoice_id}/submit",
         headers=headers,
@@ -1375,12 +1373,12 @@ async def test_cancel_invoice_wrong_state(test_client, auth_token, test_customer
     )
     assert confirm_res.status == 200, f"Confirm failed: {confirm_res.json}"
 
-    # 验证状态已变为 customer_confirmed
+    # 验证状态已变为 completed（confirm 自动完成扣款）
     detail_req, detail_res = await test_client.get(
         f"/api/v1/billing/invoices/{invoice_id}",
         headers=headers,
     )
-    assert detail_res.json["data"]["status"] == "customer_confirmed"
+    assert detail_res.json["data"]["status"] == "completed"
 
     # 尝试取消（应该失败）
     cancel_req, cancel_res = await test_client.post(
