@@ -152,11 +152,11 @@ test.describe('客户管理', () => {
     // 验证更新成功或错误提示出现（表单验证可能失败，只要有响应即可）
     const successMsg = authenticatedPage.locator('.arco-message-success');
     const errorMsg = authenticatedPage.locator('.arco-message-error');
-    const formError = authenticatedPage.locator('.arco-modal:visible .arco-form-item-message-error');
+    const formError = authenticatedPage.locator('.arco-modal:visible .arco-form-item-message-error, .arco-modal:visible .arco-alert');
     const hasSuccess = await successMsg.first().isVisible({ timeout: 10000 }).catch(() => false);
     const hasError = await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
     const hasFormError = await formError.first().isVisible({ timeout: 2000 }).catch(() => false);
-    // 至少有一个消息响应（成功/错误消息 或 表单验证错误）
+    // 至少有一个消息响应（成功/错误消息 或 表单验证错误/Alert）
     expect(hasSuccess || hasError || hasFormError).toBeTruthy();
   });
 

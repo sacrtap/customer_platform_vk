@@ -31,9 +31,6 @@ import {
  * 9. 会话超时处理
  */
 test.describe('客户管理边界/异常场景', () => {
-  // CI 环境下 uiLogin + 页面加载较慢，需要更多超时时间
-  test.use({ timeout: 120000 });
-
   let authToken: string;
   let createdIds: number[] = [];
 
@@ -46,8 +43,6 @@ test.describe('客户管理边界/异常场景', () => {
     await uiLogin(page);
     await page.goto('/customers');
     await waitForTableLoaded(page);
-    // 等待“新增客户”按钮可见，确保页面完全渲染
-    await page.locator('button:has-text("新增客户")').first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
   });
 
   test.afterEach(async () => {
@@ -59,16 +54,14 @@ test.describe('客户管理边界/异常场景', () => {
   test('1. 创建客户 - 超长客户名称', async ({ page }) => {
     const longName = '测试客户_' + 'A'.repeat(200);
 
-    const createBtn = page.locator('button:has-text("新增客户")').first();
-    await createBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createBtn.click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
     // 重构后的 AddCustomerModal 没有“公司 ID”字段，直接填写“客户名称”
     await fillFormField(page, '客户名称', longName);
 
-    // 提交
-    await page.locator('.arco-modal button:has-text("确定")').first().click();
+    // 提交 — 必须用 :visible 限定，避免匹配到隐藏的 EditCustomerDialog
+    await page.locator('.arco-modal:visible button:has-text("确定")').first().click();
 
     // 等待处理
     await page.waitForTimeout(2000);
@@ -98,14 +91,12 @@ test.describe('客户管理边界/异常场景', () => {
     // 重构后没有“公司 ID”字段，改为测试超长客户名称
     const longName = 'TEST_' + 'B'.repeat(100);
 
-    const createBtn = page.locator('button:has-text("新增客户")').first();
-    await createBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createBtn.click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
     await fillFormField(page, '客户名称', longName);
 
-    await page.locator('.arco-modal button:has-text("确定")').first().click();
+    await page.locator('.arco-modal:visible button:has-text("确定")').first().click();
     await page.waitForTimeout(2000);
 
     // 验证：要么成功，要么长度限制错误
@@ -130,15 +121,13 @@ test.describe('客户管理边界/异常场景', () => {
   test('3. 创建客户 - 特殊字符', async ({ page }) => {
     const specialName = '测试客户<script>alert("xss")</script>';
 
-    const createBtn = page.locator('button:has-text("新增客户")').first();
-    await createBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createBtn.click();
+    await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
     // 重构后的 AddCustomerModal 没有“公司 ID”字段，直接填写“客户名称”
     await fillFormField(page, '客户名称', specialName);
 
-    await page.locator('.arco-modal button:has-text("确定")').first().click();
+    await page.locator('.arco-modal:visible button:has-text("确定")').first().click();
     await page.waitForTimeout(2000);
 
     // 验证响应
@@ -161,15 +150,11 @@ test.describe('客户管理边界/异常场景', () => {
 
   test('4. 快速连续创建（防抖/竞态）', async ({ page }) => {
     // 验证：点击新建按钮能正常打开弹窗
-    const createBtn = page.locator('button:has-text("新增客户")').first();
-    await createBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await createBtn.click();
+    await page.locator('button:has-text("新增客户")').first().click();
+    await waitForModal(page);
 
-    // 等待弹窗打开
-    await waitForModal(page, 10000);
-
-    // 验证弹窗打开（Arco Modal 的确定/取消按钮）
-    const modalBtn = page.locator('.arco-modal-footer button:has-text("确定"), .arco-modal button:has-text("确定")');
+    // 验证弹窗打开（必须用 :visible 限定，避免匹配到隐藏的弹窗）
+    const modalBtn = page.locator('.arco-modal:visible button:has-text("确定")');
     const hasModalContent = await modalBtn.first().isVisible({ timeout: 5000 }).catch(() => false);
     expect(hasModalContent).toBeTruthy();
   });
