@@ -144,7 +144,7 @@ def sync_test_engine():
 
 
 @pytest.fixture(scope="session")
-def test_user(sync_test_engine, worker_id):
+def test_user(sync_test_engine):
     """Session 级测试用户，只在测试会话开始时创建一次
 
     优化说明：
@@ -403,17 +403,13 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
 
     yield app_instance
 
-    # 清理异步引擎：先 dispose 关闭所有已知连接，再 GC 清理残留
-    import asyncio
-    import gc
-    import warnings
-
+    # 清理异步引擎：dispose 关闭连接池中所有连接
+    # 注：移除 gc.collect() 和 asyncio.sleep —— 它们在 CI 上每个测试额外耗时 3-5s
+    # dispose() 已足够关闭数据库连接，残留的 Python 对象由引用计数自动回收
     await async_engine.dispose()
-    await asyncio.sleep(0.05)
-    # gc.collect 可能触发残留连接的 SAWarning，临时抑制
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        gc.collect()
+
+    # 从 Sanic 注册表中移除已销毁的 app 实例，防止内存累积
+    Sanic._app_registry.pop(unique_app_name, None)
 
 
 @pytest.fixture(scope="function")
