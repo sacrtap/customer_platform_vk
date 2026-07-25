@@ -53,11 +53,13 @@ test.describe('客户管理边界/异常场景', () => {
 
   test('1. 创建客户 - 超长客户名称', async ({ page }) => {
     const longName = '测试客户_' + 'A'.repeat(200);
+    const companyId = generateTestCompanyId();
 
     await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    // 重构后的 AddCustomerModal 没有“公司 ID”字段，直接填写“客户名称”
+    // 填写必填字段客户ID + 超长客户名称
+    await fillFormField(page, '客户ID', String(companyId));
     await fillFormField(page, '客户名称', longName);
 
     // 提交 — 必须用 :visible 限定，避免匹配到隐藏的 EditCustomerDialog
@@ -66,15 +68,17 @@ test.describe('客户管理边界/异常场景', () => {
     // 等待处理
     await page.waitForTimeout(2000);
 
-    // 验证：要么成功创建，要么显示长度验证错误
+    // 验证：要么成功创建，要么显示验证错误（消息 toast 或内联表单错误）
     const successMsg = page.locator('.arco-message-success');
     const errorMsg = page.locator('.arco-message-error');
+    const formError = page.locator('.arco-modal:visible .arco-form-item-message-error');
 
-    const successVisible = await successMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
+    const successVisible = await successMsg.first().isVisible({ timeout: 3000 }).catch(() => false);
     const errorVisible = await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
+    const formErrorVisible = await formError.first().isVisible({ timeout: 2000 }).catch(() => false);
 
     // 至少有一个响应
-    expect(successVisible || errorVisible).toBeTruthy();
+    expect(successVisible || errorVisible || formErrorVisible).toBeTruthy();
 
     // 如果创建了，清理
     if (successVisible) {
@@ -90,23 +94,27 @@ test.describe('客户管理边界/异常场景', () => {
   test('2. 创建客户 - 超长客户名称边界', async ({ page }) => {
     // 重构后没有“公司 ID”字段，改为测试超长客户名称
     const longName = 'TEST_' + 'B'.repeat(100);
+    const companyId = generateTestCompanyId();
 
     await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
+    await fillFormField(page, '客户ID', String(companyId));
     await fillFormField(page, '客户名称', longName);
 
     await page.locator('.arco-modal:visible button:has-text("确定")').first().click();
     await page.waitForTimeout(2000);
 
-    // 验证：要么成功，要么长度限制错误
+    // 验证：要么成功，要么验证错误（消息 toast 或内联表单错误）
     const successMsg = page.locator('.arco-message-success');
-    const errorMsg = page.locator('.arco-message-error, .arco-form-item-message-error');
+    const errorMsg = page.locator('.arco-message-error');
+    const formError = page.locator('.arco-modal:visible .arco-form-item-message-error');
 
-    const successVisible = await successMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
+    const successVisible = await successMsg.first().isVisible({ timeout: 3000 }).catch(() => false);
     const errorVisible = await errorMsg.first().isVisible({ timeout: 2000 }).catch(() => false);
+    const formErrorVisible = await formError.first().isVisible({ timeout: 2000 }).catch(() => false);
 
-    expect(successVisible || errorVisible).toBeTruthy();
+    expect(successVisible || errorVisible || formErrorVisible).toBeTruthy();
 
     if (successVisible) {
       const customers = await apiGetCustomers(authToken, { keyword: longName.substring(0, 20) });
