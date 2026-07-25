@@ -2,9 +2,10 @@
 # pre-commit-check.sh - 提交前预验证脚本
 # 对应 AGENTS.md §5 提交前完整验证清单
 # 用法：
-#   ./pre-commit-check.sh              # 后端 + 前端检查
+#   ./pre-commit-check.sh              # 后端 + 前端 + 部署配置检查
 #   ./pre-commit-check.sh --backend-only
 #   ./pre-commit-check.sh --frontend-only
+#   ./pre-commit-check.sh --no-compose     # 跳过 compose 配置验证
 
 set -e
 
@@ -32,10 +33,12 @@ warn()     { echo -e "${YELLOW}⚠️  $1${NC}"; }
 # 参数解析
 BACKEND_ONLY=false
 FRONTEND_ONLY=false
+NO_COMPOSE=false
 for arg in "$@"; do
   case $arg in
     --backend-only)  BACKEND_ONLY=true ;;
     --frontend-only) FRONTEND_ONLY=true ;;
+    --no-compose)    NO_COMPOSE=true ;;
   esac
 done
 
@@ -115,7 +118,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   cd "$FRONTEND_DIR"
 
   # 1. npm audit（非阻断）
-  echo -n "  [1/4] npm audit... "
+  echo -n "  [1/5] npm audit... "
   if npm audit --audit-level=high --quiet 2>/dev/null; then
     check_pass "npm audit 通过"
   else
@@ -123,7 +126,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 2. ESLint
-  echo -n "  [2/4] ESLint... "
+  echo -n "  [2/5] ESLint... "
   if npm run lint -- --max-warnings 0 2>&1; then
     check_pass "ESLint 通过"
   else
@@ -132,7 +135,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 3. type-check
-  echo -n "  [3/4] vue-tsc type-check... "
+  echo -n "  [3/5] vue-tsc type-check... "
   if npx vue-tsc --noEmit 2>&1 | grep -q "error TS"; then
     check_fail "TypeScript 类型检查失败"
     EXIT_CODE=1
@@ -140,8 +143,17 @@ if [ "$BACKEND_ONLY" = false ]; then
     check_pass "TypeScript 类型检查通过"
   fi
 
-  # 4. build
-  echo -n "  [4/4] npm run build... "
+  # 4. Vitest 单元测试
+  echo -n "  [4/5] Vitest unit tests... "
+  if npx vitest run --reporter=verbose 2>&1; then
+    check_pass "Vitest 单元测试通过"
+  else
+    check_fail "Vitest 单元测试失败"
+    EXIT_CODE=1
+  fi
+
+  # 5. build
+  echo -n "  [5/5] npm run build... "
   if npm run build > /dev/null 2>&1; then
     check_pass "前端构建通过"
   else
@@ -150,6 +162,58 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   cd "$ROOT_DIR"
+  echo ""
+fi
+
+# ==================== 部署配置检查 ====================
+if [ "$NO_COMPOSE" = false ]; then
+  echo -e "${BOLD}━━━ 部署配置检查 ━━━${NC}"
+
+  COMPOSE_FILE="$ROOT_DIR/deploy/docker-compose.yml"
+
+  if [ ! -f "$COMPOSE_FILE" ]; then
+    warn "未找到 deploy/docker-compose.yml，跳过 compose 配置验证"
+  else
+    # 检测可用的 compose 命令
+    COMPOSE_CMD=""
+    if command -v docker-compose &> /dev/null; then
+      COMPOSE_CMD="docker-compose"
+    elif command -v podman-compose &> /dev/null; then
+      COMPOSE_CMD="podman-compose"
+    elif docker compose version &> /dev/null 2>&1; then
+      COMPOSE_CMD="docker compose"
+    elif podman compose version &> /dev/null 2>&1; then
+      COMPOSE_CMD="podman compose"
+    fi
+
+    if [ -z "$COMPOSE_CMD" ]; then
+      warn "未检测到 docker-compose / podman-compose，跳过 compose config 验证"
+    else
+      echo -n "  [1/2] compose config... "
+      # compose config 解析 YAML + 变量插值，不需要运行容器或 daemon
+      if $COMPOSE_CMD -f "$COMPOSE_FILE" config --quiet 2>&1; then
+        check_pass "compose config 验证通过"
+      else
+        check_fail "compose config 验证失败，请检查 YAML 语法和变量插值"
+        EXIT_CODE=1
+      fi
+    fi
+
+    # 补充检查：检测 ${VAR:?...} 必填变量
+    # podman-compose 不强制此语法，但服务器上的 docker-compose 会因缺少值而报错
+    # 这些变量可能是有意设为必填的（如 JWT_SECRET），仅需提醒开发者确认 deploy.yml 中已传递
+    echo -n "  [2/2] required vars check... "
+    required_vars=$(grep -oE '\$\{[A-Za-z_][A-Za-z_0-9]*:\?' "$COMPOSE_FILE" | sed 's/\${//;s/:?//' | sort -u || true)
+    if [ -n "$required_vars" ]; then
+      warn '发现 ${VAR:?...} 必填变量，请确认 deploy.yml 中已传递:'
+      echo "$required_vars" | while read -r var; do
+        echo "         - \${${var}:?...} → 部署时必须设置，否则 docker-compose 会报错"
+      done
+    else
+      check_pass '无 ${VAR:?...} 必填变量风险'
+    fi
+  fi
+
   echo ""
 fi
 
