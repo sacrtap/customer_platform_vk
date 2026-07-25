@@ -2,16 +2,6 @@ name: Backend Integration Tests
 
 on:
   workflow_dispatch:
-    inputs:
-      workers:
-        description: "并行 worker 数量"
-        required: false
-        default: "1"
-        type: choice
-        options:
-          - "1"
-          - "2"
-          - "4"
 
 env:
   PYTHON_VERSION: "3.12"
@@ -87,7 +77,7 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest tests/integration/ -n ${{ inputs.workers }} --cov=app --cov-report=term-missing --junitxml=junit.xml
+          pytest tests/integration/ -n 1 --cov=app --cov-report=term-missing --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always()

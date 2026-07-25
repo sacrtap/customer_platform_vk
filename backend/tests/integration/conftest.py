@@ -186,13 +186,11 @@ def test_user(sync_test_engine, worker_id):
         sys.stdout.write(f"[DEBUG] test_user: 开始创建用户 {username}\n")
         sys.stdout.flush()
 
-        # 清理旧数据（使用 DELETE 而非 TRUNCATE，避免并行死锁）
-        # 按外键依赖顺序删除
-        session.execute(text("DELETE FROM user_roles"))
-        session.execute(text("DELETE FROM role_permissions"))
-        session.execute(text("DELETE FROM roles"))
-        session.execute(text("DELETE FROM permissions"))
-        session.execute(text("DELETE FROM users"))
+        # 清理旧数据（TRUNCATE CASCADE 级联清除所有引用 users/roles/permissions 的表）
+        # 解决 audit_logs 等表的外键约束阻止 DELETE FROM users 的问题
+        session.execute(
+            text("TRUNCATE user_roles, role_permissions, roles, permissions, users CASCADE")
+        )
         session.commit()
         sys.stdout.write("[DEBUG] test_user: 清理旧数据完成\n")
         sys.stdout.flush()
@@ -353,6 +351,7 @@ def db_session(sync_test_engine, test_user):
         # 注意：此清理方式不支持 pytest-xdist 并行执行（会删除其他 worker 的数据）
         # workflow 中使用 -n 1 单 worker 执行以避免竞态
         try:
+            session.execute(text("DELETE FROM profile_tags"))
             session.execute(text("DELETE FROM customer_tags"))
             session.execute(text("DELETE FROM tags"))
             session.execute(text("DELETE FROM invoice_items"))
@@ -362,10 +361,13 @@ def db_session(sync_test_engine, test_user):
             session.execute(text("DELETE FROM customer_profiles"))
             session.execute(text("DELETE FROM consumption_records"))
             session.execute(text("DELETE FROM daily_consumptions"))
+            session.execute(text("DELETE FROM daily_orders"))
             session.execute(text("DELETE FROM files"))
             session.execute(text("DELETE FROM audit_logs"))
             session.execute(text("DELETE FROM sync_task_logs"))
+            session.execute(text("DELETE FROM sync_tasks"))
             session.execute(text("DELETE FROM pricing_rules"))
+            session.execute(text("DELETE FROM package_plans"))
             session.execute(text("DELETE FROM webhook_signatures"))
             session.execute(text("DELETE FROM token_blacklist"))
             session.execute(text("DELETE FROM industry_types"))
