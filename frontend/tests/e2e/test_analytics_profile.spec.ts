@@ -33,7 +33,7 @@ test.describe('画像分析页面', () => {
     await expect(statCards.nth(0).locator('.stat-label')).toContainText('客户总数');
     await expect(statCards.nth(1).locator('.stat-label')).toContainText('行业覆盖');
     await expect(statCards.nth(2).locator('.stat-label')).toContainText('房产客户');
-    await expect(statCards.nth(3).locator('.stat-label')).toContainText('数据完整率');
+    await expect(statCards.nth(3).locator('.stat-label')).toContainText('画像覆盖率');
 
     // 验证 KPI 数值存在且非空
     for (let i = 0; i < 4; i++) {

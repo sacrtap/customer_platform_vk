@@ -53,7 +53,7 @@ docs/testing/coverage-reports/
 .tox/
 .nox/
 .hypothesis/
-frontend/tests/e2e/test_visual_regression.spec.ts-snapshots/
+# 视觉回归基线截图需要提交到仓库（CI 环境依赖）
 
 # IDE & OS
 .vscode/

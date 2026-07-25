@@ -51,18 +51,14 @@ test.describe('客户管理边界/异常场景', () => {
     }
   });
 
-  test('1. 创建客户 - 超长公司名称', async ({ page }) => {
+  test('1. 创建客户 - 超长客户名称', async ({ page }) => {
     const longName = '测试客户_' + 'A'.repeat(200);
-    const companyId = generateTestCompanyId('超长名称');
 
     await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    await fillFormField(page, '公司 ID', String(companyId));
-
-    // 填写超长名称
-    const nameInput = page.locator('.arco-modal input[placeholder*="客户名称"], .arco-modal input').nth(1);
-    await nameInput.fill(longName);
+    // 重构后的 AddCustomerModal 没有“公司 ID”字段，直接填写“客户名称”
+    await fillFormField(page, '客户名称', longName);
 
     // 提交
     await page.locator('.arco-modal button:has-text("确定")').first().click();
@@ -82,7 +78,7 @@ test.describe('客户管理边界/异常场景', () => {
 
     // 如果创建了，清理
     if (successVisible) {
-      const customers = await apiGetCustomers(authToken, { keyword: String(companyId) });
+      const customers = await apiGetCustomers(authToken, { keyword: longName.substring(0, 20) });
       if (customers.data?.items?.length > 0) {
         createdIds.push(customers.data.items[0].id);
       }
@@ -91,14 +87,14 @@ test.describe('客户管理边界/异常场景', () => {
     await closeModal(page);
   });
 
-  test('2. 创建客户 - 超长公司 ID', async ({ page }) => {
-    const longCompanyId = 'TEST_' + 'B'.repeat(100);
+  test('2. 创建客户 - 超长客户名称边界', async ({ page }) => {
+    // 重构后没有“公司 ID”字段，改为测试超长客户名称
+    const longName = 'TEST_' + 'B'.repeat(100);
 
     await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    await fillFormField(page, '公司 ID', longCompanyId);
-    await fillFormField(page, '客户名称', generateTestCustomerName('超长ID'));
+    await fillFormField(page, '客户名称', longName);
 
     await page.locator('.arco-modal button:has-text("确定")').first().click();
     await page.waitForTimeout(2000);
@@ -113,7 +109,7 @@ test.describe('客户管理边界/异常场景', () => {
     expect(successVisible || errorVisible).toBeTruthy();
 
     if (successVisible) {
-      const customers = await apiGetCustomers(authToken, { keyword: longCompanyId.substring(0, 20) });
+      const customers = await apiGetCustomers(authToken, { keyword: longName.substring(0, 20) });
       if (customers.data?.items?.length > 0) {
         createdIds.push(customers.data.items[0].id);
       }
@@ -124,15 +120,12 @@ test.describe('客户管理边界/异常场景', () => {
 
   test('3. 创建客户 - 特殊字符', async ({ page }) => {
     const specialName = '测试客户<script>alert("xss")</script>';
-    const companyId = generateTestCompanyId('特殊字符');
 
     await page.locator('button:has-text("新增客户")').first().click();
     await waitForModal(page);
 
-    await fillFormField(page, '公司 ID', String(companyId));
-
-    const nameInput = page.locator('.arco-modal input[placeholder*="客户名称"], .arco-modal input').nth(1);
-    await nameInput.fill(specialName);
+    // 重构后的 AddCustomerModal 没有“公司 ID”字段，直接填写“客户名称”
+    await fillFormField(page, '客户名称', specialName);
 
     await page.locator('.arco-modal button:has-text("确定")').first().click();
     await page.waitForTimeout(2000);
@@ -142,7 +135,7 @@ test.describe('客户管理边界/异常场景', () => {
     const successVisible = await successMsg.first().isVisible({ timeout: 3000 }).catch(() => false);
 
     if (successVisible) {
-      const customers = await apiGetCustomers(authToken, { keyword: String(companyId) });
+      const customers = await apiGetCustomers(authToken, { keyword: specialName.substring(0, 10) });
       if (customers.data?.items?.length > 0) {
         createdIds.push(customers.data.items[0].id);
       }
@@ -159,10 +152,11 @@ test.describe('客户管理边界/异常场景', () => {
     // 验证：点击新建按钮能正常打开弹窗
     const createBtn = page.locator('button:has-text("新增客户")').first();
     await createBtn.click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 
-    // 验证弹窗打开（通过检查下载模板或确定按钮）
-    const hasModalContent = await page.locator('button:has-text("确定"), button:has-text("取消")').first().isVisible({ timeout: 5000 }).catch(() => false);
+    // 验证弹窗打开（Arco Modal 的确定/取消按钮）
+    const modalBtn = page.locator('.arco-modal-footer button:has-text("确定"), .arco-modal button:has-text("确定")');
+    const hasModalContent = await modalBtn.first().isVisible({ timeout: 5000 }).catch(() => false);
     expect(hasModalContent).toBeTruthy();
   });
 

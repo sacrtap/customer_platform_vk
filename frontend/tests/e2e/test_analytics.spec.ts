@@ -100,21 +100,23 @@ test.describe('消耗分析功能', () => {
     await expect(successMsg.or(errorMsg).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('Top10客户排行切换', async ({ page }) => {
+  test('客户排行表头排序切换', async ({ page }) => {
     // 等待页面加载
     await page.waitForTimeout(2000);
 
-    // 验证Top10区域的单选框存在（使用更精确的选择器）
-    const top10Section = page.locator('h3:has-text("Top10 客户排行")').locator('..');
-    const costRadio = top10Section.locator('text=消耗金额');
-    const orderRadio = top10Section.locator('text=订单数量');
+    // 重构后不再有 Top10 单选框，改为客户排行表格的表头排序
+    const tableSection = page.locator('h3:has-text("客户排行")');
+    await expect(tableSection).toBeVisible({ timeout: 10000 });
 
-    await expect(costRadio).toBeVisible();
-    await expect(orderRadio).toBeVisible();
+    // 验证表头排序按钮存在
+    const costHeader = page.locator('th.th-sortable:has-text("结算费用")');
+    const orderHeader = page.locator('th.th-sortable:has-text("订单数量")');
+    await expect(costHeader).toBeVisible();
+    await expect(orderHeader).toBeVisible();
 
-    // 验证可以点击（不等待数据返回）
-    await orderRadio.click();
-    await costRadio.click();
+    // 验证可以点击排序
+    await orderHeader.click();
+    await costHeader.click();
   });
 
   test('消耗趋势图表切换', async ({ page }) => {
@@ -178,30 +180,29 @@ test.describe('消耗分析功能', () => {
   test('统计卡片显示', async ({ page }) => {
     await page.waitForTimeout(2000);
 
-    // 验证统计卡片存在
-    const statCards = page.locator('.stat-card');
-    await expect(statCards).toHaveCount(4);
+    // 重构后使用 KpiCard 组件（.kpi-card 类），有 5 个 KPI 卡片
+    const kpiCards = page.locator('.kpi-card');
+    await expect(kpiCards).toHaveCount(5);
 
     // 验证卡片内容
-    await expect(statCards.nth(0)).toContainText('总消耗金额');
-    await expect(statCards.nth(1)).toContainText('活跃客户数');
-    await expect(statCards.nth(2)).toContainText('日均消耗');
-    await expect(statCards.nth(3)).toContainText('Top1 客户');
+    await expect(kpiCards.nth(0).locator('.kpi-label')).toContainText('总消耗金额');
+    await expect(kpiCards.nth(1).locator('.kpi-label')).toContainText('订单总量');
+    await expect(kpiCards.nth(2).locator('.kpi-label')).toContainText('活跃客户数');
+    await expect(kpiCards.nth(3).locator('.kpi-label')).toContainText('日均消耗');
+    await expect(kpiCards.nth(4).locator('.kpi-label')).toContainText('消耗最高客户');
   });
 
   test('页面布局完整性', async ({ page }) => {
     // 验证页面标题
     await expect(page.locator('h1:has-text("消耗分析")')).toBeVisible();
 
-    // 重构后筛选区域不再使用 .filter-section 类
-    // 验证统计卡片区域
-    await expect(page.locator('.stats-grid')).toBeVisible();
+    // 重构后使用 .grid-5 作为 KPI 卡片容器
+    await expect(page.locator('.grid-5')).toBeVisible();
 
-    // 验证图表区域
-    await expect(page.locator('.charts-section')).toBeVisible();
+    // 验证图表区域（重构后使用 .chart-section）
+    await expect(page.locator('.chart-section')).toBeVisible();
 
-    // 验证三个图表卡片
-    const chartCards = page.locator('.chart-card');
-    await expect(chartCards).toHaveCount(3);
+    // 验证客户排行表格区域存在
+    await expect(page.locator('h3:has-text("客户排行")')).toBeVisible();
   });
 });

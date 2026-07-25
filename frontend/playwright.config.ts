@@ -16,7 +16,15 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   timeout: 60000,
-  expect: { timeout: 15000 },
+  expect: {
+    timeout: 15000,
+    toHaveScreenshot: {
+      // 视觉回归测试基线截图不区分平台，避免 macOS(darwin) 与 CI Linux 基线不匹配
+      // 搭配 maxDiffPixelRatio 容忍跨平台字体渲染差异
+      pathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{ext}',
+      maxDiffPixelRatio: 0.1,
+    },
+  },
   reporter: [
     ['html', { outputFolder: 'tests/e2e/playwright-report' }],
     ['list'],
