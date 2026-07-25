@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { shallowMount } from '@vue/test-utils'
+
+// Mock vue-router (Home.vue uses useRouter)
+vi.mock('vue-router', () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
+}))
 
 // Mock echarts before importing Home
 vi.mock('echarts', () => ({
@@ -120,13 +125,18 @@ interface HomeVM {
 }
 
 describe('Home.vue', () => {
+  // Stub Arco Design global components to prevent resolution warnings
+  const globalConfig = {
+    stubs: ['a-button', 'a-spin', 'a-doption', 'a-dropdown'],
+  }
+
   beforeEach(() => {
     localStorageMock.clear()
     vi.clearAllMocks()
   })
 
   it('should load all data in parallel on mount', async () => {
-    const wrapper = mount(Home)
+    const wrapper = shallowMount(Home, { global: globalConfig })
     const vm = wrapper.vm as unknown as HomeVM
 
     // Wait for all async operations
@@ -145,14 +155,14 @@ describe('Home.vue', () => {
 
   it('should use cache on subsequent loads', async () => {
     // First mount
-    const wrapper1 = mount(Home)
+    const wrapper1 = shallowMount(Home, { global: globalConfig })
     const vm1 = wrapper1.vm as unknown as HomeVM
     await vi.waitFor(() => {
       expect(vm1.statsLoading).toBe(false)
     })
 
     // Second mount should use cache
-    const wrapper2 = mount(Home)
+    const wrapper2 = shallowMount(Home, { global: globalConfig })
     const vm2 = wrapper2.vm as unknown as HomeVM
     await vi.waitFor(() => {
       expect(vm2.statsLoading).toBe(false)
