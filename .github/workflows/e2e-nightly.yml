@@ -84,7 +84,7 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest tests/integration/ -n auto --cov=app --cov-report=term-missing --junitxml=junit.xml
+          pytest tests/integration/ -n 1 --cov=app --cov-report=term-missing --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always()

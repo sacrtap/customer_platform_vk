@@ -334,17 +334,28 @@ def db_session(sync_test_engine, test_user):
     try:
         yield session
     finally:
-        # 并行安全清理：只删除非 fixture 管理的辅助表数据
-        # customers/customer_balances/invoices/recharge_records/pricing_rules 等
-        # 由 test_customer/test_customer_with_balance 等 fixture 的自有 cleanup 负责，
-        # 避免并行测试时一个 worker 的全局 DELETE 删除另一个 worker 刚创建的数据
-        # 导致 ForeignKeyViolationError 和 "客户余额账户不存在" 等竞态错误
+        # 测试后清理业务数据（保留 auth 数据）
+        # 按外键依赖顺序：先删叶子表，再删父表
+        # 注意：此清理方式不支持 pytest-xdist 并行执行（会删除其他 worker 的数据）
+        # workflow 中使用 -n 1 单 worker 执行以避免竞态
         try:
+            session.execute(text("DELETE FROM customer_tags"))
+            session.execute(text("DELETE FROM tags"))
+            session.execute(text("DELETE FROM invoice_items"))
+            session.execute(text("DELETE FROM invoices"))
+            session.execute(text("DELETE FROM customer_balances"))
+            session.execute(text("DELETE FROM recharge_records"))
+            session.execute(text("DELETE FROM customer_profiles"))
+            session.execute(text("DELETE FROM consumption_records"))
+            session.execute(text("DELETE FROM daily_consumptions"))
+            session.execute(text("DELETE FROM files"))
             session.execute(text("DELETE FROM audit_logs"))
             session.execute(text("DELETE FROM sync_task_logs"))
-            session.execute(text("DELETE FROM files"))
+            session.execute(text("DELETE FROM pricing_rules"))
             session.execute(text("DELETE FROM webhook_signatures"))
             session.execute(text("DELETE FROM token_blacklist"))
+            session.execute(text("DELETE FROM industry_types"))
+            session.execute(text("DELETE FROM customers"))
             session.commit()
         except Exception:
             session.rollback()
