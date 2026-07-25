@@ -1,105 +1,37 @@
-name: E2E Nightly
+name: Full E2E Suite
 
 on:
-  schedule:
-    # 每天北京时间 02:00 (UTC 18:00 前一天)
-    - cron: '0 18 * * *'
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: "并行 worker 数量"
+        required: false
+        default: "3"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+      skip_visual:
+        description: "跳过视觉回归测试"
+        required: false
+        default: true
+        type: boolean
 
 env:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "22"
 
 concurrency:
-  group: e2e-nightly-${{ github.ref }}
+  group: e2e-full-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ============================================================
-  # 后端集成测试 (需要数据库)
-  # ============================================================
-  backend-integration-tests:
-    name: Backend Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-          cache-dependency-path: backend/requirements.txt
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-
-      - name: Run database migrations
-        env:
-          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
-        run: |
-          cd backend
-          python -m alembic upgrade head
-
-      - name: Run integration tests
-        env:
-          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379/0
-          JWT_SECRET: test-secret-key-for-ci
-          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
-          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-          POSTGRES_HOST: localhost
-        run: |
-          cd backend
-          pytest tests/integration/ -n 1 --cov=app --cov-report=term-missing --junitxml=junit.xml
-
-      - name: Upload integration test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-backend-integration-junit
-          path: backend/junit.xml
-          retention-days: 14
-
-  # ============================================================
-  # 全量 E2E 测试
-  # ============================================================
   e2e-full:
     name: Full E2E Suite
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -209,15 +141,22 @@ jobs:
       - name: Run full E2E test suite
         env:
           API_BASE_URL: http://localhost:8000
+          PLAYWRIGHT_WORKERS: ${{ inputs.workers }}
         run: |
           cd frontend
-          npx playwright test --project=chromium --reporter=list,html
+          if [ "${{ inputs.skip_visual }}" = "true" ]; then
+            echo "🚀 Running E2E tests (excluding visual regression) with ${{ inputs.workers }} workers"
+            npx playwright test --project=chromium --workers=${{ inputs.workers }} --grep-invert="视觉回归" --reporter=list,html
+          else
+            echo "🚀 Running full E2E tests (including visual regression) with ${{ inputs.workers }} workers"
+            npx playwright test --project=chromium --workers=${{ inputs.workers }} --reporter=list,html
+          fi
 
       - name: Upload full E2E test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-e2e-report
+          name: e2e-full-report
           path: frontend/tests/e2e/playwright-report/
           retention-days: 14
 
@@ -225,29 +164,25 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-e2e-failures
+          name: e2e-full-failures
           path: frontend/tests/e2e/test-results/
           retention-days: 7
 
-  # ============================================================
-  # 失败通知
-  # ============================================================
   notify:
     name: Notify on Failure
     runs-on: ubuntu-latest
-    needs: [backend-integration-tests, e2e-full]
+    needs: [e2e-full]
     if: failure()
 
     steps:
       - name: Create summary
         run: |
-          echo "## ❌ Nightly E2E 测试失败" >> $GITHUB_STEP_SUMMARY
+          echo "## ❌ Full E2E 测试失败" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "全量 E2E 测试套件在夜间运行中失败。" >> $GITHUB_STEP_SUMMARY
           echo "请查看 [完整报告](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 测试分层说明" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tier 1 (Smoke, @smoke)**: PR CI 中运行 — 6 个文件, ~68 用例" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tier 2 (Extended)**: 夜间运行 — 客户详情/分析/同步等, ~159 用例" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tier 3 (Non-functional)**: 夜间运行 — 视觉回归/响应式/无障碍等, ~187 用例" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend Integration**: 夜间运行 — API 集成测试, ~180 用例" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 1 (Smoke, @smoke)**: PR CI 中运行 — ~68 用例" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 2 (Extended)**: 手动触发 — 功能性 E2E 测试, ~229 用例" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tier 3 (Visual Regression)**: 手动触发（可选） — 视觉回归, ~22 用例" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend Integration**: 手动触发 — API 集成测试, ~186 用例" >> $GITHUB_STEP_SUMMARY

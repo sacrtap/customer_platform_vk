@@ -14,7 +14,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? (parseInt(process.env.PLAYWRIGHT_WORKERS || '3') || 3) : undefined,
   timeout: 60000,
   expect: {
     timeout: 15000,
