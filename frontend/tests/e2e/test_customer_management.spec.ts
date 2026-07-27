@@ -213,8 +213,6 @@ test.describe('客户管理', () => {
   });
 
   test('编辑弹框 ERP 系统下拉选项来源为房产ERP客户', async ({ authenticatedPage }) => {
-    test.use({ actionTimeout: 15000 });
-
     await authenticatedPage.goto('/customers', { waitUntil: 'networkidle' });
     await waitForTableLoaded(authenticatedPage);
 
