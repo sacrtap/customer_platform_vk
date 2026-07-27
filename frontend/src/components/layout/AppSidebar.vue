@@ -296,6 +296,26 @@
           <span class="nav-text">行业类型</span>
         </button>
         <button
+          v-if="can('cooperation_statuses:manage')"
+          class="nav-btn"
+          :class="{ active: $route.path === '/system/cooperation-statuses' }"
+          :aria-current="$route.path === '/system/cooperation-statuses' ? 'page' : undefined"
+          @click="goTo('/system/cooperation-statuses')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg
+          ></span>
+          <span class="nav-text">合作状态</span>
+        </button>
+        <button
           v-if="can('system:database_clear')"
           class="nav-btn"
           :class="{ active: $route.path === '/system/database-management' }"
@@ -741,7 +761,7 @@ const goTo = (path: string) => {
     position: fixed;
     left: 0;
     top: 0;
-    width: 252px !important;
+    width: 189px !important;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
   }

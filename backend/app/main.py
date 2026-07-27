@@ -104,6 +104,7 @@ def create_app(
     from .routes.audit_logs import audit_logs_bp
     from .routes.auth import auth_bp
     from .routes.billing import billing_bp
+    from .routes.cooperation_status_routes import cooperation_status_bp
     from .routes.customers import customers_bp
     from .routes.database_management import database_bp
     from .routes.dict_routes import dict_bp
@@ -132,6 +133,7 @@ def create_app(
     app.blueprint(permissions_bp)
     app.blueprint(dict_bp)
     app.blueprint(industry_type_bp)
+    app.blueprint(cooperation_status_bp)
     app.blueprint(database_bp)
 
     # 创建外部 MySQL 引擎（订单同步用）

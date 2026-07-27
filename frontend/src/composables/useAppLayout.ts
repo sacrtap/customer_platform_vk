@@ -81,6 +81,12 @@ export function useAppLayout() {
             to: '/system/industry-types',
             permission: 'industry_types:manage',
           },
+          {
+            key: 'cooperation-statuses',
+            label: '合作状态',
+            to: '/system/cooperation-statuses',
+            permission: 'cooperation_statuses:manage',
+          },
         ],
       },
       {
@@ -123,6 +129,7 @@ export function useAppLayout() {
       Roles: '角色权限',
       SyncLogs: '同步日志',
       IndustryTypes: '行业类型',
+      CooperationStatuses: '合作状态',
       AuditLogs: '审计日志',
     }
     return routeMap[route.name as string] || '仪表盘'
@@ -155,7 +162,13 @@ export function useAppLayout() {
     if (submenu === 'billing') return p.startsWith('/billing')
     if (submenu === 'analytics') return p.startsWith('/analytics')
     if (submenu === 'system')
-      return p === '/tags' || p === '/users' || p === '/roles' || p === '/system/industry-types'
+      return (
+        p === '/tags' ||
+        p === '/users' ||
+        p === '/roles' ||
+        p === '/system/industry-types' ||
+        p === '/system/cooperation-statuses'
+      )
     return false
   }
   const isParentMenuActive = (menu: string): boolean =>
@@ -182,6 +195,7 @@ export function useAppLayout() {
           newPath === '/users' ||
           newPath === '/roles' ||
           newPath === '/system/industry-types' ||
+          newPath === '/system/cooperation-statuses' ||
           newPath === '/system/database-management'
         )
           expandedSubmenu.value = 'system'

@@ -13,7 +13,7 @@ test.describe('布局框架', () => {
       await page.waitForLoadState('networkidle');
     });
 
-    test('C01: .shell 使用 grid 布局，grid-template-columns = 252px 1fr', async ({ authenticatedPage: page }) => {
+    test('C01: .shell 使用 grid 布局，grid-template-columns = 189px 1fr', async ({ authenticatedPage: page }) => {
       const shellStyles = await page.evaluate(() => {
         const shell = document.querySelector('.shell');
         if (!shell) return null;
@@ -26,7 +26,7 @@ test.describe('布局框架', () => {
 
       expect(shellStyles).not.toBeNull();
       expect(shellStyles!.display).toBe('grid');
-      expect(shellStyles!.gridTemplateColumns).toContain('252px');
+      expect(shellStyles!.gridTemplateColumns).toContain('189px');
     });
 
     test('C02: 折叠态 .shell.collapsed grid-template-columns = 72px 1fr', async ({ authenticatedPage: page }) => {

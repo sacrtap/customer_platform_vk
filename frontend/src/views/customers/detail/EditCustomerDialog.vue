@@ -93,20 +93,27 @@
               </a-select>
             </a-form-item>
             <a-form-item field="erp_system" label="ERP 系统">
-              <a-select v-model="editForm.erp_system" placeholder="请选择" allow-clear>
-                <a-option value="SAP">SAP</a-option>
-                <a-option value="Oracle">Oracle</a-option>
-                <a-option value="用友">用友</a-option>
-                <a-option value="金蝶">金蝶</a-option>
-                <a-option value="自研">自研</a-option>
+              <a-select
+                v-model="editForm.erp_system"
+                placeholder="请选择"
+                allow-clear
+                allow-search
+                :loading="erpSystemsLoading"
+              >
+                <a-option v-for="erp in erpSystems" :key="erp.id" :value="erp.name">
+                  {{ erp.name }}
+                </a-option>
               </a-select>
             </a-form-item>
             <a-form-item field="cooperation_status" label="合作状态">
               <a-select v-model="editForm.cooperation_status" placeholder="请选择" allow-clear>
-                <a-option value="active">合作中</a-option>
-                <a-option value="suspended">暂停</a-option>
-                <a-option value="terminated">终止</a-option>
-                <a-option value="noused">近一年未使用</a-option>
+                <a-option
+                  v-for="status in cooperationStatuses"
+                  :key="status.id"
+                  :value="status.value"
+                >
+                  {{ status.name }}
+                </a-option>
               </a-select>
             </a-form-item>
             <a-form-item field="is_settlement_enabled" label="启用结算">
@@ -197,8 +204,15 @@
 import { reactive, ref, computed, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
-import type { IndustryType } from '@/types'
-import { getCustomer, updateCustomer, updateProfile, getIndustryTypes } from '@/api/customers'
+import type { IndustryType, CooperationStatus } from '@/types'
+import {
+  getCustomer,
+  updateCustomer,
+  updateProfile,
+  getIndustryTypes,
+  getCustomers,
+} from '@/api/customers'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 import { getManagers } from '@/api/users'
 import { handleError } from '@/utils/errorHandler'
 
@@ -222,6 +236,11 @@ const managers = ref<Array<{ id: number; real_name: string | null; username?: st
 const managersLoading = ref(false)
 const innerIndustryTypes = ref<IndustryType[]>([])
 const industryTypes = computed(() => props.industryTypes || innerIndustryTypes.value)
+const cooperationStatuses = ref<CooperationStatus[]>([])
+
+// ERP 系统选项：来源为行业类型为「房产ERP」的客户列表
+const erpSystems = ref<Array<{ id: number; name: string }>>([])
+const erpSystemsLoading = ref(false)
 
 const modalWidth = computed(() => {
   if (typeof window === 'undefined') return '960px'
@@ -317,6 +336,35 @@ const loadDictData = async () => {
       // ignore
     } finally {
       managersLoading.value = false
+    }
+  }
+  if (cooperationStatuses.value.length === 0) {
+    try {
+      const res = await getCooperationStatusesList()
+      cooperationStatuses.value = res.data?.data || res.data || []
+    } catch {
+      // ignore
+    }
+  }
+
+  // 加载 ERP 系统选项：行业类型为「房产ERP」的客户列表
+  if (erpSystems.value.length === 0) {
+    erpSystemsLoading.value = true
+    try {
+      const res = await getCustomers({
+        industry: '房产ERP',
+        page: 1,
+        page_size: 100,
+      })
+      const list = res.data?.data?.list || res.data?.list || []
+      erpSystems.value = list.map((c: { id: number; name: string }) => ({
+        id: c.id,
+        name: c.name,
+      }))
+    } catch {
+      // ignore
+    } finally {
+      erpSystemsLoading.value = false
     }
   }
 }

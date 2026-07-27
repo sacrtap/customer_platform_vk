@@ -143,7 +143,7 @@ const goToProfile = () => router.push('/profile')
 .shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 252px 1fr;
+  grid-template-columns: 189px 1fr;
   transition: grid-template-columns 0.25s ease;
   background: var(--bg);
 }

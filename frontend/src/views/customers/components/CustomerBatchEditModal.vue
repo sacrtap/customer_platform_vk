@@ -54,9 +54,9 @@
             placeholder="选择合作状态"
             allow-clear
           >
-            <a-option value="active">合作中</a-option>
-            <a-option value="inactive">暂停合作</a-option>
-            <a-option value="terminated">已终止</a-option>
+            <a-option v-for="status in cooperationStatuses" :key="status.id" :value="status.value">
+              {{ status.name }}
+            </a-option>
           </a-select>
         </div>
 
@@ -236,10 +236,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 import { batchUpdateCustomers } from '@/api/customers'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import type { CooperationStatus } from '@/types'
 
 interface BatchFailedItem {
   customer_id: number
@@ -260,6 +262,17 @@ const emit = defineEmits<{
 const isVisible = computed({
   get: () => props.visible,
   set: (v: boolean) => emit('update:visible', v),
+})
+
+const cooperationStatuses = ref<CooperationStatus[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await getCooperationStatusesList()
+    cooperationStatuses.value = res.data?.data || res.data || []
+  } catch {
+    // ignore
+  }
 })
 
 const batchPreviewVisible = ref(false)

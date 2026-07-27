@@ -246,6 +246,7 @@ def test_user(sync_test_engine):
             ("tags:edit", "编辑标签", "tags"),
             ("tags:delete", "删除标签", "tags"),
             ("industry_types:manage", "行业类型管理", "system"),
+            ("cooperation_statuses:manage", "合作状态管理", "system"),
         ]
         for perm_code, desc, module in permissions:
             session.execute(
@@ -371,6 +372,7 @@ def db_session(sync_test_engine, test_user):
             session.execute(text("DELETE FROM webhook_signatures"))
             session.execute(text("DELETE FROM token_blacklist"))
             session.execute(text("DELETE FROM industry_types"))
+            session.execute(text("DELETE FROM cooperation_statuses"))
             session.execute(text("DELETE FROM customers"))
             session.commit()
         except Exception:
@@ -468,6 +470,7 @@ async def mock_cache():
         "tags:edit",
         "tags:delete",
         "industry_types:manage",
+        "cooperation_statuses:manage",
     }
 
     mock_perm_cache = MagicMock()

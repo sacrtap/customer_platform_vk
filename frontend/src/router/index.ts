@@ -148,6 +148,12 @@ const routes: RouteRecordRaw[] = [
             meta: { requiresPermission: 'industry_types:manage' },
           },
           {
+            path: 'cooperation-statuses',
+            name: 'CooperationStatuses',
+            component: () => import('@/views/system/CooperationStatuses.vue'),
+            meta: { requiresPermission: 'cooperation_statuses:manage' },
+          },
+          {
             path: 'database-management',
             name: 'DatabaseManagement',
             component: () => import('@/views/system/DatabaseManagement.vue'),

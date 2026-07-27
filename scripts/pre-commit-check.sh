@@ -92,13 +92,21 @@ if [ "$FRONTEND_ONLY" = false ]; then
     warn "safety 未安装，跳过（pip install safety）"
   fi
 
-  # 4. pytest
-  echo -n "  [4/4] pytest unit tests... "
+  # 4. pytest unit tests
+  echo -n "  [4/5] pytest unit tests... "
   if pytest tests/unit/ -n auto --tb=short -q 2>&1; then
     check_pass "单元测试通过"
   else
     check_fail "单元测试失败"
     EXIT_CODE=1
+  fi
+
+  # 5. pytest integration tests (需要 PostgreSQL 测试数据库)
+  echo -n "  [5/5] pytest integration tests... "
+  if pytest tests/integration/ -n 1 --tb=short -q 2>&1; then
+    check_pass "集成测试通过"
+  else
+    warn "集成测试失败或数据库不可用（非阻断，请人工确认）"
   fi
 
   cd "$ROOT_DIR"
@@ -118,7 +126,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   cd "$FRONTEND_DIR"
 
   # 1. npm audit（非阻断）
-  echo -n "  [1/5] npm audit... "
+  echo -n "  [1/6] npm audit... "
   if npm audit --audit-level=high --quiet 2>/dev/null; then
     check_pass "npm audit 通过"
   else
@@ -126,7 +134,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 2. ESLint
-  echo -n "  [2/5] ESLint... "
+  echo -n "  [2/6] ESLint... "
   if npm run lint -- --max-warnings 0 2>&1; then
     check_pass "ESLint 通过"
   else
@@ -135,7 +143,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 3. type-check
-  echo -n "  [3/5] vue-tsc type-check... "
+  echo -n "  [3/6] vue-tsc type-check... "
   if npx vue-tsc --noEmit 2>&1 | grep -q "error TS"; then
     check_fail "TypeScript 类型检查失败"
     EXIT_CODE=1
@@ -144,7 +152,7 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 4. Vitest 单元测试
-  echo -n "  [4/5] Vitest unit tests... "
+  echo -n "  [4/6] Vitest unit tests... "
   if npx vitest run --reporter=verbose 2>&1; then
     check_pass "Vitest 单元测试通过"
   else
@@ -153,12 +161,25 @@ if [ "$BACKEND_ONLY" = false ]; then
   fi
 
   # 5. build
-  echo -n "  [5/5] npm run build... "
+  echo -n "  [5/6] npm run build... "
   if npm run build > /dev/null 2>&1; then
     check_pass "前端构建通过"
   else
     check_fail "前端构建失败"
     EXIT_CODE=1
+  fi
+
+  # 6. E2E 冒烟测试 (仅 @smoke 标签用例，需要后端和前端开发服务器)
+  # 全量 E2E 测试请在 GitHub Actions 中手动触发 (e2e-full.yml workflow_dispatch)
+  echo -n "  [6/6] Playwright E2E smoke tests... "
+  if command -v npx &> /dev/null && [ -f "$FRONTEND_DIR/playwright.config.ts" ]; then
+    if npx playwright test --project=chromium --grep @smoke --reporter=line 2>&1; then
+      check_pass "E2E 冒烟测试通过"
+    else
+      warn "E2E 冒烟测试失败或服务器不可用（非阻断，请人工确认）"
+    fi
+  else
+    warn "Playwright 未配置或服务器未运行，跳过 E2E 冒烟测试"
   fi
 
   cd "$ROOT_DIR"

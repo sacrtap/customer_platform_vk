@@ -1440,3 +1440,211 @@ async def test_export_customers_filter_is_real_estate(test_client, auth_headers,
         f"Expected 1 row (real estate only) after filtering, got {row_count}. "
         "is_real_estate filter not implemented in export route"
     )
+
+
+# ============================================================
+# ERP 系统选项来源测试
+# 前端 EditCustomerDialog 中「ERP 系统」下拉的选项来源为
+# 行业类型为「房产ERP」的客户列表，此处验证该 API 行为
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_list_customers_by_industry_real_estate_erp(test_client, auth_headers, db_session):
+    """测试按行业类型「房产ERP」筛选客户 — ERP 系统选项的数据来源"""
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(text("TRUNCATE industry_types CASCADE"))
+    db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
+    db_session.commit()
+
+    # 插入行业类型
+    db_session.execute(
+        text("""
+        INSERT INTO industry_types (name, sort_order, created_at)
+        VALUES
+            ('房产ERP', 3, NOW()),
+            ('房产经纪', 2, NOW()),
+            ('互联网', 1, NOW())
+        """),
+    )
+    db_session.commit()
+
+    # 查询行业类型 ID
+    result = db_session.execute(
+        text("SELECT id, name FROM industry_types WHERE name IN ('房产ERP', '房产经纪')")
+    )
+    industry_map = {row.name: row.id for row in result}
+
+    # 插入 3 个客户：2 个房产ERP + 1 个房产经纪
+    customers = [
+        {
+            "company_id": 3001,
+            "name": "房产ERP客户A",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "email": "erp_a@example.com",
+        },
+        {
+            "company_id": 3002,
+            "name": "房产ERP客户B",
+            "account_type": "正式账号",
+            "settlement_type": "postpaid",
+            "is_key_customer": False,
+            "email": "erp_b@example.com",
+        },
+        {
+            "company_id": 3003,
+            "name": "房产经纪客户C",
+            "account_type": "试用账号",
+            "settlement_type": "prepaid",
+            "is_key_customer": False,
+            "email": "agent_c@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, is_key_customer, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :is_key_customer, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    # 为客户创建 profile 并关联行业类型
+    cust_rows = db_session.execute(
+        text("SELECT id, company_id FROM customers WHERE company_id IN (3001, 3002, 3003)")
+    ).fetchall()
+
+    for row in cust_rows:
+        if row.company_id in (3001, 3002):
+            industry_id = industry_map["房产ERP"]
+        else:
+            industry_id = industry_map["房产经纪"]
+        db_session.execute(
+            text("""
+            INSERT INTO customer_profiles (customer_id, industry_type_id, created_at)
+            VALUES (:customer_id, :industry_type_id, NOW())
+            """),
+            {"customer_id": row.id, "industry_type_id": industry_id},
+        )
+    db_session.commit()
+
+    # 测试：按 industry=房产ERP 筛选
+    request, response = await test_client.get(
+        "/api/v1/customers?industry=房产ERP",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["total"] == 2, f"Expected 2 房产ERP customers, got {data['data']['total']}"
+
+    names = [item["name"] for item in data["data"]["list"]]
+    assert "房产ERP客户A" in names
+    assert "房产ERP客户B" in names
+    assert "房产经纪客户C" not in names
+
+    # 验证返回的行业字段正确
+    for item in data["data"]["list"]:
+        assert item["industry"] == "房产ERP"
+
+    # 清理
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(text("TRUNCATE industry_types CASCADE"))
+    db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_list_customers_by_industry_erp_empty(test_client, auth_headers, db_session):
+    """测试按行业类型「房产ERP」筛选 — 无匹配客户时返回空列表"""
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(text("TRUNCATE industry_types CASCADE"))
+    db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
+    db_session.commit()
+
+    # 插入行业类型但不插入房产ERP的任何客户
+    db_session.execute(
+        text("""
+        INSERT INTO industry_types (name, sort_order, created_at)
+        VALUES ('房产ERP', 3, NOW())
+        """),
+    )
+    db_session.commit()
+
+    # 插入 1 个不匹配的客户
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type,
+            settlement_type, is_key_customer, email, created_at)
+        VALUES (3004, '非ERP客户', '正式账号', 'prepaid', false, 'no_erp@example.com', NOW())
+        """),
+    )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/customers?industry=房产ERP",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["total"] == 0
+    assert len(data["data"]["list"]) == 0
+
+    # 清理
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(text("TRUNCATE industry_types CASCADE"))
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_update_customer_erp_system(test_client, auth_headers, db_session):
+    """测试更新客户的 erp_system 字段 — 确保字段可写入和读取"""
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    # 创建测试客户
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type,
+            settlement_type, is_key_customer, email, created_at)
+        VALUES (3005, 'ERP测试客户', '正式账号', 'prepaid', false, 'erp_test@example.com', NOW())
+        """),
+    )
+    db_session.commit()
+
+    result = db_session.execute(text("SELECT id FROM customers WHERE company_id = 3005"))
+    customer_id = result.scalar_one()
+
+    # 更新 erp_system 字段
+    request, response = await test_client.put(
+        f"/api/v1/customers/{customer_id}",
+        json={"erp_system": "房产ERP客户A"},
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+    # 验证通过 GET 接口读取
+    request, response = await test_client.get(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["data"]["erp_system"] == "房产ERP客户A"
+
+    # 清理
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
