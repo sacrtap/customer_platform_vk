@@ -146,6 +146,10 @@ export function useAppLayout() {
   }
   const toggleMobileMenu = () => {
     mobileMenuOpen.value = !mobileMenuOpen.value
+    // 移动端打开侧边栏时，强制取消折叠态，确保菜单文字和子菜单可见可点击
+    if (mobileMenuOpen.value && sidebarCollapsed.value) {
+      sidebarCollapsed.value = false
+    }
   }
   const closeMobileMenu = () => {
     mobileMenuOpen.value = false

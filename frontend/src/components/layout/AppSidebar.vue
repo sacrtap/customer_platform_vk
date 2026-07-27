@@ -769,6 +769,7 @@ const goTo = (path: string) => {
   .side.mobile-open {
     transform: translateX(0);
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    z-index: 100;
   }
 
   .toggle-btn {

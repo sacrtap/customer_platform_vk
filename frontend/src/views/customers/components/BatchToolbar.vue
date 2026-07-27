@@ -24,6 +24,7 @@ const emit = defineEmits<{
 <style scoped>
 .batch-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
@@ -62,6 +63,14 @@ const emit = defineEmits<{
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+@media (max-width: 640px) {
+  .batch-count {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 4px;
+  }
 }
 
 .fade-enter-active,

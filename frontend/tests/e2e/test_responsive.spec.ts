@@ -170,6 +170,139 @@ test.describe('响应式断点测试', () => {
 
       await context.close();
     });
+
+    test('J15: 移动端侧边栏 z-index 高于遮罩层', async ({ browser }) => {
+      const context = await browser.newContext({
+        viewport: { width: 1100, height: 800 },
+      });
+      const page = await context.newPage();
+
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
+      await page.fill('input[field="username"], input[type="text"]', 'admin');
+      await page.fill('input[field="password"], input[type="password"]', 'admin123');
+      await page.click('button[type="submit"], button:has-text("登录")');
+      await page.waitForURL('/', { timeout: 60000 });
+      await page.waitForLoadState('networkidle');
+
+      // 打开移动端侧边栏
+      await page.locator('.mobile-menu-btn').click();
+      await page.waitForTimeout(300);
+
+      // 验证侧边栏 z-index 高于遮罩层
+      const zIndices = await page.evaluate(() => {
+        const side = document.querySelector('.side');
+        const overlay = document.querySelector('.mobile-overlay');
+        if (!side || !overlay) return null;
+        return {
+          side: parseInt(getComputedStyle(side).zIndex || '0'),
+          overlay: parseInt(getComputedStyle(overlay).zIndex || '0'),
+        };
+      });
+
+      expect(zIndices).not.toBeNull();
+      expect(zIndices!.side).toBeGreaterThan(zIndices!.overlay);
+
+      await context.close();
+    });
+
+    test('J16: 移动端点击侧边栏导航项 → 路由正确跳转', async ({ browser }) => {
+      const context = await browser.newContext({
+        viewport: { width: 1100, height: 800 },
+      });
+      const page = await context.newPage();
+
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
+      await page.fill('input[field="username"], input[type="text"]', 'admin');
+      await page.fill('input[field="password"], input[type="password"]', 'admin123');
+      await page.click('button[type="submit"], button:has-text("登录")');
+      await page.waitForURL('/', { timeout: 60000 });
+      await page.waitForLoadState('networkidle');
+
+      // 打开移动端侧边栏
+      await page.locator('.mobile-menu-btn').click();
+      await page.waitForTimeout(300);
+
+      // 点击「客户管理」导航项
+      await page.locator('.side.mobile-open .nav-btn:has-text("客户管理")').click();
+
+      // 验证路由跳转
+      await page.waitForURL('**/customers', { timeout: 10000 });
+      expect(page.url()).toContain('/customers');
+
+      await context.close();
+    });
+
+    test('J17: 移动端展开子菜单并点击子项跳转', async ({ browser }) => {
+      const context = await browser.newContext({
+        viewport: { width: 1100, height: 800 },
+      });
+      const page = await context.newPage();
+
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
+      await page.fill('input[field="username"], input[type="text"]', 'admin');
+      await page.fill('input[field="password"], input[type="password"]', 'admin123');
+      await page.click('button[type="submit"], button:has-text("登录")');
+      await page.waitForURL('/', { timeout: 60000 });
+      await page.waitForLoadState('networkidle');
+
+      // 打开移动端侧边栏
+      await page.locator('.mobile-menu-btn').click();
+      await page.waitForTimeout(300);
+
+      // 点击「结算管理」父菜单展开子菜单
+      await page.locator('.side.mobile-open .nav-parent:has-text("结算管理")').click();
+      await page.waitForTimeout(200);
+
+      // 验证子菜单可见
+      const subnav = page.locator('.side.mobile-open .subnav .nav-btn.sub:has-text("余额管理")');
+      await expect(subnav).toBeVisible();
+
+      // 点击子菜单项
+      await subnav.click();
+
+      // 验证路由跳转
+      await page.waitForURL('**/billing/balances', { timeout: 10000 });
+      expect(page.url()).toContain('/billing/balances');
+
+      await context.close();
+    });
+
+    test('J18: 移动端打开侧边栏时折叠态被重置', async ({ browser }) => {
+      const context = await browser.newContext({
+        viewport: { width: 1100, height: 800 },
+      });
+      const page = await context.newPage();
+
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('input[field="username"], input[type="text"]', { timeout: 10000 });
+      await page.fill('input[field="username"], input[type="text"]', 'admin');
+      await page.fill('input[field="password"], input[type="password"]', 'admin123');
+      await page.click('button[type="submit"], button:has-text("登录")');
+      await page.waitForURL('/', { timeout: 60000 });
+      await page.waitForLoadState('networkidle');
+
+      // 模拟桌面端折叠过侧边栏（持久化到 localStorage）
+      await page.evaluate(() => {
+        localStorage.setItem('prototype-sidebar-collapsed', 'true');
+      });
+
+      // 打开移动端侧边栏
+      await page.locator('.mobile-menu-btn').click();
+      await page.waitForTimeout(300);
+
+      // 验证侧边栏没有 collapsed 类
+      const side = page.locator('.side');
+      await expect(side).not.toHaveClass(/collapsed/);
+
+      // 验证导航文字可见（非折叠态）
+      const navText = page.locator('.side.mobile-open .nav-text').first();
+      await expect(navText).toBeVisible();
+
+      await context.close();
+    });
   });
 
   test.describe('≤ 960px 断点（登录页）', () => {

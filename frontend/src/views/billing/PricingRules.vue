@@ -455,7 +455,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 22px 24px 44px;
   max-width: 1440px;
   margin: 0 auto;
 }
@@ -811,6 +810,13 @@ onMounted(() => {
   outline: none;
   border-color: #93c5fd;
   box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.2);
+}
+
+@media (max-width: 1100px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 640px) {

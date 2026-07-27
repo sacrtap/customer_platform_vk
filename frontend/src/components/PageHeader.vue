@@ -22,9 +22,11 @@ defineProps<{
 <style scoped>
 .page-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 16px;
+  gap: 12px;
 }
 
 .header-info h1 {
@@ -45,5 +47,23 @@ defineProps<{
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .header-info {
+    width: 100%;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .header-info h1 {
+    font-size: 22px;
+  }
+
+  .desc {
+    font-size: 13px;
+  }
 }
 </style>

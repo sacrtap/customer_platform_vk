@@ -917,7 +917,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 22px 24px 44px;
   max-width: 1440px;
   margin: 0 auto;
 }
@@ -1337,6 +1336,10 @@ onUnmounted(() => {
   }
   .grid-2 {
     grid-template-columns: 1fr;
+  }
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
