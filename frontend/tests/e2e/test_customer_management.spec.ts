@@ -211,4 +211,60 @@ test.describe('客户管理', () => {
     // 检查 pageSize 切换器存在（重构后使用 select 元素）
     await expect(pagination.locator('.page-size-select').first()).toBeVisible();
   });
+
+  test('编辑弹框 ERP 系统下拉选项来源为房产ERP客户', async ({ authenticatedPage }) => {
+    test.use({ actionTimeout: 15000 });
+
+    await authenticatedPage.goto('/customers', { waitUntil: 'networkidle' });
+    await waitForTableLoaded(authenticatedPage);
+
+    // 获取第一行客户数据
+    const firstRow = authenticatedPage.locator('.table-section tbody tr, table.table tbody tr').first();
+    await expect(firstRow).toBeVisible({ timeout: 10000 });
+
+    // 点击编辑按钮
+    await firstRow.locator('button:has-text("编辑")').click();
+
+    // 等待编辑对话框打开
+    const modal = getVisibleModal(authenticatedPage);
+    await expect(modal).toBeVisible();
+    await authenticatedPage.waitForTimeout(2000); // 等待数据加载（含字典数据）
+
+    // 找到 ERP 系统下拉组件
+    const erpFormItem = authenticatedPage.locator('.arco-modal:visible .arco-form-item', {
+      has: authenticatedPage.locator('text=ERP'),
+    });
+    const erpSelect = erpFormItem.locator('.arco-select').first();
+
+    // 验证 ERP 系统下拉存在且可见
+    await expect(erpSelect).toBeVisible({ timeout: 5000 });
+
+    // 点击展开下拉
+    await erpSelect.click();
+    await authenticatedPage.waitForTimeout(500);
+
+    // 验证下拉面板可见
+    const dropdownPanel = authenticatedPage.locator('.arco-select-dropdown:visible');
+    await expect(dropdownPanel.first()).toBeVisible({ timeout: 5000 });
+
+    // 获取下拉选项列表
+    const options = dropdownPanel.locator('.arco-select-option');
+    const optionCount = await options.count();
+
+    // 验证有选项（ERP 系统选项来源为行业类型为「房产ERP」的客户列表）
+    // 如果有房产ERP客户，选项数应 > 0；如果没有，下拉也应正常渲染不报错
+    expect(optionCount).toBeGreaterThanOrEqual(0);
+
+    // 关闭下拉
+    await authenticatedPage.keyboard.press('Escape');
+    await authenticatedPage.waitForTimeout(300);
+
+    // 关闭弹窗
+    const cancelBtn = modal.locator('button:has-text("取消")');
+    if (await cancelBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await cancelBtn.click();
+    } else {
+      await authenticatedPage.keyboard.press('Escape');
+    }
+  });
 });

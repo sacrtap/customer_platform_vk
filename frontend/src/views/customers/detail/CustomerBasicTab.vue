@@ -154,9 +154,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { Customer, Tag, User } from '@/types'
+import { computed, ref, onMounted } from 'vue'
+import type { Customer, Tag, User, CooperationStatus } from '@/types'
 import { formatDateTime } from '@/utils/formatters'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 
 const props = defineProps<{
   customer: Customer
@@ -168,6 +169,18 @@ const emit = defineEmits<{
   openTagSelector: []
   removeTag: [tagId: number]
 }>()
+
+// 合作状态字典数据
+const cooperationStatuses = ref<CooperationStatus[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await getCooperationStatusesList()
+    cooperationStatuses.value = res.data?.data || res.data || []
+  } catch {
+    // ignore
+  }
+})
 
 // 合作状态展示
 const cooperationStatusColor = computed(() => {
@@ -181,13 +194,18 @@ const cooperationStatusColor = computed(() => {
 
 const cooperationStatusText = computed(() => {
   const status = props.customer.cooperation_status
+  if (!status) return '-'
+  // 优先从字典查找
+  const found = cooperationStatuses.value.find((s) => s.value === status)
+  if (found) return found.name
+  // 回退到硬编码映射
   const map: Record<string, string> = {
     active: '合作中',
     suspended: '暂停',
     terminated: '终止',
     noused: '近一年未使用',
   }
-  return map[status || ''] || '-'
+  return map[status] || status
 })
 
 // 结算周期展示映射

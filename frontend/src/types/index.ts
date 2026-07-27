@@ -162,6 +162,14 @@ export interface IndustryType {
   sort_order: number
 }
 
+/** 合作状态字典 */
+export interface CooperationStatus {
+  id: number
+  name: string
+  value: string
+  sort_order: number
+}
+
 /** 计费规则 */
 export interface PricingRule {
   id: number
