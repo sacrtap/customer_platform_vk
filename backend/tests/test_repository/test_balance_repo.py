@@ -19,7 +19,7 @@ class TestBalanceRepository:
 
         assert result is not None
         assert result.customer_id == sample_balance.customer_id
-        assert isinstance(result.balance, Decimal)
+        assert isinstance(result.total_amount, Decimal)
 
     async def test_get_by_customer_id_not_found(self, db_session):
         """测试查询不存在的客户余额"""
@@ -53,4 +53,4 @@ class TestBalanceRepository:
         assert result is not None
         assert result.customer_id == sample_customer.id
         assert result.id is not None
-        assert result.balance == Decimal("0.00")
+        assert result.total_amount == Decimal("0.00")

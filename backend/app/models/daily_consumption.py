@@ -26,6 +26,7 @@ class DailyConsumption(BaseModel):
     device_type = Column(String(50), nullable=False, comment="设备类型")
     layer_type = Column(String(50), nullable=False, comment="图层类型")
     order_count = Column(Integer, default=0, comment="订单数量")
+    total_floor_count = Column(Integer, default=0, comment="总楼层数")
     total_cost = Column(Numeric(12, 2), default=0, comment="总消费金额")
     pricing_rule_id = Column(
         Integer, ForeignKey("pricing_rules.id"), nullable=True, comment="定价规则 ID"

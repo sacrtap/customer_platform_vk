@@ -7,20 +7,11 @@
       subtitle="同步状态 + 关键指标 + 趋势/排行 + 设备分布，多维度洞察客户消耗全貌。"
     >
       <template #actions>
-        <button class="btn" :disabled="isSyncing" @click="handleSyncButtonClick">
-          <span v-if="isSyncing" class="refresh-spin">⟳</span>
-          <span v-else>⟳</span>
-          <template v-if="isSyncing">
-            数据同步 {{ Math.round((syncProgress?.percentage || 0) * 100) }}%
-          </template>
-          <template v-else>数据同步</template>
+        <button class="btn" @click="handleSyncButtonClick">
+          <span>⟳</span>
+          数据同步
         </button>
-        <SyncDialog
-          v-model:visible="showSyncDialog"
-          v-model:minimized="syncMinimized"
-          @success="handleSyncSuccess"
-          @progress="handleProgressUpdate"
-        />
+        <SyncDialog v-model:visible="showSyncDialog" @success="handleSyncSuccess" />
         <button class="btn" :disabled="loading" @click="handleRefresh">
           <span v-if="loading" class="refresh-spin">⟳</span>
           <span v-else>⟳</span>
@@ -333,7 +324,7 @@ import {
   type TopCustomer,
   type DeviceDistributionItem,
 } from '@/api/analytics'
-import type { SyncTask } from '@/api/syncTasks'
+
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { getIndustryTypes } from '@/api/customers'
 import { getManagers } from '@/api/users'
@@ -428,25 +419,8 @@ const managerOptions = computed(() =>
 
 const loading = ref(false)
 const showSyncDialog = ref(false)
-const syncMinimized = ref(false)
-const syncProgress = ref<SyncTask | null>(null)
-
-const isSyncing = computed(() => {
-  return !!(
-    syncProgress.value &&
-    syncProgress.value.status === 'running' &&
-    syncProgress.value.percentage < 1
-  )
-})
-
-const handleProgressUpdate = (progress: SyncTask) => {
-  syncProgress.value = progress
-}
 
 const handleSyncButtonClick = () => {
-  if (isSyncing.value) {
-    syncMinimized.value = false
-  }
   showSyncDialog.value = true
 }
 
@@ -648,7 +622,6 @@ const handleRefresh = async () => {
 }
 
 const handleSyncSuccess = async () => {
-  Message.success('数据同步完成，正在刷新...')
   await loadData()
 }
 
@@ -659,6 +632,9 @@ const loadTrendData = async (forceRefresh = false) => {
     keyword: filters.keyword || undefined,
     metric: 'cost',
     account_type: filters.account_type || undefined,
+    industry: filters.industry.length > 0 ? filters.industry.join(',') : undefined,
+    scale_level: filters.scale_level || undefined,
+    consume_level: filters.consume_level || undefined,
     manager_id: filters.manager_id || undefined,
     sales_manager_id: filters.sales_manager_id || undefined,
     force_refresh: forceRefresh || undefined,
@@ -695,6 +671,9 @@ const loadDeviceData = async (forceRefresh = false) => {
     keyword: filters.keyword || undefined,
     metric: 'cost',
     account_type: filters.account_type || undefined,
+    industry: filters.industry.length > 0 ? filters.industry.join(',') : undefined,
+    scale_level: filters.scale_level || undefined,
+    consume_level: filters.consume_level || undefined,
     manager_id: filters.manager_id || undefined,
     sales_manager_id: filters.sales_manager_id || undefined,
     force_refresh: forceRefresh || undefined,

@@ -202,16 +202,16 @@ const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth') => {
       lastDay.toISOString().split('T')[0],
     ]
   }
+  // handleSearch 内部已调用 loadStats()，无需重复调用
   handleSearch()
-  loadStats()
 }
 
 const clearKpiFilter = () => {
   activeKpi.value = 'all'
   filters.balance_range = ''
   filters.recharge_date = []
+  // handleSearch 内部已调用 loadStats()，无需重复调用
   handleSearch()
-  loadStats()
 }
 
 // KPI 卡片格式化

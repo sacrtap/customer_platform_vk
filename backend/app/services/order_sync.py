@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import aiomysql
@@ -82,31 +82,46 @@ class OrderSyncService:
     async def _fetch_orders(self, sync_date: date) -> List[Dict]:
         """从外部 MySQL 获取订单
 
-        通过 JOIN nest_user 获取公司名称，使用 DATE(create_date) 匹配日期，
-        使用 LEFT(device_name, 1) 提取设备类型首字符。
+        通过 JOIN nest_user 获取公司名称，使用 upload_date 范围匹配日期
+        （避免 DATE() 函数包裹导致索引失效），通过 order_status 条件过滤
+        需要结算的订单，使用 LEFT(device_name, 1) 提取设备类型首字符。
         """
+        # 计算 upload_date 的日期范围（避免 DATE() 函数导致全表扫描）
+        start_dt = datetime.combine(sync_date, datetime.min.time())  # 当天 00:00:00
+        end_dt = start_dt + timedelta(days=1)  # 次日 00:00:00
+
         # 统一 SQL（两条路径共用）
+        # SELECT 字段顺序：
+        #   0: order_code, 1: custom_code, 2: nest_id, 3: owner_company,
+        #   4: group_type, 5: create_date, 6: upload_date, 7: floor_count,
+        #   8: device_type, 9: order_status
         SQL_ENGINE = (
             "SELECT D.order_code, D.custom_code, D.nest_id, "
             "U.owner_company, D.group_type, DATE(D.create_date), "
-            "D.floor_count, LEFT(D.device_name, 1) "
+            "DATE(D.upload_date), D.floor_count, LEFT(D.device_name, 1), "
+            "D.order_status "
             "FROM nest_model_order AS D "
             "INNER JOIN ("
             "  SELECT group_type, MAX(owner_company) AS owner_company "
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
-            "WHERE DATE(D.create_date) = :date AND D.nest_id != ''"
+            "WHERE D.upload_date >= :start AND D.upload_date < :end "
+            "AND D.nest_id != '' "
+            "AND ((D.order_status > 3 AND D.order_status < 11) OR D.order_status = 15)"
         )
         SQL_AIOMYSQL = (
             "SELECT D.order_code, D.custom_code, D.nest_id, "
             "U.owner_company, D.group_type, DATE(D.create_date), "
-            "D.floor_count, LEFT(D.device_name, 1) "
+            "DATE(D.upload_date), D.floor_count, LEFT(D.device_name, 1), "
+            "D.order_status "
             "FROM nest_model_order AS D "
             "INNER JOIN ("
             "  SELECT group_type, MAX(owner_company) AS owner_company "
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
-            "WHERE DATE(D.create_date) = %s AND D.nest_id != ''"
+            "WHERE D.upload_date >= %s AND D.upload_date < %s "
+            "AND D.nest_id != '' "
+            "AND ((D.order_status > 3 AND D.order_status < 11) OR D.order_status = 15)"
         )
 
         def _rows_to_dicts(rows):
@@ -118,8 +133,10 @@ class OrderSyncService:
                     "company_name": row[3],
                     "group_type": row[4],  # Keep as int for customer matching
                     "create_date": self._normalize_date(row[5]),
-                    "floor_count": row[6],
-                    "device_type": row[7],
+                    "upload_date": self._normalize_date(row[6]),
+                    "floor_count": row[7],
+                    "device_type": row[8],
+                    "order_status": row[9],
                 }
                 for row in rows
             ]
@@ -128,7 +145,7 @@ class OrderSyncService:
             from sqlalchemy.sql import text
 
             async with self.external_engine.connect() as conn:
-                result = await conn.execute(text(SQL_ENGINE), {"date": sync_date})
+                result = await conn.execute(text(SQL_ENGINE), {"start": start_dt, "end": end_dt})
                 return _rows_to_dicts(result.fetchall())
         else:
             config = self.external_db_config
@@ -146,7 +163,7 @@ class OrderSyncService:
             try:
                 async with conn.cursor() as cursor:
                     await asyncio.wait_for(
-                        cursor.execute(SQL_AIOMYSQL, (sync_date,)),
+                        cursor.execute(SQL_AIOMYSQL, (start_dt, end_dt)),
                         timeout=30,
                     )
                     rows = await asyncio.wait_for(
@@ -179,12 +196,10 @@ class OrderSyncService:
             raise TypeError(f"不支持的日期类型: {type(value)}")
 
     async def _clear_orders(self, sync_date: date) -> None:
-        """清空指定日期的所有订单（按 create_date 删除，与唯一约束一致）"""
+        """清空指定日期的所有订单（按 sync_date 删除，与唯一约束一致）"""
         from sqlalchemy import delete
 
-        result = await self.db.execute(
-            delete(DailyOrder).where(DailyOrder.create_date == sync_date)
-        )
+        result = await self.db.execute(delete(DailyOrder).where(DailyOrder.sync_date == sync_date))
         await self.db.commit()
         logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
 
@@ -192,15 +207,15 @@ class OrderSyncService:
         """匹配客户并保存订单"""
         result = SyncResult()
         saved_orders = []  # 收集成功保存的订单
-        seen_keys = set()  # 内存级去重，防止同一 (order_code, create_date) 重复插入
+        seen_keys = set()  # 内存级去重，防止同一 (order_code, sync_date) 重复插入
 
         # 注意：清空逻辑已移至 sync_orders 入口
 
         for order in orders:
             order_code = order.get("order_code")
             try:
-                # 检查本批次是否已处理过相同的 (order_code, create_date)
-                dedup_key = (order_code, order.get("create_date"))
+                # 检查本批次是否已处理过相同的 (order_code, sync_date)
+                dedup_key = (order_code, sync_date)
                 if dedup_key in seen_keys:
                     result.skipped += 1
                     continue
@@ -215,7 +230,7 @@ class OrderSyncService:
                 existing = await self.db.execute(
                     select(DailyOrder).where(
                         DailyOrder.order_code == order_code,
-                        DailyOrder.create_date == order.get("create_date"),
+                        DailyOrder.sync_date == sync_date,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -233,6 +248,8 @@ class OrderSyncService:
                     else None,
                     customer_id=customer.id,
                     create_date=order.get("create_date"),
+                    upload_date=order.get("upload_date"),
+                    order_status=order.get("order_status"),
                     floor_count=order.get("floor_count"),
                     device_type=order.get("device_type"),
                     sync_date=sync_date,

@@ -244,6 +244,13 @@ async def calculate_invoice_items(request: Request):
             "quantity": float(item["quantity"]),
             "unit_price": float(item["unit_price"]),
             "subtotal": float(item["subtotal"]),
+            "additional_floor_price": float(item["additional_floor_price"])
+            if item.get("additional_floor_price") is not None
+            else None,
+            "multi_floor_pricing_type": item.get("multi_floor_pricing_type"),
+            "order_count": float(item["order_count"])
+            if item.get("order_count") is not None
+            else None,
         }
         for item in items
     ]

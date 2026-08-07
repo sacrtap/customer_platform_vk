@@ -56,8 +56,53 @@ class SyncTaskService:
         active_tasks = active_task_result.scalars().all()
 
         if active_tasks:
-            # 确实有活跃任务，拒绝创建
-            raise Exception("已有相同周期的同步任务正在执行")
+            # 检查活跃任务是否实际已卡死（Redis 进度信息已消失或运行超时）
+            truly_active = []
+            for t in active_tasks:
+                progress_key = f"sync_progress:{t.id}"
+                has_progress = await self.redis_client.exists(progress_key)  # pyright: ignore[reportOptionalMemberAccess]
+                if has_progress:
+                    # Redis 进度仍存在，任务可能确实在运行
+                    # 但再检查运行时间是否超时（超过 30 分钟视为卡死）
+                    if t.created_at:
+                        running_minutes = (datetime.now() - t.created_at).total_seconds() / 60
+                        if running_minutes > 30:
+                            logger.warning(
+                                f"活跃任务 {t.id} 运行已超过 30 分钟（{running_minutes:.1f}分钟），"
+                                f"判定为卡死，标记为 failed"
+                            )
+                            t.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+                            t.error_message = (
+                                f"任务运行超过 30 分钟（实际 {running_minutes:.1f} 分钟），"
+                                f"判定为卡死并自动标记为失败"
+                            )
+                            t.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
+                            await self.db.commit()
+                            # 清理该任务的 Redis 进度和锁
+                            await self.redis_client.delete(progress_key)  # pyright: ignore[reportOptionalMemberAccess]
+                            stale_lock = f"sync_lock:{t.start_date}:{t.end_date}"
+                            await self.redis_client.delete(stale_lock)  # pyright: ignore[reportOptionalMemberAccess]
+                        else:
+                            truly_active.append(t)
+                    else:
+                        truly_active.append(t)
+                else:
+                    # Redis 进度信息已消失，任务执行进程已异常终止
+                    logger.warning(
+                        f"活跃任务 {t.id} 的 Redis 进度信息已消失，"
+                        f"判定为进程异常终止，标记为 failed"
+                    )
+                    t.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+                    t.error_message = "任务执行进程异常终止（Redis 进度信息已消失）"
+                    t.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
+                    await self.db.commit()
+                    # 清理该任务的锁
+                    stale_lock = f"sync_lock:{t.start_date}:{t.end_date}"
+                    await self.redis_client.delete(stale_lock)  # pyright: ignore[reportOptionalMemberAccess]
+
+            if truly_active:
+                # 确实有活跃任务在运行，拒绝创建
+                raise Exception("已有相同周期的同步任务正在执行")
 
         # 没有活跃任务，清理可能存在的过期锁
         await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
@@ -96,6 +141,7 @@ class SyncTaskService:
                 start_date=start_date,
                 end_date=end_date,
                 sync_mode=sync_mode,
+                executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
             self.db.add(audit_log)
             await self.db.commit()
@@ -625,5 +671,6 @@ class SyncTaskService:
                 failed_count=task.failed_count,
                 skipped_count=task.skipped_days,
                 error_message=error,
+                executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
         )

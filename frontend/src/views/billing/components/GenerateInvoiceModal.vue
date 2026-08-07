@@ -33,7 +33,13 @@
             row-key="id"
           >
             <template #subtotal="{ record }">
-              <span>{{ formatCurrency(record.quantity * record.unit_price) }}</span>
+              <span>{{
+                formatCurrency(
+                  record.subtotal !== undefined
+                    ? record.subtotal
+                    : record.quantity * record.unit_price
+                )
+              }}</span>
             </template>
           </a-table>
           <div class="total-preview">预计总金额：{{ formatCurrency(totalPreview) }}</div>
@@ -167,7 +173,17 @@ const mode = ref<'customer' | 'batch'>('customer')
 
 // ===== 按指定客户模式 =====
 const calculatedItems = ref<
-  { id?: number; device_type: string; layer_type: string; quantity: number; unit_price: number }[]
+  Array<{
+    id?: number
+    device_type: string
+    layer_type: string
+    quantity: number
+    unit_price: number
+    subtotal?: number
+    additional_floor_price?: number
+    multi_floor_pricing_type?: 'unified' | 'incremental'
+    order_count?: number
+  }>
 >([])
 
 const form = reactive({
@@ -193,7 +209,11 @@ const itemColumns = [
 ]
 
 const totalPreview = computed(() =>
-  calculatedItems.value.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  calculatedItems.value.reduce(
+    (sum, item) =>
+      sum + (item.subtotal !== undefined ? item.subtotal : item.quantity * item.unit_price),
+    0
+  )
 )
 
 const handlePeriodChange = async (dates: string[]) => {

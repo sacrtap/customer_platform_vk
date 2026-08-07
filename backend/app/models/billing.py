@@ -83,9 +83,13 @@ class PricingRule(BaseModel):
 
     customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
     device_type = Column(String(20), nullable=False)  # X/N/L
-    layer_type = Column(String(20))  # single/multi
+    layer_type = Column(String(20))  # single/multi (前端可传 single_and_multi，后端拆分为两条)
     pricing_type = Column(String(20), nullable=False)  # fixed/tier/package
     unit_price = Column(DECIMAL(10, 2))
+    # 多层计费类型：unified(统一) / incremental(递增)，仅 fixed + multi 时有效
+    multi_floor_pricing_type = Column(String(20), nullable=True)
+    # 其他层单价（递增模式下，每多一层的额外计费价格）
+    additional_floor_price = Column(DECIMAL(10, 2), nullable=True)
     tiers = Column(JSON)  # 阶梯配置
     package_type = Column(String(20))  # A/B/C/D
     package_limits = Column(JSON)

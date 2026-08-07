@@ -57,6 +57,10 @@ async def get_pricing_rules(request: Request):
                         "layer_type": r.layer_type or "single",
                         "pricing_type": r.pricing_type,
                         "unit_price": float(r.unit_price) if r.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        "multi_floor_pricing_type": r.multi_floor_pricing_type,  # pyright: ignore[reportAttributeAccessIssue]
+                        "additional_floor_price": (
+                            float(r.additional_floor_price) if r.additional_floor_price else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
+                        ),
                         "tiers": r.tiers,
                         "package_type": r.package_type,
                         "package_limits": r.package_limits,
@@ -123,6 +127,10 @@ async def create_pricing_rule(request: Request):
                 "layer_type": rule.layer_type or "single",
                 "pricing_type": rule.pricing_type,
                 "unit_price": float(rule.unit_price) if rule.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "multi_floor_pricing_type": rule.multi_floor_pricing_type,  # pyright: ignore[reportAttributeAccessIssue]
+                "additional_floor_price": (
+                    float(rule.additional_floor_price) if rule.additional_floor_price else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
+                ),
             },
         },
         status=201,

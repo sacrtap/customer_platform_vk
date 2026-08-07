@@ -151,15 +151,46 @@ export function useBalance() {
   }
 
   // 构建 KPI 统计基础参数（与列表筛选条件保持一致）
-  // 参照客户管理页面 loadKpiData 模式：使用 getBalances API 的 total 字段获取计数
-  // 确保 KPI 卡片数字与点击后列表筛选结果完全一致
+  // 包含所有基础筛选条件（keyword, industry, account_type, is_key_customer 等），
+  // 但不包含 KPI 专属筛选（balance_range, recharge_date），
+  // 确保 KPI 卡片数字与列表筛选结果在基础维度上保持一致。
   const buildKpiBaseParams = (): Record<string, unknown> => {
     const params: Record<string, unknown> = {
       page: 1,
       page_size: 1,
     }
+    if (filters.keyword) params.keyword = filters.keyword
     if (filters.industry?.length) params.industry = filters.industry.join(',')
     if (filters.account_type) params.account_type = filters.account_type
+    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
+      params.is_key_customer = filters.is_key_customer
+    }
+    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
+      params.is_real_estate = filters.is_real_estate
+    }
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
+    return params
+  }
+
+  // 构建 getBalanceStats 的筛选参数（与 buildKpiBaseParams 保持一致）
+  const buildStatsParams = (): Record<string, unknown> => {
+    const params: Record<string, unknown> = {}
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.industry?.length) params.industry = filters.industry.join(',')
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
+      params.is_key_customer = filters.is_key_customer
+    }
+    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
+      params.is_real_estate = filters.is_real_estate
+    }
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
     return params
   }
 
@@ -199,11 +230,9 @@ export function useBalance() {
       // 总余额、本月充值金额/笔数：使用后端 balance-stats 接口的 SQL 聚合查询
       // 不受分页限制，确保金额计算准确
       // this_month_count 为实际充值交易笔数（非客户数），与卡片 "X 笔" 含义一致
+      // 传入所有基础筛选条件，与列表筛选保持一致
       try {
-        const statsRes = await getBalanceStats({
-          industry: filters.industry?.length ? filters.industry.join(',') : undefined,
-          account_type: filters.account_type || undefined,
-        })
+        const statsRes = await getBalanceStats(buildStatsParams())
         if (statsRes.data) {
           stats.total_balance = statsRes.data.total_balance
           stats.this_month_amount = statsRes.data.this_month_amount
@@ -245,6 +274,7 @@ export function useBalance() {
   const handleSearch = () => {
     pagination.current = 1
     loadBalances()
+    loadStats()
   }
 
   const handleReset = () => {
@@ -253,6 +283,7 @@ export function useBalance() {
     pagination.current = 1
     selectedIds.value = []
     loadBalances()
+    loadStats()
   }
 
   // 批量选择
