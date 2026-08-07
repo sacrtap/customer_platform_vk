@@ -342,7 +342,38 @@ class PricingService:
         expiry_date: Optional[date],
         exclude_id: Optional[int] = None,
     ) -> None:
-        """检查是否存在有效期重叠的规则，存在则抛出 ValueError"""
+        """检查是否存在有效期重叠的规则，存在则抛出 ValueError
+
+        当 layer_type 为 'single_and_multi' 时，分别检查 'single' 和 'multi'。
+        """
+        # 确定需要检查的 layer_type 列表
+        if layer_type == "single_and_multi":
+            check_types = ["single", "multi"]
+        elif layer_type is None:
+            check_types = [None]
+        else:
+            check_types = [layer_type]
+
+        for lt in check_types:
+            await self._check_single_overlap(
+                customer_id=customer_id,
+                device_type=device_type,
+                layer_type=lt,
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                exclude_id=exclude_id,
+            )
+
+    async def _check_single_overlap(
+        self,
+        customer_id: int,
+        device_type: str,
+        layer_type: Optional[str],
+        effective_date: date,
+        expiry_date: Optional[date],
+        exclude_id: Optional[int] = None,
+    ) -> None:
+        """检查单个 layer_type 的有效期重叠"""
         # 构建 layer_type 匹配条件（处理 NULL 情况）
         if layer_type is None:
             layer_condition = PricingRule.layer_type.is_(None)
@@ -385,14 +416,76 @@ class PricingService:
                     raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
 
     async def create_pricing_rule(self, data: Dict[str, Any]) -> PricingRule:
-        """创建定价规则"""
+        """创建定价规则
+
+        如果 layer_type 为 'single_and_multi'，则拆分为两条记录：
+        - layer_type='single'（单价相同）
+        - layer_type='multi'（multi_floor_pricing_type='unified'，单价相同）
+        返回最后一条创建的记录（multi）。
+        """
         customer_id = data.get("customer_id")
         device_type = data["device_type"]
         layer_type = data.get("layer_type")
         effective_date = data["effective_date"]
         expiry_date = data.get("expiry_date")
 
-        # 使用统一的校验方法
+        # 处理 single_and_multi：拆分为两条记录
+        if layer_type == "single_and_multi":
+            # 分别检查 single 和 multi 的冲突
+            await self._check_overlap(
+                customer_id=customer_id,  # pyright: ignore[reportArgumentType]
+                device_type=device_type,
+                layer_type="single",
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+            )
+            await self._check_overlap(
+                customer_id=customer_id,  # pyright: ignore[reportArgumentType]
+                device_type=device_type,
+                layer_type="multi",
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+            )
+
+            # 公共字段
+            common_fields = {
+                "customer_id": data.get("customer_id"),
+                "device_type": device_type,
+                "pricing_type": data["pricing_type"],
+                "unit_price": data.get("unit_price"),
+                "tiers": data.get("tiers"),
+                "package_type": data.get("package_type"),
+                "package_limits": data.get("package_limits"),
+                "effective_date": effective_date,
+                "expiry_date": expiry_date,
+                "created_by": data.get("created_by"),
+            }
+
+            # 创建 single 记录
+            single_rule = PricingRule(
+                layer_type="single",
+                multi_floor_pricing_type=None,
+                additional_floor_price=None,
+                **common_fields,
+            )
+            self.db.add(single_rule)
+            await self.db.commit()
+            await self.db.refresh(single_rule)
+
+            # 创建 multi 记录（强制 unified）
+            multi_rule = PricingRule(
+                layer_type="multi",
+                multi_floor_pricing_type="unified",
+                additional_floor_price=None,
+                **common_fields,
+            )
+            self.db.add(multi_rule)
+            await self.db.commit()
+            await self.db.refresh(multi_rule)
+
+            return multi_rule
+
+        # 正常单条记录创建
         await self._check_overlap(
             customer_id=customer_id,  # pyright: ignore[reportArgumentType]
             device_type=device_type,
@@ -407,6 +500,8 @@ class PricingService:
             layer_type=data.get("layer_type"),
             pricing_type=data["pricing_type"],
             unit_price=data.get("unit_price"),
+            multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
+            additional_floor_price=data.get("additional_floor_price"),
             tiers=data.get("tiers"),
             package_type=data.get("package_type"),
             package_limits=data.get("package_limits"),
@@ -464,6 +559,8 @@ class PricingService:
             "layer_type",
             "pricing_type",
             "unit_price",
+            "multi_floor_pricing_type",
+            "additional_floor_price",
             "tiers",
             "package_type",
             "package_limits",
@@ -489,7 +586,48 @@ class PricingService:
         expiry_date: Optional[date],
         exclude_id: Optional[int] = None,
     ) -> List[PricingRule]:
-        """查询与给定条件存在有效期重叠的规则，返回冲突列表"""
+        """查询与给定条件存在有效期重叠的规则，返回冲突列表
+
+        当 layer_type 为 'single_and_multi' 时，分别检查 'single' 和 'multi'，合并返回。
+        """
+        if layer_type == "single_and_multi":
+            single_conflicts = await self._check_conflict_for_layer(
+                customer_id=customer_id,
+                device_type=device_type,
+                layer_type="single",
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                exclude_id=exclude_id,
+            )
+            multi_conflicts = await self._check_conflict_for_layer(
+                customer_id=customer_id,
+                device_type=device_type,
+                layer_type="multi",
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                exclude_id=exclude_id,
+            )
+            return single_conflicts + multi_conflicts
+        else:
+            return await self._check_conflict_for_layer(
+                customer_id=customer_id,
+                device_type=device_type,
+                layer_type=layer_type,
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                exclude_id=exclude_id,
+            )
+
+    async def _check_conflict_for_layer(
+        self,
+        customer_id: int,
+        device_type: str,
+        layer_type: Optional[str],
+        effective_date: date,
+        expiry_date: Optional[date],
+        exclude_id: Optional[int] = None,
+    ) -> List[PricingRule]:
+        """查询单个 layer_type 的冲突规则"""
         if layer_type is None:
             layer_condition = PricingRule.layer_type.is_(None)
         else:
@@ -603,6 +741,7 @@ class InvoiceService:
                 DailyConsumption.device_type,
                 DailyConsumption.layer_type,
                 sa_func.sum(DailyConsumption.order_count).label("total_quantity"),
+                sa_func.sum(DailyConsumption.total_floor_count).label("total_floor_count"),
             )
             .where(
                 DailyConsumption.customer_id == customer_id,
@@ -640,6 +779,7 @@ class InvoiceService:
             device_type = row.device_type
             layer_type = row.layer_type or "single"
             total_quantity = Decimal(str(row.total_quantity))
+            total_floor_count = Decimal(str(row.total_floor_count or row.total_quantity))
 
             # 先尝试精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
             rule = rules_map.get((device_type, layer_type)) or rules_map.get(
@@ -650,32 +790,64 @@ class InvoiceService:
                 continue
 
             if rule.pricing_type == "fixed":  # pyright: ignore[reportGeneralTypeIssues]
-                # 定价结算：总用量 × 单价
                 unit_price = Decimal(str(rule.unit_price or 0))
-                subtotal = total_quantity * unit_price
-                items.append(
-                    {
-                        "device_type": device_type,
-                        "layer_type": layer_type,
-                        "quantity": total_quantity,
-                        "unit_price": unit_price,
-                        "subtotal": subtotal,
-                        "pricing_rule_id": rule.id,
-                    }
-                )
+                multi_pricing_type = rule.multi_floor_pricing_type or "unified"  # pyright: ignore[reportGeneralTypeIssues]
+
+                # 多层递增模式
+                if (
+                    layer_type == "multi"
+                    and multi_pricing_type == "incremental"
+                    and rule.additional_floor_price is not None  # pyright: ignore[reportGeneralTypeIssues]
+                ):
+                    additional_price = Decimal(str(rule.additional_floor_price or 0))  # pyright: ignore[reportGeneralTypeIssues]
+                    # 递增：unit_price × order_count + additional_floor_price × (total_floor_count - order_count)
+                    base_cost = total_quantity * unit_price
+                    extra_floors = total_floor_count - total_quantity
+                    if extra_floors < 0:
+                        extra_floors = Decimal(0)
+                    extra_cost = extra_floors * additional_price
+                    subtotal = base_cost + extra_cost
+                    items.append(
+                        {
+                            "device_type": device_type,
+                            "layer_type": layer_type,
+                            "quantity": total_floor_count,
+                            "order_count": total_quantity,
+                            "unit_price": unit_price,
+                            "additional_floor_price": additional_price,
+                            "multi_floor_pricing_type": "incremental",
+                            "subtotal": subtotal,
+                            "pricing_rule_id": rule.id,
+                        }
+                    )
+                else:
+                    # 统一模式：按订单数量 × 单价（不区分楼层）
+                    subtotal = total_quantity * unit_price
+                    items.append(
+                        {
+                            "device_type": device_type,
+                            "layer_type": layer_type,
+                            "quantity": total_quantity,
+                            "unit_price": unit_price,
+                            "subtotal": subtotal,
+                            "pricing_rule_id": rule.id,
+                        }
+                    )
                 total_amount += subtotal
 
             elif rule.pricing_type == "tiered":  # pyright: ignore[reportGeneralTypeIssues]
-                # 阶梯结算：按阶梯单价计算
+                # 阶梯结算：按阶梯单价计算（使用 total_floor_count 作为用量）
                 tiers = rule.tiers or {}
-                subtotal = self._calculate_tiered_price(total_quantity, tiers)  # pyright: ignore[reportArgumentType]
+                subtotal = self._calculate_tiered_price(total_floor_count, tiers)  # pyright: ignore[reportArgumentType]
                 # 阶梯计价的 unit_price 显示为平均单价
-                avg_unit_price = subtotal / total_quantity if total_quantity > 0 else Decimal(0)
+                avg_unit_price = (
+                    subtotal / total_floor_count if total_floor_count > 0 else Decimal(0)
+                )
                 items.append(
                     {
                         "device_type": device_type,
                         "layer_type": layer_type,
-                        "quantity": total_quantity,
+                        "quantity": total_floor_count,
                         "unit_price": avg_unit_price,
                         "subtotal": subtotal,
                         "pricing_rule_id": rule.id,
@@ -692,7 +864,7 @@ class InvoiceService:
                     {
                         "device_type": device_type,
                         "layer_type": layer_type,
-                        "quantity": total_quantity,
+                        "quantity": total_floor_count,
                         "unit_price": base_fee,
                         "subtotal": base_fee,  # 包年固定费用
                         "pricing_rule_id": rule.id,
@@ -770,9 +942,12 @@ class InvoiceService:
         random_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
         invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_id}-{random_code}"
 
-        # 计算总金额
+        # 计算总金额：优先使用 item 中的 subtotal 字段（支持递增模式），回退到 quantity × unit_price
         total_amount = sum(
-            Decimal(str(item["quantity"])) * Decimal(str(item["unit_price"])) for item in items
+            Decimal(str(item.get("subtotal", 0)))
+            if item.get("subtotal") is not None
+            else Decimal(str(item["quantity"])) * Decimal(str(item["unit_price"]))
+            for item in items
         )
 
         # 创建结算单

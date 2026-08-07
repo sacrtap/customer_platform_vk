@@ -86,6 +86,9 @@ class AnalyticsService:
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
@@ -119,6 +122,20 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        # 需要关联 CustomerProfile 的筛选条件
+        if industry or scale_level or consume_level:
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            if scale_level:
+                stmt = stmt.where(CustomerProfile.scale_level == scale_level)
+            if consume_level:
+                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+            if industry:
+                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+                if industry_names:
+                    stmt = stmt.outerjoin(
+                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                    )
+                    stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(DailyConsumption.consumption_date).order_by(
             DailyConsumption.consumption_date
@@ -142,6 +159,9 @@ class AnalyticsService:
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         account_type: Optional[str] = None,
+        industry: Optional[str] = None,
+        scale_level: Optional[str] = None,
+        consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
@@ -174,6 +194,20 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        # 需要关联 CustomerProfile 的筛选条件
+        if industry or scale_level or consume_level:
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            if scale_level:
+                stmt = stmt.where(CustomerProfile.scale_level == scale_level)
+            if consume_level:
+                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+            if industry:
+                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+                if industry_names:
+                    stmt = stmt.outerjoin(
+                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                    )
+                    stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(DailyConsumption.device_type)
 
@@ -273,23 +307,24 @@ class AnalyticsService:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
         if account_type:
             stmt = stmt.where(Customer.account_type == account_type)
-        if scale_level:
-            stmt = stmt.where(Customer.scale_level == scale_level)  # pyright: ignore[reportAttributeAccessIssue]
-        if consume_level:
-            stmt = stmt.where(Customer.consume_level == consume_level)  # pyright: ignore[reportAttributeAccessIssue]
         if manager_id:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
-
-        # 行业筛选需要 JOIN CustomerProfile + IndustryType
-        if industry:
-            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
-            if industry_names:
-                stmt = stmt.outerjoin(
-                    CustomerProfile, Customer.id == CustomerProfile.customer_id
-                ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-                stmt = stmt.where(IndustryType.name.in_(industry_names))
+        # 需要关联 CustomerProfile 的筛选条件
+        if industry or scale_level or consume_level:
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            if scale_level:
+                stmt = stmt.where(CustomerProfile.scale_level == scale_level)
+            if consume_level:
+                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+            if industry:
+                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+                if industry_names:
+                    stmt = stmt.outerjoin(
+                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                    )
+                    stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(Customer.id, Customer.name, Customer.company_id)
 

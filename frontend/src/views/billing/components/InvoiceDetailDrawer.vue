@@ -52,7 +52,7 @@
                   <th style="width: 120px">设备类型</th>
                   <th style="width: 80px">图层</th>
                   <th style="width: 80px">数量</th>
-                  <th style="width: 100px">单价</th>
+                  <th style="width: 120px">单价</th>
                   <th style="width: 120px">小计</th>
                 </tr>
               </thead>
@@ -65,7 +65,18 @@
                     </span>
                   </td>
                   <td>{{ item.quantity }}</td>
-                  <td>¥{{ item.unit_price.toFixed(2) }}</td>
+                  <td>
+                    ¥{{ item.unit_price.toFixed(2) }}
+                    <span
+                      v-if="
+                        item.multi_floor_pricing_type === 'incremental' &&
+                        item.additional_floor_price
+                      "
+                      class="subtle incremental-cell"
+                    >
+                      +其他层 ¥{{ item.additional_floor_price.toFixed(2) }}
+                    </span>
+                  </td>
                   <td>
                     <span class="amount">{{
                       formatCurrency(item.subtotal || item.quantity * item.unit_price)
@@ -285,6 +296,11 @@ const salesDisabledTip = computed(() => {
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+.incremental-cell {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
 }
 .amount-final {
   font-size: 16px;

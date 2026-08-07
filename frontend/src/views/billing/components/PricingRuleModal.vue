@@ -39,17 +39,36 @@
         </a-col>
         <a-col :span="12">
           <a-form-item label="楼层类型" :rules="[{ required: true, message: '请选择楼层类型' }]">
-            <a-select v-model="formData.layer_type" placeholder="请选择">
+            <a-select
+              v-model="formData.layer_type"
+              placeholder="请选择"
+              @change="onLayerTypeChange"
+            >
               <a-option value="single">单层</a-option>
               <a-option value="multi">多层</a-option>
+              <a-option value="single_and_multi">单层+多层</a-option>
             </a-select>
           </a-form-item>
         </a-col>
       </a-row>
 
-      <!-- 定价结算 -->
+      <!-- 多层计费类型选择（仅 fixed + multi 时显示，single_and_multi 强制 unified 不显示） -->
       <a-form-item
-        v-if="formData.pricing_type === 'fixed'"
+        v-if="formData.pricing_type === 'fixed' && formData.layer_type === 'multi'"
+        label="多层计费类型"
+      >
+        <a-radio-group
+          v-model="formData.multi_floor_pricing_type"
+          @change="onMultiFloorPricingTypeChange"
+        >
+          <a-radio value="unified">统一</a-radio>
+          <a-radio value="incremental">递增</a-radio>
+        </a-radio-group>
+      </a-form-item>
+
+      <!-- 定价结算 - 统一模式 -->
+      <a-form-item
+        v-if="formData.pricing_type === 'fixed' && showUnifiedPrice"
         label="单价"
         :rules="[{ required: true, message: '请输入单价' }]"
       >
@@ -63,6 +82,35 @@
           <template #prefix>¥</template>
         </a-input-number>
       </a-form-item>
+
+      <!-- 定价结算 - 递增模式：首层单价 + 其他层单价 -->
+      <template v-if="formData.pricing_type === 'fixed' && showIncrementalPrice">
+        <a-form-item label="单价（首层）" :rules="[{ required: true, message: '请输入首层单价' }]">
+          <a-input-number
+            v-model="formData.unit_price"
+            placeholder="多层房源的首层单价"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          >
+            <template #prefix>¥</template>
+          </a-input-number>
+        </a-form-item>
+        <a-form-item label="其他层单价" :rules="[{ required: true, message: '请输入其他层单价' }]">
+          <a-input-number
+            v-model="formData.additional_floor_price"
+            placeholder="每多一层的额外计费价格"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          >
+            <template #prefix>¥</template>
+          </a-input-number>
+        </a-form-item>
+        <div class="incremental-hint">
+          递增计费示例：3层房源，单价5，其他层单价6 → 5×1 + 6×2 = 17元
+        </div>
+      </template>
 
       <!-- 阶梯结算 -->
       <div v-if="formData.pricing_type === 'tiered'" class="tier-editor">
@@ -159,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref, watch, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import * as billingApi from '@/api/billing'
@@ -191,14 +239,33 @@ const formData = reactive({
   id: null as number | null,
   customer_id: undefined as number | undefined,
   customer_name: '' as string,
-  device_type: 'X',
-  layer_type: 'single' as 'single' | 'multi',
+  device_type: 'L',
+  layer_type: 'single_and_multi' as 'single' | 'multi' | 'single_and_multi',
   pricing_type: 'fixed' as 'fixed' | 'tiered' | 'package',
   unit_price: undefined as number | undefined,
+  additional_floor_price: undefined as number | undefined,
+  multi_floor_pricing_type: 'unified' as 'unified' | 'incremental',
   tiers: [] as Tier[],
   package_type: undefined as string | undefined,
   effective_date: undefined as string | undefined,
   expiry_date: undefined as string | undefined,
+})
+
+// 计算属性：控制统一/递增模式的显示
+const showUnifiedPrice = computed(() => {
+  if (formData.pricing_type !== 'fixed') return false
+  if (formData.layer_type === 'single') return true
+  if (formData.layer_type === 'single_and_multi') return true
+  if (formData.layer_type === 'multi' && formData.multi_floor_pricing_type === 'unified')
+    return true
+  return false
+})
+
+const showIncrementalPrice = computed(() => {
+  if (formData.pricing_type !== 'fixed') return false
+  if (formData.layer_type === 'multi' && formData.multi_floor_pricing_type === 'incremental')
+    return true
+  return false
 })
 
 // 监听 visible 变化，初始化表单数据
@@ -214,9 +281,12 @@ watch(
           customer_id: record.customer_id,
           customer_name: record.customer_name || '',
           device_type: record.device_type,
-          layer_type: record.layer_type || 'single',
+          layer_type: (record.layer_type as 'single' | 'multi' | 'single_and_multi') || 'single',
           pricing_type: record.pricing_type,
           unit_price: record.unit_price,
+          additional_floor_price: record.additional_floor_price,
+          multi_floor_pricing_type:
+            (record.multi_floor_pricing_type as 'unified' | 'incremental') || 'unified',
           tiers: parseTiers(record.tiers),
           package_type: record.package_type,
           effective_date: record.effective_date,
@@ -228,10 +298,12 @@ watch(
           id: null,
           customer_id: undefined,
           customer_name: '',
-          device_type: 'X',
-          layer_type: 'single',
+          device_type: 'L',
+          layer_type: 'single_and_multi',
           pricing_type: 'fixed',
           unit_price: undefined,
+          additional_floor_price: undefined,
+          multi_floor_pricing_type: 'unified',
           tiers: [],
           package_type: undefined,
           effective_date: undefined,
@@ -241,6 +313,25 @@ watch(
     }
   }
 )
+
+// 楼层类型切换时，重置多层计费相关字段
+const onLayerTypeChange = () => {
+  if (formData.layer_type === 'single_and_multi') {
+    // 强制 unified
+    formData.multi_floor_pricing_type = 'unified'
+    formData.additional_floor_price = undefined
+  } else if (formData.layer_type === 'single') {
+    formData.multi_floor_pricing_type = 'unified'
+    formData.additional_floor_price = undefined
+  }
+  // multi 时保持当前 multi_floor_pricing_type
+}
+
+const onMultiFloorPricingTypeChange = () => {
+  if (formData.multi_floor_pricing_type === 'unified') {
+    formData.additional_floor_price = undefined
+  }
+}
 
 // 解析后端返回的 tiers 数据为编辑器可用的数组
 const parseTiers = (raw: unknown): Tier[] => {
@@ -338,6 +429,7 @@ const onPricingTypeChange = () => {
   formData.tiers = []
   formData.package_type = undefined
   formData.unit_price = undefined
+  formData.additional_floor_price = undefined
 }
 
 const handleSubmit = async () => {
@@ -352,6 +444,7 @@ const handleSubmit = async () => {
 
   modalLoading.value = true
   try {
+    // 冲突检查：single_and_multi 时后端会检查两种类型
     const conflictRes = await billingApi.checkPricingRuleConflict({
       customer_id: formData.customer_id,
       device_type: formData.device_type,
@@ -384,6 +477,19 @@ const handleSubmit = async () => {
 
     if (formData.pricing_type === 'fixed' && formData.unit_price) {
       submitData.unit_price = formData.unit_price
+      // 多层递增模式：传递额外字段
+      if (formData.layer_type === 'multi' && formData.multi_floor_pricing_type === 'incremental') {
+        submitData.multi_floor_pricing_type = 'incremental'
+        if (formData.additional_floor_price) {
+          submitData.additional_floor_price = formData.additional_floor_price
+        } else {
+          Message.warning('请输入其他层单价')
+          modalLoading.value = false
+          return false
+        }
+      } else {
+        submitData.multi_floor_pricing_type = 'unified'
+      }
     } else if (formData.pricing_type === 'tiered') {
       if (formData.tiers.length === 0) {
         Message.warning('请至少添加一条阶梯配置')
@@ -418,7 +524,11 @@ const handleSubmit = async () => {
       Message.success('更新成功')
     } else {
       await billingApi.createPricingRule(submitData)
-      Message.success('创建成功')
+      Message.success(
+        formData.layer_type === 'single_and_multi'
+          ? '创建成功（已生成单层+多层两条规则）'
+          : '创建成功'
+      )
     }
     emit('saved')
     return true
@@ -432,6 +542,16 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
+.incremental-hint {
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+
 .tier-editor {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

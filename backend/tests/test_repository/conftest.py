@@ -10,6 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 # 导入所有模型以确保 SQLAlchemy relationship 正确解析
+# 必须导入整个 app.models 包（而非逐个导入），因为 User 模型通过字符串引用 Tag，
+# 如果 Tag 未被加载，configure_mappers() 时会报 "failed to locate a name" 错误
+import app.models  # noqa: F401 — 触发 __init__.py 加载全部模型
 from app.models.base import BaseModel
 from app.models.billing import (
     CustomerBalance,
@@ -87,7 +90,6 @@ async def sample_customer(db_session: AsyncSession, sample_user: User) -> Custom
         manager_id=sample_user.id,
         account_type="正式账号",
         settlement_type="prepaid",
-        created_by=sample_user.id,
     )
     db_session.add(customer)
     await db_session.commit()
@@ -100,9 +102,9 @@ async def sample_balance(db_session: AsyncSession, sample_customer: Customer) ->
     """创建测试余额记录"""
     balance = CustomerBalance(
         customer_id=sample_customer.id,
-        balance=Decimal("10000.00"),
-        bonus=Decimal("1000.00"),
-        frozen=Decimal("0.00"),
+        total_amount=Decimal("10000.00"),
+        real_amount=Decimal("9000.00"),
+        bonus_amount=Decimal("1000.00"),
     )
     db_session.add(balance)
     await db_session.commit()

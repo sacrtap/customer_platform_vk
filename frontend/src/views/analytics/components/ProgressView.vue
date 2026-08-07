@@ -8,7 +8,11 @@
     />
     <div class="progress-info">
       <div class="status-text">
-        <template v-if="progress.status === 'running'">
+        <template v-if="progress.status === 'pending'">
+          <span>任务已创建，等待执行...</span>
+          <span>共 {{ progress.total_days }} 天待处理</span>
+        </template>
+        <template v-else-if="progress.status === 'running'">
           <span>正在同步 {{ progress.current_date }} 的数据...</span>
           <span>已完成 {{ progress.completed_days }}/{{ progress.total_days }} 天</span>
           <span v-if="progress.skipped_days > 0">（跳过 {{ progress.skipped_days }} 天）</span>

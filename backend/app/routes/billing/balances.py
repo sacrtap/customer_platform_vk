@@ -364,8 +364,7 @@ async def get_balances(request: Request):
 async def get_balance_stats(request: Request):
     """获取余额统计概览（用于 KPI 卡片）
 
-    支持与列表页一致的筛选参数（industry, account_type），
-    确保 KPI 统计数字与列表筛选结果保持一致。
+    支持与列表页一致的筛选参数，确保 KPI 统计数字与列表筛选结果保持一致。
     """
     db: AsyncSession = request.ctx.db_session
 
@@ -376,54 +375,130 @@ async def get_balance_stats(request: Request):
     from ...models.industry_type import IndustryType
 
     # 筛选参数（与列表页 get_balances 保持一致）
-    industry = request.args.get("industry")  # 多选逗号分隔
+    keyword = request.args.get("keyword")
+    industry = request.args.get("industry")
     account_type = request.args.get("account_type")
+    manager_id = int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+    sales_manager_id = (
+        int(request.args.get("sales_manager_id")) if request.args.get("sales_manager_id") else None
+    )
+    is_key_customer = request.args.get("is_key_customer")
+    if is_key_customer is not None and is_key_customer.strip() != "":
+        if is_key_customer.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_key_customer 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
+        is_key_customer = is_key_customer.lower() == "true"
+    else:
+        is_key_customer = None
 
-    # 基础条件
-    base_condition = [
-        CustomerBalance.deleted_at.is_(None),
-        Customer.deleted_at.is_(None),
-    ]
+    is_real_estate = request.args.get("is_real_estate")
+    if is_real_estate is not None and is_real_estate.strip() != "":
+        if is_real_estate.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_real_estate 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
+        is_real_estate = is_real_estate.lower() == "true"
+    else:
+        is_real_estate = None
 
-    # 行业过滤条件（需要 JOIN IndustryType）
+    settlement_type = request.args.get("settlement_type")
+    if settlement_type is not None and settlement_type.strip() == "":
+        settlement_type = None
+
+    tag_ids = request.args.get("tag_ids")
+
+    # 客户级别筛选条件（适用于所有查询）
+    customer_filters = []
+    if keyword:
+        customer_filters.append(Customer.name.ilike(f"%{keyword}%"))
+    if account_type:
+        customer_filters.append(Customer.account_type == account_type)
+    if manager_id:
+        customer_filters.append(Customer.manager_id == manager_id)
+    if sales_manager_id:
+        customer_filters.append(Customer.sales_manager_id == sales_manager_id)
+    if is_key_customer is not None:
+        customer_filters.append(Customer.is_key_customer == is_key_customer)
+    if is_real_estate is not None:
+        customer_filters.append(Customer.is_real_estate == is_real_estate)
+    if settlement_type:
+        customer_filters.append(Customer.settlement_type == settlement_type)
+
+    # 行业筛选条件（需要 JOIN IndustryType）
     industry_filter_stmts = []
+    industry_need_join = False
     if industry:
         industry_list = [i.strip() for i in industry.split(",") if i.strip()]
         if industry_list:
             industry_filter_stmts.append(IndustryType.name.in_(industry_list))
+            industry_need_join = True
 
-    # 账号类型过滤条件
-    account_type_filter_stmts = []
-    if account_type:
-        account_type_filter_stmts.append(Customer.account_type == account_type)
+    # 标签筛选（需要子查询）
+    tag_subq = None
+    if tag_ids:
+        from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
-    def apply_filters(stmt, need_industry_join=False):
-        """为查询语句添加基础 + 筛选条件"""
-        for cond in base_condition:
+        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
+        if tag_id_list:
+            tag_subq = (
+                select(CustomerTag.customer_id)
+                .where(
+                    CustomerTag.tag_id.in_(tag_id_list),
+                    CustomerTag.deleted_at.is_(None),
+                )
+                .group_by(CustomerTag.customer_id)
+            )
+
+    def apply_balance_filters(stmt, need_industry_join=False):
+        """为余额查询语句添加基础 + 筛选条件"""
+        stmt = stmt.where(
+            CustomerBalance.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        )
+        for cond in customer_filters:
             stmt = stmt.where(cond)
-        if account_type_filter_stmts:
-            for cond in account_type_filter_stmts:
-                stmt = stmt.where(cond)
-        if industry_filter_stmts and need_industry_join:
+        if industry_need_join and need_industry_join:
             for cond in industry_filter_stmts:
                 stmt = stmt.where(cond)
+        if tag_subq is not None:
+            stmt = stmt.where(Customer.id.in_(tag_subq))
         return stmt
 
-    # 总余额（所有客户余额总和）
+    def apply_recharge_filters(stmt, need_industry_join=False):
+        """为充值查询语句添加基础 + 筛选条件"""
+        stmt = stmt.where(
+            RechargeRecord.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+        )
+        for cond in customer_filters:
+            stmt = stmt.where(cond)
+        if industry_need_join and need_industry_join:
+            for cond in industry_filter_stmts:
+                stmt = stmt.where(cond)
+        if tag_subq is not None:
+            stmt = stmt.where(Customer.id.in_(tag_subq))
+        return stmt
+
+    def add_industry_joins(stmt):
+        """添加行业 JOIN"""
+        if industry_need_join:
+            stmt = stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        return stmt
+
+    # --- 总余额 ---
     total_balance_stmt = select(func.coalesce(func.sum(CustomerBalance.total_amount), 0)).join(
         Customer, CustomerBalance.customer_id == Customer.id
     )
-    if industry_filter_stmts:
-        total_balance_stmt = total_balance_stmt.outerjoin(
-            CustomerProfile, Customer.id == CustomerProfile.customer_id
-        ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-        total_balance_stmt = apply_filters(total_balance_stmt, need_industry_join=True)
-    else:
-        total_balance_stmt = apply_filters(total_balance_stmt)
+    total_balance_stmt = add_industry_joins(total_balance_stmt)
+    total_balance_stmt = apply_balance_filters(total_balance_stmt, need_industry_join=True)
     total_balance = (await db.execute(total_balance_stmt)).scalar() or 0
 
-    # 本月充值笔数和金额（需要关联客户表应用筛选条件）
-    # 金额 = 实充金额 + 赠送金额，与充值记录的 total_amount 一致
+    # --- 本月充值 ---
     now = datetime.now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     this_month_recharge_base = select(
@@ -433,27 +508,15 @@ async def get_balance_stats(request: Request):
         ),
         func.coalesce(func.sum(RechargeRecord.real_amount), 0).label("real_amount_sum"),
         func.coalesce(func.sum(RechargeRecord.bonus_amount), 0).label("bonus_amount_sum"),
-    ).where(
-        RechargeRecord.deleted_at.is_(None),
-        RechargeRecord.created_at >= month_start,
+    ).where(RechargeRecord.created_at >= month_start)
+    # 始终 JOIN Customer 以应用客户级别筛选条件
+    this_month_recharge_base = this_month_recharge_base.join(
+        Customer, RechargeRecord.customer_id == Customer.id
     )
-
-    # 如果有行业/账号类型筛选，需要关联客户表
-    if industry_filter_stmts or account_type_filter_stmts:
-        this_month_recharge_base = this_month_recharge_base.join(
-            Customer, RechargeRecord.customer_id == Customer.id
-        )
-        if industry_filter_stmts:
-            this_month_recharge_base = this_month_recharge_base.outerjoin(
-                CustomerProfile, Customer.id == CustomerProfile.customer_id
-            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-        this_month_recharge_base = this_month_recharge_base.where(Customer.deleted_at.is_(None))
-        if account_type_filter_stmts:
-            for cond in account_type_filter_stmts:
-                this_month_recharge_base = this_month_recharge_base.where(cond)
-        if industry_filter_stmts:
-            for cond in industry_filter_stmts:
-                this_month_recharge_base = this_month_recharge_base.where(cond)
+    this_month_recharge_base = add_industry_joins(this_month_recharge_base)
+    this_month_recharge_base = apply_recharge_filters(
+        this_month_recharge_base, need_industry_join=True
+    )
 
     this_month_result = (await db.execute(this_month_recharge_base)).one()
     this_month_count = this_month_result.count or 0
@@ -461,7 +524,7 @@ async def get_balance_stats(request: Request):
     this_month_real_amount = float(this_month_result.real_amount_sum or 0)
     this_month_bonus_amount = float(this_month_result.bonus_amount_sum or 0)
 
-    # 余额不足客户数（余额 < 10000 且 > 0）
+    # --- 余额不足客户数 ---
     LOW_BALANCE_THRESHOLD = 10000
     low_balance_stmt = (
         select(func.count(CustomerBalance.id))
@@ -471,41 +534,26 @@ async def get_balance_stats(request: Request):
             CustomerBalance.total_amount > 0,
         )
     )
-    if industry_filter_stmts:
-        low_balance_stmt = low_balance_stmt.outerjoin(
-            CustomerProfile, Customer.id == CustomerProfile.customer_id
-        ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-        low_balance_stmt = apply_filters(low_balance_stmt, need_industry_join=True)
-    else:
-        low_balance_stmt = apply_filters(low_balance_stmt)
+    low_balance_stmt = add_industry_joins(low_balance_stmt)
+    low_balance_stmt = apply_balance_filters(low_balance_stmt, need_industry_join=True)
     low_balance_count = (await db.execute(low_balance_stmt)).scalar() or 0
 
-    # 零余额客户数
+    # --- 零余额客户数 ---
     zero_balance_stmt = (
         select(func.count(CustomerBalance.id))
         .join(Customer, CustomerBalance.customer_id == Customer.id)
         .where(CustomerBalance.total_amount == 0)
     )
-    if industry_filter_stmts:
-        zero_balance_stmt = zero_balance_stmt.outerjoin(
-            CustomerProfile, Customer.id == CustomerProfile.customer_id
-        ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-        zero_balance_stmt = apply_filters(zero_balance_stmt, need_industry_join=True)
-    else:
-        zero_balance_stmt = apply_filters(zero_balance_stmt)
+    zero_balance_stmt = add_industry_joins(zero_balance_stmt)
+    zero_balance_stmt = apply_balance_filters(zero_balance_stmt, need_industry_join=True)
     zero_balance_count = (await db.execute(zero_balance_stmt)).scalar() or 0
 
-    # 客户总数
+    # --- 客户总数 ---
     total_customers_stmt = select(func.count(CustomerBalance.id)).join(
         Customer, CustomerBalance.customer_id == Customer.id
     )
-    if industry_filter_stmts:
-        total_customers_stmt = total_customers_stmt.outerjoin(
-            CustomerProfile, Customer.id == CustomerProfile.customer_id
-        ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
-        total_customers_stmt = apply_filters(total_customers_stmt, need_industry_join=True)
-    else:
-        total_customers_stmt = apply_filters(total_customers_stmt)
+    total_customers_stmt = add_industry_joins(total_customers_stmt)
+    total_customers_stmt = apply_balance_filters(total_customers_stmt, need_industry_join=True)
     total_customers = (await db.execute(total_customers_stmt)).scalar() or 0
 
     return json(

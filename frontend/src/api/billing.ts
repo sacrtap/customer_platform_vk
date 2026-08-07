@@ -54,7 +54,17 @@ export function getBalances(params?: {
   return api.get('/billing/balances', { params })
 }
 
-export function getBalanceStats(params?: { industry?: string; account_type?: string }) {
+export function getBalanceStats(params?: {
+  keyword?: string
+  industry?: string
+  account_type?: string
+  manager_id?: number
+  sales_manager_id?: number
+  is_key_customer?: boolean
+  is_real_estate?: boolean
+  settlement_type?: string
+  tag_ids?: string
+}) {
   return api.get<BalanceStats>('/billing/balance-stats', { params })
 }
 
@@ -125,6 +135,8 @@ export interface PricingRule {
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
+  multi_floor_pricing_type?: 'unified' | 'incremental'
+  additional_floor_price?: number
   tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
   package_type?: string
   package_limits?: Record<string, unknown>
@@ -192,6 +204,9 @@ export interface InvoiceItem {
   quantity: number
   unit_price: number
   subtotal?: number
+  additional_floor_price?: number
+  multi_floor_pricing_type?: 'unified' | 'incremental'
+  order_count?: number
   pricing_rule_id?: number
 }
 

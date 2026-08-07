@@ -1,6 +1,6 @@
 """SyncTaskService 单元测试"""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -50,6 +50,11 @@ class TestCreateTask:
         mock_db.add = MagicMock()
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock()
+
+        # mock execute 返回空活跃任务列表
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
 
         # 执行
         with patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock):
@@ -101,12 +106,17 @@ class TestCreateTask:
                 operator_id=1,
             )
 
-    async def test_create_task_lock_conflict(self, service, mock_redis):
+    async def test_create_task_lock_conflict(self, service, mock_db, mock_redis):
         """测试锁冲突"""
         # 准备
         mock_redis.set = AsyncMock(return_value=False)  # 锁获取失败
         start_date = date.today() - timedelta(days=7)
         end_date = date.today()
+
+        # mock execute 返回空活跃任务列表（无活跃任务，进入锁获取阶段）
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
 
         # 执行 & 验证
         with pytest.raises(Exception, match="已有相同周期的同步任务正在执行"):
@@ -116,6 +126,121 @@ class TestCreateTask:
                 sync_mode="skip_existing",
                 operator_id=1,
             )
+
+    async def test_create_task_recovers_stuck_task_no_redis_progress(
+        self, service, mock_db, mock_redis
+    ):
+        """测试恢复卡死任务：Redis 进度信息已消失"""
+        start_date = date.today() - timedelta(days=7)
+        end_date = date.today()
+
+        # 模拟一个 running 状态的卡死任务
+        stuck_task = MagicMock()
+        stuck_task.id = "stuck-uuid"
+        stuck_task.status = "running"
+        stuck_task.start_date = start_date
+        stuck_task.end_date = end_date
+        stuck_task.created_at = datetime.now() - timedelta(hours=2)
+        stuck_task.error_message = None
+        stuck_task.completed_at = None
+
+        # db.execute 返回卡死任务
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [stuck_task]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        mock_db.add = MagicMock()
+        mock_db.commit = AsyncMock()
+
+        # Redis 进度不存在（进程已死亡）
+        mock_redis.exists = AsyncMock(return_value=False)
+        mock_redis.set = AsyncMock(return_value=True)
+
+        with patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock):
+            result = await service.create_task(
+                start_date=start_date,
+                end_date=end_date,
+                sync_mode="skip_existing",
+                operator_id=1,
+            )
+
+        # 验证：卡死任务被标记为 failed
+        assert stuck_task.status == "failed"
+        assert stuck_task.error_message is not None
+        assert stuck_task.completed_at is not None
+        # 验证：新任务成功创建
+        assert result is not None
+        assert result.status == "pending"
+
+    async def test_create_task_recovers_stuck_task_timeout(self, service, mock_db, mock_redis):
+        """测试恢复卡死任务：运行时间超过 30 分钟"""
+        start_date = date.today() - timedelta(days=7)
+        end_date = date.today()
+
+        # 模拟一个 running 状态的超时任务
+        stuck_task = MagicMock()
+        stuck_task.id = "stuck-uuid"
+        stuck_task.status = "running"
+        stuck_task.start_date = start_date
+        stuck_task.end_date = end_date
+        stuck_task.created_at = datetime.now() - timedelta(minutes=45)
+        stuck_task.error_message = None
+        stuck_task.completed_at = None
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [stuck_task]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        mock_db.add = MagicMock()
+        mock_db.commit = AsyncMock()
+
+        # Redis 进度存在，但任务运行超时
+        mock_redis.exists = AsyncMock(return_value=True)
+        mock_redis.set = AsyncMock(return_value=True)
+
+        with patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock):
+            result = await service.create_task(
+                start_date=start_date,
+                end_date=end_date,
+                sync_mode="skip_existing",
+                operator_id=1,
+            )
+
+        # 验证：超时任务被标记为 failed
+        assert stuck_task.status == "failed"
+        assert "30 分钟" in stuck_task.error_message
+        # 验证：新任务成功创建
+        assert result is not None
+        assert result.status == "pending"
+
+    async def test_create_task_blocked_by_truly_active_task(self, service, mock_db, mock_redis):
+        """测试真正活跃的任务阻止创建"""
+        start_date = date.today() - timedelta(days=7)
+        end_date = date.today()
+
+        # 模拟一个 running 状态的任务，运行时间在 30 分钟内
+        active_task = MagicMock()
+        active_task.id = "active-uuid"
+        active_task.status = "running"
+        active_task.start_date = start_date
+        active_task.end_date = end_date
+        active_task.created_at = datetime.now() - timedelta(minutes=10)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [active_task]
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        # Redis 进度存在
+        mock_redis.exists = AsyncMock(return_value=True)
+
+        with pytest.raises(Exception, match="已有相同周期的同步任务正在执行"):
+            await service.create_task(
+                start_date=start_date,
+                end_date=end_date,
+                sync_mode="skip_existing",
+                operator_id=1,
+            )
+
+        # 验证：活跃任务未被修改
+        assert active_task.status == "running"
 
 
 class TestExecuteTask:

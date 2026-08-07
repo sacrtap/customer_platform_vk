@@ -31,6 +31,9 @@ async def get_consumption_trend(request: Request):
     keyword = request.args.get("keyword")
     metric = request.args.get("metric", "cost")  # cost | order_count
     account_type = request.args.get("account_type")
+    industry = request.args.get("industry")
+    scale_level = request.args.get("scale_level")
+    consume_level = request.args.get("consume_level")
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
     force_refresh_raw = request.args.get("force_refresh", "")
@@ -50,7 +53,7 @@ async def get_consumption_trend(request: Request):
         end_date = datetime.fromisoformat(end_date_str).date()
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{manager_id}:{sales_manager_id}"
+    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
     cached = (
         await cache_service.get("analytics_consumption_trend", cache_key)
         if not force_refresh
@@ -71,6 +74,9 @@ async def get_consumption_trend(request: Request):
             customer_id=int(customer_id) if customer_id else None,
             keyword=keyword,
             account_type=account_type,
+            industry=industry,
+            scale_level=scale_level,
+            consume_level=consume_level,
             manager_id=int(manager_id) if manager_id else None,
             sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
         )
@@ -152,6 +158,9 @@ async def get_device_distribution(request: Request):
     customer_id = request.args.get("customer_id")
     keyword = request.args.get("keyword")
     account_type = request.args.get("account_type")
+    industry = request.args.get("industry")
+    scale_level = request.args.get("scale_level")
+    consume_level = request.args.get("consume_level")
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -166,9 +175,7 @@ async def get_device_distribution(request: Request):
         end_date = datetime.fromisoformat(end_date_str).date()
 
     cid = customer_id or "all"
-    cache_key = (
-        f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{manager_id}:{sales_manager_id}"
-    )
+    cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
     cached = (
         await cache_service.get("analytics_device_distribution", cache_key)
         if not force_refresh
@@ -189,6 +196,9 @@ async def get_device_distribution(request: Request):
         customer_id=int(customer_id) if customer_id else None,
         keyword=keyword,
         account_type=account_type,
+        industry=industry,
+        scale_level=scale_level,
+        consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
     )

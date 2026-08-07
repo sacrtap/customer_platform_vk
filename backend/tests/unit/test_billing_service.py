@@ -554,3 +554,262 @@ class TestPricingService_CheckConflict:
         )
 
         assert len(conflicts) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_conflict_single_and_multi_has_conflict(
+        self, pricing_service, mock_db_session
+    ):
+        """测试检查冲突 - single_and_multi 模式下存在冲突"""
+        existing_single = PricingRule(
+            id=1,
+            customer_id=100,
+            device_type="L",
+            layer_type="single",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+
+        # 第一次调用返回 single 冲突，第二次返回空（multi 无冲突）
+        mock_result_single = MagicMock()
+        mock_result_single.scalars.return_value.all.return_value = [existing_single]
+        mock_result_multi = MagicMock()
+        mock_result_multi.scalars.return_value.all.return_value = []
+
+        mock_db_session.execute.side_effect = [mock_result_single, mock_result_multi]
+
+        conflicts = await pricing_service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="L",
+            layer_type="single_and_multi",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2027, 6, 30),
+        )
+
+        assert len(conflicts) == 1
+        assert conflicts[0].id == 1
+
+    @pytest.mark.asyncio
+    async def test_check_conflict_single_and_multi_no_conflict(
+        self, pricing_service, mock_db_session
+    ):
+        """测试检查冲突 - single_and_multi 模式下无冲突"""
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        conflicts = await pricing_service.check_pricing_rule_conflict(
+            customer_id=100,
+            device_type="L",
+            layer_type="single_and_multi",
+            effective_date=date(2027, 1, 1),
+            expiry_date=date(2027, 12, 31),
+        )
+
+        assert len(conflicts) == 0
+
+
+# ==================== Test PricingService - Create single_and_multi ====================
+
+
+class TestPricingService_CreateSingleAndMulti:
+    """创建单层+多层组合规则测试"""
+
+    @pytest.mark.asyncio
+    async def test_create_single_and_multi_success(self, pricing_service, mock_db_session):
+        """测试创建 single_and_multi 规则 - 成功拆分为两条"""
+        # Mock 无冲突
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        rule_data = {
+            "customer_id": 100,
+            "device_type": "L",
+            "layer_type": "single_and_multi",
+            "pricing_type": "fixed",
+            "unit_price": Decimal("10.00"),
+            "effective_date": date(2026, 1, 1),
+            "expiry_date": date(2026, 12, 31),
+            "created_by": 1,
+        }
+
+        result = await pricing_service.create_pricing_rule(rule_data)
+
+        assert result is not None
+        assert isinstance(result, PricingRule)
+        assert result.layer_type == "multi"
+        assert result.multi_floor_pricing_type == "unified"
+        # 应该 commit 两次（single + multi）
+        assert mock_db_session.commit.call_count == 2
+        # 应该 add 两次
+        assert mock_db_session.add.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_create_single_and_multi_with_incremental_fields(
+        self, pricing_service, mock_db_session
+    ):
+        """测试创建 multi + incremental 规则"""
+        # Mock 无冲突
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        rule_data = {
+            "customer_id": 100,
+            "device_type": "L",
+            "layer_type": "multi",
+            "pricing_type": "fixed",
+            "unit_price": Decimal("5.00"),
+            "multi_floor_pricing_type": "incremental",
+            "additional_floor_price": Decimal("6.00"),
+            "effective_date": date(2026, 1, 1),
+            "expiry_date": date(2026, 12, 31),
+            "created_by": 1,
+        }
+
+        result = await pricing_service.create_pricing_rule(rule_data)
+
+        assert result is not None
+        assert result.layer_type == "multi"
+        assert result.multi_floor_pricing_type == "incremental"
+        assert result.additional_floor_price == Decimal("6.00")
+        mock_db_session.commit.assert_called()
+
+
+# ==================== Test InvoiceService - Calculate Items with Incremental ====================
+
+
+class TestInvoiceService_CalculateItemsIncremental:
+    """结算单明细计算测试 - 递增模式"""
+
+    @pytest.fixture
+    def invoice_service(self, mock_db_session):
+        """创建 InvoiceService 实例"""
+        from unittest.mock import MagicMock
+
+        from app.repository import InvoiceRepository, PricingRepository
+
+        mock_invoice_repo = MagicMock(spec=InvoiceRepository)
+        mock_invoice_repo.db = mock_db_session
+        mock_pricing_repo = MagicMock(spec=PricingRepository)
+        mock_pricing_repo.db = mock_db_session
+        from app.services.billing import InvoiceService
+
+        return InvoiceService(
+            invoice_repo=mock_invoice_repo,
+            pricing_repo=mock_pricing_repo,
+        )
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_fixed_incremental(self, invoice_service, mock_db_session):
+        """测试结算明细计算 - 递增模式
+
+        3层房源1套，单价5，其他层单价6 → 5×1 + 6×2 = 17
+        """
+
+        # Mock 用量查询结果
+        usage_row = MagicMock()
+        usage_row.device_type = "L"
+        usage_row.layer_type = "multi"
+        usage_row.total_quantity = 1  # order_count
+        usage_row.total_floor_count = 3
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        # Mock 规则查询结果
+        mock_rule = MagicMock(spec=PricingRule)
+        mock_rule.id = 1
+        mock_rule.device_type = "L"
+        mock_rule.layer_type = "multi"
+        mock_rule.pricing_type = "fixed"
+        mock_rule.unit_price = Decimal("5")
+        mock_rule.multi_floor_pricing_type = "incremental"
+        mock_rule.additional_floor_price = Decimal("6")
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_rule]
+
+        # execute 第一次返回用量，第二次返回规则
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+        )
+
+        assert len(items) == 1
+        item = items[0]
+        assert item["multi_floor_pricing_type"] == "incremental"
+        assert item["unit_price"] == Decimal("5")
+        assert item["additional_floor_price"] == Decimal("6")
+        assert item["subtotal"] == Decimal("17")
+        assert total_amount == Decimal("17")
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_fixed_unified_multi(self, invoice_service, mock_db_session):
+        """测试结算明细计算 - 多层统一模式
+
+        统一模式：按订单数量 × 单价（不区分楼层）
+        订单数 2，总楼层数 6，单价 10 → 2 × 10 = 20
+        """
+        usage_row = MagicMock()
+        usage_row.device_type = "L"
+        usage_row.layer_type = "multi"
+        usage_row.total_quantity = 2
+        usage_row.total_floor_count = 6
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_rule = MagicMock(spec=PricingRule)
+        mock_rule.id = 1
+        mock_rule.device_type = "L"
+        mock_rule.layer_type = "multi"
+        mock_rule.pricing_type = "fixed"
+        mock_rule.unit_price = Decimal("10")
+        mock_rule.multi_floor_pricing_type = "unified"
+        mock_rule.additional_floor_price = None
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_rule]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+        )
+
+        assert len(items) == 1
+        assert items[0]["subtotal"] == Decimal("20")
+        assert items[0]["quantity"] == Decimal("2")  # 按订单数
+        assert total_amount == Decimal("20")
+
+    @pytest.mark.asyncio
+    async def test_generate_invoice_uses_subtotal(self, invoice_service, mock_db_session):
+        """测试生成结算单 - 使用 subtotal 字段计算总金额"""
+        items = [
+            {
+                "device_type": "L",
+                "layer_type": "multi",
+                "quantity": 3,
+                "unit_price": Decimal("5"),
+                "additional_floor_price": Decimal("6"),
+                "subtotal": Decimal("17"),  # 递增模式的 subtotal
+                "pricing_rule_id": 1,
+            }
+        ]
+
+        result = await invoice_service.generate_invoice(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            items=items,
+            created_by=1,
+        )
+
+        assert result is not None
+        assert result.total_amount == Decimal("17")  # 使用 subtotal 而非 quantity × unit_price

@@ -19,6 +19,9 @@ export function getConsumptionTrend(params?: {
   keyword?: string
   metric?: 'cost' | 'order_count'
   account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
   manager_id?: number
   sales_manager_id?: number
   force_refresh?: boolean
@@ -69,6 +72,9 @@ export function getDeviceDistribution(params?: {
   keyword?: string
   metric?: 'cost' | 'order_count'
   account_type?: string
+  industry?: string
+  scale_level?: string
+  consume_level?: string
   manager_id?: number
   sales_manager_id?: number
   force_refresh?: boolean

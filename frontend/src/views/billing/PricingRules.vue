@@ -82,9 +82,18 @@
                 <!-- 单价 -->
                 <td>
                   <template v-if="record.pricing_type === 'fixed'">
-                    <span v-if="record.unit_price" class="amount"
-                      >¥{{ record.unit_price.toFixed(2) }}</span
-                    >
+                    <template v-if="record.unit_price">
+                      <span class="amount">¥{{ record.unit_price.toFixed(2) }}</span>
+                      <span
+                        v-if="
+                          record.multi_floor_pricing_type === 'incremental' &&
+                          record.additional_floor_price
+                        "
+                        class="subtle incremental-price"
+                      >
+                        + 其他层 ¥{{ record.additional_floor_price.toFixed(2) }}
+                      </span>
+                    </template>
                     <span v-else class="subtle">-</span>
                   </template>
                   <template v-else-if="record.pricing_type === 'tiered'">
@@ -690,6 +699,13 @@ onMounted(() => {
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+.incremental-price {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .cell-nowrap {
