@@ -84,6 +84,47 @@
       </div>
     </a-card>
 
+    <!-- 清空同步日志数据 -->
+    <a-card :bordered="false" style="margin-bottom: 24px">
+      <template #title>
+        <div class="card-header">
+          <span>清空同步日志数据</span>
+        </div>
+      </template>
+
+      <a-alert type="warning" style="margin-bottom: 24px">
+        此操作不可逆，将删除所有同步任务记录和同步任务审计日志。不会删除客户、计费规则、结算单、余额、消耗分析等业务数据。
+      </a-alert>
+
+      <a-descriptions :column="1" bordered style="margin-bottom: 24px">
+        <a-descriptions-item label="操作名称">清空同步日志数据</a-descriptions-item>
+        <a-descriptions-item label="影响范围">
+          {{ SYNC_LOG_TABLES.join('、') }}
+        </a-descriptions-item>
+        <a-descriptions-item label="说明">
+          清空后同步日志页面将无数据展示，需重新执行数据同步后恢复
+        </a-descriptions-item>
+        <a-descriptions-item label="权限要求">需具备「数据清空」权限</a-descriptions-item>
+      </a-descriptions>
+
+      <a-space>
+        <a-button
+          v-if="can('system:database_clear')"
+          status="danger"
+          :loading="clearingSyncLogs"
+          @click="handleClearSyncLogsConfirm"
+        >
+          清空同步日志数据
+        </a-button>
+      </a-space>
+
+      <div v-if="lastSyncLogsResult" class="result-info">
+        <a-alert :type="lastSyncLogsResult.success ? 'success' : 'error'" style="margin-top: 16px">
+          {{ lastSyncLogsResult.message }}
+        </a-alert>
+      </div>
+    </a-card>
+
     <!-- 清空结算单数据 -->
     <a-card :bordered="false" style="margin-bottom: 24px">
       <template #title>
@@ -210,14 +251,18 @@ const INVOICE_TABLES = [
   'consumption_records (关联结算单的记录)',
 ] as const
 
+const SYNC_LOG_TABLES = ['sync_tasks', 'sync_task_logs'] as const
+
 const clearing = ref(false)
 const clearingConsumption = ref(false)
 const clearingInvoices = ref(false)
 const clearingBalance = ref(false)
+const clearingSyncLogs = ref(false)
 const lastResult = ref<{ success: boolean; message: string } | null>(null)
 const lastConsumptionResult = ref<{ success: boolean; message: string } | null>(null)
 const lastInvoiceResult = ref<{ success: boolean; message: string } | null>(null)
 const lastBalanceResult = ref<{ success: boolean; message: string } | null>(null)
+const lastSyncLogsResult = ref<{ success: boolean; message: string } | null>(null)
 
 interface ClearData {
   deleted_count: number
@@ -241,6 +286,12 @@ interface InvoiceClearData {
   invoices_deleted: number
   invoice_items_deleted: number
   consumption_records_linked_deleted: number
+}
+
+interface SyncLogsClearData {
+  deleted_count: number
+  sync_tasks_deleted: number
+  sync_task_logs_deleted: number
 }
 
 const handleClearConfirm = () => {
@@ -341,6 +392,40 @@ const handleClearInvoicesConfirm = () => {
         lastInvoiceResult.value = { success: false, message: '结算单数据清空失败' }
       } finally {
         clearingInvoices.value = false
+      }
+      return true
+    },
+  })
+}
+
+const handleClearSyncLogsConfirm = () => {
+  Modal.confirm({
+    title: '确认清空同步日志数据',
+    content: '此操作将不可恢复地删除所有同步任务记录和同步任务审计日志，确定继续？',
+    okText: '确定清空',
+    cancelText: '取消',
+    okButtonProps: { status: 'danger' },
+    hideCancel: false,
+    onBeforeOk: async () => {
+      clearingSyncLogs.value = true
+      try {
+        const res = (await service.post<SyncLogsClearData>(
+          '/system/database/clear-sync-logs'
+        )) as unknown as ApiResponse<SyncLogsClearData>
+        if (res.code === 0) {
+          const msg = res.message || '同步日志数据清空成功'
+          Message.success(msg)
+          lastSyncLogsResult.value = { success: true, message: msg }
+        } else {
+          const msg = res.message || '同步日志数据清空失败：请稍后重试'
+          Message.error(msg)
+          lastSyncLogsResult.value = { success: false, message: msg }
+        }
+      } catch (error) {
+        handleError(error, '同步日志数据清空失败')
+        lastSyncLogsResult.value = { success: false, message: '同步日志数据清空失败' }
+      } finally {
+        clearingSyncLogs.value = false
       }
       return true
     },

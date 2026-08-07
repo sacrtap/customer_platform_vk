@@ -421,6 +421,108 @@ async def clear_balance_data(request: Request):
         )
 
 
+@database_bp.post("/clear-sync-logs")
+@auth_required
+@require_permission("system:database_clear")
+async def clear_sync_logs_data(request: Request):
+    """
+    清空同步日志数据
+
+    仅管理员可用，需要 system:database_clear 权限。
+    操作不可逆，会删除以下数据：
+    - sync_tasks (同步任务记录)
+    - sync_task_logs (同步任务审计日志)
+
+    不会删除客户、计费规则、结算单、余额、消耗分析等业务数据。
+    操作会记录到 audit_logs 表。
+    """
+    db_session: AsyncSession = request.ctx.db_session
+    user = request.ctx.user
+
+    # 统计即将删除的数据量
+    from ..models.billing import SyncTaskLog
+    from ..models.sync_task import SyncTask
+
+    task_count_result = await db_session.execute(select(func.count(SyncTask.id)))
+    task_count = task_count_result.scalar() or 0
+
+    log_count_result = await db_session.execute(select(func.count(SyncTaskLog.id)))
+    log_count = log_count_result.scalar() or 0
+
+    total_count = task_count + log_count
+
+    # 快捷返回：如果无数据则直接返回
+    if total_count == 0:
+        return json({"code": 0, "message": "无同步日志数据可清空", "data": {"deleted_count": 0}})
+
+    # 创建审计日志条目（在事务中，不自动提交）
+    user_id = user["user_id"]
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=user_id,
+        action="database_clear_sync_logs",
+        module="system",
+        record_id=None,
+        record_type="database",
+        changes={
+            "before": {
+                "sync_tasks_count": task_count,
+                "sync_task_logs_count": log_count,
+            },
+            "after": {
+                "sync_tasks_count": 0,
+                "sync_task_logs_count": 0,
+            },
+            "tables_affected": [
+                "sync_tasks",
+                "sync_task_logs",
+            ],
+        },
+        operation_type="sensitive",
+        auto_commit=False,
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+    )
+
+    try:
+        # 按依赖顺序删除
+        # 1. 同步任务日志（引用 sync_tasks）
+        await db_session.execute(text("DELETE FROM sync_task_logs"))
+
+        # 2. 同步任务
+        await db_session.execute(text("DELETE FROM sync_tasks"))
+
+        # 提交事务
+        await db_session.commit()
+
+        return json(
+            {
+                "code": 0,
+                "message": (
+                    f"成功清空同步日志数据（同步任务 {task_count} 条，任务日志 {log_count} 条）"
+                ),
+                "data": {
+                    "deleted_count": total_count,
+                    "sync_tasks_deleted": task_count,
+                    "sync_task_logs_deleted": log_count,
+                },
+            },
+            status=200,
+        )
+
+    except Exception as e:
+        logger.exception("同步日志数据清空失败")
+        await db_session.rollback()
+        return json(
+            {
+                "code": 500,
+                "message": f"同步日志数据清空失败: {str(e)}",
+            },
+            status=500,
+        )
+
+
 @database_bp.post("/clear-invoices")
 @auth_required
 @require_permission("system:database_clear")
