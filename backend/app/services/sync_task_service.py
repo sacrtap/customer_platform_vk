@@ -12,6 +12,7 @@ from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
 from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
+from app.services.dto import SyncResult
 from app.services.order_sync import OrderSyncService
 
 logger = logging.getLogger(__name__)
@@ -224,29 +225,49 @@ class SyncTaskService:
                     await self._update_redis_progress(task)
 
                     try:
-                        # skip_existing 模式：检查是否已有数据
+                        skip_order_sync = False
+
+                        # skip_existing 模式：分层检查数据完整性
                         if task.sync_mode == "skip_existing":  # pyright: ignore[reportGeneralTypeIssues]
-                            has_data = await self._check_data_exists(sync_date)
-                            if has_data:
-                                logger.info(f"[{task_id}] {sync_date} 已有数据，跳过")
+                            has_orders, has_consumptions = await self._check_data_completeness(
+                                sync_date
+                            )
+                            if has_orders and has_consumptions:
+                                # 订单和费用数据都存在，整体跳过
+                                logger.info(f"[{task_id}] {sync_date} 已有完整数据，跳过")
                                 task.skipped_days += 1  # pyright: ignore[reportAttributeAccessIssue]
                                 task.completed_days += 1  # pyright: ignore[reportAttributeAccessIssue]
                                 await self.db.commit()
                                 await self._update_redis_progress(task)
                                 continue
+                            elif has_orders and not has_consumptions:
+                                # 订单已存在但费用缺失，仅补充费用计算
+                                logger.info(
+                                    f"[{task_id}] {sync_date} 订单已存在但费用缺失，仅计算费用"
+                                )
+                                skip_order_sync = True
 
                         # force_overwrite 模式：删除旧数据
                         if task.sync_mode == "force_overwrite":  # pyright: ignore[reportGeneralTypeIssues]
                             logger.info(f"[{task_id}] {sync_date} 强制覆盖模式，清除旧数据")
                             await self._clear_data(sync_date)
 
-                        # 同步订单
-                        logger.info(f"[{task_id}] {sync_date} 开始同步订单")
-                        order_service = OrderSyncService(self.db)
-                        order_result = await order_service.sync_orders(sync_date)
-                        logger.info(
-                            f"[{task_id}] {sync_date} 订单同步完成: 成功 {order_result.success}, 失败 {order_result.failed}"
-                        )
+                        # 同步订单（skip_existing 模式下可能已跳过）
+                        if not skip_order_sync:
+                            logger.info(f"[{task_id}] {sync_date} 开始同步订单")
+                            order_service = OrderSyncService(self.db)
+                            order_result = await order_service.sync_orders(sync_date)
+                            logger.info(
+                                f"[{task_id}] {sync_date} 订单同步完成: 成功 {order_result.success}, 失败 {order_result.failed}"
+                            )
+                        else:
+                            order_result = SyncResult(
+                                success=0,
+                                failed=0,
+                                skipped=0,
+                                unmatched=0,
+                                message="订单已存在，跳过同步",
+                            )
 
                         # 计算费用
                         logger.info(f"[{task_id}] {sync_date} 开始计算费用")
@@ -628,14 +649,36 @@ class SyncTaskService:
             progress_key, 3600
         )  # 1小时TTL  # pyright: ignore[reportOptionalMemberAccess]
 
-    async def _check_data_exists(self, sync_date: date) -> bool:
-        """检查指定日期是否已有数据"""
+    async def _check_data_completeness(self, sync_date: date) -> tuple[bool, bool]:
+        """检查指定日期的订单数据和费用数据是否都已存在
+
+        分别查询 DailyOrder 和 DailyConsumption 表，判断数据完整性。
+        用于 skip_existing 模式下的分层跳过决策：
+        - (True, True)   → 订单和费用都存在，整体跳过
+        - (True, False)  → 订单存在但费用缺失，仅补充费用计算
+        - (False, *)     → 订单不存在，执行完整同步
+
+        Args:
+            sync_date: 同步日期
+
+        Returns:
+            (has_orders, has_consumptions)
+        """
         from sqlalchemy import func
 
-        result = await self.db.execute(
+        order_result = await self.db.execute(
             select(func.count(DailyOrder.id)).where(DailyOrder.sync_date == sync_date)
         )
-        return result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
+        has_orders = order_result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
+
+        consumption_result = await self.db.execute(
+            select(func.count(DailyConsumption.id)).where(
+                DailyConsumption.consumption_date == sync_date
+            )
+        )
+        has_consumptions = consumption_result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
+
+        return has_orders, has_consumptions
 
     async def _clear_data(self, sync_date: date) -> None:
         """清空指定日期的数据"""
