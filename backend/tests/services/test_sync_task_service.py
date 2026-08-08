@@ -271,7 +271,10 @@ class TestExecuteTask:
             patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
             patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
             patch.object(
-                SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
+                SyncTaskService,
+                "_check_data_completeness",
+                new_callable=AsyncMock,
+                return_value=(False, False),
             ),
             patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
             patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
@@ -366,7 +369,10 @@ class TestExecuteTask:
             patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
             patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
             patch.object(
-                SyncTaskService, "_check_data_exists", new_callable=AsyncMock, return_value=False
+                SyncTaskService,
+                "_check_data_completeness",
+                new_callable=AsyncMock,
+                return_value=(False, False),
             ),
             patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
             patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),

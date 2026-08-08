@@ -2,6 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from app.services.dto import SyncResult
 
 # ==================== Fixtures ====================
@@ -170,7 +172,7 @@ class TestOrderSyncServiceSyncOrders:
         svc._match_and_save.assert_awaited_once_with(orders=orders, sync_date="2024-01-15")
 
     async def test_sync_orders_fetch_fails(self):
-        """获取外部订单失败时同步中止"""
+        """获取外部订单失败时异常向上传播"""
         from app.services.order_sync import OrderSyncService
 
         svc = MagicMock(spec=OrderSyncService)
@@ -178,11 +180,9 @@ class TestOrderSyncServiceSyncOrders:
 
         svc._fetch_orders = AsyncMock(side_effect=Exception("外部数据库连接超时"))
 
-        result = await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
-
-        assert isinstance(result, SyncResult)
-        assert result.success == 0
-        assert "外部数据库连接超时" in result.message
+        # 异常应向上传播，由 execute_task 的逐天异常处理器捕获
+        with pytest.raises(Exception, match="外部数据库连接超时"):
+            await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
 
     async def test_sync_orders_no_data(self):
         """没有新订单需要同步"""
