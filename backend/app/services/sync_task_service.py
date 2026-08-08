@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 class SyncTaskService:
     """同步任务服务"""
 
-    def __init__(self, db: AsyncSession, redis_client=None):
+    def __init__(self, db: AsyncSession, redis_client=None, external_engine=None):
         self.db = db
         self.redis_client = redis_client
+        self.external_engine = external_engine
 
     async def create_task(
         self,
@@ -255,7 +256,9 @@ class SyncTaskService:
                         # 同步订单（skip_existing 模式下可能已跳过）
                         if not skip_order_sync:
                             logger.info(f"[{task_id}] {sync_date} 开始同步订单")
-                            order_service = OrderSyncService(self.db)
+                            order_service = OrderSyncService(
+                                self.db, external_engine=self.external_engine
+                            )
                             order_result = await order_service.sync_orders(sync_date)
                             logger.info(
                                 f"[{task_id}] {sync_date} 订单同步完成: 成功 {order_result.success}, 失败 {order_result.failed}"

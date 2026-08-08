@@ -149,10 +149,15 @@ async def create_sync_task(request: Request):
 
         # 启动后台任务（使用独立的数据库 session）
         async_session_maker = request.app.ctx.async_session_maker
+        external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
 
         async def run_task():
             async with async_session_maker() as new_session:
-                bg_service = SyncTaskService(db=new_session, redis_client=redis_client)
+                bg_service = SyncTaskService(
+                    db=new_session,
+                    redis_client=redis_client,
+                    external_engine=external_engine,
+                )
                 await bg_service.execute_task(task.id)  # pyright: ignore[reportArgumentType]
 
         request.app.add_task(run_task())
