@@ -35,6 +35,7 @@
             <a-option value="pending">队列中</a-option>
             <a-option value="running">执行中</a-option>
             <a-option value="completed">已完成</a-option>
+            <a-option value="partial">部分完成</a-option>
             <a-option value="cancelled">已取消</a-option>
             <a-option value="failed">失败</a-option>
           </a-select>
@@ -83,10 +84,10 @@
         </template>
         <template #period="{ record }"> {{ record.start_date }} ~ {{ record.end_date }} </template>
         <template #sync_mode="{ record }">
-          {{ record.sync_mode === 'skip_existing' ? '仅补充缺失' : '强制覆盖' }}
+          {{ record.sync_mode === 'skip_existing' ? '仅同步无数据' : '强制覆盖' }}
         </template>
         <template #status="{ record }">
-          <a-tag :color="getStatusColor(record.status)">
+          <a-tag :color="getStatusColor(record)">
             {{ getStatusText(record.status) }}
           </a-tag>
         </template>
@@ -102,8 +103,11 @@
               {{ record.completed_days }}/{{ record.total_days }} 天
             </span>
           </div>
-          <span v-else-if="record.status === 'completed'">
+          <span v-else-if="record.status === 'completed' || record.status === 'partial'">
             {{ record.completed_days }}/{{ record.total_days }} 天
+            <span v-if="record.failed_count > 0" style="color: var(--red); font-size: 12px">
+              (失败 {{ record.failed_count }})
+            </span>
           </span>
           <span v-else>-</span>
         </template>
@@ -229,11 +233,15 @@ const columns = [
   },
 ]
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (record: Task) => {
+  const status = record.status
+  // 旧数据兼容：completed 但有失败天数，显示金色警告
+  if (status === 'completed' && record.failed_count > 0) return 'gold'
   const colors: Record<string, string> = {
     pending: 'blue',
     running: 'green',
     completed: 'gray',
+    partial: 'gold',
     cancelled: 'orange',
     failed: 'red',
   }
@@ -245,6 +253,7 @@ const getStatusText = (status: string) => {
     pending: '队列中',
     running: '执行中',
     completed: '已完成',
+    partial: '部分完成',
     cancelled: '已取消',
     failed: '失败',
   }
@@ -252,6 +261,7 @@ const getStatusText = (status: string) => {
 }
 const getProgressStatus = (status: string) => {
   if (status === 'completed') return 'success'
+  if (status === 'partial') return 'warning'
   if (status === 'failed') return 'danger'
   if (status === 'cancelled') return 'warning'
   return 'normal' // running/pending 显示蓝色

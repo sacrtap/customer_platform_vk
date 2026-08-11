@@ -161,20 +161,19 @@ class SyncTaskService:
         """执行同步任务（后台异步）"""
         logger.info(f"[{task_id}] 开始执行同步任务")
 
+        lock_key = None  # 初始化为 None，防止 db.get 失败时 finally 块 NameError
+        cancel_key = f"sync_cancel:{task_id}"  # 取消标志 key
+
         # 重新加载任务对象，确保在当前 session 上下文中
         task = await self.db.get(SyncTask, task_id)
         if not task:
             logger.error(f"[{task_id}] 任务不存在")
-            # 任务不存在时尝试释放锁
-            lock_key = f"sync_lock:{task_id}"
-            await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
             raise ValueError(f"任务不存在: {task_id}")
 
         logger.info(
             f"[{task_id}] 任务信息: 周期 {task.start_date} ~ {task.end_date}, 模式 {task.sync_mode}"
         )
         lock_key = f"sync_lock:{task.start_date}:{task.end_date}"
-        cancel_key = f"sync_cancel:{task_id}"  # 取消标志 key
 
         try:
             # 检查任务是否在 pending 阶段已被取消
@@ -248,10 +247,9 @@ class SyncTaskService:
                                 )
                                 skip_order_sync = True
 
-                        # force_overwrite 模式：删除旧数据
-                        if task.sync_mode == "force_overwrite":  # pyright: ignore[reportGeneralTypeIssues]
-                            logger.info(f"[{task_id}] {sync_date} 强制覆盖模式，清除旧数据")
-                            await self._clear_data(sync_date)
+                        # force_overwrite 模式：sync_orders 内部已实现先拉取后清除的逻辑
+                        # （_fetch_orders 成功后才 _clear_orders），
+                        # 不再在此处预先 _clear_data，避免拉取失败时数据被误删
 
                         # 同步订单（skip_existing 模式下可能已跳过）
                         if not skip_order_sync:
@@ -307,18 +305,39 @@ class SyncTaskService:
                     # 更新 Redis 进度
                     await self._update_redis_progress(task)
 
-                # 任务完成
-                logger.info(f"[{task_id}] 所有日期处理完成，更新状态为 completed")
-                task.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
-                task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
-                duration = (task.completed_at - start_time).total_seconds()
+                # 任务完成 — 根据成功/失败比例确定最终状态
+                duration = (datetime.now(timezone.utc) - start_time).total_seconds()
                 logger.info(f"[{task_id}] 任务执行耗时: {duration:.2f} 秒")
+
+                if task.failed_count > 0 and task.success_count == 0 and task.skipped_days == 0:
+                    # 全部失败，无成功无跳过
+                    task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+                    task.error_message = f"全部 {task.failed_count} 天处理失败，无成功数据"
+                    logger.info(f"[{task_id}] 全部失败，状态标记为 failed")
+                    audit_status = "failed"
+                elif task.failed_count > 0:
+                    # 部分失败
+                    task.status = "partial"  # pyright: ignore[reportAttributeAccessIssue]
+                    task.error_message = (
+                        f"部分失败: 成功 {task.success_count} 天, "
+                        f"失败 {task.failed_count} 天, 跳过 {task.skipped_days} 天"
+                    )
+                    logger.info(f"[{task_id}] 部分失败，状态标记为 partial")
+                    audit_status = "partial"
+                else:
+                    task.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
+                    task.error_message = None  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.info(f"[{task_id}] 全部成功，状态标记为 completed")
+                    audit_status = "success"
+
+                task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
 
                 # 更新审计日志
                 await self._update_audit_log(
                     task,
-                    "success" if task.status == "completed" else "failed",
+                    audit_status,
                     duration,  # pyright: ignore[reportGeneralTypeIssues]
+                    task.error_message,
                 )
                 logger.info(f"[{task_id}] 审计日志已更新")
 
@@ -337,11 +356,20 @@ class SyncTaskService:
                 logger.info(f"[{task_id}] 提交最终状态到数据库")
                 await self.db.commit()
                 await self._update_redis_progress(task)
+                # 清除消费分析缓存，确保前端能获取最新数据
+                try:
+                    from app.cache.base import cache_service
+
+                    await cache_service.invalidate_pattern("cache:analytics_*")
+                    logger.info(f"[{task_id}] 已清除消费分析缓存")
+                except Exception as cache_err:
+                    logger.warning(f"[{task_id}] 清除缓存失败: {cache_err}")
 
         finally:
             # 无论发生什么，确保释放锁和清理取消标志
             logger.info(f"[{task_id}] 清理 Redis 锁和取消标志")
-            await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
+            if lock_key:
+                await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
             await self.redis_client.delete(cancel_key)  # pyright: ignore[reportOptionalMemberAccess]
             logger.info(f"[{task_id}] 任务执行流程结束")
 

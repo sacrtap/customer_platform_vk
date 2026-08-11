@@ -29,7 +29,7 @@
       </a-form-item>
       <a-form-item label="同步模式">
         <a-radio-group v-model="form.sync_mode">
-          <a-radio value="skip_existing">仅补充缺失数据</a-radio>
+          <a-radio value="skip_existing">仅同步无数据的日期</a-radio>
           <a-radio value="force_overwrite">强制覆盖已有数据</a-radio>
         </a-radio-group>
       </a-form-item>
