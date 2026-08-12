@@ -66,8 +66,8 @@ export function useBalance() {
   })
 
   const sortState = reactive<SortState>({
-    sort_by: '',
-    sort_order: '',
+    sort_by: 'company_id',
+    sort_order: 'asc',
   })
 
   const pagination = reactive({

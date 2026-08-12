@@ -174,6 +174,10 @@ class TestCustomerService_CreateCustomer:
 
         mock_db_session.flush = mock_flush
         mock_db_session.refresh = mock_refresh
+        # 余额存在性检查返回"无记录"，走创建分支（execute 为 AsyncMock，scalar_one_or_none 是同步方法）
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = exec_result
 
         # 执行测试
         await customer_service.create_customer(customer_data)
@@ -295,7 +299,7 @@ class TestCustomerService_DeleteCustomer:
 
     @pytest.mark.asyncio
     async def test_delete_customer_success(self, customer_service, mock_db_session):
-        """测试删除客户成功（软删除）"""
+        """测试删除客户成功（软删除），且同步软删除余额记录"""
         customer_id = 1
 
         # Mock 现有客户
@@ -318,8 +322,13 @@ class TestCustomerService_DeleteCustomer:
         assert result is True
         # 验证设置了 deleted_at
         assert existing_customer.deleted_at is not None
-        # 验证数据库操作
-        mock_db_session.commit.assert_called()
+        # 验证数据库操作（查询客户 + 软删余额）
+        assert mock_db_session.execute.call_count == 2
+        # 验证余额软删使用 UPDATE 语句
+        update_call = mock_db_session.execute.call_args_list[1][0][0]
+        assert "UPDATE customer_balances" in str(update_call)
+        assert "deleted_at" in str(update_call)
+        assert mock_db_session.commit.assert_called
 
     @pytest.mark.asyncio
     async def test_delete_customer_not_found(self, customer_service, mock_db_session):

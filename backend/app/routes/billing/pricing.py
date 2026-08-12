@@ -206,8 +206,9 @@ async def check_pricing_rule_conflict(request: Request):
 
     Query params:
     - customer_id (必填, int)
-    - device_type (必填, string)
-    - layer_type (必填, string)
+    - pricing_type (必填, string) — fixed/tiered/package
+    - device_type (可选, string) — 包年结算时可为空
+    - layer_type (可选, string)
     - effective_date (必填, date)
     - expiry_date (可选, date)
     - exclude_id (可选, int) — 编辑时排除自身
@@ -217,17 +218,18 @@ async def check_pricing_rule_conflict(request: Request):
     # 参数校验
     try:
         customer_id = int(request.args.get("customer_id", 0))
-        device_type = request.args.get("device_type", "")
+        pricing_type = request.args.get("pricing_type")
+        device_type = request.args.get("device_type")  # 可选，包年结算时可为 None
         layer_type = request.args.get("layer_type")
         effective_date_str = request.args.get("effective_date", "")
         expiry_date_str = request.args.get("expiry_date")
         exclude_id_str = request.args.get("exclude_id")
 
-        if not customer_id or not device_type or not effective_date_str:
+        if not customer_id or not pricing_type or not effective_date_str:
             return json(
                 {
                     "code": 40001,
-                    "message": "缺少必填参数：customer_id, device_type, effective_date",
+                    "message": "缺少必填参数：customer_id, pricing_type, effective_date",
                 },
                 status=400,
             )
@@ -248,6 +250,7 @@ async def check_pricing_rule_conflict(request: Request):
 
     conflicting_rules = await pricing_service.check_pricing_rule_conflict(
         customer_id=customer_id,
+        pricing_type=pricing_type,
         device_type=device_type,
         layer_type=layer_type,
         effective_date=effective_date,

@@ -327,6 +327,7 @@ class TestCostCalcService:
         mock_rule.multi_floor_pricing_type = "unified"
         mock_rule.additional_floor_price = None
         service._get_active_pricing_rules = AsyncMock(return_value={("X", "single"): mock_rule})
+        service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
             customer_id=1, consumption_date=date(2024, 1, 15)
@@ -347,6 +348,7 @@ class TestCostCalcService:
 
         # Mock _get_active_pricing_rules
         service._get_active_pricing_rules = AsyncMock(return_value={})
+        service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
             customer_id=1, consumption_date=date(2024, 1, 15)
@@ -374,6 +376,7 @@ class TestCostCalcService:
         mock_rule.multi_floor_pricing_type = "incremental"
         mock_rule.additional_floor_price = Decimal("6")
         service._get_active_pricing_rules = AsyncMock(return_value={("L", "multi"): mock_rule})
+        service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
             customer_id=1, consumption_date=date(2024, 1, 15)
@@ -404,6 +407,7 @@ class TestCostCalcService:
         mock_rule.multi_floor_pricing_type = "unified"
         mock_rule.additional_floor_price = None
         service._get_active_pricing_rules = AsyncMock(return_value={("X", "single"): mock_rule})
+        service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
             customer_id=1, consumption_date=date(2024, 1, 15)
@@ -413,6 +417,85 @@ class TestCostCalcService:
         # 回退到 single 规则：按订单数 × 单价 = 2 × 10 = 20
         added_obj = mock_db.add.call_args[0][0]
         assert added_obj.total_cost == Decimal("20.00")
+
+    async def test_calculate_customer_cost_package_priority(self, service, mock_db):
+        """测试客户费用计算 - 包年规则优先于 (device_type, layer_type) 匹配"""
+        order_groups = [
+            {"device_type": "X", "layer_type": "single", "order_count": 5, "total_floor_count": 50},
+            {"device_type": "L", "layer_type": "multi", "order_count": 3, "total_floor_count": 20},
+        ]
+        service._get_order_groups = AsyncMock(return_value=order_groups)
+
+        # 存在包年规则，所有分组都用包年规则计费
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.pricing_type = "package"
+        mock_package.unit_price = Decimal("100.00")
+        service._get_active_pricing_rules = AsyncMock(return_value={})
+        service._get_active_package_rule = AsyncMock(return_value=mock_package)
+
+        result = await service._calculate_customer_cost(
+            customer_id=1, consumption_date=date(2024, 1, 15)
+        )
+
+        assert result["has_rule"] is True
+        # 两个分组都使用包年规则（按日分摊 unit_price）
+        assert mock_db.add.call_count == 2
+        added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+        for obj in added_objs:
+            assert obj.has_pricing_rule is True
+            assert obj.pricing_rule_id == 9
+            assert obj.total_cost == Decimal("100.00")
+
+    async def test_calculate_customer_cost_package_rule_no_device_match(self, service, mock_db):
+        """测试包年规则不参与 (device_type, layer_type) 匹配"""
+        mock_rule = MagicMock(spec=PricingRule)
+        mock_rule.id = 7
+        mock_rule.pricing_type = "package"
+        mock_rule.device_type = None
+        mock_rule.layer_type = None
+        mock_rule.unit_price = Decimal("50.00")
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_rule]
+        mock_db.execute.return_value = mock_result
+
+        rules_map = await service._get_active_pricing_rules(
+            customer_id=1, reference_date=date(2024, 1, 15)
+        )
+
+        # 包年规则不应出现在 (device_type, layer_type) 匹配字典中
+        assert len(rules_map) == 0
+
+    async def test_get_active_package_rule_found(self, service, mock_db):
+        """测试查询生效包年规则 - 找到"""
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.pricing_type = "package"
+        mock_package.unit_price = Decimal("100.00")
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = mock_package
+        mock_db.execute.return_value = mock_result
+
+        package_rule = await service._get_active_package_rule(
+            customer_id=1, reference_date=date(2024, 1, 15)
+        )
+
+        assert package_rule is not None
+        assert package_rule.id == 9
+
+    async def test_get_active_package_rule_not_found(self, service, mock_db):
+        """测试查询生效包年规则 - 未找到"""
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = None
+        mock_db.execute.return_value = mock_result
+
+        package_rule = await service._get_active_package_rule(
+            customer_id=1, reference_date=date(2024, 1, 15)
+        )
+
+        assert package_rule is None
 
     # ========== 每日费用计算 ==========
 

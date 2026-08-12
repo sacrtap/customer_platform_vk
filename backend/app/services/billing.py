@@ -333,10 +333,47 @@ class PricingService:
 
         return list(rules), total  # pyright: ignore[reportReturnType]
 
+    async def _check_package_overlap(
+        self,
+        customer_id: int,
+        effective_date: date,
+        expiry_date: Optional[date],
+        exclude_id: Optional[int] = None,
+    ) -> None:
+        """检查包年结算规则的有效期重叠（只按 customer_id + pricing_type='package' + 有效期判断）"""
+        conflict_stmt = select(PricingRule).where(
+            PricingRule.customer_id == customer_id,
+            PricingRule.pricing_type == "package",
+            PricingRule.deleted_at.is_(None),
+        )
+
+        if exclude_id is not None:
+            conflict_stmt = conflict_stmt.where(PricingRule.id != exclude_id)
+
+        result = await self.db.execute(conflict_stmt)
+        existing_rules = result.scalars().all()
+
+        for rule in existing_rules:
+            rule_expiry = rule.expiry_date
+            new_expiry = expiry_date
+
+            if rule_expiry is None or new_expiry is None:
+                if rule_expiry is None and new_expiry is None:
+                    raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
+                elif rule_expiry is None:
+                    if new_expiry >= rule.effective_date:
+                        raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
+                else:
+                    if effective_date <= rule_expiry:
+                        raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
+            else:
+                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
+                    raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
+
     async def _check_overlap(
         self,
         customer_id: int,
-        device_type: str,
+        device_type: Optional[str],
         layer_type: Optional[str],
         effective_date: date,
         expiry_date: Optional[date],
@@ -367,7 +404,7 @@ class PricingService:
     async def _check_single_overlap(
         self,
         customer_id: int,
-        device_type: str,
+        device_type: Optional[str],
         layer_type: Optional[str],
         effective_date: date,
         expiry_date: Optional[date],
@@ -380,9 +417,15 @@ class PricingService:
         else:
             layer_condition = PricingRule.layer_type == layer_type
 
+        # 构建 device_type 匹配条件（处理 NULL 情况）
+        if device_type is None:
+            device_condition = PricingRule.device_type.is_(None)
+        else:
+            device_condition = PricingRule.device_type == device_type
+
         conflict_stmt = select(PricingRule).where(
             PricingRule.customer_id == customer_id,
-            PricingRule.device_type == device_type,
+            device_condition,
             layer_condition,
             PricingRule.deleted_at.is_(None),
         )
@@ -422,12 +465,44 @@ class PricingService:
         - layer_type='single'（单价相同）
         - layer_type='multi'（multi_floor_pricing_type='unified'，单价相同）
         返回最后一条创建的记录（multi）。
+
+        包年结算（pricing_type='package'）时，device_type 和 layer_type 可为 None。
         """
         customer_id = data.get("customer_id")
-        device_type = data["device_type"]
+        pricing_type = data["pricing_type"]
+        device_type = data.get("device_type")  # 包年结算时可为 None
         layer_type = data.get("layer_type")
         effective_date = data["effective_date"]
         expiry_date = data.get("expiry_date")
+
+        # 包年结算：不拆分，直接创建单条记录
+        if pricing_type == "package":
+            # 包年结算的冲突检查只按 customer_id + pricing_type='package' + 有效期判断
+            await self._check_package_overlap(
+                customer_id=customer_id,  # pyright: ignore[reportArgumentType]
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+            )
+
+            rule = PricingRule(
+                customer_id=data.get("customer_id"),
+                device_type=device_type,
+                layer_type=layer_type,
+                pricing_type=pricing_type,
+                unit_price=data.get("unit_price"),
+                multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
+                additional_floor_price=data.get("additional_floor_price"),
+                tiers=data.get("tiers"),
+                package_type=data.get("package_type"),
+                package_limits=data.get("package_limits"),
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                created_by=data.get("created_by"),
+            )
+            self.db.add(rule)
+            await self.db.commit()
+            await self.db.refresh(rule)
+            return rule
 
         # 处理 single_and_multi：拆分为两条记录
         if layer_type == "single_and_multi":
@@ -451,7 +526,7 @@ class PricingService:
             common_fields = {
                 "customer_id": data.get("customer_id"),
                 "device_type": device_type,
-                "pricing_type": data["pricing_type"],
+                "pricing_type": pricing_type,
                 "unit_price": data.get("unit_price"),
                 "tiers": data.get("tiers"),
                 "package_type": data.get("package_type"),
@@ -496,17 +571,17 @@ class PricingService:
 
         rule = PricingRule(
             customer_id=data.get("customer_id"),
-            device_type=data["device_type"],
-            layer_type=data.get("layer_type"),
-            pricing_type=data["pricing_type"],
+            device_type=device_type,
+            layer_type=layer_type,
+            pricing_type=pricing_type,
             unit_price=data.get("unit_price"),
             multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
             additional_floor_price=data.get("additional_floor_price"),
             tiers=data.get("tiers"),
             package_type=data.get("package_type"),
             package_limits=data.get("package_limits"),
-            effective_date=data["effective_date"],
-            expiry_date=data.get("expiry_date"),
+            effective_date=effective_date,
+            expiry_date=expiry_date,
             created_by=data.get("created_by"),
         )
         self.db.add(rule)
@@ -543,15 +618,25 @@ class PricingService:
             check_layer_type = data.get("layer_type", rule.layer_type)
             check_effective_date = data.get("effective_date", rule.effective_date)
             check_expiry_date = data.get("expiry_date", rule.expiry_date)
+            check_pricing_type = data.get("pricing_type", rule.pricing_type)
 
-            await self._check_overlap(
-                customer_id=check_customer_id,
-                device_type=check_device_type,
-                layer_type=check_layer_type,
-                effective_date=check_effective_date,
-                expiry_date=check_expiry_date,
-                exclude_id=rule_id,
-            )
+            # 包年规则：只按 customer_id + pricing_type='package' + 有效期判断
+            if check_pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
+                await self._check_package_overlap(
+                    customer_id=check_customer_id,
+                    effective_date=check_effective_date,
+                    expiry_date=check_expiry_date,
+                    exclude_id=rule_id,
+                )
+            else:
+                await self._check_overlap(
+                    customer_id=check_customer_id,
+                    device_type=check_device_type,
+                    layer_type=check_layer_type,
+                    effective_date=check_effective_date,
+                    expiry_date=check_expiry_date,
+                    exclude_id=rule_id,
+                )
 
         # 可更新字段
         updatable = [
@@ -580,16 +665,28 @@ class PricingService:
     async def check_pricing_rule_conflict(
         self,
         customer_id: int,
-        device_type: str,
-        layer_type: Optional[str],
+        pricing_type: str,
         effective_date: date,
-        expiry_date: Optional[date],
+        device_type: Optional[str] = None,
+        layer_type: Optional[str] = None,
+        expiry_date: Optional[date] = None,
         exclude_id: Optional[int] = None,
     ) -> List[PricingRule]:
         """查询与给定条件存在有效期重叠的规则，返回冲突列表
 
+        包年结算（pricing_type='package'）时，只检查同一客户的其他包年结算规则，
+        完全忽略设备类型和楼层类型。
         当 layer_type 为 'single_and_multi' 时，分别检查 'single' 和 'multi'，合并返回。
         """
+        # 包年结算：只检查同一客户的其他包年结算规则，忽略设备类型和楼层类型
+        if pricing_type == "package":
+            return await self._check_package_conflict(
+                customer_id=customer_id,
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+                exclude_id=exclude_id,
+            )
+
         if layer_type == "single_and_multi":
             single_conflicts = await self._check_conflict_for_layer(
                 customer_id=customer_id,
@@ -618,10 +715,53 @@ class PricingService:
                 exclude_id=exclude_id,
             )
 
+    async def _check_package_conflict(
+        self,
+        customer_id: int,
+        effective_date: date,
+        expiry_date: Optional[date],
+        exclude_id: Optional[int] = None,
+    ) -> List[PricingRule]:
+        """查询与给定条件（同一客户的包年结算规则）存在有效期重叠的规则，返回冲突列表
+
+        忽略设备类型和楼层类型，只按 customer_id + pricing_type='package' + 有效期判断。
+        """
+        conflict_stmt = select(PricingRule).where(
+            PricingRule.customer_id == customer_id,
+            PricingRule.pricing_type == "package",
+            PricingRule.deleted_at.is_(None),
+        )
+
+        if exclude_id is not None:
+            conflict_stmt = conflict_stmt.where(PricingRule.id != exclude_id)
+
+        result = await self.db.execute(conflict_stmt)
+        existing_rules = result.scalars().all()
+
+        conflicting = []
+        for rule in existing_rules:
+            rule_expiry = rule.expiry_date
+            new_expiry = expiry_date
+
+            if rule_expiry is None or new_expiry is None:
+                if rule_expiry is None and new_expiry is None:
+                    conflicting.append(rule)
+                elif rule_expiry is None:
+                    if new_expiry >= rule.effective_date:
+                        conflicting.append(rule)
+                else:
+                    if effective_date <= rule_expiry:
+                        conflicting.append(rule)
+            else:
+                if effective_date <= rule_expiry and new_expiry >= rule.effective_date:
+                    conflicting.append(rule)
+
+        return conflicting
+
     async def _check_conflict_for_layer(
         self,
         customer_id: int,
-        device_type: str,
+        device_type: Optional[str],
         layer_type: Optional[str],
         effective_date: date,
         expiry_date: Optional[date],
@@ -633,9 +773,14 @@ class PricingService:
         else:
             layer_condition = PricingRule.layer_type == layer_type
 
+        if device_type is None:
+            device_condition = PricingRule.device_type.is_(None)
+        else:
+            device_condition = PricingRule.device_type == device_type
+
         conflict_stmt = select(PricingRule).where(
             PricingRule.customer_id == customer_id,
-            PricingRule.device_type == device_type,
+            device_condition,
             layer_condition,
             PricingRule.deleted_at.is_(None),
         )
@@ -765,15 +910,46 @@ class InvoiceService:
         rules_result = await self.db.execute(rules_stmt)
         pricing_rules = rules_result.scalars().all()
 
+        # 包年规则：与设备/楼层无关，单独处理（同一客户同一时间段只允许一条）
+        package_rules = [r for r in pricing_rules if r.pricing_type == "package"]  # pyright: ignore[reportGeneralTypeIssues]
+        non_package_rules = [
+            r
+            for r in pricing_rules
+            if r.pricing_type != "package"  # pyright: ignore[reportGeneralTypeIssues]
+        ]
+
         # 构建规则查找字典：(device_type, layer_type) -> PricingRule
         # layer_type 为 NULL 时默认为 'single'
         rules_map: Dict[Tuple[str, str], PricingRule] = {  # pyright: ignore[reportAssignmentType]
-            (r.device_type, r.layer_type or "single"): r for r in pricing_rules
+            (r.device_type, r.layer_type or "single"): r for r in non_package_rules
         }
 
         # 3. 计算每项费用
         items: List[Dict[str, Any]] = []
         total_amount = Decimal(0)
+
+        # 包年规则优先：生成一条包年费用明细（不区分设备/楼层），其余规则不再计算
+        if package_rules:
+            package_rule = package_rules[0]
+            package_limits = package_rule.package_limits or {}
+            base_fee = Decimal(str(package_limits.get("base_fee", 0)))
+            total_quantity = sum(Decimal(str(r.total_quantity)) for r in usage_rows)
+            total_floor_count = sum(
+                Decimal(str(r.total_floor_count or r.total_quantity)) for r in usage_rows
+            )
+            items.append(
+                {
+                    "device_type": None,
+                    "layer_type": None,
+                    "quantity": total_floor_count,
+                    "order_count": total_quantity,
+                    "unit_price": base_fee,
+                    "subtotal": base_fee,
+                    "pricing_rule_id": package_rule.id,
+                }
+            )
+            total_amount += base_fee
+            return items, total_amount
 
         for row in usage_rows:
             device_type = row.device_type
@@ -854,23 +1030,6 @@ class InvoiceService:
                     }
                 )
                 total_amount += subtotal
-
-            elif rule.pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
-                # 包年结算：按包年固定费用
-                package_limits = rule.package_limits or {}
-                # 简化实现：使用包年基础费用作为单价
-                base_fee = Decimal(str(package_limits.get("base_fee", 0)))
-                items.append(
-                    {
-                        "device_type": device_type,
-                        "layer_type": layer_type,
-                        "quantity": total_floor_count,
-                        "unit_price": base_fee,
-                        "subtotal": base_fee,  # 包年固定费用
-                        "pricing_rule_id": rule.id,
-                    }
-                )
-                total_amount += base_fee
 
         return items, total_amount
 

@@ -58,11 +58,16 @@
               </thead>
               <tbody>
                 <tr v-for="(item, idx) in invoice.items || []" :key="item.id || idx">
-                  <td>{{ item.device_type }}</td>
+                  <td>{{ item.device_type || '包年' }}</td>
                   <td>
-                    <span class="tag" :class="item.layer_type === 'multi' ? 'violet' : 'blue'">
+                    <span
+                      v-if="item.layer_type"
+                      class="tag"
+                      :class="item.layer_type === 'multi' ? 'violet' : 'blue'"
+                    >
                       {{ item.layer_type === 'multi' ? '多层' : '单层' }}
                     </span>
+                    <span v-else class="subtle">-</span>
                   </td>
                   <td>{{ item.quantity }}</td>
                   <td>

@@ -59,10 +59,10 @@ describe('useBalance - 排序逻辑', () => {
     })
   })
 
-  it('初始状态下 sort_by 为空，sort_order 为空', () => {
+  it('初始状态下 sort_by 为 company_id，sort_order 为 asc', () => {
     const { sortState } = useBalance()
-    expect(sortState.sort_by).toBe('')
-    expect(sortState.sort_order).toBe('')
+    expect(sortState.sort_by).toBe('company_id')
+    expect(sortState.sort_order).toBe('asc')
   })
 
   it('handleSortChange 设置升序时，API 收到 sort_by 和 sort_order=asc', async () => {

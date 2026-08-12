@@ -82,7 +82,7 @@ class PricingRule(BaseModel):
     __tablename__ = "pricing_rules"
 
     customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
-    device_type = Column(String(20), nullable=False)  # X/N/L
+    device_type = Column(String(20), nullable=True)  # X/N/L（包年结算时为 NULL）
     layer_type = Column(String(20))  # single/multi (前端可传 single_and_multi，后端拆分为两条)
     pricing_type = Column(String(20), nullable=False)  # fixed/tier/package
     unit_price = Column(DECIMAL(10, 2))
@@ -155,7 +155,7 @@ class InvoiceItem(BaseModel):
     __tablename__ = "invoice_items"
 
     invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
-    device_type = Column(String(20), nullable=False)
+    device_type = Column(String(20), nullable=True)  # X/N/L（包年结算明细为 NULL）
     layer_type = Column(String(20))  # single/multi
     quantity = Column(DECIMAL(10, 2), nullable=False)
     unit_price = Column(DECIMAL(10, 2), nullable=False)

@@ -174,7 +174,7 @@ export interface CooperationStatus {
 export interface PricingRule {
   id: number
   customer_id: number | null
-  device_type: string
+  device_type?: string
   pricing_type: string
   unit_price: number | null
   tiers: Record<string, unknown> | null

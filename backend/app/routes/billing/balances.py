@@ -384,6 +384,20 @@ async def get_balances(request: Request):
 
     total = (await db.execute(count_stmt)).scalar()
 
+    # 惰性补建：为尚无余额记录的活跃客户创建余额档案（幂等，不覆盖历史数据）
+    # 确保余额列表与客户列表保持一致，新增客户无需手动建档即可显示
+    missing_stmt = (
+        select(Customer.id)
+        .outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
+        .where(CustomerBalance.id.is_(None), Customer.deleted_at.is_(None))
+        .limit(200)  # 单次最多补建 200 条，避免一次请求处理大量缺失
+    )
+    missing_ids = list((await db.execute(missing_stmt)).scalars().all())
+    if missing_ids:
+        db.add_all([CustomerBalance(customer_id=cid) for cid in missing_ids])
+        await db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        logger.info("惰性补建余额记录 %d 条（缺失客户 ID: %s）", len(missing_ids), missing_ids[:20])
+
     # 排序
     if sort_by in sort_field_map:
         field = sort_field_map[sort_by]

@@ -410,6 +410,63 @@ class TestPricingService_CreatePricingRule:
         # 实际代码中会先查询再检查，这里直接测试 _check_overlap
         pass  # 需要更精细的 mock
 
+    @pytest.mark.asyncio
+    async def test_create_package_rule_without_device_type(self, pricing_service, mock_db_session):
+        """测试创建包年结算规则 - 不传 device_type/layer_type"""
+        # Mock 无冲突
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        rule_data = {
+            "customer_id": 100,
+            "pricing_type": "package",
+            "package_type": "A",
+            "effective_date": date(2026, 1, 1),
+            "expiry_date": date(2026, 12, 31),
+            "created_by": 1,
+        }
+
+        result = await pricing_service.create_pricing_rule(rule_data)
+
+        assert result is not None
+        assert isinstance(result, PricingRule)
+        assert result.pricing_type == "package"
+        assert result.package_type == "A"
+        assert result.device_type is None
+        assert result.layer_type is None
+        mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_create_package_rule_overlap_conflict(self, pricing_service, mock_db_session):
+        """测试创建包年结算规则 - 同一客户已有包年规则则冲突"""
+        existing_package = PricingRule(
+            id=2,
+            customer_id=100,
+            device_type=None,
+            layer_type=None,
+            pricing_type="package",
+            package_type="A",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [existing_package]
+        mock_db_session.execute.return_value = mock_result
+
+        rule_data = {
+            "customer_id": 100,
+            "pricing_type": "package",
+            "package_type": "B",
+            "effective_date": date(2026, 6, 1),  # 与现有包年规则重叠
+            "expiry_date": date(2027, 6, 30),
+            "created_by": 1,
+        }
+
+        with pytest.raises(ValueError, match="包年结算规则"):
+            await pricing_service.create_pricing_rule(rule_data)
+
 
 # ==================== Test PricingService - Update Rule ====================
 
@@ -529,6 +586,7 @@ class TestPricingService_CheckConflict:
 
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
+            pricing_type="fixed",
             device_type="camera",
             layer_type="living_room",
             effective_date=date(2026, 6, 1),
@@ -547,6 +605,7 @@ class TestPricingService_CheckConflict:
 
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
+            pricing_type="fixed",
             device_type="camera",
             layer_type="living_room",
             effective_date=date(2027, 1, 1),  # 在现有规则之后
@@ -579,6 +638,7 @@ class TestPricingService_CheckConflict:
 
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
+            pricing_type="fixed",
             device_type="L",
             layer_type="single_and_multi",
             effective_date=date(2026, 6, 1),
@@ -599,9 +659,67 @@ class TestPricingService_CheckConflict:
 
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
+            pricing_type="fixed",
             device_type="L",
             layer_type="single_and_multi",
             effective_date=date(2027, 1, 1),
+            expiry_date=date(2027, 12, 31),
+        )
+
+        assert len(conflicts) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_conflict_package_has_conflict(self, pricing_service, mock_db_session):
+        """测试检查冲突 - 包年结算存在冲突（忽略设备/楼层类型）"""
+        existing_package = PricingRule(
+            id=9,
+            customer_id=100,
+            device_type=None,
+            layer_type=None,
+            pricing_type="package",
+            package_type="A",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 12, 31),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [existing_package]
+        mock_db_session.execute.return_value = mock_result
+
+        # 包年结算冲突检查：只按 customer_id + pricing_type='package' + 有效期判断，
+        # 不传 device_type 和 layer_type
+        conflicts = await pricing_service.check_pricing_rule_conflict(
+            customer_id=100,
+            pricing_type="package",
+            effective_date=date(2026, 6, 1),
+            expiry_date=date(2027, 6, 30),
+        )
+
+        assert len(conflicts) == 1
+        assert conflicts[0].id == 9
+
+    @pytest.mark.asyncio
+    async def test_check_conflict_package_no_conflict(self, pricing_service, mock_db_session):
+        """测试检查冲突 - 包年结算无冲突（时间不重叠）"""
+        existing_package = PricingRule(
+            id=10,
+            customer_id=100,
+            device_type=None,
+            layer_type=None,
+            pricing_type="package",
+            package_type="B",
+            effective_date=date(2026, 1, 1),
+            expiry_date=date(2026, 6, 30),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [existing_package]
+        mock_db_session.execute.return_value = mock_result
+
+        conflicts = await pricing_service.check_pricing_rule_conflict(
+            customer_id=100,
+            pricing_type="package",
+            effective_date=date(2027, 1, 1),  # 在现有规则之后，无重叠
             expiry_date=date(2027, 12, 31),
         )
 
@@ -787,6 +905,91 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert items[0]["subtotal"] == Decimal("20")
         assert items[0]["quantity"] == Decimal("2")  # 按订单数
         assert total_amount == Decimal("20")
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_package_rule(self, invoice_service, mock_db_session):
+        """测试结算明细计算 - 包年规则（与设备/楼层无关，生成一条固定费用明细）"""
+        usage_row = MagicMock()
+        usage_row.device_type = "X"
+        usage_row.layer_type = "single"
+        usage_row.total_quantity = 5
+        usage_row.total_floor_count = 5
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.device_type = None
+        mock_package.layer_type = None
+        mock_package.pricing_type = "package"
+        mock_package.package_type = "A"
+        mock_package.package_limits = {"base_fee": 10000}
+        mock_package.unit_price = None
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_package]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+        )
+
+        assert len(items) == 1
+        assert items[0]["pricing_rule_id"] == 9
+        assert items[0]["device_type"] is None
+        assert items[0]["layer_type"] is None
+        assert items[0]["subtotal"] == Decimal("10000")
+        assert total_amount == Decimal("10000")
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_package_rule_priority_over_fixed(
+        self, invoice_service, mock_db_session
+    ):
+        """测试结算明细计算 - 包年规则优先于固定规则"""
+        usage_row = MagicMock()
+        usage_row.device_type = "L"
+        usage_row.layer_type = "single"
+        usage_row.total_quantity = 3
+        usage_row.total_floor_count = 3
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_fixed = MagicMock(spec=PricingRule)
+        mock_fixed.id = 1
+        mock_fixed.device_type = "L"
+        mock_fixed.layer_type = "single"
+        mock_fixed.pricing_type = "fixed"
+        mock_fixed.unit_price = Decimal("10")
+
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.device_type = None
+        mock_package.layer_type = None
+        mock_package.pricing_type = "package"
+        mock_package.package_type = "A"
+        mock_package.package_limits = {"base_fee": 5000}
+        mock_package.unit_price = None
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_fixed, mock_package]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+        )
+
+        # 只生成一条包年明细，固定规则不参与计算
+        assert len(items) == 1
+        assert items[0]["pricing_rule_id"] == 9
+        assert total_amount == Decimal("5000")
 
     @pytest.mark.asyncio
     async def test_generate_invoice_uses_subtotal(self, invoice_service, mock_db_session):

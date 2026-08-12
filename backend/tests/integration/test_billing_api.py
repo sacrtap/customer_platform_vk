@@ -1556,6 +1556,7 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
         "/api/v1/billing/pricing-rules/check-conflict",
         params={
             "customer_id": customer_id,
+            "pricing_type": "fixed",
             "device_type": "X",
             "layer_type": "single",
             "effective_date": "2026-06-01",
@@ -1626,6 +1627,7 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
         "/api/v1/billing/pricing-rules/check-conflict",
         params={
             "customer_id": customer_id,
+            "pricing_type": "fixed",
             "device_type": "Y",  # 使用不同的 device_type，确保无冲突
             "layer_type": "single",
             "effective_date": "2027-01-01",
