@@ -81,3 +81,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: 余额管理增量同步与数据一致性修复
+
+**Date**: 2026-08-12
+**Task**: 余额管理增量同步与数据一致性修复
+**Branch**: `pricing-rules-bug-fix`
+
+### Summary
+
+余额管理页只显示9个客户，根因是数据不一致：存量客户未建余额记录+测试客户软删未清理余额。一次性脚本删除310条孤儿记录、回填353条；get_balances惰性补建缺失余额记录（幂等、单次200条）；create_customer防御性按需创建；delete_customer同步软删余额；两页默认排序统一为company_id升序。验证：活跃客户1480=余额记录1480完全对齐，394单测+46集成通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ad3ef5e` | (see git log) |
+
+### Status
+
+[OK] **Completed**
