@@ -102,3 +102,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: 预测消费页面 MVP 实现
+
+**Date**: 2026-08-12
+**Task**: 预测消费页面 MVP 实现
+**Branch**: `feature/optimize-forecast-page`
+
+### Summary
+
+将预测回款页面改造为预测消费：基于 order_count 用量 × 单价矩阵估算消费、冷启动按消费等级分层、离群截断、活跃度判断、置信度计算。新增 3 接口（forecast/forecast-trend/data-readiness）、预测准确度追踪（MAPE 日志）、前端页面重构（数据就绪度横幅/置信度标签/设备拆解图/方法标注）。7 个单元测试。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3ed7858` | (see git log) |
+
+### Status
+
+[OK] **Completed**
