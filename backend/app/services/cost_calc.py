@@ -99,19 +99,29 @@ class CostCalcService:
             customer_id=customer_id, reference_date=consumption_date
         )
 
-        has_any_rule = len(rules_map) > 0
+        # 2.1 查询客户生效的包年规则（包年结算与设备/楼层无关，优先级最高）
+        package_rule = await self._get_active_package_rule(
+            customer_id=customer_id, reference_date=consumption_date
+        )
+
+        has_any_rule = len(rules_map) > 0 or package_rule is not None
 
         # 3. 为每个分组创建 daily_consumption 记录
         for group in order_groups:
             cost = Decimal("0")
             pricing_rule: Optional[PricingRule] = None
 
-            # 精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
-            key = (group["device_type"], group["layer_type"])
-            pricing_rule = rules_map.get(key) or rules_map.get((group["device_type"], "single"))
-
-            if pricing_rule:
+            # 包年规则优先：同一客户的所有订单分组共用包年计费
+            if package_rule is not None:
+                pricing_rule = package_rule
                 cost = self._calculate_group_cost(group, pricing_rule)
+            else:
+                # 精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
+                key = (group["device_type"], group["layer_type"])
+                pricing_rule = rules_map.get(key) or rules_map.get((group["device_type"], "single"))
+
+                if pricing_rule:
+                    cost = self._calculate_group_cost(group, pricing_rule)
 
             daily_consumption = DailyConsumption(
                 customer_id=customer_id,
@@ -200,11 +210,42 @@ class CostCalcService:
         # 同一 key 有多条规则时，取最新一条（已按 created_at desc 排序）
         rules_map: Dict[Tuple[str, str], PricingRule] = {}
         for rule in rules:
+            # 包年规则不参与 (device_type, layer_type) 匹配，单独处理
+            if rule.pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
+                continue
             key = (rule.device_type, rule.layer_type or "single")
             if key not in rules_map:
                 rules_map[key] = rule
 
         return rules_map
+
+    async def _get_active_package_rule(
+        self, customer_id: int, reference_date: date
+    ) -> Optional[PricingRule]:
+        """查询客户在指定日期生效的包年规则
+
+        包年结算只与套餐类型和时间有关，与设备/楼层无关。
+        同一客户同一时间段内只允许一条包年规则（创建时已做冲突检查）。
+
+        Args:
+            customer_id: 客户 ID
+            reference_date: 参考日期（用于判断规则是否生效）
+
+        Returns:
+            生效的包年规则（如有）；否则 None
+        """
+        result = await self.db.execute(
+            select(PricingRule)
+            .where(
+                PricingRule.customer_id == customer_id,
+                PricingRule.pricing_type == "package",
+                PricingRule.effective_date <= reference_date,
+                (PricingRule.expiry_date >= reference_date) | (PricingRule.expiry_date.is_(None)),
+                PricingRule.deleted_at.is_(None),
+            )
+            .order_by(PricingRule.created_at.desc())
+        )
+        return result.scalars().first()
 
     def _calculate_group_cost(self, order_group: dict, pricing_rule: PricingRule) -> Decimal:
         """根据计费规则计算分组费用

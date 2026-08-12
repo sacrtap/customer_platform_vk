@@ -175,8 +175,8 @@ const mode = ref<'customer' | 'batch'>('customer')
 const calculatedItems = ref<
   Array<{
     id?: number
-    device_type: string
-    layer_type: string
+    device_type?: string
+    layer_type?: string
     quantity: number
     unit_price: number
     subtotal?: number
@@ -195,13 +195,23 @@ const form = reactive({
 const periodRange = ref<string[]>([])
 
 const itemColumns = [
-  { title: '设备类型', dataIndex: 'device_type', width: 140 },
+  {
+    title: '设备类型',
+    dataIndex: 'device_type',
+    width: 140,
+    render: ({ record }: { record: { device_type?: string } }) =>
+      record.device_type || '包年',
+  },
   {
     title: '楼层',
     dataIndex: 'layer_type',
     width: 80,
-    render: ({ record }: { record: { layer_type: string } }) =>
-      record.layer_type === 'multi' ? '多层' : '单层',
+    render: ({ record }: { record: { layer_type?: string } }) =>
+      record.layer_type === 'multi'
+        ? '多层'
+        : record.layer_type === 'single'
+          ? '单层'
+          : '-',
   },
   { title: '数量', dataIndex: 'quantity', width: 80 },
   { title: '单价', dataIndex: 'unit_price', width: 100 },

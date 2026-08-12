@@ -27,7 +27,7 @@
           <a-option value="package">包年结算</a-option>
         </a-select>
       </a-form-item>
-      <a-row :gutter="16">
+      <a-row v-if="formData.pricing_type !== 'package'" :gutter="16">
         <a-col :span="12">
           <a-form-item label="设备类型" :rules="[{ required: true, message: '请选择设备类型' }]">
             <a-select v-model="formData.device_type" placeholder="请选择">
@@ -425,11 +425,16 @@ const getTierError = (idx: number): string => {
   return ''
 }
 
-const onPricingTypeChange = () => {
+const onPricingTypeChange = (val: 'fixed' | 'tiered' | 'package') => {
   formData.tiers = []
   formData.package_type = undefined
   formData.unit_price = undefined
   formData.additional_floor_price = undefined
+  // 从包年结算切换到其他类型时，恢复设备/楼层默认值
+  if (val !== 'package') {
+    formData.device_type = formData.device_type || 'L'
+    formData.layer_type = formData.layer_type || 'single_and_multi'
+  }
 }
 
 const handleSubmit = async () => {
@@ -441,14 +446,22 @@ const handleSubmit = async () => {
     Message.warning('请选择生效日期')
     return false
   }
+  if (formData.pricing_type === 'package' && !formData.package_type) {
+    Message.warning('请选择套餐类型')
+    return false
+  }
 
   modalLoading.value = true
   try {
-    // 冲突检查：single_and_multi 时后端会检查两种类型
+    // 冲突检查：包年结算时只按客户+有效期检查，不传设备/楼层；
+    // single_and_multi 时后端会检查两种类型
     const conflictRes = await billingApi.checkPricingRuleConflict({
       customer_id: formData.customer_id,
-      device_type: formData.device_type,
-      layer_type: formData.layer_type,
+      pricing_type: formData.pricing_type,
+      device_type:
+        formData.pricing_type === 'package' ? undefined : formData.device_type,
+      layer_type:
+        formData.pricing_type === 'package' ? undefined : formData.layer_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date,
       exclude_id: isEdit.value && formData.id ? formData.id : undefined,
@@ -468,11 +481,15 @@ const handleSubmit = async () => {
 
     const submitData: Partial<PricingRule> = {
       customer_id: formData.customer_id,
-      device_type: formData.device_type,
-      layer_type: formData.layer_type,
       pricing_type: formData.pricing_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date || null,
+    }
+
+    // 包年结算不传设备/楼层，其余类型必传
+    if (formData.pricing_type !== 'package') {
+      submitData.device_type = formData.device_type
+      submitData.layer_type = formData.layer_type
     }
 
     if (formData.pricing_type === 'fixed' && formData.unit_price) {
@@ -525,7 +542,7 @@ const handleSubmit = async () => {
     } else {
       await billingApi.createPricingRule(submitData)
       Message.success(
-        formData.layer_type === 'single_and_multi'
+        formData.pricing_type !== 'package' && formData.layer_type === 'single_and_multi'
           ? '创建成功（已生成单层+多层两条规则）'
           : '创建成功'
       )

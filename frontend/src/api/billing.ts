@@ -139,7 +139,7 @@ export interface PricingRule {
   id: number
   customer_id?: number
   customer_name?: string
-  device_type: string
+  device_type?: string
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
@@ -180,7 +180,8 @@ export function deletePricingRule(id: number) {
 
 export interface ConflictCheckParams {
   customer_id: number
-  device_type: string
+  pricing_type: 'fixed' | 'tiered' | 'package'
+  device_type?: string
   layer_type?: string
   effective_date: string
   expiry_date?: string
@@ -207,8 +208,8 @@ export function checkPricingRuleConflict(params: ConflictCheckParams) {
 
 export interface InvoiceItem {
   id?: number
-  device_type: string
-  layer_type: string
+  device_type?: string
+  layer_type?: string
   quantity: number
   unit_price: number
   subtotal?: number

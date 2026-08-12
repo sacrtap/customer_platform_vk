@@ -58,9 +58,14 @@
                 </td>
                 <!-- 设备类型 -->
                 <td>
-                  <span class="tag" :class="getDeviceTypeTagClass(record.device_type)">
+                  <span
+                    v-if="record.device_type"
+                    class="tag"
+                    :class="getDeviceTypeTagClass(record.device_type)"
+                  >
                     {{ record.device_type }}系列
                   </span>
+                  <span v-else class="subtle">-</span>
                 </td>
                 <!-- 楼层类型 -->
                 <td>
@@ -245,7 +250,7 @@ interface PricingRule {
   id: number
   customer_id?: number
   customer_name?: string
-  device_type: string
+  device_type?: string
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
