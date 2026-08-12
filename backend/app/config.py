@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     cache_ttl_pricing_rules: int = 3600  # 1 小时
     cache_ttl_analytics_trend: int = 900  # 15 分钟
 
+    # 消费预测单价矩阵（元/套）
+    consumption_forecast_unit_prices: dict = {
+        "L": 14.5,
+        "N": 30.0,
+        "X": 30.0,
+    }
+
     class Config:
         env_file = str(Path(__file__).parent.parent.parent / ".env")
         env_file_encoding = "utf-8"

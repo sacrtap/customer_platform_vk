@@ -9,7 +9,7 @@ from sanic.request import Request
 from sanic.response import json
 
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required
+from ..middleware.auth import auth_required, require_permission
 from ..services.analytics import AnalyticsService
 
 logger = logging.getLogger(__name__)
@@ -746,6 +746,114 @@ async def get_prediction_trend(request: Request):
     result = {"code": 0, "message": "success", "data": trend}
     if not force_refresh:
         await cache_service.set("analytics_prediction", result, cache_key, ttl=300)
+    return json(result)
+
+
+@analytics.route("/consumption/forecast", methods=["GET"])
+@auth_required
+async def forecast_consumption(request: Request):
+    """预测消费（MVP 版）
+
+    基于历史用量（order_count）和单价矩阵估算未来月份消费。
+    返回预测明细列表和汇总统计。
+    """
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    year = int(request.args.get("year", datetime.utcnow().year))
+    month_str = request.args.get("month")
+    month = int(month_str) if month_str else None
+    customer_id = request.args.get("customer_id")
+    keyword = request.args.get("keyword")
+    device_type = request.args.get("device_type")
+
+    cid = keyword or customer_id or "all"
+    cache_key = f"fc:{year}:{month}:{cid}:{device_type or 'all'}"
+    cached = (
+        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+    )
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    forecasts = await service.forecast_consumption(
+        year,
+        month,
+        int(customer_id) if customer_id else None,
+        keyword,
+        device_type,
+    )
+    summary = await service.get_forecast_summary(
+        year,
+        month,
+        int(customer_id) if customer_id else None,
+        keyword,
+        device_type,
+    )
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {"forecasts": forecasts, "summary": summary},
+    }
+    if not force_refresh:
+        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+    return json(result)
+
+
+@analytics.route("/consumption/forecast-trend", methods=["GET"])
+@auth_required
+async def get_consumption_forecast_trend(request: Request):
+    """获取全年 12 个月预测 vs 实际消费趋势"""
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    year = int(request.args.get("year", datetime.utcnow().year))
+
+    cache_key = f"fctrend:{year}"
+    cached = (
+        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+    )
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    trend = await service.get_forecast_trend(year)
+
+    result = {"code": 0, "message": "success", "data": trend}
+    if not force_refresh:
+        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+    return json(result)
+
+
+@analytics.route("/consumption/data-readiness", methods=["GET"])
+@auth_required
+async def get_consumption_data_readiness(request: Request):
+    """获取数据就绪度信息（横幅+置信度用）"""
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    readiness = await service.get_data_readiness()
+
+    result = {"code": 0, "message": "success", "data": readiness}
+    return json(result)
+
+
+@analytics.route("/consumption/accuracy", methods=["POST"])
+@auth_required
+@require_permission("analytics:forecast")
+async def record_consumption_accuracy(request: Request):
+    """记录预测准确度（预测 vs 实际消费）
+
+    手动触发或由定时任务调用。记录最新数据月的预测准确度。
+    """
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    record = await service.record_prediction_accuracy()
+    await db_session.commit()
+
+    result = {"code": 0, "message": "success", "data": record}
     return json(result)
 
 

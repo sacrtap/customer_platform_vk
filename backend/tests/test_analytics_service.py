@@ -1504,3 +1504,218 @@ class TestCustomerHealthScoreService:
             assert result["balance_rate"] == 0.0
             assert result["payment_rate"] == 0.0
             assert result["health_level"] == "unhealthy"
+
+
+# ==================== 预测消费测试 ====================
+
+
+class TestForecastConsumption:
+    """forecast_consumption 预测消费引擎测试"""
+
+    async def test_forecast_consumption_success(self, analytics_service):
+        """测试预测消费成功：用量×单价"""
+        service, mock_db = analytics_service
+
+        # 使用 patch 让 _get_latest_usage_month 返回固定日期
+        from unittest.mock import patch as _patch
+
+        with _patch.object(
+            service, "_get_latest_usage_month", new=AsyncMock(return_value=date(2026, 7, 1))
+        ):
+            # 主查询返回 1 个活跃客户 + 1 个冷启动客户
+            usage_row = MagicMock()
+            usage_row.customer_id = 1
+            usage_row.customer_name = "客户 A"
+            usage_row.company_id = "C001"
+            usage_row.device_type = "L"
+            usage_row.total_orders = 100
+            usage_row.consume_level = "C1"
+            usage_row.is_active = True
+
+            # 冷启动客户（0 用量但有消费等级）
+            cold_row = MagicMock()
+            cold_row.customer_id = 2
+            cold_row.customer_name = "客户 B"
+            cold_row.company_id = "C002"
+            cold_row.device_type = "L"
+            cold_row.total_orders = 0
+            cold_row.consume_level = "C2"
+            cold_row.is_active = False
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row, cold_row]),  # 主查询
+            ]
+
+            # 冷启动中位数查询返回 (L, C1, 50) 和 (L, C2, 30)
+            with _patch.object(
+                service,
+                "_get_median_usage_by_type_and_level",
+                new=AsyncMock(return_value={("L", "C1"): 50, ("L", "C2"): 30, "L": 40}),
+            ):
+                # 离群截断：无
+                with _patch.object(
+                    service, "_cap_outlier", new=AsyncMock(side_effect=lambda o, d: o)
+                ):
+                    result = await service.forecast_consumption(year=2026)
+
+        # 客户 A: 100 * 14.5 = 1450
+        # 客户 B: 0 用量，冷启动 C2=30，但 is_active=False
+        assert len(result) == 2
+        a = next(r for r in result if r["customer_id"] == 1)
+        assert a["forecast_amount"] == 1450.0
+        assert a["forecast_method"] == "historical_hold"
+        assert a["is_active"] is True
+
+        b = next(r for r in result if r["customer_id"] == 2)
+        assert b["forecast_method"] == "cold_start"
+        assert b["is_active"] is False
+        # 冷启动：L+C2=30 套 * 14.5 = 435
+        assert b["forecast_amount"] == 435.0
+
+    async def test_forecast_consumption_no_data(self, analytics_service):
+        """测试无数据时返回空"""
+        service, mock_db = analytics_service
+
+        from unittest.mock import patch as _patch
+
+        with _patch.object(service, "_get_latest_usage_month", new=AsyncMock(return_value=None)):
+            result = await service.forecast_consumption(year=2026)
+
+        assert result == []
+
+    async def test_forecast_consumption_trimmed(self, analytics_service):
+        """测试离群截断标记 trimmed"""
+        service, mock_db = analytics_service
+
+        from unittest.mock import patch as _patch
+
+        usage_row = MagicMock()
+        usage_row.customer_id = 1
+        usage_row.customer_name = "客户 A"
+        usage_row.company_id = "C001"
+        usage_row.device_type = "L"
+        usage_row.total_orders = 500
+        usage_row.consume_level = "C1"
+        usage_row.is_active = True
+
+        with _patch.object(
+            service, "_get_latest_usage_month", new=AsyncMock(return_value=date(2026, 7, 1))
+        ):
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row]),
+            ]
+            with _patch.object(
+                service, "_get_median_usage_by_type_and_level", new=AsyncMock(return_value={})
+            ):
+                # 离群：500 截断到 300
+                with _patch.object(service, "_cap_outlier", new=AsyncMock(return_value=300)):
+                    result = await service.forecast_consumption(year=2026)
+
+        assert len(result) == 1
+        assert result[0]["forecast_method"] == "trimmed"
+        assert result[0]["estimated_usage"] == 300
+        assert result[0]["forecast_amount"] == 300 * 14.5
+
+
+class TestGetDataReadiness:
+    """get_data_readiness 数据就绪度测试"""
+
+    async def test_get_data_readiness_no_data(self, analytics_service):
+        """测试无数据"""
+        service, mock_db = analytics_service
+
+        # min/max 查询返回 (None, None)
+        row = MagicMock()
+        row.__getitem__ = MagicMock(side_effect=lambda i: None)
+        result = MagicMock()
+        result.one = MagicMock(return_value=row)
+
+        mock_db.execute.return_value = result
+
+        result_val = await service.get_data_readiness()
+
+        assert result_val["months_with_data"] == 0
+        assert result_val["confidence"] == "low"
+        assert result_val["earliest_data_month"] is None
+
+    async def test_get_data_readiness_one_month(self, analytics_service):
+        """测试 1 个月数据：置信度 low"""
+        service, mock_db = analytics_service
+
+        row = MagicMock()
+        row.__getitem__ = MagicMock(
+            side_effect=lambda i: date(2026, 7, 1) if i == 0 else date(2026, 7, 31)
+        )
+        minmax_result = MagicMock()
+        minmax_result.one = MagicMock(return_value=row)
+
+        mock_db.execute.side_effect = [
+            minmax_result,  # min/max (.one)
+            make_mock_execute_result([], scalar_value=2705),  # 客户总数
+            make_mock_execute_result([], scalar_value=97),  # 有数据客户数
+            make_mock_execute_result([], scalar_value=1),  # 月份数
+        ]
+
+        result_val = await service.get_data_readiness()
+
+        assert result_val["months_with_data"] == 1
+        assert result_val["customer_coverage_pct"] == 3.6
+        assert result_val["confidence"] == "low"
+
+
+class TestGetForecastTrend:
+    """get_forecast_trend 预测趋势测试"""
+
+    async def test_get_forecast_trend_mixed(self, analytics_service):
+        """测试混合：7 月有实际数据，其他月用统一预测值"""
+        service, mock_db = analytics_service
+
+        from unittest.mock import patch as _patch
+
+        # mock _estimate_future_consumption 返回固定预测值
+        with _patch.object(
+            service, "_estimate_future_consumption", new=AsyncMock(return_value=85874.0)
+        ):
+            # 12 个月的 actual 查询：7 月返回 80042.5，其他月 0
+            side_effects = []
+            for m in range(1, 13):
+                val = 80042.5 if m == 7 else 0
+                side_effects.append(make_mock_execute_result([], scalar_value=val))
+            mock_db.execute.side_effect = side_effects
+
+            result = await service.get_forecast_trend(year=2026)
+
+        assert len(result) == 12
+        july = next(x for x in result if x["month"] == "2026-07")
+        assert july["actual"] == 80042.5
+        assert july["is_actual"] is True
+        assert july["forecast"] == 80042.5
+
+        # 8 月无实际数据 → 用统一预测值
+        aug = next(x for x in result if x["month"] == "2026-08")
+        assert aug["actual"] is None
+        assert aug["is_actual"] is False
+        assert aug["forecast"] == 85874.0
+
+        # 1 月也无数据
+        jan = next(x for x in result if x["month"] == "2026-01")
+        assert jan["is_actual"] is False
+        assert jan["forecast"] == 85874.0
+
+    async def test_get_forecast_trend_no_data(self, analytics_service):
+        """测试无数据时全为预测"""
+        service, mock_db = analytics_service
+
+        from unittest.mock import patch as _patch
+
+        with _patch.object(
+            service, "_estimate_future_consumption", new=AsyncMock(return_value=0.0)
+        ):
+            side_effects = [make_mock_execute_result([], scalar_value=0) for _ in range(12)]
+            mock_db.execute.side_effect = side_effects
+
+            result = await service.get_forecast_trend(year=2026)
+
+        assert len(result) == 12
+        assert all(x["is_actual"] is False for x in result)
+        assert all(x["forecast"] == 0.0 for x in result)

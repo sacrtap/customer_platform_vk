@@ -1,6 +1,22 @@
 <template>
   <div class="forecast-analysis-page">
-    <PageHeader eyebrow="Analytics" title="预测回款" subtitle="基于历史数据的智能回款预测" />
+    <PageHeader eyebrow="Analytics" title="预测消费" subtitle="基于历史用量估算的未来消费预测" />
+
+    <!-- 数据就绪度横幅 -->
+    <div
+      v-if="readiness && readiness.months_with_data < readiness.total_months_target"
+      class="readiness-banner"
+    >
+      <div class="readiness-icon">📊</div>
+      <div class="readiness-content">
+        <span class="readiness-title">数据积累中</span>
+        <span class="readiness-desc">
+          已有 {{ readiness.months_with_data }}/{{ readiness.total_months_target }} 个月实盘数据
+          （客户覆盖
+          {{ readiness.customer_coverage_pct }}%），当前预测为估算值，建议积累数据后评估准确度。
+        </span>
+      </div>
+    </div>
 
     <!-- 筛选区域 -->
     <div class="filter-card">
@@ -30,6 +46,14 @@
             <a-option :value="12">12 月</a-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="设备类型">
+          <a-select v-model="filters.deviceType" style="width: 120px" @change="loadData">
+            <a-option value="">全部</a-option>
+            <a-option value="L">L</a-option>
+            <a-option value="N">N</a-option>
+            <a-option value="X">X</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="客户">
           <KeywordAutoComplete
             v-model="filters.keyword"
@@ -49,24 +73,42 @@
     <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">预测回款总额</div>
-        <div class="stat-value">{{ formatCurrency(totalPredicted) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">已确认回款</div>
-        <div class="stat-value success">{{ formatCurrency(confirmedAmount) }}</div>
+        <div class="stat-label">预测消费总额</div>
+        <div class="stat-value">{{ formatCurrency(summary.total_forecast) }}</div>
         <div class="stat-trend">
-          <span class="trend-label">完成率</span>
-          <span class="trend-value">{{ completionRate }}%</span>
+          <span class="confidence-tag" :class="'confidence-' + summary.confidence">
+            {{ confidenceLabel(summary.confidence) }}置信度
+          </span>
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">待确认回款</div>
-        <div class="stat-value warning">{{ formatCurrency(pendingAmount) }}</div>
+        <div class="stat-label">本月实盘</div>
+        <div class="stat-value success">{{ formatCurrency(summary.actual_this_month) }}</div>
+        <div class="stat-trend">
+          <span class="trend-label">环比</span>
+          <span class="trend-value" :class="momClass">{{
+            formatMom(summary.month_over_month_change)
+          }}</span>
+        </div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">预测客户数</div>
-        <div class="stat-value">{{ predictedCustomers }}</div>
+        <div class="stat-label">覆盖客户</div>
+        <div class="stat-value">
+          {{ summary.active_customer_count
+          }}<span class="stat-sub">/{{ summary.total_customer_count }}</span>
+        </div>
+        <div class="stat-trend">
+          <span class="trend-label">活跃客户预测数</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">数据就绪度</div>
+        <div class="stat-value">
+          {{ readiness ? readiness.months_with_data : 0 }}<span class="stat-sub">/12 月</span>
+        </div>
+        <div class="stat-trend">
+          <span class="trend-label">已积累实盘数据</span>
+        </div>
       </div>
     </div>
 
@@ -74,9 +116,19 @@
     <div class="chart-section">
       <div class="chart-card full-width">
         <div class="chart-header">
-          <h3>月度回款预测</h3>
+          <h3>月度消费预测</h3>
         </div>
         <div ref="forecastChartRef" class="chart-container"></div>
+      </div>
+    </div>
+
+    <!-- 设备类型拆解图 -->
+    <div class="chart-section">
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <h3>按设备类型拆解</h3>
+        </div>
+        <div ref="deviceChartRef" class="chart-container device-chart"></div>
       </div>
     </div>
 
@@ -104,14 +156,23 @@
       </div>
       <a-table
         :columns="columns"
-        :data="predictionList"
+        :data="forecastList"
         :loading="loading"
         row-key="customer_id"
         :pagination="pagination"
         @page-change="handlePageChange"
       >
         <template #amount="{ record }">
-          <span class="predicted-amount">{{ formatCurrency(record.predicted_amount) }}</span>
+          <span class="forecast-amount">{{ formatCurrency(record.forecast_amount) }}</span>
+        </template>
+        <template #method="{ record }">
+          <span class="method-tag" :class="'method-' + record.forecast_method">
+            {{ methodLabel(record.forecast_method) }}
+          </span>
+        </template>
+        <template #active="{ record }">
+          <span v-if="record.is_active" class="active-tag active">活跃</span>
+          <span v-else class="active-tag inactive">已休眠</span>
         </template>
         <template #action="{ record }">
           <a-button type="text" size="small" @click="viewCustomer(record.customer_id)"
@@ -124,17 +185,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import {
-  getMonthlyPrediction,
-  getPredictionTrend,
-  type PaymentPrediction,
-  type PredictionTrendItem,
+  getConsumptionForecast,
+  getConsumptionForecastTrend,
+  getDataReadiness,
+  type ConsumptionForecast,
+  type ForecastSummary,
+  type ForecastTrendItem,
+  type DataReadiness,
 } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
@@ -151,16 +215,19 @@ const filters = reactive({
   year: new Date().getFullYear(),
   month: undefined as number | undefined,
   keyword: '',
+  deviceType: '',
 })
 
 const selectedYear = ref(new Date())
 const selectedMonth = ref<number | undefined>(undefined)
 
 const forecastChartRef = ref<HTMLElement>()
+const deviceChartRef = ref<HTMLElement>()
 let forecastChart: ECharts | null = null
+let deviceChart: ECharts | null = null
 
 const loading = ref(false)
-const predictionList = ref<PaymentPrediction[]>([])
+const forecastList = ref<ConsumptionForecast[]>([])
 const pagination = reactive({
   current: 1,
   pageSize: 20,
@@ -170,32 +237,73 @@ const pagination = reactive({
 })
 
 // 统计数据
-const totalPredicted = ref(0)
-const confirmedAmount = ref(0)
-const pendingAmount = ref(0)
-const completionRate = ref(0)
-const predictedCustomers = ref(0)
+const summary = reactive<ForecastSummary>({
+  total_forecast: 0,
+  actual_this_month: 0,
+  month_over_month_change: 0,
+  active_customer_count: 0,
+  total_customer_count: 0,
+  confidence: 'low',
+})
+
+// 数据就绪度
+const readiness = ref<DataReadiness | null>(null)
 
 const columns = [
   { title: '公司 ID', dataIndex: 'company_id', width: 120 },
   { title: '客户名称', dataIndex: 'customer_name', width: 200 },
-  { title: '设备类型', dataIndex: 'device_type', width: 100 },
-  { title: '用量', dataIndex: 'quantity', width: 100 },
-  { title: '计费类型', dataIndex: 'pricing_type', width: 100 },
+  { title: '设备类型', dataIndex: 'device_type', width: 90 },
+  { title: '估算用量', dataIndex: 'estimated_usage', width: 100 },
+  {
+    title: '单价',
+    dataIndex: 'unit_price',
+    width: 90,
+    render: ({ record }: { record: ConsumptionForecast }) => `¥${record.unit_price}/套`,
+  },
   {
     title: '预测金额',
     slotName: 'amount',
     width: 120,
-    sorter: (a: PaymentPrediction, b: PaymentPrediction) => a.predicted_amount - b.predicted_amount,
+    sorter: (a: ConsumptionForecast, b: ConsumptionForecast) =>
+      a.forecast_amount - b.forecast_amount,
   },
+  { title: '方法', slotName: 'method', width: 100 },
+  { title: '状态', slotName: 'active', width: 90 },
   { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
 ]
+
+const momClass = computed(() => {
+  const v = summary.month_over_month_change
+  if (v > 0) return 'mom-up'
+  if (v < 0) return 'mom-down'
+  return ''
+})
+
+const formatMom = (v: number) => {
+  if (!v) return '—'
+  return `${v > 0 ? '+' : ''}${v}%`
+}
+
+const confidenceLabel = (c: string) => {
+  const map: Record<string, string> = { low: '低', medium: '中', high: '高' }
+  return map[c] || '低'
+}
+
+const methodLabel = (m: string) => {
+  const map: Record<string, string> = {
+    historical_hold: '历史保持',
+    cold_start: '冷启动',
+    trimmed: '截断修正',
+  }
+  return map[m] || m
+}
 
 // 重置
 const handleReset = () => {
   selectedYear.value = new Date()
   selectedMonth.value = undefined
   filters.keyword = ''
+  filters.deviceType = ''
   filters.year = new Date().getFullYear()
   filters.month = undefined
   loadData()
@@ -208,7 +316,8 @@ const loadData = async () => {
     filters.year = selectedYear.value?.getFullYear() || new Date().getFullYear()
     filters.month = selectedMonth.value
 
-    await loadPredictionData()
+    await loadForecastData()
+    await loadReadiness()
   } catch (error: unknown) {
     Message.error((error as Error).message || '加载失败')
   } finally {
@@ -217,38 +326,50 @@ const loadData = async () => {
 }
 
 // 加载预测数据
-const loadPredictionData = async () => {
-  const res = await getMonthlyPrediction({
+const loadForecastData = async () => {
+  const res = await getConsumptionForecast({
     year: filters.year,
     month: filters.month,
     keyword: filters.keyword || undefined,
+    device_type: filters.deviceType || undefined,
     force_refresh: true,
   })
 
-  const responseData = res.data || { predictions: [], summary: null }
-  predictionList.value = responseData.predictions || []
-  pagination.total = predictionList.value.length
+  const responseData = res.data || { forecasts: [], summary: null }
+  forecastList.value = responseData.forecasts || []
+  pagination.total = forecastList.value.length
 
-  // 使用后端返回的汇总统计（而非前端硬编码）
-  const summary = responseData.summary
-  if (summary) {
-    totalPredicted.value = summary.total_predicted || 0
-    confirmedAmount.value = summary.confirmed_amount || 0
-    pendingAmount.value = summary.pending_amount || 0
-    completionRate.value = summary.completion_rate || 0
-    predictedCustomers.value = summary.predicted_customers || 0
+  const s = responseData.summary
+  if (s) {
+    summary.total_forecast = s.total_forecast || 0
+    summary.actual_this_month = s.actual_this_month || 0
+    summary.month_over_month_change = s.month_over_month_change || 0
+    summary.active_customer_count = s.active_customer_count || 0
+    summary.total_customer_count = s.total_customer_count || 0
+    summary.confidence = s.confidence || 'low'
   }
 
   // 加载图表趋势数据
   await loadTrendData()
+  initDeviceChart()
+}
+
+// 加载数据就绪度
+const loadReadiness = async () => {
+  try {
+    const res = await getDataReadiness()
+    readiness.value = res.data || null
+  } catch {
+    readiness.value = null
+  }
 }
 
 // 加载趋势数据（全年 12 个月预测 vs 实际）
-const trendData = ref<PredictionTrendItem[]>([])
+const trendData = ref<ForecastTrendItem[]>([])
 
 const loadTrendData = async () => {
   try {
-    const res = await getPredictionTrend({
+    const res = await getConsumptionForecastTrend({
       year: filters.year,
       force_refresh: true,
     })
@@ -283,16 +404,14 @@ const initForecastChart = () => {
     '11 月',
     '12 月',
   ]
-  const currentMonth = new Date().getMonth()
 
-  // 使用后端趋势数据
-  const predictedData = months.map((_, index) => {
+  const forecastData = months.map((_, index) => {
     const item = trendData.value[index]
-    return item ? item.predicted : 0
+    return item ? item.forecast : 0
   })
   const actualData = months.map((_, index) => {
     const item = trendData.value[index]
-    return item ? item.actual : 0
+    return item && item.is_actual && item.actual !== null ? item.actual : null
   })
 
   const option = {
@@ -312,7 +431,7 @@ const initForecastChart = () => {
       },
     },
     legend: {
-      data: ['预测回款', '实际回款'],
+      data: ['预测消费', '实际消费'],
       textStyle: {
         color: TEXT_MUTED,
       },
@@ -350,9 +469,9 @@ const initForecastChart = () => {
     },
     series: [
       {
-        name: '预测回款',
+        name: '预测消费',
         type: 'bar',
-        data: predictedData,
+        data: forecastData,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#1D4ED8' },
@@ -361,10 +480,10 @@ const initForecastChart = () => {
         },
       },
       {
-        name: '实际回款',
+        name: '实际消费',
         type: 'line',
         smooth: true,
-        data: actualData.map((val, index) => (index <= currentMonth ? val : null)),
+        data: actualData,
         connectNulls: false,
         itemStyle: {
           color: '#059669',
@@ -381,6 +500,68 @@ const initForecastChart = () => {
   forecastChart.setOption(option)
 }
 
+// 初始化设备类型拆解图
+const initDeviceChart = () => {
+  if (!deviceChartRef.value) return
+
+  if (deviceChart) {
+    deviceChart.dispose()
+  }
+
+  deviceChart = echarts.init(deviceChartRef.value)
+
+  // 按设备类型聚合预测金额
+  const deviceAgg: Record<string, number> = {}
+  forecastList.value.forEach((item) => {
+    deviceAgg[item.device_type] = (deviceAgg[item.device_type] || 0) + item.forecast_amount
+  })
+
+  const colors: Record<string, string> = {
+    L: '#1D4ED8',
+    N: '#059669',
+    X: '#D97706',
+  }
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}：¥{c}（{d}%）',
+    },
+    legend: {
+      bottom: 0,
+      textStyle: {
+        color: TEXT_MUTED,
+      },
+    },
+    series: [
+      {
+        name: '预测消费',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        center: ['50%', '45%'],
+        itemStyle: {
+          borderRadius: 6,
+          borderColor: '#fff',
+          borderWidth: 2,
+        },
+        label: {
+          color: TEXT_MUTED,
+          formatter: '{b}\n¥{c}',
+        },
+        data: Object.entries(deviceAgg).map(([name, value]) => ({
+          name: `${name} 系列`,
+          value: Math.round(value),
+          itemStyle: {
+            color: colors[name] || '#64748B',
+          },
+        })),
+      },
+    ],
+  }
+
+  deviceChart.setOption(option)
+}
+
 // 分页变化
 const handlePageChange = (page: number) => {
   pagination.current = page
@@ -394,6 +575,7 @@ const viewCustomer = (customerId: number) => {
 // 窗口大小变化时重新渲染图表
 const handleResize = () => {
   forecastChart?.resize()
+  deviceChart?.resize()
 }
 
 onMounted(() => {
@@ -404,6 +586,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   forecastChart?.dispose()
+  deviceChart?.dispose()
 })
 </script>
 
@@ -433,6 +616,38 @@ onUnmounted(() => {
   margin: 0;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* 数据就绪度横幅 */
+.readiness-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdfa 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+}
+
+.readiness-icon {
+  font-size: 22px;
+}
+
+.readiness-content {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.readiness-title {
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.readiness-desc {
+  font-size: 13px;
+  color: #475569;
 }
 
 .filter-card {
@@ -483,6 +698,12 @@ onUnmounted(() => {
   color: var(--amber);
 }
 
+.stat-sub {
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .stat-trend {
   display: flex;
   align-items: center;
@@ -498,6 +719,37 @@ onUnmounted(() => {
 .trend-value {
   font-weight: 600;
   color: var(--primary);
+}
+
+.trend-value.mom-up {
+  color: var(--green);
+}
+
+.trend-value.mom-down {
+  color: var(--red, #dc2626);
+}
+
+.confidence-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.confidence-low {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.confidence-medium {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.confidence-high {
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .chart-section {
@@ -533,6 +785,10 @@ onUnmounted(() => {
   padding: 24px;
 }
 
+.chart-container.device-chart {
+  height: 320px;
+}
+
 .table-section {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -564,9 +820,52 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.predicted-amount {
+.forecast-amount {
   font-weight: 700;
   color: var(--primary);
+}
+
+/* 方法标注 */
+.method-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.method-historical_hold {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.method-cold_start {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.method-trimmed {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+/* 活跃标记 */
+.active-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.active-tag.active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.active-tag.inactive {
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 @media (max-width: 1200px) {

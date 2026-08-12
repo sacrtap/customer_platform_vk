@@ -275,8 +275,68 @@ export function getRealEstateIndustryStats(params?: { force_refresh?: boolean })
   return api.get('/analytics/profile/real-estate-industry', { params })
 }
 
-// ==================== 预测回款 ====================
+// ==================== 预测消费 ====================
 
+export interface ConsumptionForecast {
+  customer_id: number
+  customer_name: string
+  company_id: string
+  device_type: string
+  estimated_usage: number
+  unit_price: number
+  forecast_amount: number
+  forecast_method: 'historical_hold' | 'cold_start' | 'trimmed'
+  is_active: boolean
+  consume_level: string
+}
+
+export interface ForecastSummary {
+  total_forecast: number
+  actual_this_month: number
+  month_over_month_change: number
+  active_customer_count: number
+  total_customer_count: number
+  confidence: 'low' | 'medium' | 'high'
+}
+
+export interface ForecastTrendItem {
+  month: string
+  actual: number | null
+  forecast: number
+  is_actual: boolean
+}
+
+export interface DataReadiness {
+  months_with_data: number
+  total_months_target: number
+  customer_coverage_pct: number
+  confidence: 'low' | 'medium' | 'high'
+  earliest_data_month: string | null
+  latest_data_month: string | null
+}
+
+export function getConsumptionForecast(params?: {
+  year?: number
+  month?: number
+  keyword?: string
+  device_type?: string
+  force_refresh?: boolean
+}) {
+  return api.get<{ forecasts: ConsumptionForecast[]; summary: ForecastSummary }>(
+    '/analytics/consumption/forecast',
+    { params }
+  )
+}
+
+export function getConsumptionForecastTrend(params?: { year?: number; force_refresh?: boolean }) {
+  return api.get<ForecastTrendItem[]>('/analytics/consumption/forecast-trend', { params })
+}
+
+export function getDataReadiness() {
+  return api.get<DataReadiness>('/analytics/consumption/data-readiness')
+}
+
+// 兼容：旧预测回款接口（保留一个版本周期）
 export interface PaymentPrediction {
   customer_id: number
   customer_name: string

@@ -201,7 +201,7 @@
             :class="{ active: $route.path === '/analytics/forecast' }"
             @click="goTo('/analytics/forecast')"
           >
-            预测回款
+            预测消费
           </button>
         </div>
       </div>
