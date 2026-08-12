@@ -1185,10 +1185,9 @@ async def get_priority_customers(request: Request):
             continue
         seen_ids.add(cid)
 
+        # 使用实际剩余余额（real + bonus），而非累计充值额 total_amount
+        remaining = wc.get("real_amount", 0) + wc.get("bonus_amount", 0)
         total = wc.get("total_amount", 0)
-        # 估算可用天数（假设日均消耗 = 总余额 / 30，粗略估算）
-        daily_avg = max(total / 30, 1) if total > 0 else 0
-        balance_days = int(total / daily_avg) if daily_avg > 0 else 999
 
         customers.append(
             {
@@ -1197,11 +1196,80 @@ async def get_priority_customers(request: Request):
                 "health": "关注",
                 "health_class": "amber",
                 "consumption": f"¥{total:,.0f}",
-                "balance_days": f"{balance_days} 天" if balance_days < 999 else "充足",
-                "risk": "余额不足" if total < 500 else "余额偏低",
+                "balance_days": "—",  # 占位，后续批量填充
+                "risk": "余额不足" if remaining < 500 else "余额偏低",
                 "manager": wc.get("manager_name", "未分配"),
             }
         )
+
+    # 批量查询消费统计，计算真实 balance_days
+    if seen_ids:
+        from datetime import date, timedelta
+
+        from sqlalchemy import func as sa_func
+        from sqlalchemy import select as sa_select
+
+        from ..models.billing import CustomerBalance
+        from ..models.daily_consumption import DailyConsumption
+
+        today = date.today()
+        thirty_days_ago = today - timedelta(days=30)
+        consumption_stmt = (
+            sa_select(
+                DailyConsumption.customer_id,
+                sa_func.coalesce(sa_func.sum(DailyConsumption.total_cost), 0).label(
+                    "total_cost_30d"
+                ),
+                sa_func.count(sa_func.distinct(DailyConsumption.consumption_date)).label(
+                    "consumption_days"
+                ),
+            )
+            .where(
+                DailyConsumption.customer_id.in_(list(seen_ids)),
+                DailyConsumption.consumption_date >= thirty_days_ago,
+                DailyConsumption.deleted_at.is_(None),
+            )
+            .group_by(DailyConsumption.customer_id)
+        )
+        consumption_result = await db_session.execute(consumption_stmt)
+        consumption_map = {
+            row.customer_id: {
+                "total_cost_30d": float(row.total_cost_30d),
+                "consumption_days": int(row.consumption_days),
+            }
+            for row in consumption_result.all()
+        }
+
+        # 同时查询余额信息用于计算 days_remaining
+        balance_stmt = sa_select(
+            CustomerBalance.customer_id,
+            CustomerBalance.real_amount,
+            CustomerBalance.bonus_amount,
+        ).where(CustomerBalance.customer_id.in_(list(seen_ids)))
+        balance_result = await db_session.execute(balance_stmt)
+        balance_map = {
+            row.customer_id: {
+                "real_amount": float(row.real_amount or 0),
+                "bonus_amount": float(row.bonus_amount or 0),
+            }
+            for row in balance_result.all()
+        }
+
+        # 填充 balance_days
+        for c in customers:
+            cid = c["id"]
+            stats = consumption_map.get(cid)
+            bal = balance_map.get(cid)
+            if not stats or stats["total_cost_30d"] <= 0 or not bal:
+                c["balance_days"] = "充足"
+                continue
+            daily_avg = stats["total_cost_30d"] / max(stats["consumption_days"], 7)
+            remaining = bal["real_amount"] + bal["bonus_amount"]
+            if daily_avg > 0:
+                days = int(remaining / daily_avg)
+                c["balance_days"] = f"{days} 天" if days < 999 else "充足"
+            else:
+                c["balance_days"] = "充足"
 
     # 补充风险客户
     for rc in risk_customers[:limit]:

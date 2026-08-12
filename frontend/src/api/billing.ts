@@ -18,6 +18,12 @@ export interface Balance {
   used_real: number
   used_bonus: number
   last_recharge_at?: string
+  /** 近 30 天日均消耗（无消费记录时 null） */
+  daily_avg_cost: number | null
+  /** 近 30 天有消费的天数 */
+  consumption_days: number
+  /** 预计剩余天数（null = 无消耗或后付费） */
+  days_remaining: number | null
 }
 
 export interface BalanceStats {
@@ -29,6 +35,8 @@ export interface BalanceStats {
   this_month_bonus_amount: number
   low_balance_count: number
   zero_balance_count: number
+  /** days_remaining ≤ 7 的客户数 */
+  burning_soon_count: number
 }
 
 export function getBalances(params?: {

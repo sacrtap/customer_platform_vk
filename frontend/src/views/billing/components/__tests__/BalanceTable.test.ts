@@ -18,6 +18,9 @@ const mockBalances: Balance[] = [
     used_real: 15000,
     used_bonus: 5000,
     last_recharge_at: '2026-07-15T10:00:00',
+    daily_avg_cost: 3200.0,
+    consumption_days: 18,
+    days_remaining: 15,
   },
   {
     id: 2,
@@ -32,6 +35,9 @@ const mockBalances: Balance[] = [
     used_real: 25000,
     used_bonus: 5000,
     last_recharge_at: '2026-07-10T10:00:00',
+    daily_avg_cost: 800.0,
+    consumption_days: 25,
+    days_remaining: 6,
   },
   {
     id: 3,
@@ -46,6 +52,9 @@ const mockBalances: Balance[] = [
     used_real: 45000,
     used_bonus: 5000,
     last_recharge_at: undefined,
+    daily_avg_cost: null,
+    consumption_days: 0,
+    days_remaining: null,
   },
 ]
 
@@ -65,12 +74,13 @@ describe('BalanceTable - 排序', () => {
   it('渲染所有可排序列头', () => {
     const wrapper = mount(BalanceTable, { props: defaultProps })
     const sortableHeaders = wrapper.findAll('.th-sortable')
-    // company_id, customer_name, total_amount, used_total, last_recharge_at
-    expect(sortableHeaders).toHaveLength(5)
+    // company_id, customer_name, total_amount, burn_down, used_total, last_recharge_at
+    expect(sortableHeaders).toHaveLength(6)
     const titles = sortableHeaders.map((h) => h.text())
     expect(titles).toContain('客户ID')
     expect(titles).toContain('客户名称')
     expect(titles).toContain('余额')
+    expect(titles).toContain('余额燃尽')
     expect(titles).toContain('已消耗')
     expect(titles).toContain('最新充值')
   })
@@ -78,13 +88,11 @@ describe('BalanceTable - 排序', () => {
   it('不可排序的列头没有 th-sortable 类', () => {
     const wrapper = mount(BalanceTable, { props: defaultProps })
     const allHeaders = wrapper.findAll('thead th')
-    // 行业、趋势、预计耗尽 不可排序
+    // 行业 不可排序
     const nonSortableTexts = allHeaders
       .filter((h) => !h.classes().includes('th-sortable'))
       .map((h) => h.text())
     expect(nonSortableTexts).toContain('行业')
-    expect(nonSortableTexts).toContain('趋势')
-    expect(nonSortableTexts).toContain('预计耗尽')
   })
 
   it('第一次点击排序列头时，emit sortChange 事件并设置为升序', async () => {
@@ -175,6 +183,7 @@ describe('BalanceTable - 排序', () => {
       { title: '客户ID', key: 'company_id' },
       { title: '客户名称', key: 'customer_name' },
       { title: '余额', key: 'total_amount' },
+      { title: '余额燃尽', key: 'days_remaining' },
       { title: '已消耗', key: 'used_total' },
       { title: '最新充值', key: 'last_recharge_at' },
     ]

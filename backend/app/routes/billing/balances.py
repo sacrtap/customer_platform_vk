@@ -1,7 +1,8 @@
 """余额管理路由 — 充值、记录、统计、趋势"""
 
+import json as _json
 import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sanic.request import Request
@@ -17,6 +18,130 @@ from ...utils.audit_helpers import create_audit_entry
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
+
+
+async def _batch_query_consumption_stats(
+    db: AsyncSession, customer_ids: list[int]
+) -> dict[int, dict]:
+    """批量查询客户近 30 天消费统计（带 L1 Redis 缓存）
+
+    Returns:
+        {customer_id: {"total_cost_30d": float, "consumption_days": int}}
+    """
+    if not customer_ids:
+        return {}
+
+    from sqlalchemy import func, select
+
+    from ...models.daily_consumption import DailyConsumption
+
+    today = date.today()
+    today_str = today.isoformat()
+    thirty_days_ago = today - timedelta(days=30)
+
+    # L1 缓存读取
+    result_map: dict[int, dict] = {}
+    missed_ids: list[int] = []
+    try:
+        redis = await cache_service._get_redis()
+        keys = [f"cache:billing_consumption:{cid}:{today_str}" for cid in customer_ids]
+        values = await redis.mget(keys)
+        for cid, val in zip(customer_ids, values):
+            if val is not None:
+                result_map[cid] = _json.loads(val)
+            else:
+                missed_ids.append(cid)
+    except Exception as e:
+        logger.warning("L1 缓存读取失败 billing_consumption: %s", e)
+        missed_ids = list(customer_ids)
+
+    # 查询未命中部分
+    if missed_ids:
+        stmt = (
+            select(
+                DailyConsumption.customer_id,
+                func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost_30d"),
+                func.count(func.distinct(DailyConsumption.consumption_date)).label(
+                    "consumption_days"
+                ),
+            )
+            .where(
+                DailyConsumption.customer_id.in_(missed_ids),
+                DailyConsumption.consumption_date >= thirty_days_ago,
+                DailyConsumption.deleted_at.is_(None),
+            )
+            .group_by(DailyConsumption.customer_id)
+        )
+        sql_result = await db.execute(stmt)
+
+        # 写回缓存
+        cache_writes: list[tuple[str, str]] = []
+        for row in sql_result.all():
+            cid = row.customer_id
+            stats = {
+                "total_cost_30d": float(row.total_cost_30d),
+                "consumption_days": int(row.consumption_days),
+            }
+            result_map[cid] = stats
+            cache_writes.append(
+                (f"cache:billing_consumption:{cid}:{today_str}", _json.dumps(stats, default=str))
+            )
+
+        # 未出现在结果中的客户 → 无消费记录
+        for cid in missed_ids:
+            if cid not in result_map:
+                result_map[cid] = {"total_cost_30d": 0.0, "consumption_days": 0}
+
+        if cache_writes:
+            try:
+                redis = await cache_service._get_redis()
+                pipe = redis.pipeline()
+                for key, val in cache_writes:
+                    pipe.setex(key, 300, val)
+                await pipe.execute()
+            except Exception as e:
+                logger.warning("L1 缓存写入失败 billing_consumption: %s", e)
+
+    return result_map
+
+
+def _compute_burn_down(
+    real_amount: float,
+    bonus_amount: float,
+    settlement_type: str | None,
+    stats: dict | None,
+) -> dict:
+    """计算燃尽指标
+
+    Returns:
+        {"daily_avg_cost": float|None, "consumption_days": int, "days_remaining": int|None}
+    """
+    if settlement_type == "postpaid":
+        return {"daily_avg_cost": None, "consumption_days": 0, "days_remaining": None}
+
+    if not stats or stats.get("total_cost_30d", 0) <= 0:
+        return {
+            "daily_avg_cost": None,
+            "consumption_days": stats.get("consumption_days", 0) if stats else 0,
+            "days_remaining": None,
+        }
+
+    total_cost = stats["total_cost_30d"]
+    consumption_days = stats["consumption_days"]
+    # 防止 1 天脉冲拉高日均，下限 7 天
+    daily_avg = total_cost / max(consumption_days, 7)
+
+    remaining = real_amount + bonus_amount
+    if daily_avg > 0:
+        days_remaining = int(remaining / daily_avg)
+    else:
+        days_remaining = None
+
+    return {
+        "daily_avg_cost": round(daily_avg, 2),
+        "consumption_days": consumption_days,
+        "days_remaining": days_remaining,
+    }
 
 
 @billing_bp.get("/balances")
@@ -96,6 +221,7 @@ async def get_balances(request: Request):
         "total_amount": CustomerBalance.total_amount,
         "used_total": CustomerBalance.used_total,
         "last_recharge_at": "last_recharge_at",  # 特殊处理
+        "days_remaining": "days_remaining",  # 特殊处理（CTE）
     }
 
     base_stmt = (
@@ -281,6 +407,62 @@ async def get_balances(request: Request):
                 base_stmt = base_stmt.order_by(order_expr.asc().nulls_last(), Customer.id.asc())
             else:
                 base_stmt = base_stmt.order_by(order_expr.desc().nulls_last(), Customer.id.asc())
+        elif field == "days_remaining":
+            # 燃尽天数排序：使用 CTE 批量聚合所有匹配客户
+            from sqlalchemy import case
+
+            from ...models.daily_consumption import DailyConsumption
+
+            today = date.today()
+            thirty_days_ago = today - timedelta(days=30)
+            consumption_cte = (
+                select(
+                    DailyConsumption.customer_id.label("cid"),
+                    func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost_30d"),
+                    func.count(func.distinct(DailyConsumption.consumption_date)).label(
+                        "consumption_days"
+                    ),
+                )
+                .where(
+                    DailyConsumption.consumption_date >= thirty_days_ago,
+                    DailyConsumption.deleted_at.is_(None),
+                )
+                .group_by(DailyConsumption.customer_id)
+                .cte("consumption_stats")
+            )
+            base_stmt = base_stmt.outerjoin(
+                consumption_cte,
+                CustomerBalance.customer_id == consumption_cte.c.cid,
+            )
+            # SQL 层计算 days_remaining 用于排序（float）
+            days_remaining_expr = case(
+                (
+                    Customer.settlement_type == "postpaid",
+                    None,
+                ),
+                (
+                    func.coalesce(consumption_cte.c.total_cost_30d, 0) <= 0,
+                    None,
+                ),
+                else_=(
+                    (
+                        func.coalesce(CustomerBalance.real_amount, 0)
+                        + func.coalesce(CustomerBalance.bonus_amount, 0)
+                    )
+                    / (
+                        func.coalesce(consumption_cte.c.total_cost_30d, 0)
+                        / func.greatest(func.coalesce(consumption_cte.c.consumption_days, 0), 7)
+                    )
+                ),
+            )
+            if sort_order == "asc":
+                base_stmt = base_stmt.order_by(
+                    days_remaining_expr.asc().nulls_last(), Customer.id.asc()
+                )
+            else:
+                base_stmt = base_stmt.order_by(
+                    days_remaining_expr.desc().nulls_last(), Customer.id.asc()
+                )
         else:
             order_expr = field
             base_stmt = base_stmt.order_by(
@@ -318,6 +500,9 @@ async def get_balances(request: Request):
         for row in recharge_result.all():
             last_recharge_map[row.customer_id] = row.last_recharge_at
 
+    # 批量查询消费统计（L1 缓存）
+    consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
+
     return json(
         {
             "code": 0,
@@ -346,6 +531,12 @@ async def get_balances(request: Request):
                             if b.customer_id in last_recharge_map
                             and last_recharge_map[b.customer_id]
                             else None
+                        ),
+                        **_compute_burn_down(
+                            real_amount=float(b.real_amount) if b.real_amount else 0,
+                            bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
+                            settlement_type=b.customer.settlement_type if b.customer else None,
+                            stats=consumption_stats_map.get(b.customer_id),
                         ),
                     }
                     for b in balances
@@ -548,6 +739,56 @@ async def get_balance_stats(request: Request):
     zero_balance_stmt = apply_balance_filters(zero_balance_stmt, need_industry_join=True)
     zero_balance_count = (await db.execute(zero_balance_stmt)).scalar() or 0
 
+    # --- 即将耗尽客户数（days_remaining ≤ 7）---
+    from datetime import date, timedelta
+
+    from ...models.daily_consumption import DailyConsumption
+
+    today = date.today()
+    thirty_days_ago = today - timedelta(days=30)
+    consumption_cte = (
+        select(
+            DailyConsumption.customer_id.label("cid"),
+            func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost_30d"),
+            func.count(func.distinct(DailyConsumption.consumption_date)).label("consumption_days"),
+        )
+        .where(
+            DailyConsumption.consumption_date >= thirty_days_ago,
+            DailyConsumption.deleted_at.is_(None),
+        )
+        .group_by(DailyConsumption.customer_id)
+        .cte("consumption_stats_burning")
+    )
+    burning_soon_days_expr = (
+        func.coalesce(CustomerBalance.real_amount, 0)
+        + func.coalesce(CustomerBalance.bonus_amount, 0)
+    ) / (
+        func.coalesce(consumption_cte.c.total_cost_30d, 0)
+        / func.greatest(func.coalesce(consumption_cte.c.consumption_days, 0), 7)
+    )
+    burning_soon_stmt = (
+        select(func.count(CustomerBalance.id))
+        .join(Customer, CustomerBalance.customer_id == Customer.id)
+        .outerjoin(consumption_cte, CustomerBalance.customer_id == consumption_cte.c.cid)
+        .where(
+            CustomerBalance.deleted_at.is_(None),
+            Customer.deleted_at.is_(None),
+            Customer.settlement_type != "postpaid",
+            func.coalesce(consumption_cte.c.total_cost_30d, 0) > 0,
+            burning_soon_days_expr <= 7,
+        )
+    )
+    burning_soon_stmt = add_industry_joins(burning_soon_stmt)
+    # 应用客户级别筛选
+    for cond in customer_filters:
+        burning_soon_stmt = burning_soon_stmt.where(cond)
+    if industry_need_join:
+        for cond in industry_filter_stmts:
+            burning_soon_stmt = burning_soon_stmt.where(cond)
+    if tag_subq is not None:
+        burning_soon_stmt = burning_soon_stmt.where(Customer.id.in_(tag_subq))
+    burning_soon_count = (await db.execute(burning_soon_stmt)).scalar() or 0
+
     # --- 客户总数 ---
     total_customers_stmt = select(func.count(CustomerBalance.id)).join(
         Customer, CustomerBalance.customer_id == Customer.id
@@ -569,6 +810,7 @@ async def get_balance_stats(request: Request):
                 "this_month_bonus_amount": this_month_bonus_amount,
                 "low_balance_count": low_balance_count,
                 "zero_balance_count": zero_balance_count,
+                "burning_soon_count": burning_soon_count,
             },
         }
     )
@@ -664,6 +906,8 @@ async def recharge(request: Request):
     await cache_service.invalidate_analytics_cache("health")
     await cache_service.invalidate_analytics_cache("dashboard")
     await cache_service.invalidate_customer_cache(customer_id)
+    # 燃尽缓存：余额变化影响 days_remaining
+    await cache_service.invalidate_pattern("cache:billing_consumption:*")
 
     # 获取充值后的余额（用于返回给前端局部更新）
     balance_after = await balance_service.get_balance_by_customer_id(customer_id)

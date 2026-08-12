@@ -28,7 +28,10 @@
           <tr
             v-for="record in balances"
             :key="record.id"
-            :class="{ 'row-warning': isLowBalance(record) }"
+            :class="{
+              'row-warning': isBurningSoon(record),
+              'row-warn': isBurningWarn(record),
+            }"
           >
             <td @click.stop>
               <input
@@ -60,42 +63,17 @@
                 </div>
               </div>
             </td>
+            <!-- 余额燃尽列：油表进度条 + 剩余天数 -->
             <td>
-              <div class="trend-cell">
-                <div
-                  class="util-bar"
-                  :class="getUtilBarClass(record)"
-                  :title="`余额利用率 ${getUtilization(record)}%`"
-                >
-                  <div
-                    class="util-fill"
-                    :style="{ width: Math.min(getUtilization(record), 100) + '%' }"
-                  ></div>
+              <span v-if="record.settlement_type === 'postpaid'" class="tag gray">后付费</span>
+              <div v-else class="burn-cell" :title="getBurnTooltip(record)">
+                <div class="burn-bar" :class="getBurnBarClass(record)">
+                  <div class="burn-fill" :style="{ width: getBurnFillPct(record) + '%' }"></div>
                 </div>
-                <div class="trend-meta">
-                  <span class="util-pct" :class="getUtilTextClass(record)"
-                    >{{ getUtilization(record) }}%</span
-                  >
-                  <span
-                    v-if="getDailyAvg(record) > 0"
-                    class="trend-arrow"
-                    :class="getTrendArrowClass(record)"
-                    :title="getTrendTooltip(record)"
-                  >
-                    <span class="arrow-icon">{{ getTrendArrowIcon(record) }}</span>
-                    <span class="daily-avg">¥{{ formatNumber(getDailyAvg(record)) }}/天</span>
-                  </span>
-                  <span v-else class="trend-arrow neutral" title="无消耗记录">
-                    <span class="arrow-icon">—</span>
-                    <span class="daily-avg">无消耗</span>
-                  </span>
-                </div>
+                <span class="burn-text" :class="getBurnTextClass(record)">
+                  {{ getBurnLabel(record) }}
+                </span>
               </div>
-            </td>
-            <td>
-              <span class="tag" :class="getDepletionTagClass(record)">
-                {{ getDepletionLabel(record) }}
-              </span>
             </td>
             <td>
               <div>
@@ -234,11 +212,15 @@ const columns: ColumnDef[] = [
   { key: 'customer_name', title: '客户名称', sortable: true },
   { key: 'industry_type', title: '行业' },
   { key: 'total_amount', title: '余额', sortable: true },
-  { key: 'trend', title: '趋势' },
-  { key: 'depletion', title: '预计耗尽' },
+  { key: 'burn_down', title: '余额燃尽', sortable: true },
   { key: 'used_total', title: '已消耗', sortable: true },
   { key: 'last_recharge_at', title: '最新充值', sortable: true },
 ]
+
+// 前端列 key → 后端 sort_by 字段名映射
+const sortFieldMap: Record<string, string> = {
+  burn_down: 'days_remaining',
+}
 
 // --- 排序 ---
 const sortKey = ref('')
@@ -265,9 +247,9 @@ const toggleSort = (key: string) => {
     sortKey.value = key
     sortDir.value = 'asc'
   }
-  // 当排序被清除时（第三次点击），sortKey.value 为空字符串，
-  // 需要传递空字符串以便 useBalance 正确清除排序状态
-  emit('sortChange', sortKey.value, sortDir.value)
+  // 映射到后端字段名
+  const backendField = sortFieldMap[sortKey.value] || sortKey.value
+  emit('sortChange', backendField, sortDir.value)
 }
 
 // --- 选择 ---
@@ -329,6 +311,7 @@ const onJumpPage = (val: string) => {
 
 // --- 辅助方法 ---
 const LOW_BALANCE_THRESHOLD = 10000
+const BURN_MAX_DAYS = 60
 
 const getInitials = (name?: string) => {
   if (!name) return '?'
@@ -344,126 +327,89 @@ const isLowBalance = (record: Balance): boolean => {
   return record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD
 }
 
-// ===== 趋势列：利用率进度条 + 消耗趋势箭头（基于真实数据）=====
+// ===== 余额燃尽：油表进度条（满 = 安全，空 = 紧急）=====
 
-// 余额利用率百分比（0-100，向上取整）
-const getUtilization = (record: Balance): number => {
-  if (record.total_amount <= 0) return 100
-  const pct = Math.round((record.used_total / (record.used_total + record.total_amount)) * 100)
-  return Math.min(Math.max(pct, 0), 100)
+// 行高亮：≤7 天红色背景
+const isBurningSoon = (record: Balance): boolean => {
+  return record.days_remaining != null && record.days_remaining <= 7
 }
 
-// 日均消耗（估算近30天）
-const getDailyAvg = (record: Balance): number => {
-  if (record.used_total <= 0) return 0
-  return Math.round(record.used_total / 30)
+// 行高亮：8-30 天浅黄色背景
+const isBurningWarn = (record: Balance): boolean => {
+  return record.days_remaining != null && record.days_remaining > 7 && record.days_remaining <= 30
 }
 
-// 预计剩余天数
-const getDaysLeft = (record: Balance): number => {
-  const remaining = record.total_amount
-  if (remaining <= 0) return 0
-  const dailyAvg = getDailyAvg(record)
-  if (dailyAvg <= 0) return Infinity
-  return Math.floor(remaining / dailyAvg)
-}
-
-// 距上次充值天数
-const getDaysSinceRecharge = (record: Balance): number | null => {
-  if (!record.last_recharge_at) return null
-  const lastDate = new Date(record.last_recharge_at)
-  const now = new Date()
-  return Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+// 进度条填充百分比：满格 = 安全（剩余天数多），空 = 紧急
+const getBurnFillPct = (record: Balance): number => {
+  if (record.days_remaining == null) return 100 // 无消耗 → 满格灰色
+  if (record.days_remaining <= 0) return 0 // 已耗尽 → 空格红色
+  return Math.min((record.days_remaining / BURN_MAX_DAYS) * 100, 100)
 }
 
 // 进度条颜色 class
-const getUtilBarClass = (record: Balance): string => {
-  const pct = getUtilization(record)
-  if (pct >= 80) return 'danger'
-  if (pct >= 50) return 'warn'
+const getBurnBarClass = (record: Balance): string => {
+  if (record.settlement_type === 'postpaid') return 'postpaid'
+  if (record.days_remaining == null) return 'no-data'
+  if (record.days_remaining <= 0) return 'danger'
+  if (record.days_remaining <= 7) return 'danger'
+  if (record.days_remaining <= 30) return 'warn'
+  // 数据覆盖率 <50%（30天中 <15天有记录）→ 颜色降级
+  if (record.consumption_days > 0 && record.consumption_days < 15) return 'warn'
   return 'safe'
 }
 
-// 百分比文字颜色 class
-const getUtilTextClass = (record: Balance): string => {
-  return getUtilBarClass(record)
+// 文字颜色 class（与进度条一致）
+const getBurnTextClass = (record: Balance): string => {
+  return getBurnBarClass(record)
 }
 
-// 趋势箭头方向：比较「预计耗尽天数」与「距上次充值天数」
-//   - daysLeft < daysSinceRecharge：消耗快于充值节奏 → 下降趋势
-//   - daysLeft >= daysSinceRecharge：余额可持续 → 上升趋势
-const getTrendArrowIcon = (record: Balance): string => {
-  if (record.total_amount <= 0) return '↓↓'
-  const dailyAvg = getDailyAvg(record)
-  if (dailyAvg <= 0) return '—'
-  const daysLeft = getDaysLeft(record)
-  const daysSince = getDaysSinceRecharge(record)
-  if (daysSince === null) return '—'
-  if (daysLeft === Infinity) return '↑'
-  return daysLeft < daysSince ? '↓' : '↑'
+// 核心文字标签
+const getBurnLabel = (record: Balance): string => {
+  if (record.days_remaining == null) return '无消耗'
+  if (record.days_remaining <= 0) return '已耗尽'
+  if (record.days_remaining < 1) return '今日耗尽'
+  if (record.days_remaining > BURN_MAX_DAYS) return '>60天'
+  return `剩余 ${Math.floor(record.days_remaining)}天`
 }
 
-// 趋势箭头颜色 class
-const getTrendArrowClass = (record: Balance): string => {
-  const icon = getTrendArrowIcon(record)
-  if (icon === '↓' || icon === '↓↓') return 'down'
-  if (icon === '↑') return 'up'
-  return 'neutral'
-}
-
-// 趋势箭头 tooltip
-const getTrendTooltip = (record: Balance): string => {
-  if (record.total_amount <= 0) return '余额已耗尽，需立即充值'
-  const dailyAvg = getDailyAvg(record)
-  if (dailyAvg <= 0) return '无消耗记录'
-  const daysLeft = getDaysLeft(record)
-  const daysSince = getDaysSinceRecharge(record)
-  const parts: string[] = []
-  parts.push(`日均消耗 ¥${formatNumber(dailyAvg)}`)
-  if (daysLeft === Infinity) {
-    parts.push('余额充足')
-  } else {
-    parts.push(`预计可支撑 ${daysLeft} 天`)
-  }
-  if (daysSince !== null) {
-    parts.push(`距上次充值 ${daysSince} 天`)
-    if (daysLeft !== Infinity) {
-      parts.push(daysLeft < daysSince ? '消耗快于充值节奏，建议关注' : '余额可持续')
+// tooltip 详情
+const getBurnTooltip = (record: Balance): string => {
+  if (record.settlement_type === 'postpaid') return '后付费客户，不消耗预付余额'
+  if (record.days_remaining == null) {
+    const parts = ['近 30 天无消费记录']
+    if (record.last_recharge_at) {
+      const lastDate = new Date(record.last_recharge_at)
+      const now = new Date()
+      const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+      parts.push(`距上次充值 ${daysSince} 天`)
     }
+    return parts.join('；')
   }
+
+  const parts: string[] = []
+  if (record.daily_avg_cost != null) {
+    parts.push(`日均消耗 ¥${formatNumber(record.daily_avg_cost)}`)
+  }
+  parts.push(`30 天内有 ${record.consumption_days} 天消费记录`)
+
+  const remaining = record.real_amount + record.bonus_amount
+  parts.push(`当前余额 ¥${formatNumber(remaining)}`)
+
+  if (record.days_remaining <= 0) {
+    parts.push('余额已耗尽，需立即充值')
+  } else if (record.days_remaining < 1) {
+    parts.push('今日即将耗尽')
+  } else {
+    parts.push(`预计可支撑 ${Math.floor(record.days_remaining)} 天`)
+  }
+
+  // 数据覆盖率提示
+  if (record.consumption_days > 0 && record.consumption_days < 15) {
+    parts.push('⚠️ 消费数据覆盖率较低，预测可能不准确')
+  }
+
+  parts.push('预测基于近 30 天日均消耗，实际扣款以结算单为准')
   return parts.join('；')
-}
-
-// 预计耗尽预测
-const getDepletionLabel = (record: Balance): string => {
-  if (record.total_amount <= 0) return '已耗尽'
-  const remaining = record.total_amount - record.used_total
-  if (remaining <= 0) return '已耗尽'
-  if (record.used_total <= 0) return '安全'
-
-  // 简单估算：假设30天消耗量 = used_total
-  const dailyAvg = record.used_total / 30
-  if (dailyAvg <= 0) return '安全'
-
-  const daysLeft = Math.floor(remaining / dailyAvg)
-  if (daysLeft <= 7) return `${daysLeft} 天`
-  if (daysLeft <= 30) return `${daysLeft} 天`
-  return '安全'
-}
-
-const getDepletionTagClass = (record: Balance): string => {
-  if (record.total_amount <= 0) return 'red'
-  const remaining = record.total_amount - record.used_total
-  if (remaining <= 0) return 'red'
-  if (record.used_total <= 0) return 'green'
-
-  const dailyAvg = record.used_total / 30
-  if (dailyAvg <= 0) return 'green'
-
-  const daysLeft = Math.floor(remaining / dailyAvg)
-  if (daysLeft <= 7) return 'red'
-  if (daysLeft <= 30) return 'amber'
-  return 'green'
 }
 </script>
 
@@ -510,12 +456,24 @@ const getDepletionTagClass = (record: Balance): string => {
   background: #f8fbff;
 }
 
-/* 低余额行高亮 */
+/* 行高亮：即将耗尽（≤7天）红色 */
 .table tbody tr.row-warning td {
   background: rgba(220, 38, 38, 0.04);
 }
 .table tbody tr.row-warning:hover td {
   background: rgba(220, 38, 38, 0.07);
+}
+
+/* 行高亮：余额偏低（8-30天）浅黄色 */
+.table tbody tr.row-warn td {
+  background: rgba(245, 158, 11, 0.04);
+}
+.table tbody tr.row-warn:hover td {
+  background: rgba(245, 158, 11, 0.07);
+}
+/* row-warning 优先级高于 row-warn */
+.table tbody tr.row-warning.row-warn td {
+  background: rgba(220, 38, 38, 0.04);
 }
 
 /* 客户ID */
@@ -613,77 +571,58 @@ const getDepletionTagClass = (record: Balance): string => {
   color: var(--green, #059669);
 }
 
-/* 趋势列：利用率进度条 + 消耗箭头 */
-.trend-cell {
+/* 余额燃尽列：油表进度条 */
+.burn-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 110px;
+  cursor: help;
 }
-.util-bar {
+.burn-bar {
   height: 6px;
   border-radius: 3px;
   background: #e2e8f0;
   overflow: hidden;
-  cursor: help;
 }
-.util-fill {
+.burn-fill {
   height: 100%;
   border-radius: 3px;
   transition: width 0.3s ease;
 }
-.util-bar.safe .util-fill {
+.burn-bar.safe .burn-fill {
   background: #10b981;
 }
-.util-bar.warn .util-fill {
+.burn-bar.warn .burn-fill {
   background: #f59e0b;
 }
-.util-bar.danger .util-fill {
+.burn-bar.danger .burn-fill {
   background: #ef4444;
 }
-.trend-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  line-height: 1.2;
+.burn-bar.no-data .burn-fill {
+  background: #cbd5e1;
 }
-.util-pct {
+.burn-bar.postpaid {
+  display: none;
+}
+
+/* 燃尽文字 */
+.burn-text {
+  font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  min-width: 32px;
+  line-height: 1.2;
 }
-.util-pct.safe {
+.burn-text.safe {
   color: #059669;
 }
-.util-pct.warn {
+.burn-text.warn {
   color: #d97706;
 }
-.util-pct.danger {
+.burn-text.danger {
   color: #dc2626;
 }
-.trend-arrow {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  cursor: help;
-  white-space: nowrap;
-}
-.trend-arrow .arrow-icon {
-  font-size: 12px;
-  font-weight: 800;
-}
-.trend-arrow .daily-avg {
-  color: var(--muted);
-  font-size: 10px;
-}
-.trend-arrow.up .arrow-icon {
-  color: #059669;
-}
-.trend-arrow.down .arrow-icon {
-  color: #dc2626;
-}
-.trend-arrow.neutral .arrow-icon {
+.burn-text.no-data {
   color: var(--muted);
 }
 

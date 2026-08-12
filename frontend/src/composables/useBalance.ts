@@ -62,6 +62,7 @@ export function useBalance() {
     this_month_bonus_amount: 0,
     low_balance_count: 0,
     zero_balance_count: 0,
+    burning_soon_count: 0,
   })
 
   const sortState = reactive<SortState>({
@@ -239,6 +240,7 @@ export function useBalance() {
           stats.this_month_count = statsRes.data.this_month_count
           stats.this_month_real_amount = statsRes.data.this_month_real_amount
           stats.this_month_bonus_amount = statsRes.data.this_month_bonus_amount
+          stats.burning_soon_count = statsRes.data.burning_soon_count ?? 0
         }
       } catch {
         // 静默失败

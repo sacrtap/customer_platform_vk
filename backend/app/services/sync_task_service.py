@@ -361,6 +361,7 @@ class SyncTaskService:
                     from app.cache.base import cache_service
 
                     await cache_service.invalidate_pattern("cache:analytics_*")
+                    await cache_service.invalidate_pattern("cache:billing_consumption:*")
                     logger.info(f"[{task_id}] 已清除消费分析缓存")
                 except Exception as cache_err:
                     logger.warning(f"[{task_id}] 清除缓存失败: {cache_err}")

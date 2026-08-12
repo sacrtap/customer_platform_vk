@@ -22,7 +22,7 @@
     </PageHeader>
 
     <!-- KPI 卡片 -->
-    <div class="grid-4">
+    <div class="grid-5">
       <KpiCard
         label="总余额"
         :value="formatBalanceAmount(stats.total_balance)"
@@ -38,6 +38,14 @@
         trend-type="neutral"
         :active="activeKpi === 'thisMonth'"
         @click="applyKpiFilter('thisMonth')"
+      />
+      <KpiCard
+        label="即将耗尽"
+        :value="stats.burning_soon_count"
+        trend="需立即充值"
+        trend-type="warn"
+        :active="activeKpi === 'burning'"
+        @click="applyKpiFilter('burning')"
       />
       <KpiCard
         label="余额不足"
@@ -170,7 +178,7 @@ const currentCustomerName = ref<string>()
 const currentRecordCustomerId = ref<number>()
 
 // KPI 联动筛选
-const activeKpi = ref<'all' | 'low' | 'zero' | 'thisMonth'>('all')
+const activeKpi = ref<'all' | 'low' | 'zero' | 'thisMonth' | 'burning'>('all')
 
 const kpiBadgeText = computed(() => {
   if (activeKpi.value === 'all') return ''
@@ -178,11 +186,12 @@ const kpiBadgeText = computed(() => {
     low: '余额不足',
     zero: '零余额客户',
     thisMonth: '本月充值',
+    burning: '即将耗尽',
   }
   return labels[activeKpi.value] || ''
 })
 
-const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth') => {
+const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth' | 'burning') => {
   activeKpi.value = kpi
   // 先清除所有 KPI 联动的筛选
   filters.balance_range = ''
@@ -201,6 +210,10 @@ const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth') => {
       firstDay.toISOString().split('T')[0],
       lastDay.toISOString().split('T')[0],
     ]
+  } else if (kpi === 'burning') {
+    // 即将耗尽：按 days_remaining 升序排列，最紧急的排最前
+    handleSortChange('days_remaining', 'asc')
+    return
   }
   // handleSearch 内部已调用 loadStats()，无需重复调用
   handleSearch()
@@ -282,14 +295,20 @@ onMounted(() => {
 }
 
 /* KPI 卡片网格 */
-.grid-4 {
+.grid-5 {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
 }
 
-@media (max-width: 900px) {
-  .grid-4 {
+@media (max-width: 1200px) {
+  .grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .grid-5 {
     grid-template-columns: repeat(2, 1fr);
   }
 }

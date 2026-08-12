@@ -40,6 +40,7 @@ class CacheService:
             "analytics_payment_analysis": 600,  # 10 分钟
             "analytics_prediction": 1800,  # 30 分钟
             "billing_pricing_rules": 3600,  # 1 小时
+            "billing_consumption": 300,  # 5 分钟（每客户每日消费聚合）
             "default": 300,  # 5 分钟
         }
 
