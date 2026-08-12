@@ -75,6 +75,7 @@ export function useCustomerList() {
   const importModalVisible = ref(false)
 
   // ---------- 排序状态 ----------
+  // 默认按客户ID（company_id）升序，与余额管理页保持一致
   const sortBy = ref('company_id')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
@@ -141,7 +142,7 @@ export function useCustomerList() {
       sortBy.value = dataIndex
       sortOrder.value = direction as 'asc' | 'desc'
     } else {
-      // 恢复默认排序
+      // 恢复默认排序（客户ID/company_id 升序）
       sortBy.value = 'company_id'
       sortOrder.value = 'asc'
     }

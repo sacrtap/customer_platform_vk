@@ -408,9 +408,16 @@ class CustomerService:
         self.db.add(customer)
         await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
 
-        # 创建初始余额记录
-        balance = CustomerBalance(customer_id=customer.id)
-        self.db.add(balance)
+        # 按需创建余额记录（防御性：若客户已有余额记录则不覆盖，避免历史数据丢失）
+        existing_balance = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            select(CustomerBalance.id).where(
+                CustomerBalance.customer_id == customer.id,
+                CustomerBalance.deleted_at.is_(None),
+            )
+        )
+        if existing_balance.scalar_one_or_none() is None:
+            balance = CustomerBalance(customer_id=customer.id)
+            self.db.add(balance)
 
         # 如果提供了 industry_type_id，创建 profile 记录
         if data.get("industry_type_id"):
@@ -665,12 +672,26 @@ class CustomerService:
         }
 
     async def delete_customer(self, customer_id: int) -> bool:
-        """删除客户（软删除）"""
+        """删除客户（软删除），同时软删除其余额记录"""
         customer = await self.get_customer_by_id(customer_id)
         if not customer:
             return False
 
         customer.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
+
+        # 同步软删除余额记录，避免余额页残留指向已删客户的数据
+        from sqlalchemy import update as sa_update
+
+        from ..models.billing import CustomerBalance
+
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(CustomerBalance)
+            .where(
+                CustomerBalance.customer_id == customer_id,
+                CustomerBalance.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
         await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
 
         return True
