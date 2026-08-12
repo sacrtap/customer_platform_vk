@@ -458,10 +458,8 @@ const handleSubmit = async () => {
     const conflictRes = await billingApi.checkPricingRuleConflict({
       customer_id: formData.customer_id,
       pricing_type: formData.pricing_type,
-      device_type:
-        formData.pricing_type === 'package' ? undefined : formData.device_type,
-      layer_type:
-        formData.pricing_type === 'package' ? undefined : formData.layer_type,
+      device_type: formData.pricing_type === 'package' ? undefined : formData.device_type,
+      layer_type: formData.pricing_type === 'package' ? undefined : formData.layer_type,
       effective_date: formData.effective_date,
       expiry_date: formData.expiry_date,
       exclude_id: isEdit.value && formData.id ? formData.id : undefined,
