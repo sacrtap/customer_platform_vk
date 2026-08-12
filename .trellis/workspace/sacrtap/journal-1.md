@@ -60,3 +60,24 @@
 ### Status
 
 [OK] **Implemented & Verified**（待提交）
+
+
+## Session 2: 包年结算规则优化：设备类型和楼层类型字段可选化
+
+**Date**: 2026-08-12
+**Task**: 包年结算规则优化：设备类型和楼层类型字段可选化
+**Branch**: `pricing-rules-bug-fix`
+
+### Summary
+
+包年结算只与套餐类型和时间有关，不应要求设备类型/楼层类型。后端 PricingRule/InvoiceItem device_type 改为 nullable，新增迁移；包年规则冲突检查只按 customer_id + pricing_type='package' + 有效期；cost_calc 包年规则优先于 (device_type, layer_type) 匹配；前端包年结算时隐藏设备/楼层字段，提交不传，列表展示 '-'。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ea2be12` | (see git log) |
+
+### Status
+
+[OK] **Completed**
