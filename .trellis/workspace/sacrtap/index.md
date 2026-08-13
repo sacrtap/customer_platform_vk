@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
-- **Last Active**: 2026-08-12
+- **Total Sessions**: 5
+- **Last Active**: 2026-08-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~125 | Active |
+| `journal-1.md` | ~174 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-08-13 | 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误 | `7de5a25` | `feature/optimize-forecast-page` |
 | 4 | 2026-08-12 | 预测消费页面 MVP 实现 | `3ed7858` | `feature/optimize-forecast-page` |
 | 3 | 2026-08-12 | 余额管理增量同步与数据一致性修复 | `ad3ef5e` | `pricing-rules-bug-fix` |
 | 2 | 2026-08-12 | 包年结算规则优化：设备类型和楼层类型字段可选化 | `ea2be12` | `pricing-rules-bug-fix` |

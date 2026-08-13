@@ -151,3 +151,24 @@
 - 后端单元测试 ✅
 - 前端 vue-tsc ✅
 - 浏览器端到端验证 ✅（弹框打开/保存/进度/取消全流程）
+
+
+## Session 5: 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误
+
+**Date**: 2026-08-13
+**Task**: 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误
+**Branch**: `feature/optimize-forecast-page`
+
+### Summary
+
+1. 后端 get_forecast_trend 方法支持 apply_to 参数动态计算月份范围（all/future_only）\n2. 前端修复 selectedYear 类型处理，兼容 Date/dayjs/string 三种情况\n3. 前端图表根据后端返回数据动态生成 X 轴标签
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7de5a25` | (see git log) |
+
+### Status
+
+[OK] **Completed**
