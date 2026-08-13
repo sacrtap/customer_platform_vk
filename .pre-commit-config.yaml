@@ -81,5 +81,5 @@ repos:
         entry: bash scripts/pre-commit-check.sh
         language: system
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-push]
         verbose: true

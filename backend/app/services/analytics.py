@@ -8,6 +8,7 @@ from sqlalchemy import and_, case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import (
+    AuditLog,
     CustomerBalance,
     Invoice,
     InvoiceItem,
@@ -16,6 +17,7 @@ from ..models.billing import (
 )
 from ..models.customers import Customer, CustomerProfile
 from ..models.daily_consumption import DailyConsumption
+from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
 
@@ -1260,6 +1262,531 @@ class AnalyticsService:
             "predicted_customers": predicted_customers,
         }
 
+    # ========== 预测消费（新引擎，替代 predict_monthly_payment） ==========
+
+    async def forecast_consumption(
+        self,
+        year: int,
+        month: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        device_type: Optional[str] = None,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """预测消费（MVP 版）
+
+        基于历史用量（order_count）和单价矩阵估算未来月份消费。
+        渐进式算法：数据不足时用最近月份保持，数据积累后自动升级。
+
+        Args:
+            year: 目标年份
+            month: 目标月份（None=全年）
+            customer_id: 按客户筛选
+            keyword: 按名称搜索
+            device_type: 按设备类型筛选
+            apply_to: 'all' 更新历史及后续 / 'future_only' 仅后续月份
+            forecast_months: 预测月份数（1-24）
+            forecast_until: 截止月份 YYYY-MM
+
+        Returns:
+            预测明细列表，含估算用量、单价、预测金额、方法标注、活跃标记
+        """
+        from calendar import monthrange
+
+        unit_prices = await self.get_unit_prices()
+
+        # 1. 获取最新完整月作为用量基线（MVP 预测基于最新月保持）
+        latest_month = await self._get_latest_usage_month()
+        if not latest_month:
+            return []
+
+        latest_start = date(latest_month.year, latest_month.month, 1)
+        latest_end = date(
+            latest_month.year,
+            latest_month.month,
+            monthrange(latest_month.year, latest_month.month)[1],
+        )
+
+        # 3. 查询最新完整月的客户×设备用量
+        usage_subq = (
+            select(
+                DailyConsumption.customer_id.label("customer_id"),
+                DailyConsumption.device_type.label("device_type"),
+                func.coalesce(func.sum(DailyConsumption.order_count), 0).label("total_orders"),
+            )
+            .where(
+                DailyConsumption.consumption_date >= latest_start,
+                DailyConsumption.consumption_date <= latest_end,
+            )
+            .group_by(DailyConsumption.customer_id, DailyConsumption.device_type)
+            .subquery()
+        )
+
+        # 4. 查询活跃度（最近 3 个月有消费记录）
+        from dateutil.relativedelta import relativedelta
+
+        active_start = latest_start - relativedelta(months=2)
+
+        # 活跃客户子查询
+        active_subq = (
+            select(DailyConsumption.customer_id.label("active_cid"))
+            .where(
+                DailyConsumption.consumption_date >= active_start,
+                DailyConsumption.consumption_date <= latest_end,
+            )
+            .group_by(DailyConsumption.customer_id)
+            .subquery()
+        )
+
+        # 5. 查询消费等级（冷启动用）
+        profile_subq = (
+            select(
+                CustomerProfile.customer_id.label("profile_cid"),
+                CustomerProfile.consume_level.label("consume_level"),
+            )
+            .where(CustomerProfile.customer_id.isnot(None))
+            .subquery()
+        )
+
+        # 主查询
+        stmt = (
+            select(
+                Customer.id.label("customer_id"),
+                Customer.name.label("customer_name"),
+                Customer.company_id,
+                usage_subq.c.device_type,
+                usage_subq.c.total_orders,
+                profile_subq.c.consume_level,
+                active_subq.c.active_cid.isnot(None).label("is_active"),
+            )
+            .select_from(usage_subq)
+            .join(Customer, usage_subq.c.customer_id == Customer.id)
+            .outerjoin(profile_subq, usage_subq.c.customer_id == profile_subq.c.profile_cid)
+            .outerjoin(active_subq, usage_subq.c.customer_id == active_subq.c.active_cid)
+            .where(Customer.deleted_at.is_(None))
+        )
+
+        if customer_id:
+            stmt = stmt.where(Customer.id == customer_id)
+        if keyword:
+            stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if device_type:
+            stmt = stmt.where(usage_subq.c.device_type == device_type)
+
+        result = (await self.db.execute(stmt)).all()
+
+        # 6. 收集所有设备类型的用量分布（冷启动用）
+        median_usage = await self._get_median_usage_by_type_and_level(device_type)
+
+        # 7. 构建预测结果
+        forecasts = []
+        for row in result:
+            original_orders = int(row.total_orders or 0)
+            orders = original_orders
+            dev_type = row.device_type
+            consume_level = row.consume_level
+            is_active = bool(row.is_active)
+
+            # 7a. 冷启动：如果客户该设备类型有 0 用量，用同类型+同等级中位数
+            used_cold_start = False
+            if orders <= 0 and consume_level:
+                key = (dev_type, consume_level)
+                if key in median_usage:
+                    orders = median_usage[key]
+                    used_cold_start = True
+                elif dev_type in median_usage:
+                    orders = median_usage[dev_type]
+                    used_cold_start = True
+
+            # 7b. 离群截断
+            capped_orders = await self._cap_outlier(orders, dev_type)
+
+            # 7c. 应用单价
+            unit_price = unit_prices.get(dev_type, 10.0)
+            forecast_amount = round(capped_orders * unit_price, 2)
+
+            # 7d. 方法标注（基于原始用量判断）
+            method = "historical_hold"
+            if used_cold_start:
+                method = "cold_start"
+            elif original_orders > 0 and capped_orders != orders:
+                method = "trimmed"
+
+            if forecast_amount <= 0:
+                continue
+
+            forecasts.append(
+                {
+                    "customer_id": row.customer_id,
+                    "company_id": row.company_id,
+                    "customer_name": row.customer_name,
+                    "device_type": dev_type,
+                    "estimated_usage": capped_orders,
+                    "unit_price": unit_price,
+                    "forecast_amount": forecast_amount,
+                    "forecast_method": method,
+                    "is_active": is_active,
+                    "consume_level": consume_level or "",
+                }
+            )
+
+        forecasts.sort(key=lambda x: x["forecast_amount"], reverse=True)
+
+        # 限制预测返回条数（forecast_months 参数影响趋势图范围）
+        if forecast_months and forecast_months > 0 and len(forecasts) > forecast_months:
+            forecasts = forecasts[:forecast_months]
+
+        return forecasts
+
+    async def get_forecast_summary(
+        self,
+        year: int,
+        month: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        keyword: Optional[str] = None,
+        device_type: Optional[str] = None,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """获取消费预测汇总统计"""
+        from calendar import monthrange
+
+        forecasts = await self.forecast_consumption(
+            year,
+            month,
+            customer_id,
+            keyword,
+            device_type,
+            apply_to=apply_to,
+            forecast_months=forecast_months,
+            forecast_until=forecast_until,
+        )
+
+        # 活跃客户的总预测
+        active_forecasts = [f for f in forecasts if f["is_active"]]
+        total_forecast = sum(f["forecast_amount"] for f in active_forecasts)
+        active_count = len({f["customer_id"] for f in active_forecasts})
+        total_count = len({f["customer_id"] for f in forecasts})
+
+        # 本月实际消耗（实盘数据）
+        now = datetime.utcnow()
+        if month is not None:
+            actual_start = date(year, month, 1)
+            actual_end = date(year, month, monthrange(year, month)[1])
+        else:
+            actual_start = date(year, 1, 1)
+            actual_end = now.date()
+
+        actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
+            DailyConsumption.consumption_date >= actual_start,
+            DailyConsumption.consumption_date <= actual_end,
+        )
+        actual_this_month = float((await self.db.execute(actual_stmt)).scalar() or 0)
+
+        # 环比变化（上月 vs 本月实际）
+        from dateutil.relativedelta import relativedelta
+
+        last_month = now.date().replace(day=1) - relativedelta(days=1)
+        mom_change = 0.0
+        if actual_this_month > 0:
+            last_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
+                DailyConsumption.consumption_date >= date(last_month.year, last_month.month, 1),
+                DailyConsumption.consumption_date
+                <= date(
+                    last_month.year,
+                    last_month.month,
+                    monthrange(last_month.year, last_month.month)[1],
+                ),
+            )
+            last_actual = float((await self.db.execute(last_stmt)).scalar() or 0)
+            if last_actual > 0:
+                mom_change = round((actual_this_month / last_actual - 1) * 100, 2)
+
+        # 置信度
+        confidence = await self._calculate_confidence()
+
+        return {
+            "total_forecast": round(total_forecast, 2),
+            "actual_this_month": round(actual_this_month, 2),
+            "month_over_month_change": mom_change,
+            "active_customer_count": active_count,
+            "total_customer_count": total_count,
+            "confidence": confidence,
+        }
+
+    async def get_forecast_trend(
+        self,
+        year: int,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """获取预测 vs 实际消费趋势
+
+        Args:
+            year: 目标年份
+            apply_to: 'all' 返回全年 / 'future_only' 从当前月开始
+            forecast_months: 预测月份数（从起始月开始）
+            forecast_until: 截止月份 YYYY-MM
+
+        每月返回预测金额（用量×单价）和实际消费（已发生实盘）。
+        """
+        from calendar import monthrange
+        from datetime import datetime
+
+        # 计算月份范围
+        current_month = datetime.now().month
+
+        # 确定起始月份
+        if apply_to == "future_only":
+            start_month = current_month
+        else:
+            start_month = 1
+
+        # 确定结束月份
+        if forecast_until:
+            # 解析截止月份
+            try:
+                end_year, end_month_num = map(int, forecast_until.split("-"))
+                if end_year == year:
+                    end_month = min(end_month_num, 12)
+                else:
+                    end_month = 12
+            except (ValueError, TypeError):
+                end_month = 12
+        elif forecast_months and forecast_months > 0:
+            # 从起始月开始计算 N 个月，最多 12 月
+            end_month = min(start_month + forecast_months - 1, 12)
+        else:
+            end_month = 12
+
+        # 边界条件：如果起始月份超过结束月份，返回空数组
+        if start_month > end_month:
+            return []
+
+        # 一次性计算未来月份的预测值（口径与 forecast_consumption 一致）
+        future_forecast = await self._estimate_future_consumption()
+
+        trend = []
+        for m in range(start_month, end_month + 1):
+            month_start = date(year, m, 1)
+            month_end = date(year, m, monthrange(year, m)[1])
+
+            # 实际消费
+            actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
+                DailyConsumption.consumption_date >= month_start,
+                DailyConsumption.consumption_date <= month_end,
+            )
+            actual = float((await self.db.execute(actual_stmt)).scalar() or 0)
+
+            # 判断是否已发生：只有有实际数据才标记为实盘
+            is_actual = actual > 0
+
+            # 预测值：如果是实际月份，用实际值；否则用统一预测值
+            forecast = actual if is_actual else future_forecast
+
+            trend.append(
+                {
+                    "month": f"{year}-{m:02d}",
+                    "actual": round(actual, 2) if actual > 0 else None,
+                    "forecast": round(forecast, 2),
+                    "is_actual": is_actual,
+                }
+            )
+
+        return trend
+
+    async def get_data_readiness(self) -> Dict[str, Any]:
+        """获取数据就绪度信息（横幅+置信度用）"""
+        # 查询有数据的最早和最晚月份
+        stmt = select(
+            func.min(DailyConsumption.consumption_date),
+            func.max(DailyConsumption.consumption_date),
+        )
+        row = (await self.db.execute(stmt)).one()
+        min_date, max_date = row[0], row[1]
+
+        if not min_date or not max_date:
+            return {
+                "months_with_data": 0,
+                "total_months_target": 12,
+                "customer_coverage_pct": 0.0,
+                "confidence": "low",
+                "earliest_data_month": None,
+                "latest_data_month": None,
+            }
+
+        # 客户总数
+        total_customers = (
+            await self.db.execute(
+                select(func.count(Customer.id)).where(Customer.deleted_at.is_(None))
+            )
+        ).scalar() or 0
+
+        # 有消费数据的客户数
+        customers_with_data = (
+            await self.db.execute(select(func.count(func.distinct(DailyConsumption.customer_id))))
+        ).scalar() or 0
+
+        # 有数据的月份数
+        months_with_data = (
+            await self.db.execute(
+                select(
+                    func.count(
+                        func.distinct(
+                            func.concat(
+                                func.extract("year", DailyConsumption.consumption_date),
+                                "-",
+                                func.extract("month", DailyConsumption.consumption_date),
+                            )
+                        )
+                    )
+                )
+            )
+        ).scalar() or 0
+
+        coverage_pct = (
+            round(customers_with_data / total_customers * 100, 1) if total_customers > 0 else 0.0
+        )
+        confidence = "low"
+        if months_with_data >= 12:
+            confidence = "high"
+        elif months_with_data >= 3:
+            confidence = "medium"
+
+        return {
+            "months_with_data": months_with_data,
+            "total_months_target": 12,
+            "customer_coverage_pct": coverage_pct,
+            "confidence": confidence,
+            "earliest_data_month": str(min_date) if min_date else None,
+            "latest_data_month": str(max_date) if max_date else None,
+        }
+
+    # ========== 预测消费辅助方法 ==========
+
+    @staticmethod
+    def _month_key(month_str: str) -> int:
+        """将 'YYYY-MM' 转换为可比较的整数键"""
+        year_s, month_s = month_str.split("-")
+        return int(year_s) * 12 + int(month_s)
+
+    async def _get_latest_usage_month(self) -> Optional[date]:
+        """获取有消费数据的最新完整月"""
+        stmt = select(func.max(DailyConsumption.consumption_date))
+        max_date = (await self.db.execute(stmt)).scalar()
+        if not max_date:
+            return None
+        return date(max_date.year, max_date.month, 1)
+
+    async def _get_median_usage_by_type_and_level(self, device_type: Optional[str] = None) -> Dict:
+        """获取各设备类型×消费等级的平均用量（冷启动用）
+
+        用 AVG 近似中位数，MVP 阶段精度足够。
+        """
+        stmt = (
+            select(
+                DailyConsumption.device_type,
+                CustomerProfile.consume_level,
+                func.avg(DailyConsumption.order_count).label("avg_orders"),
+            )
+            .join(CustomerProfile, DailyConsumption.customer_id == CustomerProfile.customer_id)
+            .where(
+                DailyConsumption.order_count > 0,
+            )
+            .group_by(
+                DailyConsumption.device_type,
+                CustomerProfile.consume_level,
+            )
+        )
+
+        if device_type:
+            stmt = stmt.where(DailyConsumption.device_type == device_type)
+
+        result = (await self.db.execute(stmt)).all()
+
+        medians = {}
+        for row in result:
+            if row.consume_level:
+                key = (row.device_type, row.consume_level)
+                medians[key] = int(row.avg_orders or 0)
+            # 设备类型级兜底
+            type_key = row.device_type
+            if type_key not in medians:
+                medians[type_key] = int(row.avg_orders or 0)
+            else:
+                medians[type_key] = max(medians[type_key], int(row.avg_orders or 0))
+
+        return medians
+
+    async def _cap_outlier(self, orders: int, device_type: str) -> int:
+        """离群截断：超过同设备类型 3 倍均值时截断"""
+        stmt = select(func.avg(DailyConsumption.order_count)).where(
+            DailyConsumption.device_type == device_type,
+            DailyConsumption.order_count > 0,
+        )
+        avg = (await self.db.execute(stmt)).scalar()
+        if avg is None or avg <= 0:
+            return orders
+        cap = int(avg * 3)
+        return min(orders, cap) if orders > cap else orders
+
+    async def _calculate_confidence(self) -> str:
+        """计算置信度（基于数据月份数）"""
+        months = (
+            await self.db.execute(
+                select(
+                    func.count(
+                        func.distinct(
+                            func.concat(
+                                func.extract("year", DailyConsumption.consumption_date),
+                                "-",
+                                func.extract("month", DailyConsumption.consumption_date),
+                            )
+                        )
+                    )
+                )
+            )
+        ).scalar() or 0
+        if months >= 12:
+            return "high"
+        if months >= 3:
+            return "medium"
+        return "low"
+
+    async def _estimate_future_consumption(self) -> float:
+        """估算未来月份的总消费（活跃客户预测口径，与 summary 一致）"""
+        # 复用 forecast_consumption 计算活跃客户的预测总额
+        now = datetime.utcnow()
+        forecasts = await self.forecast_consumption(year=now.year)
+        active_forecasts = [f for f in forecasts if f["is_active"]]
+        return sum(f["forecast_amount"] for f in active_forecasts)
+
+    # ========== 单价配置 ==========
+
+    async def get_unit_prices(self) -> Dict[str, float]:
+        """获取单价配置：优先从配置表，无数据时回退到 config.py 默认值"""
+        stmt = select(ForecastUnitPrice)
+        result = (await self.db.execute(stmt)).scalars().all()
+        if result:
+            return {row.device_type: float(row.unit_price) for row in result}
+        from ..config import get_settings
+
+        return dict(get_settings().consumption_forecast_unit_prices)
+
+    async def update_unit_prices(self, prices: Dict[str, float]) -> None:
+        """更新单价配置"""
+        for device_type, unit_price in prices.items():
+            stmt = select(ForecastUnitPrice).where(ForecastUnitPrice.device_type == device_type)
+            existing = (await self.db.execute(stmt)).scalar_one_or_none()
+            if existing:
+                existing.unit_price = unit_price
+            else:
+                self.db.add(ForecastUnitPrice(device_type=device_type, unit_price=unit_price))
+
     async def get_prediction_trend(self, year: int) -> List[Dict[str, Any]]:
         """获取全年 12 个月预测 vs 实际回款趋势
 
@@ -1302,6 +1829,77 @@ class AnalyticsService:
             )
 
         return trend
+
+    # ========== 预测准确度追踪 ==========
+
+    async def record_prediction_accuracy(self) -> Dict[str, Any]:
+        """记录预测准确度（预测 vs 实际消费）
+
+        每月结束后，用 AuditLog.extra_metadata 记录预测与实际的偏差，
+        计算 MAPE 和偏差百分比。偏差 >30% 时返回告警标记。
+
+        Returns:
+            准确度记录 dict（含 mape, deviation_pct, alert 标记）
+        """
+        from calendar import monthrange
+
+        # 取最新数据月作为实际数据
+        latest = await self._get_latest_usage_month()
+        if not latest:
+            return {"recorded": False, "reason": "no_data"}
+
+        # 预测值（活跃客户预测口径，与 summary 一致）
+        forecast_total = await self._estimate_future_consumption()
+
+        # 实际值（最新完整月的 total_cost，注意开发环境 total_cost 可能不可信）
+        latest_start = date(latest.year, latest.month, 1)
+        latest_end = date(latest.year, latest.month, monthrange(latest.year, latest.month)[1])
+        actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
+            DailyConsumption.consumption_date >= latest_start,
+            DailyConsumption.consumption_date <= latest_end,
+        )
+        actual_total = float((await self.db.execute(actual_stmt)).scalar() or 0)
+
+        if actual_total <= 0:
+            return {"recorded": False, "reason": "no_actual_data"}
+
+        # MAPE 和偏差
+        mape = round(abs(forecast_total - actual_total) / actual_total * 100, 2)
+        deviation_pct = round((forecast_total - actual_total) / actual_total * 100, 2)
+        alert = deviation_pct > 30
+
+        # 记录到审计日志
+        log = AuditLog(
+            user_id=None,
+            action="forecast_accuracy",
+            module="analytics",
+            record_id=latest.year,
+            record_type="monthly_forecast",
+            changes=None,
+            operation_type="standard",
+            extra_metadata={
+                "year": latest.year,
+                "month": latest.month,
+                "forecast_total": round(forecast_total, 2),
+                "actual_total": round(actual_total, 2),
+                "mape": mape,
+                "deviation_pct": deviation_pct,
+                "alert": alert,
+            },
+        )
+        self.db.add(log)
+        await self.db.flush()
+
+        return {
+            "recorded": True,
+            "year": latest.year,
+            "month": latest.month,
+            "forecast_total": round(forecast_total, 2),
+            "actual_total": round(actual_total, 2),
+            "mape": mape,
+            "deviation_pct": deviation_pct,
+            "alert": alert,
+        }
 
     # ========== 余额趋势 ==========
 

@@ -102,3 +102,73 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: 预测消费页面 MVP 实现
+
+**Date**: 2026-08-12
+**Task**: 预测消费页面 MVP 实现
+**Branch**: `feature/optimize-forecast-page`
+
+### Summary
+
+将预测回款页面改造为预测消费：基于 order_count 用量 × 单价矩阵估算消费、冷启动按消费等级分层、离群截断、活跃度判断、置信度计算。新增 3 接口（forecast/forecast-trend/data-readiness）、预测准确度追踪（MAPE 日志）、前端页面重构（数据就绪度横幅/置信度标签/设备拆解图/方法标注）。7 个单元测试。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3ed7858` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+## 2026-08-13 预测消费单价配置 UI 优化
+
+**任务**: forecast-price-config (已归档)
+**提交**: 3a9b2aa feat(analytics): 预测消费单价配置UI与参数控制
+
+### 完成内容
+1. **后端**：
+   - 新增 ForecastUnitPrice 模型（直接继承 Base，非 BaseModel）
+   - GET/PUT /consumption/price-config API
+   - 扩展 forecast/trend 接口支持 apply_to/forecast_months/forecast_until
+   - 缓存 key 含参数，PUT 时 invalidate 预测缓存
+
+2. **前端**：
+   - 移除内联配置面板，改为筛选区"预测参数"按钮
+   - 弹框式配置：单价输入 + 预测范围 radio + 月数 select
+   - 保存时显示进度弹框（模拟进度条 + 阶段提示）
+   - 取消时还原修改
+
+3. **Bug 修复**：
+   - ForecastUnitPrice 继承 BaseModel 导致生产 500（表缺少 id/deleted_at 列）
+   - 改为直接继承 Base，手动声明三列
+
+### 验证
+- 后端 ruff check ✅
+- 后端单元测试 ✅
+- 前端 vue-tsc ✅
+- 浏览器端到端验证 ✅（弹框打开/保存/进度/取消全流程）
+
+
+## Session 5: 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误
+
+**Date**: 2026-08-13
+**Task**: 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误
+**Branch**: `feature/optimize-forecast-page`
+
+### Summary
+
+1. 后端 get_forecast_trend 方法支持 apply_to 参数动态计算月份范围（all/future_only）\n2. 前端修复 selectedYear 类型处理，兼容 Date/dayjs/string 三种情况\n3. 前端图表根据后端返回数据动态生成 X 轴标签
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7de5a25` | (see git log) |
+
+### Status
+
+[OK] **Completed**

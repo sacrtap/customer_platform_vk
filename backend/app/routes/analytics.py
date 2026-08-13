@@ -9,7 +9,7 @@ from sanic.request import Request
 from sanic.response import json
 
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required
+from ..middleware.auth import auth_required, require_permission
 from ..services.analytics import AnalyticsService
 
 logger = logging.getLogger(__name__)
@@ -746,6 +746,186 @@ async def get_prediction_trend(request: Request):
     result = {"code": 0, "message": "success", "data": trend}
     if not force_refresh:
         await cache_service.set("analytics_prediction", result, cache_key, ttl=300)
+    return json(result)
+
+
+@analytics.route("/consumption/forecast", methods=["GET"])
+@auth_required
+async def forecast_consumption(request: Request):
+    """预测消费（MVP 版）
+
+    基于历史用量（order_count）和单价矩阵估算未来月份消费。
+    返回预测明细列表和汇总统计。
+    """
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    year = int(request.args.get("year", datetime.utcnow().year))
+    month_str = request.args.get("month")
+    month = int(month_str) if month_str else None
+    customer_id = request.args.get("customer_id")
+    keyword = request.args.get("keyword")
+    device_type = request.args.get("device_type")
+    apply_to = request.args.get("apply_to", "all")
+    forecast_months = request.args.get("forecast_months")
+    forecast_until = request.args.get("forecast_until")
+
+    if forecast_months:
+        forecast_months = int(forecast_months)
+    if forecast_until:
+        pass  # 透传给 service
+
+    cid = keyword or customer_id or "all"
+    cache_key = f"fc:{year}:{month}:{cid}:{device_type or 'all'}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
+    cached = (
+        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+    )
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    forecasts = await service.forecast_consumption(
+        year,
+        month,
+        int(customer_id) if customer_id else None,
+        keyword,
+        device_type,
+        apply_to=apply_to,
+        forecast_months=forecast_months,
+        forecast_until=forecast_until,
+    )
+    summary = await service.get_forecast_summary(
+        year,
+        month,
+        int(customer_id) if customer_id else None,
+        keyword,
+        device_type,
+        apply_to=apply_to,
+        forecast_months=forecast_months,
+        forecast_until=forecast_until,
+    )
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {"forecasts": forecasts, "summary": summary},
+    }
+    if not force_refresh:
+        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+    return json(result)
+
+
+@analytics.route("/consumption/forecast-trend", methods=["GET"])
+@auth_required
+async def get_consumption_forecast_trend(request: Request):
+    """获取全年 12 个月预测 vs 实际消费趋势"""
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    year = int(request.args.get("year", datetime.utcnow().year))
+    apply_to = request.args.get("apply_to", "all")
+    forecast_months = request.args.get("forecast_months")
+    forecast_until = request.args.get("forecast_until")
+
+    if forecast_months:
+        forecast_months = int(forecast_months)
+
+    cache_key = f"fctrend:{year}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
+    cached = (
+        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+    )
+    if cached is not None:
+        return json(cached)
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    trend = await service.get_forecast_trend(
+        year, apply_to=apply_to, forecast_months=forecast_months, forecast_until=forecast_until
+    )
+
+    result = {"code": 0, "message": "success", "data": trend}
+    if not force_refresh:
+        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+    return json(result)
+
+
+@analytics.route("/consumption/data-readiness", methods=["GET"])
+@auth_required
+async def get_consumption_data_readiness(request: Request):
+    """获取数据就绪度信息（横幅+置信度用）"""
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    readiness = await service.get_data_readiness()
+
+    result = {"code": 0, "message": "success", "data": readiness}
+    return json(result)
+
+
+@analytics.route("/consumption/accuracy", methods=["POST"])
+@auth_required
+@require_permission("analytics:forecast")
+async def record_consumption_accuracy(request: Request):
+    """记录预测准确度（预测 vs 实际消费）
+
+    手动触发或由定时任务调用。记录最新数据月的预测准确度。
+    """
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    record = await service.record_prediction_accuracy()
+    await db_session.commit()
+
+    result = {"code": 0, "message": "success", "data": record}
+    return json(result)
+
+
+@analytics.route("/consumption/price-config", methods=["GET"])
+@auth_required
+async def get_price_config(request: Request):
+    """获取消费预测单价配置"""
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    prices = await service.get_unit_prices()
+
+    result = {
+        "code": 0,
+        "data": [{"device_type": k, "unit_price": v} for k, v in sorted(prices.items())],
+    }
+    return json(result)
+
+
+@analytics.route("/consumption/price-config", methods=["PUT"])
+@auth_required
+@require_permission("analytics:forecast")
+async def update_price_config(request: Request):
+    """更新消费预测单价配置"""
+    data = request.json
+    if not data or "prices" not in data:
+        return json({"code": 40001, "message": "缺少 prices 字段"})
+
+    prices = data["prices"]
+    if not isinstance(prices, dict):
+        return json({"code": 40001, "message": "prices 必须为对象"})
+
+    # 验证设备类型
+    valid_types = {"L", "N", "X"}
+    for k in prices:
+        if k not in valid_types:
+            return json({"code": 40001, "message": f"无效的设备类型: {k}"})
+
+    db_session = request.ctx.db_session
+    service = AnalyticsService(db_session)
+
+    await service.update_unit_prices(prices)
+    await db_session.commit()
+
+    # 清除预测缓存
+    from app.cache.base import cache_service
+
+    await cache_service.invalidate_analytics_cache("prediction")
+
+    result = {"code": 0, "message": "success", "data": {"prices": prices}}
     return json(result)
 
 

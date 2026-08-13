@@ -63,7 +63,7 @@ export function useAppLayout() {
               { key: 'payment', label: '回款分析', to: '/analytics/payment' },
               { key: 'health', label: '健康度分析', to: '/analytics/health' },
               { key: 'profile', label: '画像分析', to: '/analytics/profile' },
-              { key: 'forecast', label: '预测回款', to: '/analytics/forecast' },
+              { key: 'forecast', label: '预测消费', to: '/analytics/forecast' },
             ],
           },
         ],

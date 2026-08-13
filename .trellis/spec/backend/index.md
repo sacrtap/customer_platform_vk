@@ -13,6 +13,7 @@ Before writing backend code, read and follow:
 - [ ] [Logging Guidelines](./logging-guidelines.md) — stdlib `logging.getLogger(__name__)`, what to log / not log
 - [ ] [Database Guidelines](./database-guidelines.md) — `request.ctx.db_session`, soft delete, cache invalidation
 - [ ] [Quality Guidelines](./quality-guidelines.md) — testing (unit/integration), forbidden patterns
+- [ ] [Analytics Forecast](./analytics-forecast.md) — 预测消费接口/算法/数据字段契约
 
 ---
 
