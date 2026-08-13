@@ -123,3 +123,31 @@
 ### Status
 
 [OK] **Completed**
+
+## 2026-08-13 预测消费单价配置 UI 优化
+
+**任务**: forecast-price-config (已归档)
+**提交**: 3a9b2aa feat(analytics): 预测消费单价配置UI与参数控制
+
+### 完成内容
+1. **后端**：
+   - 新增 ForecastUnitPrice 模型（直接继承 Base，非 BaseModel）
+   - GET/PUT /consumption/price-config API
+   - 扩展 forecast/trend 接口支持 apply_to/forecast_months/forecast_until
+   - 缓存 key 含参数，PUT 时 invalidate 预测缓存
+
+2. **前端**：
+   - 移除内联配置面板，改为筛选区"预测参数"按钮
+   - 弹框式配置：单价输入 + 预测范围 radio + 月数 select
+   - 保存时显示进度弹框（模拟进度条 + 阶段提示）
+   - 取消时还原修改
+
+3. **Bug 修复**：
+   - ForecastUnitPrice 继承 BaseModel 导致生产 500（表缺少 id/deleted_at 列）
+   - 改为直接继承 Base，手动声明三列
+
+### 验证
+- 后端 ruff check ✅
+- 后端单元测试 ✅
+- 前端 vue-tsc ✅
+- 浏览器端到端验证 ✅（弹框打开/保存/进度/取消全流程）
