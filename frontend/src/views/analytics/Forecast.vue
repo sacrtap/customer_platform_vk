@@ -320,7 +320,7 @@ const filters = reactive({
   deviceType: '',
 })
 
-const selectedYear = ref(new Date())
+const selectedYear = ref<Date | string | { year: () => number }>(new Date())
 const selectedMonth = ref<number | undefined>(undefined)
 
 const forecastChartRef = ref<HTMLElement>()
@@ -528,7 +528,17 @@ const handleReset = () => {
 const loadData = async () => {
   loading.value = true
   try {
-    filters.year = selectedYear.value?.getFullYear() || new Date().getFullYear()
+    // 处理 year-picker 返回值：可能是 Date 对象、dayjs 对象或字符串
+    if (selectedYear.value instanceof Date) {
+      filters.year = selectedYear.value.getFullYear()
+    } else if (typeof selectedYear.value === 'string') {
+      filters.year = parseInt(selectedYear.value, 10)
+    } else if (typeof selectedYear.value?.year === 'function') {
+      // dayjs 对象
+      filters.year = selectedYear.value.year()
+    } else {
+      filters.year = new Date().getFullYear()
+    }
     filters.month = selectedMonth.value
 
     await loadForecastData()
@@ -609,29 +619,16 @@ const initForecastChart = () => {
 
   forecastChart = echarts.init(forecastChartRef.value)
 
-  const months = [
-    '1 月',
-    '2 月',
-    '3 月',
-    '4 月',
-    '5 月',
-    '6 月',
-    '7 月',
-    '8 月',
-    '9 月',
-    '10 月',
-    '11 月',
-    '12 月',
-  ]
+  // 根据后端返回的数据动态生成月份标签
+  const months = trendData.value.map((item) => {
+    const month = parseInt(item.month.split('-')[1])
+    return `${month}月`
+  })
 
-  const forecastData = months.map((_, index) => {
-    const item = trendData.value[index]
-    return item ? item.forecast : 0
-  })
-  const actualData = months.map((_, index) => {
-    const item = trendData.value[index]
-    return item && item.is_actual && item.actual !== null ? item.actual : null
-  })
+  const forecastData = trendData.value.map((item) => item.forecast)
+  const actualData = trendData.value.map((item) =>
+    item.is_actual && item.actual !== null ? item.actual : null
+  )
 
   const option = {
     tooltip: {

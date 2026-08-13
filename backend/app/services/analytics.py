@@ -1524,17 +1524,54 @@ class AnalyticsService:
         forecast_months: Optional[int] = None,
         forecast_until: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """获取全年 12 个月预测 vs 实际消费趋势
+        """获取预测 vs 实际消费趋势
+
+        Args:
+            year: 目标年份
+            apply_to: 'all' 返回全年 / 'future_only' 从当前月开始
+            forecast_months: 预测月份数（从起始月开始）
+            forecast_until: 截止月份 YYYY-MM
 
         每月返回预测金额（用量×单价）和实际消费（已发生实盘）。
         """
         from calendar import monthrange
+        from datetime import datetime
+
+        # 计算月份范围
+        current_month = datetime.now().month
+
+        # 确定起始月份
+        if apply_to == "future_only":
+            start_month = current_month
+        else:
+            start_month = 1
+
+        # 确定结束月份
+        if forecast_until:
+            # 解析截止月份
+            try:
+                end_year, end_month_num = map(int, forecast_until.split("-"))
+                if end_year == year:
+                    end_month = min(end_month_num, 12)
+                else:
+                    end_month = 12
+            except (ValueError, TypeError):
+                end_month = 12
+        elif forecast_months and forecast_months > 0:
+            # 从起始月开始计算 N 个月，最多 12 月
+            end_month = min(start_month + forecast_months - 1, 12)
+        else:
+            end_month = 12
+
+        # 边界条件：如果起始月份超过结束月份，返回空数组
+        if start_month > end_month:
+            return []
 
         # 一次性计算未来月份的预测值（口径与 forecast_consumption 一致）
         future_forecast = await self._estimate_future_consumption()
 
         trend = []
-        for m in range(1, 13):
+        for m in range(start_month, end_month + 1):
             month_start = date(year, m, 1)
             month_end = date(year, m, monthrange(year, m)[1])
 
@@ -1559,14 +1596,6 @@ class AnalyticsService:
                     "is_actual": is_actual,
                 }
             )
-
-        # 按 forecast_months / forecast_until 过滤
-        if forecast_until:
-            end_key = self._month_key(forecast_until)
-            trend = [t for t in trend if self._month_key(t["month"]) <= end_key]
-        if forecast_months and forecast_months > 0 and len(trend) > forecast_months:
-            # 保留最近 forecast_months 个月的数据
-            trend = trend[-forecast_months:]
 
         return trend
 
