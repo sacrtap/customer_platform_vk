@@ -14,10 +14,16 @@
 
 ```
 GET /api/v1/analytics/consumption/forecast
-  params: year, month?, keyword?, device_type?, force_refresh?
+  params: year, month?, keyword?, device_type?, force_refresh?, apply_to?, forecast_months?, forecast_until?
 
 GET /api/v1/analytics/consumption/forecast-trend
-  params: year, force_refresh?
+  params: year, force_refresh?, apply_to?, forecast_months?, forecast_until?
+
+GET /api/v1/analytics/consumption/price-config
+  params: (none)
+
+PUT /api/v1/analytics/consumption/price-config  (@require_permission("analytics:forecast"))
+  body: {"prices": {"L": 14.5, "N": 30.0, "X": 30.0}}
 
 GET /api/v1/analytics/consumption/data-readiness
   params: (none)
@@ -29,12 +35,28 @@ POST /api/v1/analytics/consumption/accuracy  (@require_permission("analytics:for
 ### 服务方法（`backend/app/services/analytics.py`）
 
 ```python
-async def forecast_consumption(year, month=None, customer_id=None, keyword=None, device_type=None) -> List[Dict]
-async def get_forecast_summary(year, month=None, customer_id=None, keyword=None, device_type=None) -> Dict
-async def get_forecast_trend(year) -> List[Dict]
+async def forecast_consumption(year, month=None, customer_id=None, keyword=None, device_type=None, apply_to="all", forecast_months=None, forecast_until=None) -> List[Dict]
+async def get_forecast_summary(year, month=None, customer_id=None, keyword=None, device_type=None, apply_to="all", forecast_months=None, forecast_until=None) -> Dict
+async def get_forecast_trend(year, apply_to="all", forecast_months=None, forecast_until=None) -> List[Dict]
+async def get_unit_prices() -> Dict[str, float]
+async def update_unit_prices(prices: Dict[str, float]) -> None
 async def get_data_readiness() -> Dict
 async def record_prediction_accuracy() -> Dict
 ```
+
+### 单价配置模型（`backend/app/models/forecast_config.py`）
+
+```python
+class ForecastUnitPrice(Base):  # 直接继承 Base，非 BaseModel
+    __tablename__ = "forecast_unit_prices"
+    device_type = Column(String(10), primary_key=True)  # L/N/X
+    unit_price = Column(Numeric(10, 2))
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+```
+
+- **表结构约定**：`device_type` 为自然主键，不继承 `BaseModel`（避免引入 `id`、`created_at`、`deleted_at` 三列）
+- **何时用 BaseModel**：需要自增 id 主键 + 软删除的表才继承 `BaseModel`；以业务字段为 PK 的表应直接继承 `Base`
+- **回退策略**：表为空时回退到 `config.py` 的 `consumption_forecast_unit_prices` 默认值
 
 ## Contracts
 

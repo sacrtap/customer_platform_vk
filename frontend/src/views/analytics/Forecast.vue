@@ -65,10 +65,108 @@
           <a-space>
             <a-button type="primary" @click="loadData">查询</a-button>
             <a-button @click="handleReset">重置</a-button>
+            <a-button @click="openConfigModal">
+              <template #icon><icon-settings /></template>
+              预测参数
+            </a-button>
           </a-space>
         </a-form-item>
       </a-form>
     </div>
+
+    <!-- 预测参数配置弹框 -->
+    <a-modal
+      v-model:visible="showConfigModal"
+      title="预测参数配置"
+      width="540px"
+      :confirm-loading="configModalLoading"
+      ok-text="保存并重新预测"
+      @ok="handleSavePrices"
+      @cancel="handleConfigCancel"
+    >
+      <div class="config-form">
+        <div class="config-section">
+          <h4 class="section-title">单价配置</h4>
+          <p class="section-desc">修改各设备类型的单价后，系统将基于新单价重新计算预测值</p>
+          <div class="price-grid">
+            <div v-for="item in priceConfig" :key="item.device_type" class="price-row">
+              <span class="price-label">{{ item.device_type }} 型设备</span>
+              <div class="price-input-group">
+                <a-input-number
+                  v-model="item.unit_price"
+                  :min="0"
+                  :max="999"
+                  :precision="2"
+                  :step="1"
+                  size="medium"
+                  style="width: 140px"
+                />
+                <span class="price-unit">元/套</span>
+              </div>
+            </div>
+          </div>
+          <a-button size="small" type="text" @click="handleResetPrices">
+            <template #icon><icon-refresh /></template>
+            重置为默认值
+          </a-button>
+        </div>
+
+        <a-divider />
+
+        <div class="config-section">
+          <h4 class="section-title">预测范围</h4>
+          <div class="range-row">
+            <span class="range-label">应用方式</span>
+            <a-radio-group v-model="forecastParams.applyTo" type="button" size="medium">
+              <a-radio value="all">更新历史及后续月份</a-radio>
+              <a-radio value="future_only">仅后续月份</a-radio>
+            </a-radio-group>
+          </div>
+          <div class="range-row">
+            <span class="range-label">预测月数</span>
+            <a-select v-model="forecastParams.forecastMonths" style="width: 140px" size="medium">
+              <a-option :value="3">3 个月</a-option>
+              <a-option :value="6">6 个月</a-option>
+              <a-option :value="12">12 个月</a-option>
+              <a-option :value="24">24 个月</a-option>
+            </a-select>
+          </div>
+        </div>
+
+        <a-divider />
+
+        <div class="config-section hint-section">
+          <icon-info-circle />
+          <span>修改预测参数后，预测数据将重新计算，耗时取决于客户量级</span>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- 重新预测进度弹框 -->
+    <a-modal
+      v-model:visible="showProgressModal"
+      title="正在重新预测"
+      :footer="false"
+      :mask-closable="false"
+      :closable="false"
+      width="400px"
+    >
+      <div class="progress-body">
+        <div class="progress-spinner">
+          <a-spin :size="48" />
+        </div>
+        <p class="progress-text">正在基于新参数重新计算预测值...</p>
+        <div class="progress-bar">
+          <a-progress :percent="progressPercent" :status="progressStatus" :animation="true" />
+        </div>
+        <p class="progress-hint">
+          <template v-if="progressPercent < 30">正在加载单价配置...</template>
+          <template v-else-if="progressPercent < 60">正在计算客户预测值...</template>
+          <template v-else-if="progressPercent < 90">正在生成趋势数据...</template>
+          <template v-else>即将完成</template>
+        </p>
+      </div>
+    </a-modal>
 
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -189,16 +287,20 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
+import { IconSettings, IconRefresh, IconInfoCircle } from '@arco-design/web-vue/es/icon'
 import * as echarts from 'echarts'
 import type { ECharts } from 'echarts'
 import {
   getConsumptionForecast,
   getConsumptionForecastTrend,
   getDataReadiness,
+  getPriceConfig,
+  updatePriceConfig,
   type ConsumptionForecast,
   type ForecastSummary,
   type ForecastTrendItem,
   type DataReadiness,
+  type UnitPriceItem,
 } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
@@ -248,6 +350,119 @@ const summary = reactive<ForecastSummary>({
 
 // 数据就绪度
 const readiness = ref<DataReadiness | null>(null)
+
+// 弹框状态
+const showConfigModal = ref(false)
+const showProgressModal = ref(false)
+const configModalLoading = ref(false)
+const progressPercent = ref(0)
+const progressStatus = ref<'active' | 'success'>('active')
+
+// 价格配置（深拷贝备份用于取消还原）
+const priceConfig = ref<UnitPriceItem[]>([])
+const priceConfigBackup = ref<UnitPriceItem[]>([])
+const defaultPrices: Record<string, number> = { L: 14.5, N: 30, X: 30 }
+
+const forecastParams = reactive({
+  applyTo: 'all' as 'all' | 'future_only',
+  forecastMonths: 12,
+})
+
+// 加载价格配置
+const loadPriceConfig = async () => {
+  try {
+    const res = await getPriceConfig()
+    priceConfig.value = res.data || []
+  } catch {
+    // 默认值
+    priceConfig.value = [
+      { device_type: 'L', unit_price: 14.5 },
+      { device_type: 'N', unit_price: 30 },
+      { device_type: 'X', unit_price: 30 },
+    ]
+  }
+}
+
+// 打开配置弹框前备份当前价格
+const openConfigModal = () => {
+  backupPriceConfig()
+  showConfigModal.value = true
+}
+
+// 备份当前价格（用于取消还原）
+const backupPriceConfig = () => {
+  priceConfigBackup.value = priceConfig.value.map((item) => ({ ...item }))
+}
+
+// 取消配置修改
+const handleConfigCancel = () => {
+  priceConfig.value = priceConfigBackup.value.map((item) => ({ ...item }))
+  showConfigModal.value = false
+}
+
+// 模拟进度动画
+const runProgressSimulation = async () => {
+  progressPercent.value = 0
+  progressStatus.value = 'active'
+  const stages = [
+    { to: 25, duration: 600 },
+    { to: 50, duration: 1000 },
+    { to: 75, duration: 1200 },
+    { to: 90, duration: 800 },
+  ]
+  for (const stage of stages) {
+    const start = progressPercent.value
+    const steps = 10
+    for (let i = 0; i < steps; i++) {
+      await new Promise((r) => setTimeout(r, stage.duration / steps))
+      progressPercent.value = start + ((stage.to - start) * (i + 1)) / steps
+    }
+  }
+}
+
+// 保存价格配置并重新预测
+const handleSavePrices = async () => {
+  configModalLoading.value = true
+  try {
+    const prices: Record<string, number> = {}
+    priceConfig.value.forEach((item) => {
+      prices[item.device_type] = item.unit_price
+    })
+    // 关闭配置弹框，打开进度弹框
+    showConfigModal.value = false
+    showProgressModal.value = true
+    progressPercent.value = 0
+    progressStatus.value = 'active'
+
+    // 并行执行：更新价格 + 进度模拟
+    await Promise.all([updatePriceConfig(prices), runProgressSimulation()])
+
+    // 实际完成时进度跳到 100
+    progressPercent.value = 100
+    progressStatus.value = 'success'
+
+    // 短暂展示完成状态后关闭并刷新
+    await new Promise((r) => setTimeout(r, 500))
+    showProgressModal.value = false
+    await loadData()
+    Message.success('预测已更新')
+  } catch (error: unknown) {
+    showProgressModal.value = false
+    Message.error((error as Error).message || '重新预测失败')
+  } finally {
+    configModalLoading.value = false
+    progressPercent.value = 0
+  }
+}
+
+// 重置为默认值
+const handleResetPrices = () => {
+  priceConfig.value.forEach((item) => {
+    if (defaultPrices[item.device_type] !== undefined) {
+      item.unit_price = defaultPrices[item.device_type]
+    }
+  })
+}
 
 const columns = [
   { title: '公司 ID', dataIndex: 'company_id', width: 120 },
@@ -333,6 +548,8 @@ const loadForecastData = async () => {
     keyword: filters.keyword || undefined,
     device_type: filters.deviceType || undefined,
     force_refresh: true,
+    apply_to: forecastParams.applyTo,
+    forecast_months: forecastParams.forecastMonths,
   })
 
   const responseData = res.data || { forecasts: [], summary: null }
@@ -372,6 +589,8 @@ const loadTrendData = async () => {
     const res = await getConsumptionForecastTrend({
       year: filters.year,
       force_refresh: true,
+      apply_to: forecastParams.applyTo,
+      forecast_months: forecastParams.forecastMonths,
     })
     trendData.value = res.data || []
   } catch {
@@ -579,6 +798,7 @@ const handleResize = () => {
 }
 
 onMounted(() => {
+  loadPriceConfig()
   loadData()
   window.addEventListener('resize', handleResize)
 })
@@ -878,5 +1098,120 @@ onUnmounted(() => {
   .stats-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* 预测参数弹框样式 */
+.config-form {
+  padding: 4px 0;
+}
+
+.config-section {
+  margin-bottom: 4px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 4px 0;
+}
+
+.section-desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 16px 0;
+}
+
+.price-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+
+.price-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.price-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-unit {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.range-label {
+  font-size: 14px;
+  color: var(--ink);
+  min-width: 80px;
+}
+
+.hint-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hint-section .arco-icon {
+  font-size: 15px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* 进度弹框样式 */
+.progress-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0 8px;
+  gap: 16px;
+}
+
+.progress-spinner {
+  display: flex;
+  justify-content: center;
+}
+
+.progress-text {
+  font-size: 15px;
+  color: var(--ink);
+  font-weight: 500;
+  margin: 0;
+}
+
+.progress-bar {
+  width: 100%;
+  padding: 0 8px;
+}
+
+.progress-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
 }
 </style>

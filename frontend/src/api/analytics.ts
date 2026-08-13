@@ -306,6 +306,11 @@ export interface ForecastTrendItem {
   is_actual: boolean
 }
 
+export interface UnitPriceItem {
+  device_type: string
+  unit_price: number
+}
+
 export interface DataReadiness {
   months_with_data: number
   total_months_target: number
@@ -315,25 +320,46 @@ export interface DataReadiness {
   latest_data_month: string | null
 }
 
-export function getConsumptionForecast(params?: {
+export interface ForecastParams {
   year?: number
   month?: number
   keyword?: string
   device_type?: string
   force_refresh?: boolean
-}) {
+  apply_to?: 'all' | 'future_only'
+  forecast_months?: number
+  forecast_until?: string
+}
+
+export function getConsumptionForecast(params?: ForecastParams) {
   return api.get<{ forecasts: ConsumptionForecast[]; summary: ForecastSummary }>(
     '/analytics/consumption/forecast',
     { params }
   )
 }
 
-export function getConsumptionForecastTrend(params?: { year?: number; force_refresh?: boolean }) {
+export function getConsumptionForecastTrend(params?: {
+  year?: number
+  force_refresh?: boolean
+  apply_to?: 'all' | 'future_only'
+  forecast_months?: number
+  forecast_until?: string
+}) {
   return api.get<ForecastTrendItem[]>('/analytics/consumption/forecast-trend', { params })
 }
 
 export function getDataReadiness() {
   return api.get<DataReadiness>('/analytics/consumption/data-readiness')
+}
+
+export function getPriceConfig() {
+  return api.get<UnitPriceItem[]>('/analytics/consumption/price-config')
+}
+
+export function updatePriceConfig(prices: Record<string, number>) {
+  return api.put<{ prices: Record<string, number> }>('/analytics/consumption/price-config', {
+    prices,
+  })
 }
 
 // 兼容：旧预测回款接口（保留一个版本周期）

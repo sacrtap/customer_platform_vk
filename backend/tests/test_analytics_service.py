@@ -1543,6 +1543,7 @@ class TestForecastConsumption:
             cold_row.is_active = False
 
             mock_db.execute.side_effect = [
+                make_mock_execute_result([]),  # get_unit_prices: 空表 → 回退默认值
                 make_mock_execute_result([usage_row, cold_row]),  # 主查询
             ]
 
@@ -1578,6 +1579,10 @@ class TestForecastConsumption:
 
         from unittest.mock import patch as _patch
 
+        # get_unit_prices: 空表 → 回退默认值
+        mock_db.execute.side_effect = [
+            make_mock_execute_result([]),
+        ]
         with _patch.object(service, "_get_latest_usage_month", new=AsyncMock(return_value=None)):
             result = await service.forecast_consumption(year=2026)
 
@@ -1602,6 +1607,7 @@ class TestForecastConsumption:
             service, "_get_latest_usage_month", new=AsyncMock(return_value=date(2026, 7, 1))
         ):
             mock_db.execute.side_effect = [
+                make_mock_execute_result([]),  # get_unit_prices: 空表 → 回退默认值
                 make_mock_execute_result([usage_row]),
             ]
             with _patch.object(

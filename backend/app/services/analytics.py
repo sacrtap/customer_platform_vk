@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, case, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import get_settings
 from ..models.billing import (
     AuditLog,
     CustomerBalance,
@@ -18,6 +17,7 @@ from ..models.billing import (
 )
 from ..models.customers import Customer, CustomerProfile
 from ..models.daily_consumption import DailyConsumption
+from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
 
@@ -1271,6 +1271,9 @@ class AnalyticsService:
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         device_type: Optional[str] = None,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """预测消费（MVP 版）
 
@@ -1283,13 +1286,16 @@ class AnalyticsService:
             customer_id: 按客户筛选
             keyword: 按名称搜索
             device_type: 按设备类型筛选
+            apply_to: 'all' 更新历史及后续 / 'future_only' 仅后续月份
+            forecast_months: 预测月份数（1-24）
+            forecast_until: 截止月份 YYYY-MM
 
         Returns:
             预测明细列表，含估算用量、单价、预测金额、方法标注、活跃标记
         """
         from calendar import monthrange
 
-        unit_prices = get_settings().consumption_forecast_unit_prices
+        unit_prices = await self.get_unit_prices()
 
         # 1. 获取最新完整月作为用量基线（MVP 预测基于最新月保持）
         latest_month = await self._get_latest_usage_month()
@@ -1427,6 +1433,11 @@ class AnalyticsService:
             )
 
         forecasts.sort(key=lambda x: x["forecast_amount"], reverse=True)
+
+        # 限制预测返回条数（forecast_months 参数影响趋势图范围）
+        if forecast_months and forecast_months > 0 and len(forecasts) > forecast_months:
+            forecasts = forecasts[:forecast_months]
+
         return forecasts
 
     async def get_forecast_summary(
@@ -1436,11 +1447,23 @@ class AnalyticsService:
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         device_type: Optional[str] = None,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
     ) -> Dict[str, Any]:
         """获取消费预测汇总统计"""
         from calendar import monthrange
 
-        forecasts = await self.forecast_consumption(year, month, customer_id, keyword, device_type)
+        forecasts = await self.forecast_consumption(
+            year,
+            month,
+            customer_id,
+            keyword,
+            device_type,
+            apply_to=apply_to,
+            forecast_months=forecast_months,
+            forecast_until=forecast_until,
+        )
 
         # 活跃客户的总预测
         active_forecasts = [f for f in forecasts if f["is_active"]]
@@ -1494,7 +1517,13 @@ class AnalyticsService:
             "confidence": confidence,
         }
 
-    async def get_forecast_trend(self, year: int) -> List[Dict[str, Any]]:
+    async def get_forecast_trend(
+        self,
+        year: int,
+        apply_to: str = "all",
+        forecast_months: Optional[int] = None,
+        forecast_until: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """获取全年 12 个月预测 vs 实际消费趋势
 
         每月返回预测金额（用量×单价）和实际消费（已发生实盘）。
@@ -1530,6 +1559,14 @@ class AnalyticsService:
                     "is_actual": is_actual,
                 }
             )
+
+        # 按 forecast_months / forecast_until 过滤
+        if forecast_until:
+            end_key = self._month_key(forecast_until)
+            trend = [t for t in trend if self._month_key(t["month"]) <= end_key]
+        if forecast_months and forecast_months > 0 and len(trend) > forecast_months:
+            # 保留最近 forecast_months 个月的数据
+            trend = trend[-forecast_months:]
 
         return trend
 
@@ -1601,6 +1638,12 @@ class AnalyticsService:
         }
 
     # ========== 预测消费辅助方法 ==========
+
+    @staticmethod
+    def _month_key(month_str: str) -> int:
+        """将 'YYYY-MM' 转换为可比较的整数键"""
+        year_s, month_s = month_str.split("-")
+        return int(year_s) * 12 + int(month_s)
 
     async def _get_latest_usage_month(self) -> Optional[date]:
         """获取有消费数据的最新完整月"""
@@ -1692,6 +1735,28 @@ class AnalyticsService:
         forecasts = await self.forecast_consumption(year=now.year)
         active_forecasts = [f for f in forecasts if f["is_active"]]
         return sum(f["forecast_amount"] for f in active_forecasts)
+
+    # ========== 单价配置 ==========
+
+    async def get_unit_prices(self) -> Dict[str, float]:
+        """获取单价配置：优先从配置表，无数据时回退到 config.py 默认值"""
+        stmt = select(ForecastUnitPrice)
+        result = (await self.db.execute(stmt)).scalars().all()
+        if result:
+            return {row.device_type: float(row.unit_price) for row in result}
+        from ..config import get_settings
+
+        return dict(get_settings().consumption_forecast_unit_prices)
+
+    async def update_unit_prices(self, prices: Dict[str, float]) -> None:
+        """更新单价配置"""
+        for device_type, unit_price in prices.items():
+            stmt = select(ForecastUnitPrice).where(ForecastUnitPrice.device_type == device_type)
+            existing = (await self.db.execute(stmt)).scalar_one_or_none()
+            if existing:
+                existing.unit_price = unit_price
+            else:
+                self.db.add(ForecastUnitPrice(device_type=device_type, unit_price=unit_price))
 
     async def get_prediction_trend(self, year: int) -> List[Dict[str, Any]]:
         """获取全年 12 个月预测 vs 实际回款趋势
