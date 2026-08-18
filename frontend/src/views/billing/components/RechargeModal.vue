@@ -81,17 +81,24 @@ const form = reactive({
   remark: '',
 })
 
-// 当弹窗打开时，预设客户信息
+// 重置表单为初始状态
+const resetForm = () => {
+  form.customer_id = undefined
+  form.real_amount = null
+  form.bonus_amount = null
+  form.remark = ''
+  currentDisplayName.value = ''
+}
+
+// 当弹窗打开时，重置表单并预设客户信息
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
+      resetForm()
       if (props.customerId) {
         form.customer_id = props.customerId
         currentDisplayName.value = props.customerName || ''
-      } else {
-        form.customer_id = undefined
-        currentDisplayName.value = ''
       }
     }
   }
@@ -146,7 +153,7 @@ const handleSubmit = async () => {
 }
 
 const handleCancel = () => {
-  formRef.value?.resetFields()
+  resetForm()
   emit('update:visible', false)
 }
 </script>
