@@ -22,6 +22,7 @@ from ..models.billing import (
     CustomerBalance,
     Invoice,
     InvoiceItem,
+    PackagePlan,
     PricingRule,
     RechargeRecord,
 )
@@ -484,17 +485,60 @@ class PricingService:
                 expiry_date=expiry_date,
             )
 
+            # 从 PackagePlan 表自动填充费用信息
+            package_type = data.get("package_type")
+            unit_price = data.get("unit_price")
+            package_limits = data.get("package_limits")
+
+            if package_type and not package_limits:
+                # 前端未传 package_limits 时，从 PackagePlan 表查询填充
+                plan_result = await self.db.execute(
+                    select(PackagePlan).where(
+                        PackagePlan.package_type == package_type,
+                        PackagePlan.deleted_at.is_(None),
+                        PackagePlan.status == "active",
+                    )
+                )
+                plan = plan_result.scalar_one_or_none()
+                if plan:
+                    base_fee = Decimal(str(plan.base_fee))
+                    is_unlimited = bool(plan.is_unlimited)
+                    limit_count = plan.limit_count
+                    over_limit_unit_price = (
+                        Decimal(str(plan.over_limit_unit_price))
+                        if plan.over_limit_unit_price  # pyright: ignore[reportAttributeAccessIssue]
+                        else (
+                            (base_fee / Decimal(limit_count)).quantize(Decimal("0.01"))
+                            if limit_count
+                            else None
+                        )
+                    )
+
+                    # unit_price 存储按日分摊费用（base_fee / 365），兼容旧逻辑
+                    daily_fee = (base_fee / Decimal(365)).quantize(Decimal("0.01"))
+                    unit_price = float(daily_fee)
+
+                    # package_limits 存储完整套餐信息，供 _calc_package 使用
+                    package_limits = {
+                        "base_fee": float(base_fee),
+                        "is_unlimited": is_unlimited,
+                        "limit_count": limit_count,
+                        "over_limit_unit_price": float(over_limit_unit_price)
+                        if over_limit_unit_price
+                        else None,
+                    }
+
             rule = PricingRule(
                 customer_id=data.get("customer_id"),
                 device_type=device_type,
                 layer_type=layer_type,
                 pricing_type=pricing_type,
-                unit_price=data.get("unit_price"),
+                unit_price=unit_price,
                 multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
                 additional_floor_price=data.get("additional_floor_price"),
                 tiers=data.get("tiers"),
-                package_type=data.get("package_type"),
-                package_limits=data.get("package_limits"),
+                package_type=package_type,
+                package_limits=package_limits,
                 effective_date=effective_date,
                 expiry_date=expiry_date,
                 created_by=data.get("created_by"),
@@ -655,7 +699,45 @@ class PricingService:
 
         for field in updatable:
             if field in data:
-                setattr(rule, field, data[field])
+                setattr(rule, field, data[field])  # pyright: ignore[reportAttributeAccessIssue]
+
+        # 包年规则：当 package_type 变更时，自动从 PackagePlan 重新填充费用信息
+        current_pricing_type = data.get("pricing_type", rule.pricing_type)  # pyright: ignore[reportGeneralTypeIssues]
+        if current_pricing_type == "package" and "package_type" in data:
+            new_package_type = data["package_type"]
+            if new_package_type and new_package_type != rule.package_type:
+                plan_result = await self.db.execute(
+                    select(PackagePlan).where(
+                        PackagePlan.package_type == new_package_type,
+                        PackagePlan.deleted_at.is_(None),
+                        PackagePlan.status == "active",
+                    )
+                )
+                plan = plan_result.scalar_one_or_none()
+                if plan:
+                    base_fee = Decimal(str(plan.base_fee))
+                    is_unlimited = bool(plan.is_unlimited)
+                    limit_count = plan.limit_count
+                    over_limit_unit_price = (
+                        Decimal(str(plan.over_limit_unit_price))
+                        if plan.over_limit_unit_price  # pyright: ignore[reportAttributeAccessIssue]
+                        else (
+                            (base_fee / Decimal(limit_count)).quantize(Decimal("0.01"))
+                            if limit_count
+                            else None
+                        )
+                    )
+
+                    daily_fee = (base_fee / Decimal(365)).quantize(Decimal("0.01"))
+                    rule.unit_price = daily_fee  # pyright: ignore[reportAttributeAccessIssue]
+                    rule.package_limits = {  # pyright: ignore[reportAttributeAccessIssue]
+                        "base_fee": float(base_fee),
+                        "is_unlimited": is_unlimited,
+                        "limit_count": limit_count,
+                        "over_limit_unit_price": float(over_limit_unit_price)
+                        if over_limit_unit_price
+                        else None,
+                    }
 
         await self.db.commit()
         await self.db.refresh(rule)
@@ -933,23 +1015,94 @@ class InvoiceService:
             package_rule = package_rules[0]
             package_limits = package_rule.package_limits or {}
             base_fee = Decimal(str(package_limits.get("base_fee", 0)))
+            is_unlimited = package_limits.get("is_unlimited", False)
+
             total_quantity = sum(Decimal(str(r.total_quantity)) for r in usage_rows)
             total_floor_count = sum(
                 Decimal(str(r.total_floor_count or r.total_quantity)) for r in usage_rows
             )
-            items.append(
-                {
-                    "device_type": None,
-                    "layer_type": None,
-                    "quantity": total_floor_count,
-                    "order_count": total_quantity,
-                    "unit_price": base_fee,
-                    "subtotal": base_fee,
-                    "pricing_rule_id": package_rule.id,
-                }
-            )
-            total_amount += base_fee
-            return items, total_amount
+
+            # 按日计收：结算周期天数 × 日费
+            period_days = Decimal((period_end - period_start).days + 1)
+            daily_fee = (base_fee / Decimal(365)).quantize(Decimal("0.01"))
+            period_base_cost = (daily_fee * period_days).quantize(Decimal("0.01"))
+
+            if is_unlimited:
+                # 不限量套餐：仅按日计收，不论用量多少
+                items.append(
+                    {
+                        "device_type": None,
+                        "layer_type": None,
+                        "quantity": total_floor_count,
+                        "order_count": total_quantity,
+                        "unit_price": daily_fee,
+                        "subtotal": period_base_cost,
+                        "pricing_rule_id": package_rule.id,
+                        "package_type": "unlimited",
+                        "period_days": int(period_days),
+                    }
+                )
+                total_amount += period_base_cost
+                return items, total_amount
+            else:
+                # 限量套餐：按用量计收
+                # 结算费用 = 实际用量(订单数) × (base_fee / limit_count) + 超量费用
+                # 超量费用 = max(0, 总订单数 - limit_count) × over_limit_unit_price
+                limit_count = Decimal(str(package_limits.get("limit_count", 0) or 0))
+                over_limit_unit_price = Decimal(
+                    str(package_limits.get("over_limit_unit_price", 0) or 0)
+                )
+
+                if limit_count <= 0:
+                    # limit_count 为 0 时无法计算，返回 0
+                    items.append(
+                        {
+                            "device_type": None,
+                            "layer_type": None,
+                            "quantity": total_quantity,
+                            "order_count": total_quantity,
+                            "unit_price": Decimal(0),
+                            "subtotal": Decimal(0),
+                            "pricing_rule_id": package_rule.id,
+                            "package_type": "limited",
+                            "limit_count": 0,
+                            "over_limit_quantity": 0,
+                            "over_limit_unit_price": float(over_limit_unit_price),
+                            "over_limit_cost": 0.0,
+                        }
+                    )
+                    return items, total_amount
+
+                # 套餐内用量费用：实际用量 × (base_fee / limit_count)
+                unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
+                usage_cost = (total_quantity * unit_price).quantize(Decimal("0.01"))
+
+                # 超出部分用量（按订单数量判断）
+                over_limit_quantity = max(Decimal(0), total_quantity - limit_count)
+                over_limit_cost = (over_limit_quantity * over_limit_unit_price).quantize(
+                    Decimal("0.01")
+                )
+                subtotal = usage_cost + over_limit_cost
+
+                items.append(
+                    {
+                        "device_type": None,
+                        "layer_type": None,
+                        "quantity": total_quantity,
+                        "order_count": total_quantity,
+                        "unit_price": unit_price,
+                        "subtotal": subtotal,
+                        "pricing_rule_id": package_rule.id,
+                        "package_type": "limited",
+                        "limit_count": int(limit_count),
+                        "over_limit_quantity": int(over_limit_quantity),
+                        "over_limit_unit_price": float(over_limit_unit_price),
+                        "over_limit_cost": float(over_limit_cost),
+                        "usage_cost": float(usage_cost),
+                    }
+                )
+                total_amount += subtotal
+                return items, total_amount
 
         for row in usage_rows:
             device_type = row.device_type

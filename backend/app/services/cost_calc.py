@@ -47,7 +47,23 @@ class CostCalcService:
             .where(DailyOrder.sync_date == consumption_date, DailyOrder.customer_id.isnot(None))
             .distinct()
         )
-        customer_ids = [row[0] for row in result.all()]
+        customer_ids = set(row[0] for row in result.all())
+
+        # 2.1 补充不限量包年套餐客户：即使当天无订单，也需按日计收日费
+        # （限量套餐无订单时费用为 0，不需要补充）
+        package_unlimited_stmt = (
+            select(PricingRule.customer_id)
+            .where(
+                PricingRule.pricing_type == "package",
+                PricingRule.deleted_at.is_(None),
+                PricingRule.effective_date <= consumption_date,
+                (PricingRule.expiry_date >= consumption_date) | (PricingRule.expiry_date.is_(None)),
+            )
+            .distinct()
+        )
+        package_result = await self.db.execute(package_unlimited_stmt)
+        for row in package_result.all():
+            customer_ids.add(row[0])
 
         total_customers = len(customer_ids)
         calculated_count = 0
@@ -114,7 +130,9 @@ class CostCalcService:
             # 包年规则优先：同一客户的所有订单分组共用包年计费
             if package_rule is not None:
                 pricing_rule = package_rule
-                cost = self._calculate_group_cost(group, pricing_rule)
+                cost = self._calculate_group_cost(
+                    group, pricing_rule, customer_id, consumption_date
+                )
             else:
                 # 精确匹配 (device_type, layer_type)，再回退到 (device_type, 'single')
                 key = (group["device_type"], group["layer_type"])
@@ -135,6 +153,26 @@ class CostCalcService:
                 has_pricing_rule=pricing_rule is not None,
             )
             self.db.add(daily_consumption)
+
+        # 3.1 包年套餐：即使当天没有订单，也需记录日费（仅不限量套餐）
+        # 限量套餐无订单时费用为 0，不产生记录
+        if package_rule is not None and not order_groups:
+            package_limits = package_rule.package_limits or {}
+            is_unlimited = package_limits.get("is_unlimited", False)
+            if is_unlimited:
+                daily_fee = self._calc_package(package_rule, None)
+                daily_consumption = DailyConsumption(
+                    customer_id=customer_id,
+                    consumption_date=consumption_date,
+                    device_type="package",
+                    layer_type="package",
+                    order_count=0,
+                    total_floor_count=0,
+                    total_cost=daily_fee.quantize(Decimal("0.01")),
+                    pricing_rule_id=package_rule.id,
+                    has_pricing_rule=True,
+                )
+                self.db.add(daily_consumption)
 
         await self.db.commit()
 
@@ -247,12 +285,20 @@ class CostCalcService:
         )
         return result.scalars().first()
 
-    def _calculate_group_cost(self, order_group: dict, pricing_rule: PricingRule) -> Decimal:
+    def _calculate_group_cost(
+        self,
+        order_group: dict,
+        pricing_rule: PricingRule,
+        customer_id: Optional[int] = None,
+        consumption_date: Optional[date] = None,
+    ) -> Decimal:
         """根据计费规则计算分组费用
 
         Args:
             order_group: Order group dict with total_floor_count and order_count
             pricing_rule: PricingRule object
+            customer_id: 客户 ID（包年限量套餐计算累计用量时需要）
+            consumption_date: 消耗日期（包年限量套餐计算累计用量时需要）
 
         Returns:
             Calculated cost as Decimal
@@ -264,7 +310,7 @@ class CostCalcService:
         if pricing_rule.pricing_type == "tiered":  # pyright: ignore[reportGeneralTypeIssues]
             return self._calc_tiered(total_floor_count, pricing_rule)
         elif pricing_rule.pricing_type == "package":  # pyright: ignore[reportGeneralTypeIssues]
-            return self._calc_package(pricing_rule)
+            return self._calc_package(pricing_rule, order_group)
         else:  # fixed
             # 判断多层计费类型
             multi_pricing_type = pricing_rule.multi_floor_pricing_type or "unified"  # pyright: ignore[reportGeneralTypeIssues]
@@ -342,6 +388,46 @@ class CostCalcService:
 
         return total_cost
 
-    def _calc_package(self, pricing_rule: PricingRule) -> Decimal:
-        """包年价格结算（按日分摊）"""
-        return Decimal(str(pricing_rule.unit_price or 0)).quantize(Decimal("0.01"))
+    def _calc_package(
+        self,
+        pricing_rule: PricingRule,
+        order_group: Optional[dict] = None,
+    ) -> Decimal:
+        """包年价格结算
+
+        计费逻辑：
+        - 不限量套餐：按日计收，每日费用 = base_fee / 365（不论当天有无订单）
+        - 限量套餐：按用量计收，每日费用 = 当日订单数量 × base_fee / limit_count
+          （超量费用在结算单生成时统一计算：超出 limit_count 部分按 over_limit_unit_price 计费）
+
+        Args:
+            pricing_rule: PricingRule 对象，需包含 package_limits 字段
+            order_group: 当前分组的订单数据（None 表示当天无订单）
+
+        Returns:
+            Calculated cost as Decimal
+        """
+        package_limits = pricing_rule.package_limits or {}
+        base_fee = Decimal(str(package_limits.get("base_fee", 0)))
+        is_unlimited = package_limits.get("is_unlimited", False)
+
+        # 按日分摊费用（仅不限量套餐使用）
+        daily_fee = (base_fee / Decimal(365)).quantize(Decimal("0.01"))
+
+        if is_unlimited:
+            # 不限量套餐：不论有无订单，只收固定日费
+            return daily_fee
+
+        # 限量套餐：按当日实际用量计收
+        limit_count = Decimal(str(package_limits.get("limit_count", 0) or 0))
+        if limit_count <= 0:
+            return Decimal("0")
+
+        if order_group is None:
+            # 限量套餐当天无订单：费用为 0
+            return Decimal("0")
+
+        # 限量套餐当天有订单：费用 = 当日订单数量 × (base_fee / limit_count)
+        order_count = Decimal(str(order_group.get("order_count", 0)))
+        unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
+        return (order_count * unit_price).quantize(Decimal("0.01"))

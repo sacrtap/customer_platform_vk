@@ -30,6 +30,81 @@ class AnalyticsService:
 
     # ========== 消耗分析 ==========
 
+    async def _get_package_over_limit_estimates(
+        self,
+        start_date: date,
+        end_date: date,
+        customer_id: Optional[int] = None,
+    ) -> Dict[int, Dict[str, Any]]:
+        """计算限量套餐客户的超量费用估算
+
+        查询指定时间段内所有限量套餐客户的累计订单数，
+        与 limit_count 对比计算超量费用。
+
+        Returns:
+            {customer_id: {"over_limit_cost": float, "total_order_count": int, "limit_count": int}}
+        """
+        from decimal import Decimal
+
+        # 查询限量套餐规则
+        rule_stmt = select(PricingRule).where(
+            PricingRule.pricing_type == "package",
+            PricingRule.deleted_at.is_(None),
+            PricingRule.effective_date <= end_date,
+            (PricingRule.expiry_date.is_(None)) | (PricingRule.expiry_date >= start_date),
+        )
+        if customer_id:
+            rule_stmt = rule_stmt.where(PricingRule.customer_id == customer_id)
+
+        rule_result = await self.db.execute(rule_stmt)
+        rules = rule_result.scalars().all()
+
+        # 筛选限量套餐
+        limited_rules = []
+        for r in rules:
+            pl = r.package_limits or {}
+            if not pl.get("is_unlimited", False):
+                limited_rules.append(r)
+
+        if not limited_rules:
+            return {}
+
+        estimates: Dict[int, Dict[str, Any]] = {}
+        for rule in limited_rules:
+            pl = rule.package_limits or {}
+            limit_count = Decimal(str(pl.get("limit_count", 0) or 0))
+            if limit_count <= 0:
+                continue
+            over_limit_unit_price = Decimal(str(pl.get("over_limit_unit_price", 0) or 0))
+
+            # 查询该客户在时间段内的累计订单数
+            usage_stmt = select(func.sum(DailyConsumption.order_count).label("total_orders")).where(
+                DailyConsumption.customer_id == rule.customer_id,
+                DailyConsumption.consumption_date >= start_date,
+                DailyConsumption.consumption_date <= end_date,
+                DailyConsumption.deleted_at.is_(None),
+            )
+            usage_result = await self.db.execute(usage_stmt)
+            total_orders = Decimal(str(usage_result.scalar() or 0))
+
+            # 计算超量
+            over_limit_quantity = max(Decimal(0), total_orders - limit_count)
+            over_limit_cost = float(
+                (over_limit_quantity * over_limit_unit_price).quantize(Decimal("0.01"))
+            )
+
+            # 如果已存在该客户的估算，取较大的（多条规则时不叠加）
+            existing = estimates.get(rule.customer_id)
+            if existing is None or over_limit_cost > existing["over_limit_cost"]:
+                estimates[rule.customer_id] = {
+                    "over_limit_cost": over_limit_cost,
+                    "total_order_count": int(total_orders),
+                    "limit_count": int(limit_count),
+                    "over_limit_quantity": int(over_limit_quantity),
+                }
+
+        return estimates
+
     async def get_consumption_trend(
         self,
         start_date: date,
@@ -144,7 +219,7 @@ class AnalyticsService:
         )
 
         result = (await self.db.execute(stmt)).all()
-        return [
+        trend_data = [
             {
                 "date": row.date.isoformat(),
                 "order_count": int(row.order_count) if row.order_count else 0,
@@ -152,6 +227,19 @@ class AnalyticsService:
             }
             for row in result
         ]
+
+        # 限量套餐超量费用估算：加到最后一天的费用中
+        if trend_data and metric == "cost":
+            over_limit_estimates = await self._get_package_over_limit_estimates(
+                start_date, end_date, customer_id=customer_id
+            )
+            if over_limit_estimates:
+                total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
+                if total_over_limit > 0:
+                    trend_data[-1]["cost"] = round(trend_data[-1]["cost"] + total_over_limit, 2)
+                    trend_data[-1]["over_limit_cost_estimate"] = round(total_over_limit, 2)
+
+        return trend_data
 
     async def get_device_type_distribution_with_metric(
         self,
@@ -219,7 +307,7 @@ class AnalyticsService:
         total_order_count = sum(int(row.order_count) for row in result if row.order_count)
         total_cost = sum(float(row.cost) for row in result if row.cost)
 
-        return [
+        dist_data = [
             {
                 "device_type": row.device_type,
                 "order_count": int(row.order_count) if row.order_count else 0,
@@ -233,6 +321,41 @@ class AnalyticsService:
             }
             for row in result
         ]
+
+        # 限量套餐超量费用估算：加到 "package" 设备类型上
+        if dist_data and metric == "cost":
+            over_limit_estimates = await self._get_package_over_limit_estimates(
+                start_date, end_date, customer_id=customer_id
+            )
+            if over_limit_estimates:
+                total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
+                if total_over_limit > 0:
+                    # 找到 package 设备类型，加到其费用中
+                    for d in dist_data:
+                        if d["device_type"] == "package":
+                            d["cost"] = round(d["cost"] + total_over_limit, 2)
+                            d["over_limit_cost_estimate"] = round(total_over_limit, 2)
+                            break
+                    else:
+                        # 如果没有 package 设备类型，新增一条
+                        dist_data.append(
+                            {
+                                "device_type": "package",
+                                "order_count": 0,
+                                "cost": round(total_over_limit, 2),
+                                "order_count_percentage": 0,
+                                "cost_percentage": 0,
+                                "over_limit_cost_estimate": round(total_over_limit, 2),
+                            }
+                        )
+                    # 重新计算百分比
+                    new_total_cost = sum(d["cost"] for d in dist_data)
+                    for d in dist_data:
+                        d["cost_percentage"] = (
+                            round(d["cost"] / new_total_cost * 100, 2) if new_total_cost > 0 else 0
+                        )
+
+        return dist_data
 
     async def get_top_customers(
         self, start_date: date, end_date: date, limit: int = 10
@@ -339,7 +462,7 @@ class AnalyticsService:
         stmt = stmt.limit(limit)
 
         result = (await self.db.execute(stmt)).all()
-        return [
+        customers_data = [
             {
                 "customer_id": row.id,
                 "company_id": row.company_id,
@@ -349,6 +472,19 @@ class AnalyticsService:
             }
             for row in result
         ]
+
+        # 限量套餐超量费用估算：加到每个客户的总费用中
+        if customers_data and metric == "cost":
+            over_limit_estimates = await self._get_package_over_limit_estimates(
+                start_date, end_date
+            )
+            for c in customers_data:
+                est = over_limit_estimates.get(c["customer_id"])
+                if est and est["over_limit_cost"] > 0:
+                    c["cost"] = round(c["cost"] + est["over_limit_cost"], 2)
+                    c["over_limit_cost_estimate"] = round(est["over_limit_cost"], 2)
+
+        return customers_data
 
     async def get_device_type_distribution(
         self, start_date: date, end_date: date, customer_id: Optional[int] = None
