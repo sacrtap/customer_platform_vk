@@ -190,6 +190,40 @@
         </a-select>
       </a-form-item>
 
+      <!-- 包年套餐信息预览 -->
+      <div
+        v-if="formData.pricing_type === 'package' && selectedPackagePlan"
+        class="package-info-preview"
+      >
+        <div class="info-row">
+          <span class="info-label">年费：</span>
+          <span class="info-value">¥{{ selectedPackagePlan.base_fee.toFixed(2) }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">限量类型：</span>
+          <span class="info-value">{{ selectedPackagePlan.is_unlimited ? '不限量' : '限量' }}</span>
+        </div>
+        <div v-if="!selectedPackagePlan.is_unlimited" class="info-row">
+          <span class="info-label">限量数量：</span>
+          <span class="info-value">{{ selectedPackagePlan.limit_count?.toLocaleString() }}</span>
+        </div>
+        <div
+          v-if="
+            !selectedPackagePlan.is_unlimited && selectedPackagePlan.over_limit_unit_price != null
+          "
+          class="info-row"
+        >
+          <span class="info-label">超额单价：</span>
+          <span class="info-value"
+            >¥{{ selectedPackagePlan.over_limit_unit_price.toFixed(2) }}</span
+          >
+        </div>
+        <div class="info-row">
+          <span class="info-label">日费（年费÷365）：</span>
+          <span class="info-value">¥{{ (selectedPackagePlan.base_fee / 365).toFixed(2) }}</span>
+        </div>
+      </div>
+
       <a-row :gutter="16">
         <a-col :span="12">
           <a-form-item label="生效日期" :rules="[{ required: true, message: '请选择生效日期' }]">
@@ -266,6 +300,12 @@ const showIncrementalPrice = computed(() => {
   if (formData.layer_type === 'multi' && formData.multi_floor_pricing_type === 'incremental')
     return true
   return false
+})
+
+// 选中包年套餐的详细信息（用于预览展示）
+const selectedPackagePlan = computed(() => {
+  if (formData.pricing_type !== 'package' || !formData.package_type) return null
+  return props.packagePlanOptions.find((p) => p.package_type === formData.package_type) || null
 })
 
 // 监听 visible 变化，初始化表单数据
@@ -696,5 +736,34 @@ const handleSubmit = async () => {
 
 .btn.primary:hover {
   opacity: 0.9;
+}
+
+.package-info-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.info-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
 }
 </style>

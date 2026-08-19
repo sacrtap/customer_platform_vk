@@ -64,6 +64,7 @@
                 <th style="width: 120px">限量类型</th>
                 <th style="width: 120px">限量数量</th>
                 <th style="width: 140px">基础费用（年）</th>
+                <th style="width: 140px">超额单价</th>
                 <th style="width: 100px">状态</th>
                 <th style="width: 150px">操作</th>
               </tr>
@@ -95,6 +96,14 @@
                 <td>
                   <span class="amount">¥{{ record.base_fee.toFixed(2) }}</span>
                 </td>
+                <!-- 超额单价 -->
+                <td>
+                  <span v-if="record.is_unlimited" class="subtle">-</span>
+                  <span v-else-if="record.over_limit_unit_price != null" class="amount"
+                    >¥{{ record.over_limit_unit_price.toFixed(2) }}</span
+                  >
+                  <span v-else class="subtle">未设置</span>
+                </td>
                 <!-- 状态 -->
                 <td>
                   <span v-if="record.status === 'active'" class="tag green">启用</span>
@@ -121,10 +130,10 @@
                 </td>
               </tr>
               <tr v-if="data.length === 0 && !loading">
-                <td :colspan="7" class="empty-state">暂无包年套餐数据</td>
+                <td :colspan="8" class="empty-state">暂无包年套餐数据</td>
               </tr>
               <tr v-if="loading">
-                <td :colspan="7" class="loading-state">加载中...</td>
+                <td :colspan="8" class="loading-state">加载中...</td>
               </tr>
             </tbody>
           </table>
@@ -263,6 +272,22 @@
           />
         </a-form-item>
 
+        <a-form-item
+          v-if="!formData.is_unlimited"
+          label="超额单价"
+          extra="限量套餐超出限量数量后的每单位用量价格，留空则默认为 基础费用 ÷ 限量数量"
+        >
+          <a-input-number
+            v-model="formData.over_limit_unit_price"
+            placeholder="留空则自动计算"
+            :min="0"
+            :precision="2"
+            style="width: 100%"
+          >
+            <template #prefix>¥</template>
+          </a-input-number>
+        </a-form-item>
+
         <a-form-item label="描述">
           <a-textarea
             v-model="formData.description"
@@ -297,6 +322,7 @@ interface PackagePlan {
   is_unlimited: boolean
   limit_count?: number | null
   base_fee: number
+  over_limit_unit_price?: number | null
   description?: string
   status: 'active' | 'inactive'
   created_at?: string
@@ -342,6 +368,7 @@ const formData = reactive({
   is_unlimited: false,
   limit_count: undefined as number | undefined,
   base_fee: undefined as number | undefined,
+  over_limit_unit_price: undefined as number | undefined,
   description: '',
   status: 'active' as 'active' | 'inactive',
 })
@@ -425,6 +452,7 @@ const showCreateModal = () => {
     is_unlimited: false,
     limit_count: undefined,
     base_fee: undefined,
+    over_limit_unit_price: undefined,
     description: '',
     status: 'active',
   })
@@ -441,16 +469,18 @@ const showEditModal = (record: PackagePlan) => {
     is_unlimited: record.is_unlimited,
     limit_count: record.limit_count ?? undefined,
     base_fee: record.base_fee,
+    over_limit_unit_price: record.over_limit_unit_price ?? undefined,
     description: record.description || '',
     status: record.status,
   })
   modalVisible.value = true
 }
 
-// 切换限量/不限量时清空 limit_count
+// 切换限量/不限量时清空 limit_count 和 over_limit_unit_price
 const onUnlimitedChange = (value: string | number | boolean) => {
   if (value === true) {
     formData.limit_count = undefined
+    formData.over_limit_unit_price = undefined
   }
 }
 
@@ -484,6 +514,7 @@ const handleSubmit = async () => {
       is_unlimited: formData.is_unlimited,
       limit_count: formData.is_unlimited ? null : formData.limit_count,
       base_fee: formData.base_fee,
+      over_limit_unit_price: formData.is_unlimited ? null : formData.over_limit_unit_price,
       description: formData.description || undefined,
       status: formData.status,
     }

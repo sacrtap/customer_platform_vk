@@ -454,6 +454,8 @@ export interface PackagePlan {
   is_unlimited: boolean
   limit_count?: number | null
   base_fee: number
+  /** 超额单价（限量套餐超出 limit_count 后的每单位用量价格） */
+  over_limit_unit_price?: number | null
   description?: string
   status: 'active' | 'inactive'
   created_at?: string

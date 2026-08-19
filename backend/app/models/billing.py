@@ -244,6 +244,12 @@ class PackagePlan(BaseModel):
         Integer, nullable=True, comment="限量数量（is_unlimited=false 时必填，否则为空）"
     )
     base_fee = Column(DECIMAL(12, 2), nullable=False, comment="套餐基础费用（年费）")
+    over_limit_unit_price = Column(
+        DECIMAL(10, 2),
+        nullable=True,
+        comment="超额单价（限量套餐超出 limit_count 后的每单位用量价格，"
+        "默认为 base_fee / limit_count）",
+    )
     description = Column(Text, nullable=True, comment="套餐描述")
     status = Column(
         String(20), default="active", nullable=False, index=True, comment="状态：active/inactive"

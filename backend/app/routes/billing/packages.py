@@ -23,6 +23,9 @@ def _package_plan_to_dict(plan):
         "is_unlimited": plan.is_unlimited,
         "limit_count": plan.limit_count,
         "base_fee": float(plan.base_fee) if plan.base_fee else 0,
+        "over_limit_unit_price": float(plan.over_limit_unit_price)
+        if plan.over_limit_unit_price
+        else None,  # pyright: ignore[reportAttributeAccessIssue]
         "description": plan.description,
         "status": plan.status,
         "created_at": plan.created_at.isoformat() if plan.created_at else None,
@@ -136,6 +139,7 @@ async def create_package_plan(request: Request):
         "is_unlimited": false,
         "limit_count": 10000,      // is_unlimited=false 时必填
         "base_fee": 50000.00,
+        "over_limit_unit_price": 5.00,  // 限量套餐超额单价（可选，默认 base_fee/limit_count）
         "description": "...",      // 可选
         "status": "active"         // 可选，默认 active
     }
@@ -185,9 +189,26 @@ async def create_package_plan(request: Request):
                 )
         except (ValueError, TypeError):
             return json({"code": 40001, "message": "限量数量格式错误"}, status=400)
+
+        # 超额单价：可选，默认 base_fee / limit_count
+        over_limit_unit_price_raw = data.get("over_limit_unit_price")
+        if over_limit_unit_price_raw is not None:
+            try:
+                over_limit_unit_price = Decimal(str(over_limit_unit_price_raw))
+                if over_limit_unit_price < 0:
+                    return json(
+                        {"code": 40001, "message": "超额单价不能为负数"},
+                        status=400,
+                    )
+            except (ValueError, TypeError):
+                return json({"code": 40001, "message": "超额单价格式错误"}, status=400)
+        else:
+            # 默认：base_fee / limit_count
+            over_limit_unit_price = (base_fee / Decimal(limit_count)).quantize(Decimal("0.01"))
     else:
-        # 不限量时清空 limit_count
+        # 不限量时清空 limit_count 和 over_limit_unit_price
         limit_count = None
+        over_limit_unit_price = None
 
     # 唯一性校验：package_type 不能重复
     existing = await db.execute(
@@ -210,6 +231,7 @@ async def create_package_plan(request: Request):
         is_unlimited=is_unlimited,
         limit_count=limit_count,
         base_fee=base_fee,
+        over_limit_unit_price=over_limit_unit_price,
         description=data.get("description"),
         status=data.get("status", "active"),
     )
@@ -275,22 +297,29 @@ async def update_package_plan(request: Request, plan_id: int):
         "device_type",
         "layer_type",
         "base_fee",
+        "over_limit_unit_price",
         "description",
         "status",
     ]
 
     for field in updatable_fields:
         if field in data:
-            if field == "base_fee" and data[field] is not None:
+            if field in ("base_fee", "over_limit_unit_price") and data[field] is not None:
                 try:
-                    setattr(plan, field, Decimal(str(data[field])))
+                    setattr(plan, field, Decimal(str(data[field])))  # pyright: ignore[reportAttributeAccessIssue]
                 except (ValueError, TypeError):
-                    return json(
-                        {"code": 40001, "message": "基础费用格式错误"},
-                        status=400,
-                    )
+                    if field == "base_fee":
+                        return json(
+                            {"code": 40001, "message": "基础费用格式错误"},
+                            status=400,
+                        )
+                    else:
+                        return json(
+                            {"code": 40001, "message": "超额单价格式错误"},
+                            status=400,
+                        )
             else:
-                setattr(plan, field, data[field])
+                setattr(plan, field, data[field])  # pyright: ignore[reportAttributeAccessIssue]
 
     # 处理 is_unlimited 和 limit_count
     if "is_unlimited" in data:
@@ -298,8 +327,9 @@ async def update_package_plan(request: Request, plan_id: int):
         plan.is_unlimited = is_unlimited  # pyright: ignore[reportAttributeAccessIssue]
 
         if is_unlimited:
-            # 切换为不限量时清空 limit_count
+            # 切换为不限量时清空 limit_count 和 over_limit_unit_price
             plan.limit_count = None  # pyright: ignore[reportAttributeAccessIssue]
+            plan.over_limit_unit_price = None  # pyright: ignore[reportAttributeAccessIssue]
         else:
             # 切换为限量时，limit_count 必须有值
             if "limit_count" in data and data["limit_count"] is not None:
@@ -333,6 +363,13 @@ async def update_package_plan(request: Request, plan_id: int):
             plan.limit_count = limit_count  # pyright: ignore[reportAttributeAccessIssue]
         except (ValueError, TypeError):
             return json({"code": 40001, "message": "限量数量格式错误"}, status=400)
+
+        # 如果 over_limit_unit_price 未单独传值，且 base_fee 已知，重新计算默认超额单价
+        if "over_limit_unit_price" not in data and plan.base_fee:
+            default_over = (Decimal(str(plan.base_fee)) / Decimal(limit_count)).quantize(
+                Decimal("0.01")
+            )
+            plan.over_limit_unit_price = default_over  # pyright: ignore[reportAttributeAccessIssue]
 
     # 唯一性校验：package_type（如果修改了）
     if "package_type" in data:
