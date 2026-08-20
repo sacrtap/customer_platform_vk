@@ -416,7 +416,10 @@ class TestPricingService_CreatePricingRule:
         # Mock 无冲突
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
-        mock_db_session.execute.return_value = mock_result
+        # Mock PackagePlan 查询返回 None（不填充 package_limits）
+        mock_plan_result = MagicMock()
+        mock_plan_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute.side_effect = [mock_result, mock_plan_result]
 
         rule_data = {
             "customer_id": 100,
@@ -908,7 +911,14 @@ class TestInvoiceService_CalculateItemsIncremental:
 
     @pytest.mark.asyncio
     async def test_calculate_items_package_rule(self, invoice_service, mock_db_session):
-        """测试结算明细计算 - 包年规则（与设备/楼层无关，生成一条固定费用明细）"""
+        """测试结算明细计算 - 限量包年规则（按用量计收 + 超量费用）
+
+        base_fee=10000, limit_count=100, over_limit_unit_price=100
+        total_quantity=5 (未超量)
+        → usage_cost = 5 × (10000/100) = 5 × 100 = 500
+        → over_limit_cost = 0
+        → subtotal = 500
+        """
         usage_row = MagicMock()
         usage_row.device_type = "X"
         usage_row.layer_type = "single"
@@ -924,7 +934,12 @@ class TestInvoiceService_CalculateItemsIncremental:
         mock_package.layer_type = None
         mock_package.pricing_type = "package"
         mock_package.package_type = "A"
-        mock_package.package_limits = {"base_fee": 10000}
+        mock_package.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+            "over_limit_unit_price": 100,
+        }
         mock_package.unit_price = None
 
         rules_result = MagicMock()
@@ -942,14 +957,24 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert items[0]["pricing_rule_id"] == 9
         assert items[0]["device_type"] is None
         assert items[0]["layer_type"] is None
-        assert items[0]["subtotal"] == Decimal("10000")
-        assert total_amount == Decimal("10000")
+        assert items[0]["subtotal"] == Decimal("500")  # 5 × (10000/100) = 500
+        assert items[0]["package_type"] == "limited"
+        assert items[0]["limit_count"] == 100
+        assert items[0]["over_limit_quantity"] == 0
+        assert total_amount == Decimal("500")
 
     @pytest.mark.asyncio
     async def test_calculate_items_package_rule_priority_over_fixed(
         self, invoice_service, mock_db_session
     ):
-        """测试结算明细计算 - 包年规则优先于固定规则"""
+        """测试结算明细计算 - 包年规则优先于固定规则
+
+        限量套餐：base_fee=5000, limit_count=50, over_limit_unit_price=100
+        total_quantity=3 (未超量)
+        → usage_cost = 3 × (5000/50) = 3 × 100 = 300
+        → over_limit_cost = 0
+        → subtotal = 300
+        """
         usage_row = MagicMock()
         usage_row.device_type = "L"
         usage_row.layer_type = "single"
@@ -972,7 +997,12 @@ class TestInvoiceService_CalculateItemsIncremental:
         mock_package.layer_type = None
         mock_package.pricing_type = "package"
         mock_package.package_type = "A"
-        mock_package.package_limits = {"base_fee": 5000}
+        mock_package.package_limits = {
+            "base_fee": 5000,
+            "is_unlimited": False,
+            "limit_count": 50,
+            "over_limit_unit_price": 100,
+        }
         mock_package.unit_price = None
 
         rules_result = MagicMock()
@@ -989,7 +1019,7 @@ class TestInvoiceService_CalculateItemsIncremental:
         # 只生成一条包年明细，固定规则不参与计算
         assert len(items) == 1
         assert items[0]["pricing_rule_id"] == 9
-        assert total_amount == Decimal("5000")
+        assert total_amount == Decimal("300")  # 3 × (5000/50) = 300
 
     @pytest.mark.asyncio
     async def test_generate_invoice_uses_subtotal(self, invoice_service, mock_db_session):
