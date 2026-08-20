@@ -124,19 +124,42 @@ class TestCostCalcService:
 
     # ========== 包年价格计算 ==========
 
-    async def test_calc_package_price(self, service):
-        """测试包年价格计算 - 按日分摊（返回 unit_price）"""
+    async def test_calc_package_price_unlimited(self, service):
+        """测试包年价格计算 - 不限量套餐按日分摊"""
         pkg_rule = MagicMock()
-        pkg_rule.unit_price = Decimal("100.00")
+        pkg_rule.package_limits = {"base_fee": 36500, "is_unlimited": True}
         cost = service._calc_package(pkg_rule)
-        assert cost == Decimal("100.00")
+        assert cost == Decimal("100.00")  # 36500 / 365 = 100.00
+
+    async def test_calc_package_price_limited_with_orders(self, service):
+        """测试包年价格计算 - 限量套餐按用量计收"""
+        pkg_rule = MagicMock()
+        pkg_rule.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+        }
+        # 5 单 × (10000 / 100) = 5 × 100 = 500
+        cost = service._calc_package(pkg_rule, {"order_count": 5})
+        assert cost == Decimal("500.00")
+
+    async def test_calc_package_price_limited_no_orders(self, service):
+        """测试包年价格计算 - 限量套餐当天无订单时费用为 0"""
+        pkg_rule = MagicMock()
+        pkg_rule.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+        }
+        cost = service._calc_package(pkg_rule, None)
+        assert cost == Decimal("0")
 
     async def test_calc_package_price_with_remainder(self, service):
-        """测试包年价格计算 - 有余数（四舍五入）"""
+        """测试包年价格计算 - 不限量套餐有余数（四舍五入）"""
         pkg_rule = MagicMock()
-        pkg_rule.unit_price = Decimal("1000.00") / Decimal("365")
+        pkg_rule.package_limits = {"base_fee": 1000, "is_unlimited": True}
         cost = service._calc_package(pkg_rule)
-        assert cost == Decimal("2.74")
+        assert cost == Decimal("2.74")  # 1000 / 365 = 2.739... → 2.74
 
     # ========== 分组费用计算 ==========
 
@@ -219,8 +242,8 @@ class TestCostCalcService:
         cost = service._calculate_group_cost(order_group, pricing_rule)
         assert cost == Decimal("7500.00")  # 500 * 15
 
-    async def test_calculate_group_cost_package(self, service):
-        """测试分组费用计算 - 包年价格（返回 unit_price）"""
+    async def test_calculate_group_cost_package_unlimited(self, service):
+        """测试分组费用计算 - 不限量包年价格（按日分摊）"""
         order_group = {
             "device_type": "X",
             "layer_type": "single",
@@ -231,9 +254,35 @@ class TestCostCalcService:
         pricing_rule = MagicMock(spec=PricingRule)
         pricing_rule.pricing_type = "package"
         pricing_rule.unit_price = Decimal("100.00")
+        pricing_rule.package_limits = {"base_fee": 36500, "is_unlimited": True}
 
         cost = service._calculate_group_cost(order_group, pricing_rule)
-        assert cost == Decimal("100.00")
+        assert cost == Decimal("100.00")  # 36500 / 365 = 100.00
+
+    async def test_calculate_group_cost_package_limited(self, service):
+        """测试分组费用计算 - 限量包年价格（按用量计收）
+
+        base_fee=10000, limit_count=100, order_count=5
+        → 5 × (10000/100) = 5 × 100 = 500
+        """
+        order_group = {
+            "device_type": "X",
+            "layer_type": "single",
+            "order_count": 5,
+            "total_floor_count": 50,
+        }
+
+        pricing_rule = MagicMock(spec=PricingRule)
+        pricing_rule.pricing_type = "package"
+        pricing_rule.unit_price = None
+        pricing_rule.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+        }
+
+        cost = service._calculate_group_cost(order_group, pricing_rule)
+        assert cost == Decimal("500.00")
 
     # ========== 规则查询 ==========
 
@@ -419,7 +468,10 @@ class TestCostCalcService:
         assert added_obj.total_cost == Decimal("20.00")
 
     async def test_calculate_customer_cost_package_priority(self, service, mock_db):
-        """测试客户费用计算 - 包年规则优先于 (device_type, layer_type) 匹配"""
+        """测试客户费用计算 - 包年规则优先于 (device_type, layer_type) 匹配
+
+        不限量套餐：所有分组共用按日分摊费用（100.00/天）
+        """
         order_groups = [
             {"device_type": "X", "layer_type": "single", "order_count": 5, "total_floor_count": 50},
             {"device_type": "L", "layer_type": "multi", "order_count": 3, "total_floor_count": 20},
@@ -431,6 +483,7 @@ class TestCostCalcService:
         mock_package.id = 9
         mock_package.pricing_type = "package"
         mock_package.unit_price = Decimal("100.00")
+        mock_package.package_limits = {"base_fee": 36500, "is_unlimited": True}
         service._get_active_pricing_rules = AsyncMock(return_value={})
         service._get_active_package_rule = AsyncMock(return_value=mock_package)
 
