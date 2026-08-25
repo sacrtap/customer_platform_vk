@@ -540,6 +540,8 @@ async def test_create_customer_success(customer_service):
 
     mock_db.flush = AsyncMock()
     mock_db.commit = AsyncMock()
+    # create_customer 先检查 company_id 是否已存在，需要返回 None
+    mock_db.execute.return_value = make_mock_execute_result([], scalar_value=None)
 
     data = {
         "company_id": 1001,
@@ -562,6 +564,8 @@ async def test_create_customer_with_all_fields(customer_service):
 
     mock_db.flush = AsyncMock()
     mock_db.commit = AsyncMock()
+    # create_customer 先检查 company_id 是否已存在，需要返回 None
+    mock_db.execute.return_value = make_mock_execute_result([], scalar_value=None)
 
     data = {
         "company_id": 1001,

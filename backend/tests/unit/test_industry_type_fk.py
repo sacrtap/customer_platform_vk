@@ -31,10 +31,12 @@ class TestIndustryTypeForeignKey:
         # 准备测试数据
         industry_type = IndustryType(id=1, name="测试行业", sort_order=999)
 
-        # Mock execute 返回 IndustryType
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = industry_type
-        mock_db_session.execute.return_value = mock_result
+        # Mock execute：第一次调用返回 company_id 检查结果（None=不存在），第二次返回 IndustryType
+        mock_no_existing = MagicMock()
+        mock_no_existing.scalar_one_or_none.return_value = None
+        mock_industry_result = MagicMock()
+        mock_industry_result.scalar_one_or_none.return_value = industry_type
+        mock_db_session.execute.side_effect = [mock_no_existing, mock_industry_result]
 
         # Mock flush 和 refresh
         created_customer = Customer(id=1, company_id=999999, name="测试客户")
@@ -72,6 +74,11 @@ class TestIndustryTypeForeignKey:
 
     async def test_create_customer_without_industry_type(self, mock_db_session):
         """测试创建客户时不指定行业类型"""
+        # Mock execute：company_id 检查返回 None（不存在）
+        mock_no_existing = MagicMock()
+        mock_no_existing.scalar_one_or_none.return_value = None
+        mock_db_session.execute.return_value = mock_no_existing
+
         created_customer = Customer(id=2, company_id=999998, name="测试客户无行业")
 
         async def mock_flush():

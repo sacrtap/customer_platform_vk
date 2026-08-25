@@ -1,5 +1,13 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+#
+# 优化说明 (2026-08-25):
+#   - 移除 pre-commit-check.sh（与独立 hook 重复：ruff/eslint/vue-tsc 已覆盖）
+#   - npm run build / Playwright E2E 已在 CI/CD (ci.yml + pr-checks.yml) 中执行
+#   - Pyright 移至 CI/CD（cold start 17s，本地推频繁时成本过高）
+#   - ESLint + Prettier 改为只检查变更文件（pass_filenames: true）
+#   - Prettier 改为 --check 模式（不自动修改，避免二次提交）
+#   - 新增 pytest-unit 和 vitest 作为 pre-push 独立 hook
 
 repos:
   # ==================== Universal hooks ====================
@@ -15,7 +23,7 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=1000"]
 
-  # ==================== Python backend - Ruff ====================
+  # ==================== Python backend - Ruff (lint + format) ====================
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.0
     hooks:
@@ -29,37 +37,30 @@ repos:
         files: ^backend/
         types: [python]
 
-  # ==================== Python type checking (pre-push only) ====================
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.380
-    hooks:
-      - id: pyright
-        name: Pyright type check
-        files: ^backend/
-        args: [--project=pyrightconfig.json]
-        stages: [pre-push]
-
-  # ==================== Frontend - ESLint ====================
+  # ==================== Frontend - ESLint (变更文件) ====================
   - repo: local
     hooks:
       - id: eslint
         name: ESLint (frontend)
-        entry: bash -c 'cd frontend && npx eslint --ext .vue,.js,.ts,.tsx src/'
+        # pre-commit 传递 frontend/src/xxx 路径，cd frontend 后需去掉前缀
+        entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done && npx eslint --ext .vue,.js,.ts,.tsx "${files[@]}"' --
         language: system
-        files: ^frontend/
+        files: ^frontend/src/
         types_or: [javascript, ts, vue]
-        pass_filenames: false
+        pass_filenames: true
 
-  # ==================== Frontend - Prettier (local, uses project's installed version) ====================
+  # ==================== Frontend - Prettier (只检查，不修改) ====================
   - repo: local
     hooks:
       - id: prettier
-        name: Prettier format (frontend)
-        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{vue,js,ts,css}"'
+        name: Prettier format check (frontend)
+        # --check 模式：不修改文件，格式不符则报错
+        # pre-commit 传递 frontend/src/xxx 路径，cd frontend 后需去掉前缀
+        entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done && npx prettier --check "${files[@]}"' --
         language: system
-        files: ^frontend/
+        files: ^frontend/src/
         types_or: [javascript, ts, vue, css]
-        pass_filenames: false
+        pass_filenames: true
 
   # ==================== Frontend - Vue TypeScript check (pre-push only) ====================
   - repo: local
@@ -73,13 +74,26 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-  # ==================== Existing comprehensive check script ====================
+  # ==================== Backend - Pytest unit tests (pre-push only) ====================
   - repo: local
     hooks:
-      - id: pre-commit-check
-        name: Full pre-commit verification
-        entry: bash scripts/pre-commit-check.sh
+      - id: pytest-unit
+        name: Pytest unit tests
+        entry: bash -c 'cd backend && source .venv/bin/activate && pytest tests/unit/ -n auto --tb=short -q'
         language: system
+        files: ^backend/
+        types: [python]
         pass_filenames: false
         stages: [pre-push]
-        verbose: true
+
+  # ==================== Frontend - Vitest unit tests (pre-push only) ====================
+  - repo: local
+    hooks:
+      - id: vitest
+        name: Vitest unit tests
+        entry: bash -c 'cd frontend && npx vitest run --reporter=dot'
+        language: system
+        files: ^frontend/
+        types_or: [javascript, ts, vue]
+        pass_filenames: false
+        stages: [pre-push]
