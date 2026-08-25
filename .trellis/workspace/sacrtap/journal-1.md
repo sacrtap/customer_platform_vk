@@ -172,3 +172,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: ERP 系统管理模块 + 客户筛选器增强 + account_type 修复 + company_id 唯一性检查
+
+**Date**: 2026-08-25
+**Task**: ERP 系统管理模块 + 客户筛选器增强 + account_type 修复 + company_id 唯一性检查
+**Branch**: `main`
+
+### Summary
+
+完成 ERP 系统管理模块（模型/服务/路由/迁移/前端页面），客户筛选器支持更多展开（ERP系统/合作状态/结算方式），修复 account_type 选项不一致和 create_customer company_id 唯一性检查缺失问题
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e6bc38b` | (see git log) |
+
+### Status
+
+[OK] **Completed**
