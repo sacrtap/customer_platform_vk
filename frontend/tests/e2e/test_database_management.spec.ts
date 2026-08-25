@@ -25,10 +25,10 @@ test.describe('数据清空页面', () => {
     // 验证页面加载成功（有权限的用户应能看到内容）
     await expect(page.locator('.arco-card').first()).toBeVisible({ timeout: 5000 });
 
-    // 验证警告提示存在
+    // 验证警告提示存在（页面有多个清空操作卡片，每个都有警告提示）
     const alert = page.locator('.arco-alert-warning');
-    await expect(alert).toBeVisible();
-    await expect(alert).toContainText('不可逆');
+    await expect(alert.first()).toBeVisible();
+    await expect(alert.first()).toContainText('不可逆');
 
     // 验证影响范围描述存在
     const descriptions = page.locator('.arco-descriptions');
