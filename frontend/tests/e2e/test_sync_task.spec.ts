@@ -101,12 +101,12 @@ test.describe('同步任务功能', () => {
     await submitBtn.click();
 
     // SyncDialog 创建成功后关闭弹窗，弹出 Modal.success
-    // Modal.success 标题为 "任务创建成功"，包含 "查看任务" 按钮
-    const successModal = page.locator('.arco-modal:visible').filter({ hasText: '任务创建成功' });
+    // Modal.success 标题为 "同步任务已提交"，包含 "查看同步日志" 按钮
+    const successModal = page.locator('.arco-modal:visible').filter({ hasText: '同步任务已提交' });
     await expect(successModal.first()).toBeVisible({ timeout: 15000 });
 
-    // 点击 "查看任务" 跳转到同步日志页面
-    await successModal.locator('button:has-text("查看任务")').click();
+    // 点击 "查看同步日志" 跳转到同步日志页面
+    await successModal.locator('button:has-text("查看同步日志")').click();
     await page.waitForURL('/system/sync-logs', { timeout: 10000 });
   });
 

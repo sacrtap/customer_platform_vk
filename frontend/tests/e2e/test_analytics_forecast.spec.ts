@@ -19,9 +19,9 @@ test.describe('预测回款页面', () => {
     await page.waitForTimeout(1500);
   });
 
-  test('G01: PageHeader — eyebrow "Analytics" + 标题 "预测回款"', async ({ authenticatedPage: page }) => {
+  test('G01: PageHeader — eyebrow "Analytics" + 标题 "预测消费"', async ({ authenticatedPage: page }) => {
     await expect(page.locator('.eyebrow')).toContainText('Analytics');
-    await expect(page.locator('h1').first()).toContainText('预测回款');
+    await expect(page.locator('h1').first()).toContainText('预测消费');
     // .desc 是 PageHeader 组件中 subtitle 的类名
     await expect(page.locator('.desc, .header-subtitle').first()).toBeVisible();
   });
@@ -38,20 +38,20 @@ test.describe('预测回款页面', () => {
     const monthSelect = page.locator('.filter-card .arco-select');
     await expect(monthSelect.first()).toBeVisible();
 
-    // 验证查询和重置按钮
-    await expect(page.locator('button:has-text("查询")')).toBeVisible();
-    await expect(page.locator('button:has-text("重置")')).toBeVisible();
+    // 验证查询和重置按钮（页面可能有多个重置按钮，使用 first 避免严格模式冲突）
+    await expect(page.locator('button:has-text("查询")').first()).toBeVisible();
+    await expect(page.locator('button:has-text("重置")').first()).toBeVisible();
   });
 
   test('G03: 4 KPI 卡片', async ({ authenticatedPage: page }) => {
     const statCards = page.locator('.stat-card');
     await expect(statCards).toHaveCount(4);
 
-    // 验证 KPI 标签
-    await expect(statCards.nth(0).locator('.stat-label')).toContainText('预测回款总额');
-    await expect(statCards.nth(1).locator('.stat-label')).toContainText('已确认回款');
-    await expect(statCards.nth(2).locator('.stat-label')).toContainText('待确认回款');
-    await expect(statCards.nth(3).locator('.stat-label')).toContainText('预测客户数');
+    // 验证 KPI 标签（页面已从"预测回款"改为"预测消费"）
+    await expect(statCards.nth(0).locator('.stat-label')).toContainText('预测消费总额');
+    await expect(statCards.nth(1).locator('.stat-label')).toContainText('本月实盘');
+    await expect(statCards.nth(2).locator('.stat-label')).toContainText('覆盖客户');
+    await expect(statCards.nth(3).locator('.stat-label')).toContainText('数据就绪度');
 
     // 验证 KPI 数值存在
     for (let i = 0; i < 4; i++) {
@@ -61,9 +61,9 @@ test.describe('预测回款页面', () => {
       expect(text).toBeTruthy();
     }
 
-    // 验证已确认回款有完成率信息
+    // 验证本月实盘有环比信息
     await expect(statCards.nth(1).locator('.stat-trend')).toBeVisible();
-    await expect(statCards.nth(1).locator('.trend-label')).toContainText('完成率');
+    await expect(statCards.nth(1).locator('.trend-label')).toContainText('环比');
   });
 
   test('G04: 月份切换 → 数据刷新', async ({ authenticatedPage: page }) => {

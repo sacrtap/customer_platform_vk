@@ -23,7 +23,7 @@ test.describe('数据清空页面', () => {
 
   test('I02: 权限校验 — 有 system:database_clear 权限才可访问', async ({ authenticatedPage: page }) => {
     // 验证页面加载成功（有权限的用户应能看到内容）
-    await expect(page.locator('.arco-card')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.arco-card').first()).toBeVisible({ timeout: 5000 });
 
     // 验证警告提示存在
     const alert = page.locator('.arco-alert-warning');
@@ -32,7 +32,7 @@ test.describe('数据清空页面', () => {
 
     // 验证影响范围描述存在
     const descriptions = page.locator('.arco-descriptions');
-    await expect(descriptions).toBeVisible();
+    await expect(descriptions.first()).toBeVisible();
 
     // 验证"清空客户数据"按钮（取决于权限）
     const clearBtn = page.locator('button:has-text("清空客户数据")');
@@ -67,7 +67,7 @@ test.describe('数据清空页面', () => {
 
   test('I04: 清空结果展示区域', async ({ authenticatedPage: page }) => {
     // 等待描述列表加载
-    await expect(page.locator('.arco-descriptions')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.arco-descriptions').first()).toBeVisible({ timeout: 10000 });
 
     // 验证结果区域初始不显示（使用 toHaveCount(0) 因为元素可能不存在于 DOM 中）
     await expect(page.locator('.result-info')).toHaveCount(0, { timeout: 5000 });
@@ -79,6 +79,6 @@ test.describe('数据清空页面', () => {
     expect(rowCount).toBeGreaterThanOrEqual(2);
 
     // 验证操作名称描述（在描述列表区域内查找文本）
-    await expect(page.locator('.arco-descriptions').filter({ hasText: '清空客户数据' })).toBeVisible();
+    await expect(page.locator('.arco-descriptions').filter({ hasText: '清空客户数据' }).first()).toBeVisible();
   });
 });

@@ -19,7 +19,7 @@ test.describe('客户管理', () => {
     // 检查筛选区域存在 - 使用精确选择器避免匹配全局搜索框
     await expect(authenticatedPage.locator('.filters-container input[placeholder*="搜索"]').first()).toBeVisible();
     // 重构后筛选按钮文本为"筛选"
-    await expect(authenticatedPage.locator('.filters button:has-text("筛选")').first()).toBeVisible();
+    await expect(authenticatedPage.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first()).toBeVisible();
 
     // 检查表格存在（重构后使用自定义表格，非 Arco 表格）
     await expect(authenticatedPage.locator('.table-section table, table.table').first()).toBeVisible();
@@ -85,7 +85,7 @@ test.describe('客户管理', () => {
     await authenticatedPage.waitForTimeout(500);
 
     // 点击筛选按钮
-    await authenticatedPage.locator('.filters button:has-text("筛选")').first().click({ force: true });
+    await authenticatedPage.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first().click({ force: true });
     await authenticatedPage.waitForTimeout(1000);
 
     // 验证表格仍然可见
@@ -95,7 +95,7 @@ test.describe('客户管理', () => {
     // 清除搜索内容
     await searchInput.click();
     await searchInput.fill('');
-    await authenticatedPage.locator('.filters button:has-text("筛选")').first().click({ force: true });
+    await authenticatedPage.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first().click({ force: true });
     await authenticatedPage.waitForTimeout(500);
 
     // 验证输入框被清空

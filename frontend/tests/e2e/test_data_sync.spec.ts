@@ -137,7 +137,7 @@ test.describe('数据同步功能', () => {
     test('同步模式切换 - 显示警告提示', async ({ authenticatedPage: page }) => {
       await navigateToSyncDialog(page);
 
-      const skipExistingLabel = page.getByText('仅补充缺失数据');
+      const skipExistingLabel = page.getByText('仅同步无数据的日期');
       await expect(skipExistingLabel).toBeVisible();
 
       // 点击"强制覆盖已有数据"（限定在可见 Modal 内查找）
@@ -195,9 +195,9 @@ test.describe('数据同步功能', () => {
       await startButton.click();
 
       // SyncDialog 创建任务后会关闭弹窗并显示 Modal.success 成功提示
-      // 等待成功提示出现（可能是 Arco Message 或 Modal.success）
+      // 等待成功提示出现（可能是 Arco Message 或 Modal.success 标题为"同步任务已提交"）
       const successMessage = page.locator('.arco-message-success');
-      const successModal = page.locator('.arco-modal:visible').locator('.arco-modal-title', { hasText: /成功/ });
+      const successModal = page.locator('.arco-modal:visible').locator('.arco-modal-title', { hasText: /已提交|成功/ });
 
       // 至少应该出现一种成功反馈
       await expect(successMessage.or(successModal).first()).toBeVisible({ timeout: 15000 });

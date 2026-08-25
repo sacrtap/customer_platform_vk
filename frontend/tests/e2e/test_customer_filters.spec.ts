@@ -73,7 +73,7 @@ test.describe('客户筛选功能 @smoke', () => {
 
   /** 点击筛选按钮 */
   async function clickSearchButton(page: import('@playwright/test').Page): Promise<void> {
-    await page.locator('.filters button:has-text("筛选")').first().click({ force: true });
+    await page.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first().click({ force: true });
     await waitForTableLoaded(page);
   }
 
@@ -241,7 +241,7 @@ test.describe('客户筛选功能 @smoke', () => {
     expect(currentSearchValue).toBe('KA');
 
     // 点击筛选按钮（此时联想框已关闭，不需要 force）
-    await page.locator('.filters button:has-text("筛选")').first().click();
+    await page.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first().click();
     await waitForTableLoaded(page);
 
     const rows = page.locator('.table-section tbody tr, table tbody tr');

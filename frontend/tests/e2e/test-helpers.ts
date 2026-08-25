@@ -344,8 +344,8 @@ export async function searchCustomer(page: Page, keyword: string): Promise<void>
   await page.waitForTimeout(500);
 
   // 点击筛选按钮（此时联想框已关闭，不需要 force）
-  await page.locator('.filters button:has-text("筛选")').first().click();
-  await waitForTableLoaded(page);
+await page.locator('.filters-container button:has-text("筛选"), .filters-actions button:has-text("筛选")').first().click();
+await waitForTableLoaded(page);
 }
 
 /** 断言 Arco Design 消息提示出现 */
