@@ -80,6 +80,11 @@ class TestCustomerService_CreateCustomer:
             deleted_at=None,
         )
 
+        # Mock execute 返回：company_id 唯一性检查返回 None（不存在）
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = None
+        mock_db_session_with_flush.execute = AsyncMock(return_value=exec_result)
+
         # Mock flush 和 refresh
         async def mock_flush():
             mock_db_session_with_flush.new.add(created_customer)
@@ -119,6 +124,11 @@ class TestCustomerService_CreateCustomer:
             "company_id": 1002,
             "name": "最小化测试公司",
         }
+
+        # Mock execute 返回：company_id 唯一性检查返回 None（不存在）
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=exec_result)
 
         # Mock 数据库操作
         created_customer = Customer(
@@ -185,6 +195,27 @@ class TestCustomerService_CreateCustomer:
         # 验证创建了余额记录
         # 检查 add 被调用了至少 2 次（客户 + 余额）
         assert mock_db_session.add.call_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_create_customer_duplicate_company_id(self, customer_service, mock_db_session):
+        """测试创建客户时 company_id 已存在，应抛出 ValueError"""
+        customer_data = {
+            "company_id": 1004,
+            "name": "重复公司",
+        }
+
+        # Mock execute 返回：company_id 已存在
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = 999  # 已存在的客户 ID
+        mock_db_session.execute = AsyncMock(return_value=exec_result)
+
+        # 执行测试，应抛出 ValueError
+        with pytest.raises(ValueError, match="公司 ID '1004' 已存在"):
+            await customer_service.create_customer(customer_data)
+
+        # 验证没有调用 add 和 commit
+        mock_db_session.add.assert_not_called()
+        mock_db_session.commit.assert_not_called()
 
 
 # ==================== Test Update Customer ====================
@@ -581,6 +612,11 @@ class TestCustomerService_Integration:
             name="生命周期测试公司",
             deleted_at=None,
         )
+
+        # Mock execute 返回：company_id 唯一性检查返回 None（不存在）
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=exec_result)
 
         async def mock_flush():
             mock_db_session.new.add(created_customer)

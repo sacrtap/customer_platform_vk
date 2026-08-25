@@ -152,7 +152,6 @@
             allow-clear
           >
             <a-option value="正式账号">正式账号</a-option>
-            <a-option value="测试账号">测试账号</a-option>
             <a-option value="客户测试账号">客户测试账号</a-option>
             <a-option value="内部账号">内部账号</a-option>
           </a-select>

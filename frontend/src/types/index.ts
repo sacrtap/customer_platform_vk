@@ -170,6 +170,14 @@ export interface CooperationStatus {
   sort_order: number
 }
 
+/** ERP 系统字典 */
+export interface ErpSystem {
+  id: number
+  name: string
+  value: string
+  sort_order: number
+}
+
 /** 计费规则 */
 export interface PricingRule {
   id: number

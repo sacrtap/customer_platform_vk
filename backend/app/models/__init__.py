@@ -19,6 +19,7 @@ from . import webhooks  # noqa: E402
 from . import files  # noqa: E402
 from . import industry_type  # noqa: E402
 from . import cooperation_status  # noqa: E402
+from . import erp_system  # noqa: E402
 from . import daily_order  # noqa: E402
 from . import daily_consumption  # noqa: E402
 from . import sync_task  # noqa: E402
@@ -37,6 +38,7 @@ __all__ = [
     "files",
     "industry_type",
     "cooperation_status",
+    "erp_system",
     "token_blacklist",
     "daily_consumption",
     "daily_order",

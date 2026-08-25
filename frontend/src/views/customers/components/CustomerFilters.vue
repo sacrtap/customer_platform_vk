@@ -1,7 +1,7 @@
 <template>
   <div class="filters-container">
-    <!-- 筛选行: 搜索框 + FilterDropdowns + 筛选按钮 -->
-    <div class="filters">
+    <!-- 第一行：基础筛选 + 筛选按钮 + 更多按钮 -->
+    <div class="filters-row">
       <CustomerSearchInput v-model="filters.keyword" @search="handleSearch" />
 
       <FilterDropdown
@@ -42,8 +42,39 @@
         @apply="handleSearch"
       />
 
-      <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+      <!-- 筛选按钮 + 更多按钮 固定在首行右侧 -->
+      <div class="filters-actions">
+        <button type="button" class="btn-more" @click="toggleMore">
+          {{ showMore ? '收起' : '更多' }}
+          <span class="more-arrow" :class="{ rotated: showMore }">▾</span>
+        </button>
+        <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+      </div>
     </div>
+
+    <!-- 第二行：更多筛选（折行显示，左对齐） -->
+    <transition name="expand">
+      <div v-if="showMore" class="filters-row more-row">
+        <FilterDropdown
+          v-model="filters.erp_system"
+          label="ERP系统"
+          :options="erpSystemOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="filters.cooperation_status"
+          label="合作状态"
+          :options="cooperationStatusOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="filters.settlement_type"
+          label="结算方式"
+          :options="settlementTypeOptions"
+          @apply="handleSearch"
+        />
+      </div>
+    </transition>
 
     <!-- KPI 筛选徽章 -->
     <div v-if="activeKpiBadge" class="kpi-badge-row">
@@ -56,8 +87,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { IndustryType } from '@/types'
+import { ref, computed } from 'vue'
+import type { IndustryType, ErpSystem, CooperationStatus } from '@/types'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import CustomerSearchInput from './CustomerSearchInput.vue'
 
@@ -72,6 +103,8 @@ interface Filters {
   settlement_type: string
   incomplete_profile: boolean
   mine: boolean
+  erp_system: string
+  cooperation_status: string
 }
 
 interface AdvancedFilters {
@@ -87,6 +120,8 @@ const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', {
 
 const props = defineProps<{
   industryTypes: IndustryType[]
+  erpSystems: ErpSystem[]
+  cooperationStatuses: CooperationStatus[]
   managers: Array<Record<string, unknown>>
   customerTags: Array<Record<string, unknown>>
   managersLoading: boolean
@@ -101,10 +136,17 @@ const emit = defineEmits<{
   'clear-kpi': []
 }>()
 
-// 筛选选项 computed
+// ========== 更多筛选展开/收起 ==========
+const showMore = ref(false)
+const toggleMore = () => {
+  showMore.value = !showMore.value
+}
+
+// 筛选选项
 const accountTypeOptions = [
   { label: '正式账号', value: '正式账号' },
-  { label: '测试账号', value: '测试账号' },
+  { label: '客户测试账号', value: '客户测试账号' },
+  { label: '内部账号', value: '内部账号' },
 ]
 
 const industryOptions = computed(() =>
@@ -129,6 +171,19 @@ const consumeOptions = [
   { label: 'C6 - 6万以下', value: 'C6' },
 ]
 
+const erpSystemOptions = computed(() =>
+  props.erpSystems.map((es) => ({ label: es.name, value: es.value }))
+)
+
+const cooperationStatusOptions = computed(() =>
+  props.cooperationStatuses.map((cs) => ({ label: cs.name, value: cs.value }))
+)
+
+const settlementTypeOptions = [
+  { label: '预付费', value: 'prepaid' },
+  { label: '后付费', value: 'postpaid' },
+]
+
 const managerOptions = computed(() =>
   (props.managers as Array<{ id: number; real_name: string | null }>).map((m) => ({
     label: m.real_name || `#${m.id}`,
@@ -143,7 +198,7 @@ const salesOptions = computed(() =>
   }))
 )
 
-// 行业多选转换：composables 中存为 string[]，API 请求时 join(',')
+// 行业多选转换
 const industryValue = computed({
   get: () => {
     const v = filters.value.industry
@@ -188,11 +243,26 @@ const clearKpiBadge = () => emit('clear-kpi')
   margin-bottom: 12px;
 }
 
-.filters {
+.filters-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.more-row {
+  padding-top: 8px;
+  border-top: 1px dashed var(--soft, #e2e8f0);
+  margin-top: 8px;
+}
+
+/* 筛选按钮 + 更多按钮 固定在首行右侧 */
+.filters-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .btn.primary {
@@ -207,9 +277,60 @@ const clearKpiBadge = () => emit('clear-kpi')
     background 0.2s,
     border-color 0.2s,
     color 0.2s;
+  white-space: nowrap;
 }
 .btn.primary:hover {
   background: #1e40af;
+}
+
+.btn-more {
+  padding: 9px 12px;
+  border: 1px solid var(--soft, #e2e8f0);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink, #1e293b);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+  white-space: nowrap;
+}
+.btn-more:hover {
+  background: var(--bg, #f8fafc);
+  border-color: var(--primary, #3b82f6);
+  color: var(--primary, #3b82f6);
+}
+
+.more-arrow {
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+.more-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* 展开/收起动画 */
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top-color: transparent;
+}
+.expand-enter-to,
+.expand-leave-from {
+  opacity: 1;
+  max-height: 60px;
 }
 
 /* KPI 筛选徽章 */
@@ -242,9 +363,13 @@ const clearKpiBadge = () => emit('clear-kpi')
 }
 
 @media (max-width: 1100px) {
-  .filters {
+  .filters-row {
     flex-direction: column;
     align-items: stretch;
+  }
+  .filters-actions {
+    margin-left: 0;
+    justify-content: flex-end;
   }
   .search-input-wrap {
     width: 100%;

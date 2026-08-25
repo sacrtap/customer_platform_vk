@@ -316,6 +316,28 @@
           <span class="nav-text">合作状态</span>
         </button>
         <button
+          v-if="can('erp_systems:manage')"
+          class="nav-btn"
+          :class="{ active: $route.path === '/system/erp-systems' }"
+          :aria-current="$route.path === '/system/erp-systems' ? 'page' : undefined"
+          @click="goTo('/system/erp-systems')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M4 7v10m0 0a2 2 0 002 2h12a2 2 0 002-2V7m-16 0a2 2 0 012-2h12a2 2 0 012 2M4 7h16M8 11h8M8 15h8"
+              /></svg
+          ></span>
+          <span class="nav-text">ERP 系统</span>
+        </button>
+        <button
           v-if="can('system:database_clear')"
           class="nav-btn"
           :class="{ active: $route.path === '/system/database-management' }"

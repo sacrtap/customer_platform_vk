@@ -383,7 +383,8 @@ const managers = ref<Array<{ id: number; real_name: string | null }>>([])
 // 筛选选项
 const accountTypeOptions = [
   { label: '正式账号', value: '正式账号' },
-  { label: '测试账号', value: '测试账号' },
+  { label: '客户测试账号', value: '客户测试账号' },
+  { label: '内部账号', value: '内部账号' },
 ]
 const industryOptions = computed(() =>
   industryTypes.value.map((it) => ({ label: it.name, value: it.name }))

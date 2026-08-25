@@ -276,6 +276,14 @@ class CustomerService:
         if settlement_type := filters.get("settlement_type"):
             conditions.append(Customer.settlement_type == settlement_type)
 
+        # ERP 系统筛选
+        if erp_system := filters.get("erp_system"):
+            conditions.append(Customer.erp_system == erp_system)
+
+        # 合作状态筛选
+        if cooperation_status := filters.get("cooperation_status"):
+            conditions.append(Customer.cooperation_status == cooperation_status)
+
         # 重点客户筛选
         if (is_key_customer := filters.get("is_key_customer")) is not None:
             conditions.append(Customer.is_key_customer == is_key_customer)
@@ -391,8 +399,19 @@ class CustomerService:
 
     async def create_customer(self, data: dict) -> Customer:
         """创建客户"""
+        # company_id 唯一性校验（与 update_customer 保持一致）
+        company_id = data["company_id"]
+        existing = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            select(Customer.id).where(
+                Customer.company_id == company_id,
+                Customer.deleted_at.is_(None),
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise ValueError(f"公司 ID '{company_id}' 已存在")
+
         customer = Customer(
-            company_id=data["company_id"],
+            company_id=company_id,
             name=data["name"],
             account_type=data.get("account_type"),
             price_policy=data.get("price_policy"),

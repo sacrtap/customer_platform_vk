@@ -75,6 +75,8 @@ async def list_customers(request: Request):
             else None
         ),
         "settlement_type": request.args.get("settlement_type"),
+        "erp_system": request.args.get("erp_system"),
+        "cooperation_status": request.args.get("cooperation_status"),
     }
 
     # 处理布尔值

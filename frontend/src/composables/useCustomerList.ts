@@ -6,7 +6,9 @@ import { handleError } from '@/utils/errorHandler'
 import { getCustomers, deleteCustomer, exportCustomers, getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
-import type { IndustryType, Customer } from '@/types'
+import { getErpSystemsList } from '@/api/erpSystems'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import type { IndustryType, ErpSystem, CooperationStatus, Customer } from '@/types'
 
 /**
  * 客户列表页 composable
@@ -29,6 +31,8 @@ export function useCustomerList() {
     settlement_type: '',
     incomplete_profile: false,
     mine: false,
+    erp_system: '',
+    cooperation_status: '',
   })
 
   const filters = reactive(createDefaultFilters())
@@ -49,6 +53,12 @@ export function useCustomerList() {
     { id: 2, name: '房产ERP', sort_order: 2 },
     { id: 3, name: '房产平台', sort_order: 3 },
   ])
+
+  // ERP 系统字典
+  const erpSystems = ref<ErpSystem[]>([])
+
+  // 合作状态字典
+  const cooperationStatuses = ref<CooperationStatus[]>([])
 
   // ---------- 表格数据 ----------
   const loading = ref(false)
@@ -95,6 +105,8 @@ export function useCustomerList() {
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (filters.erp_system) params.erp_system = filters.erp_system
+    if (filters.cooperation_status) params.cooperation_status = filters.cooperation_status
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
     if (filters.incomplete_profile) params.incomplete_profile = 'true'
@@ -220,6 +232,24 @@ export function useCustomerList() {
     }
   }
 
+  const loadErpSystemsData = async () => {
+    try {
+      const res = await getErpSystemsList()
+      erpSystems.value = res.data?.data || res.data || []
+    } catch (error) {
+      console.error('Failed to load ERP systems:', error)
+    }
+  }
+
+  const loadCooperationStatusesData = async () => {
+    try {
+      const res = await getCooperationStatusesList()
+      cooperationStatuses.value = res.data?.data || res.data || []
+    } catch (error) {
+      console.error('Failed to load cooperation statuses:', error)
+    }
+  }
+
   // ---------- 批量操作 ----------
   const handleBatchSelect = (checked: boolean, row: Customer) => {
     if (checked) {
@@ -308,6 +338,8 @@ export function useCustomerList() {
     loadManagers()
     loadCustomerTags()
     loadIndustryTypesData()
+    loadErpSystemsData()
+    loadCooperationStatusesData()
   })
 
   return {
@@ -324,6 +356,8 @@ export function useCustomerList() {
     customerTags,
     tagsLoading,
     industryTypes,
+    erpSystems,
+    cooperationStatuses,
     // 表格
     loading,
     customers,

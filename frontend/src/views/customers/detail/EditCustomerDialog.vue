@@ -100,7 +100,7 @@
                 allow-search
                 :loading="erpSystemsLoading"
               >
-                <a-option v-for="erp in erpSystems" :key="erp.id" :value="erp.name">
+                <a-option v-for="erp in erpSystems" :key="erp.id" :value="erp.value">
                   {{ erp.name }}
                 </a-option>
               </a-select>
@@ -204,15 +204,10 @@
 import { reactive, ref, computed, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
-import type { IndustryType, CooperationStatus } from '@/types'
-import {
-  getCustomer,
-  updateCustomer,
-  updateProfile,
-  getIndustryTypes,
-  getCustomers,
-} from '@/api/customers'
+import type { IndustryType, CooperationStatus, ErpSystem } from '@/types'
+import { getCustomer, updateCustomer, updateProfile, getIndustryTypes } from '@/api/customers'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import { getErpSystemsList } from '@/api/erpSystems'
 import { getManagers } from '@/api/users'
 import { handleError } from '@/utils/errorHandler'
 
@@ -238,8 +233,8 @@ const innerIndustryTypes = ref<IndustryType[]>([])
 const industryTypes = computed(() => props.industryTypes || innerIndustryTypes.value)
 const cooperationStatuses = ref<CooperationStatus[]>([])
 
-// ERP 系统选项：来源为行业类型为「房产ERP」的客户列表
-const erpSystems = ref<Array<{ id: number; name: string }>>([])
+// ERP 系统选项：来源为 ERP 系统字典
+const erpSystems = ref<ErpSystem[]>([])
 const erpSystemsLoading = ref(false)
 
 const modalWidth = computed(() => {
@@ -347,20 +342,12 @@ const loadDictData = async () => {
     }
   }
 
-  // 加载 ERP 系统选项：行业类型为「房产ERP」的客户列表
+  // 加载 ERP 系统字典
   if (erpSystems.value.length === 0) {
     erpSystemsLoading.value = true
     try {
-      const res = await getCustomers({
-        industry: '房产ERP',
-        page: 1,
-        page_size: 100,
-      })
-      const list = res.data?.data?.list || res.data?.list || []
-      erpSystems.value = list.map((c: { id: number; name: string }) => ({
-        id: c.id,
-        name: c.name,
-      }))
+      const res = await getErpSystemsList()
+      erpSystems.value = res.data?.data || res.data || []
     } catch {
       // ignore
     } finally {

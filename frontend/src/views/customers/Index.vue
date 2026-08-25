@@ -32,6 +32,8 @@
         v-model:filters="filters"
         v-model:advanced-filters="advancedFilters"
         :industry-types="industryTypes"
+        :erp-systems="erpSystems"
+        :cooperation-statuses="cooperationStatuses"
         :managers="managers"
         :customer-tags="customerTags"
         :managers-loading="managersLoading"
@@ -191,6 +193,8 @@ const {
   customerTags,
   tagsLoading,
   industryTypes,
+  erpSystems,
+  cooperationStatuses,
   loading,
   customers,
   pagination,
