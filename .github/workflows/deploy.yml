@@ -140,9 +140,11 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
 
+          # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
+          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+          export DEPLOY_SCRIPT
+
           # 通过 Cloudflare Tunnel 远程执行部署
-          # 使用 cloudflared access 作为 SSH 代理
-          # 注意: 使用引号包裹 DEPLOY_SCRIPT 禁止本地变量展开，所有变量通过 env 传递
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
           MAX_RETRIES=3
           RETRY_COUNT=0
@@ -150,7 +152,7 @@ jobs:
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-            if ssh -i ~/.ssh/staging_key \
+            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh -i ~/.ssh/staging_key \
                 -o StrictHostKeyChecking=no \
                 -o ConnectTimeout=30 \
                 -o ServerAliveInterval=60 \
@@ -165,13 +167,7 @@ jobs:
                 EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
                 HEALTH_URL="${HEALTH_URL}" \
                 DEPLOY_DIR="${DEPLOY_DIR}" \
-                'bash -s' << 'DEPLOY_SCRIPT'
-              cd "${DEPLOY_DIR}"
-              git fetch origin main
-              git reset --hard origin/main
-              ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
-            DEPLOY_SCRIPT
-            then
+                'bash -s'; then
               echo "✅ Staging 部署完成"
               exit 0
             fi
@@ -231,6 +227,10 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
           chmod 600 ~/.ssh/production_key
 
+          # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
+          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+          export DEPLOY_SCRIPT
+
           # 通过 Cloudflare Tunnel 远程执行部署
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
           MAX_RETRIES=3
@@ -239,7 +239,7 @@ jobs:
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-            if ssh -i ~/.ssh/production_key \
+            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh -i ~/.ssh/production_key \
                 -o StrictHostKeyChecking=no \
                 -o ConnectTimeout=30 \
                 -o ServerAliveInterval=60 \
@@ -254,13 +254,7 @@ jobs:
                 EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
                 HEALTH_URL="${HEALTH_URL}" \
                 DEPLOY_DIR="${DEPLOY_DIR}" \
-                'bash -s' << 'DEPLOY_SCRIPT'
-              cd "${DEPLOY_DIR}"
-              git fetch origin main
-              git reset --hard origin/main
-              ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
-            DEPLOY_SCRIPT
-            then
+                'bash -s'; then
               echo "✅ Production 部署完成"
               exit 0
             fi
