@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
-- **Last Active**: 2026-08-25
+- **Total Sessions**: 7
+- **Last Active**: 2026-08-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~195 | Active |
+| `journal-1.md` | ~216 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-08-26 | 开放平台API-Key管理与ERP余额查询接口 | `21ec5d5` | `add-qiangfang-balances` |
 | 6 | 2026-08-25 | ERP 系统管理模块 + 客户筛选器增强 + account_type 修复 + company_id 唯一性检查 | `e6bc38b` | `main` |
 | 5 | 2026-08-13 | 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误 | `7de5a25` | `feature/optimize-forecast-page` |
 | 4 | 2026-08-12 | 预测消费页面 MVP 实现 | `3ed7858` | `feature/optimize-forecast-page` |

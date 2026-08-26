@@ -3,6 +3,12 @@ import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/openapi',
+    name: 'OpenApiGuide',
+    component: () => import('@/views/OpenApiGuide.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
@@ -160,6 +166,12 @@ const routes: RouteRecordRaw[] = [
             meta: { requiresPermission: 'erp_systems:manage' },
           },
           {
+            path: 'api-keys',
+            name: 'ApiKeyManagement',
+            component: () => import('@/views/system/ApiKeyManagement.vue'),
+            meta: { requiresPermission: 'api_keys:manage' },
+          },
+          {
             path: 'database-management',
             name: 'DatabaseManagement',
             component: () => import('@/views/system/DatabaseManagement.vue'),
@@ -178,6 +190,13 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
+
+  // 公开页面，不需要认证
+  if (to.meta.public) {
+    next()
+    return
+  }
+
   // 确保从 storage 初始化用户状态
   userStore.initFromStorage()
 

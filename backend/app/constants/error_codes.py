@@ -29,6 +29,8 @@ class ErrorCodes:
     UNAUTHORIZED = 40101  # 未认证/缺少 Token
     TOKEN_INVALID = 40102  # Token 无效或已过期
     TOKEN_BLACKLISTED = 40103  # Token 已失效
+    API_KEY_INVALID = 40104  # API-Key 无效或已停用
+    API_KEY_EXPIRED = 40105  # API-Key 已过期
 
     # 403xx - 权限错误
     FORBIDDEN = 40301  # 权限不足
@@ -39,3 +41,4 @@ class ErrorCodes:
     # 500xx - 服务器内部错误
     INTERNAL_ERROR = 50000  # 通用服务器错误
     SERVICE_ERROR = 50001  # 服务处理失败
+    API_KEY_CREATE_FAILED = 50002  # API-Key 创建失败

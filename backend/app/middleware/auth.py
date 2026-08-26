@@ -1,5 +1,6 @@
 """认证中间件"""
 
+from datetime import datetime
 from functools import wraps
 
 from sanic import Sanic
@@ -9,11 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import ErrorCodes
 from ..services import get_user_permissions
+from ..services.api_key_service import ApiKeyService
 from ..services.auth import AuthService
 
 # Lazy import to avoid capturing real permission_cache at module load time
 # Tests can mock app.cache.permissions.permission_cache before routes are loaded
 from ..services.token_blacklist import TokenBlacklistService
+
+# 开放平台 API 路径前缀，使用 API-Key 认证而非 JWT
+OPENAPI_PREFIX = "/api/v1/erp/"
 
 
 def auth_middleware(app: Sanic):
@@ -37,6 +42,12 @@ def auth_middleware(app: Sanic):
             # 前缀匹配跳过路径（静态文件等）
             if request.path.startswith("/uploads/"):
                 return
+
+            # 开放平台 API 路径走 API-Key 认证
+            if request.path.startswith(OPENAPI_PREFIX):
+                return await _authenticate_api_key(request, app)
+
+            # 其他路径走 JWT 认证
 
             # 获取 Authorization Header (Sanic 将 headers 转为小写)
             auth_header = request.headers.get("authorization")
@@ -81,6 +92,75 @@ def auth_middleware(app: Sanic):
             return json(
                 {"code": ErrorCodes.INTERNAL_ERROR, "message": f"中间件错误：{str(e)}"}, status=500
             )
+
+
+async def _authenticate_api_key(request: Request, app: Sanic):
+    """开放平台 API-Key 认证
+
+    从 Authorization: Bearer {key} 提取 API-Key，
+    查询 api_keys 表验证有效性。
+    """
+    auth_header = request.headers.get("authorization")
+
+    if not auth_header or not auth_header.lower().startswith("bearer "):
+        return json(
+            {"code": ErrorCodes.API_KEY_INVALID, "message": "缺少有效的 API-Key"},
+            status=401,
+        )
+
+    raw_key = auth_header.split(" ", 1)[1].strip()
+    if not raw_key:
+        return json(
+            {"code": ErrorCodes.API_KEY_INVALID, "message": "API-Key 不能为空"},
+            status=401,
+        )
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = ApiKeyService(db_session)
+    api_key = await service.verify_key(raw_key)
+
+    if not api_key:
+        # 检查是否因为过期
+        key_hash = ApiKeyService._hash_key(raw_key)
+        from sqlalchemy import select as _select
+
+        from ..models.api_key import ApiKey as _ApiKey
+
+        result = await db_session.execute(
+            _select(_ApiKey).where(
+                _ApiKey.key_hash == key_hash,
+                _ApiKey.deleted_at.is_(None),
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing and existing.expires_at and existing.expires_at < datetime.utcnow():
+            return json(
+                {"code": ErrorCodes.API_KEY_EXPIRED, "message": "API-Key 已过期"},
+                status=401,
+            )
+        if existing and existing.status == "disabled":
+            return json(
+                {"code": ErrorCodes.API_KEY_INVALID, "message": "API-Key 已停用"},
+                status=401,
+            )
+
+        return json(
+            {"code": ErrorCodes.API_KEY_INVALID, "message": "API-Key 无效"},
+            status=401,
+        )
+
+    # 存入 request 上下文
+    request.ctx.api_key = {
+        "id": api_key.id,
+        "name": api_key.name,
+    }
+
+    # 更新最后使用时间（fire-and-forget，不阻塞响应）
+    try:
+        await service.update_last_used(api_key.id)
+    except Exception:
+        # 更新使用时间失败不影响请求处理
+        app.logger.warning(f"Failed to update last_used_at for API-Key {api_key.id}")  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def get_current_user(request: Request) -> dict | None:
