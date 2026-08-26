@@ -178,6 +178,21 @@ export interface ErpSystem {
   sort_order: number
 }
 
+/** API-Key */
+export interface ApiKey {
+  id: number
+  name: string
+  key_prefix: string
+  status: 'active' | 'disabled'
+  description: string | null
+  created_by: number | null
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+  // 仅创建时返回
+  key?: string
+}
+
 /** 计费规则 */
 export interface PricingRule {
   id: number

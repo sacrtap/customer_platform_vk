@@ -338,6 +338,28 @@
           <span class="nav-text">ERP 系统</span>
         </button>
         <button
+          v-if="can('api_keys:manage')"
+          class="nav-btn"
+          :class="{ active: $route.path === '/system/api-keys' }"
+          :aria-current="$route.path === '/system/api-keys' ? 'page' : undefined"
+          @click="goTo('/system/api-keys')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-6 6 5.9 5.9 0 01-3-.8l-3.5 3.5a1.5 1.5 0 01-2.12-2.12L11 12a6 6 0 116-6z"
+              /></svg
+          ></span>
+          <span class="nav-text">API-Key</span>
+        </button>
+        <button
           v-if="can('system:database_clear')"
           class="nav-btn"
           :class="{ active: $route.path === '/system/database-management' }"

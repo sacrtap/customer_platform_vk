@@ -101,6 +101,7 @@ def create_app(
 
     # 注册路由蓝图
     from .routes.analytics import analytics
+    from .routes.api_keys import api_keys_bp
     from .routes.audit_logs import audit_logs_bp
     from .routes.auth import auth_bp
     from .routes.billing import billing_bp
@@ -111,6 +112,7 @@ def create_app(
     from .routes.erp_system_routes import erp_system_bp
     from .routes.files import files_bp
     from .routes.industry_type_routes import industry_type_bp
+    from .routes.openapi import openapi_bp
     from .routes.permissions import permissions_bp
     from .routes.roles import roles_bp
     from .routes.sync_logs import sync_logs_bp
@@ -137,6 +139,8 @@ def create_app(
     app.blueprint(cooperation_status_bp)
     app.blueprint(database_bp)
     app.blueprint(erp_system_bp)
+    app.blueprint(api_keys_bp)
+    app.blueprint(openapi_bp)
 
     # 创建外部 MySQL 引擎（订单同步用）
 
