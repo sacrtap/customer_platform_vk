@@ -331,7 +331,23 @@ import type { ErpSystem } from '@/types'
 
 const router = useRouter()
 const activeSection = ref('overview')
-const erpSystems = ref<ErpSystem[]>([])
+// 默认渠道编码（与迁移脚本 n3o4p5q6r7s8 中的数据一致）
+// 当用户未登录时动态加载会失败（401），回退到此静态列表
+const FALLBACK_ERP_SYSTEMS: ErpSystem[] = [
+  { id: 0, name: '无', value: 'noerp', sort_order: 0 },
+  { id: 0, name: '鼎尖', value: 'dingjian', sort_order: 1 },
+  { id: 0, name: '易遨', value: 'yiao', sort_order: 2 },
+  { id: 0, name: '房信', value: 'fangxin', sort_order: 3 },
+  { id: 0, name: '房管家', value: 'fangguanjia', sort_order: 4 },
+  { id: 0, name: '好房通', value: 'haofangtong', sort_order: 5 },
+  { id: 0, name: '上海梵讯', value: 'shanghaifanxun', sort_order: 6 },
+  { id: 0, name: '巧房', value: 'qiaofang', sort_order: 7 },
+  { id: 0, name: '房融', value: 'fangrong', sort_order: 8 },
+  { id: 0, name: '云享', value: 'yunxiang', sort_order: 9 },
+  { id: 0, name: '自研', value: 'self', sort_order: 11 },
+  { id: 0, name: '房在线', value: 'fangzaixian', sort_order: 12 },
+]
+const erpSystems = ref<ErpSystem[]>([...FALLBACK_ERP_SYSTEMS])
 
 const goHome = () => {
   router.push('/')
@@ -353,16 +369,17 @@ const handleScroll = (e: Event) => {
 
 onMounted(() => {
   // 动态加载 ERP 系统列表，用于渠道编码对照表
+  // 未登录时加载会失败（401），回退到静态预设列表
   getErpSystemsList()
     .then((res) => {
       const body = res as unknown as { data: ErpSystem[] }
       const list = body?.data ?? []
-      if (Array.isArray(list)) {
+      if (Array.isArray(list) && list.length > 0) {
         erpSystems.value = list.sort((a: ErpSystem, b: ErpSystem) => a.sort_order - b.sort_order)
       }
     })
     .catch(() => {
-      // 加载失败时不影响页面展示
+      // 未登录或网络错误时使用静态列表
     })
 })
 </script>
