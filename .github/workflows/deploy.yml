@@ -143,27 +143,49 @@ jobs:
           # 通过 Cloudflare Tunnel 远程执行部署
           # 使用 cloudflared access 作为 SSH 代理
           # 注意: 使用引号包裹 DEPLOY_SCRIPT 禁止本地变量展开，所有变量通过 env 传递
-          ssh -i ~/.ssh/staging_key \
-              -o StrictHostKeyChecking=no \
-              -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-              ${SSH_USER}@${SSH_HOST} \
-              IMAGE_TAG="${IMAGE_TAG}" \
-              GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
-              DB_USER="${DB_USER}" \
-              DB_PASSWORD="${DB_PASSWORD}" \
-              JWT_SECRET="${JWT_SECRET}" \
-              WEBHOOK_SECRET="${WEBHOOK_SECRET}" \
-              EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
-              HEALTH_URL="${HEALTH_URL}" \
-              DEPLOY_DIR="${DEPLOY_DIR}" \
-              'bash -s' << 'DEPLOY_SCRIPT'
-            cd "${DEPLOY_DIR}"
-            git fetch origin main
-            git reset --hard origin/main
-            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
-          DEPLOY_SCRIPT
+          # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-          echo "✅ Staging 部署完成"
+            if ssh -i ~/.ssh/staging_key \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=60 \
+                -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+                ${SSH_USER}@${SSH_HOST} \
+                IMAGE_TAG="${IMAGE_TAG}" \
+                GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+                DB_USER="${DB_USER}" \
+                DB_PASSWORD="${DB_PASSWORD}" \
+                JWT_SECRET="${JWT_SECRET}" \
+                WEBHOOK_SECRET="${WEBHOOK_SECRET}" \
+                EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
+                HEALTH_URL="${HEALTH_URL}" \
+                DEPLOY_DIR="${DEPLOY_DIR}" \
+                'bash -s' << 'DEPLOY_SCRIPT'
+              cd "${DEPLOY_DIR}"
+              git fetch origin main
+              git reset --hard origin/main
+              ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
+            DEPLOY_SCRIPT
+            then
+              echo "✅ Staging 部署完成"
+              exit 0
+            fi
+
+            echo "⚠️ 部署尝试 ${RETRY_COUNT} 失败 (exit code: $?)"
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⏳ 等待 15 秒后重试..."
+              sleep 15
+            fi
+          done
+
+          echo "❌ 部署失败: 已重试 ${MAX_RETRIES} 次仍无法连接到 Staging 服务器"
+          echo "💡 可能原因: Staging 服务器离线、cloudflared tunnel 未运行、或 Cloudflare Access 配置变更"
+          exit 1
 
   # ============================================================
   # 部署到 Production 环境 (需要手动审批)
@@ -210,27 +232,49 @@ jobs:
           chmod 600 ~/.ssh/production_key
 
           # 通过 Cloudflare Tunnel 远程执行部署
-          ssh -i ~/.ssh/production_key \
-              -o StrictHostKeyChecking=no \
-              -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-              ${SSH_USER}@${SSH_HOST} \
-              IMAGE_TAG="${IMAGE_TAG}" \
-              GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
-              DB_USER="${DB_USER}" \
-              DB_PASSWORD="${DB_PASSWORD}" \
-              JWT_SECRET="${JWT_SECRET}" \
-              WEBHOOK_SECRET="${WEBHOOK_SECRET}" \
-              EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
-              HEALTH_URL="${HEALTH_URL}" \
-              DEPLOY_DIR="${DEPLOY_DIR}" \
-              'bash -s' << 'DEPLOY_SCRIPT'
-            cd "${DEPLOY_DIR}"
-            git fetch origin main
-            git reset --hard origin/main
-            ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
-          DEPLOY_SCRIPT
+          # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-          echo "✅ Production 部署完成"
+            if ssh -i ~/.ssh/production_key \
+                -o StrictHostKeyChecking=no \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=60 \
+                -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+                ${SSH_USER}@${SSH_HOST} \
+                IMAGE_TAG="${IMAGE_TAG}" \
+                GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+                DB_USER="${DB_USER}" \
+                DB_PASSWORD="${DB_PASSWORD}" \
+                JWT_SECRET="${JWT_SECRET}" \
+                WEBHOOK_SECRET="${WEBHOOK_SECRET}" \
+                EXTERNAL_MYSQL_URL="${EXTERNAL_MYSQL_URL}" \
+                HEALTH_URL="${HEALTH_URL}" \
+                DEPLOY_DIR="${DEPLOY_DIR}" \
+                'bash -s' << 'DEPLOY_SCRIPT'
+              cd "${DEPLOY_DIR}"
+              git fetch origin main
+              git reset --hard origin/main
+              ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"
+            DEPLOY_SCRIPT
+            then
+              echo "✅ Production 部署完成"
+              exit 0
+            fi
+
+            echo "⚠️ 部署尝试 ${RETRY_COUNT} 失败 (exit code: $?)"
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⏳ 等待 15 秒后重试..."
+              sleep 15
+            fi
+          done
+
+          echo "❌ 部署失败: 已重试 ${MAX_RETRIES} 次仍无法连接到 Production 服务器"
+          echo "💡 可能原因: Production 服务器离线、cloudflared tunnel 未运行、或 Cloudflare Access 配置变更"
+          exit 1
 
   # ============================================================
   # 部署后健康检查
