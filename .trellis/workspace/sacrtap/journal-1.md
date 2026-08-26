@@ -193,3 +193,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: 开放平台API-Key管理与ERP余额查询接口
+
+**Date**: 2026-08-26
+**Task**: 开放平台API-Key管理与ERP余额查询接口
+**Branch**: `add-qiangfang-balances`
+
+### Summary
+
+实现开放平台API-Key管理模块和ERP渠道客户余额查询API。后端新增ApiKey模型/服务/路由，auth中间件增加/api/v1/erp/前缀的API-Key认证分支，实现GET /api/v1/erp/balances接口。前端新增ApiKeyManagement管理页面和OpenApiGuide文档页面（/openapi公开访问）。修复sanic-ext蓝图名冲突（openapi→open_platform）和前端响应数据解析问题。渠道编码表动态从ERP系统配置加载。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `21ec5d5` | (see git log) |
+
+### Status
+
+[OK] **Completed**
