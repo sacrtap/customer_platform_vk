@@ -49,15 +49,33 @@ async def generate_invoice_detail(
             await session.commit()
             return
 
-        # 4. 查询结算明细项获取单价
+        # 4. 查询结算明细项（JOIN PricingRule 获取多层计费信息）
         from sqlalchemy import select
 
+        from ..models.billing import PricingRule
+
         result = await session.execute(
-            select(InvoiceItem).where(InvoiceItem.invoice_id == invoice_id)
+            select(InvoiceItem, PricingRule)
+            .outerjoin(PricingRule, InvoiceItem.pricing_rule_id == PricingRule.id)
+            .where(InvoiceItem.invoice_id == invoice_id)
         )
-        items = result.scalars().all()
+        rows = result.all()
         # 取第一项的单价作为代表（按设备类型+图层分别计价时取首个）
-        unit_price = items[0].unit_price if items else None
+        unit_price = rows[0][0].unit_price if rows else None
+
+        # 构造 invoice_items 列表传给 Excel
+        invoice_items = []
+        for item, rule in rows:
+            invoice_items.append(
+                {
+                    "device_type": item.device_type,
+                    "layer_type": item.layer_type,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "multi_floor_pricing_type": rule.multi_floor_pricing_type if rule else None,
+                    "additional_floor_price": rule.additional_floor_price if rule else None,
+                }
+            )
 
         # 5. 获取客户的 company_id（对应外部数据库的 group_type）
         group_type = customer.company_id
@@ -75,6 +93,7 @@ async def generate_invoice_detail(
             unit_price=unit_price,
             group_type=group_type,
             invoice_status=invoice.status,
+            invoice_items=invoice_items,
         )
 
         # 7. 更新结算单

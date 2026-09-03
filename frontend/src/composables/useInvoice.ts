@@ -1,8 +1,9 @@
-import { reactive, ref } from 'vue'
+import { onUnmounted, reactive, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import {
   getInvoices,
   getInvoice,
+  getInvoiceFileStatus,
   generateInvoice,
   applyDiscount,
   payInvoice,
@@ -30,9 +31,86 @@ export interface SortState {
 
 export function useInvoice() {
   const loading = ref(false)
+  const detailLoading = ref(false)
   const invoices = ref<Invoice[]>([])
   const total = ref(0)
   const currentDetail = ref<Invoice | null>(null)
+
+  // ===== 文件状态轮询 =====
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+  const POLL_INTERVAL = 5000 // 5 秒轮询
+
+  /** 轮询列表中文件生成中的结算单状态 */
+  const pollFileStatus = async () => {
+    const generatingIds = invoices.value
+      .filter((inv) => inv.detail_file_status === 'generating')
+      .map((inv) => inv.id)
+    // 也检查当前详情抽屉中的结算单
+    if (
+      currentDetail.value &&
+      currentDetail.value.detail_file_status === 'generating' &&
+      !generatingIds.includes(currentDetail.value.id)
+    ) {
+      generatingIds.push(currentDetail.value.id)
+    }
+    if (generatingIds.length === 0) return
+
+    try {
+      const res = await getInvoiceFileStatus(generatingIds)
+      const list: { id: number; detail_file_status: string; detail_file_path?: string }[] =
+        res.data?.list || []
+
+      // 更新列表中的状态
+      const statusMap = new Map(list.map((item) => [item.id, item]))
+      for (const inv of invoices.value) {
+        const update = statusMap.get(inv.id)
+        if (update && update.detail_file_status !== inv.detail_file_status) {
+          inv.detail_file_status = update.detail_file_status
+          if (update.detail_file_path) inv.detail_file_path = update.detail_file_path
+        }
+      }
+
+      // 更新详情中的状态
+      if (currentDetail.value) {
+        const update = statusMap.get(currentDetail.value.id)
+        if (update && update.detail_file_status !== currentDetail.value.detail_file_status) {
+          currentDetail.value.detail_file_status = update.detail_file_status
+          if (update.detail_file_path)
+            currentDetail.value.detail_file_path = update.detail_file_path
+        }
+      }
+
+      // 如果所有生成中的都已完成/失败，停止轮询
+      const stillGenerating =
+        invoices.value.some((inv) => inv.detail_file_status === 'generating') ||
+        currentDetail.value?.detail_file_status === 'generating'
+      if (!stillGenerating && pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+    } catch {
+      // 轮询失败静默处理
+    }
+  }
+
+  /** 启动轮询（如已有定时器则不重复启动） */
+  const startPolling = () => {
+    if (pollTimer) return
+    pollTimer = setInterval(pollFileStatus, POLL_INTERVAL)
+  }
+
+  /** 停止轮询 */
+  const stopPolling = () => {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  // 组件卸载时清理定时器
+  onUnmounted(() => {
+    stopPolling()
+  })
 
   const filters = reactive(defaultFilters())
   const sortState = reactive<SortState>({ sort_by: '', sort_order: '' })
@@ -73,6 +151,13 @@ export function useInvoice() {
       const res = await getInvoices(params)
       invoices.value = res.data?.list || []
       total.value = res.data?.total || 0
+      // 如果列表中有文件生成中的结算单，启动轮询
+      const hasGenerating = invoices.value.some((inv) => inv.detail_file_status === 'generating')
+      if (hasGenerating) {
+        startPolling()
+      } else {
+        stopPolling()
+      }
     } catch {
       invoices.value = []
       total.value = 0
@@ -106,13 +191,13 @@ export function useInvoice() {
   }
 
   const fetchDetail = async (id: number): Promise<Invoice | null> => {
-    loading.value = true
+    detailLoading.value = true
     try {
       const res = await getInvoice(id)
       currentDetail.value = res.data
       return res.data
     } finally {
-      loading.value = false
+      detailLoading.value = false
     }
   }
 
@@ -189,6 +274,7 @@ export function useInvoice() {
 
   return {
     loading,
+    detailLoading,
     invoices,
     total,
     currentDetail,
@@ -202,6 +288,9 @@ export function useInvoice() {
     handleSearch,
     handleReset,
     fetchDetail,
+    startPolling,
+    stopPolling,
+    pollFileStatus,
     doGenerate,
     doApplyDiscount,
     doPay,

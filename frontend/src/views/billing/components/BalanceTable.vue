@@ -329,7 +329,11 @@ const formatAmount = (num: number | null | undefined): string => {
 }
 
 const isLowBalance = (record: Balance): boolean => {
-  return record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD
+  // 余额 ≤ 0（欠费）或低于阈值时显示红色
+  return (
+    record.total_amount <= 0 ||
+    (record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD)
+  )
 }
 
 // ===== 余额燃尽：油表进度条（满 = 安全，空 = 紧急）=====

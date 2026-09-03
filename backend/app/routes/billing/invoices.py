@@ -1421,3 +1421,58 @@ async def get_invoice_detail_logs(request: Request):
 
 
 # ==================== 余额趋势 ====================
+
+
+@billing_bp.get("/invoices/file-status")
+@auth_required
+@require_permission("billing:view")
+async def get_invoice_file_status(request: Request):
+    """轻量查询结算单明细文件状态（用于前端轮询）
+
+    支持 ids 参数（逗号分隔的 ID 列表），返回每条结算单的文件状态。
+    """
+    from sqlalchemy import select as sa_select
+
+    from ...models.billing import Invoice
+
+    db: AsyncSession = request.ctx.db_session
+    ids_param = request.args.get("ids", "")
+    if not ids_param:
+        return json({"code": 0, "message": "success", "data": {"list": []}})
+
+    try:
+        ids = [int(x) for x in ids_param.split(",") if x.strip()]
+    except ValueError:
+        from ...constants.error_codes import ErrorCodes
+
+        return json(
+            {"code": ErrorCodes.BAD_REQUEST, "message": "ids 参数格式错误"},
+            status=400,
+        )
+
+    if not ids:
+        return json({"code": 0, "message": "success", "data": {"list": []}})
+
+    result = await db.execute(
+        sa_select(Invoice.id, Invoice.detail_file_status, Invoice.detail_file_path).where(
+            Invoice.id.in_(ids), Invoice.deleted_at.is_(None)
+        )
+    )
+    rows = result.all()
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "list": [
+                    {
+                        "id": row.id,
+                        "detail_file_status": row.detail_file_status or "pending",
+                        "detail_file_path": row.detail_file_path,
+                    }
+                    for row in rows
+                ]
+            },
+        }
+    )

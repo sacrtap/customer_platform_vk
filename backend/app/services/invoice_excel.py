@@ -167,6 +167,7 @@ class InvoiceExcelService:
         unit_price: Optional[Decimal] = None,
         group_type: Optional[int] = None,
         invoice_status: str = "draft",
+        invoice_items: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[str]:
         """生成结算单明细 Excel 文件
 
@@ -205,6 +206,7 @@ class InvoiceExcelService:
             unit_price=unit_price,
             order_details=order_details,
             balance_info=balance_info,
+            invoice_items=invoice_items or [],
         )
 
         logger.info(f"结算单 {invoice_id} 明细文件已生成: {file_path}")
@@ -384,6 +386,7 @@ class InvoiceExcelService:
         unit_price: Optional[Decimal],
         order_details: List[Dict[str, Any]],
         balance_info: Dict[str, Any] = None,
+        invoice_items: List[Dict[str, Any]] = None,
     ) -> str:
         """生成 Excel 并保存到文件
 
@@ -410,7 +413,7 @@ class InvoiceExcelService:
         ws1.title = "合计"
 
         # 标题行
-        ws1.merge_cells("A1:K1")
+        ws1.merge_cells("A1:J1")
         ws1.cell(
             row=1,
             column=1,
@@ -419,10 +422,9 @@ class InvoiceExcelService:
         ws1.cell(row=1, column=1).font = Font(bold=True, size=14)
         ws1.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
-        # 表头（11 列）
+        # 表头（10 列，移除了"单价"列）
         headers_1 = [
             "结算周期",
-            "单价（元/套）",
             "模型总数量（套）",
             "计费模型数量（套）",
             "总金额（元）",
@@ -444,27 +446,26 @@ class InvoiceExcelService:
         final_amount = total_amount - discount_amount
         period_str = f"{period_start.strftime('%Y.%-m.%-d')} - {period_end.strftime('%Y.%-m.%-d')}"
         ws1.cell(row=3, column=1, value=period_str)
-        ws1.cell(row=3, column=2, value=float(unit_price) if unit_price else "")
+        ws1.cell(row=3, column=2, value=model_count)
         ws1.cell(row=3, column=3, value=model_count)
-        ws1.cell(row=3, column=4, value=model_count)
-        ws1.cell(row=3, column=5, value=float(total_amount))
-        ws1.cell(row=3, column=6, value=float(discount_amount))
-        ws1.cell(row=3, column=7, value=float(final_amount))
+        ws1.cell(row=3, column=4, value=float(total_amount))
+        ws1.cell(row=3, column=5, value=float(discount_amount))
+        ws1.cell(row=3, column=6, value=float(final_amount))
         # 期初余额 / 当月充值 / 结算后余额
         if balance_info:
-            ws1.cell(row=3, column=8, value=float(balance_info.get("opening_balance", 0)))
-            ws1.cell(row=3, column=9, value=float(balance_info.get("monthly_recharge", 0)))
+            ws1.cell(row=3, column=7, value=float(balance_info.get("opening_balance", 0)))
+            ws1.cell(row=3, column=8, value=float(balance_info.get("monthly_recharge", 0)))
             ws1.cell(
-                row=3, column=10, value=float(balance_info.get("closing_balance", final_amount))
+                row=3, column=9, value=float(balance_info.get("closing_balance", final_amount))
             )
         else:
+            ws1.cell(row=3, column=7, value="")
             ws1.cell(row=3, column=8, value="")
-            ws1.cell(row=3, column=9, value="")
-            ws1.cell(row=3, column=10, value=float(final_amount))
-        ws1.cell(row=3, column=11, value="")
+            ws1.cell(row=3, column=9, value=float(final_amount))
+        ws1.cell(row=3, column=10, value="")
 
         # 列宽
-        for col in range(1, 12):
+        for col in range(1, 11):
             ws1.column_dimensions[get_column_letter(col)].width = 18
 
         # ============================================================
@@ -543,6 +544,59 @@ class InvoiceExcelService:
         for col in range(11, len(DETAIL_HEADERS) + 1):
             if col not in col_widths:
                 ws2.column_dimensions[get_column_letter(col)].width = 16
+
+        # ============================================================
+        # Sheet 3: 计费明细（InvoiceItem 列表）
+        # ============================================================
+        if invoice_items:
+            ws3 = wb.create_sheet(title="计费明细")
+
+            # 计费明细表头（7 列）
+            billing_headers = [
+                "设备类型",
+                "楼层",
+                "数量",
+                "单价（元）",
+                "小计（元）",
+                "多层计费类型",
+                "其他层单价（元）",
+            ]
+            for col, h in enumerate(billing_headers, 1):
+                cell = ws3.cell(row=1, column=col, value=h)
+                cell.font = header_font
+                cell.alignment = header_align
+                cell.fill = header_fill
+
+            # 数据行
+            for row_idx, item in enumerate(invoice_items, 2):
+                # 设备类型映射
+                dt = item.get("device_type", "")
+                dt_str = {"X": "X", "N": "N", "L": "L"}.get(dt, dt or "包年")
+
+                # 楼层映射
+                lt = item.get("layer_type", "")
+                lt_str = {"single": "单层", "multi": "多层"}.get(lt, lt or "-")
+
+                quantity = float(item.get("quantity", 0))
+                unit_p = float(item.get("unit_price", 0))
+                subtotal = quantity * unit_p
+
+                mfp_type = item.get("multi_floor_pricing_type")
+                mfp_str = {"incremental": "递增", "unified": "统一"}.get(mfp_type, mfp_type or "-")
+
+                afp = item.get("additional_floor_price")
+                afp_val = float(afp) if afp is not None else ""
+
+                row_data = [dt_str, lt_str, quantity, unit_p, subtotal, mfp_str, afp_val]
+                for col, val in enumerate(row_data, 1):
+                    cell = ws3.cell(row=row_idx, column=col, value=val)
+                    cell.border = thin_border
+                    cell.alignment = Alignment(vertical="center")
+
+            # 列宽
+            billing_widths = {1: 12, 2: 10, 3: 10, 4: 12, 5: 12, 6: 14, 7: 16}
+            for col, w in billing_widths.items():
+                ws3.column_dimensions[get_column_letter(col)].width = w
 
         # ============================================================
         # 保存文件

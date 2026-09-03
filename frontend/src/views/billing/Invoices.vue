@@ -294,6 +294,7 @@
       @confirm="handleSingleAction(currentDetail!, 'confirm')"
       @retry-deduction="handleSingleAction(currentDetail!, 'retry-deduction')"
       @cancel="handleSingleAction(currentDetail!, 'cancel')"
+      @regenerate-detail="handleRegenerateDetail"
     />
 
     <!-- 生成结算单弹窗 -->
@@ -380,6 +381,7 @@ const {
   handleSearch,
   handleReset,
   fetchDetail,
+  startPolling,
   doSubmit,
   doConfirm,
   doConfirmOps,
@@ -474,6 +476,19 @@ const viewInvoice = async (record: Invoice) => {
   selectedInvoiceId.value = record.id
   await fetchDetail(record.id)
   drawerVisible.value = true
+  // 如果详情中文件处于生成中，启动轮询
+  if (currentDetail.value?.detail_file_status === 'generating') {
+    startPolling()
+  }
+}
+
+const handleRegenerateDetail = async (id: number) => {
+  // 刷新详情获取最新状态（后端会将状态设为 generating/pending）
+  await fetchDetail(id)
+  // 启动轮询
+  startPolling()
+  // 同时刷新列表
+  loadInvoices()
 }
 
 const goToCustomer = (id: number) => router.push(`/customers/${id}`)

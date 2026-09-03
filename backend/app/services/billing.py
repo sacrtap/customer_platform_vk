@@ -162,8 +162,9 @@ class BalanceService:
         amount: Decimal,
         invoice_id: Optional[int] = None,
     ) -> Tuple[bool, str]:
-        """
-        消费扣款（先赠后实）- 带事务保护和行级锁
+        """消费扣款（先赠后实）- 带事务保护和行级锁
+
+        允许余额不足时强制扣款，real_amount 可变为负数（欠费模式）。
 
         Args:
             customer_id: 客户 ID
@@ -204,11 +205,8 @@ class BalanceService:
                     if not balance:
                         return False, "客户余额账户不存在"
 
-                    total_balance = (balance.real_amount or 0) + (balance.bonus_amount or 0)
-                    if total_balance < amount:  # pyright: ignore[reportGeneralTypeIssues]
-                        return False, f"余额不足，当前余额：{total_balance:.2f}元"
-
-                    # 先消耗赠金，再消耗实充
+                    # 允许余额不足扣款：不再拦截，real_amount 可为负数
+                    # 先消耗赠金，再消耗实充（实充不足部分变为负数）
                     remaining = amount
                     bonus_used = Decimal(0)
                     real_used = Decimal(0)
@@ -223,19 +221,16 @@ class BalanceService:
                             remaining -= balance.bonus_amount
                             balance.bonus_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
 
-                    if remaining > 0 and balance.real_amount and balance.real_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
-                        if balance.real_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
-                            real_used = remaining
-                            balance.real_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
-                        else:
-                            real_used = balance.real_amount
-                            balance.real_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
+                    if remaining > 0:
+                        # 实充余额不足时允许变为负数（欠费）
+                        real_used = remaining
+                        balance.real_amount = (balance.real_amount or 0) - remaining  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 更新总额
                     balance.used_total = (balance.used_total or 0) + amount  # pyright: ignore[reportAttributeAccessIssue]
                     balance.used_bonus = (balance.used_bonus or 0) + bonus_used  # pyright: ignore[reportAttributeAccessIssue]
                     balance.used_real = (balance.used_real or 0) + real_used  # pyright: ignore[reportAttributeAccessIssue]
-                    # total_amount = real_amount + bonus_amount（当前可用余额）
+                    # total_amount = real_amount + bonus_amount（当前可用余额，可为负）
                     balance.total_amount = (balance.real_amount or 0) + (balance.bonus_amount or 0)  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 创建消费记录

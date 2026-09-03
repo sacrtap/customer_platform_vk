@@ -88,13 +88,13 @@
         </a-descriptions>
 
         <div class="detail-section">
-          <div class="section-header"><h3>结算明细</h3></div>
+          <div class="section-header"><h3>计费明细</h3></div>
           <div class="table-wrap">
             <table class="table">
               <thead>
                 <tr>
                   <th style="width: 120px">设备类型</th>
-                  <th style="width: 80px">图层</th>
+                  <th style="width: 80px">楼层</th>
                   <th style="width: 80px">数量</th>
                   <th style="width: 120px">单价</th>
                   <th style="width: 120px">小计</th>
@@ -133,7 +133,7 @@
                   </td>
                 </tr>
                 <tr v-if="!invoice.items || invoice.items.length === 0">
-                  <td :colspan="5" class="empty-state">暂无结算明细</td>
+                  <td :colspan="5" class="empty-state">暂无计费明细</td>
                 </tr>
               </tbody>
             </table>
@@ -248,6 +248,7 @@ const emit = defineEmits<{
   'retry-deduction': [id: number]
   cancel: [id: number]
   'go-customer': [id: number]
+  'regenerate-detail': [id: number]
 }>()
 
 const userStore = useUserStore()
@@ -312,6 +313,8 @@ const handleRegenerate = async () => {
   try {
     await regenerateInvoiceDetail(props.invoice.id)
     Message.success('明细文件重新生成中')
+    // 通知父组件启动轮询
+    emit('regenerate-detail', props.invoice.id)
   } catch {
     Message.error('操作失败')
   }

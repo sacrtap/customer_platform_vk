@@ -305,6 +305,11 @@ export function getInvoice(id: number) {
   return api.get(`/billing/invoices/${id}`)
 }
 
+/** 批量查询结算单文件状态（轻量轮询接口） */
+export function getInvoiceFileStatus(ids: number[]) {
+  return api.get('/billing/invoices/file-status', { params: { ids: ids.join(',') } })
+}
+
 export interface GenerateInvoiceParams {
   customer_id: number
   period_start: string
