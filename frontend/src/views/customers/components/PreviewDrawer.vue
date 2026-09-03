@@ -78,6 +78,7 @@
 
 <script setup lang="ts">
 import type { Customer } from '@/types'
+import { toDate } from '@/utils/formatters'
 
 defineProps<{
   visible: boolean
@@ -104,7 +105,8 @@ const formatNumber = (num: number | string | null) => {
 
 const formatDate = (date: string | null) => {
   if (!date) return ''
-  const d = new Date(date)
+  const d = toDate(date)
+  if (!d) return ''
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
   const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24))

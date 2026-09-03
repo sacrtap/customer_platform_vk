@@ -209,8 +209,10 @@ class TestBalanceService_Consume:
         assert balance.used_real == Decimal("400.00")
 
     @pytest.mark.asyncio
-    async def test_consume_insufficient_balance(self, balance_service, mock_db_session):
-        """测试余额不足"""
+    async def test_consume_insufficient_balance_allows_negative(
+        self, balance_service, mock_db_session
+    ):
+        """测试余额不足时允许扣款（欠费模式）— real_amount 变为负数"""
         balance = CustomerBalance(
             id=1,
             customer_id=100,
@@ -228,13 +230,25 @@ class TestBalanceService_Consume:
         mock_db_context.__aexit__ = AsyncMock(return_value=None)
         mock_db_session.begin.return_value = mock_db_context
 
+        # 消费 200，超过余额 150
         success, message = await balance_service.consume(
             customer_id=100,
-            amount=Decimal("200.00"),  # 超过余额
+            amount=Decimal("200.00"),
         )
 
-        assert success is False
-        assert "余额不足" in message
+        # 余额不足时仍允许扣款，不再拦截
+        assert success is True
+        assert message == "扣款成功"
+
+        # 赠金全部耗尽
+        assert balance.bonus_amount == Decimal("0.00")
+        # 实充变为负数（欠费 50）
+        assert balance.real_amount == Decimal("-50.00")
+        # 总余额为负
+        assert balance.total_amount == Decimal("-50.00")
+        assert balance.used_total == Decimal("200.00")
+        assert balance.used_bonus == Decimal("50.00")
+        assert balance.used_real == Decimal("150.00")
 
     @pytest.mark.asyncio
     async def test_consume_balance_not_found(self, balance_service, mock_db_session):
@@ -255,6 +269,70 @@ class TestBalanceService_Consume:
 
         assert success is False
         assert "不存在" in message
+
+    @pytest.mark.asyncio
+    async def test_consume_zero_balance_goes_negative(self, balance_service, mock_db_session):
+        """测试余额为零时扣款 — 全部变为负数"""
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("0.00"),
+            bonus_amount=Decimal("0.00"),
+            total_amount=Decimal("0.00"),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = balance
+        mock_db_session.execute.return_value = mock_result
+
+        mock_db_context = AsyncMock()
+        mock_db_context.__aenter__ = AsyncMock(return_value=None)
+        mock_db_context.__aexit__ = AsyncMock(return_value=None)
+        mock_db_session.begin.return_value = mock_db_context
+
+        success, message = await balance_service.consume(
+            customer_id=100,
+            amount=Decimal("500.00"),
+        )
+
+        assert success is True
+        assert message == "扣款成功"
+        assert balance.bonus_amount == Decimal("0.00")
+        assert balance.real_amount == Decimal("-500.00")
+        assert balance.total_amount == Decimal("-500.00")
+        assert balance.used_real == Decimal("500.00")
+
+    @pytest.mark.asyncio
+    async def test_consume_bonus_covers_full_amount(self, balance_service, mock_db_session):
+        """测试赠金完全覆盖消费 — 实充不动"""
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("500.00"),
+            total_amount=Decimal("1500.00"),
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = balance
+        mock_db_session.execute.return_value = mock_result
+
+        mock_db_context = AsyncMock()
+        mock_db_context.__aenter__ = AsyncMock(return_value=None)
+        mock_db_context.__aexit__ = AsyncMock(return_value=None)
+        mock_db_session.begin.return_value = mock_db_context
+
+        success, message = await balance_service.consume(
+            customer_id=100,
+            amount=Decimal("300.00"),
+        )
+
+        assert success is True
+        # 赠金扣 300，实充不动
+        assert balance.bonus_amount == Decimal("200.00")
+        assert balance.real_amount == Decimal("1000.00")
+        assert balance.used_bonus == Decimal("300.00")
+        assert balance.used_real == Decimal("0.00")
 
 
 # ==================== Test BalanceService - Get Balance ====================

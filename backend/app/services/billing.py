@@ -21,6 +21,7 @@ from ..models.billing import (
     ConsumptionRecord,
     CustomerBalance,
     Invoice,
+    InvoiceDiscountHistory,
     InvoiceItem,
     PackagePlan,
     PricingRule,
@@ -161,8 +162,9 @@ class BalanceService:
         amount: Decimal,
         invoice_id: Optional[int] = None,
     ) -> Tuple[bool, str]:
-        """
-        消费扣款（先赠后实）- 带事务保护和行级锁
+        """消费扣款（先赠后实）- 带事务保护和行级锁
+
+        允许余额不足时强制扣款，real_amount 可变为负数（欠费模式）。
 
         Args:
             customer_id: 客户 ID
@@ -203,11 +205,8 @@ class BalanceService:
                     if not balance:
                         return False, "客户余额账户不存在"
 
-                    total_balance = (balance.real_amount or 0) + (balance.bonus_amount or 0)
-                    if total_balance < amount:  # pyright: ignore[reportGeneralTypeIssues]
-                        return False, f"余额不足，当前余额：{total_balance:.2f}元"
-
-                    # 先消耗赠金，再消耗实充
+                    # 允许余额不足扣款：不再拦截，real_amount 可为负数
+                    # 先消耗赠金，再消耗实充（实充不足部分变为负数）
                     remaining = amount
                     bonus_used = Decimal(0)
                     real_used = Decimal(0)
@@ -222,18 +221,17 @@ class BalanceService:
                             remaining -= balance.bonus_amount
                             balance.bonus_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
 
-                    if remaining > 0 and balance.real_amount and balance.real_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
-                        if balance.real_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
-                            real_used = remaining
-                            balance.real_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
-                        else:
-                            real_used = balance.real_amount
-                            balance.real_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
+                    if remaining > 0:
+                        # 实充余额不足时允许变为负数（欠费）
+                        real_used = remaining
+                        balance.real_amount = (balance.real_amount or 0) - remaining  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 更新总额
                     balance.used_total = (balance.used_total or 0) + amount  # pyright: ignore[reportAttributeAccessIssue]
                     balance.used_bonus = (balance.used_bonus or 0) + bonus_used  # pyright: ignore[reportAttributeAccessIssue]
                     balance.used_real = (balance.used_real or 0) + real_used  # pyright: ignore[reportAttributeAccessIssue]
+                    # total_amount = real_amount + bonus_amount（当前可用余额，可为负）
+                    balance.total_amount = (balance.real_amount or 0) + (balance.bonus_amount or 0)  # pyright: ignore[reportAttributeAccessIssue]
 
                     # 创建消费记录
                     consumption = ConsumptionRecord(
@@ -1372,8 +1370,14 @@ class InvoiceService:
         discount_amount: Decimal,
         discount_reason: str,
         discount_attachment: Optional[str] = None,
+        applied_by: Optional[int] = None,
     ) -> Tuple[bool, str]:
-        """应用减免"""
+        """应用减免
+
+        减免金额为正数时从总额中扣除，为负数时为加价。
+        每次修改都会更新 discount_applied_at 为当前时间（精确到秒），
+        同时在 invoice_discount_histories 表中插入一条历史记录。
+        """
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
@@ -1382,13 +1386,29 @@ class InvoiceService:
         if invoice.status not in ["draft", "pending_ops", "pending_sales", "pending_customer"]:
             return False, f"当前状态不能修改减免：{invoice.status}"
 
-        if discount_amount > invoice.total_amount:  # pyright: ignore[reportGeneralTypeIssues]
-            return False, "减免金额不能大于结算总额"
+        if discount_amount == 0:  # pyright: ignore[reportGeneralTypeIssues]
+            return False, "减免金额不能为 0"
+
+        # 减免金额允许为负值（加价），不校验上限
+
+        # 精确到秒的时间戳
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         invoice.discount_amount = discount_amount  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_reason = discount_reason  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_attachment = discount_attachment  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.discount_applied_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_applied_at = now_str  # pyright: ignore[reportAttributeAccessIssue]
+
+        # 写入历史记录
+        history = InvoiceDiscountHistory(
+            invoice_id=invoice_id,
+            discount_amount=discount_amount,
+            discount_reason=discount_reason,
+            discount_attachment=discount_attachment,
+            applied_at=now_str,
+            applied_by=applied_by,
+        )
+        self.db.add(history)
 
         await self.db.commit()
 

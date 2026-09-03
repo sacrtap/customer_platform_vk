@@ -41,12 +41,14 @@ ALLOWED_EXTENSIONS = {
 }
 
 # 允许的 MIME 类型白名单
+# 注意：.xlsx 文件本质是 ZIP 压缩包，python-magic 可能检测为 application/zip
 ALLOWED_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel",
     "application/pdf",
     "image/png",
     "image/jpeg",
+    "application/zip",  # .xlsx 文件可能被检测为 zip
 }
 
 # 最大文件大小 (10MB)
@@ -92,6 +94,8 @@ def validate_mime_type(file_content: bytes, filename: str) -> tuple[bool, str, s
                 pass  # 允许，.jpg 和 .jpeg 都是 image/jpeg
             elif ext == ".jpeg" and detected_mime == "image/jpeg":
                 pass  # 允许
+            elif ext == ".xlsx" and detected_mime == "application/zip":
+                pass  # 允许，.xlsx 本质是 ZIP 格式
             else:
                 return (
                     False,

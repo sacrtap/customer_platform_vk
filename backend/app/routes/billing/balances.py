@@ -1067,7 +1067,7 @@ async def get_consumption_records(request: Request):
     db: AsyncSession = request.ctx.db_session
     from sqlalchemy import select
 
-    from ...models.billing import ConsumptionRecord
+    from ...models.billing import ConsumptionRecord, Invoice
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     page = int(request.args.get("page", 1))
@@ -1091,6 +1091,16 @@ async def get_consumption_records(request: Request):
     result = await db.execute(stmt)
     records = result.scalars().all()
 
+    # 批量查询关联结算单号
+    invoice_ids = [r.invoice_id for r in records if r.invoice_id]
+    invoice_no_map: dict[int, str] = {}
+    if invoice_ids:
+        inv_result = await db.execute(
+            select(Invoice.id, Invoice.invoice_no).where(Invoice.id.in_(invoice_ids))
+        )
+        for row in inv_result:
+            invoice_no_map[row.id] = row.invoice_no
+
     return json(
         {
             "code": 0,
@@ -1101,6 +1111,7 @@ async def get_consumption_records(request: Request):
                         "id": r.id,
                         "customer_id": r.customer_id,
                         "invoice_id": r.invoice_id,
+                        "invoice_no": invoice_no_map.get(r.invoice_id) if r.invoice_id else None,
                         "amount": float(r.amount),  # pyright: ignore[reportArgumentType]
                         "bonus_used": float(r.bonus_used) if r.bonus_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "real_used": float(r.real_used) if r.real_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]

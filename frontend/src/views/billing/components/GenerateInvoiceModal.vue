@@ -24,7 +24,7 @@
         <a-form-item label="结算周期" required>
           <a-range-picker v-model="periodRange" style="width: 100%" @change="handlePeriodChange" />
         </a-form-item>
-        <a-form-item v-if="calculatedItems.length" label="结算明细预览">
+        <a-form-item v-if="calculatedItems.length" label="计费明细预览">
           <a-table
             :columns="itemColumns"
             :data="calculatedItems"
@@ -376,7 +376,7 @@ const handleSubmitSingle = async () => {
     return false
   }
   if (calculatedItems.value.length === 0) {
-    Message.error('暂无结算明细，请先选择客户和结算周期生成预览')
+    Message.error('暂无计费明细，请先选择客户和结算周期生成预览')
     return false
   }
   loading.value = true

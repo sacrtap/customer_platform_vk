@@ -55,11 +55,11 @@
             <td>
               <div class="balance-info">
                 <b :class="{ danger: isLowBalance(record) }"
-                  >¥{{ formatNumber(record.total_amount) }}</b
+                  >¥{{ formatAmount(record.total_amount) }}</b
                 >
                 <div class="balance-detail">
-                  <span class="real">实：{{ formatNumber(record.real_amount) }}</span>
-                  <span class="bonus">赠：{{ formatNumber(record.bonus_amount) }}</span>
+                  <span class="real">实：{{ formatAmount(record.real_amount) }}</span>
+                  <span class="bonus">赠：{{ formatAmount(record.bonus_amount) }}</span>
                 </div>
               </div>
             </td>
@@ -77,10 +77,10 @@
             </td>
             <td>
               <div>
-                <span>{{ formatNumber(record.used_total) }}</span>
+                <span>{{ formatAmount(record.used_total) }}</span>
                 <div class="used-detail">
-                  <span class="used-real">实：{{ formatNumber(record.used_real) }}</span>
-                  <span class="used-bonus">赠：{{ formatNumber(record.used_bonus) }}</span>
+                  <span class="used-real">实：{{ formatAmount(record.used_real) }}</span>
+                  <span class="used-bonus">赠：{{ formatAmount(record.used_bonus) }}</span>
                 </div>
               </div>
             </td>
@@ -323,8 +323,17 @@ const formatNumber = (num: number | null | undefined): string => {
   return num.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
 }
 
+const formatAmount = (num: number | null | undefined): string => {
+  if (num == null) return '0.00'
+  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const isLowBalance = (record: Balance): boolean => {
-  return record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD
+  // 余额 ≤ 0（欠费）或低于阈值时显示红色
+  return (
+    record.total_amount <= 0 ||
+    (record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD)
+  )
 }
 
 // ===== 余额燃尽：油表进度条（满 = 安全，空 = 紧急）=====

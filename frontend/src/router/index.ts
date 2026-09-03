@@ -177,6 +177,12 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/system/DatabaseManagement.vue'),
             meta: { requiresPermission: 'system:database_clear' },
           },
+          {
+            path: 'invoice-logs',
+            name: 'InvoiceLogs',
+            component: () => import('@/views/system/InvoiceLogs.vue'),
+            meta: { requiresPermission: 'billing:view' },
+          },
         ],
       },
     ],
