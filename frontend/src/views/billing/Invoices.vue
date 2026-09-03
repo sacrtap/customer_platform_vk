@@ -45,9 +45,10 @@
                   style="width: 120px; text-align: right"
                   @click="toggleSort('final_amount')"
                 >
-                  <span>实付</span>
+                  <span>最终结算金额</span>
                   <span class="th-sort-indicator"></span>
                 </th>
+                <th style="width: 80px">文件</th>
                 <th style="width: 100px">状态</th>
                 <th
                   :class="getThClass('created_at')"
@@ -88,19 +89,38 @@
                 <td style="text-align: right">
                   <span class="amount">{{ formatCurrency(record.total_amount) }}</span>
                 </td>
-                <!-- 折扣 -->
+                <!-- 减免金额 -->
                 <td style="text-align: right">
                   <span
-                    v-if="record.discount_amount && record.discount_amount > 0"
-                    class="amount text-danger"
+                    v-if="record.discount_amount && record.discount_amount !== 0"
+                    :class="['amount', record.discount_amount > 0 ? 'text-danger' : 'text-success']"
                   >
-                    -{{ formatCurrency(record.discount_amount) }}
+                    {{ record.discount_amount > 0 ? '-' : '+'
+                    }}{{ formatCurrency(Math.abs(record.discount_amount)) }}
                   </span>
                   <span v-else class="subtle">-</span>
                 </td>
-                <!-- 实付 -->
+                <!-- 最终结算金额 -->
                 <td style="text-align: right">
                   <span class="amount-final">{{ formatCurrency(record.final_amount) }}</span>
+                </td>
+                <td style="text-align: center">
+                  <span v-if="record.detail_file_status === 'completed'" title="明细文件已生成"
+                    >📄</span
+                  >
+                  <span
+                    v-else-if="record.detail_file_status === 'generating'"
+                    title="生成中..."
+                    class="subtle"
+                    >⏳</span
+                  >
+                  <span
+                    v-else-if="record.detail_file_status === 'failed'"
+                    title="生成失败"
+                    class="text-danger"
+                    >❌</span
+                  >
+                  <span v-else class="subtle">-</span>
                 </td>
                 <!-- 状态 -->
                 <td>
@@ -116,7 +136,7 @@
                     v-if="record.status === 'draft'"
                     class="btn btn-primary-sm"
                     style="padding: 4px 10px; font-size: 12px"
-                    @click="handleSingleAction(record, 'submit')"
+                    @click="openSubmitModal(record)"
                   >
                     提交
                   </button>
@@ -267,7 +287,8 @@
       :invoice="currentDetail"
       :retrying="retryingId === currentDetail?.id"
       @go-customer="goToCustomer"
-      @submit="handleSingleAction(currentDetail!, 'submit')"
+      @submit="openSubmitModal(currentDetail!)"
+      @edit-discount="openDiscountEditModal(currentDetail!)"
       @confirm-ops="handleSingleAction(currentDetail!, 'confirm-ops')"
       @confirm-sales="handleSingleAction(currentDetail!, 'confirm-sales')"
       @confirm="handleSingleAction(currentDetail!, 'confirm')"
@@ -277,11 +298,20 @@
 
     <!-- 生成结算单弹窗 -->
     <GenerateInvoiceModal v-model:visible="generateModalVisible" @success="handleGenerateSuccess" />
-    <!-- 折扣弹窗 -->
-    <DiscountModal
-      v-model:visible="discountModalVisible"
+    <!-- 提交结算单弹窗 -->
+    <SubmitModal
+      v-model:visible="submitModalVisible"
       :invoice-id="selectedInvoiceId"
-      @success="handleDiscountSuccess"
+      @success="handleSubmitSuccess"
+    />
+    <!-- 修改减免弹窗 -->
+    <DiscountEditModal
+      v-model:visible="discountEditVisible"
+      :invoice-id="selectedInvoiceId"
+      :current-discount="currentDetail?.discount_amount"
+      :current-reason="currentDetail?.discount_reason"
+      :current-attachment="currentDetail?.discount_attachment"
+      @success="handleDiscountEditSuccess"
     />
     <!-- 付款弹窗 -->
     <PayModal
@@ -293,8 +323,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { Modal } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { useUserStore } from '@/stores/user'
@@ -304,11 +334,13 @@ import type { Invoice } from '@/api/billing'
 import InvoiceFilters from './components/InvoiceFilters.vue'
 import InvoiceDetailDrawer from './components/InvoiceDetailDrawer.vue'
 import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
-import DiscountModal from './components/DiscountModal.vue'
+import SubmitModal from './components/SubmitModal.vue'
+import DiscountEditModal from './components/DiscountEditModal.vue'
 import PayModal from './components/PayModal.vue'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
 
@@ -359,7 +391,8 @@ const {
 
 const drawerVisible = ref(false)
 const generateModalVisible = ref(false)
-const discountModalVisible = ref(false)
+const submitModalVisible = ref(false)
+const discountEditVisible = ref(false)
 const payModalVisible = ref(false)
 const selectedInvoiceId = ref<number>(0)
 const retryingId = ref<number | null>(null)
@@ -452,12 +485,35 @@ const handleGenerateSuccess = () => {
   loadInvoices()
 }
 
-const handleDiscountSuccess = () => {
-  discountModalVisible.value = false
+const handleSubmitSuccess = async () => {
+  submitModalVisible.value = false
+  loadInvoices()
+  // 如果详情抽屉打开，刷新详情数据
+  if (drawerVisible.value && currentDetail.value) {
+    await fetchDetail(currentDetail.value.id)
+  }
+}
+
+const handleDiscountEditSuccess = async () => {
+  discountEditVisible.value = false
+  loadInvoices()
+  if (drawerVisible.value && currentDetail.value) {
+    await fetchDetail(currentDetail.value.id)
+  }
+}
+
+const openDiscountEditModal = (record: Invoice) => {
+  selectedInvoiceId.value = record.id
+  discountEditVisible.value = true
 }
 
 const handlePaySuccess = () => {
   payModalVisible.value = false
+}
+
+const openSubmitModal = (record: Invoice) => {
+  selectedInvoiceId.value = record.id
+  submitModalVisible.value = true
 }
 
 const handleSingleAction = async (
@@ -541,6 +597,19 @@ const handleSingleAction = async (
 
 // 初始化
 loadInvoices()
+
+// 支持 URL query highlight 参数自动打开结算单详情
+onMounted(async () => {
+  const highlightId = route.query.highlight
+  if (highlightId) {
+    const id = Number(highlightId)
+    if (id > 0) {
+      selectedInvoiceId.value = id
+      await fetchDetail(id)
+      drawerVisible.value = true
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -708,6 +777,10 @@ loadInvoices()
 }
 .text-danger {
   color: var(--red);
+  white-space: nowrap;
+}
+.text-success {
+  color: var(--green, #10b981);
   white-space: nowrap;
 }
 .cell-nowrap {

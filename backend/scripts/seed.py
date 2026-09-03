@@ -143,6 +143,7 @@ PRESET_ROLES = {
             "customers:edit",
             "billing:view",
             "billing:edit",
+            "billing:recharge",
             "billing:ops_approve",
             "billing:confirm",
             "analytics:view",

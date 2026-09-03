@@ -118,6 +118,7 @@ export interface ConsumptionRecord {
   id: number
   customer_id: number
   invoice_id?: number
+  invoice_no?: string | null
   amount: number
   bonus_used: number
   real_used: number
@@ -269,7 +270,26 @@ export interface Invoice {
   created_by?: number | null
   created_by_name?: string | null
   created_at: string
+  /** 明细文件生成状态 */
+  detail_file_path?: string | null
+  detail_file_status?: string
+  /** 减免修改历史（按时间倒序） */
+  discount_history?: DiscountHistory[]
 }
+
+/** 减免修改历史记录 */
+export interface DiscountHistory {
+  id: number
+  discount_amount: number
+  discount_reason?: string
+  discount_attachment?: string
+  applied_at: string
+  applied_by?: number | null
+  applied_by_name?: string | null
+}
+
+/** 明细文件生成状态类型 */
+export type DetailFileStatus = 'pending' | 'generating' | 'completed' | 'failed'
 
 export function getInvoices(params?: {
   customer_id?: number
@@ -383,8 +403,38 @@ export function applyDiscount(invoiceId: number, data: ApplyDiscountParams) {
   return api.put(`/billing/invoices/${invoiceId}/discount`, data)
 }
 
-export function submitInvoice(invoiceId: number) {
-  return api.post(`/billing/invoices/${invoiceId}/submit`)
+/**
+ * 上传减免附件文件
+ * 注意：不要手动设置 Content-Type，让浏览器自动生成包含 boundary 的 multipart 头
+ */
+export function uploadDiscountAttachment(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/files/upload', formData)
+}
+
+export function submitInvoice(
+  invoiceId: number,
+  discount?: { discount_amount?: number; discount_reason?: string; discount_attachment?: string }
+) {
+  return api.post(`/billing/invoices/${invoiceId}/submit`, discount || {})
+}
+
+export function downloadInvoiceDetail(id: number) {
+  return api.get(`/billing/invoices/${id}/download-detail`, { responseType: 'blob' })
+}
+
+export function regenerateInvoiceDetail(id: number) {
+  return api.post(`/billing/invoices/${id}/regenerate-detail`)
+}
+
+export function getInvoiceDetailLogs(params?: {
+  status?: string
+  customer_id?: number
+  page?: number
+  page_size?: number
+}) {
+  return api.get('/billing/invoices/detail-logs', { params })
 }
 
 export function confirmInvoice(invoiceId: number) {

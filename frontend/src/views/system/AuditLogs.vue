@@ -130,7 +130,7 @@
           <a-typography-text code>{{ record.ip_address || '-' }}</a-typography-text>
         </template>
         <template #created_at="{ record }">
-          {{ formatDate(record.created_at) }}
+          {{ formatDateTime(record.created_at) }}
         </template>
       </a-table>
     </div>
@@ -142,6 +142,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import * as auditApi from '@/api/audit'
 import PageHeader from '@/components/PageHeader.vue'
+import { formatDateTime } from '@/utils/formatters'
 
 interface AuditLog {
   id: number
@@ -256,11 +257,6 @@ const onPageSizeChange = (pageSize: number) => {
   pagination.pageSize = pageSize
   pagination.current = 1
   fetchLogs()
-}
-
-const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
 }
 
 onMounted(() => {

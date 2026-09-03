@@ -133,6 +133,12 @@ class Invoice(BaseModel):
     is_auto_generated = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"))
 
+    # 明细文件
+    detail_file_path = Column(String(255), nullable=True)  # Excel 文件路径
+    detail_file_status = Column(
+        String(20), default="pending", nullable=False
+    )  # pending/generating/completed/failed
+
     # 多角色协作确认追踪
     ops_confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 运营经理确认人
     ops_confirmed_at = Column(String(50), nullable=True)  # 运营经理确认时间
@@ -147,6 +153,24 @@ class Invoice(BaseModel):
         Index("idx_invoice_customer_period", "customer_id", "period_start", "period_end"),
         Index("idx_invoice_status_period", "status", "period_start"),
     )
+
+
+class InvoiceDiscountHistory(BaseModel):
+    """结算单减免修改历史表
+
+    每次修改减免时插入一条记录，保留完整操作历史。
+    """
+
+    __tablename__ = "invoice_discount_histories"
+
+    invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
+    discount_amount = Column(DECIMAL(12, 2), nullable=False)
+    discount_reason = Column(Text)
+    discount_attachment = Column(String(255))
+    applied_at = Column(String(50), nullable=False)  # 操作时间（精确到秒）
+    applied_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 操作人
+
+    __table_args__ = (Index("idx_discount_history_invoice", "invoice_id", "applied_at"),)
 
 
 class InvoiceItem(BaseModel):

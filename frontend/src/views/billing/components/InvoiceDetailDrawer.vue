@@ -29,17 +29,61 @@
           <a-descriptions-item label="总金额">{{
             formatCurrency(invoice.total_amount)
           }}</a-descriptions-item>
-          <a-descriptions-item
-            v-if="invoice.discount_amount && invoice.discount_amount > 0"
-            label="折扣金额"
-          >
-            <span class="text-danger">-{{ formatCurrency(invoice.discount_amount) }}</span>
+          <a-descriptions-item label="减免金额">
+            <span
+              v-if="invoice.discount_amount && invoice.discount_amount !== 0"
+              :class="invoice.discount_amount > 0 ? 'text-danger' : 'text-success'"
+            >
+              {{ invoice.discount_amount > 0 ? '-' : '+'
+              }}{{ formatCurrency(Math.abs(invoice.discount_amount)) }}
+            </span>
+            <span v-else class="subtle">无减免</span>
           </a-descriptions-item>
-          <a-descriptions-item v-if="invoice.discount_reason" label="折扣原因" :span="2">{{
-            invoice.discount_reason
-          }}</a-descriptions-item>
-          <a-descriptions-item label="折后金额">
+          <a-descriptions-item
+            v-if="
+              invoice.discount_reason || (invoice.discount_amount && invoice.discount_amount !== 0)
+            "
+            label="减免说明"
+            :span="2"
+            >{{ invoice.discount_reason || '—' }}</a-descriptions-item
+          >
+          <a-descriptions-item v-if="invoice.discount_attachment" label="减免附件" :span="2">
+            <a :href="invoice.discount_attachment" target="_blank" download class="attachment-link"
+              >查看附件</a
+            >
+          </a-descriptions-item>
+          <a-descriptions-item label="最终结算金额">
             <span class="amount-final">{{ formatCurrency(invoice.final_amount) }}</span>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="invoice.detail_file_status" label="明细文件">
+            <div class="detail-file-section">
+              <span v-if="invoice.detail_file_status === 'completed'" class="file-status completed"
+                >✅ 已生成</span
+              >
+              <span
+                v-else-if="invoice.detail_file_status === 'generating'"
+                class="file-status generating"
+                >⏳ 生成中...</span
+              >
+              <span v-else-if="invoice.detail_file_status === 'failed'" class="file-status failed"
+                >❌ 生成失败</span
+              >
+              <span v-else class="file-status pending">— 待生成</span>
+              <button
+                v-if="can('billing:view') && invoice.detail_file_status === 'completed'"
+                class="btn btn-sm"
+                @click="handleDownload"
+              >
+                下载明细
+              </button>
+              <button
+                v-if="can('billing:edit') && invoice.detail_file_status === 'failed'"
+                class="btn btn-sm"
+                @click="handleRegenerate"
+              >
+                重新生成
+              </button>
+            </div>
           </a-descriptions-item>
         </a-descriptions>
 
@@ -109,6 +153,17 @@
           >
             提交
           </button>
+          <!-- 修改减免：在 draft / pending_ops / pending_sales / pending_customer 状态下可修改 -->
+          <button
+            v-if="
+              can('billing:edit') &&
+              ['draft', 'pending_ops', 'pending_sales', 'pending_customer'].includes(invoice.status)
+            "
+            class="btn"
+            @click="emit('edit-discount', invoice.id)"
+          >
+            {{ invoice.discount_amount ? '修改减免' : '设置减免' }}
+          </button>
           <!-- 运营经理确认：非指定经理时禁用并提示 -->
           <template v-if="can('billing:ops_approve') && invoice.status === 'pending_ops'">
             <button
@@ -169,8 +224,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { formatCurrency, formatDate } from '@/utils/formatters'
+import { downloadInvoiceDetail, regenerateInvoiceDetail } from '@/api/billing'
 import type { Invoice } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 import InvoiceTimeline from '@/components/invoice/InvoiceTimeline.vue'
@@ -184,6 +241,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   submit: [id: number]
+  'edit-discount': [id: number]
   'confirm-ops': [id: number]
   'confirm-sales': [id: number]
   confirm: [id: number]
@@ -232,6 +290,32 @@ const salesDisabledTip = computed(() => {
   }
   return '您不是该客户指定的销售经理，无法确认'
 })
+
+// ===== 明细文件下载/重试 =====
+const handleDownload = async () => {
+  if (!props.invoice) return
+  try {
+    const res = await downloadInvoiceDetail(props.invoice.id)
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${props.invoice.invoice_no}.xlsx`
+    link.click()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    Message.error('下载失败')
+  }
+}
+
+const handleRegenerate = async () => {
+  if (!props.invoice) return
+  try {
+    await regenerateInvoiceDetail(props.invoice.id)
+    Message.success('明细文件重新生成中')
+  } catch {
+    Message.error('操作失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -314,6 +398,43 @@ const salesDisabledTip = computed(() => {
 }
 .text-danger {
   color: var(--red);
+}
+.text-success {
+  color: var(--green, #10b981);
+}
+
+/* 明细文件区域 */
+.detail-file-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.file-status.completed {
+  color: var(--green, #10b981);
+}
+.file-status.generating {
+  color: var(--muted);
+}
+.file-status.failed {
+  color: var(--red);
+}
+.file-status.pending {
+  color: var(--muted);
+}
+
+.subtle {
+  color: var(--muted);
+}
+.attachment-link {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+/* 小按钮 */
+.btn.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 /* 空状态 */

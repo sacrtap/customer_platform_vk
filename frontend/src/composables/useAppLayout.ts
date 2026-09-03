@@ -100,6 +100,12 @@ export function useAppLayout() {
             to: '/system/audit-logs',
             permission: 'audit:view',
           },
+          {
+            key: 'invoice-logs',
+            label: '结算单日志',
+            to: '/system/invoice-logs',
+            permission: 'billing:view',
+          },
         ],
       },
     ]
@@ -200,7 +206,8 @@ export function useAppLayout() {
           newPath === '/roles' ||
           newPath === '/system/industry-types' ||
           newPath === '/system/cooperation-statuses' ||
-          newPath === '/system/database-management'
+          newPath === '/system/database-management' ||
+          newPath === '/system/invoice-logs'
         )
           expandedSubmenu.value = 'system'
         else expandedSubmenu.value = null

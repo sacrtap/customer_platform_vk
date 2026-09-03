@@ -1,5 +1,6 @@
 """发票管理路由 — 生成、审批、支付、导出"""
 
+import os
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
@@ -13,11 +14,30 @@ from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
+from ...config import settings
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
+from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from . import billing_bp
+
+
+async def _trigger_detail_generation(request: Request, invoice_id: int):
+    """触发结算单明细文件异步生成"""
+    from ...tasks.scheduler import get_scheduler
+
+    external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
+    session_factory = request.app.ctx.async_session_maker
+
+    scheduler = get_scheduler()
+    scheduler.add_job(
+        generate_invoice_detail,
+        args=[session_factory(), external_engine, invoice_id],
+        id=f"invoice_detail_{invoice_id}",
+        name=f"结算单明细生成-{invoice_id}",
+        replace_existing=True,
+    )
 
 
 @billing_bp.get("/invoices")
@@ -73,6 +93,7 @@ async def get_invoices(request: Request):
                         "final_amount": float(i.total_amount - (i.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                         "status": i.status,
                         "is_auto_generated": i.is_auto_generated,
+                        "detail_file_status": i.detail_file_status or "pending",  # pyright: ignore[reportGeneralTypeIssues]
                         "created_at": i.created_at.isoformat() if i.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for i in invoices
@@ -99,6 +120,9 @@ async def get_invoice(request: Request, invoice_id: int):
         return json({"code": 40401, "message": "结算单不存在"}, status=404)
 
     # 批量查询操作人姓名
+    from sqlalchemy import select as sa_select
+
+    from ...models.billing import InvoiceDiscountHistory
     from ...models.users import User
 
     operator_ids = {
@@ -112,10 +136,24 @@ async def get_invoice(request: Request, invoice_id: int):
     }
     operator_ids.discard(None)
 
+    # 查询减免历史记录
+    discount_history_result = await db.execute(
+        sa_select(InvoiceDiscountHistory)
+        .where(
+            InvoiceDiscountHistory.invoice_id == invoice_id,
+            InvoiceDiscountHistory.deleted_at.is_(None),
+        )
+        .order_by(InvoiceDiscountHistory.applied_at.desc())
+    )
+    discount_histories = discount_history_result.scalars().all()
+
+    # 收集历史记录中的操作人 ID
+    for dh in discount_histories:
+        if dh.applied_by:
+            operator_ids.add(dh.applied_by)
+
     operator_names: dict[int, str] = {}
     if operator_ids:
-        from sqlalchemy import select as sa_select
-
         user_result = await db.execute(
             sa_select(User.id, User.real_name, User.username).where(User.id.in_(operator_ids))
         )
@@ -144,6 +182,7 @@ async def get_invoice(request: Request, invoice_id: int):
                 "total_amount": float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
                 "discount_amount": float(invoice.discount_amount) if invoice.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "discount_reason": invoice.discount_reason,
+                "discount_attachment": invoice.discount_attachment,
                 "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                 "status": invoice.status,
                 "items": [
@@ -179,7 +218,23 @@ async def get_invoice(request: Request, invoice_id: int):
                 "cancelled_name": resolve_name(invoice.cancelled_by),
                 "created_by": invoice.created_by,
                 "created_by_name": resolve_name(invoice.created_by),
+                "detail_file_path": invoice.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
+                "detail_file_status": invoice.detail_file_status or "pending",  # pyright: ignore[reportGeneralTypeIssues]
                 "created_at": invoice.created_at.isoformat() if invoice.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                "discount_history": [
+                    {
+                        "id": dh.id,
+                        "discount_amount": float(dh.discount_amount),  # pyright: ignore[reportArgumentType]
+                        "discount_reason": dh.discount_reason,
+                        "discount_attachment": dh.discount_attachment,
+                        "applied_at": dh.applied_at,
+                        "applied_by": dh.applied_by,
+                        "applied_by_name": operator_names.get(dh.applied_by)
+                        if dh.applied_by
+                        else None,
+                    }
+                    for dh in discount_histories
+                ],
             },
         }
     )
@@ -402,6 +457,15 @@ async def generate_invoices_batch(request: Request):
         auto_commit=True,
     )
 
+    # 批量触发明细文件异步生成
+    for inv in result.get("generated", []):
+        inv_id = inv.get("id") if isinstance(inv, dict) else None
+        if inv_id:
+            try:
+                await _trigger_detail_generation(request, inv_id)
+            except Exception:
+                pass  # 触发失败不阻塞批量生成返回
+
     return json(
         {
             "code": 0,
@@ -478,6 +542,9 @@ async def generate_invoice(request: Request):
     # 结算单生成后清除相关缓存
     await cache_service.invalidate_billing_cache()
 
+    # 触发明细文件异步生成
+    await _trigger_detail_generation(request, invoice.id)  # pyright: ignore[reportArgumentType]
+
     return json(
         {
             "code": 0,
@@ -497,7 +564,7 @@ async def generate_invoice(request: Request):
 @require_permission("billing:edit")
 async def apply_discount(request: Request, invoice_id: int):
     """
-    应用减免
+    应用/修改减免
 
     Body:
     {
@@ -505,17 +572,30 @@ async def apply_discount(request: Request, invoice_id: int):
         "discount_reason": "大客户优惠",
         "discount_attachment": "/uploads/proof.xlsx"
     }
+
+    允许在 draft / pending_ops / pending_sales / pending_customer 状态下修改。
     """
     db: AsyncSession = request.ctx.db_session
     data = request.json
+    user = get_current_user(request)
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    # 获取修改前的值（用于审计日志）
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    old_discount = (
+        float(invoice_before.discount_amount)
+        if invoice_before and invoice_before.discount_amount
+        else 0
+    )
+    old_reason = invoice_before.discount_reason if invoice_before else ""
 
     success, message = await invoice_service.apply_discount(
         invoice_id=invoice_id,
         discount_amount=Decimal(str(data.get("discount_amount", 0))),
         discount_reason=data.get("discount_reason", ""),
         discount_attachment=data.get("discount_attachment"),
+        applied_by=user.get("user_id") if user else None,
     )
 
     if not success:
@@ -524,17 +604,82 @@ async def apply_discount(request: Request, invoice_id: int):
     # 结算单减免后清除相关缓存
     await cache_service.invalidate_billing_cache()
 
-    return json({"code": 0, "message": message})
+    # 记录审计日志（每次修改都产生记录）
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="apply_discount",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "old": {"discount_amount": old_discount, "discount_reason": old_reason},
+            "new": {
+                "discount_amount": float(data.get("discount_amount", 0)),
+                "discount_reason": data.get("discount_reason", ""),
+                "discount_attachment": data.get("discount_attachment"),
+            },
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    # 返回更新后的 invoice 数据
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+
+    return json(
+        {
+            "code": 0,
+            "message": message,
+            "data": {
+                "id": invoice_after.id,  # pyright: ignore[reportOptionalMemberAccess]
+                "discount_amount": float(invoice_after.discount_amount)
+                if invoice_after.discount_amount
+                else 0,  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType, reportGeneralTypeIssues]
+                "discount_reason": invoice_after.discount_reason,  # pyright: ignore[reportOptionalMemberAccess]
+                "discount_attachment": invoice_after.discount_attachment,  # pyright: ignore[reportOptionalMemberAccess]
+                "discount_applied_at": invoice_after.discount_applied_at,  # pyright: ignore[reportOptionalMemberAccess]
+                "final_amount": float(
+                    invoice_after.total_amount - (invoice_after.discount_amount or 0)
+                ),  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType]
+                "status": invoice_after.status,  # pyright: ignore[reportOptionalMemberAccess]
+            },
+        }
+    )
 
 
 @billing_bp.post("/invoices/<invoice_id:int>/submit")
 @auth_required
 @require_permission("billing:edit")
 async def submit_invoice(request: Request, invoice_id: int):
-    """提交结算单（商务确认）"""
+    """提交结算单（商务确认）
+
+    Body (可选减免信息):
+    {
+        "discount_amount": 500.00,
+        "discount_reason": "大客户优惠",
+        "discount_attachment": "/uploads/proof.xlsx"
+    }
+    """
     db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
     user = get_current_user(request)
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    # 如果传入了减免信息，先应用减免
+    if "discount_amount" in data and data["discount_amount"]:
+        discount_success, discount_msg = await invoice_service.apply_discount(
+            invoice_id=invoice_id,
+            discount_amount=Decimal(str(data["discount_amount"])),
+            discount_reason=data.get("discount_reason", ""),
+            discount_attachment=data.get("discount_attachment"),
+            applied_by=user.get("user_id") if user else None,
+        )
+        if not discount_success:
+            return json({"code": 40001, "message": discount_msg}, status=400)
 
     # 获取提交前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
@@ -1128,6 +1273,131 @@ async def export_invoices(request: Request):
             "Pragma": "no-cache",
             "Expires": "0",
         },
+    )
+
+
+# ==================== 结算单明细文件 ====================
+
+
+@billing_bp.get("/invoices/<invoice_id:int>/download-detail")
+@auth_required
+@require_permission("billing:view")
+async def download_invoice_detail(request: Request, invoice_id: int):
+    """下载结算单明细 Excel 文件"""
+    db: AsyncSession = request.ctx.db_session
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    if invoice.detail_file_status != "completed" or not invoice.detail_file_path:  # pyright: ignore[reportGeneralTypeIssues]
+        return json({"code": 40001, "message": "明细文件尚未生成完成"}, status=400)
+
+    # 构建完整文件路径
+    base_dir = getattr(settings, "file_storage_path", "./uploads")
+    file_path = os.path.join(base_dir, invoice.detail_file_path)  # pyright: ignore[reportGeneralTypeIssues]
+
+    if not os.path.exists(file_path):
+        return json({"code": 40401, "message": "明细文件不存在"}, status=404)
+
+    filename = f"{invoice.invoice_no}.xlsx"
+
+    return await response_file(
+        file_path,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
+
+
+@billing_bp.post("/invoices/<invoice_id:int>/regenerate-detail")
+@auth_required
+@require_permission("billing:edit")
+async def regenerate_invoice_detail(request: Request, invoice_id: int):
+    """重新生成结算单明细 Excel 文件"""
+    db: AsyncSession = request.ctx.db_session
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 重置状态为 pending
+    invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
+    await db.commit()
+
+    # 触发异步生成
+    await _trigger_detail_generation(request, invoice_id)
+
+    return json({"code": 0, "message": "明细文件重新生成中"})
+
+
+@billing_bp.get("/invoices/detail-logs")
+@auth_required
+@require_permission("billing:view")
+async def get_invoice_detail_logs(request: Request):
+    """结算单明细文件生成日志列表"""
+    db: AsyncSession = request.ctx.db_session
+    from sqlalchemy import func, select
+
+    from ...models.billing import Invoice
+
+    # 筛选参数
+    status_filter = request.args.get("status")
+    customer_id = request.args.get("customer_id")
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+
+    stmt = select(Invoice).where(Invoice.detail_file_status != "pending")
+    count_stmt = (
+        select(func.count()).select_from(Invoice).where(Invoice.detail_file_status != "pending")
+    )
+
+    if status_filter:
+        stmt = stmt.where(Invoice.detail_file_status == status_filter)
+        count_stmt = count_stmt.where(Invoice.detail_file_status == status_filter)
+
+    if customer_id:
+        stmt = stmt.where(Invoice.customer_id == int(customer_id))
+        count_stmt = count_stmt.where(Invoice.customer_id == int(customer_id))
+
+    # 排序：最近变更在前
+    stmt = stmt.order_by(Invoice.updated_at.desc()).offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(stmt)
+    invoices = result.scalars().all()
+
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "list": [
+                    {
+                        "id": inv.id,
+                        "invoice_no": inv.invoice_no,
+                        "customer_id": inv.customer_id,
+                        "customer_name": inv.customer.name if inv.customer else None,
+                        "period_start": inv.period_start.isoformat() if inv.period_start else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        "period_end": inv.period_end.isoformat() if inv.period_end else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        "detail_file_status": inv.detail_file_status or "pending",  # pyright: ignore[reportGeneralTypeIssues]
+                        "detail_file_path": inv.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
+                        "total_amount": float(inv.total_amount),  # pyright: ignore[reportArgumentType]
+                        "created_at": inv.created_at.isoformat() if inv.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        "updated_at": inv.updated_at.isoformat() if inv.updated_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                    }
+                    for inv in invoices
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        }
     )
 
 
