@@ -141,6 +141,7 @@ PRESET_ROLES = {
         [
             "customers:view",
             "customers:edit",
+            "users:view",
             "billing:view",
             "billing:edit",
             "billing:recharge",

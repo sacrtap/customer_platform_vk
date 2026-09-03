@@ -127,8 +127,7 @@ const rules = {
 
 const handleFileChange = (fileList: { file?: File; [key: string]: unknown }[]) => {
   if (fileList && fileList.length > 0) {
-    const item = fileList[0]
-    form.attachment = item.file || item
+    form.attachment = fileList[0].file
   }
 }
 

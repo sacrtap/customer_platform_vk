@@ -410,7 +410,7 @@ class InvoiceExcelService:
         ws1.title = "合计"
 
         # 标题行
-        ws1.merge_cells("A1:J1")
+        ws1.merge_cells("A1:K1")
         ws1.cell(
             row=1,
             column=1,
@@ -419,7 +419,7 @@ class InvoiceExcelService:
         ws1.cell(row=1, column=1).font = Font(bold=True, size=14)
         ws1.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
-        # 表头（10 列）
+        # 表头（11 列）
         headers_1 = [
             "结算周期",
             "单价（元/套）",
@@ -427,6 +427,7 @@ class InvoiceExcelService:
             "计费模型数量（套）",
             "总金额（元）",
             "减免金额（元）",
+            "实际结算金额（元）",
             "期初余额（元）",
             "当月充值金额（元）",
             "结算后余额（元）",
@@ -448,21 +449,22 @@ class InvoiceExcelService:
         ws1.cell(row=3, column=4, value=model_count)
         ws1.cell(row=3, column=5, value=float(total_amount))
         ws1.cell(row=3, column=6, value=float(discount_amount))
+        ws1.cell(row=3, column=7, value=float(final_amount))
         # 期初余额 / 当月充值 / 结算后余额
         if balance_info:
-            ws1.cell(row=3, column=7, value=float(balance_info.get("opening_balance", 0)))
-            ws1.cell(row=3, column=8, value=float(balance_info.get("monthly_recharge", 0)))
+            ws1.cell(row=3, column=8, value=float(balance_info.get("opening_balance", 0)))
+            ws1.cell(row=3, column=9, value=float(balance_info.get("monthly_recharge", 0)))
             ws1.cell(
-                row=3, column=9, value=float(balance_info.get("closing_balance", final_amount))
+                row=3, column=10, value=float(balance_info.get("closing_balance", final_amount))
             )
         else:
-            ws1.cell(row=3, column=7, value="")
             ws1.cell(row=3, column=8, value="")
-            ws1.cell(row=3, column=9, value=float(final_amount))
-        ws1.cell(row=3, column=10, value="")
+            ws1.cell(row=3, column=9, value="")
+            ws1.cell(row=3, column=10, value=float(final_amount))
+        ws1.cell(row=3, column=11, value="")
 
         # 列宽
-        for col in range(1, 11):
+        for col in range(1, 12):
             ws1.column_dimensions[get_column_letter(col)].width = 18
 
         # ============================================================
