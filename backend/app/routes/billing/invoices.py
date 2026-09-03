@@ -630,6 +630,13 @@ async def apply_discount(request: Request, invoice_id: int):
     # 返回更新后的 invoice 数据
     invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
 
+    # 如果明细文件已生成，重新生成以更新合计 sheet 中的减免相关数值
+    if invoice_after and invoice_after.detail_file_status == "completed":  # pyright: ignore[reportOptionalMemberAccess]
+        try:
+            await _trigger_detail_generation(request, invoice_id)
+        except Exception:
+            pass  # 重新生成失败不影响减免修改结果
+
     return json(
         {
             "code": 0,
@@ -698,6 +705,18 @@ async def submit_invoice(request: Request, invoice_id: int):
 
     # 结算单提交后清除相关缓存
     await cache_service.invalidate_billing_cache()
+
+    # 如果传入了减免信息且明细文件已生成，重新生成以更新合计 sheet 中的减免相关数值
+    if (
+        "discount_amount" in data
+        and data["discount_amount"]
+        and invoice_after
+        and invoice_after.detail_file_status == "completed"  # pyright: ignore[reportOptionalMemberAccess]
+    ):
+        try:
+            await _trigger_detail_generation(request, invoice_id)
+        except Exception:
+            pass  # 重新生成失败不影响提交结果
 
     # 记录审计日志
     await create_audit_entry(
