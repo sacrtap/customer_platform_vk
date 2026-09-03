@@ -92,6 +92,10 @@ export function recharge(data: RechargeParams) {
   return api.post('/billing/recharge', data)
 }
 
+export function recalculateBalance(customerId: number) {
+  return api.post(`/billing/customers/${customerId}/balance/recalculate`)
+}
+
 export interface RechargeRecord {
   id: number
   customer_id: number

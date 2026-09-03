@@ -98,6 +98,35 @@ class TestBalanceService_Recharge:
         mock_db_session.commit.assert_called()
 
     @pytest.mark.asyncio
+    async def test_recharge_recalculates_total_amount(self, balance_service, mock_db_session):
+        """测试充值后 total_amount 通过重算得到（而非累加），修正数据不一致场景"""
+        # 模拟 total_amount 与 real+bonus 不一致（如历史脏数据）
+        existing_balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("200.00"),
+            total_amount=Decimal("9999.00"),  # 脏数据：不等于 1000+200=1200
+        )
+        balance_service.balance_repo.get_or_create.return_value = existing_balance
+
+        # 充值 500 实充 + 100 赠金
+        result = await balance_service.recharge(
+            customer_id=100,
+            real_amount=Decimal("500.00"),
+            bonus_amount=Decimal("100.00"),
+            operator_id=1,
+        )
+
+        assert result is not None
+        # real_amount = 1000 + 500 = 1500
+        assert existing_balance.real_amount == Decimal("1500.00")
+        # bonus_amount = 200 + 100 = 300
+        assert existing_balance.bonus_amount == Decimal("300.00")
+        # total_amount = 重算(1500 + 300) = 1800，而非脏数据累加(9999 + 500 + 100 = 10599)
+        assert existing_balance.total_amount == Decimal("1800.00")
+
+    @pytest.mark.asyncio
     async def test_recharge_creates_balance_if_not_exists(self, balance_service, mock_db_session):
         """测试充值时如果余额不存在则自动创建"""
         # Mock 返回新创建的余额
@@ -124,6 +153,104 @@ class TestBalanceService_Recharge:
 
         # 验证调用了 get_or_create 获取余额
         balance_service.balance_repo.get_or_create.assert_called_once_with(200)
+        mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_recharge_zero_real_with_bonus(self, balance_service, mock_db_session):
+        """测试实充为 0、仅赠送金额的充值（允许 real_amount=0）"""
+        existing_balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("500.00"),
+            bonus_amount=Decimal("100.00"),
+            total_amount=Decimal("600.00"),
+        )
+        balance_service.balance_repo.get_or_create.return_value = existing_balance
+
+        result = await balance_service.recharge(
+            customer_id=100,
+            real_amount=Decimal("0"),  # 实充为 0
+            bonus_amount=Decimal("200.00"),  # 仅赠送
+            operator_id=1,
+        )
+
+        assert result is not None
+        assert result.real_amount == Decimal("0.00")
+        assert result.bonus_amount == Decimal("200.00")
+        # 余额不变实充，赠金增加
+        assert existing_balance.real_amount == Decimal("500.00")
+        assert existing_balance.bonus_amount == Decimal("300.00")
+        assert existing_balance.total_amount == Decimal("800.00")  # 500 + 300
+
+
+# ==================== Test BalanceService - Recalculate ====================
+
+
+class TestBalanceService_Recalculate:
+    """余额重算测试"""
+
+    @pytest.mark.asyncio
+    async def test_recalculate_fixes_inconsistent_total(self, balance_service, mock_db_session):
+        """测试重算修正不一致的 total_amount"""
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("200.00"),
+            total_amount=Decimal("9999.00"),  # 脏数据
+        )
+        balance_service.balance_repo.get_by_customer_id.return_value = balance
+
+        result = await balance_service.recalculate_balance(100)
+
+        assert result is not None
+        assert result.total_amount == Decimal("1200.00")  # 1000 + 200
+        mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_recalculate_no_change_when_consistent(self, balance_service, mock_db_session):
+        """测试重算时数据已一致，不触发 commit"""
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("200.00"),
+            total_amount=Decimal("1200.00"),  # 已一致
+        )
+        balance_service.balance_repo.get_by_customer_id.return_value = balance
+
+        result = await balance_service.recalculate_balance(100)
+
+        assert result is not None
+        assert result.total_amount == Decimal("1200.00")
+        # 数据一致时不应该 commit
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_recalculate_balance_not_found(self, balance_service, mock_db_session):
+        """测试余额不存在时返回 None"""
+        balance_service.balance_repo.get_by_customer_id.return_value = None
+
+        result = await balance_service.recalculate_balance(999)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_recalculate_negative_balance(self, balance_service, mock_db_session):
+        """测试重算负余额场景"""
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("-500.00"),
+            bonus_amount=Decimal("0.00"),
+            total_amount=Decimal("0.00"),  # 脏数据：不等于 -500
+        )
+        balance_service.balance_repo.get_by_customer_id.return_value = balance
+
+        result = await balance_service.recalculate_balance(100)
+
+        assert result is not None
+        assert result.total_amount == Decimal("-500.00")  # -500 + 0
         mock_db_session.commit.assert_called()
 
 

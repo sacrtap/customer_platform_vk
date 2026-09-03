@@ -35,10 +35,10 @@ export interface SortState {
 
 // 余额范围预设
 // 注意：max 值使用 9999.99/99999.99/999999.99 避免与下一档 min 边界重叠
-// 'low' 的 min=0.01 排除零余额，与 KPI 统计逻辑一致（total_amount > 0 且 < 10000）
+// 'low' 的 min=null 包含负余额（欠费）和零余额，与 KPI 统计逻辑一致
 export const BALANCE_RANGE_OPTIONS = [
   { label: '零余额', value: 'zero', min: 0, max: 0 },
-  { label: '1万以下', value: 'low', min: 0.01, max: 9999.99 },
+  { label: '1万以下', value: 'low', min: null as number | null, max: 9999.99 },
   { label: '1万-10万', value: 'mid', min: 10000, max: 99999.99 },
   { label: '10万-100万', value: 'high', min: 100000, max: 999999.99 },
   { label: '100万以上', value: 'top', min: 1000000, max: null as number | null },
@@ -204,8 +204,8 @@ export function useBalance() {
       const baseParams = buildKpiBaseParams()
 
       // 构建各 KPI 的筛选参数（与点击 KPI 卡片后列表筛选条件完全一致）
-      // 余额不足：total_amount > 0 且 < 10000（与 BALANCE_RANGE_OPTIONS 的 'low' 一致）
-      const lowParams = { ...baseParams, balance_min: 0.01, balance_max: 9999.99 }
+      // 余额不足：total_amount < 10000（含欠费/负余额客户）
+      const lowParams = { ...baseParams, balance_max: 9999.99 }
       // 零余额：total_amount = 0（与 BALANCE_RANGE_OPTIONS 的 'zero' 一致）
       const zeroParams = { ...baseParams, balance_min: 0, balance_max: 0 }
 

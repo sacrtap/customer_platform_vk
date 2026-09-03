@@ -55,6 +55,26 @@ class BalanceService:
         """获取或创建客户余额"""
         return await self.balance_repo.get_or_create(customer_id)
 
+    async def recalculate_balance(self, customer_id: int) -> Optional[CustomerBalance]:
+        """重算客户余额的 total_amount
+
+        将 total_amount 修正为 real_amount + bonus_amount，
+        用于修复因历史脏数据或并发问题导致的不一致。
+
+        Returns:
+            更新后的 CustomerBalance，或 None（余额不存在）
+        """
+        balance = await self.get_balance_by_customer_id(customer_id)
+        if not balance:
+            return None
+
+        old_total = balance.total_amount
+        new_total = (balance.real_amount or 0) + (balance.bonus_amount or 0)
+        if old_total != new_total:
+            balance.total_amount = new_total  # pyright: ignore[reportAttributeAccessIssue]
+            await self.db.commit()
+        return balance
+
     async def recharge(
         self,
         customer_id: int,
@@ -93,7 +113,10 @@ class BalanceService:
         balance = await self.get_or_create_balance(customer_id)
         balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
         balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
-        balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
+        # 重算 total_amount（与扣款逻辑保持一致，避免累积误差）
+        balance.total_amount = (balance.real_amount or 0) + (  # pyright: ignore[reportAttributeAccessIssue]
+            balance.bonus_amount or 0
+        )
 
         await self.db.commit()
         await self.db.refresh(record)
@@ -140,7 +163,10 @@ class BalanceService:
                 balance = await self.get_or_create_balance(customer_id)
                 balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
                 balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
-                balance.total_amount = (balance.total_amount or 0) + real_amount + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
+                # 重算 total_amount（与扣款逻辑保持一致）
+                balance.total_amount = (balance.real_amount or 0) + (  # pyright: ignore[reportAttributeAccessIssue]
+                    balance.bonus_amount or 0
+                )
 
                 await self.db.flush()
                 success_count += 1

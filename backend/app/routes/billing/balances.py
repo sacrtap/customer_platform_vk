@@ -729,14 +729,13 @@ async def get_balance_stats(request: Request):
     this_month_real_amount = float(this_month_result.real_amount_sum or 0)
     this_month_bonus_amount = float(this_month_result.bonus_amount_sum or 0)
 
-    # --- 余额不足客户数 ---
+    # --- 余额不足客户数（含欠费/负余额客户）---
     LOW_BALANCE_THRESHOLD = 10000
     low_balance_stmt = (
         select(func.count(CustomerBalance.id))
         .join(Customer, CustomerBalance.customer_id == Customer.id)
         .where(
             CustomerBalance.total_amount < LOW_BALANCE_THRESHOLD,
-            CustomerBalance.total_amount > 0,
         )
     )
     low_balance_stmt = add_industry_joins(low_balance_stmt)
@@ -872,6 +871,48 @@ async def get_customer_balance(request: Request, customer_id: int):
     )
 
 
+@billing_bp.post("/customers/<customer_id:int>/balance/recalculate")
+@auth_required
+@require_permission("billing:recharge")
+async def recalculate_balance(request: Request, customer_id: int):
+    """重算客户余额的 total_amount
+
+    将 total_amount 修正为 real_amount + bonus_amount，
+    用于修复因历史脏数据或并发问题导致的不一致。
+    """
+    db: AsyncSession = request.ctx.db_session
+    balance_service = BalanceService(BalanceRepository(db))
+
+    balance = await balance_service.recalculate_balance(customer_id)
+
+    if not balance:
+        return json(
+            {"code": 40400, "message": "客户余额账户不存在"},
+            status=404,
+        )
+
+    old_total = float(request.json.get("old_total", 0)) if request.json else 0
+
+    return json(
+        {
+            "code": 0,
+            "message": "重算成功",
+            "data": {
+                "customer_id": balance.customer_id,
+                "real_amount": float(balance.real_amount) if balance.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "total_amount": float(balance.total_amount) if balance.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_total": float(balance.used_total) if balance.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_real": float(balance.used_real) if balance.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "old_total": old_total,
+                "changed": old_total
+                != (float(balance.total_amount) if balance.total_amount else 0),
+            },
+        }
+    )
+
+
 @billing_bp.post("/recharge")
 @auth_required
 @require_permission("billing:recharge")
@@ -896,9 +937,9 @@ async def recharge(request: Request):
     real_amount = Decimal(str(data.get("real_amount", 0)))
     bonus_amount = Decimal(str(data.get("bonus_amount", 0)))
 
-    if not customer_id or real_amount == 0:
+    if not customer_id or (real_amount == 0 and bonus_amount == 0):
         return json(
-            {"code": 40001, "message": "客户 ID 和实充金额不能为空"},
+            {"code": 40001, "message": "请填写实充金额或赠送金额"},
             status=400,
         )
 

@@ -101,6 +101,14 @@
               >
                 记录
               </button>
+              <button
+                v-if="can('billing:recharge')"
+                class="btn btn-recalculate"
+                style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+                @click="emit('recalculate', record)"
+              >
+                更新
+              </button>
             </td>
           </tr>
           <tr v-if="balances.length === 0 && !loading">
@@ -198,6 +206,7 @@ const emit = defineEmits<{
   (e: 'sortChange', dataIndex: string, direction: string): void
   (e: 'recharge', record: Balance): void
   (e: 'viewRecords', record: Balance): void
+  (e: 'recalculate', record: Balance): void
 }>()
 
 // --- 列定义 ---
@@ -703,6 +712,16 @@ const getBurnTooltip = (record: Balance): string => {
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+.btn-recalculate {
+  color: #6366f1;
+  border-color: #c7d2fe;
+}
+.btn-recalculate:hover {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 /* 空状态 */

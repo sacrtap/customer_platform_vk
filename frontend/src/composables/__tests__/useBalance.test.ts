@@ -192,9 +192,9 @@ describe('useBalance - 余额范围选项边界', () => {
     expect(zero.min).toBe(0)
     expect(zero.max).toBe(0)
 
-    // low: 0.01 ~ 9999.99（不含 10000）
+    // low: null ~ 9999.99（含负余额和零余额，不含 10000）
     const low = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'low')!
-    expect(low.min).toBe(0.01)
+    expect(low.min).toBeNull()
     expect(low.max).toBe(9999.99)
 
     // mid: 10000 ~ 99999.99（不含 100000）
@@ -217,21 +217,21 @@ describe('useBalance - 余额范围选项边界', () => {
     const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
     const low = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'low')!
     const mid = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'mid')!
-    expect(low.max!).toBeLessThan(mid.min)
+    expect(low.max!).toBeLessThan(mid.min!)
   })
 
   it('mid 的 max 小于 high 的 min（无重叠）', async () => {
     const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
     const mid = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'mid')!
     const high = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'high')!
-    expect(mid.max!).toBeLessThan(high.min)
+    expect(mid.max!).toBeLessThan(high.min!)
   })
 
   it('high 的 max 小于 top 的 min（无重叠）', async () => {
     const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
     const high = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'high')!
     const top = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'top')!
-    expect(high.max!).toBeLessThan(top.min)
+    expect(high.max!).toBeLessThan(top.min!)
   })
 })
 
@@ -318,7 +318,8 @@ describe('useBalance - KPI 统计计算', () => {
 
   it('loadStats 使用 getBalances 获取 low_balance_count（与列表一致）', async () => {
     mockGetBalances.mockImplementation((params: Record<string, unknown>) => {
-      if (params.balance_min === 0.01 && params.balance_max === 9999.99) {
+      // low 不含 balance_min（包含负余额），只有 balance_max
+      if (params.balance_min === undefined && params.balance_max === 9999.99) {
         return Promise.resolve({ data: { list: [], total: 8 } })
       }
       return Promise.resolve({ data: { list: [], total: 0 } })
@@ -388,17 +389,18 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.this_month_count).toBe(0)
   })
 
-  it('lowParams 使用 balance_max=9999.99（不含 10000）', async () => {
+  it('lowParams 使用 balance_max=9999.99 且不含 balance_min（含负余额）', async () => {
     const { loadStats } = useBalance()
     await loadStats()
 
-    // 找到 lowParams 调用
+    // 找到 lowParams 调用：不含 balance_min，有 balance_max
     const lowCall = mockGetBalances.mock.calls.find((call) => {
       const params = call[0] as Record<string, unknown>
-      return params.balance_min === 0.01
+      return params.balance_min === undefined && params.balance_max === 9999.99
     })
     expect(lowCall).toBeTruthy()
     const params = lowCall![0] as Record<string, unknown>
     expect(params.balance_max).toBe(9999.99)
+    expect(params.balance_min).toBeUndefined()
   })
 })

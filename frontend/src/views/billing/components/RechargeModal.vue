@@ -113,8 +113,9 @@ const handleSubmit = async () => {
     Message.error('请输入充值金额')
     return false
   }
-  if (form.real_amount === 0) {
-    Message.error('充值金额不能为 0')
+  // 允许实充为 0（仅赠送场景），但实充和赠送不能都为 0
+  if (form.real_amount === 0 && (!form.bonus_amount || form.bonus_amount === 0)) {
+    Message.error('实充金额和赠送金额不能都为 0')
     return false
   }
 

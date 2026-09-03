@@ -102,6 +102,7 @@
         @sort-change="handleSortChange"
         @recharge="openRechargeModal"
         @view-records="viewRechargeRecords"
+        @recalculate="handleRecalculate"
       />
     </div>
 
@@ -128,7 +129,9 @@
 import { onMounted, ref, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useBalance } from '@/composables/useBalance'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
+import { recalculateBalance } from '@/api/billing'
+import { formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/PageHeader.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
 import BalanceFilters from './components/BalanceFilters.vue'
@@ -252,6 +255,36 @@ const viewRechargeRecords = (record: Balance) => {
 const handleRechargeSuccess = () => {
   loadBalances()
   loadStats()
+}
+
+const handleRecalculate = async (record: Balance) => {
+  const confirmed = await new Promise<boolean>((resolve) => {
+    Modal.confirm({
+      title: '确认重算余额',
+      content: `将重算客户「${record.customer_name}」的余额 total_amount = real_amount + bonus_amount，是否确认？`,
+      okText: '确认重算',
+      cancelText: '取消',
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    })
+  })
+  if (!confirmed) return
+
+  try {
+    const res = await recalculateBalance(record.customer_id)
+    const data = res.data
+    if (data.changed) {
+      Message.success(
+        `重算完成：total_amount 从 ${formatCurrency(data.old_total)} 修正为 ${formatCurrency(data.total_amount)}`
+      )
+    } else {
+      Message.info('重算完成：余额数据一致，无需修正')
+    }
+    loadBalances()
+    loadStats()
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '重算失败')
+  }
 }
 
 const handleBatchAction = (action: string) => {
