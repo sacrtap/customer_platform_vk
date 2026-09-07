@@ -126,10 +126,10 @@
                 <!-- 有效期 -->
                 <td>
                   <span v-if="record.effective_date && record.expiry_date" class="cell-nowrap">
-                    {{ record.effective_date }} 至 {{ record.expiry_date }}
+                    {{ formatDate(record.effective_date) }} 至 {{ formatDate(record.expiry_date) }}
                   </span>
                   <span v-else-if="record.effective_date" class="cell-nowrap">
-                    {{ record.effective_date }} 起
+                    {{ formatDate(record.effective_date) }} 起
                   </span>
                   <span v-else class="subtle">-</span>
                 </td>
@@ -242,6 +242,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import PricingRuleModal from './components/PricingRuleModal.vue'
+import { formatDate } from '@/utils/formatters'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)

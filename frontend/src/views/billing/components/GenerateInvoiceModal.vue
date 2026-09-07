@@ -2,7 +2,7 @@
   <a-modal
     v-model:visible="isVisible"
     title="生成结算单"
-    width="760px"
+    width="860px"
     :confirm-loading="loading"
     @before-ok="handleSubmit"
     @cancel="handleCancel"
@@ -30,16 +30,37 @@
             :data="calculatedItems"
             :pagination="false"
             size="small"
-            row-key="id"
+            row-key="pricing_rule_id"
           >
+            <template #pricingType="{ record }">
+              <span :class="['pricing-tag', `pricing-${record.pricing_type}`]">
+                {{ pricingTypeText(record.pricing_type) }}
+              </span>
+            </template>
+            <template #deviceType="{ record }">
+              {{ record.device_type || '—' }}
+            </template>
+            <template #layerType="{ record }">
+              {{
+                record.layer_type === 'multi'
+                  ? '多层'
+                  : record.layer_type === 'single'
+                    ? '单层'
+                    : '—'
+              }}
+            </template>
+            <template #quantity="{ record }">
+              <div class="rule-detail">
+                <div v-for="(line, idx) in formatQuantity(record)" :key="idx">{{ line }}</div>
+              </div>
+            </template>
+            <template #ruleDetail="{ record }">
+              <div class="rule-detail">
+                <div v-for="(line, idx) in formatRuleDetail(record)" :key="idx">{{ line }}</div>
+              </div>
+            </template>
             <template #subtotal="{ record }">
-              <span>{{
-                formatCurrency(
-                  record.subtotal !== undefined
-                    ? record.subtotal
-                    : record.quantity * record.unit_price
-                )
-              }}</span>
+              <span>{{ formatCurrency(record.subtotal) }}</span>
             </template>
           </a-table>
           <div class="total-preview">预计总金额：{{ formatCurrency(totalPreview) }}</div>
@@ -160,8 +181,10 @@ import {
 } from '@/api/billing'
 import { getIndustryTypesList } from '@/api/industryTypes'
 import { formatCurrency } from '@/utils/formatters'
+import { pricingTypeText, formatQuantity, formatRuleDetail } from '@/utils/invoiceFormatters'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import type { IndustryType } from '@/types'
+import type { InvoiceItem } from '@/api/billing'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ 'update:visible': [value: boolean]; success: [] }>()
@@ -172,19 +195,7 @@ const loading = ref(false)
 const mode = ref<'customer' | 'batch'>('customer')
 
 // ===== 按指定客户模式 =====
-const calculatedItems = ref<
-  Array<{
-    id?: number
-    device_type?: string
-    layer_type?: string
-    quantity: number
-    unit_price: number
-    subtotal?: number
-    additional_floor_price?: number
-    multi_floor_pricing_type?: 'unified' | 'incremental'
-    order_count?: number
-  }>
->([])
+const calculatedItems = ref<InvoiceItem[]>([])
 
 const form = reactive({
   customer_id: undefined as number | undefined,
@@ -195,21 +206,11 @@ const form = reactive({
 const periodRange = ref<string[]>([])
 
 const itemColumns = [
-  {
-    title: '设备类型',
-    dataIndex: 'device_type',
-    width: 140,
-    render: ({ record }: { record: { device_type?: string } }) => record.device_type || '包年',
-  },
-  {
-    title: '楼层',
-    dataIndex: 'layer_type',
-    width: 80,
-    render: ({ record }: { record: { layer_type?: string } }) =>
-      record.layer_type === 'multi' ? '多层' : record.layer_type === 'single' ? '单层' : '-',
-  },
-  { title: '数量', dataIndex: 'quantity', width: 80 },
-  { title: '单价', dataIndex: 'unit_price', width: 100 },
+  { title: '计费类型', slotName: 'pricingType', width: 90 },
+  { title: '设备类型', slotName: 'deviceType', width: 80 },
+  { title: '楼层', slotName: 'layerType', width: 70 },
+  { title: '用量', slotName: 'quantity', width: 90 },
+  { title: '计费规则', slotName: 'ruleDetail' },
   { title: '小计', slotName: 'subtotal', width: 120 },
 ]
 
@@ -221,22 +222,53 @@ const totalPreview = computed(() =>
   )
 )
 
-const handlePeriodChange = async (dates: string[]) => {
-  if (dates.length === 2 && form.customer_id) {
-    form.period_start = dates[0]
-    form.period_end = dates[1]
+// 获取计费明细预览
+const fetchCalculatedItems = async () => {
+  if (form.customer_id && form.period_start && form.period_end) {
     try {
       const res = await calculateInvoiceItems({
         customer_id: form.customer_id,
-        period_start: dates[0],
-        period_end: dates[1],
+        period_start: form.period_start,
+        period_end: form.period_end,
       })
-      calculatedItems.value = res.data?.items || []
+      // 将后端可能返回的 null 值转为 undefined，以兼容 InvoiceItem 类型
+      const rawItems = (res.data?.items || []) as Array<Record<string, unknown>>
+      calculatedItems.value = rawItems.map((item) => {
+        const cleaned: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(item)) {
+          cleaned[key] = value === null ? undefined : value
+        }
+        return cleaned as unknown as InvoiceItem
+      })
     } catch {
       calculatedItems.value = []
     }
+  } else {
+    calculatedItems.value = []
   }
 }
+
+const handlePeriodChange = async (dates: string[]) => {
+  if (dates.length === 2) {
+    form.period_start = dates[0]
+    form.period_end = dates[1]
+    await fetchCalculatedItems()
+  } else {
+    form.period_start = ''
+    form.period_end = ''
+    calculatedItems.value = []
+  }
+}
+
+// 客户变化时自动刷新预览
+watch(
+  () => form.customer_id,
+  () => {
+    if (mode.value === 'customer') {
+      fetchCalculatedItems()
+    }
+  }
+)
 
 // ===== 按计费类型（批量）模式 =====
 const scaleLevelOptions = ['S', 'A', 'B', 'C', 'D', 'E']
@@ -339,19 +371,19 @@ const handleModeChange = (val: string | number | boolean) => {
   }
 }
 
-// 弹窗打开时重置
+// 弹窗打开时：保留结算周期，仅清空客户和预览数据
 watch(
   () => props.visible,
   (val) => {
     if (val) {
       mode.value = 'customer'
+      // 清空客户和预览
       calculatedItems.value = []
-      periodRange.value = []
-      batchPeriodRange.value = []
-      previewCustomers.value = []
       form.customer_id = undefined
-      form.period_start = ''
-      form.period_end = ''
+      form.period_start = periodRange.value.length === 2 ? periodRange.value[0] : ''
+      form.period_end = periodRange.value.length === 2 ? periodRange.value[1] : ''
+      // 保留 batchPeriodRange，仅清空预览
+      previewCustomers.value = []
       batchForm.pricing_type = 'fixed'
       batchForm.industry_type_ids = []
       batchForm.scale_levels = []
@@ -470,5 +502,33 @@ const handleCancel = () => {
 }
 .text-danger {
   color: var(--red, #ef4444);
+}
+
+/* 计费类型标签 */
+.pricing-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pricing-fixed {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+.pricing-tiered {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.pricing-package {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* 计费规则详情 */
+.rule-detail {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #475569;
 }
 </style>

@@ -222,6 +222,16 @@ export interface InvoiceItem {
   multi_floor_pricing_type?: 'unified' | 'incremental'
   order_count?: number
   pricing_rule_id?: number
+  pricing_type?: 'fixed' | 'tiered' | 'package'
+  package_type?: 'unlimited' | 'limited'
+  base_fee?: number
+  limit_count?: number
+  over_limit_quantity?: number
+  over_limit_unit_price?: number
+  over_limit_cost?: number
+  usage_cost?: number
+  period_days?: number
+  tiers?: unknown
 }
 
 export interface Invoice {

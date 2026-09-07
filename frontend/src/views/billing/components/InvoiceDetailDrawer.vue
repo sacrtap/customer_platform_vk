@@ -93,16 +93,22 @@
             <table class="table">
               <thead>
                 <tr>
-                  <th style="width: 120px">设备类型</th>
-                  <th style="width: 80px">楼层</th>
-                  <th style="width: 80px">数量</th>
-                  <th style="width: 120px">单价</th>
+                  <th style="width: 80px">计费类型</th>
+                  <th style="width: 80px">设备类型</th>
+                  <th style="width: 70px">楼层</th>
+                  <th style="width: 90px">用量</th>
+                  <th>计费规则</th>
                   <th style="width: 120px">小计</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(item, idx) in invoice.items || []" :key="item.id || idx">
-                  <td>{{ item.device_type || '包年' }}</td>
+                  <td>
+                    <span :class="['pricing-tag', `pricing-${item.pricing_type}`]">
+                      {{ pricingTypeText(item.pricing_type) }}
+                    </span>
+                  </td>
+                  <td>{{ item.device_type || '—' }}</td>
                   <td>
                     <span
                       v-if="item.layer_type"
@@ -111,20 +117,19 @@
                     >
                       {{ item.layer_type === 'multi' ? '多层' : '单层' }}
                     </span>
-                    <span v-else class="subtle">-</span>
+                    <span v-else class="subtle">—</span>
                   </td>
-                  <td>{{ item.quantity }}</td>
                   <td>
-                    ¥{{ item.unit_price.toFixed(2) }}
-                    <span
-                      v-if="
-                        item.multi_floor_pricing_type === 'incremental' &&
-                        item.additional_floor_price
-                      "
-                      class="subtle incremental-cell"
-                    >
-                      +其他层 ¥{{ item.additional_floor_price.toFixed(2) }}
-                    </span>
+                    <div class="rule-detail">
+                      <div v-for="(line, lIdx) in formatQuantity(item)" :key="lIdx">{{ line }}</div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="rule-detail">
+                      <div v-for="(line, rIdx) in formatRuleDetail(item)" :key="rIdx">
+                        {{ line }}
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <span class="amount">{{
@@ -133,7 +138,7 @@
                   </td>
                 </tr>
                 <tr v-if="!invoice.items || invoice.items.length === 0">
-                  <td :colspan="5" class="empty-state">暂无计费明细</td>
+                  <td :colspan="6" class="empty-state">暂无计费明细</td>
                 </tr>
               </tbody>
             </table>
@@ -227,6 +232,7 @@ import { computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { formatCurrency, formatDate } from '@/utils/formatters'
+import { pricingTypeText, formatQuantity, formatRuleDetail } from '@/utils/invoiceFormatters'
 import { downloadInvoiceDetail, regenerateInvoiceDetail } from '@/api/billing'
 import type { Invoice } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
@@ -300,7 +306,7 @@ const handleDownload = async () => {
     const url = window.URL.createObjectURL(new Blob([res.data]))
     const link = document.createElement('a')
     link.href = url
-    link.download = `${props.invoice.invoice_no}.xlsx`
+    link.download = `${props.invoice.customer_name}-${props.invoice.invoice_no}.xlsx`
     link.click()
     window.URL.revokeObjectURL(url)
   } catch {
@@ -427,6 +433,34 @@ const handleRegenerate = async () => {
 
 .subtle {
   color: var(--muted);
+}
+
+/* 计费类型标签 */
+.pricing-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pricing-fixed {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+.pricing-tiered {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.pricing-package {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* 计费规则详情（多行文本） */
+.rule-detail {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #475569;
 }
 .attachment-link {
   color: var(--primary);
