@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
-- **Last Active**: 2026-08-26
+- **Total Sessions**: 8
+- **Last Active**: 2026-09-07
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~216 | Active |
+| `journal-1.md` | ~238 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-09-07 | 订单结算范围扩大+时区重构+同步日志加固 | `6d0c54a` | `check-order-nums` |
 | 7 | 2026-08-26 | 开放平台API-Key管理与ERP余额查询接口 | `21ec5d5` | `add-qiangfang-balances` |
 | 6 | 2026-08-25 | ERP 系统管理模块 + 客户筛选器增强 + account_type 修复 + company_id 唯一性检查 | `e6bc38b` | `main` |
 | 5 | 2026-08-13 | 修复预测消费页面 apply_to 参数逻辑和年份选择器类型错误 | `7de5a25` | `feature/optimize-forecast-page` |

@@ -214,3 +214,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: 订单结算范围扩大+时区重构+同步日志加固
+<!-- trellis-session: v=2 fp=075305e168199a03 -->
+
+**Date**: 2026-09-07
+**Task**: 订单结算范围扩大+时区重构+同步日志加固
+**Branch**: `check-order-nums`
+
+### Summary
+
+将订单同步SQL过滤条件从 order_status > 3 AND < 11 改为 >= 3 AND <= 12，移除 nest_id != '' 过滤。sync_date 从 date 升级为 datetime(timezone=True)，全链路使用 UTC 范围查询。sync_task_service 新增数据完整性校验方法和逐天同步日志加固。修复 timezone.py utc_to_cst_date_str 兼容 date 对象。排查确认广州共和地产 144 vs 145 差异根因为 status=3 被正确过滤。全量验证 23 个客户订单数，7 个精确匹配，其余差异来自外部数据源本身。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6d0c54a` | fix(billing): 扩大订单结算范围+时区重构+同步日志加固 |
+
+### Status
+
+[OK] **Completed**
