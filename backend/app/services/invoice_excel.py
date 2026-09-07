@@ -8,7 +8,7 @@
 
 import logging
 import os
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +19,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from ..config import settings
+from ..utils.timezone import utc_to_cst_date_str
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +139,7 @@ LEFT JOIN nest_user U_editor ON U_editor.id = D.personal
 LEFT JOIN nest_user U_publisher ON U_publisher.id = D.publisher
 WHERE D.group_type = :group_type
   AND D.upload_date >= :start_dt AND D.upload_date < :end_dt
-  AND D.nest_id != ''
-  AND ((D.order_status > 3 AND D.order_status < 11) OR D.order_status = 15)
+  AND ((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)
 ORDER BY D.create_date DESC
 """
 
@@ -160,8 +160,8 @@ class InvoiceExcelService:
         invoice_id: int,
         customer_id: int,
         customer_name: str,
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
         total_amount: Decimal,
         discount_amount: Decimal,
         unit_price: Optional[Decimal] = None,
@@ -215,8 +215,8 @@ class InvoiceExcelService:
     async def _fetch_order_details(
         self,
         group_type: Optional[int],
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
     ) -> Optional[List[Dict[str, Any]]]:
         """从外部 MySQL 查询订单明细
 
@@ -227,8 +227,9 @@ class InvoiceExcelService:
             logger.warning("group_type 未提供，无法查询外部数据库")
             return []
 
-        start_dt = datetime.combine(period_start, datetime.min.time())
-        end_dt = datetime.combine(period_end + timedelta(days=1), datetime.min.time())
+        # period_start/end 已经是 UTC datetime，直接使用
+        start_dt = period_start
+        end_dt = period_end + timedelta(seconds=1)  # 包含结束时刻
 
         if self.external_engine:
             try:
@@ -253,8 +254,8 @@ class InvoiceExcelService:
     async def _fetch_balance_info(
         self,
         customer_id: int,
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
         total_amount: Decimal,
         discount_amount: Decimal,
         invoice_status: str,
@@ -292,8 +293,8 @@ class InvoiceExcelService:
                 opening_balance = current_balance
 
             # 查询当月充值记录总额
-            start_dt = datetime.combine(period_start, datetime.min.time())
-            end_dt = datetime.combine(period_end + timedelta(days=1), datetime.min.time())
+            start_dt = period_start
+            end_dt = period_end + timedelta(seconds=1)  # 包含结束时刻
             recharge_result = await self.db.execute(
                 select(
                     func.coalesce(func.sum(RechargeRecord.real_amount), 0),
@@ -379,8 +380,8 @@ class InvoiceExcelService:
         self,
         invoice_id: int,
         customer_name: str,
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
         total_amount: Decimal,
         discount_amount: Decimal,
         unit_price: Optional[Decimal],
@@ -444,7 +445,7 @@ class InvoiceExcelService:
         # 数据行
         model_count = len(order_details)
         final_amount = total_amount - discount_amount
-        period_str = f"{period_start.strftime('%Y.%-m.%-d')} - {period_end.strftime('%Y.%-m.%-d')}"
+        period_str = f"{utc_to_cst_date_str(period_start)} - {utc_to_cst_date_str(period_end)}"
         ws1.cell(row=3, column=1, value=period_str)
         ws1.cell(row=3, column=2, value=model_count)
         ws1.cell(row=3, column=3, value=model_count)
@@ -471,7 +472,7 @@ class InvoiceExcelService:
         # ============================================================
         # Sheet 2: 月份明细（29 列，与模板对齐）
         # ============================================================
-        ws2 = wb.create_sheet(title=f"{period_start.strftime('%Y.%-m')}")
+        ws2 = wb.create_sheet(title=f"{utc_to_cst_date_str(period_start)[:7]}")
 
         # 表头
         for col, h in enumerate(DETAIL_HEADERS, 1):
@@ -601,8 +602,8 @@ class InvoiceExcelService:
         # ============================================================
         # 保存文件
         # ============================================================
-        year = period_start.strftime("%Y")
-        month = period_start.strftime("%m")
+        year = utc_to_cst_date_str(period_start)[:4]
+        month = utc_to_cst_date_str(period_start)[5:7]
         rel_dir = os.path.join("invoices", year, month)
         base_dir = getattr(settings, "file_storage_path", "./uploads")
         abs_dir = os.path.join(base_dir, rel_dir)

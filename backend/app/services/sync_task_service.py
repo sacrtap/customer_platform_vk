@@ -14,6 +14,7 @@ from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
 from app.services.dto import SyncResult
 from app.services.order_sync import OrderSyncService
+from app.utils.timezone import local_date_to_utc_start
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,8 @@ class SyncTaskService:
 
                 # 逐天执行
                 for idx, sync_date in enumerate(dates):
+                    # 将 date 转为 UTC datetime（供下游服务使用）
+                    sync_date_dt = local_date_to_utc_start(sync_date.isoformat())
                     logger.info(f"[{task_id}] 处理第 {idx + 1}/{len(dates)} 天: {sync_date}")
 
                     # 检查取消标志
@@ -220,7 +223,7 @@ class SyncTaskService:
                         await self._update_redis_progress(task)
                         return  # 提前退出，不回滚
 
-                    task.current_date = sync_date
+                    task.current_date = sync_date  # pyright: ignore[reportAttributeAccessIssue]
                     await self.db.commit()
                     await self._update_redis_progress(task)
 
@@ -230,7 +233,7 @@ class SyncTaskService:
                         # skip_existing 模式：分层检查数据完整性
                         if task.sync_mode == "skip_existing":  # pyright: ignore[reportGeneralTypeIssues]
                             has_orders, has_consumptions = await self._check_data_completeness(
-                                sync_date
+                                sync_date_dt
                             )
                             if has_orders and has_consumptions:
                                 # 订单和费用数据都存在，整体跳过
@@ -257,10 +260,18 @@ class SyncTaskService:
                             order_service = OrderSyncService(
                                 self.db, external_engine=self.external_engine
                             )
-                            order_result = await order_service.sync_orders(sync_date)
+                            order_result = await order_service.sync_orders(sync_date_dt)
                             logger.info(
-                                f"[{task_id}] {sync_date} 订单同步完成: 成功 {order_result.success}, 失败 {order_result.failed}"
+                                f"[{task_id}] {sync_date} 订单同步完成: "
+                                f"成功 {order_result.success}, 失败 {order_result.failed}, "
+                                f"跳过 {order_result.skipped}, 未匹配 {order_result.unmatched}, "
+                                f"消息={order_result.message}"
                             )
+                            # 如果有未匹配的订单，记录 warning 便于排查
+                            if order_result.unmatched > 0:
+                                logger.warning(
+                                    f"[{task_id}] {sync_date} 有 {order_result.unmatched} 条订单未匹配到内部客户"
+                                )
                         else:
                             order_result = SyncResult(
                                 success=0,
@@ -273,7 +284,7 @@ class SyncTaskService:
                         # 计算费用
                         logger.info(f"[{task_id}] {sync_date} 开始计算费用")
                         cost_service = CostCalcService(self.db)
-                        await cost_service.calculate_daily_cost(sync_date)
+                        await cost_service.calculate_daily_cost(sync_date_dt)
                         logger.info(f"[{task_id}] {sync_date} 费用计算完成")
 
                         # 刷新 task 对象，因为 sync_orders 和 calculate_daily_cost 内部调用了 commit()
@@ -304,6 +315,9 @@ class SyncTaskService:
 
                     # 更新 Redis 进度
                     await self._update_redis_progress(task)
+
+                # 数据完整性校验：检查每个同步日期是否都有数据
+                await self._verify_data_completeness(task_id, dates)
 
                 # 任务完成 — 根据成功/失败比例确定最终状态
                 duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -681,7 +695,47 @@ class SyncTaskService:
             progress_key, 3600
         )  # 1小时TTL  # pyright: ignore[reportOptionalMemberAccess]
 
-    async def _check_data_completeness(self, sync_date: date) -> tuple[bool, bool]:
+    async def _verify_data_completeness(self, task_id: UUID, dates: list) -> None:
+        """同步任务完成后，验证每个日期是否都有订单数据
+
+        检查 daily_orders 和 daily_consumptions 表，如果某天数据缺失
+        则记录 warning 日志，便于后续排查。
+        """
+        from sqlalchemy import func
+
+        for sync_date in dates:
+            sync_date_dt = local_date_to_utc_start(sync_date.isoformat())
+            day_end = sync_date_dt + timedelta(days=1)
+
+            # 检查订单数
+            order_result = await self.db.execute(
+                select(func.count(DailyOrder.id)).where(
+                    DailyOrder.sync_date >= sync_date_dt,
+                    DailyOrder.sync_date < day_end,
+                )
+            )
+            order_count = order_result.scalar() or 0
+
+            # 检查消费记录数
+            consumption_result = await self.db.execute(
+                select(func.count(DailyConsumption.id)).where(
+                    DailyConsumption.consumption_date >= sync_date_dt,
+                    DailyConsumption.consumption_date < day_end,
+                )
+            )
+            consumption_count = consumption_result.scalar() or 0
+
+            if order_count == 0:
+                logger.warning(
+                    f"[{task_id}] 数据完整性校验: {sync_date} 无订单数据，"
+                    f"可能是外部数据源该天确实无订单，或同步异常"
+                )
+            if consumption_count == 0:
+                logger.warning(
+                    f"[{task_id}] 数据完整性校验: {sync_date} 无消费记录，可能是费用计算异常"
+                )
+
+    async def _check_data_completeness(self, sync_date: datetime) -> tuple[bool, bool]:
         """检查指定日期的订单数据和费用数据是否都已存在
 
         分别查询 DailyOrder 和 DailyConsumption 表，判断数据完整性。
@@ -691,37 +745,47 @@ class SyncTaskService:
         - (False, *)     → 订单不存在，执行完整同步
 
         Args:
-            sync_date: 同步日期
+            sync_date: 同步日期（UTC datetime）
 
         Returns:
             (has_orders, has_consumptions)
         """
         from sqlalchemy import func
 
+        day_end = sync_date + timedelta(days=1)
         order_result = await self.db.execute(
-            select(func.count(DailyOrder.id)).where(DailyOrder.sync_date == sync_date)
+            select(func.count(DailyOrder.id)).where(
+                DailyOrder.sync_date >= sync_date,
+                DailyOrder.sync_date < day_end,
+            )
         )
         has_orders = order_result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
 
         consumption_result = await self.db.execute(
             select(func.count(DailyConsumption.id)).where(
-                DailyConsumption.consumption_date == sync_date
+                DailyConsumption.consumption_date >= sync_date,
+                DailyConsumption.consumption_date < day_end,
             )
         )
         has_consumptions = consumption_result.scalar() > 0  # pyright: ignore[reportOptionalOperand]
 
         return has_orders, has_consumptions
 
-    async def _clear_data(self, sync_date: date) -> None:
+    async def _clear_data(self, sync_date: datetime) -> None:
         """清空指定日期的数据"""
+        day_end = sync_date + timedelta(days=1)
         # 删除订单
         await self.db.execute(
-            DailyOrder.__table__.delete().where(DailyOrder.sync_date == sync_date)  # pyright: ignore[reportAttributeAccessIssue]
+            DailyOrder.__table__.delete().where(  # pyright: ignore[reportAttributeAccessIssue]
+                DailyOrder.sync_date >= sync_date,
+                DailyOrder.sync_date < day_end,
+            )
         )
         # 删除消费记录
         await self.db.execute(
             DailyConsumption.__table__.delete().where(  # pyright: ignore[reportAttributeAccessIssue]
-                DailyConsumption.consumption_date == sync_date
+                DailyConsumption.consumption_date >= sync_date,
+                DailyConsumption.consumption_date < day_end,
             )
         )
         await self.db.commit()
