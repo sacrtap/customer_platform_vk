@@ -32,8 +32,8 @@ class AnalyticsService:
 
     async def _get_package_over_limit_estimates(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         customer_id: Optional[int] = None,
     ) -> Dict[int, Dict[str, Any]]:
         """计算限量套餐客户的超量费用估算
@@ -107,8 +107,8 @@ class AnalyticsService:
 
     async def get_consumption_trend(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
@@ -157,8 +157,8 @@ class AnalyticsService:
 
     async def get_consumption_trend_with_metric(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         metric: str = "cost",
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
@@ -243,8 +243,8 @@ class AnalyticsService:
 
     async def get_device_type_distribution_with_metric(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         metric: str = "cost",
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
@@ -358,7 +358,7 @@ class AnalyticsService:
         return dist_data
 
     async def get_top_customers(
-        self, start_date: date, end_date: date, limit: int = 10
+        self, start_date: datetime, end_date: datetime, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """获取 Top 消耗客户"""
         stmt = (
@@ -395,8 +395,8 @@ class AnalyticsService:
 
     async def get_top_customers_with_metric(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         metric: str = "cost",
         limit: int = 10,
         keyword: Optional[str] = None,
@@ -487,7 +487,7 @@ class AnalyticsService:
         return customers_data
 
     async def get_device_type_distribution(
-        self, start_date: date, end_date: date, customer_id: Optional[int] = None
+        self, start_date: datetime, end_date: datetime, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取设备类型分布"""
         stmt = (
@@ -522,7 +522,7 @@ class AnalyticsService:
         ]
 
     async def get_daily_usage_trend(
-        self, start_date: date, end_date: date, customer_id: Optional[int] = None
+        self, start_date: datetime, end_date: datetime, customer_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取每日用量趋势"""
         stmt = select(
@@ -594,8 +594,8 @@ class AnalyticsService:
 
     async def get_payment_analysis(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         account_type: Optional[str] = None,
@@ -682,8 +682,8 @@ class AnalyticsService:
 
     async def get_invoice_status_stats(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         account_type: Optional[str] = None,
@@ -741,8 +741,8 @@ class AnalyticsService:
 
     async def get_payment_trend(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: datetime,
+        end_date: datetime,
         months: int = 6,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
@@ -764,12 +764,22 @@ class AnalyticsService:
 
         for i in range(months - 1, -1, -1):
             month_date = now - relativedelta(months=i)
-            month_start = date(month_date.year, month_date.month, 1)
-            month_end = date(
+            from datetime import datetime as dt
+
+            from ..utils.timezone import CST, UTC
+
+            month_start = dt(month_date.year, month_date.month, 1, 0, 0, 0, tzinfo=CST).astimezone(
+                UTC
+            )
+            month_end = dt(
                 month_date.year,
                 month_date.month,
                 monthrange(month_date.year, month_date.month)[1],
-            )
+                23,
+                59,
+                59,
+                tzinfo=CST,
+            ).astimezone(UTC)
 
             data = await self.get_payment_analysis(
                 month_start,
@@ -1245,13 +1255,18 @@ class AnalyticsService:
         Returns:
             预测明细列表，每条记录包含客户、设备类型、用量（订单数）、预测金额等信息。
         """
-        # 确定查询的时间范围
+        # 确定查询的时间范围（转为 UTC datetime）
+        from datetime import datetime as dt
+
+        from ..utils.timezone import CST, UTC
+
         if month is not None:
-            period_start = date(year, month, 1)
-            period_end = date(year, month, monthrange(year, month)[1])
+            period_start = dt(year, month, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
+            last_day = monthrange(year, month)[1]
+            period_end = dt(year, month, last_day, 23, 59, 59, tzinfo=CST).astimezone(UTC)
         else:
-            period_start = date(year, 1, 1)
-            period_end = date(year, 12, 31)
+            period_start = dt(year, 1, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
+            period_end = dt(year, 12, 31, 23, 59, 59, tzinfo=CST).astimezone(UTC)
 
         # 以 DailyConsumption 为主表聚合消耗，再关联 Customer 和 PricingRule
         # 使用子查询先聚合消耗，避免 LEFT JOIN PricingRule 多行导致 SUM 翻倍
@@ -1609,11 +1624,16 @@ class AnalyticsService:
 
         # 本月实际消耗（实盘数据）
         now = datetime.utcnow()
+        from datetime import datetime as dt
+
+        from ..utils.timezone import CST, UTC
+
         if month is not None:
-            actual_start = date(year, month, 1)
-            actual_end = date(year, month, monthrange(year, month)[1])
+            actual_start = dt(year, month, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
+            last_day = monthrange(year, month)[1]
+            actual_end = dt(year, month, last_day, 23, 59, 59, tzinfo=CST).astimezone(UTC)
         else:
-            actual_start = date(year, 1, 1)
+            actual_start = dt(year, 1, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
             actual_end = now.date()
 
         actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
@@ -1708,8 +1728,13 @@ class AnalyticsService:
 
         trend = []
         for m in range(start_month, end_month + 1):
-            month_start = date(year, m, 1)
-            month_end = date(year, m, monthrange(year, m)[1])
+            from datetime import datetime as dt
+
+            from ..utils.timezone import CST, UTC
+
+            month_start = dt(year, m, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
+            last_day_m = monthrange(year, m)[1]
+            month_end = dt(year, m, last_day_m, 23, 59, 59, tzinfo=CST).astimezone(UTC)
 
             # 实际消费
             actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
@@ -1932,8 +1957,13 @@ class AnalyticsService:
 
         trend = []
         for m in range(1, 13):
-            month_start = date(year, m, 1)
-            month_end = date(year, m, monthrange(year, m)[1])
+            from datetime import datetime as dt
+
+            from ..utils.timezone import CST, UTC
+
+            month_start = dt(year, m, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
+            last_day_m = monthrange(year, m)[1]
+            month_end = dt(year, m, last_day_m, 23, 59, 59, tzinfo=CST).astimezone(UTC)
 
             # 预测金额 = 当月消耗总额
             predicted_stmt = select(
@@ -2429,12 +2459,22 @@ class AnalyticsService:
         payment_trend = []
         for i in range(months):
             month_date = end_date - relativedelta(months=i)
-            month_start = date(month_date.year, month_date.month, 1)
-            month_end = date(
+            from datetime import datetime as dt
+
+            from ..utils.timezone import CST, UTC
+
+            month_start = dt(month_date.year, month_date.month, 1, 0, 0, 0, tzinfo=CST).astimezone(
+                UTC
+            )
+            month_end = dt(
                 month_date.year,
                 month_date.month,
                 monthrange(month_date.year, month_date.month)[1],
-            )
+                23,
+                59,
+                59,
+                tzinfo=CST,
+            ).astimezone(UTC)
 
             payment_data = await self.get_payment_analysis(month_start, month_end)
             payment_trend.append(

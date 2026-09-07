@@ -3,7 +3,7 @@
 from sqlalchemy import (
     Boolean,
     Column,
-    Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -22,7 +22,7 @@ class DailyConsumption(BaseModel):
     __tablename__ = "daily_consumptions"
 
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, comment="客户 ID")
-    consumption_date = Column(Date, nullable=False, comment="消费日期")
+    consumption_date = Column(DateTime(timezone=True), nullable=False, comment="消费日期")
     device_type = Column(String(50), nullable=False, comment="设备类型")
     layer_type = Column(String(50), nullable=False, comment="图层类型")
     order_count = Column(Integer, default=0, comment="订单数量")

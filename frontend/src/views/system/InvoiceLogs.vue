@@ -36,7 +36,7 @@
           <tr v-for="log in logs" :key="log.id">
             <td>{{ log.invoice_no }}</td>
             <td>{{ log.customer_name || '-' }}</td>
-            <td>{{ log.period_start }} ~ {{ log.period_end }}</td>
+            <td>{{ formatDate(log.period_start) }} ~ {{ formatDate(log.period_end) }}</td>
             <td style="text-align: right">{{ formatCurrency(log.total_amount) }}</td>
             <td>
               <span v-if="log.detail_file_status === 'completed'" class="badge green">已完成</span>
@@ -70,7 +70,7 @@
 <script setup lang="ts">
 import { reactive, onMounted } from 'vue'
 import { getInvoiceDetailLogs } from '@/api/billing'
-import { formatCurrency, formatDateTime } from '@/utils/formatters'
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
 import { handleError } from '@/utils/errorHandler'
 
 interface DetailLog {

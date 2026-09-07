@@ -1,7 +1,5 @@
 """定价规则路由 — CRUD 和冲突检测"""
 
-from datetime import date
-
 from sanic.request import Request
 from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +8,7 @@ from ...cache.base import cache_service
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...repository import PricingRepository
 from ...services.billing import PricingService
+from ...utils.timezone import local_date_to_utc_end, local_date_to_utc_start
 from . import billing_bp
 
 
@@ -103,11 +102,11 @@ async def create_pricing_rule(request: Request):
     pricing_service = PricingService(PricingRepository(db))
     data["created_by"] = user["user_id"] if user else 1
 
-    # 日期转换
+    # 日期转换：前端本地日期 → UTC datetime
     if "effective_date" in data and isinstance(data["effective_date"], str):
-        data["effective_date"] = date.fromisoformat(data["effective_date"])
+        data["effective_date"] = local_date_to_utc_start(data["effective_date"])
     if "expiry_date" in data and isinstance(data["expiry_date"], str):
-        data["expiry_date"] = date.fromisoformat(data["expiry_date"])
+        data["expiry_date"] = local_date_to_utc_end(data["expiry_date"])
 
     try:
         rule = await pricing_service.create_pricing_rule(data)
@@ -147,11 +146,11 @@ async def update_pricing_rule(request: Request, rule_id: int):
 
     pricing_service = PricingService(PricingRepository(db))
 
-    # 日期转换
+    # 日期转换：前端本地日期 → UTC datetime
     if "effective_date" in data and isinstance(data["effective_date"], str):
-        data["effective_date"] = date.fromisoformat(data["effective_date"])
+        data["effective_date"] = local_date_to_utc_start(data["effective_date"])
     if "expiry_date" in data and isinstance(data["expiry_date"], str):
-        data["expiry_date"] = date.fromisoformat(data["expiry_date"])
+        data["expiry_date"] = local_date_to_utc_end(data["expiry_date"])
 
     try:
         rule = await pricing_service.update_pricing_rule(rule_id, data)
@@ -234,8 +233,8 @@ async def check_pricing_rule_conflict(request: Request):
                 status=400,
             )
 
-        effective_date = date.fromisoformat(effective_date_str)
-        expiry_date = date.fromisoformat(expiry_date_str) if expiry_date_str else None
+        effective_date = local_date_to_utc_start(effective_date_str)
+        expiry_date = local_date_to_utc_end(expiry_date_str) if expiry_date_str else None
         exclude_id = int(exclude_id_str) if exclude_id_str else None
     except (ValueError, TypeError):
         return json(

@@ -218,7 +218,18 @@
             >¥{{ selectedPackagePlan.over_limit_unit_price.toFixed(2) }}</span
           >
         </div>
-        <div class="info-row">
+        <div
+          v-if="!selectedPackagePlan.is_unlimited && selectedPackagePlan.limit_count"
+          class="info-row"
+        >
+          <span class="info-label">单价（年费÷限量数）：</span>
+          <span class="info-value"
+            >¥{{
+              (selectedPackagePlan.base_fee / selectedPackagePlan.limit_count).toFixed(2)
+            }}</span
+          >
+        </div>
+        <div v-if="selectedPackagePlan.is_unlimited" class="info-row">
           <span class="info-label">日费（年费÷365）：</span>
           <span class="info-value">¥{{ (selectedPackagePlan.base_fee / 365).toFixed(2) }}</span>
         </div>

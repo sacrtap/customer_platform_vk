@@ -1,7 +1,7 @@
 """费用计算服务 - 每日消耗费用计算"""
 
 import logging
-from datetime import date
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 
@@ -29,11 +29,11 @@ class CostCalcService:
         """
         self.db = db
 
-    async def calculate_daily_cost(self, consumption_date: date) -> dict:
+    async def calculate_daily_cost(self, consumption_date: datetime) -> dict:
         """计算指定日期的消耗费用
 
         Args:
-            consumption_date: 消耗日期
+            consumption_date: 消耗日期（UTC datetime）
 
         Returns:
             {total_customers, calculated, no_rule}
@@ -42,9 +42,14 @@ class CostCalcService:
         await self._clear_consumptions(consumption_date)
 
         # 2. 查询当日有订单的客户 ID 列表（去重）
+        day_end = consumption_date + timedelta(days=1)
         result = await self.db.execute(
             select(DailyOrder.customer_id)
-            .where(DailyOrder.sync_date == consumption_date, DailyOrder.customer_id.isnot(None))
+            .where(
+                DailyOrder.sync_date >= consumption_date,
+                DailyOrder.sync_date < day_end,
+                DailyOrder.customer_id.isnot(None),
+            )
             .distinct()
         )
         customer_ids = set(row[0] for row in result.all())
@@ -85,22 +90,28 @@ class CostCalcService:
             "no_rule": no_rule_count,
         }
 
-    async def _clear_consumptions(self, consumption_date: date) -> None:
+    async def _clear_consumptions(self, consumption_date: datetime) -> None:
         """清空指定日期的所有费用记录"""
         from sqlalchemy import delete
 
+        # 使用范围查询（UTC datetime 的当天）
+        day_start = consumption_date
+        day_end = consumption_date + timedelta(days=1)
         result = await self.db.execute(
-            delete(DailyConsumption).where(DailyConsumption.consumption_date == consumption_date)
+            delete(DailyConsumption).where(
+                DailyConsumption.consumption_date >= day_start,
+                DailyConsumption.consumption_date < day_end,
+            )
         )
         await self.db.commit()
         logger.info(f"已清空 {consumption_date} 的 {result.rowcount} 条费用记录")
 
-    async def _calculate_customer_cost(self, customer_id: int, consumption_date: date) -> dict:
+    async def _calculate_customer_cost(self, customer_id: int, consumption_date: datetime) -> dict:
         """计算单个客户的消耗费用
 
         Args:
             customer_id: 客户 ID
-            consumption_date: 消耗日期
+            consumption_date: 消耗日期（UTC datetime）
 
         Returns:
             {"has_rule", cost_result_list}
@@ -181,21 +192,28 @@ class CostCalcService:
             "cost_result_list": [g["order_count"] for g in order_groups],
         }
 
-    async def _get_order_groups(self, customer_id: int, consumption_date: date) -> List[dict]:
+    async def _get_order_groups(self, customer_id: int, consumption_date: datetime) -> List[dict]:
         """查询客户当日订单，按设备类型 + 楼层类型分组
 
         Args:
             customer_id: 客户 ID
-            consumption_date: 消耗日期（同时也是 sync_date）
+            consumption_date: 消耗日期（UTC datetime，同时也是 sync_date）
 
         Returns:
             List of order groups with device_type, layer_type, order_count, total_floor_count
         """
+        # 使用范围查询匹配当天
+        day_start = consumption_date
+        day_end = consumption_date + timedelta(days=1)
         result = await self.db.execute(
             select(
                 DailyOrder.device_type,
                 DailyOrder.floor_count,
-            ).where(DailyOrder.customer_id == customer_id, DailyOrder.sync_date == consumption_date)
+            ).where(
+                DailyOrder.customer_id == customer_id,
+                DailyOrder.sync_date >= day_start,
+                DailyOrder.sync_date < day_end,
+            )
         )
 
         # 在 Python 中按 (device_type, layer_type) 分组
@@ -218,7 +236,7 @@ class CostCalcService:
         return list(groups_dict.values())
 
     async def _get_active_pricing_rules(
-        self, customer_id: int, reference_date: date
+        self, customer_id: int, reference_date: datetime
     ) -> Dict[Tuple[str, str], PricingRule]:
         """查询客户在指定日期生效中的所有计费规则
 
@@ -258,7 +276,7 @@ class CostCalcService:
         return rules_map
 
     async def _get_active_package_rule(
-        self, customer_id: int, reference_date: date
+        self, customer_id: int, reference_date: datetime
     ) -> Optional[PricingRule]:
         """查询客户在指定日期生效的包年规则
 
@@ -290,7 +308,7 @@ class CostCalcService:
         order_group: dict,
         pricing_rule: PricingRule,
         customer_id: Optional[int] = None,
-        consumption_date: Optional[date] = None,
+        consumption_date: Optional[datetime] = None,
     ) -> Decimal:
         """根据计费规则计算分组费用
 

@@ -2,7 +2,7 @@
 
 from sqlalchemy import (
     Column,
-    Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -25,12 +25,14 @@ class DailyOrder(BaseModel):
     company_name = Column(String(200), comment="公司名称")
     group_type = Column(String(50), comment="客户 ID（外部系统）")
     customer_id = Column(Integer, ForeignKey("customers.id"), comment="系统客户 ID")
-    create_date = Column(Date, nullable=False, comment="订单创建时间（外部系统）")
-    upload_date = Column(Date, nullable=True, comment="订单上传日期（外部系统）")
+    create_date = Column(
+        DateTime(timezone=True), nullable=False, comment="订单创建时间（外部系统）"
+    )
+    upload_date = Column(DateTime(timezone=True), nullable=True, comment="订单上传日期（外部系统）")
     order_status = Column(Integer, nullable=True, comment="订单状态（外部系统）")
     floor_count = Column(Integer, comment="楼层数")
     device_type = Column(String(10), comment="设备类型（X/N/L）")
-    sync_date = Column(Date, nullable=False, comment="同步日期")
+    sync_date = Column(DateTime(timezone=True), nullable=False, comment="同步日期")
 
     # 关系
     customer = relationship("Customer", backref="daily_orders")

@@ -358,8 +358,9 @@ class CustomerService:
             from datetime import timedelta
 
             from ..models.daily_consumption import DailyConsumption
+            from ..utils.timezone import local_today_utc_start
 
-            thirty_days_ago = date.today() - timedelta(days=30)
+            thirty_days_ago = local_today_utc_start() - timedelta(days=30)
             usage_subquery = (
                 select(
                     DailyConsumption.customer_id,

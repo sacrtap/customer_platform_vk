@@ -54,7 +54,7 @@ class OrderSyncService:
 
         return config
 
-    async def sync_orders(self, sync_date: date) -> SyncResult:
+    async def sync_orders(self, sync_date: datetime) -> SyncResult:
         """同步指定日期的订单
 
         如果外部数据源连接失败，异常会向上传播，由调用方（execute_task）的
@@ -74,7 +74,7 @@ class OrderSyncService:
         # 3. 匹配客户并保存
         return await self._match_and_save(orders=orders, sync_date=sync_date)
 
-    async def _fetch_orders(self, sync_date: date) -> List[Dict]:
+    async def _fetch_orders(self, sync_date: datetime) -> List[Dict]:
         """从外部 MySQL 获取订单
 
         通过 JOIN nest_user 获取公司名称，使用 upload_date 范围匹配日期
@@ -82,14 +82,18 @@ class OrderSyncService:
         需要结算的订单，使用 LEFT(device_name, 1) 提取设备类型首字符。
         """
         # 计算 upload_date 的日期范围（避免 DATE() 函数导致全表扫描）
-        start_dt = datetime.combine(sync_date, datetime.min.time())  # 当天 00:00:00
-        end_dt = start_dt + timedelta(days=1)  # 次日 00:00:00
+        # sync_date 已经是 UTC datetime 的当天开始时刻
+        start_dt = sync_date  # UTC 当天开始
+        end_dt = sync_date + timedelta(days=1)  # UTC 次日开始
 
         # 统一 SQL（两条路径共用）
         # SELECT 字段顺序：
         #   0: order_code, 1: custom_code, 2: nest_id, 3: owner_company,
         #   4: group_type, 5: create_date, 6: upload_date, 7: floor_count,
         #   8: device_type, 9: order_status
+        # 结算范围：order_status >= 3 AND <= 12, OR = 15
+        # 不再过滤 nest_id（空 nest_id 的订单也纳入结算）
+        STATUS_COND = "((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)"
         SQL_ENGINE = (
             "SELECT D.order_code, D.custom_code, D.nest_id, "
             "U.owner_company, D.group_type, DATE(D.create_date), "
@@ -100,9 +104,8 @@ class OrderSyncService:
             "  SELECT group_type, MAX(owner_company) AS owner_company "
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
-            "WHERE D.upload_date >= :start AND D.upload_date < :end "
-            "AND D.nest_id != '' "
-            "AND ((D.order_status > 3 AND D.order_status < 11) OR D.order_status = 15)"
+            f"WHERE D.upload_date >= :start AND D.upload_date < :end "
+            f"AND {STATUS_COND}"
         )
         SQL_AIOMYSQL = (
             "SELECT D.order_code, D.custom_code, D.nest_id, "
@@ -115,8 +118,7 @@ class OrderSyncService:
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
             "WHERE D.upload_date >= %s AND D.upload_date < %s "
-            "AND D.nest_id != '' "
-            "AND ((D.order_status > 3 AND D.order_status < 11) OR D.order_status = 15)"
+            f"AND {STATUS_COND}"
         )
 
         def _rows_to_dicts(rows):
@@ -190,15 +192,21 @@ class OrderSyncService:
         else:
             raise TypeError(f"不支持的日期类型: {type(value)}")
 
-    async def _clear_orders(self, sync_date: date) -> None:
-        """清空指定日期的所有订单（按 sync_date 删除，与唯一约束一致）"""
+    async def _clear_orders(self, sync_date: datetime) -> None:
+        """清空指定日期的所有订单（按 sync_date 范围删除，与唯一约束一致）"""
         from sqlalchemy import delete
 
-        result = await self.db.execute(delete(DailyOrder).where(DailyOrder.sync_date == sync_date))
+        day_end = sync_date + timedelta(days=1)
+        result = await self.db.execute(
+            delete(DailyOrder).where(
+                DailyOrder.sync_date >= sync_date,
+                DailyOrder.sync_date < day_end,
+            )
+        )
         await self.db.commit()
         logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
 
-    async def _match_and_save(self, orders: List[Dict], sync_date: date) -> SyncResult:
+    async def _match_and_save(self, orders: List[Dict], sync_date: datetime) -> SyncResult:
         """匹配客户并保存订单"""
         result = SyncResult()
         saved_orders = []  # 收集成功保存的订单
@@ -225,7 +233,8 @@ class OrderSyncService:
                 existing = await self.db.execute(
                     select(DailyOrder).where(
                         DailyOrder.order_code == order_code,
-                        DailyOrder.sync_date == sync_date,
+                        DailyOrder.sync_date >= sync_date,
+                        DailyOrder.sync_date < sync_date + timedelta(days=1),
                     )
                 )
                 if existing.scalar_one_or_none():

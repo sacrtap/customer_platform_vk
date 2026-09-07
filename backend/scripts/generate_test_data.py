@@ -13,6 +13,7 @@ from app.config import settings
 from app.models.billing import PricingRule
 from app.models.customers import Customer
 from app.models.daily_consumption import DailyConsumption
+from app.utils.timezone import local_date_to_utc_start
 
 
 async def generate_test_data():
@@ -59,7 +60,9 @@ async def generate_test_data():
                     {"min": 100, "max": 500, "price": 8.00},
                     {"min": 500, "max": None, "price": 6.00},
                 ],
-                effective_date=date.today() - timedelta(days=365),
+                effective_date=local_date_to_utc_start(
+                    (date.today() - timedelta(days=365)).isoformat()
+                ),
                 expiry_date=None,
             )
             db.add(rule)
@@ -77,7 +80,9 @@ async def generate_test_data():
         total_records = 0
         for customer in customers:
             for days_ago in range(30):
-                consumption_date = start_date + timedelta(days=days_ago)
+                consumption_date = local_date_to_utc_start(
+                    (start_date + timedelta(days=days_ago)).isoformat()
+                )
 
                 # 随机生成 1-3 条记录（不同设备类型和楼层类型）
                 num_records = random.randint(1, 3)

@@ -1,10 +1,14 @@
 """OrderSyncService 单元测试 - 订单同步"""
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.services.dto import SyncResult
+
+# 测试用 UTC datetime（模拟 local_date_to_utc_start 的输出）
+TEST_SYNC_DATE = datetime(2024, 1, 15, tzinfo=timezone.utc)
 
 # ==================== Fixtures ====================
 
@@ -67,7 +71,9 @@ class TestOrderSyncServiceMatchAndSave:
         svc.db.add = MagicMock()
         svc.db.commit = AsyncMock()
 
-        result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
 
         assert isinstance(result, SyncResult)
         assert result.success == 1
@@ -86,7 +92,9 @@ class TestOrderSyncServiceMatchAndSave:
         # _match_customer 返回 None（未匹配到客户）
         svc._match_customer = AsyncMock(return_value=None)
 
-        result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
 
         assert isinstance(result, SyncResult)
         assert result.success == 0
@@ -110,7 +118,9 @@ class TestOrderSyncServiceMatchAndSave:
 
         svc.db.execute = AsyncMock(side_effect=[customer_result, existing_result])
 
-        result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
 
         assert isinstance(result, SyncResult)
         assert result.skipped == 1
@@ -136,7 +146,9 @@ class TestOrderSyncServiceMatchAndSave:
         svc.db.commit = AsyncMock(side_effect=Exception("Deadlock detected"))
         svc.db.rollback = AsyncMock()
 
-        result = await OrderSyncService._match_and_save(svc, orders=orders, sync_date="2024-01-15")
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
 
         assert isinstance(result, SyncResult)
         assert result.failed == 1
@@ -162,14 +174,14 @@ class TestOrderSyncServiceSyncOrders:
         svc._fetch_orders = AsyncMock(return_value=orders)
         svc._match_and_save = AsyncMock(return_value=match_result)
 
-        result = await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
+        result = await OrderSyncService.sync_orders(svc, sync_date=TEST_SYNC_DATE)
 
         assert isinstance(result, SyncResult)
         assert result.success == 1
         assert result.failed == 0
 
-        svc._fetch_orders.assert_awaited_once_with("2024-01-15")
-        svc._match_and_save.assert_awaited_once_with(orders=orders, sync_date="2024-01-15")
+        svc._fetch_orders.assert_awaited_once_with(TEST_SYNC_DATE)
+        svc._match_and_save.assert_awaited_once_with(orders=orders, sync_date=TEST_SYNC_DATE)
 
     async def test_sync_orders_fetch_fails(self):
         """获取外部订单失败时异常向上传播"""
@@ -182,7 +194,7 @@ class TestOrderSyncServiceSyncOrders:
 
         # 异常应向上传播，由 execute_task 的逐天异常处理器捕获
         with pytest.raises(Exception, match="外部数据库连接超时"):
-            await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
+            await OrderSyncService.sync_orders(svc, sync_date=TEST_SYNC_DATE)
 
     async def test_sync_orders_no_data(self):
         """没有新订单需要同步"""
@@ -193,7 +205,7 @@ class TestOrderSyncServiceSyncOrders:
 
         svc._fetch_orders = AsyncMock(return_value=[])
 
-        result = await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
+        result = await OrderSyncService.sync_orders(svc, sync_date=TEST_SYNC_DATE)
 
         assert isinstance(result, SyncResult)
         assert result.success == 0
@@ -215,7 +227,7 @@ class TestOrderSyncServiceSyncOrders:
         svc._fetch_orders = AsyncMock(return_value=orders)
         svc._match_and_save = AsyncMock(return_value=match_result)
 
-        result = await OrderSyncService.sync_orders(svc, sync_date="2024-01-15")
+        result = await OrderSyncService.sync_orders(svc, sync_date=TEST_SYNC_DATE)
 
         assert isinstance(result, SyncResult)
         assert result.success == 1
