@@ -1,6 +1,5 @@
 """CostCalcService 单元测试"""
 
-from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,6 +7,7 @@ import pytest
 
 from app.models.billing import PricingRule
 from app.services.cost_calc import CostCalcService
+from app.utils.timezone import local_date_to_utc_start
 
 
 class TestCostCalcService:
@@ -298,7 +298,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         rules_map = await service._get_active_pricing_rules(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert len(rules_map) == 1
@@ -312,7 +312,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         rules_map = await service._get_active_pricing_rules(
-            customer_id=999, reference_date=date(2024, 1, 15)
+            customer_id=999, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert len(rules_map) == 0
@@ -329,7 +329,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         rules_map = await service._get_active_pricing_rules(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert ("X", "single") in rules_map
@@ -351,7 +351,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         rules_map = await service._get_active_pricing_rules(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert len(rules_map) == 2
@@ -379,7 +379,7 @@ class TestCostCalcService:
         service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
-            customer_id=1, consumption_date=date(2024, 1, 15)
+            customer_id=1, consumption_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert result["has_rule"] is True
@@ -400,7 +400,7 @@ class TestCostCalcService:
         service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
-            customer_id=1, consumption_date=date(2024, 1, 15)
+            customer_id=1, consumption_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert result["has_rule"] is False
@@ -428,7 +428,7 @@ class TestCostCalcService:
         service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
-            customer_id=1, consumption_date=date(2024, 1, 15)
+            customer_id=1, consumption_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert result["has_rule"] is True
@@ -459,7 +459,7 @@ class TestCostCalcService:
         service._get_active_package_rule = AsyncMock(return_value=None)
 
         result = await service._calculate_customer_cost(
-            customer_id=1, consumption_date=date(2024, 1, 15)
+            customer_id=1, consumption_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert result["has_rule"] is True
@@ -488,7 +488,7 @@ class TestCostCalcService:
         service._get_active_package_rule = AsyncMock(return_value=mock_package)
 
         result = await service._calculate_customer_cost(
-            customer_id=1, consumption_date=date(2024, 1, 15)
+            customer_id=1, consumption_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert result["has_rule"] is True
@@ -514,7 +514,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         rules_map = await service._get_active_pricing_rules(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         # 包年规则不应出现在 (device_type, layer_type) 匹配字典中
@@ -532,7 +532,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         package_rule = await service._get_active_package_rule(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert package_rule is not None
@@ -545,7 +545,7 @@ class TestCostCalcService:
         mock_db.execute.return_value = mock_result
 
         package_rule = await service._get_active_package_rule(
-            customer_id=1, reference_date=date(2024, 1, 15)
+            customer_id=1, reference_date=local_date_to_utc_start("2024-01-15")
         )
 
         assert package_rule is None
@@ -568,7 +568,9 @@ class TestCostCalcService:
             ]
         )
 
-        result = await service.calculate_daily_cost(consumption_date=date(2024, 1, 15))
+        result = await service.calculate_daily_cost(
+            consumption_date=local_date_to_utc_start("2024-01-15")
+        )
 
         assert result["total_customers"] == 3
         assert result["calculated"] == 2

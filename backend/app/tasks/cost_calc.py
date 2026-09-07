@@ -1,13 +1,14 @@
 """费用计算定时任务"""
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import SyncTaskLog
 from ..services.cost_calc import CostCalcService
+from ..utils.timezone import local_yesterday_utc_start
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,7 @@ async def calc_daily_cost(session: AsyncSession):
         service = CostCalcService(session)
 
         # 执行计算
-        result = await service.calculate_daily_cost(
-            consumption_date=date.today() - timedelta(days=1)
-        )
+        result = await service.calculate_daily_cost(consumption_date=local_yesterday_utc_start())
 
         # 记录任务日志
         await _log_calc_task(

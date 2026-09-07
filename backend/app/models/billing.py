@@ -7,7 +7,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
-    Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -93,8 +93,8 @@ class PricingRule(BaseModel):
     tiers = Column(JSON)  # 阶梯配置
     package_type = Column(String(20))  # A/B/C/D
     package_limits = Column(JSON)
-    effective_date = Column(Date, nullable=False, index=True)
-    expiry_date = Column(Date)
+    effective_date = Column(DateTime(timezone=True), nullable=False, index=True)
+    expiry_date = Column(DateTime(timezone=True))
     created_by = Column(Integer, ForeignKey("users.id"))
 
     # 关联
@@ -109,8 +109,8 @@ class Invoice(BaseModel):
 
     invoice_no = Column(String(50), unique=True, nullable=False, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
-    period_start = Column(Date, nullable=False, index=True)
-    period_end = Column(Date, nullable=False, index=True)
+    period_start = Column(DateTime(timezone=True), nullable=False, index=True)
+    period_end = Column(DateTime(timezone=True), nullable=False, index=True)
     total_amount = Column(DECIMAL(12, 2), nullable=False)
     discount_amount = Column(DECIMAL(12, 2), default=0)
     discount_reason = Column(Text)
@@ -237,8 +237,8 @@ class SyncTaskLog(BaseModel):
         nullable=True,
         comment="操作人",
     )
-    start_date = Column(Date, nullable=True, comment="同步开始日期")
-    end_date = Column(Date, nullable=True, comment="同步结束日期")
+    start_date = Column(DateTime(timezone=True), nullable=True, comment="同步开始日期")
+    end_date = Column(DateTime(timezone=True), nullable=True, comment="同步结束日期")
     sync_mode = Column(
         String(20),
         nullable=True,

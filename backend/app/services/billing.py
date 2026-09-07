@@ -2,7 +2,7 @@
 
 import random
 import string
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -361,8 +361,8 @@ class PricingService:
     async def _check_package_overlap(
         self,
         customer_id: int,
-        effective_date: date,
-        expiry_date: Optional[date],
+        effective_date: datetime,
+        expiry_date: Optional[datetime],
         exclude_id: Optional[int] = None,
     ) -> None:
         """检查包年结算规则的有效期重叠（只按 customer_id + pricing_type='package' + 有效期判断）"""
@@ -400,8 +400,8 @@ class PricingService:
         customer_id: int,
         device_type: Optional[str],
         layer_type: Optional[str],
-        effective_date: date,
-        expiry_date: Optional[date],
+        effective_date: datetime,
+        expiry_date: Optional[datetime],
         exclude_id: Optional[int] = None,
     ) -> None:
         """检查是否存在有效期重叠的规则，存在则抛出 ValueError
@@ -431,8 +431,8 @@ class PricingService:
         customer_id: int,
         device_type: Optional[str],
         layer_type: Optional[str],
-        effective_date: date,
-        expiry_date: Optional[date],
+        effective_date: datetime,
+        expiry_date: Optional[datetime],
         exclude_id: Optional[int] = None,
     ) -> None:
         """检查单个 layer_type 的有效期重叠"""
@@ -772,10 +772,10 @@ class PricingService:
         self,
         customer_id: int,
         pricing_type: str,
-        effective_date: date,
+        effective_date: datetime,
         device_type: Optional[str] = None,
         layer_type: Optional[str] = None,
-        expiry_date: Optional[date] = None,
+        expiry_date: Optional[datetime] = None,
         exclude_id: Optional[int] = None,
     ) -> List[PricingRule]:
         """查询与给定条件存在有效期重叠的规则，返回冲突列表
@@ -824,8 +824,8 @@ class PricingService:
     async def _check_package_conflict(
         self,
         customer_id: int,
-        effective_date: date,
-        expiry_date: Optional[date],
+        effective_date: datetime,
+        expiry_date: Optional[datetime],
         exclude_id: Optional[int] = None,
     ) -> List[PricingRule]:
         """查询与给定条件（同一客户的包年结算规则）存在有效期重叠的规则，返回冲突列表
@@ -869,8 +869,8 @@ class PricingService:
         customer_id: int,
         device_type: Optional[str],
         layer_type: Optional[str],
-        effective_date: date,
-        expiry_date: Optional[date],
+        effective_date: datetime,
+        expiry_date: Optional[datetime],
         exclude_id: Optional[int] = None,
     ) -> List[PricingRule]:
         """查询单个 layer_type 的冲突规则"""
@@ -951,8 +951,8 @@ class InvoiceService:
     async def calculate_items_from_rules(
         self,
         customer_id: int,
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
     ) -> Tuple[List[Dict[str, Any]], Decimal]:
         """
         根据计费规则 + 用量数据计算结算明细
@@ -1047,7 +1047,7 @@ class InvoiceService:
             )
 
             # 按日计收：结算周期天数 × 日费
-            period_days = Decimal((period_end - period_start).days + 1)
+            period_days = Decimal((period_end.date() - period_start.date()).days + 1)
             daily_fee = (base_fee / Decimal(365)).quantize(Decimal("0.01"))
             period_base_cost = (daily_fee * period_days).quantize(Decimal("0.01"))
 
@@ -1062,7 +1062,9 @@ class InvoiceService:
                         "unit_price": daily_fee,
                         "subtotal": period_base_cost,
                         "pricing_rule_id": package_rule.id,
+                        "pricing_type": "package",
                         "package_type": "unlimited",
+                        "base_fee": float(base_fee),
                         "period_days": int(period_days),
                     }
                 )
@@ -1088,7 +1090,9 @@ class InvoiceService:
                             "unit_price": Decimal(0),
                             "subtotal": Decimal(0),
                             "pricing_rule_id": package_rule.id,
+                            "pricing_type": "package",
                             "package_type": "limited",
+                            "base_fee": float(base_fee),
                             "limit_count": 0,
                             "over_limit_quantity": 0,
                             "over_limit_unit_price": float(over_limit_unit_price),
@@ -1117,7 +1121,9 @@ class InvoiceService:
                         "unit_price": unit_price,
                         "subtotal": subtotal,
                         "pricing_rule_id": package_rule.id,
+                        "pricing_type": "package",
                         "package_type": "limited",
+                        "base_fee": float(base_fee),
                         "limit_count": int(limit_count),
                         "over_limit_quantity": int(over_limit_quantity),
                         "over_limit_unit_price": float(over_limit_unit_price),
@@ -1171,6 +1177,7 @@ class InvoiceService:
                             "multi_floor_pricing_type": "incremental",
                             "subtotal": subtotal,
                             "pricing_rule_id": rule.id,
+                            "pricing_type": "fixed",
                         }
                     )
                 else:
@@ -1184,6 +1191,7 @@ class InvoiceService:
                             "unit_price": unit_price,
                             "subtotal": subtotal,
                             "pricing_rule_id": rule.id,
+                            "pricing_type": "fixed",
                         }
                     )
                 total_amount += subtotal
@@ -1204,6 +1212,8 @@ class InvoiceService:
                         "unit_price": avg_unit_price,
                         "subtotal": subtotal,
                         "pricing_rule_id": rule.id,
+                        "pricing_type": "tiered",
+                        "tiers": rule.tiers,
                     }
                 )
                 total_amount += subtotal
@@ -1254,8 +1264,8 @@ class InvoiceService:
     async def generate_invoice(
         self,
         customer_id: int,
-        period_start: date,
-        period_end: date,
+        period_start: datetime,
+        period_end: datetime,
         items: List[Dict[str, Any]],
         created_by: int,
         is_auto_generated: bool = False,
@@ -1322,8 +1332,8 @@ class InvoiceService:
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
         status: Optional[str] = None,
-        period_start: Optional[date] = None,
-        period_end: Optional[date] = None,
+        period_start: Optional[datetime] = None,
+        period_end: Optional[datetime] = None,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "",
@@ -1769,8 +1779,8 @@ class InvoiceService:
         scale_levels: Optional[List[str]] = None,
         consume_levels: Optional[List[str]] = None,
         is_real_estate: Optional[bool] = None,
-        period_start: Optional[date] = None,
-        period_end: Optional[date] = None,
+        period_start: Optional[datetime] = None,
+        period_end: Optional[datetime] = None,
         created_by: int = 1,
     ) -> Dict[str, Any]:
         """批量生成结算单

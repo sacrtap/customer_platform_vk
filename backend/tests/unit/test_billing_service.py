@@ -12,6 +12,11 @@ from app.models.billing import (
     RechargeRecord,
 )
 from app.services.billing import BalanceService, PricingService
+from app.utils.timezone import (
+    local_date_range_to_utc,
+    local_date_to_utc_end,
+    local_date_to_utc_start,
+)
 
 # ==================== Fixtures ====================
 
@@ -536,8 +541,8 @@ class TestPricingService_CreatePricingRule:
             "layer_type": "living_room",
             "pricing_type": "fixed",
             "unit_price": Decimal("10.00"),
-            "effective_date": date(2026, 1, 1),
-            "expiry_date": date(2026, 12, 31),
+            "effective_date": local_date_to_utc_start("2026-01-01"),
+            "expiry_date": local_date_to_utc_end("2026-12-31"),
             "created_by": 1,
         }
 
@@ -558,8 +563,8 @@ class TestPricingService_CreatePricingRule:
             customer_id=100,
             device_type="camera",
             layer_type="living_room",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -572,8 +577,8 @@ class TestPricingService_CreatePricingRule:
             "layer_type": "living_room",
             "pricing_type": "fixed",
             "unit_price": Decimal("10.00"),
-            "effective_date": date(2026, 6, 1),  # 与现有规则重叠
-            "expiry_date": date(2027, 6, 30),
+            "effective_date": local_date_to_utc_start("2026-06-01"),  # 与现有规则重叠
+            "expiry_date": local_date_to_utc_end("2027-06-30"),
             "created_by": 1,
         }
 
@@ -590,8 +595,8 @@ class TestPricingService_CreatePricingRule:
             customer_id=100,
             device_type="camera",
             layer_type="living_room",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -604,8 +609,8 @@ class TestPricingService_CreatePricingRule:
             "layer_type": "living_room",
             "pricing_type": "fixed",
             "unit_price": Decimal("5.00"),
-            "effective_date": date(2026, 6, 1),
-            "expiry_date": date(2027, 6, 30),
+            "effective_date": local_date_to_utc_start("2026-06-01"),
+            "expiry_date": local_date_to_utc_end("2027-06-30"),
             "created_by": 1,
         }
 
@@ -630,8 +635,8 @@ class TestPricingService_CreatePricingRule:
             "customer_id": 100,
             "pricing_type": "package",
             "package_type": "A",
-            "effective_date": date(2026, 1, 1),
-            "expiry_date": date(2026, 12, 31),
+            "effective_date": local_date_to_utc_start("2026-01-01"),
+            "expiry_date": local_date_to_utc_end("2026-12-31"),
             "created_by": 1,
         }
 
@@ -655,8 +660,8 @@ class TestPricingService_CreatePricingRule:
             layer_type=None,
             pricing_type="package",
             package_type="A",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -667,8 +672,8 @@ class TestPricingService_CreatePricingRule:
             "customer_id": 100,
             "pricing_type": "package",
             "package_type": "B",
-            "effective_date": date(2026, 6, 1),  # 与现有包年规则重叠
-            "expiry_date": date(2027, 6, 30),
+            "effective_date": local_date_to_utc_start("2026-06-01"),  # 与现有包年规则重叠
+            "expiry_date": local_date_to_utc_end("2027-06-30"),
             "created_by": 1,
         }
 
@@ -692,8 +697,8 @@ class TestPricingService_UpdatePricingRule:
             layer_type="living_room",
             pricing_type="fixed",
             unit_price=Decimal("10.00"),
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -784,8 +789,8 @@ class TestPricingService_CheckConflict:
             customer_id=100,
             device_type="camera",
             layer_type="living_room",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -797,8 +802,8 @@ class TestPricingService_CheckConflict:
             pricing_type="fixed",
             device_type="camera",
             layer_type="living_room",
-            effective_date=date(2026, 6, 1),
-            expiry_date=date(2027, 6, 30),
+            effective_date=local_date_to_utc_start("2026-06-01"),
+            expiry_date=local_date_to_utc_end("2027-06-30"),
         )
 
         assert len(conflicts) == 1
@@ -816,8 +821,8 @@ class TestPricingService_CheckConflict:
             pricing_type="fixed",
             device_type="camera",
             layer_type="living_room",
-            effective_date=date(2027, 1, 1),  # 在现有规则之后
-            expiry_date=date(2027, 12, 31),
+            effective_date=local_date_to_utc_start("2027-01-01"),  # 在现有规则之后
+            expiry_date=local_date_to_utc_end("2027-12-31"),
         )
 
         assert len(conflicts) == 0
@@ -832,8 +837,8 @@ class TestPricingService_CheckConflict:
             customer_id=100,
             device_type="L",
             layer_type="single",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         # 第一次调用返回 single 冲突，第二次返回空（multi 无冲突）
@@ -849,8 +854,8 @@ class TestPricingService_CheckConflict:
             pricing_type="fixed",
             device_type="L",
             layer_type="single_and_multi",
-            effective_date=date(2026, 6, 1),
-            expiry_date=date(2027, 6, 30),
+            effective_date=local_date_to_utc_start("2026-06-01"),
+            expiry_date=local_date_to_utc_end("2027-06-30"),
         )
 
         assert len(conflicts) == 1
@@ -870,8 +875,8 @@ class TestPricingService_CheckConflict:
             pricing_type="fixed",
             device_type="L",
             layer_type="single_and_multi",
-            effective_date=date(2027, 1, 1),
-            expiry_date=date(2027, 12, 31),
+            effective_date=local_date_to_utc_start("2027-01-01"),
+            expiry_date=local_date_to_utc_end("2027-12-31"),
         )
 
         assert len(conflicts) == 0
@@ -886,8 +891,8 @@ class TestPricingService_CheckConflict:
             layer_type=None,
             pricing_type="package",
             package_type="A",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 12, 31),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-12-31"),
         )
 
         mock_result = MagicMock()
@@ -899,8 +904,8 @@ class TestPricingService_CheckConflict:
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
             pricing_type="package",
-            effective_date=date(2026, 6, 1),
-            expiry_date=date(2027, 6, 30),
+            effective_date=local_date_to_utc_start("2026-06-01"),
+            expiry_date=local_date_to_utc_end("2027-06-30"),
         )
 
         assert len(conflicts) == 1
@@ -916,8 +921,8 @@ class TestPricingService_CheckConflict:
             layer_type=None,
             pricing_type="package",
             package_type="B",
-            effective_date=date(2026, 1, 1),
-            expiry_date=date(2026, 6, 30),
+            effective_date=local_date_to_utc_start("2026-01-01"),
+            expiry_date=local_date_to_utc_end("2026-06-30"),
         )
 
         mock_result = MagicMock()
@@ -927,8 +932,8 @@ class TestPricingService_CheckConflict:
         conflicts = await pricing_service.check_pricing_rule_conflict(
             customer_id=100,
             pricing_type="package",
-            effective_date=date(2027, 1, 1),  # 在现有规则之后，无重叠
-            expiry_date=date(2027, 12, 31),
+            effective_date=local_date_to_utc_start("2027-01-01"),  # 在现有规则之后，无重叠
+            expiry_date=local_date_to_utc_end("2027-12-31"),
         )
 
         assert len(conflicts) == 0
@@ -954,8 +959,8 @@ class TestPricingService_CreateSingleAndMulti:
             "layer_type": "single_and_multi",
             "pricing_type": "fixed",
             "unit_price": Decimal("10.00"),
-            "effective_date": date(2026, 1, 1),
-            "expiry_date": date(2026, 12, 31),
+            "effective_date": local_date_to_utc_start("2026-01-01"),
+            "expiry_date": local_date_to_utc_end("2026-12-31"),
             "created_by": 1,
         }
 
@@ -988,8 +993,8 @@ class TestPricingService_CreateSingleAndMulti:
             "unit_price": Decimal("5.00"),
             "multi_floor_pricing_type": "incremental",
             "additional_floor_price": Decimal("6.00"),
-            "effective_date": date(2026, 1, 1),
-            "expiry_date": date(2026, 12, 31),
+            "effective_date": local_date_to_utc_start("2026-01-01"),
+            "expiry_date": local_date_to_utc_end("2026-12-31"),
             "created_by": 1,
         }
 
@@ -1061,8 +1066,8 @@ class TestInvoiceService_CalculateItemsIncremental:
 
         items, total_amount = await invoice_service.calculate_items_from_rules(
             customer_id=100,
-            period_start=date(2026, 1, 1),
-            period_end=date(2026, 1, 31),
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
         )
 
         assert len(items) == 1
@@ -1105,8 +1110,8 @@ class TestInvoiceService_CalculateItemsIncremental:
 
         items, total_amount = await invoice_service.calculate_items_from_rules(
             customer_id=100,
-            period_start=date(2026, 1, 1),
-            period_end=date(2026, 1, 31),
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
         )
 
         assert len(items) == 1
@@ -1154,8 +1159,8 @@ class TestInvoiceService_CalculateItemsIncremental:
 
         items, total_amount = await invoice_service.calculate_items_from_rules(
             customer_id=100,
-            period_start=date(2026, 1, 1),
-            period_end=date(2026, 1, 31),
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
         )
 
         assert len(items) == 1
@@ -1217,8 +1222,8 @@ class TestInvoiceService_CalculateItemsIncremental:
 
         items, total_amount = await invoice_service.calculate_items_from_rules(
             customer_id=100,
-            period_start=date(2026, 1, 1),
-            period_end=date(2026, 1, 31),
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
         )
 
         # 只生成一条包年明细，固定规则不参与计算

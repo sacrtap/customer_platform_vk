@@ -1,12 +1,13 @@
 """订单同步定时任务"""
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from ..models.billing import SyncTaskLog
 from ..services.order_sync import OrderSyncService
+from ..utils.timezone import local_yesterday_utc_start
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ async def sync_daily_orders(session: AsyncSession, external_engine: AsyncEngine 
         service = OrderSyncService(session, external_engine=external_engine)
 
         # 执行同步
-        result = await service.sync_orders(sync_date=date.today() - timedelta(days=1))
+        result = await service.sync_orders(sync_date=local_yesterday_utc_start())
 
         # 记录同步日志
         await _log_sync_task(

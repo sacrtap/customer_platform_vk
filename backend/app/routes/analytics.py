@@ -11,6 +11,12 @@ from sanic.response import json
 from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission
 from ..services.analytics import AnalyticsService
+from ..utils.timezone import (
+    local_date_range_to_utc,
+    local_date_to_utc_end,
+    local_date_to_utc_start,
+    local_today_utc_start,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +52,10 @@ async def get_consumption_trend(request: Request):
         # 默认最近 6 个月
         from dateutil.relativedelta import relativedelta
 
-        end_date = datetime.utcnow().date()
+        end_date = local_today_utc_start()
         start_date = end_date - relativedelta(months=6)
     else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
+        start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
@@ -105,11 +110,10 @@ async def get_top_customers(request: Request):
     if not start_date_str or not end_date_str:
         from dateutil.relativedelta import relativedelta
 
-        end_date = datetime.utcnow().date()
+        end_date = local_today_utc_start()
         start_date = end_date - relativedelta(months=1)
     else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
+        start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     metric = request.args.get("metric", "cost")
     keyword = request.args.get("keyword")
@@ -168,11 +172,10 @@ async def get_device_distribution(request: Request):
     if not start_date_str or not end_date_str:
         from dateutil.relativedelta import relativedelta
 
-        end_date = datetime.utcnow().date()
+        end_date = local_today_utc_start()
         start_date = end_date - relativedelta(months=1)
     else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
+        start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
@@ -212,7 +215,6 @@ async def get_device_distribution(request: Request):
 @auth_required
 async def manual_sync_consumption(request: Request):
     """手动触发消耗数据同步"""
-    from datetime import date, timedelta
 
     from ..services.cost_calc import CostCalcService
     from ..services.order_sync import OrderSyncService
@@ -245,7 +247,9 @@ async def manual_sync_consumption(request: Request):
 
     try:
         # 同步订单数据（昨日）
-        sync_date = date.today() - timedelta(days=1)
+        from ..utils.timezone import local_yesterday_utc_start
+
+        sync_date = local_yesterday_utc_start()
         logger.info("开始数据同步，日期: %s", sync_date)
         external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
         order_service = OrderSyncService(db_session, external_engine=external_engine)
@@ -320,11 +324,10 @@ async def get_payment_analysis(request: Request):
     if not start_date_str or not end_date_str:
         from dateutil.relativedelta import relativedelta
 
-        end_date = datetime.utcnow().date()
+        end_date = local_today_utc_start()
         start_date = end_date - relativedelta(months=1)
     else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
+        start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
@@ -384,7 +387,7 @@ async def get_payment_trend(request: Request):
 
     from dateutil.relativedelta import relativedelta
 
-    end_date = datetime.utcnow().date()
+    end_date = local_today_utc_start()
     start_date = end_date - relativedelta(months=months)
 
     db_session = request.ctx.db_session
@@ -428,11 +431,10 @@ async def get_invoice_status(request: Request):
     if not start_date_str or not end_date_str:
         from dateutil.relativedelta import relativedelta
 
-        end_date = datetime.utcnow().date()
+        end_date = local_today_utc_start()
         start_date = end_date - relativedelta(months=1)
     else:
-        start_date = datetime.fromisoformat(start_date_str).date()
-        end_date = datetime.fromisoformat(end_date_str).date()
+        start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
     cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
@@ -992,7 +994,7 @@ async def get_dashboard_trend(request: Request):
 
     from dateutil.relativedelta import relativedelta
 
-    end_date = datetime.utcnow().date()
+    end_date = local_today_utc_start()
     start_date = end_date - relativedelta(months=months)
 
     if metric == "consumption":
@@ -1049,7 +1051,7 @@ async def get_balance_trend(request: Request, customer_id: int):
 @auth_required
 async def get_daily_usage(request: Request):
     """获取客户每日用量数据（分页）"""
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     from sqlalchemy import func, select
 
@@ -1066,9 +1068,9 @@ async def get_daily_usage(request: Request):
 
     db_session = request.ctx.db_session
 
-    end_date = date.fromisoformat(end_date_str) if end_date_str else date.today()
+    end_date = local_date_to_utc_end(end_date_str) if end_date_str else local_today_utc_start()
     start_date = (
-        date.fromisoformat(start_date_str) if start_date_str else end_date - timedelta(days=30)
+        local_date_to_utc_start(start_date_str) if start_date_str else end_date - timedelta(days=30)
     )
 
     query = (
@@ -1384,7 +1386,7 @@ async def get_priority_customers(request: Request):
 
     # 批量查询消费统计，计算真实 balance_days
     if seen_ids:
-        from datetime import date, timedelta
+        from datetime import timedelta
 
         from sqlalchemy import func as sa_func
         from sqlalchemy import select as sa_select
@@ -1392,7 +1394,7 @@ async def get_priority_customers(request: Request):
         from ..models.billing import CustomerBalance
         from ..models.daily_consumption import DailyConsumption
 
-        today = date.today()
+        today = local_today_utc_start()
         thirty_days_ago = today - timedelta(days=30)
         consumption_stmt = (
             sa_select(

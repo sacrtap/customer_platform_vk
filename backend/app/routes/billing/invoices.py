@@ -20,6 +20,7 @@ from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
+from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
 
 
@@ -163,6 +164,50 @@ async def get_invoice(request: Request, invoice_id: int):
     def resolve_name(uid):
         return operator_names.get(uid) if uid else None
 
+    # 重新调用 calculate_items_from_rules 获取完整计费规则信息
+    # 数据库 InvoiceItem 只存储基础字段（device_type/layer_type/quantity/unit_price），
+    # pricing_type/package_type/tiers/over_limit 等需通过 PricingRule 关联获取
+    recalculated_items, _ = await invoice_service.calculate_items_from_rules(
+        customer_id=invoice.customer_id,
+        period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
+        period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
+    )
+
+    # 格式化 items（与 calculate-items 路由一致的字段结构）
+    formatted_items = [
+        {
+            "id": item.get("pricing_rule_id"),
+            "device_type": item["device_type"],
+            "layer_type": item["layer_type"],
+            "quantity": float(item["quantity"]),
+            "unit_price": float(item["unit_price"]),
+            "subtotal": float(item["subtotal"]),
+            "additional_floor_price": float(item["additional_floor_price"])
+            if item.get("additional_floor_price") is not None
+            else None,
+            "multi_floor_pricing_type": item.get("multi_floor_pricing_type"),
+            "order_count": float(item["order_count"])
+            if item.get("order_count") is not None
+            else None,
+            "pricing_type": item.get("pricing_type"),
+            "pricing_rule_id": item.get("pricing_rule_id"),
+            "package_type": item.get("package_type"),
+            "base_fee": float(item["base_fee"]) if item.get("base_fee") is not None else None,
+            "limit_count": item.get("limit_count"),
+            "over_limit_quantity": item.get("over_limit_quantity"),
+            "over_limit_unit_price": float(item["over_limit_unit_price"])
+            if item.get("over_limit_unit_price") is not None
+            else None,
+            "over_limit_cost": float(item["over_limit_cost"])
+            if item.get("over_limit_cost") is not None
+            else None,
+            "usage_cost": float(item["usage_cost"]) if item.get("usage_cost") is not None else None,
+            "period_days": item.get("period_days"),
+            "tiers": item.get("tiers"),
+        }
+        for item in recalculated_items
+    ]
+
     return json(
         {
             "code": 0,
@@ -185,17 +230,7 @@ async def get_invoice(request: Request, invoice_id: int):
                 "discount_attachment": invoice.discount_attachment,
                 "final_amount": float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                 "status": invoice.status,
-                "items": [
-                    {
-                        "id": item.id,
-                        "device_type": item.device_type,
-                        "layer_type": item.layer_type,
-                        "quantity": float(item.quantity),
-                        "unit_price": float(item.unit_price),
-                        "subtotal": float(item.quantity * item.unit_price),
-                    }
-                    for item in invoice.items
-                ],
+                "items": formatted_items,
                 "approver_id": invoice.approver_id,
                 "approver_name": resolve_name(invoice.approver_id),
                 "approved_at": invoice.approved_at,
@@ -271,9 +306,8 @@ async def calculate_invoice_items(request: Request):
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
-    # 日期转换
-    period_start = date.fromisoformat(data["period_start"])
-    period_end = date.fromisoformat(data["period_end"])
+    # 日期转换：前端本地日期 → UTC datetime 范围
+    period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
     # 调用服务层计算
     items, total_amount = await invoice_service.calculate_items_from_rules(
@@ -306,6 +340,21 @@ async def calculate_invoice_items(request: Request):
             "order_count": float(item["order_count"])
             if item.get("order_count") is not None
             else None,
+            "pricing_type": item.get("pricing_type"),
+            "pricing_rule_id": item.get("pricing_rule_id"),
+            "package_type": item.get("package_type"),
+            "base_fee": float(item["base_fee"]) if item.get("base_fee") is not None else None,
+            "limit_count": item.get("limit_count"),
+            "over_limit_quantity": item.get("over_limit_quantity"),
+            "over_limit_unit_price": float(item["over_limit_unit_price"])
+            if item.get("over_limit_unit_price") is not None
+            else None,
+            "over_limit_cost": float(item["over_limit_cost"])
+            if item.get("over_limit_cost") is not None
+            else None,
+            "usage_cost": float(item["usage_cost"]) if item.get("usage_cost") is not None else None,
+            "period_days": item.get("period_days"),
+            "tiers": item.get("tiers"),
         }
         for item in items
     ]
@@ -417,8 +466,8 @@ async def generate_invoices_batch(request: Request):
     data = request.json
     user = get_current_user(request)
 
-    period_start = date.fromisoformat(data["period_start"])
-    period_end = date.fromisoformat(data["period_end"])
+    # 日期转换：前端本地日期 → UTC datetime 范围
+    period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
@@ -500,9 +549,8 @@ async def generate_invoice(request: Request):
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
-    # 日期转换
-    period_start = date.fromisoformat(data["period_start"])
-    period_end = date.fromisoformat(data["period_end"])
+    # 日期转换：前端本地日期 → UTC datetime 范围
+    period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
     # 区分"未提供 items"和"items 为空列表"
     if "items" not in data:
