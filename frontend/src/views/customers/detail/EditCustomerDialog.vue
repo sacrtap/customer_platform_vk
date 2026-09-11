@@ -254,11 +254,11 @@ const erpSystems = computed(() => props.erpSystems || innerErpSystems.value)
 const managers = computed(() => props.managers || innerManagers.value)
 
 const modalWidth = computed(() => {
-  if (typeof window === 'undefined') return '800px'
+  if (typeof window === 'undefined') return '720px'
   const w = window.innerWidth
   if (w < 768) return '95vw'
   if (w < 1024) return '90vw'
-  return '800px'
+  return '720px'
 })
 
 interface EditForm {
@@ -525,8 +525,9 @@ const handleCancel = () => {
 
 /* 弹框内容区域高度优化：限制最大高度并启用滚动 */
 :deep(.arco-modal-body) {
-  max-height: 70vh;
+  max-height: 55vh;
   overflow-y: auto;
+  padding-right: 8px;
 }
 
 /* 减小 form-item 间距让布局更紧凑 */
