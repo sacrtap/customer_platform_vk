@@ -19,9 +19,9 @@
           :validate-trigger="['blur']"
         >
           <div class="form-grid">
-            <!-- ===== 列一：基础信息 ===== -->
+            <!-- ===== 列一：客户标识（7项） ===== -->
             <div class="form-col">
-              <div class="section-title">基础信息</div>
+              <div class="section-title">客户标识</div>
               <a-form-item field="name" label="客户名称" required>
                 <a-input v-model="editForm.name" placeholder="请输入客户名称" />
               </a-form-item>
@@ -57,23 +57,21 @@
                   <a-option :value="false">否</a-option>
                 </a-select>
               </a-form-item>
-              <a-form-item field="sales_manager_id" label="商务经理">
-                <a-select
-                  v-model="editForm.sales_manager_id"
-                  placeholder="请选择"
-                  allow-clear
-                  :loading="managersLoading"
-                >
-                  <a-option v-for="m in managers" :key="m.id" :value="m.id">
-                    {{ m.real_name || `#${m.id}` }}
-                  </a-option>
+              <a-form-item field="scale_level" label="规模等级">
+                <a-select v-model="editForm.scale_level" placeholder="请选择" allow-clear>
+                  <a-option value="S">S（超大型 5000人）</a-option>
+                  <a-option value="A">A（大型 2000人）</a-option>
+                  <a-option value="B">B（中大型 1000人）</a-option>
+                  <a-option value="C">C（中等规模 500人）</a-option>
+                  <a-option value="D">D（小规模 100人）</a-option>
+                  <a-option value="E">E（微型 &lt;100人）</a-option>
                 </a-select>
               </a-form-item>
             </div>
 
-            <!-- ===== 列二：结算与业务 ===== -->
+            <!-- ===== 列二：结算配置（7项） ===== -->
             <div class="form-col">
-              <div class="section-title">结算与业务</div>
+              <div class="section-title">结算配置</div>
               <a-form-item field="settlement_type" label="结算方式" required>
                 <a-select v-model="editForm.settlement_type" placeholder="请选择" allow-clear>
                   <a-option value="prepaid">预付费</a-option>
@@ -123,6 +121,33 @@
               <a-form-item field="is_settlement_enabled" label="启用结算">
                 <a-switch v-model="editForm.is_settlement_enabled" />
               </a-form-item>
+              <a-form-item field="consume_level" label="消费等级">
+                <a-select v-model="editForm.consume_level" placeholder="请选择" allow-clear>
+                  <a-option value="C1">C1</a-option>
+                  <a-option value="C2">C2</a-option>
+                  <a-option value="C3">C3</a-option>
+                  <a-option value="C4">C4</a-option>
+                  <a-option value="C5">C5</a-option>
+                  <a-option value="C6">C6</a-option>
+                </a-select>
+              </a-form-item>
+            </div>
+
+            <!-- ===== 列三：人员与状态（6项） ===== -->
+            <div class="form-col">
+              <div class="section-title">人员与状态</div>
+              <a-form-item field="sales_manager_id" label="商务经理">
+                <a-select
+                  v-model="editForm.sales_manager_id"
+                  placeholder="请选择"
+                  allow-clear
+                  :loading="managersLoading"
+                >
+                  <a-option v-for="m in managers" :key="m.id" :value="m.id">
+                    {{ m.real_name || `#${m.id}` }}
+                  </a-option>
+                </a-select>
+              </a-form-item>
               <a-form-item field="manager_id" label="运营经理">
                 <a-select
                   v-model="editForm.manager_id"
@@ -135,36 +160,11 @@
                   </a-option>
                 </a-select>
               </a-form-item>
-              <a-form-item field="is_disabled" label="是否停用">
-                <a-switch v-model="editForm.is_disabled" />
-              </a-form-item>
-            </div>
-
-            <!-- ===== 列三：等级与消费 ===== -->
-            <div class="form-col">
-              <div class="section-title">等级与消费</div>
-              <a-form-item field="scale_level" label="规模等级">
-                <a-select v-model="editForm.scale_level" placeholder="请选择" allow-clear>
-                  <a-option value="S">S（超大型 5000人）</a-option>
-                  <a-option value="A">A（大型 2000人）</a-option>
-                  <a-option value="B">B（中大型 1000人）</a-option>
-                  <a-option value="C">C（中等规模 500人）</a-option>
-                  <a-option value="D">D（小规模 100人）</a-option>
-                  <a-option value="E">E（微型 &lt;100人）</a-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item field="consume_level" label="消费等级">
-                <a-select v-model="editForm.consume_level" placeholder="请选择" allow-clear>
-                  <a-option value="C1">C1</a-option>
-                  <a-option value="C2">C2</a-option>
-                  <a-option value="C3">C3</a-option>
-                  <a-option value="C4">C4</a-option>
-                  <a-option value="C5">C5</a-option>
-                  <a-option value="C6">C6</a-option>
-                </a-select>
-              </a-form-item>
               <a-form-item field="is_key_customer" label="是否重点客户">
                 <a-switch v-model="editForm.is_key_customer" />
+              </a-form-item>
+              <a-form-item field="is_disabled" label="是否停用">
+                <a-switch v-model="editForm.is_disabled" />
               </a-form-item>
               <a-form-item field="first_payment_date" label="首次回款时间">
                 <a-date-picker
@@ -523,9 +523,9 @@ const handleCancel = () => {
   grid-column: 1 / -1;
 }
 
-/* 弹框内容区域高度优化：限制最大高度并启用滚动 */
+/* 弹框内容区域固定高度 680px，超出滚动 */
 :deep(.arco-modal-body) {
-  max-height: 55vh;
+  height: 680px;
   overflow-y: auto;
   padding-right: 8px;
 }
