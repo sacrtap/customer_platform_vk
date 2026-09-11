@@ -1,6 +1,6 @@
 ---
 name: project-hard-rules
-description: "客户运营中台项目硬规则：数据库事务、权限校验、测试覆盖率、Python 版本、并发安全、文件修改前读取、中文回复和 pre-commit 环境配置"
+description: "客户运营中台项目硬规则：数据库事务、权限校验、测试覆盖率、Python 版本、并发安全、文件修改前读取、代码索引工具、中文回复和 pre-commit 环境配置"
 ruleType: Always
 ---
 
@@ -12,6 +12,7 @@ ruleType: Always
 - **Python 版本**：必须使用 Python 3.12.x，不支持 3.13+
 - **并发安全**：余额扣款使用行级锁（`FOR UPDATE`）防止冲突
 - **文件修改前必须先读取**：避免基于过时快照编辑
+- **代码索引工具**：使用 CodeGraph（`codegraph_explore` MCP 工具优先），CatPaw Codebase Index 已禁用，**禁止使用 `@CODEBASE` mention**
 
 ## 个人偏好
 - **思考过程及会话内回复**：必须使用中文

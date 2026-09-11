@@ -15,7 +15,7 @@ ruleType: Always
 
 所有开发任务先按具体领域规则执行。默认主循环为：
 
-1. **Understand**：读取相关项目规则和目标文件；需要外部库/API/框架事实时使用官方文档或 context-mode 索引，不凭训练数据猜测。
+1. **Understand**：读取相关项目规则和目标文件；**代码结构/符号定位/调用路径分析优先使用 CodeGraph**（`codegraph_explore` MCP 工具或 `codegraph explore` shell 命令）；需要外部库/API/框架事实时使用官方文档，不凭训练数据猜测。**不要使用 `@CODEBASE` mention**（Codebase Index 已禁用）。
 2. **Plan**：多步骤、跨文件、行为变更或 Plan mode 任务必须产出可执行计划；计划必须写明文件、符号、具体行为、验证命令和 fallback。
 3. **Execute**：独立任务优先并行派遣 subagent；同一文件或顺序依赖任务串行执行；修改前必须读取文件。
 4. **Verify**：声明"完成/修复/通过"前必须运行覆盖新行为的检查；测试与覆盖率要求见 testing.md。
@@ -42,4 +42,4 @@ ruleType: Always
 - **测试配置**: `backend/pyproject.toml`, `frontend/vite.config.ts`, `frontend/package.json`
 - **CI/CD 流程**: `.github/workflows/`
 - **硬规则**: `project-hard-rules.md`（始终附着）
-- **CodeGraph 使用**: 见全局 SYSTEM.md 第 87-94 行
+- **代码索引工具**: `codebase-indexing.md`（CodeGraph 为唯一索引工具，Codebase Index 已禁用）
