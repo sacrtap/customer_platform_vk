@@ -38,8 +38,16 @@
           </div>
           <div class="drawer-kpi">
             <span>预计耗尽</span>
-            <b :class="{ danger: getDaysUntilDepleted(customer) <= 5 }"
-              >{{ getDaysUntilDepleted(customer) }} 天</b
+            <b
+              :class="{
+                danger:
+                  getDaysUntilDepleted(customer) !== null && getDaysUntilDepleted(customer)! <= 5,
+              }"
+              >{{
+                getDaysUntilDepleted(customer) !== null
+                  ? `${getDaysUntilDepleted(customer)} 天`
+                  : '—'
+              }}</b
             >
           </div>
         </div>
@@ -124,6 +132,7 @@ const getHealthLabel = (health: string | null | undefined) => {
     healthy: '健康',
     attention: '关注',
     high_risk: '高风险',
+    inactive: '不活跃',
   }
   return (health && map[health]) || '-'
 }
@@ -131,14 +140,16 @@ const getHealthLabel = (health: string | null | undefined) => {
 const getHealthClass = (health: string | null | undefined) => {
   if (health === 'attention') return 'amber'
   if (health === 'high_risk') return 'danger'
+  if (health === 'inactive') return 'gray'
   return ''
 }
 
 const getDaysUntilDepleted = (customer: Customer) => {
   const usage = customer.usage_30d_amount || 0
-  if (usage <= 0) return 0
+  if (usage <= 0) return null // 无消耗数据时返回 null，模板中显示 "—"
   const dailyUsage = usage / 30
   const balance = customer.balance || 0
+  if (dailyUsage <= 0) return null
   return Math.max(0, Math.round(balance / dailyUsage))
 }
 </script>

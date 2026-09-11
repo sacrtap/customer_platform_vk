@@ -10,11 +10,12 @@ import pandas as pd
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json, raw
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
 from ..middleware.auth import auth_required, get_current_user, require_permission
+from ..models.customers import Customer, CustomerProfile
 from ..services.customers import (
     CustomerService,
     convert_price_policy_to_display,
@@ -190,13 +191,13 @@ async def list_customers(request: Request):
                     "usage_30d_amount": usage_map.get(c.id, {}).get("total_cost", 0.0),  # pyright: ignore[reportArgumentType, reportCallIssue]
                     # 简易健康度估算（基于余额和用量，完整评分需调用 /analytics/health/customers/<id>/score）
                     "health": (
-                        "高风险"
+                        "high_risk"
                         if (c.balance and float(c.balance.total_amount) < 500)
-                        else "关注"
+                        else "attention"
                         if (c.balance and float(c.balance.total_amount) < 1000)
-                        else "不活跃"
+                        else "inactive"
                         if usage_map.get(c.id, {}).get("order_count", 0) == 0  # pyright: ignore[reportArgumentType, reportCallIssue]
-                        else "健康"
+                        else "healthy"
                     ),
                 }
                 for c in customers
@@ -209,6 +210,93 @@ async def list_customers(request: Request):
 
     # 写入缓存
     await cache_service.set("customer_list", result, cache_key)
+
+    return json(result)
+
+
+@customers_bp.get("/kpi-stats")
+@auth_required
+@require_permission("customers:view")
+async def get_kpi_stats(request: Request):
+    """
+    聚合统计 KPI 数据（单次请求返回全部计数）
+
+    Query:
+    - account_type: 账号类型（默认正式账号）
+    - industry: 行业类型
+    """
+    # 构建筛选条件
+    filters = {
+        "account_type": request.args.get("account_type", "正式账号"),
+        "industry": request.args.get("industry"),
+    }
+    filters = {k: v for k, v in filters.items() if v is not None}
+
+    # 我的客户需要当前用户 ID
+    mine = request.args.get("mine")
+    mine_user_id = None
+    if mine and mine.lower() == "true":
+        current_user = get_current_user(request)
+        if current_user and current_user.get("user_id"):
+            mine_user_id = current_user["user_id"]
+
+    # 检查缓存
+    cache_key = f"kpi_{hashlib.md5(str(sorted({**filters, 'mine': mine_user_id}).encode()).encode(), usedforsecurity=False).hexdigest()[:8]}"  # pyright: ignore[reportArgumentType]
+    force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    if not force_refresh:
+        cached = await cache_service.get("customer_kpi", cache_key)
+        if cached is not None:
+            return json(cached)
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = CustomerService(db_session)
+
+    try:
+        stats = await service.get_kpi_stats(filters=filters, mine_user_id=mine_user_id)
+    except Exception as e:
+        return json({"code": 50000, "message": str(e)}, status=500)
+
+    # 计算本月新增客户数
+    from datetime import date
+
+    now = date.today()
+    month_start = date(now.year, now.month, 1)
+    new_this_month_stmt = select(func.count(Customer.id)).where(
+        Customer.deleted_at.is_(None),
+        Customer.created_at >= month_start,
+    )
+    if filters.get("industry"):
+        from ..models.industry_type import IndustryType
+
+        new_this_month_stmt = new_this_month_stmt.outerjoin(
+            CustomerProfile, Customer.id == CustomerProfile.customer_id
+        ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        industry_list = [i.strip() for i in filters["industry"].split(",") if i.strip()]
+        if len(industry_list) == 1:
+            new_this_month_stmt = new_this_month_stmt.where(IndustryType.name == industry_list[0])
+        else:
+            new_this_month_stmt = new_this_month_stmt.where(IndustryType.name.in_(industry_list))
+    if filters.get("account_type"):
+        new_this_month_stmt = new_this_month_stmt.where(
+            Customer.account_type == filters["account_type"]
+        )
+
+    new_this_month = (await db_session.execute(new_this_month_stmt)).scalar() or 0
+
+    result = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "total": stats["total"],
+            "new_this_month": new_this_month,
+            "key_customers": stats["key_customers"],
+            "incomplete_profile": stats["incomplete_profile"],
+            "my_customers": stats["my_customers"],
+        },
+    }
+
+    # 写入缓存（TTL 60s）
+    await cache_service.set("customer_kpi", result, cache_key, ttl=60)
 
     return json(result)
 
@@ -963,8 +1051,12 @@ async def export_customers(request: Request):
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
-    # 获取所有匹配的客户（不分页）
-    customers, _ = await service.get_all_customers(page=1, page_size=10000, filters=filters)
+    # 获取所有匹配的客户（不分页，上限 50000 条）
+    customers, total_count = await service.get_all_customers(
+        page=1, page_size=50000, filters=filters
+    )
+    # 如果实际匹配数超过导出上限，在导出文件中记录
+    _export_limit = 50000
 
     # 转换为 DataFrame
     data = []
@@ -1061,16 +1153,24 @@ async def get_customer_summary(request: Request, customer_id: int):
     # 使用现有服务获取客户健康度等数据
     await service.get_customer_detail(customer_id)  # pyright: ignore[reportAttributeAccessIssue]
 
-    # 格式化返回数据
+    # 格式化返回数据 — 通过 profile/balance 关系访问属性
+    profile = customer.profile
+    balance = customer.balance
     return json(
         {
             "code": 0,
             "data": {
                 "name": customer.name,
-                "industry": customer.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
-                "scale_level": customer.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
-                "consume_level": customer.consume_level,  # pyright: ignore[reportAttributeAccessIssue]
-                "balance": f"¥{customer.balance:,.0f}" if hasattr(customer, "balance") else "N/A",
+                "industry": (
+                    profile.industry_type.name if profile and profile.industry_type else None
+                ),
+                "scale_level": profile.scale_level if profile else None,
+                "consume_level": profile.consume_level if profile else None,
+                "balance": (
+                    f"¥{float(balance.total_amount):,.0f}"
+                    if balance and balance.total_amount is not None
+                    else "N/A"
+                ),
                 "usage_30d": "N/A",
                 "health": "—",
                 "health_class": "",

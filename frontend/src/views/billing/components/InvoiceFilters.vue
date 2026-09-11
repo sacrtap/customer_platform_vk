@@ -9,6 +9,7 @@
         @apply="emit('search')"
       />
       <button type="button" class="btn primary" @click="emit('search')">筛选</button>
+      <button type="button" class="btn" @click="emit('reset')">重置</button>
     </div>
   </div>
 </template>
@@ -31,6 +32,8 @@ const emit = defineEmits<{
 
 const statusOptions = [
   { label: '草稿', value: 'draft' },
+  { label: '待运营经理确认', value: 'pending_ops' },
+  { label: '待销售经理确认', value: 'pending_sales' },
   { label: '待客户确认', value: 'pending_customer' },
   { label: '客户已确认', value: 'customer_confirmed' },
   { label: '已付款', value: 'paid' },

@@ -18,7 +18,13 @@
       <a-row :gutter="16">
         <a-col :span="12">
           <a-form-item field="company_id" label="公司 ID" required>
-            <a-input v-model="customerForm.company_id" placeholder="请输入公司 ID" />
+            <a-input-number
+              v-model="customerForm.company_id"
+              placeholder="请输入公司 ID"
+              :min="1"
+              style="width: 100%"
+              hide-button
+            />
           </a-form-item>
         </a-col>
         <a-col :span="12">
@@ -37,7 +43,8 @@
           <a-form-item field="account_type" label="账号类型">
             <a-select v-model="customerForm.account_type" placeholder="请选择账号类型" allow-clear>
               <a-option value="正式账号">正式账号</a-option>
-              <a-option value="测试账号">测试账号</a-option>
+              <a-option value="客户测试账号">客户测试账号</a-option>
+              <a-option value="内部账号">内部账号</a-option>
             </a-select>
           </a-form-item>
         </a-col>
@@ -91,6 +98,7 @@
               <a-option value="weekly">周结</a-option>
               <a-option value="monthly">月结</a-option>
               <a-option value="quarterly">季结</a-option>
+              <a-option value="yearly">年结</a-option>
             </a-select>
           </a-form-item>
         </a-col>

@@ -1,7 +1,14 @@
 <template>
   <div class="invoices-tab">
     <div class="data-table-card">
-      <a-table :columns="invoiceColumns" :data="invoices" :pagination="false" row-key="id">
+      <a-table
+        :columns="invoiceColumns"
+        :data="invoices"
+        :pagination="pagination"
+        row-key="id"
+        @page-change="onPageChange"
+        @page-size-change="onPageSizeChange"
+      >
         <template #status="{ record }">
           <span :class="['tag', getStatusTagClass(record.status)]">
             <span class="status-dot"></span>
@@ -24,10 +31,11 @@
 
 <script setup lang="ts">
 import type { Invoice } from '@/api/billing'
+import { reactive, watch } from 'vue'
 import { formatCurrency } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
 
-defineProps<{
+const props = defineProps<{
   invoices: Invoice[]
 }>()
 
@@ -35,10 +43,40 @@ const emit = defineEmits<{
   viewInvoice: [record: Invoice]
 }>()
 
+// 分页配置
+const pagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showTotal: true,
+  showPageSize: true,
+  pageSizeOptions: [10, 20, 50],
+})
+
+// 当 invoices 变化时更新分页
+watch(
+  () => props.invoices,
+  (newInvoices) => {
+    pagination.total = newInvoices.length
+  },
+  { immediate: true }
+)
+
+const onPageChange = (page: number) => {
+  pagination.current = page
+}
+
+const onPageSizeChange = (size: number) => {
+  pagination.pageSize = size
+  pagination.current = 1
+}
+
 const getStatusTagClass = (status: string) => {
   const statusMap: Record<string, string> = {
     draft: 'gray',
-    pending_customer: 'amber',
+    pending_ops: 'amber',
+    pending_sales: 'amber',
+    pending_customer: 'orange',
     customer_confirmed: 'blue',
     paid: 'green',
     completed: 'green',
@@ -50,6 +88,8 @@ const getStatusTagClass = (status: string) => {
 const getStatusText = (status: string) => {
   const statusMap: Record<string, string> = {
     draft: '草稿',
+    pending_ops: '待运营经理确认',
+    pending_sales: '待销售经理确认',
     pending_customer: '待客户确认',
     customer_confirmed: '客户已确认',
     paid: '已付款',

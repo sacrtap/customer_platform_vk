@@ -23,7 +23,7 @@ export function useCustomerList() {
   const createDefaultFilters = () => ({
     keyword: '',
     account_type: '正式账号',
-    industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
+    industry: [] as string[],
     scale_level: '',
     consume_level: '',
     is_key_customer: null as boolean | null,

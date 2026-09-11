@@ -273,11 +273,12 @@ export function useCustomerDetail() {
           markChartForRender('usageDistribution')
         }
       }, 100)
+      // 首次加载 Tab 数据
+      if (tabKey === 'profile') loadProfile()
+      else if (tabKey === 'balance') loadBalance()
+      else if (tabKey === 'invoices') loadInvoices()
+      else if (tabKey === 'usage') loadUsage()
     }
-    if (tabKey === 'profile' && !profile.value?.scale_level) loadProfile()
-    if (tabKey === 'balance' && !balance.value?.total_amount) loadBalance()
-    if (tabKey === 'invoices' && !invoices.value.length) loadInvoices()
-    if (tabKey === 'usage' && !usageData.value.length) loadUsage()
   }
 
   const goBack = () => {

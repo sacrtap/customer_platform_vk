@@ -110,6 +110,8 @@
             placeholder="选择结算周期"
             allow-clear
           >
+            <a-option value="daily">日结</a-option>
+            <a-option value="weekly">周结</a-option>
             <a-option value="monthly">月结</a-option>
             <a-option value="quarterly">季结</a-option>
             <a-option value="yearly">年结</a-option>

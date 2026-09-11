@@ -67,13 +67,18 @@
         <!-- 是否房产客户 -->
         <a-col :span="12">
           <a-form-item field="is_real_estate" label="是否房产客户">
-            <a-switch v-model="form.is_real_estate" />
+            <a-select v-model="form.is_real_estate" placeholder="请选择" allow-clear>
+              <a-option :value="true">是</a-option>
+              <a-option :value="false">否</a-option>
+            </a-select>
           </a-form-item>
         </a-col>
         <!-- 结算周期 -->
         <a-col :span="12">
           <a-form-item field="settlement_cycle" label="结算周期">
             <a-select v-model="form.settlement_cycle" placeholder="请选择" allow-clear>
+              <a-option value="daily">日结</a-option>
+              <a-option value="weekly">周结</a-option>
               <a-option value="monthly">月结</a-option>
               <a-option value="quarterly">季结</a-option>
               <a-option value="yearly">年结</a-option>
@@ -103,7 +108,7 @@
         </a-col>
         <!-- 销售经理 -->
         <a-col :span="12">
-          <a-form-item field="sales_manager_id" label="销售经理">
+          <a-form-item field="sales_manager_id" label="商务经理">
             <a-select
               v-model="form.sales_manager_id"
               placeholder="请选择"
@@ -170,7 +175,7 @@ const createDefaultForm = (): CreateForm => ({
   account_type: '',
   industry_type_id: undefined,
   settlement_type: '',
-  is_real_estate: false,
+  is_real_estate: null,
   settlement_cycle: '',
   is_key_customer: false,
   manager_id: undefined,
@@ -221,7 +226,7 @@ const handleConfirm = async () => {
     if (form.account_type) payload.account_type = form.account_type
     if (form.industry_type_id) payload.industry_type_id = form.industry_type_id
     if (form.settlement_type) payload.settlement_type = form.settlement_type
-    payload.is_real_estate = form.is_real_estate
+    if (form.is_real_estate !== null) payload.is_real_estate = form.is_real_estate
     if (form.settlement_cycle) payload.settlement_cycle = form.settlement_cycle
     payload.is_key_customer = form.is_key_customer
     if (form.manager_id) payload.manager_id = form.manager_id

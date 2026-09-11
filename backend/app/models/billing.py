@@ -84,7 +84,9 @@ class PricingRule(BaseModel):
     customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
     device_type = Column(String(20), nullable=True)  # X/N/L（包年结算时为 NULL）
     layer_type = Column(String(20))  # single/multi (前端可传 single_and_multi，后端拆分为两条)
-    pricing_type = Column(String(20), nullable=False)  # fixed/tier/package
+    pricing_type = Column(String(20), nullable=False)  # fixed(定价)/tier(阶梯)/package(包年)
+    # 注意: 此字段与 Customer.price_policy (pricing/tiered/yearly) 命名不同、值域不同
+    # pricing_type 描述具体计费规则的类型，price_policy 描述客户整体计费策略偏好
     unit_price = Column(DECIMAL(10, 2))
     # 多层计费类型：unified(统一) / incremental(递增)，仅 fixed + multi 时有效
     multi_floor_pricing_type = Column(String(20), nullable=True)

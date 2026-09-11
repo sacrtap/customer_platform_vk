@@ -212,7 +212,7 @@ import { reactive, ref, computed, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import type { IndustryType, CooperationStatus, ErpSystem } from '@/types'
-import { getCustomer, updateCustomer, updateProfile, getIndustryTypes } from '@/api/customers'
+import { getCustomer, updateCustomer, getIndustryTypes } from '@/api/customers'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 import { getErpSystemsList } from '@/api/erpSystems'
 import { getManagers } from '@/api/users'
@@ -438,8 +438,8 @@ const handleSubmit = async () => {
   submitLoading.value = true
   try {
     const form = { ...editForm }
-    // 构建 basic 更新数据
-    const basicData: Record<string, unknown> = {
+    // 构建统一更新数据（后端 update_customer 已支持 scale_level/consume_level）
+    const updateData: Record<string, unknown> = {
       name: form.name,
       company_id: form.company_id,
       email: form.email || undefined,
@@ -459,19 +459,11 @@ const handleSubmit = async () => {
       is_disabled: form.is_disabled,
       notes: form.notes || undefined,
       is_real_estate: form.is_real_estate,
-    }
-
-    // 构建 profile 更新数据
-    const profileData: Record<string, unknown> = {
       scale_level: form.scale_level || undefined,
       consume_level: form.consume_level || undefined,
-      industry_type_id: form.industry_type_id,
     }
 
-    await Promise.all([
-      updateCustomer(props.customerId!, basicData as Parameters<typeof updateCustomer>[1]),
-      updateProfile(props.customerId!, profileData as Parameters<typeof updateProfile>[1]),
-    ])
+    await updateCustomer(props.customerId!, updateData as Parameters<typeof updateCustomer>[1])
 
     Message.success('客户信息已更新')
     emit('update:visible', false)

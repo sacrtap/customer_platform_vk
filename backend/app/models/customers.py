@@ -24,7 +24,9 @@ class Customer(BaseModel):
     company_id = Column(Integer, unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False, index=True)
     account_type = Column(String(50), index=True)
-    price_policy = Column(String(50))
+    price_policy = Column(String(50))  # 客户级计费策略: pricing(定价)/tiered(阶梯)/yearly(包年)
+    # 注意: 此字段与 PricingRule.pricing_type (fixed/tier/package) 命名不同、值域不同
+    # price_policy 描述客户整体计费策略偏好，pricing_type 描述具体计费规则的类型
     manager_id = Column(Integer, ForeignKey("users.id"), index=True)
     settlement_cycle = Column(String(20))  # monthly/quarterly/yearly
     settlement_type = Column(String(20), index=True)  # prepaid/postpaid
