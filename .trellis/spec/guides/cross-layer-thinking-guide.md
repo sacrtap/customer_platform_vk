@@ -123,6 +123,29 @@ After implementation:
 
 ---
 
+## Frontend-Backend Option Consistency
+
+When the backend defines an enum or a fixed set of valid values (e.g., `InvoiceStatus`, `SETTLEMENT_CYCLE_MAP`), every frontend component that renders or filters by that field must support **exactly the same set of values**.
+
+### Checklist: When a backend enum or value set changes
+
+- [ ] Search ALL frontend components that reference this field: `grep -r "field_name" frontend/src/`
+- [ ] Update every `statusOptions`, `statusMap`, `getStatusText`, `getStatusTagClass` in all components
+- [ ] Verify filter dropdowns include ALL enum values
+- [ ] Verify display mappings (text + CSS class) cover ALL enum values
+- [ ] If a new status is added to the backend enum, add it to `frontend/src/constants/customerOptions.ts` first, then propagate
+
+### Real-world example (2026-09-11)
+
+Backend `InvoiceStatus` had 8 values (`draft`, `pending_ops`, `pending_sales`, `pending_customer`, `customer_confirmed`, `paid`, `completed`, `cancelled`), but:
+- `InvoiceFilters.vue` only had 6 (missing `pending_ops` and `pending_sales`)
+- `CustomerInvoicesTab.vue` only had 6 (missing `pending_ops` and `pending_sales`)
+- `InvoiceStatusBadge.vue` correctly had all 8
+
+This meant users could not filter by `pending_ops` or `pending_sales` status, and those statuses displayed as raw English text in the customer detail tab.
+
+---
+
 ## Cross-Platform Template Consistency
 
 In Trellis, command templates (e.g., `record-session.md`) exist in **multiple platforms** with identical or near-identical content. This is a cross-layer boundary.

@@ -206,3 +206,31 @@ Shared UI components live in `frontend/src/components/ui/`.
 - ❌ **Calling axios directly** — use the API layer functions from `@/api/<module>`
 - ❌ **Handling errors with `try/catch` + `Message.error()` inline** — use `handleError()` from `@/utils/errorHandler`
 - ❌ **Forgetting to reset form on modal close** — call `formRef.value?.resetFields()` in cancel handler
+
+---
+
+## Shared Options Constants (选项一致性)
+
+**Problem**: When the same field (e.g., `settlement_cycle`, `account_type`, `invoice status`) appears in multiple forms (Add, Edit, BatchEdit, Filters, Detail display), hardcoding options in each component leads to **option drift** — some forms have fewer options than others.
+
+**Rule**: All dropdown/select options and display mappings must be defined in `frontend/src/constants/customerOptions.ts` and imported by every form component.
+
+### Checklist: When adding or modifying a field with fixed options
+
+- [ ] Check if the field already exists in `customerOptions.ts`
+- [ ] If yes, import the constant and use it — do NOT hardcode options in the template
+- [ ] If no, add the option constant to `customerOptions.ts` first, then use it in all forms
+- [ ] Search for ALL components that render this field: `grep -r "field_name" frontend/src/views/`
+- [ ] Verify every component uses the same option set
+- [ ] If a backend enum exists (e.g., `InvoiceStatus`), ensure frontend options match it exactly
+
+### Real-world examples (2026-09-11)
+
+- `settlement_cycle` was 3 options in AddCustomerModal, 4 in CustomerFormModal, 3 in CustomerBatchEditModal, but 5 in the backend — fixed by unifying to 5
+- `account_type` was 2 options in CustomerFormModal but 3 in all other forms — fixed by unifying to 3
+- `InvoiceFilters` status options were missing `pending_ops` and `pending_sales` that the backend `InvoiceStatus` enum defines — fixed by adding them
+- `EditCustomerDialog` scale_level was missing the `E` option that `CustomerBatchEditModal` and the backend model comment defined
+
+### Three-state boolean fields
+
+When a boolean field supports `null` in the backend model (e.g., `is_real_estate = Column(Boolean, nullable=True, default=None)`), the form control must be a three-state `a-select` (是/否/未设置), NOT a two-state `a-switch`. This ensures the user can explicitly set "未设置" and that editing doesn't accidentally override `null` to `false`.
