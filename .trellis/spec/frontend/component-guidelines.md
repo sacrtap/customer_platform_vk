@@ -234,3 +234,67 @@ Shared UI components live in `frontend/src/components/ui/`.
 ### Three-state boolean fields
 
 When a boolean field supports `null` in the backend model (e.g., `is_real_estate = Column(Boolean, nullable=True, default=None)`), the form control must be a three-state `a-select` (是/否/未设置), NOT a two-state `a-switch`. This ensures the user can explicitly set "未设置" and that editing doesn't accidentally override `null` to `false`.
+
+---
+
+## Layout Stability in Modal Forms (布局稳定性)
+
+**Problem**: When users interact with form fields (clear a select, trigger validation, etc.), the modal layout visually jumps/shifts. This is caused by:
+1. Error messages appearing/disappearing, changing `a-form-item` height
+2. Multi-column layouts with unequal column heights
+3. `a-spin` loading state destroying and recreating DOM content
+4. Async dictionary data loading causing options to appear after form render
+
+### Rules for Layout-Stable Modal Forms
+
+#### R1: Reserve error message space (P0)
+Always add `min-height` to Arco's error message element so form items don't grow when validation messages appear:
+
+```css
+:deep(.arco-form-item-message) {
+  min-height: 22px;
+  line-height: 22px;
+}
+```
+
+#### R2: Use CSS Grid instead of `a-row`/`a-col` for multi-column forms (P0)
+`a-row`/`a-col` doesn't guarantee equal-height columns. Use CSS Grid:
+
+```css
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+```
+
+Responsive breakpoints:
+```css
+@media (max-width: 767px) { .form-grid { grid-template-columns: 1fr; } }
+@media (min-width: 768px) and (max-width: 1023px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
+```
+
+#### R3: Use `validate-trigger="['blur']"` for large forms (P1)
+For forms with 10+ fields, avoid `change` trigger — it causes validation on every keystroke/selection, leading to frequent layout shifts. Use `blur`-only validation; the final `validate()` call at submit time catches everything.
+
+#### R4: Preload dictionary data in the parent component (P1)
+If a modal form uses dropdown data (managers, industry types, cooperation statuses, ERP systems), load it in the **parent page's `onMounted`** — not inside the modal's open watcher. Pass as props. The modal's own `loadDictData()` should only run as a fallback when props are not provided.
+
+#### R5: Use `v-show` instead of `v-if` for loading transitions (P2)
+When wrapping form content in `a-spin`, use `v-show="!loading"` on the content wrapper to keep DOM mounted during loading transitions, preventing DOM rebuild layout shifts:
+
+```vue
+<a-spin :loading="fetchLoading">
+  <div v-show="!fetchLoading">
+    <!-- form content stays in DOM -->
+  </div>
+</a-spin>
+```
+
+#### R6: All `a-select` with `required` validation must have `allow-clear` (P2)
+A `required` select without `allow-clear` is a UX contradiction — the user can select a value but cannot clear it to re-select. Always add `allow-clear` to required selects.
+
+### Real-world example (2026-09-11)
+
+`EditCustomerDialog.vue` had all 6 problems: no error message spacing, `a-row` with unequal columns, `change` validation trigger, async dict loading in modal, `a-spin` DOM replacement, and `settlement_type` missing `allow-clear`. All 6 fixed in one batch.

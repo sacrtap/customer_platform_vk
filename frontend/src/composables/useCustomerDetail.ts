@@ -17,7 +17,18 @@ import type { DailyUsage } from '@/api/usage'
 import { getManagers } from '@/api/users'
 import { getCustomerHealthScore } from '@/api/analytics'
 import type { CustomerHealthScore } from '@/api/analytics'
-import type { Customer, CustomerProfile, Balance, Tag, User, IndustryType } from '@/types'
+import type {
+  Customer,
+  CustomerProfile,
+  Balance,
+  Tag,
+  User,
+  IndustryType,
+  CooperationStatus,
+  ErpSystem,
+} from '@/types'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import { getErpSystemsList } from '@/api/erpSystems'
 import { useCustomerStore } from '@/stores/customer'
 
 export interface EditForm {
@@ -108,6 +119,8 @@ export function useCustomerDetail() {
   const selectedTags = ref<Tag[]>([])
   const managers = ref<User[]>([])
   const industryTypes = ref<IndustryType[]>([])
+  const cooperationStatuses = ref<CooperationStatus[]>([])
+  const erpSystems = ref<ErpSystem[]>([])
   const pricePolicyOptions = [
     { label: '定价', value: 'pricing' },
     { label: '阶梯', value: 'tiered' },
@@ -478,6 +491,24 @@ export function useCustomerDetail() {
     }
   }
 
+  const loadCooperationStatuses = async () => {
+    try {
+      const res = await getCooperationStatusesList()
+      cooperationStatuses.value = res.data?.data || res.data || []
+    } catch (error) {
+      console.error('加载合作状态失败:', error)
+    }
+  }
+
+  const loadErpSystems = async () => {
+    try {
+      const res = await getErpSystemsList()
+      erpSystems.value = res.data?.data || res.data || []
+    } catch (error) {
+      console.error('加载 ERP 系统失败:', error)
+    }
+  }
+
   // 诊断: 追踪 loading 状态变化
   watch(loading, (_val) => {}, { immediate: true })
 
@@ -485,6 +516,8 @@ export function useCustomerDetail() {
     loadDetail()
     loadManagers()
     loadIndustryTypes()
+    loadCooperationStatuses()
+    loadErpSystems()
   })
 
   onUpdated(() => {})
@@ -527,6 +560,8 @@ export function useCustomerDetail() {
     industryTypes,
     industryTypesLoading,
     pricePolicyOptions,
+    cooperationStatuses,
+    erpSystems,
     keyCustomerLoading,
     consumeLevelDisplay,
     profileExtensionList,
@@ -550,5 +585,7 @@ export function useCustomerDetail() {
     removeTag,
     loadManagers,
     loadIndustryTypes,
+    loadCooperationStatuses,
+    loadErpSystems,
   }
 }
