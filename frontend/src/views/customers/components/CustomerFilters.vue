@@ -90,6 +90,12 @@
 import { ref, computed } from 'vue'
 import type { IndustryType, ErpSystem, CooperationStatus } from '@/types'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  SCALE_LEVEL_OPTIONS,
+  CONSUME_LEVEL_OPTIONS,
+  SETTLEMENT_TYPE_OPTIONS,
+} from '@/constants/customerOptions'
 import CustomerSearchInput from './CustomerSearchInput.vue'
 
 interface Filters {
@@ -142,34 +148,16 @@ const toggleMore = () => {
   showMore.value = !showMore.value
 }
 
-// 筛选选项
-const accountTypeOptions = [
-  { label: '正式账号', value: '正式账号' },
-  { label: '客户测试账号', value: '客户测试账号' },
-  { label: '内部账号', value: '内部账号' },
-]
+// 筛选选项（常量统一引用 customerOptions.ts）
+const accountTypeOptions = ACCOUNT_TYPE_OPTIONS
 
 const industryOptions = computed(() =>
   props.industryTypes.map((it) => ({ label: it.name, value: it.name }))
 )
 
-const scaleOptions = [
-  { label: 'S（超大型）', value: 'S' },
-  { label: 'A（大型）', value: 'A' },
-  { label: 'B（中型）', value: 'B' },
-  { label: 'C（小型）', value: 'C' },
-  { label: 'D（微型）', value: 'D' },
-  { label: 'E（极小型）', value: 'E' },
-]
+const scaleOptions = SCALE_LEVEL_OPTIONS
 
-const consumeOptions = [
-  { label: 'C1 - 100万', value: 'C1' },
-  { label: 'C2 - 50万', value: 'C2' },
-  { label: 'C3 - 25万', value: 'C3' },
-  { label: 'C4 - 12万', value: 'C4' },
-  { label: 'C5 - 6万', value: 'C5' },
-  { label: 'C6 - 6万以下', value: 'C6' },
-]
+const consumeOptions = CONSUME_LEVEL_OPTIONS
 
 const erpSystemOptions = computed(() =>
   props.erpSystems.map((es) => ({ label: es.name, value: es.value }))
@@ -179,10 +167,7 @@ const cooperationStatusOptions = computed(() =>
   props.cooperationStatuses.map((cs) => ({ label: cs.name, value: cs.value }))
 )
 
-const settlementTypeOptions = [
-  { label: '预付费', value: 'prepaid' },
-  { label: '后付费', value: 'postpaid' },
-]
+const settlementTypeOptions = SETTLEMENT_TYPE_OPTIONS
 
 const managerOptions = computed(() =>
   (props.managers as Array<{ id: number; real_name: string | null }>).map((m) => ({

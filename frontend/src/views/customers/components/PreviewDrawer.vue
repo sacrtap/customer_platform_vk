@@ -68,7 +68,9 @@
               v-if="!customer.consumption_history || customer.consumption_history.length === 0"
               class="drawer-empty"
             >
-              暂无操作记录
+              暂无操作记录，<a class="drawer-link" @click="emit('viewDetail', customer!.id)"
+                >查看详情</a
+              >
             </div>
           </div>
         </div>
@@ -321,6 +323,12 @@ const getDaysUntilDepleted = (customer: Customer) => {
   padding: 20px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.drawer-link {
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 /* 操作按钮 */
