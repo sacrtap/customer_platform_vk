@@ -523,6 +523,21 @@ const handleCancel = () => {
   grid-column: 1 / -1;
 }
 
+/* 弹框内容区域高度优化：限制最大高度并启用滚动 */
+:deep(.arco-modal-body) {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* 减小 form-item 间距让布局更紧凑 */
+:deep(.arco-form-item) {
+  margin-bottom: 18px;
+}
+
+:deep(.arco-form-item:last-child) {
+  margin-bottom: 0;
+}
+
 /* 响应式：小屏单列 */
 @media (max-width: 767px) {
   .form-grid {
