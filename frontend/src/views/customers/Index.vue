@@ -91,6 +91,8 @@
       :industry-types="industryTypes"
       :managers="managers"
       :managers-loading="managersLoading"
+      :cooperation-statuses="cooperationStatuses"
+      :erp-systems="erpSystems"
       @saved="handleSearch"
       @update:visible="customerModalVisible = $event"
     />
