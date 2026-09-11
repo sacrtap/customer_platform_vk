@@ -5,6 +5,7 @@
     :width="modalWidth"
     :confirm-loading="submitLoading"
     :mask-closable="false"
+    :body-style="{ height: '600px', overflowY: 'auto', paddingRight: '8px' }"
     @ok="handleSubmit"
     @cancel="handleCancel"
     @close="handleCancel"
@@ -521,13 +522,6 @@ const handleCancel = () => {
 /* 备注横跨三列 */
 .form-col-full {
   grid-column: 1 / -1;
-}
-
-/* 弹框内容区域固定高度 600px，超出滚动 */
-:deep(.arco-modal-body) {
-  height: 600px;
-  overflow-y: auto;
-  padding-right: 8px;
 }
 
 /* 减小 form-item 间距让布局更紧凑 */
