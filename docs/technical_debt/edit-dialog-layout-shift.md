@@ -266,7 +266,33 @@ onMounted(async () => {
 - ✅ TypeScript 类型检查通过（本次修改文件无新错误）
 - ✅ 后端测试无回归
 
-## 七、变更记录
+## 七、宽高优化（第二轮）
+
+### 问题
+首轮优化后布局不再抖动，但弹框宽度 960px 过宽，三列 Grid 在此宽度下每列约 304px，而表单控件实际只需 ~220px，导致右侧大量留白。
+
+### 调整方案
+
+| 调整项 | 调整前 | 调整后 | 原因 |
+|--------|--------|--------|------|
+| 弹框宽度 (≥1024px) | 960px | **800px** | 减少右侧空白，每列 ~250px 足够容纳所有控件 |
+| 列一字段数 | 7 | 7 (不变) | — |
+| 列二字段数 | 7 | **8** | 将「是否停用」从列三移入，平衡高度 |
+| 列三字段数 | 6 | **5** | 移出「是否停用」后更紧凑 |
+
+### 字段分布（调整后）
+
+| 列 | 分区标题 | 包含字段 | 数量 |
+|----|---------|---------|------|
+| 列一 | 基础信息 | name, company_id, email, account_type, industry_type_id, is_real_estate, sales_manager_id | 7 |
+| 列二 | 结算与业务 | settlement_type, settlement_cycle, price_policy, erp_system, cooperation_status, is_settlement_enabled, manager_id, **is_disabled** | 8 |
+| 列三 | 等级与消费 | scale_level, consume_level, is_key_customer, first_payment_date, onboarding_date | 5 |
+| 全宽 | 备注 | notes | 1 |
+
+### Commit
+`abc236f` - fix: EditCustomerDialog 宽度优化 960px→800px + 列字段数平衡(7/8/5)
+
+## 八、变更记录
 
 | 日期 | 内容 | 操作人 |
 |------|------|--------|
