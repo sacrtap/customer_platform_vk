@@ -129,33 +129,45 @@ async def list_customers(request: Request):
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
 
-    # 批量查询当前页客户的近30天消耗数据
+    # 批量查询当前页客户的近30天消耗数据（使用独立缓存，TTL 5 分钟）
     usage_map: dict[int, dict] = {}
     if customers:
         customer_ids = [c.id for c in customers]
-        thirty_days_ago = date.today() - timedelta(days=30)
-        from sqlalchemy import func as sa_func
+        # 检查缓存
+        usage_cache_key = f"usage30d_{','.join(str(i) for i in sorted(customer_ids))}"
+        cached_usage = await cache_service.get("customer_usage_30d", usage_cache_key)
+        if cached_usage is not None:
+            usage_map = cached_usage
+        else:
+            thirty_days_ago = date.today() - timedelta(days=30)
+            from sqlalchemy import func as sa_func
 
-        from ..models.daily_consumption import DailyConsumption
+            from ..models.daily_consumption import DailyConsumption
 
-        usage_stmt = (
-            select(
-                DailyConsumption.customer_id,
-                sa_func.coalesce(sa_func.sum(DailyConsumption.order_count), 0).label("order_count"),
-                sa_func.coalesce(sa_func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
+            usage_stmt = (
+                select(
+                    DailyConsumption.customer_id,
+                    sa_func.coalesce(sa_func.sum(DailyConsumption.order_count), 0).label(
+                        "order_count"
+                    ),
+                    sa_func.coalesce(sa_func.sum(DailyConsumption.total_cost), 0).label(
+                        "total_cost"
+                    ),
+                )
+                .where(
+                    DailyConsumption.customer_id.in_(customer_ids),
+                    DailyConsumption.consumption_date >= thirty_days_ago,
+                )
+                .group_by(DailyConsumption.customer_id)
             )
-            .where(
-                DailyConsumption.customer_id.in_(customer_ids),
-                DailyConsumption.consumption_date >= thirty_days_ago,
-            )
-            .group_by(DailyConsumption.customer_id)
-        )
         usage_result = await db_session.execute(usage_stmt)
         for row in usage_result.all():
             usage_map[row.customer_id] = {
                 "order_count": int(row.order_count),
                 "total_cost": float(row.total_cost),
             }
+        # 写入缓存（TTL 5 分钟）
+        await cache_service.set("customer_usage_30d", usage_map, usage_cache_key, ttl=300)
 
     result = {
         "code": 0,
