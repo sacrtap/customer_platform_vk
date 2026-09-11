@@ -523,9 +523,9 @@ const handleCancel = () => {
   grid-column: 1 / -1;
 }
 
-/* 弹框内容区域固定高度 680px，超出滚动 */
+/* 弹框内容区域固定高度 600px，超出滚动 */
 :deep(.arco-modal-body) {
-  height: 680px;
+  height: 600px;
   overflow-y: auto;
   padding-right: 8px;
 }
