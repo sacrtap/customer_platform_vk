@@ -135,6 +135,9 @@
                   </a-option>
                 </a-select>
               </a-form-item>
+              <a-form-item field="is_disabled" label="是否停用">
+                <a-switch v-model="editForm.is_disabled" />
+              </a-form-item>
             </div>
 
             <!-- ===== 列三：等级与消费 ===== -->
@@ -180,9 +183,6 @@
                   allow-clear
                   value-format="YYYY-MM-DD"
                 />
-              </a-form-item>
-              <a-form-item field="is_disabled" label="是否停用">
-                <a-switch v-model="editForm.is_disabled" />
               </a-form-item>
             </div>
 
@@ -254,11 +254,11 @@ const erpSystems = computed(() => props.erpSystems || innerErpSystems.value)
 const managers = computed(() => props.managers || innerManagers.value)
 
 const modalWidth = computed(() => {
-  if (typeof window === 'undefined') return '960px'
+  if (typeof window === 'undefined') return '800px'
   const w = window.innerWidth
   if (w < 768) return '95vw'
   if (w < 1024) return '90vw'
-  return '960px'
+  return '800px'
 })
 
 interface EditForm {
