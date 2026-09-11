@@ -125,9 +125,55 @@ await cache_service.invalidate_billing_cache()
 
 ---
 
+## AsyncSession Concurrency Constraint
+
+**CRITICAL**: `AsyncSession` does NOT support concurrent `execute()` calls on the same session instance.
+
+- ❌ **Never use `asyncio.gather()` with multiple `session.execute()` calls on the same session**
+- ✅ **Use sequential `await` calls** when querying multiple statements on the same session
+- ✅ **If true parallelism is needed**, create separate sessions per query
+
+```python
+# WRONG — will raise InvalidRequestError
+results = await asyncio.gather(
+    session.execute(stmt1),
+    session.execute(stmt2),
+)
+
+# CORRECT — sequential execution on the same session
+result1 = await session.execute(stmt1)
+result2 = await session.execute(stmt2)
+```
+
+[来源: Bug fix 2026-09-12 — KPI `get_kpi_stats` asyncio.gather caused 500 error]
+
+---
+
+## "Impossible" WHERE Conditions
+
+When you need a WHERE clause that matches zero rows (e.g., user has no ID for "my customers" filter):
+
+- ❌ **Never pass Python `False` to `.where()`** — SQLAlchemy raises `ArgumentError`
+- ❌ **Never use `sqlalchemy.literal(False)`** — can cause type issues on some databases
+- ✅ **Use an always-false column comparison** like `.where(Model.id < 0)`
+
+```python
+# WRONG — raises ArgumentError
+stmt = stmt.where(False)
+
+# CORRECT — always false, returns 0 rows
+stmt = stmt.where(Customer.id < 0)
+```
+
+[来源: Bug fix 2026-09-12 — KPI `get_kpi_stats` `where(False)` caused 500 error]
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)
 - ❌ **Creating sessions with `async_session_maker()` in routes** — always use `request.ctx.db_session`
 - ❌ **Committing in routes without understanding service commit behavior** — some services commit internally (e.g., `CustomerService.create_customer`), some expect the caller to commit
 - ❌ **Forgetting to close sessions** — the middleware handles this; do not create sessions outside the middleware pattern
+- ❌ **`asyncio.gather()` with multiple `session.execute()` on the same AsyncSession** — see AsyncSession Concurrency Constraint above
+- ❌ **Passing Python `False` or `True` to `.where()`** — see "Impossible" WHERE Conditions above

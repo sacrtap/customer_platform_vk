@@ -504,22 +504,15 @@ class CustomerService:
                 )
             )
         else:
-            mine_stmt = mine_stmt.where(False)
+            # mine_user_id 为空时返回 0 条（使用不可能为真的条件）
+            mine_stmt = mine_stmt.where(Customer.id < 0)
 
-        # 并行执行所有计数查询
+        # 顺序执行所有计数查询（AsyncSession 不支持并发 execute）
         if self._is_async:
-            import asyncio
-
-            results = await asyncio.gather(
-                self.db.execute(total_stmt),
-                self.db.execute(key_stmt),
-                self.db.execute(incomplete_stmt),
-                self.db.execute(mine_stmt),
-            )
-            total = results[0].scalar()
-            key_customers = results[1].scalar()
-            incomplete_profile = results[2].scalar()
-            my_customers = results[3].scalar()
+            total = (await self.db.execute(total_stmt)).scalar()
+            key_customers = (await self.db.execute(key_stmt)).scalar()
+            incomplete_profile = (await self.db.execute(incomplete_stmt)).scalar()
+            my_customers = (await self.db.execute(mine_stmt)).scalar()
         else:
             total = self.db.execute(total_stmt).scalar()
             key_customers = self.db.execute(key_stmt).scalar()

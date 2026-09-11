@@ -1,35 +1,19 @@
-import { ref, reactive, computed, onMounted, onUnmounted, onUpdated, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import {
-  getCustomer,
-  updateCustomer,
-  getProfile,
-  updateProfile,
-  getIndustryTypes,
-} from '@/api/customers'
+import { getCustomer, updateCustomer, getProfile, updateProfile } from '@/api/customers'
 import { getCustomerBalance, getInvoices, getBalanceTrend } from '@/api/billing'
 import type { Invoice, BalanceTrendItem } from '@/api/billing'
-import { getTags, getCustomerTags, addCustomerTag, removeCustomerTag } from '@/api/tags'
 import { getDailyUsage } from '@/api/usage'
 import type { DailyUsage } from '@/api/usage'
-import { getManagers } from '@/api/users'
 import { getCustomerHealthScore } from '@/api/analytics'
 import type { CustomerHealthScore } from '@/api/analytics'
-import type {
-  Customer,
-  CustomerProfile,
-  Balance,
-  Tag,
-  User,
-  IndustryType,
-  CooperationStatus,
-  ErpSystem,
-} from '@/types'
-import { getCooperationStatusesList } from '@/api/cooperationStatuses'
-import { getErpSystemsList } from '@/api/erpSystems'
+import type { Customer, CustomerProfile, Balance } from '@/types'
 import { useCustomerStore } from '@/stores/customer'
+import { useCustomerDict } from './useCustomerDict'
+import { useCustomerTags } from './useCustomerTags'
+import { useCustomerTabs } from './useCustomerTabs'
 
 export interface EditForm {
   name: string
@@ -62,29 +46,33 @@ export function useCustomerDetail() {
 
   const customerId = ref(Number(route.params.id))
 
+  // ---- 客户基本信息 ----
   const customer = ref<Customer | null>(null)
   const loading = ref(false)
-  const activeTab = ref('basic')
 
+  // ---- 余额数据 ----
   const balance = ref<Balance | undefined>(undefined)
   const balanceLoading = ref(false)
+  const balanceTrend = ref<BalanceTrendItem[]>([])
+  const balanceTrendLoading = ref(false)
 
+  // ---- 画像数据 ----
   const profile = ref<CustomerProfile | null>(null)
   const profileLoading = ref(false)
 
+  // ---- 结算单 ----
   const invoices = ref<Invoice[]>([])
 
+  // ---- 用量 ----
   const usageData = ref<DailyUsage[]>([])
   const usageLoading = ref(false)
   const usagePagination = ref({ current: 1, pageSize: 20, total: 0 })
 
+  // ---- 健康分 ----
   const healthScore = ref<CustomerHealthScore | null>(null)
   const healthScoreLoading = ref(false)
-  const balanceTrend = ref<BalanceTrendItem[]>([])
-  const balanceTrendLoading = ref(false)
-  const usageDistribution = ref<{ device_type: string; quantity: number; percentage: number }[]>([])
-  const totalUsageQuantity = ref(0)
 
+  // ---- 编辑表单 ----
   const editModalVisible = ref(false)
   const editFormRef = ref<FormInstance>()
   const editLoading = ref(false)
@@ -112,24 +100,7 @@ export function useCustomerDetail() {
     consume_level: undefined,
   })
 
-  const tagSelectorVisible = ref(false)
-  const tagSelectorLoading = ref(false)
-  const customerTags = ref<Tag[]>([])
-  const allTags = ref<Tag[]>([])
-  const selectedTags = ref<Tag[]>([])
-  const managers = ref<User[]>([])
-  const industryTypes = ref<IndustryType[]>([])
-  const cooperationStatuses = ref<CooperationStatus[]>([])
-  const erpSystems = ref<ErpSystem[]>([])
-  const pricePolicyOptions = [
-    { label: '定价', value: 'pricing' },
-    { label: '阶梯', value: 'tiered' },
-    { label: '包年', value: 'yearly' },
-  ]
-
   const keyCustomerLoading = ref(false)
-  const industryTypesLoading = ref(false)
-  const allTagsLoading = ref(false)
 
   const modalWidth = computed(() => {
     if (typeof window === 'undefined') return '1100px'
@@ -152,17 +123,23 @@ export function useCustomerDetail() {
     { label: '2025年实际消费', value: profile.value?.actual_annual_spend_2025 ?? '-' },
   ])
 
-  const loadedTabs = ref<Set<string>>(new Set(['basic']))
-  const chartRenderState = ref<Record<string, boolean>>({})
-  const shouldRenderBalanceTrend = computed(() => chartRenderState.value.balanceTrend ?? false)
-  let tabLoadTimer: ReturnType<typeof setTimeout> | null = null
+  const pricePolicyOptions = [
+    { label: '定价', value: 'pricing' },
+    { label: '阶梯', value: 'tiered' },
+    { label: '包年', value: 'yearly' },
+  ]
 
-  const markChartForRender = (chartId: string): void => {
-    chartRenderState.value[chartId] = true
-  }
+  // ---- 子 composable: 字典数据 ----
+  const dict = useCustomerDict()
 
+  // ---- 子 composable: 标签管理 ----
+  const tags = useCustomerTags(() => customerId.value)
+
+  // ---- 子 composable: Tab 懒加载 ----
+  const tabs = useCustomerTabs()
+
+  // ---- 数据加载方法 ----
   const loadDetail = async () => {
-    // 防御: 防止无效 customerId 导致 API 挂起
     if (!customerId.value || isNaN(customerId.value) || customerId.value <= 0) {
       console.error('[loadDetail] Invalid customerId:', customerId.value)
       Message.error('无效的客户 ID，请检查路由参数')
@@ -247,7 +224,6 @@ export function useCustomerDetail() {
       usageData.value = res.data?.list || []
       usagePagination.value.total = res.data?.total || 0
     } catch (error: unknown) {
-      // 后端未实现用量 API 时优雅降级，显示空状态而非错误提示
       usageData.value = []
       usagePagination.value.total = 0
       console.warn('[loadUsage] API error (showing empty state):', error)
@@ -256,59 +232,16 @@ export function useCustomerDetail() {
     }
   }
 
+  // ---- Tab 切换处理（委托给 useCustomerTabs，再触发数据加载） ----
   const handleTabChange = (tabKey: string): void => {
-    activeTab.value = tabKey
-    if (!loadedTabs.value.has(tabKey)) {
-      loadedTabs.value.add(tabKey)
-      if (tabLoadTimer) {
-        clearTimeout(tabLoadTimer)
-      }
-      tabLoadTimer = setTimeout(() => {
-        if (tabKey === 'profile') {
-          markChartForRender('health')
-          markChartForRender('consume')
-        } else if (tabKey === 'balance') {
-          markChartForRender('balanceTrend')
-        } else if (tabKey === 'usage') {
-          markChartForRender('usageDistribution')
-        }
-      }, 100)
-      // 首次加载 Tab 数据
-      if (tabKey === 'profile') loadProfile()
-      else if (tabKey === 'balance') loadBalance()
-      else if (tabKey === 'invoices') loadInvoices()
-      else if (tabKey === 'usage') loadUsage()
-    }
+    const loadType = tabs.handleTabChange(tabKey)
+    if (loadType === 'profile') loadProfile()
+    else if (loadType === 'balance') loadBalance()
+    else if (loadType === 'invoices') loadInvoices()
+    else if (loadType === 'usage') loadUsage()
   }
 
-  const goBack = () => {
-    router.back()
-  }
-
-  const getStatusClass = (status: string) => {
-    const map: Record<string, string> = {
-      draft: 'warning',
-      pending_customer: 'warning',
-      customer_confirmed: 'success',
-      paid: 'success',
-      completed: 'success',
-      cancelled: 'danger',
-    }
-    return map[status] || 'warning'
-  }
-
-  const getStatusText = (status: string) => {
-    const map: Record<string, string> = {
-      draft: '草稿',
-      pending_customer: '待客户确认',
-      customer_confirmed: '客户已确认',
-      paid: '已付款',
-      completed: '已完成',
-      cancelled: '已取消',
-    }
-    return map[status] || status
-  }
-
+  // ---- 编辑表单操作 ----
   const openEdit = () => {
     if (profileLoading.value || !profile.value) {
       Message.warning('客户画像数据加载中，请稍后编辑')
@@ -352,14 +285,14 @@ export function useCustomerDetail() {
     editLoading.value = true
     try {
       await editFormRef.value?.validate()
-      const editForm = form
+      const editFormData = form
       const [basicRes, profileRes] = await Promise.all([
         updateCustomer(customerId.value, form),
-        editForm.scale_level || editForm.consume_level
+        editFormData.scale_level || editFormData.consume_level
           ? updateProfile(customerId.value, {
-              scale_level: editForm.scale_level,
-              consume_level: editForm.consume_level,
-              industry_type_id: editForm.industry_type_id,
+              scale_level: editFormData.scale_level,
+              consume_level: editFormData.consume_level,
+              industry_type_id: editFormData.industry_type_id,
             })
           : Promise.resolve(null),
       ])
@@ -413,180 +346,116 @@ export function useCustomerDetail() {
     Message.info(`查看结算单：${record.invoice_no}`)
   }
 
-  const loadCustomerTags = async () => {
-    const cachedTags = customerStore.getCachedTags(customerId.value)
-    if (cachedTags && customerStore.hasCachedTags(customerId.value)) {
-      customerTags.value = cachedTags.customerTags
-      allTags.value = cachedTags.allTags
-      return
+  const goBack = () => {
+    router.back()
+  }
+
+  const getStatusClass = (status: string) => {
+    const map: Record<string, string> = {
+      draft: 'warning',
+      pending_customer: 'warning',
+      customer_confirmed: 'success',
+      paid: 'success',
+      completed: 'success',
+      cancelled: 'danger',
     }
-    try {
-      const [customerTagsRes, allTagsRes] = await Promise.all([
-        getCustomerTags(customerId.value),
-        getTags({ type: 'customer', page_size: 100 }),
-      ])
-      customerTags.value = customerTagsRes.data || []
-      allTags.value = allTagsRes.data || []
-      customerStore.cacheTagsData(customerId.value, {
-        customerTags: customerTags.value,
-        allTags: allTags.value,
-      })
-    } catch (error) {
-      Message.error('加载标签失败')
-      console.error('加载标签失败:', error)
+    return map[status] || 'warning'
+  }
+
+  const getStatusText = (status: string) => {
+    const map: Record<string, string> = {
+      draft: '草稿',
+      pending_customer: '待客户确认',
+      customer_confirmed: '客户已确认',
+      paid: '已付款',
+      completed: '已完成',
+      cancelled: '已取消',
     }
+    return map[status] || status
   }
-
-  const openTagSelector = async () => {
-    tagSelectorVisible.value = true
-    await loadCustomerTags()
-    selectedTags.value = []
-  }
-
-  const closeTagSelector = () => {
-    tagSelectorVisible.value = false
-    selectedTags.value = []
-  }
-
-  const addTags = async (tagIds: number[]) => {
-    tagSelectorLoading.value = true
-    try {
-      await Promise.all(tagIds.map((tagId) => addCustomerTag(customerId.value, tagId)))
-      Message.success('标签已添加')
-      await loadCustomerTags()
-      closeTagSelector()
-    } catch (error) {
-      Message.error('添加标签失败')
-      console.error('添加标签失败:', error)
-    } finally {
-      tagSelectorLoading.value = false
-    }
-  }
-
-  const removeTag = async (tagId: number) => {
-    try {
-      await removeCustomerTag(customerId.value, tagId)
-      Message.success('标签已移除')
-      await loadCustomerTags()
-    } catch (error) {
-      Message.error('移除标签失败')
-      console.error('移除标签失败:', error)
-    }
-  }
-
-  const loadManagers = async () => {
-    try {
-      const res = await getManagers()
-      managers.value = res.data?.list || res.data || []
-    } catch (error) {
-      console.error('加载客户经理失败:', error)
-    }
-  }
-
-  const loadIndustryTypes = async () => {
-    try {
-      const res = await getIndustryTypes()
-      industryTypes.value = res.data || []
-    } catch (error) {
-      console.error('加载行业类型失败:', error)
-    }
-  }
-
-  const loadCooperationStatuses = async () => {
-    try {
-      const res = await getCooperationStatusesList()
-      cooperationStatuses.value = res.data?.data || res.data || []
-    } catch (error) {
-      console.error('加载合作状态失败:', error)
-    }
-  }
-
-  const loadErpSystems = async () => {
-    try {
-      const res = await getErpSystemsList()
-      erpSystems.value = res.data?.data || res.data || []
-    } catch (error) {
-      console.error('加载 ERP 系统失败:', error)
-    }
-  }
-
-  // 诊断: 追踪 loading 状态变化
-  watch(loading, (_val) => {}, { immediate: true })
 
   onMounted(() => {
     loadDetail()
-    loadManagers()
-    loadIndustryTypes()
-    loadCooperationStatuses()
-    loadErpSystems()
-  })
-
-  onUpdated(() => {})
-
-  onUnmounted(() => {
-    if (tabLoadTimer) clearTimeout(tabLoadTimer)
+    dict.loadAllDictData()
   })
 
   return {
+    // 基本信息
     customer,
     loading,
-    activeTab,
+    customerId,
+    goBack,
+
+    // Tab 管理
+    activeTab: tabs.activeTab,
+    handleTabChange,
+    shouldRenderBalanceTrend: tabs.shouldRenderBalanceTrend,
+
+    // 余额
     balance,
     balanceLoading,
+    balanceTrend,
+    balanceTrendLoading,
+    loadBalance,
+
+    // 画像
     profile,
     profileLoading,
+    healthScore,
+    healthScoreLoading,
+    consumeLevelDisplay,
+    profileExtensionList,
+    loadProfile,
+
+    // 结算单
     invoices,
+    loadInvoices,
+
+    // 用量
     usageData,
     usageLoading,
     usagePagination,
-    healthScore,
-    healthScoreLoading,
-    balanceTrend,
-    balanceTrendLoading,
-    shouldRenderBalanceTrend,
-    usageDistribution,
-    totalUsageQuantity,
+    loadUsage,
+
+    // 编辑表单
     editModalVisible,
     editForm,
     editFormRef,
     editLoading,
     modalWidth,
-    tagSelectorVisible,
-    tagSelectorLoading,
-    selectedTags,
-    customerTags,
-    allTags,
-    allTagsLoading,
-    managers,
-    industryTypes,
-    industryTypesLoading,
     pricePolicyOptions,
-    cooperationStatuses,
-    erpSystems,
-    keyCustomerLoading,
-    consumeLevelDisplay,
-    profileExtensionList,
-    loadDetail,
-    loadBalance,
-    loadProfile,
-    loadInvoices,
-    loadUsage,
-    handleTabChange,
-    getStatusClass,
-    getStatusText,
-    goBack,
     openEdit,
     closeEdit,
     submitEdit,
+
+    // 重点客户
+    keyCustomerLoading,
     toggleKeyCustomer,
+
+    // 结算单操作
     viewInvoice,
-    openTagSelector,
-    closeTagSelector,
-    addTags,
-    removeTag,
-    loadManagers,
-    loadIndustryTypes,
-    loadCooperationStatuses,
-    loadErpSystems,
+    getStatusClass,
+    getStatusText,
+
+    // 字典数据
+    managers: dict.managers,
+    industryTypes: dict.industryTypes,
+    industryTypesLoading: dict.industryTypesLoading,
+    cooperationStatuses: dict.cooperationStatuses,
+    erpSystems: dict.erpSystems,
+
+    // 标签管理
+    tagSelectorVisible: tags.tagSelectorVisible,
+    tagSelectorLoading: tags.tagSelectorLoading,
+    customerTags: tags.customerTags,
+    allTags: tags.allTags,
+    allTagsLoading: tags.allTagsLoading,
+    openTagSelector: tags.openTagSelector,
+    closeTagSelector: tags.closeTagSelector,
+    addTags: tags.addTags,
+    removeTag: tags.removeTag,
+
+    // 刷新
+    loadDetail,
   }
 }

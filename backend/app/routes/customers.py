@@ -253,7 +253,8 @@ async def get_kpi_stats(request: Request):
             mine_user_id = current_user["user_id"]
 
     # 检查缓存
-    cache_key = f"kpi_{hashlib.md5(str(sorted({**filters, 'mine': mine_user_id}).encode()).encode(), usedforsecurity=False).hexdigest()[:8]}"  # pyright: ignore[reportArgumentType]
+    cache_input = str(sorted({**filters, "mine": mine_user_id}.items()))
+    cache_key = f"kpi_{hashlib.md5(cache_input.encode(), usedforsecurity=False).hexdigest()[:8]}"
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     if not force_refresh:
         cached = await cache_service.get("customer_kpi", cache_key)
