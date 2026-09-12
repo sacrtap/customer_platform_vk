@@ -23,10 +23,16 @@ BACKEND_DIR = Path(__file__).parent.parent.parent
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 
 # 独立测试数据库（区别于 tests/conftest.py 的 customer_platform_test）
+# 连接参数优先用 MIGRATION_TEST_DB_* 覆盖；默认回退到 CI 的 POSTGRES_* 变量
+# （本地无 POSTGRES_* 时用 postgres/空密码，兼容 Postgres.app 本地开发）
 TEST_DB_NAME = "customer_platform_migration_test"
-TEST_DB_USER = os.environ.get("MIGRATION_TEST_DB_USER", "postgres")
-TEST_DB_PASSWORD = os.environ.get("MIGRATION_TEST_DB_PASSWORD", "")
-TEST_DB_HOST = os.environ.get("MIGRATION_TEST_DB_HOST", "localhost")
+TEST_DB_USER = os.environ.get("MIGRATION_TEST_DB_USER", os.environ.get("POSTGRES_USER", "postgres"))
+TEST_DB_PASSWORD = os.environ.get(
+    "MIGRATION_TEST_DB_PASSWORD", os.environ.get("POSTGRES_PASSWORD", "")
+)
+TEST_DB_HOST = os.environ.get(
+    "MIGRATION_TEST_DB_HOST", os.environ.get("POSTGRES_HOST", "localhost")
+)
 TEST_DB_PORT = os.environ.get("MIGRATION_TEST_DB_PORT", "5432")
 
 _admin_url = (

@@ -947,7 +947,13 @@ async def recharge(request: Request):
     real_amount = Decimal(str(data.get("real_amount", 0)))
     bonus_amount = Decimal(str(data.get("bonus_amount", 0)))
 
-    if not customer_id or (real_amount == 0 and bonus_amount == 0):
+    if not customer_id:
+        return json(
+            {"code": 40001, "message": "请填写客户 ID"},
+            status=400,
+        )
+
+    if real_amount == 0 and bonus_amount == 0:
         return json(
             {"code": 40001, "message": "请填写实充金额或赠送金额"},
             status=400,
