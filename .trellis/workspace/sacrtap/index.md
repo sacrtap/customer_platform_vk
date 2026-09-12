@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-09-07
+- **Total Sessions**: 9
+- **Last Active**: 2026-09-12
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~238 | Active |
+| `journal-1.md` | ~262 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-09-12 | better-harness 4 个 finding 修复 + 收尾摩擦消除 | `8f375c4`, `33fd579`, `094a3a4` | `fix-bug` |
 | 8 | 2026-09-07 | 订单结算范围扩大+时区重构+同步日志加固 | `6d0c54a` | `check-order-nums` |
 | 7 | 2026-08-26 | 开放平台API-Key管理与ERP余额查询接口 | `21ec5d5` | `add-qiangfang-balances` |
 | 6 | 2026-08-25 | ERP 系统管理模块 + 客户筛选器增强 + account_type 修复 + company_id 唯一性检查 | `e6bc38b` | `main` |

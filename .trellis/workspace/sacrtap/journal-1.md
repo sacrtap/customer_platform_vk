@@ -236,3 +236,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 9: better-harness 4 个 finding 修复 + 收尾摩擦消除
+<!-- trellis-session: v=2 fp=41064c8b6909eb20 -->
+
+**Date**: 2026-09-12
+**Task**: better-harness 4 个 finding 修复 + 收尾摩擦消除
+**Branch**: `fix-bug`
+
+### Summary
+
+修复 billing-validation-loop/billing-no-diagnostics/migration-no-gate/no-correlation-id 4 个 finding；lifecycle-tail-friction：pre-commit 环境规则、提交→finish-work 次序文档化、pre-push 阻塞修复（级联删测试断言+industry_type_id）、收尾全链路验证
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f375c4` | chore(workflow): 明确提交与 finish-work 次序 + pre-commit 环境规则落地 |
+| `33fd579` | fix(quality): 修复 pre-push 阻塞 - 级联删除测试断言与 industry_type_id 类型 |
+| `094a3a4` | chore(task): archive 09-12-lifecycle-tail-verify |
+
+### Status
+
+[OK] **Completed**
