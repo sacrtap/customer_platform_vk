@@ -73,6 +73,9 @@
         :visible="editModalVisible"
         :customer-id="customer?.id ?? null"
         :industry-types="industryTypes"
+        :managers="managers"
+        :cooperation-statuses="cooperationStatuses"
+        :erp-systems="erpSystems"
         @saved="onEditSaved"
         @update:visible="editModalVisible = $event"
       />
@@ -131,6 +134,8 @@ const {
   industryTypes,
   industryTypesLoading: _industryTypesLoading,
   pricePolicyOptions: _pricePolicyOptions,
+  cooperationStatuses,
+  erpSystems,
   keyCustomerLoading,
   loadUsage,
   viewInvoice,

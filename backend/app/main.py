@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .config import settings
 from .middleware.audit import audit_middleware
 from .middleware.auth import auth_middleware
+from .middleware.correlation import correlation_middleware, install_request_id_filter
 
 
 def create_app(
@@ -38,6 +39,7 @@ def create_app(
         allow_credentials=settings.cors_allow_credentials,
         allow_methods=settings.cors_allow_methods,
         allow_headers=settings.cors_allow_headers,
+        expose_headers=settings.cors_expose_headers,
     )
 
     # 初始化数据库引擎
@@ -66,6 +68,11 @@ def create_app(
     else:
         sync_session_maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)  # pyright: ignore[reportCallIssue, reportArgumentType]
         app.ctx.sync_session_maker = sync_session_maker
+
+    # 注册请求关联标识中间件（最先注册：request 阶段最先注入 request_id，
+    # response 阶段最后复位，保证全链路日志可借由同一标识串起）
+    install_request_id_filter()
+    correlation_middleware(app)
 
     # 数据库会话中间件
     if is_async:

@@ -122,62 +122,21 @@
     </div>
 
     <!-- 分页 -->
-    <div class="pagination">
-      <span class="page-total">共 {{ pagination.total.toLocaleString() }} 条</span>
-      <div class="pagination-right">
-        <span class="page-size">
-          每页
-          <select class="page-size-select" :value="pagination.pageSize" @change="onPageSizeChange">
-            <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
-          </select>
-          条
-        </span>
-        <div class="page-controls">
-          <button
-            class="page-btn"
-            :disabled="pagination.current <= 1"
-            @click="onPageChange(pagination.current - 1)"
-          >
-            ‹
-          </button>
-          <button
-            v-for="p in displayPages"
-            :key="p"
-            class="page-btn"
-            :class="{ active: p === pagination.current, ellipsis: p === -1 }"
-            :disabled="p === -1"
-            @click="p > 0 && onPageChange(p)"
-          >
-            {{ p === -1 ? '…' : p }}
-          </button>
-          <button
-            class="page-btn"
-            :disabled="pagination.current >= totalPages"
-            @click="onPageChange(pagination.current + 1)"
-          >
-            ›
-          </button>
-        </div>
-        <span class="page-jump">
-          跳至
-          <input
-            type="number"
-            class="page-jump-input"
-            :value="pagination.current"
-            :min="1"
-            :max="totalPages"
-            @keydown.enter="onJumpPage(($event.target as HTMLInputElement).value)"
-          />
-          页
-        </span>
-      </div>
-    </div>
+    <Pagination
+      :current="pagination.current"
+      :page-size="pagination.pageSize"
+      :total="pagination.total"
+      :page-size-options="pagination.pageSizeOptions"
+      @page-change="onPageChange"
+      @page-size-change="onPageSizeChange"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { formatDate } from '@/utils/formatters'
+import Pagination from '@/components/ui/Pagination.vue'
 import type { Balance } from '@/api/billing'
 
 interface Props {
@@ -278,44 +237,12 @@ const toggleSelectAll = (e: Event) => {
 }
 
 // --- 分页 ---
-const pageSizeOptions = props.pagination.pageSizeOptions || [10, 20, 50, 100]
-const totalPages = computed(
-  () => Math.ceil(props.pagination.total / props.pagination.pageSize) || 1
-)
-
-const displayPages = computed(() => {
-  const current = props.pagination.current
-  const total = totalPages.value
-  const pages: number[] = []
-
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i)
-  } else {
-    pages.push(1)
-    if (current > 3) pages.push(-1)
-    const start = Math.max(2, current - 1)
-    const end = Math.min(total - 1, current + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-    if (current < total - 2) pages.push(-1)
-    pages.push(total)
-  }
-  return pages
-})
-
 const onPageChange = (page: number) => {
-  if (page < 1 || page > totalPages.value) return
   emit('pageChange', page)
 }
 
-const onPageSizeChange = (e: Event) => {
-  emit('pageSizeChange', Number((e.target as HTMLSelectElement).value))
-}
-
-const onJumpPage = (val: string) => {
-  const page = parseInt(val)
-  if (page >= 1 && page <= totalPages.value) {
-    onPageChange(page)
-  }
+const onPageSizeChange = (size: number) => {
+  emit('pageSizeChange', size)
 }
 
 // --- 辅助方法 ---
@@ -743,110 +670,5 @@ const getBurnTooltip = (record: Balance): string => {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid #edf2f7;
-}
-.page-total {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.pagination-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-left: auto;
-}
-.page-size {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.page-size-select {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 3px 6px;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ink);
-  background: #fff;
-  cursor: pointer;
-}
-.page-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.page-btn {
-  min-width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  border-radius: 8px;
-  padding: 0 8px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.page-btn:hover:not(:disabled):not(.active) {
-  border-color: #93c5fd;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-.page-btn.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-  cursor: default;
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.page-btn.ellipsis {
-  border: none;
-  background: transparent;
-  cursor: default;
-  opacity: 1;
-}
-.page-jump {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.page-jump-input {
-  width: 48px;
-  height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0 6px;
-  font: inherit;
-  font-size: 12px;
-  text-align: center;
-  color: var(--ink);
-  background: #fff;
-}
-.page-jump-input:focus {
-  outline: none;
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.2);
-}
-
-@media (max-width: 640px) {
-  .pagination {
-    justify-content: center;
-  }
-  .page-size,
-  .page-jump {
-    display: none;
-  }
 }
 </style>

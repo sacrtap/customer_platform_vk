@@ -2,14 +2,13 @@ import type { CustomerProfile } from '@/types'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock lifecycle hooks to prevent Vue warnings when composable is called outside component context.
-// useCustomerDetail registers onMounted/onUpdated/onUnmounted, which require an active component instance.
+// useCustomerDetail registers onMounted/onUnmounted, which require an active component instance.
 // These tests call the composable directly, so we silence the hooks without changing test behavior.
 vi.mock('vue', async () => {
   const actual = await vi.importActual<typeof import('vue')>('vue')
   return {
     ...actual,
     onMounted: vi.fn(),
-    onUpdated: vi.fn(),
     onUnmounted: vi.fn(),
   }
 })
@@ -47,7 +46,6 @@ vi.mock('@/api/customers', () => ({
   updateCustomer: vi.fn(() => Promise.resolve({ data: { id: 1, name: 'updated' } })),
   getProfile: vi.fn(() => Promise.resolve({ data: { scale_level: 'high' } })),
   updateProfile: vi.fn(() => Promise.resolve({ data: { scale_level: 'high' } })),
-  getIndustryTypes: vi.fn(() => Promise.resolve({ data: [] })),
 }))
 
 vi.mock('@/api/billing', () => ({
@@ -73,6 +71,14 @@ vi.mock('@/api/users', () => ({
 
 vi.mock('@/api/analytics', () => ({
   getCustomerHealthScore: vi.fn(() => Promise.resolve({ data: null })),
+}))
+
+vi.mock('@/api/cooperationStatuses', () => ({
+  getCooperationStatusesList: vi.fn(() => Promise.resolve({ data: [] })),
+}))
+
+vi.mock('@/api/erpSystems', () => ({
+  getErpSystemsList: vi.fn(() => Promise.resolve({ data: [] })),
 }))
 
 describe('useCustomerDetail', () => {

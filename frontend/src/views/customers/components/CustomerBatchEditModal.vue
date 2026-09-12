@@ -96,8 +96,9 @@
             placeholder="选择结算方式"
             allow-clear
           >
-            <a-option value="prepaid">预付费</a-option>
-            <a-option value="postpaid">后付费</a-option>
+            <a-option v-for="opt in SETTLEMENT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
 
@@ -110,9 +111,9 @@
             placeholder="选择结算周期"
             allow-clear
           >
-            <a-option value="monthly">月结</a-option>
-            <a-option value="quarterly">季结</a-option>
-            <a-option value="yearly">年结</a-option>
+            <a-option v-for="opt in SETTLEMENT_CYCLE_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
 
@@ -151,9 +152,9 @@
             placeholder="选择账号类型"
             allow-clear
           >
-            <a-option value="正式账号">正式账号</a-option>
-            <a-option value="客户测试账号">客户测试账号</a-option>
-            <a-option value="内部账号">内部账号</a-option>
+            <a-option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
 
@@ -166,9 +167,9 @@
             placeholder="选择计费策略"
             allow-clear
           >
-            <a-option value="pricing">定价</a-option>
-            <a-option value="tiered">阶梯</a-option>
-            <a-option value="yearly">包年</a-option>
+            <a-option v-for="opt in PRICE_POLICY_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
 
@@ -181,12 +182,9 @@
             placeholder="选择规模等级"
             allow-clear
           >
-            <a-option value="S">S - 超大规模 (5000 人)</a-option>
-            <a-option value="A">A - 大规模 (2000 人)</a-option>
-            <a-option value="B">B - 中大规模 (1000 人)</a-option>
-            <a-option value="C">C - 中等规模 (500 人)</a-option>
-            <a-option value="D">D - 小规模 (100 人)</a-option>
-            <a-option value="E">E - 微型 (&lt;100 人)</a-option>
+            <a-option v-for="opt in SCALE_LEVEL_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
 
@@ -199,12 +197,9 @@
             placeholder="选择消费等级"
             allow-clear
           >
-            <a-option value="C1">C1 - 100 万</a-option>
-            <a-option value="C2">C2 - 50 万</a-option>
-            <a-option value="C3">C3 - 25 万</a-option>
-            <a-option value="C4">C4 - 12 万</a-option>
-            <a-option value="C5">C5 - 6 万</a-option>
-            <a-option value="C6">C6 - 6 万以下</a-option>
+            <a-option v-for="opt in CONSUME_LEVEL_OPTIONS" :key="opt.value" :value="opt.value">{{
+              opt.label
+            }}</a-option>
           </a-select>
         </div>
       </div>
@@ -240,6 +235,14 @@ import { Message, Modal } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 import { batchUpdateCustomers } from '@/api/customers'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  SCALE_LEVEL_OPTIONS,
+  CONSUME_LEVEL_OPTIONS,
+  SETTLEMENT_TYPE_OPTIONS,
+  SETTLEMENT_CYCLE_OPTIONS,
+  PRICE_POLICY_OPTIONS,
+} from '@/constants/customerOptions'
 import type { CooperationStatus } from '@/types'
 
 interface BatchFailedItem {

@@ -41,7 +41,9 @@ class Settings(BaseSettings):
         "X-Requested-With",
         "Accept",
         "Origin",
+        "X-Request-Id",
     ]
+    cors_expose_headers: list = ["X-Request-Id"]
 
     # 文件存储配置
     file_storage_path: str = "./uploads"

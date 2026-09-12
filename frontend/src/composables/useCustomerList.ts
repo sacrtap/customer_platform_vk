@@ -2,6 +2,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { useCustomerStore } from '@/stores/customer'
 import { handleError } from '@/utils/errorHandler'
 import { getCustomers, deleteCustomer, exportCustomers, getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
@@ -17,13 +18,14 @@ import type { IndustryType, ErpSystem, CooperationStatus, Customer } from '@/typ
 export function useCustomerList() {
   const router = useRouter()
   const userStore = useUserStore()
+  const customerStore = useCustomerStore()
   const can = (permission: string) => userStore.hasPermission(permission)
 
   // ---------- 筛选条件 ----------
   const createDefaultFilters = () => ({
     keyword: '',
     account_type: '正式账号',
-    industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
+    industry: [] as string[],
     scale_level: '',
     consume_level: '',
     is_key_customer: null as boolean | null,
@@ -200,10 +202,17 @@ export function useCustomerList() {
 
   // ---------- 字典加载 ----------
   const loadManagers = async () => {
+    // 优先使用 store 缓存
+    if (customerStore.hasCachedManagers()) {
+      managers.value = customerStore.getCachedManagers() as unknown as typeof managers.value
+      return
+    }
     managersLoading.value = true
     try {
       const res = await getManagers()
       managers.value = res.data?.list || res.data || []
+      // 写入 store 缓存
+      customerStore.cacheManagersData(managers.value as unknown as import('@/types').User[])
     } catch (error: unknown) {
       console.error('加载运营经理失败:', error)
     } finally {

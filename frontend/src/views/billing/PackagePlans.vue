@@ -50,6 +50,7 @@
             @apply="handleSearch"
           />
           <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+          <button type="button" class="btn" @click="handleReset">重置</button>
         </div>
       </div>
 
@@ -102,7 +103,7 @@
                   <span v-else-if="record.over_limit_unit_price != null" class="amount"
                     >¥{{ record.over_limit_unit_price.toFixed(2) }}</span
                   >
-                  <span v-else class="subtle">未设置</span>
+                  <span v-else class="subtle">自动</span>
                 </td>
                 <!-- 状态 -->
                 <td>
@@ -140,62 +141,13 @@
         </div>
 
         <!-- 分页 -->
-        <div class="pagination">
-          <span class="page-total">共 {{ pagination.total.toLocaleString() }} 条</span>
-          <div class="pagination-right">
-            <span class="page-size">
-              每页
-              <select
-                class="page-size-select"
-                :value="pagination.pageSize"
-                @change="onPageSizeChange"
-              >
-                <option v-for="size in pageSizeOptions" :key="size" :value="size">
-                  {{ size }}
-                </option>
-              </select>
-              条
-            </span>
-            <div class="page-controls">
-              <button
-                class="page-btn"
-                :disabled="pagination.current <= 1"
-                @click="onPageChange(pagination.current - 1)"
-              >
-                ‹
-              </button>
-              <button
-                v-for="p in displayPages"
-                :key="p"
-                class="page-btn"
-                :class="{ active: p === pagination.current, ellipsis: p === -1 }"
-                :disabled="p === -1"
-                @click="p > 0 && onPageChange(p)"
-              >
-                {{ p === -1 ? '…' : p }}
-              </button>
-              <button
-                class="page-btn"
-                :disabled="pagination.current >= totalPages"
-                @click="onPageChange(pagination.current + 1)"
-              >
-                ›
-              </button>
-            </div>
-            <span class="page-jump">
-              跳至
-              <input
-                type="number"
-                class="page-jump-input"
-                :value="pagination.current"
-                :min="1"
-                :max="totalPages"
-                @keydown.enter="onJumpPage(($event.target as HTMLInputElement).value)"
-              />
-              页
-            </span>
-          </div>
-        </div>
+        <Pagination
+          :current="pagination.current"
+          :page-size="pagination.pageSize"
+          :total="pagination.total"
+          @page-change="onPageChange"
+          @page-size-change="onPageSizeChange"
+        />
       </div>
     </div>
 
@@ -218,6 +170,7 @@
             <a-form-item
               label="套餐类型标识"
               :rules="[{ required: true, message: '请输入套餐类型标识' }]"
+              extra="套餐类型标识创建后不可修改"
             >
               <a-input v-model="formData.package_type" placeholder="如：A" :disabled="isEdit" />
             </a-form-item>
@@ -303,12 +256,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import PageHeader from '@/components/PageHeader.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import Pagination from '@/components/ui/Pagination.vue'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -348,8 +302,6 @@ const pagination = reactive({
   total: 0,
 })
 
-const pageSizeOptions = [10, 20, 50, 100]
-
 const filters = reactive({
   keyword: '',
   status: '',
@@ -374,44 +326,23 @@ const formData = reactive({
 })
 
 // --- 分页计算 ---
-const totalPages = computed(() => Math.ceil(pagination.total / pagination.pageSize) || 1)
-
-const displayPages = computed(() => {
-  const current = pagination.current
-  const total = totalPages.value
-  const pages: number[] = []
-
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i)
-  } else {
-    pages.push(1)
-    if (current > 3) pages.push(-1)
-    const start = Math.max(2, current - 1)
-    const end = Math.min(total - 1, current + 1)
-    for (let i = start; i <= end; i++) pages.push(i)
-    if (current < total - 2) pages.push(-1)
-    pages.push(total)
-  }
-  return pages
-})
-
 const onPageChange = (page: number) => {
-  if (page < 1 || page > totalPages.value) return
   pagination.current = page
   fetchData()
 }
 
-const onPageSizeChange = (e: Event) => {
-  pagination.pageSize = Number((e.target as HTMLSelectElement).value)
+const onPageSizeChange = (size: number) => {
+  pagination.pageSize = size
   pagination.current = 1
   fetchData()
 }
 
-const onJumpPage = (val: string) => {
-  const page = parseInt(val)
-  if (page >= 1 && page <= totalPages.value) {
-    onPageChange(page)
-  }
+const handleReset = () => {
+  filters.keyword = ''
+  filters.status = ''
+  filters.is_unlimited = ''
+  pagination.current = 1
+  fetchData()
 }
 
 // --- 数据请求 ---
@@ -735,116 +666,11 @@ onMounted(() => {
   padding-top: 14px;
   border-top: 1px solid #edf2f7;
 }
-.page-total {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.pagination-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-left: auto;
-}
-.page-size {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.page-size-select {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 3px 6px;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ink);
-  background: #fff;
-  cursor: pointer;
-}
-.page-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.page-btn {
-  min-width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  border-radius: 8px;
-  padding: 0 8px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.page-btn:hover:not(:disabled):not(.active) {
-  border-color: #93c5fd;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-.page-btn.active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-  cursor: default;
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.page-btn.ellipsis {
-  border: none;
-  background: transparent;
-  cursor: default;
-  opacity: 1;
-}
-.page-jump {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.page-jump-input {
-  width: 48px;
-  height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0 6px;
-  font: inherit;
-  font-size: 12px;
-  text-align: center;
-  color: var(--ink);
-  background: #fff;
-}
-.page-jump-input:focus {
-  outline: none;
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.2);
-}
 
 @media (max-width: 1100px) {
   .filters {
     flex-direction: column;
     align-items: stretch;
-  }
-}
-
-@media (max-width: 640px) {
-  .pagination {
-    justify-content: center;
-  }
-  .page-size,
-  .page-jump {
-    display: none;
   }
 }
 </style>

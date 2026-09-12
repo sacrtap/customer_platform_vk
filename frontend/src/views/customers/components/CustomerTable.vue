@@ -288,7 +288,7 @@ const allColumnDefs: ColumnDef[] = [
   { key: 'consume_level', title: '消费等级', sortable: true, default: true },
   { key: 'balance', title: '余额', sortable: true, default: true },
   { key: 'usage_30d', title: '30天消耗', sortable: true, default: true },
-  { key: 'health', title: '健康度', sortable: true, default: true },
+  { key: 'health', title: '健康度', sortable: false, default: true },
   { key: 'settlement_type', title: '结算方式', sortable: true, default: false },
   { key: 'manager_id', title: '运营经理', sortable: true, default: true },
   { key: 'sales_manager_id', title: '销售经理', sortable: true, default: true },
@@ -447,6 +447,7 @@ const getHealthTagClass = (health: string) => {
     healthy: 'green',
     attention: 'amber',
     high_risk: 'red',
+    inactive: 'gray',
   }
   return map[health] || 'gray'
 }
@@ -456,6 +457,7 @@ const getHealthLabel = (health: string) => {
     healthy: '健康',
     attention: '关注',
     high_risk: '高风险',
+    inactive: '不活跃',
   }
   return map[health] || health
 }

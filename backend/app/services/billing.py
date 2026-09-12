@@ -1,5 +1,6 @@
 """结算与余额管理服务"""
 
+import logging
 import random
 import string
 from datetime import datetime
@@ -35,6 +36,8 @@ from ..repository import (
     InvoiceRepositoryProtocol,
     PricingRepositoryProtocol,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BalanceService:
@@ -118,8 +121,19 @@ class BalanceService:
             balance.bonus_amount or 0
         )
 
-        await self.db.commit()
-        await self.db.refresh(record)
+        try:
+            await self.db.commit()
+            await self.db.refresh(record)
+        except Exception as e:
+            logger.error(
+                "充值失败 customer_id=%s real_amount=%s bonus_amount=%s operator_id=%s error=%s",
+                customer_id,
+                real_amount,
+                bonus_amount,
+                operator_id,
+                e,
+            )
+            raise
 
         return record
 
@@ -171,12 +185,28 @@ class BalanceService:
                 await self.db.flush()
                 success_count += 1
             except Exception as e:
+                logger.error(
+                    "批量充值第 %s 行失败 customer_id=%s real_amount=%s bonus_amount=%s operator_id=%s error=%s",
+                    idx,
+                    customer_id,
+                    real_amount,
+                    bonus_amount,
+                    operator_id,
+                    e,
+                )
                 errors.append(f"第 {idx} 行：充值失败 - {str(e)}")
 
         # 统一提交
         try:
             await self.db.commit()
         except Exception as e:
+            logger.error(
+                "批量充值统一提交失败 total_rows=%s success_rows=%s operator_id=%s error=%s",
+                len(rows),
+                success_count,
+                operator_id,
+                e,
+            )
             await self.db.rollback()
             raise e
 
@@ -207,73 +237,92 @@ class BalanceService:
         # - 3 次尝试：平衡死锁恢复与用户体验
         # - 0.1s 最小等待：快速恢复瞬时锁
         # - 1.0s 最大等待：防止过度延迟
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=0.1, max=1.0),
-            retry=retry_if_exception_type(OperationalError),
-            reraise=True,
-        ):
-            with attempt:
-                # 每次重试获得新的事务边界
-                async with self.db.begin():
-                    # 使用行级锁获取余额记录，防止并发修改
-                    # with_for_update() 会锁定选中的行，其他事务必须等待当前事务提交
-                    result = await self.db.execute(
-                        select(CustomerBalance)
-                        .where(
-                            CustomerBalance.customer_id == customer_id,
-                            CustomerBalance.deleted_at.is_(None),
+        try:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=0.1, max=1.0),
+                retry=retry_if_exception_type(OperationalError),
+                reraise=True,
+            ):
+                with attempt:
+                    # 每次重试获得新的事务边界
+                    async with self.db.begin():
+                        # 使用行级锁获取余额记录，防止并发修改
+                        # with_for_update() 会锁定选中的行，其他事务必须等待当前事务提交
+                        result = await self.db.execute(
+                            select(CustomerBalance)
+                            .where(
+                                CustomerBalance.customer_id == customer_id,
+                                CustomerBalance.deleted_at.is_(None),
+                            )
+                            .with_for_update()  # SELECT FOR UPDATE - 行级排他锁
                         )
-                        .with_for_update()  # SELECT FOR UPDATE - 行级排他锁
-                    )
-                    balance = result.scalar_one_or_none()
+                        balance = result.scalar_one_or_none()
 
-                    if not balance:
-                        return False, "客户余额账户不存在"
+                        if not balance:
+                            logger.error(
+                                "扣款失败：客户余额账户不存在 customer_id=%s amount=%s invoice_id=%s",
+                                customer_id,
+                                amount,
+                                invoice_id,
+                            )
+                            return False, "客户余额账户不存在"
 
-                    # 允许余额不足扣款：不再拦截，real_amount 可为负数
-                    # 先消耗赠金，再消耗实充（实充不足部分变为负数）
-                    remaining = amount
-                    bonus_used = Decimal(0)
-                    real_used = Decimal(0)
+                        # 允许余额不足扣款：不再拦截，real_amount 可为负数
+                        # 先消耗赠金，再消耗实充（实充不足部分变为负数）
+                        remaining = amount
+                        bonus_used = Decimal(0)
+                        real_used = Decimal(0)
 
-                    if balance.bonus_amount and balance.bonus_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
-                        if balance.bonus_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
-                            bonus_used = remaining
-                            balance.bonus_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
-                            remaining = Decimal(0)
-                        else:
-                            bonus_used = balance.bonus_amount
-                            remaining -= balance.bonus_amount
-                            balance.bonus_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
+                        if balance.bonus_amount and balance.bonus_amount > 0:  # pyright: ignore[reportGeneralTypeIssues]
+                            if balance.bonus_amount >= remaining:  # pyright: ignore[reportGeneralTypeIssues]
+                                bonus_used = remaining
+                                balance.bonus_amount -= remaining  # pyright: ignore[reportAttributeAccessIssue]
+                                remaining = Decimal(0)
+                            else:
+                                bonus_used = balance.bonus_amount
+                                remaining -= balance.bonus_amount
+                                balance.bonus_amount = Decimal(0)  # pyright: ignore[reportAttributeAccessIssue]
 
-                    if remaining > 0:
-                        # 实充余额不足时允许变为负数（欠费）
-                        real_used = remaining
-                        balance.real_amount = (balance.real_amount or 0) - remaining  # pyright: ignore[reportAttributeAccessIssue]
+                        if remaining > 0:
+                            # 实充余额不足时允许变为负数（欠费）
+                            real_used = remaining
+                            balance.real_amount = (balance.real_amount or 0) - remaining  # pyright: ignore[reportAttributeAccessIssue]
 
-                    # 更新总额
-                    balance.used_total = (balance.used_total or 0) + amount  # pyright: ignore[reportAttributeAccessIssue]
-                    balance.used_bonus = (balance.used_bonus or 0) + bonus_used  # pyright: ignore[reportAttributeAccessIssue]
-                    balance.used_real = (balance.used_real or 0) + real_used  # pyright: ignore[reportAttributeAccessIssue]
-                    # total_amount = real_amount + bonus_amount（当前可用余额，可为负）
-                    balance.total_amount = (balance.real_amount or 0) + (balance.bonus_amount or 0)  # pyright: ignore[reportAttributeAccessIssue]
+                        # 更新总额
+                        balance.used_total = (balance.used_total or 0) + amount  # pyright: ignore[reportAttributeAccessIssue]
+                        balance.used_bonus = (balance.used_bonus or 0) + bonus_used  # pyright: ignore[reportAttributeAccessIssue]
+                        balance.used_real = (balance.used_real or 0) + real_used  # pyright: ignore[reportAttributeAccessIssue]
+                        # total_amount = real_amount + bonus_amount（当前可用余额，可为负）
+                        balance.total_amount = (balance.real_amount or 0) + (
+                            balance.bonus_amount or 0
+                        )  # pyright: ignore[reportAttributeAccessIssue]
 
-                    # 创建消费记录
-                    consumption = ConsumptionRecord(
-                        customer_id=customer_id,
-                        invoice_id=invoice_id,
-                        amount=amount,
-                        bonus_used=bonus_used,
-                        real_used=real_used,
-                        balance_after=(balance.real_amount or 0) + (balance.bonus_amount or 0),
-                    )
-                    self.db.add(consumption)
+                        # 创建消费记录
+                        consumption = ConsumptionRecord(
+                            customer_id=customer_id,
+                            invoice_id=invoice_id,
+                            amount=amount,
+                            bonus_used=bonus_used,
+                            real_used=real_used,
+                            balance_after=(balance.real_amount or 0) + (balance.bonus_amount or 0),
+                        )
+                        self.db.add(consumption)
 
-                    # 提交事务
-                    await self.db.commit()
+                        # 提交事务
+                        await self.db.commit()
 
-                    return True, "扣款成功"
+                        return True, "扣款成功"
+        except OperationalError as e:
+            # 重试耗尽（3 次尝试均失败）：记录诊断上下文后按原契约抛出
+            logger.error(
+                "扣款失败：数据库操作重试耗尽 customer_id=%s amount=%s invoice_id=%s error=%s",
+                customer_id,
+                amount,
+                invoice_id,
+                e,
+            )
+            raise
 
         # 不应到达此处（reraise=True 会抛出最后一次异常）
         return False, "扣款失败：数据库操作超时"
@@ -1071,16 +1120,14 @@ class InvoiceService:
                 total_amount += period_base_cost
                 return items, total_amount
             else:
-                # 限量套餐：按用量计收
-                # 结算费用 = 实际用量(订单数) × (base_fee / limit_count) + 超量费用
+                # 限量套餐：套餐内按量计收 + 超量另计
+                # 套餐内费用 = min(实际用量, limit_count) × (base_fee / limit_count)
                 # 超量费用 = max(0, 总订单数 - limit_count) × over_limit_unit_price
                 limit_count = Decimal(str(package_limits.get("limit_count", 0) or 0))
-                over_limit_unit_price = Decimal(
-                    str(package_limits.get("over_limit_unit_price", 0) or 0)
-                )
 
                 if limit_count <= 0:
                     # limit_count 为 0 时无法计算，返回 0
+                    over_limit_unit_price = Decimal(0)
                     items.append(
                         {
                             "device_type": None,
@@ -1094,6 +1141,7 @@ class InvoiceService:
                             "package_type": "limited",
                             "base_fee": float(base_fee),
                             "limit_count": 0,
+                            "in_package_quantity": 0,
                             "over_limit_quantity": 0,
                             "over_limit_unit_price": float(over_limit_unit_price),
                             "over_limit_cost": 0.0,
@@ -1101,9 +1149,17 @@ class InvoiceService:
                     )
                     return items, total_amount
 
-                # 套餐内用量费用：实际用量 × (base_fee / limit_count)
+                # 超额单价：NULL 表示自动计算（base_fee / limit_count），非 NULL 为自定义价格
+                raw_price = package_limits.get("over_limit_unit_price")
+                if raw_price is not None and float(raw_price) > 0:
+                    over_limit_unit_price = Decimal(str(raw_price))
+                else:
+                    over_limit_unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
+
+                # 套餐内用量费用：min(实际用量, limit_count) × (base_fee / limit_count)
+                in_package_quantity = min(total_quantity, limit_count)
                 unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
-                usage_cost = (total_quantity * unit_price).quantize(Decimal("0.01"))
+                usage_cost = (in_package_quantity * unit_price).quantize(Decimal("0.01"))
 
                 # 超出部分用量（按订单数量判断）
                 over_limit_quantity = max(Decimal(0), total_quantity - limit_count)
@@ -1125,6 +1181,7 @@ class InvoiceService:
                         "package_type": "limited",
                         "base_fee": float(base_fee),
                         "limit_count": int(limit_count),
+                        "in_package_quantity": int(in_package_quantity),
                         "over_limit_quantity": int(over_limit_quantity),
                         "over_limit_unit_price": float(over_limit_unit_price),
                         "over_limit_cost": float(over_limit_cost),

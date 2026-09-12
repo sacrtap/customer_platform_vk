@@ -45,6 +45,21 @@ Then route:
   > "FYI, dirty files outside this task's scope — leaving them for the other window: `<list>`."
 - **Genuinely unsure** — ask the user once: "Are `<list>` this task's work I forgot to commit, or another window's? (commit / ignore)" — then route per their answer.
 
+## Step 2.5: pre-commit 失败是可诊断的，不是阻塞
+
+提交由 Phase 3.4 驱动（AI 在 3.4 执行 batched commit，pre-commit 钩子自动运行）。
+遇到失败时按以下规则处理，**不要 `--no-verify` 跳过**：
+
+- **Ruff check 报 "Found N errors (N fixed)"**：`--fix --exit-non-zero-on-fix` 已自动修复，
+  重新 `git add` 修复后的文件并重跑即可；首次失败是预期行为（修复需要进入提交）。
+- **Prettier 报 "Code style issues found"**：`--check` 只检查不修改，运行
+  `npx prettier --write <文件>` 修复后重新暂存。
+- **pytest-unit / vitest / vue-tsc 失败**：真实测试失败，回到 Phase 2.2 修复，
+  不要用「重跑一次」碰运气；同一命令必须可稳定复现通过。
+- **环境类失败**（找不到 python / npx / pytest）：检查是否按
+  `.omp/RULES.md` 的 pre-commit 环境规则使用 `$BACKEND_DIR/.venv/bin/python`，
+  24 小时内修复环境，禁止绕过。
+
 ## Step 3: Archive task(s)
 
 ```bash

@@ -91,6 +91,8 @@
       :industry-types="industryTypes"
       :managers="managers"
       :managers-loading="managersLoading"
+      :cooperation-statuses="cooperationStatuses"
+      :erp-systems="erpSystems"
       @saved="handleSearch"
       @update:visible="customerModalVisible = $event"
     />
@@ -163,10 +165,12 @@ import { useRouter } from 'vue-router'
 import { useCustomerList } from '@/composables/useCustomerList'
 import type { Customer, Tag } from '@/types'
 import { batchAddCustomerTags } from '@/api/tags'
-import { getCustomers } from '@/api/customers'
+import { batchUpdateCustomers, getKpiStats } from '@/api/customers'
+import { Message } from '@arco-design/web-vue'
+import { handleError } from '@/utils/errorHandler'
 
-// 默认行业筛选（与 useCustomerList 中的 createDefaultFilters 保持一致）
-const DEFAULT_INDUSTRY = '房产经纪,房产ERP,房产平台'
+// 默认行业筛选（空 = 全部行业，用户可自行筛选）
+const DEFAULT_INDUSTRY = ''
 
 import PageHeader from '@/components/PageHeader.vue'
 import CustomerKpi from './components/CustomerKpi.vue'
@@ -230,41 +234,29 @@ const kpiData = reactive({
   myCustomers: 0,
 })
 
-// 动态加载 KPI 统计数据
-// 使用 Promise.allSettled 确保单个请求失败不影响其他 KPI 计数
-// 所有 KPI 计数包含与列表默认筛选一致的行业条件，确保点击卡片后列表数字与卡片一致
+// 动态加载 KPI 统计数据（单次聚合请求）
 const loadKpiData = async () => {
-  const baseParams = {
-    page: 1,
-    page_size: 1,
-    account_type: '正式账号',
-    industry: DEFAULT_INDUSTRY,
-    force_refresh: true as boolean,
-  }
-  const results = await Promise.allSettled([
-    getCustomers(baseParams),
-    getCustomers({ ...baseParams, is_key_customer: 'true' }),
-    getCustomers({ ...baseParams, incomplete_profile: 'true' }),
-    getCustomers({ ...baseParams, mine: 'true' }),
-  ])
-  // 客户总数
-  if (results[0].status === 'fulfilled') {
-    const total = results[0].value.data?.total ?? 0
-    kpiData.total = total.toLocaleString()
-  }
-  // 重点客户
-  if (results[1].status === 'fulfilled') {
-    kpiData.keyCustomers = results[1].value.data?.total ?? 0
-  }
-  // 待完善画像
-  if (results[2].status === 'fulfilled') {
-    kpiData.incompleteProfile = results[2].value.data?.total ?? 0
-  }
-  // 我的客户：运营经理或商务经理与当前登录用户一致的客户数量
-  if (results[3].status === 'fulfilled') {
-    kpiData.myCustomers = results[3].value.data?.total ?? 0
-  } else {
-    console.error('[loadKpiData] 我的客户计数请求失败:', results[3])
+  try {
+    const params: {
+      account_type: string
+      industry?: string
+      mine: string
+      force_refresh: boolean
+    } = {
+      account_type: '正式账号',
+      mine: 'true',
+      force_refresh: true,
+    }
+    if (DEFAULT_INDUSTRY) params.industry = DEFAULT_INDUSTRY
+    const res = await getKpiStats(params)
+    const data = res.data?.data || res.data || {}
+    kpiData.total = (data.total ?? 0).toLocaleString()
+    kpiData.newThisMonth = data.new_this_month ?? 0
+    kpiData.keyCustomers = data.key_customers ?? 0
+    kpiData.incompleteProfile = data.incomplete_profile ?? 0
+    kpiData.myCustomers = data.my_customers ?? 0
+  } catch (error) {
+    console.error('[loadKpiData] KPI 统计请求失败:', error)
   }
 }
 
@@ -346,31 +338,71 @@ const handleBatchAction = (action: string) => {
   else if (action === 'edit') openBatchEditDialog()
 }
 
-const handleBatchLevelConfirm = async (_data: { scale_level: string; consume_level: string }) => {
+const handleBatchLevelConfirm = async (data: { scale_level: string; consume_level: string }) => {
   batchLoading.value = true
   try {
+    const fields: Record<string, unknown> = {}
+    if (data.scale_level) fields.scale_level = data.scale_level
+    if (data.consume_level) fields.consume_level = data.consume_level
+    if (Object.keys(fields).length === 0) {
+      Message.warning('请至少选择一个等级字段')
+      return
+    }
+    const result = await batchUpdateCustomers(selectedCustomerIds.value, fields)
+    const res = result.data
+    if (res.failed_count === 0) {
+      Message.success(`批量设置等级成功，共修改 ${res.success_count} 个客户`)
+    } else if (res.success_count > 0) {
+      Message.warning(`批量设置完成：成功 ${res.success_count} 个，失败 ${res.failed_count} 个`)
+    } else {
+      Message.error(`批量设置失败，全部 ${res.failed_count} 个客户修改失败`)
+    }
     batchLevelVisible.value = false
     handleSearch()
+    loadKpiData()
+  } catch (error: unknown) {
+    handleError(error, '批量设置等级失败')
   } finally {
     batchLoading.value = false
   }
 }
 
-const handleSendEmailConfirm = async (_data: { subject: string; content: string }) => {
+const handleSendEmailConfirm = async (data: { subject: string; content: string }) => {
   batchLoading.value = true
   try {
+    // TODO: 后端暂未提供批量邮件发送 API，使用提示告知用户
+    Message.info(
+      `邮件发送功能开发中，已选择 ${selectedCustomerIds.value.length} 个客户，主题：${data.subject}`
+    )
     sendEmailVisible.value = false
-    handleSearch()
+  } catch (error: unknown) {
+    handleError(error, '发送邮件失败')
   } finally {
     batchLoading.value = false
   }
 }
 
-const handleAssignManagerConfirm = async (_managerId: number) => {
+const handleAssignManagerConfirm = async (managerId: number) => {
   batchLoading.value = true
   try {
+    if (!managerId) {
+      Message.warning('请选择运营经理')
+      return
+    }
+    const result = await batchUpdateCustomers(selectedCustomerIds.value, { manager_id: managerId })
+    const res = result.data
+    if (res.failed_count === 0) {
+      Message.success(`分配负责人成功，共修改 ${res.success_count} 个客户`)
+    } else if (res.success_count > 0) {
+      Message.warning(`分配完成：成功 ${res.success_count} 个，失败 ${res.failed_count} 个`)
+    } else {
+      Message.error(`分配失败，全部 ${res.failed_count} 个客户修改失败`)
+    }
     assignManagerVisible.value = false
     handleSearch()
+    loadKpiData()
+  } catch (error: unknown) {
+    handleError(error, '分配负责人失败')
   } finally {
     batchLoading.value = false
   }

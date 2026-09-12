@@ -2,7 +2,7 @@
   <transition name="fade">
     <div v-if="selectedCount > 0" class="batch-toolbar">
       <span class="batch-count"
-        >已选择 <b>{{ selectedCount }}</b> 项</span
+        >已选择 <b>{{ selectedCount }}</b> 项<span class="batch-hint">（当前页）</span></span
       >
       <button class="btn" @click="emit('batchAction', 'edit')">批量编辑</button>
       <button class="btn" @click="emit('batchAction', 'assign')">分配负责人</button>
@@ -43,6 +43,13 @@ const emit = defineEmits<{
 
 .batch-count b {
   font-weight: 850;
+}
+
+.batch-hint {
+  font-weight: 400;
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: 2px;
 }
 
 .btn {

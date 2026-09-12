@@ -10,6 +10,9 @@ concurrency:
   group: backend-integration-${{ github.ref }}
   cancel-in-progress: true
 
+# 说明：完整集成套件也可通过 workflow_dispatch 手动触发（含全部 ~186 用例）。
+# PR 门禁（pr-checks.yml）已包含同一套集成测试，合并前自动运行。
+
 jobs:
   backend-integration-tests:
     name: Backend Integration Tests
@@ -102,4 +105,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 测试说明" >> $GITHUB_STEP_SUMMARY
           echo "- **Backend Integration**: ~186 用例，覆盖 API 集成测试" >> $GITHUB_STEP_SUMMARY
-          echo "- PR CI 中仅运行单元测试 (360)，集成测试在此手动触发" >> $GITHUB_STEP_SUMMARY
+          echo "- PR CI 中单元测试与集成测试均自动运行（见 pr-checks.yml）；此工作流用于按需手动触发完整套件" >> $GITHUB_STEP_SUMMARY

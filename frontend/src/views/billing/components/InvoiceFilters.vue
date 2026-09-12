@@ -9,6 +9,7 @@
         @apply="emit('search')"
       />
       <button type="button" class="btn primary" @click="emit('search')">筛选</button>
+      <button type="button" class="btn" @click="emit('reset')">重置</button>
     </div>
   </div>
 </template>
@@ -16,6 +17,7 @@
 <script setup lang="ts">
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import { INVOICE_STATUS_OPTIONS } from '@/constants/invoiceStatus'
 
 interface Filters {
   keyword: string
@@ -29,14 +31,7 @@ const emit = defineEmits<{
   reset: []
 }>()
 
-const statusOptions = [
-  { label: '草稿', value: 'draft' },
-  { label: '待客户确认', value: 'pending_customer' },
-  { label: '客户已确认', value: 'customer_confirmed' },
-  { label: '已付款', value: 'paid' },
-  { label: '已完成', value: 'completed' },
-  { label: '已取消', value: 'cancelled' },
-]
+const statusOptions = INVOICE_STATUS_OPTIONS
 </script>
 
 <style scoped>
@@ -51,6 +46,24 @@ const statusOptions = [
   align-items: center;
 }
 
+/* 按钮基础样式（与全站 .btn 保持一致） */
+.btn {
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
 .btn.primary {
   padding: 9px 12px;
   border: 1px solid var(--primary);

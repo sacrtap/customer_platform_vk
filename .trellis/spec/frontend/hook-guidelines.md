@@ -239,3 +239,60 @@ export function useCachedRequest<T>(key: string, fetcher: () => Promise<T>, ttl:
 - ❌ **Forgetting to reset `loading` in `finally`** — always use try/catch/finally
 - ❌ **Calling `onMounted()` in the component instead of the composable** — lifecycle hooks belong in the composable
 - ❌ **Not using factory functions for filter defaults** — `defaultFilters()` ensures clean reset
+- ❌ **God composables** — when a composable exceeds ~300 lines, split into sub-composables (see below)
+
+---
+
+## Composable Composition Pattern (Splitting God Composables)
+
+When a page-level composable grows too large (>300 lines), split it into focused sub-composables and compose them in the main composable.
+
+[来源: 项目源码 — `frontend/src/composables/useCustomerDetail.ts` + `useCustomerDict.ts` + `useCustomerTags.ts` + `useCustomerTabs.ts`]
+
+### Split Strategy
+
+| Sub-composable | Responsibility | Example |
+|----------------|----------------|---------|
+| `use<Domain>Dict` | Dictionary data loading (managers, types, statuses) | `useCustomerDict` |
+| `use<Domain>Tags` | Tag management (add, remove, load) | `useCustomerTags` |
+| `use<Domain>Tabs` | Tab lazy-loading + chart render state | `useCustomerTabs` |
+
+### Pattern
+
+```typescript
+// Sub-composable: useCustomerDict.ts
+export function useCustomerDict() {
+  const managers = ref<User[]>([])
+  const loadAllDictData = () => { /* ... */ }
+  return { managers, loadAllDictData, /* ... */ }
+}
+
+// Sub-composable with parameter: useCustomerTags.ts
+export function useCustomerTags(customerId: () => number) {
+  const tagSelectorVisible = ref(false)
+  // Use customerId() to get current value
+  return { tagSelectorVisible, /* ... */ }
+}
+
+// Main composable: useCustomerDetail.ts
+export function useCustomerDetail() {
+  const dict = useCustomerDict()
+  const tags = useCustomerTags(() => customerId.value)
+  const tabs = useCustomerTabs()
+
+  // Spread sub-composable returns in the main return
+  return {
+    managers: dict.managers,
+    tagSelectorVisible: tags.tagSelectorVisible,
+    activeTab: tabs.activeTab,
+    // ...
+  }
+}
+```
+
+### Key Rules
+
+1. **Sub-composables that need `customerId` should accept a getter function** `() => number`, not a static value
+2. **The main composable returns sub-composable properties by reference** — `managers: dict.managers`
+3. **Tab change delegation**: sub-composable's `handleTabChange` returns a string literal indicating which data to load; the main composable calls the appropriate load method
+4. **Tests must mock all sub-composable dependencies** — add `vi.mock` for every `@/api/*` module the sub-composables import

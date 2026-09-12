@@ -79,7 +79,7 @@ repos:
     hooks:
       - id: pytest-unit
         name: Pytest unit tests
-        entry: bash -c 'cd backend && source .venv/bin/activate && pytest tests/unit/ -n auto --tb=short -q'
+        entry: bash -c 'cd backend && BACKEND_DIR="$(pwd)" && exec "$BACKEND_DIR/.venv/bin/python" -m pytest tests/unit/ -n auto --tb=short -q'
         language: system
         files: ^backend/
         types: [python]

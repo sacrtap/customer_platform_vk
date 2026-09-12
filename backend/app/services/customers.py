@@ -398,6 +398,134 @@ class CustomerService:
 
         return list(customers), total  # pyright: ignore[reportReturnType]
 
+    async def get_kpi_stats(
+        self,
+        filters: Optional[dict] = None,
+        mine_user_id: Optional[int] = None,
+    ) -> dict:
+        """
+        聚合统计 KPI 数据（单次查询返回全部计数）
+
+        Args:
+            filters: 基础筛选条件（与 get_all_customers 相同的 filters 字典）
+            mine_user_id: 当前用户 ID（用于「我的客户」计数）
+
+        Returns:
+            dict: { total, key_customers, incomplete_profile, my_customers }
+        """
+        filters = filters or {}
+
+        # 构建基础条件（复用 get_all_customers 的筛选逻辑）
+        base_conditions: list = []
+
+        # 账号类型
+        if account_type := filters.get("account_type"):
+            base_conditions.append(Customer.account_type == account_type)
+
+        # 行业筛选
+        industry_join_needed = False
+        if industry := filters.get("industry"):
+            from ..models.industry_type import IndustryType
+
+            industry_list = [i.strip() for i in industry.split(",") if i.strip()]
+            industry_join_needed = True
+            if len(industry_list) == 1:
+                base_conditions.append(IndustryType.name == industry_list[0])
+            else:
+                base_conditions.append(IndustryType.name.in_(industry_list))
+
+        if base_conditions:
+            base_where = and_(*base_conditions)
+        else:
+            base_where = None  # type: ignore[assignment]
+
+        # 构建各类 KPI 的条件
+        # 1. 总客户数
+        total_stmt = select(func.count(Customer.id)).where(
+            Customer.deleted_at.is_(None),
+        )
+        if industry_join_needed:
+            total_stmt = total_stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        if base_where is not None:
+            total_stmt = total_stmt.where(base_where)
+
+        # 2. 重点客户数
+        key_stmt = select(func.count(Customer.id)).where(
+            Customer.deleted_at.is_(None),
+            Customer.is_key_customer.is_(True),
+        )
+        if industry_join_needed:
+            key_stmt = key_stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        if base_where is not None:
+            key_stmt = key_stmt.where(base_where)
+
+        # 3. 待完善画像数
+        incomplete_stmt = select(func.count(Customer.id)).where(
+            Customer.deleted_at.is_(None),
+        )
+        if not industry_join_needed:
+            incomplete_stmt = incomplete_stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            )
+        if industry_join_needed:
+            incomplete_stmt = incomplete_stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        incomplete_where = or_(
+            CustomerProfile.scale_level.is_(None),
+            CustomerProfile.scale_level == "",
+            CustomerProfile.consume_level.is_(None),
+            CustomerProfile.consume_level == "",
+        )
+        if base_where is not None:
+            incomplete_stmt = incomplete_stmt.where(and_(base_where, incomplete_where))
+        else:
+            incomplete_stmt = incomplete_stmt.where(incomplete_where)
+
+        # 4. 我的客户数
+        mine_stmt = select(func.count(Customer.id)).where(
+            Customer.deleted_at.is_(None),
+        )
+        if industry_join_needed:
+            mine_stmt = mine_stmt.outerjoin(
+                CustomerProfile, Customer.id == CustomerProfile.customer_id
+            ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+        if base_where is not None:
+            mine_stmt = mine_stmt.where(base_where)
+        if mine_user_id:
+            mine_stmt = mine_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+        else:
+            # mine_user_id 为空时返回 0 条（使用不可能为真的条件）
+            mine_stmt = mine_stmt.where(Customer.id < 0)
+
+        # 顺序执行所有计数查询（AsyncSession 不支持并发 execute）
+        if self._is_async:
+            total = (await self.db.execute(total_stmt)).scalar()
+            key_customers = (await self.db.execute(key_stmt)).scalar()
+            incomplete_profile = (await self.db.execute(incomplete_stmt)).scalar()
+            my_customers = (await self.db.execute(mine_stmt)).scalar()
+        else:
+            total = self.db.execute(total_stmt).scalar()
+            key_customers = self.db.execute(key_stmt).scalar()
+            incomplete_profile = self.db.execute(incomplete_stmt).scalar()
+            my_customers = self.db.execute(mine_stmt).scalar()
+
+        return {
+            "total": total or 0,
+            "key_customers": key_customers or 0,
+            "incomplete_profile": incomplete_profile or 0,
+            "my_customers": my_customers or 0,
+        }
+
     async def create_customer(self, data: dict) -> Customer:
         """创建客户"""
         # company_id 唯一性校验（与 update_customer 保持一致）
@@ -423,6 +551,14 @@ class CustomerService:
             is_key_customer=data.get("is_key_customer", False),
             is_real_estate=data.get("is_real_estate"),
             email=data.get("email"),
+            # 扩展字段（与 update_customer 的 updatable_fields 保持一致）
+            erp_system=data.get("erp_system"),
+            first_payment_date=data.get("first_payment_date"),
+            onboarding_date=data.get("onboarding_date"),
+            cooperation_status=data.get("cooperation_status", "active"),
+            is_settlement_enabled=data.get("is_settlement_enabled", True),
+            is_disabled=data.get("is_disabled", False),
+            notes=data.get("notes"),
         )
 
         self.db.add(customer)
@@ -505,6 +641,21 @@ class CustomerService:
         for field in updatable_fields:
             if field in data:
                 setattr(customer, field, data[field])
+
+        # 如果提供了 profile 字段（scale_level, consume_level），一并更新
+        profile_fields = ["scale_level", "consume_level"]
+        if any(f in data for f in profile_fields):
+            profile = await self.get_customer_profile(customer.id)  # pyright: ignore[reportArgumentType]
+            if profile:
+                for f in profile_fields:
+                    if f in data:
+                        setattr(profile, f, data[f])
+            else:
+                profile = CustomerProfile(
+                    customer_id=customer.id,
+                    **{f: data[f] for f in profile_fields if f in data},
+                )
+                self.db.add(profile)
 
         # 如果提供了 industry_type_id，更新 profile
         if "industry_type_id" in data:
@@ -692,18 +843,19 @@ class CustomerService:
         }
 
     async def delete_customer(self, customer_id: int) -> bool:
-        """删除客户（软删除），同时软删除其余额记录"""
+        """删除客户（软删除），同时级联软删除关联数据"""
         customer = await self.get_customer_by_id(customer_id)
         if not customer:
             return False
 
-        customer.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
-
-        # 同步软删除余额记录，避免余额页残留指向已删客户的数据
         from sqlalchemy import update as sa_update
 
-        from ..models.billing import CustomerBalance
+        from ..models.billing import CustomerBalance, Invoice
+        from ..models.daily_consumption import DailyConsumption
 
+        customer.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
+
+        # 级联软删除余额记录
         await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
             sa_update(CustomerBalance)
             .where(
@@ -712,6 +864,34 @@ class CustomerService:
             )
             .values(deleted_at=func.now())
         )
+
+        # 级联软删除画像记录
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(CustomerProfile)
+            .where(
+                CustomerProfile.customer_id == customer_id,
+                CustomerProfile.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
+
+        # 级联软删除结算单
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(Invoice)
+            .where(
+                Invoice.customer_id == customer_id,
+                Invoice.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
+
+        # 级联软删除日消耗记录
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(DailyConsumption)
+            .where(DailyConsumption.customer_id == customer_id)
+            .values(deleted_at=func.now())
+        )
+
         await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
 
         return True

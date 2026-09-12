@@ -48,9 +48,11 @@ export function createCustomer(data: {
   company_id: number
   name: string
   account_type?: string
+  industry_type_id?: number
   industry?: string
   price_policy?: PricePolicy | string
   manager_id?: number
+  sales_manager_id?: number
   settlement_cycle?: string
   settlement_type?: string
   is_key_customer?: boolean
@@ -158,6 +160,16 @@ export function exportCustomers(params?: {
 // 批量更新客户
 export function batchUpdateCustomers(customerIds: number[], fields: Record<string, unknown>) {
   return api.post('/customers/batch-update', { customer_ids: customerIds, fields })
+}
+
+// KPI 聚合统计
+export function getKpiStats(params?: {
+  account_type?: string
+  industry?: string
+  mine?: string
+  force_refresh?: boolean
+}) {
+  return api.get('/customers/kpi-stats', { params })
 }
 
 // 获取行业类型字典

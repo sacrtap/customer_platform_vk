@@ -15,12 +15,14 @@ interface TierRange {
   price: number
 }
 
-/** 计费类型文本 */
+/** 计费类型文本 — 兼容后端 pricing/tiered/yearly 和前端 fixed/tiered/package */
 export function pricingTypeText(type?: string): string {
   const map: Record<string, string> = {
     fixed: '定价',
+    pricing: '定价',
     tiered: '阶梯',
     package: '包年',
+    yearly: '包年',
   }
   return type ? map[type] || type : '—'
 }

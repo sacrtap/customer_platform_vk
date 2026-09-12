@@ -39,9 +39,9 @@
         <a-col :span="12">
           <a-form-item field="account_type" label="账号类型">
             <a-select v-model="form.account_type" placeholder="请选择" allow-clear>
-              <a-option value="正式账号">正式账号</a-option>
-              <a-option value="客户测试账号">客户测试账号</a-option>
-              <a-option value="内部账号">内部账号</a-option>
+              <a-option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">{{
+                opt.label
+              }}</a-option>
             </a-select>
           </a-form-item>
         </a-col>
@@ -59,24 +59,34 @@
         <a-col :span="12">
           <a-form-item field="settlement_type" label="结算方式">
             <a-select v-model="form.settlement_type" placeholder="请选择" allow-clear>
-              <a-option value="prepaid">预付费</a-option>
-              <a-option value="postpaid">后付费</a-option>
+              <a-option
+                v-for="opt in SETTLEMENT_TYPE_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+                >{{ opt.label }}</a-option
+              >
             </a-select>
           </a-form-item>
         </a-col>
         <!-- 是否房产客户 -->
         <a-col :span="12">
           <a-form-item field="is_real_estate" label="是否房产客户">
-            <a-switch v-model="form.is_real_estate" />
+            <a-select v-model="form.is_real_estate" placeholder="请选择" allow-clear>
+              <a-option :value="true">是</a-option>
+              <a-option :value="false">否</a-option>
+            </a-select>
           </a-form-item>
         </a-col>
         <!-- 结算周期 -->
         <a-col :span="12">
           <a-form-item field="settlement_cycle" label="结算周期">
             <a-select v-model="form.settlement_cycle" placeholder="请选择" allow-clear>
-              <a-option value="monthly">月结</a-option>
-              <a-option value="quarterly">季结</a-option>
-              <a-option value="yearly">年结</a-option>
+              <a-option
+                v-for="opt in SETTLEMENT_CYCLE_OPTIONS"
+                :key="opt.value"
+                :value="opt.value"
+                >{{ opt.label }}</a-option
+              >
             </a-select>
           </a-form-item>
         </a-col>
@@ -103,7 +113,7 @@
         </a-col>
         <!-- 销售经理 -->
         <a-col :span="12">
-          <a-form-item field="sales_manager_id" label="销售经理">
+          <a-form-item field="sales_manager_id" label="商务经理">
             <a-select
               v-model="form.sales_manager_id"
               placeholder="请选择"
@@ -114,6 +124,38 @@
                 {{ m.real_name || `#${m.id}` }}
               </a-option>
             </a-select>
+          </a-form-item>
+        </a-col>
+        <!-- 合作状态 -->
+        <a-col :span="12">
+          <a-form-item field="cooperation_status" label="合作状态">
+            <a-select v-model="form.cooperation_status" placeholder="请选择" allow-clear>
+              <a-option v-for="cs in cooperationStatuses" :key="cs.id" :value="cs.value">{{
+                cs.name
+              }}</a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <!-- ERP 系统 -->
+        <a-col :span="12">
+          <a-form-item field="erp_system" label="ERP 系统">
+            <a-select v-model="form.erp_system" placeholder="请选择" allow-clear>
+              <a-option v-for="es in erpSystems" :key="es.value" :value="es.value">{{
+                es.name
+              }}</a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <!-- 备注 -->
+        <a-col :span="24">
+          <a-form-item field="notes" label="备注">
+            <a-textarea
+              v-model="form.notes"
+              placeholder="请输入备注信息"
+              :max-length="500"
+              show-word-limit
+              :auto-size="{ minRows: 2, maxRows: 4 }"
+            />
           </a-form-item>
         </a-col>
       </a-row>
@@ -128,12 +170,19 @@ import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import type { IndustryType } from '@/types'
 import { createCustomer } from '@/api/customers'
 import { handleError } from '@/utils/errorHandler'
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  SETTLEMENT_TYPE_OPTIONS,
+  SETTLEMENT_CYCLE_OPTIONS,
+} from '@/constants/customerOptions'
 
 const props = defineProps<{
   visible: boolean
   industryTypes: IndustryType[]
   managers: Array<{ id: number; real_name: string | null }>
   managersLoading?: boolean
+  cooperationStatuses: Array<{ id: number; name: string; value: string }>
+  erpSystems: Array<{ name: string; value: string }>
 }>()
 
 const emit = defineEmits<{
@@ -156,11 +205,14 @@ interface CreateForm {
   account_type: string
   industry_type_id: number | undefined
   settlement_type: string
-  is_real_estate: boolean
+  is_real_estate: boolean | null
   settlement_cycle: string
   is_key_customer: boolean
   manager_id: number | undefined
   sales_manager_id: number | undefined
+  cooperation_status: string
+  erp_system: string
+  notes: string
 }
 
 const createDefaultForm = (): CreateForm => ({
@@ -170,11 +222,14 @@ const createDefaultForm = (): CreateForm => ({
   account_type: '',
   industry_type_id: undefined,
   settlement_type: '',
-  is_real_estate: false,
+  is_real_estate: null,
   settlement_cycle: '',
   is_key_customer: false,
   manager_id: undefined,
   sales_manager_id: undefined,
+  cooperation_status: '',
+  erp_system: '',
+  notes: '',
 })
 
 const form = reactive<CreateForm>(createDefaultForm())
@@ -221,11 +276,14 @@ const handleConfirm = async () => {
     if (form.account_type) payload.account_type = form.account_type
     if (form.industry_type_id) payload.industry_type_id = form.industry_type_id
     if (form.settlement_type) payload.settlement_type = form.settlement_type
-    payload.is_real_estate = form.is_real_estate
+    if (form.is_real_estate !== null) payload.is_real_estate = form.is_real_estate
     if (form.settlement_cycle) payload.settlement_cycle = form.settlement_cycle
     payload.is_key_customer = form.is_key_customer
     if (form.manager_id) payload.manager_id = form.manager_id
     if (form.sales_manager_id) payload.sales_manager_id = form.sales_manager_id
+    if (form.cooperation_status) payload.cooperation_status = form.cooperation_status
+    if (form.erp_system) payload.erp_system = form.erp_system
+    if (form.notes) payload.notes = form.notes
 
     await createCustomer(payload as Parameters<typeof createCustomer>[0])
     Message.success('创建成功')

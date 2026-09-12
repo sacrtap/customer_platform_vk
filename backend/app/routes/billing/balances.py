@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from sanic.request import Request
 from sanic.response import json
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
@@ -386,6 +387,7 @@ async def get_balances(request: Request):
 
     # 惰性补建：为尚无余额记录的活跃客户创建余额档案（幂等，不覆盖历史数据）
     # 确保余额列表与客户列表保持一致，新增客户无需手动建档即可显示
+    # 使用 try-except + flush 防止高并发时重复插入
     missing_stmt = (
         select(Customer.id)
         .outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
@@ -394,9 +396,17 @@ async def get_balances(request: Request):
     )
     missing_ids = list((await db.execute(missing_stmt)).scalars().all())
     if missing_ids:
-        db.add_all([CustomerBalance(customer_id=cid) for cid in missing_ids])
-        await db.commit()  # pyright: ignore[reportGeneralTypeIssues]
-        logger.info("惰性补建余额记录 %d 条（缺失客户 ID: %s）", len(missing_ids), missing_ids[:20])
+        try:
+            db.add_all([CustomerBalance(customer_id=cid) for cid in missing_ids])
+            await db.flush()  # pyright: ignore[reportGeneralTypeIssues]
+        except IntegrityError as e:
+            # 并发场景下因唯一索引冲突而失败，忽略
+            logger.debug("惰性补建余额记录跳过（唯一索引冲突）: %s", e)
+            await db.rollback()  # pyright: ignore[reportGeneralTypeIssues]
+        else:
+            logger.info(
+                "惰性补建余额记录 %d 条（缺失客户 ID: %s）", len(missing_ids), missing_ids[:20]
+            )
 
     # 排序
     if sort_by in sort_field_map:
@@ -937,7 +947,13 @@ async def recharge(request: Request):
     real_amount = Decimal(str(data.get("real_amount", 0)))
     bonus_amount = Decimal(str(data.get("bonus_amount", 0)))
 
-    if not customer_id or (real_amount == 0 and bonus_amount == 0):
+    if not customer_id:
+        return json(
+            {"code": 40001, "message": "请填写客户 ID"},
+            status=400,
+        )
+
+    if real_amount == 0 and bonus_amount == 0:
         return json(
             {"code": 40001, "message": "请填写实充金额或赠送金额"},
             status=400,
