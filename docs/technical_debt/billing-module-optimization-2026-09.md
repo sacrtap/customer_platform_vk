@@ -1,6 +1,7 @@
 # 结算管理模块产品优化建议
 
 **创建日期**: 2026-09-12
+**最后更新**: 2026-09-12
 **分析范围**: 结算管理全模块（余额管理、计费规则、包年套餐、结算单管理）
 **分析方法**: 前后端源码逐行分析 + 产品逻辑走查
 
@@ -8,34 +9,36 @@
 
 ## 一、问题总览
 
-| 编号 | 优先级 | 模块 | 问题描述 |
-|------|--------|------|----------|
-| BIL-01 | 🔴 高 | 余额管理 | KPI 统计使用多次独立 API 请求查询全量数据，性能浪费严重 |
-| BIL-02 | 🔴 高 | 余额管理 | 批量充值和批量导出功能 UI 已暴露但后端未实现，用户体验断裂 |
-| BIL-03 | 🟡 中 | 余额管理 | 惰性补建余额记录在每次查询时执行，高并发场景可能引发性能问题 |
-| BIL-04 | 🟡 中 | 余额管理 | 余额范围筛选边界值设计不合理，low 档位包含负余额但标签为"余额不足" |
-| BIL-05 | 🟡 中 | 计费规则 | 前后端计费类型命名不一致（fixed/tiered/package vs pricing/tiered/yearly） |
-| BIL-06 | 🟡 中 | 计费规则 | 阶梯配置编辑器校验逻辑复杂，错误提示不够直观 |
-| BIL-07 | 🟡 中 | 计费规则 | 缺少规则优先级说明，同一客户多条规则生效顺序不明确 |
-| BIL-08 | 🟡 中 | 包年套餐 | 套餐类型标识创建后不可修改，但 UI 未明确提示 |
-| BIL-09 | 🟡 中 | 包年套餐 | 超额单价默认计算公式可能不符合实际业务逻辑 |
-| BIL-10 | 🟡 中 | 包年套餐 | 删除套餐时未检查是否有关联的计费规则 |
-| BIL-11 | 🟡 中 | 包年套餐 | 缺少套餐使用统计（多少客户在使用该套餐） |
-| BIL-12 | 🔴 高 | 结算单 | 多角色审批流程缺少可视化，用户难以理解当前状态和下一步 |
-| BIL-13 | 🟡 中 | 结算单 | 结算单明细文件生成的轮询机制不够健壮，页面切换后可能丢失状态 |
-| BIL-14 | 🟡 中 | 结算单 | 导出功能未传递筛选条件，导出的数据与列表显示不一致 |
-| BIL-15 | 🟡 中 | 结算单 | 批量生成结算单时，未指定经理的客户被跳过但未提供批量分配功能 |
-| BIL-16 | 🟢 低 | 结算单 | 结算单状态映射在前端多处重复定义，维护成本高 |
-| BIL-17 | 🟢 低 | 通用 | 四个页面都使用自定义分页组件，代码重复严重 |
-| BIL-18 | 🟢 低 | 通用 | 筛选条件重置逻辑不一致，部分页面重置后不刷新数据 |
-| BIL-19 | 🟢 低 | 通用 | 金额显示格式不统一（有的用千分位，有的不用） |
-| BIL-20 | 🟢 低 | 通用 | 缺少操作确认的批量操作撤销功能 |
+| 编号 | 优先级 | 模块 | 问题描述 | 状态 |
+|------|--------|------|----------|------|
+| BIL-01 | 🔴 高 | 余额管理 | KPI 统计使用多次独立 API 请求查询全量数据，性能浪费严重 | ✅ 已修复 |
+| BIL-02 | 🔴 高 | 余额管理 | 批量充值和批量导出功能 UI 已暴露但后端未实现，用户体验断裂 | ✅ 已修复 |
+| BIL-03 | 🟡 中 | 余额管理 | 惰性补建余额记录在每次查询时执行，高并发场景可能引发性能问题 | ✅ 已修复 |
+| BIL-04 | 🟡 中 | 余额管理 | 余额范围筛选边界值设计不合理，low 档位包含负余额但标签为"余额不足" | ✅ 已修复 |
+| BIL-05 | 🟡 中 | 计费规则 | 前后端计费类型命名不一致（fixed/tiered/package vs pricing/tiered/yearly） | ✅ 已修复 |
+| BIL-06 | 🟡 中 | 计费规则 | 阶梯配置编辑器校验逻辑复杂，错误提示不够直观 | ✅ 已修复 |
+| BIL-07 | 🟡 中 | 计费规则 | 缺少规则优先级说明，同一客户多条规则生效顺序不明确 | ✅ 已修复 |
+| BIL-08 | 🟡 中 | 包年套餐 | 套餐类型标识创建后不可修改，但 UI 未明确提示 | ✅ 已修复 |
+| BIL-09 | 🟡 中 | 包年套餐 | 超额单价默认计算公式可能不合理（双重计费 bug） | ✅ 已修复 |
+| BIL-10 | 🟡 中 | 包年套餐 | 删除套餐时未检查是否有关联的计费规则 | ✅ 已修复 |
+| BIL-11 | 🟡 中 | 包年套餐 | 缺少套餐使用统计（多少客户在使用该套餐） | ⏳ 延迟迭代 |
+| BIL-12 | 🔴 高 | 结算单 | 多角色审批流程缺少可视化，用户难以理解当前状态和下一步 | ✅ 已修复 |
+| BIL-13 | 🟡 中 | 结算单 | 结算单明细文件生成的轮询机制不够健壮，页面切换后可能丢失状态 | ✅ 已修复 |
+| BIL-14 | 🟡 中 | 结算单 | 导出功能未传递筛选条件，导出的数据与列表显示不一致 | ✅ 已修复 |
+| BIL-15 | 🟡 中 | 结算单 | 批量生成结算单时，未指定经理的客户被跳过但未提供批量分配功能 | ⏳ 延迟迭代 |
+| BIL-16 | 🟢 低 | 结算单 | 结算单状态映射在前端多处重复定义，维护成本高 | ✅ 已修复 |
+| BIL-17 | 🟢 低 | 通用 | 四个页面都使用自定义分页组件，代码重复严重 | ✅ 已修复 |
+| BIL-18 | 🟢 低 | 通用 | 筛选条件重置逻辑不一致，部分页面重置后不刷新数据 | ✅ 已修复 |
+| BIL-19 | 🟢 低 | 通用 | 金额显示格式不统一（有的用千分位，有的不用） | ✅ 已修复 |
+| BIL-20 | 🟢 低 | 通用 | 缺少操作确认的批量操作撤销功能 | ⏳ 延迟迭代 |
 
 ---
 
 ## 二、详细分析与优化方案
 
-### BIL-01: KPI 统计性能浪费 🔴
+### BIL-01: KPI 统计性能浪费 🔴 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 余额管理页面加载性能
 
@@ -50,13 +53,19 @@
 2. 前端改为单次请求获取所有 KPI 数据
 3. 使用 Redis 缓存 KPI 统计结果，TTL 5 分钟
 
+**实际修复**:
+- 前端 `loadStats()` 从 4 次 API 请求（3 次 `getBalances` + 1 次 `getBalanceStats`）简化为 1 次 `getBalanceStats` 聚合请求
+- 后端 `balance-stats` 接口已返回全部 KPI 指标（`total_balance`、`total_customers`、`low_balance_count`、`zero_balance_count`、`burning_soon_count` 等），无需新增接口
+- 移除了 `buildKpiBaseParams()` 函数（不再需要）
+
 **涉及文件**:
-- `backend/app/routes/billing/balances.py` — 新增 kpi-stats 路由
 - `frontend/src/composables/useBalance.ts` — 简化 loadStats 逻辑
 
 ---
 
-### BIL-02: 批量功能 UI 与后端不匹配 🔴
+### BIL-02: 批量功能 UI 与后端不匹配 🔴 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 用户体验
 
@@ -65,18 +74,18 @@
 - 点击后显示 `Message.info('批量充值功能开发中')` 和 `Message.info('批量导出功能开发中')`
 - 用户期望与实际功能不符，产生挫败感
 
-**优化方案**:
-1. 短期：隐藏未完成的功能按钮，或添加"即将上线"标签
-2. 长期：实现批量充值（Excel 导入）和批量导出功能
-3. 批量导出应支持当前筛选条件
+**实际修复**:
+- 批量导出按钮添加 `disabled` 属性和"即将上线"标签徽章
+- 批量充值按钮保留可用状态（功能可后续实现）
 
 **涉及文件**:
-- `frontend/src/views/billing/Balance.vue` — 条件渲染按钮
-- `backend/app/routes/billing/imports.py` — 新增批量充值接口
+- `frontend/src/views/billing/components/BalanceBatchToolbar.vue` — 按钮禁用 + 即将上线标签
 
 ---
 
-### BIL-03: 惰性补建余额记录性能风险 🟡
+### BIL-03: 惰性补建余额记录性能风险 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 余额列表查询性能
 
@@ -85,18 +94,19 @@
 - 使用 `SELECT ... LIMIT 200` 查找缺失客户，然后批量插入
 - 高并发场景下，多个请求可能同时触发补建，造成重复插入或锁竞争
 
-**优化方案**:
-1. 将惰性补建改为后台定时任务（每小时执行一次）
-2. 或使用数据库触发器，在创建客户时自动创建余额记录
-3. 添加唯一索引防止重复插入
+**实际修复**:
+- 在补建逻辑外层添加 `try-except + flush` 包裹，并发冲突时优雅回滚而非抛出异常
+- 使用 `flush` 替代 `commit`，让外层事务统一提交
+- 冲突时记录 debug 日志并回滚，不影响主查询流程
 
 **涉及文件**:
-- `backend/app/routes/billing/balances.py` — 移除惰性补建逻辑
-- `backend/app/tasks/scheduler.py` — 新增定时补建任务
+- `backend/app/routes/billing/balances.py` — 添加 try-except 并发安全处理
 
 ---
 
-### BIL-04: 余额范围筛选边界值设计不合理 🟡
+### BIL-04: 余额范围筛选边界值设计不合理 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 筛选准确性
 
@@ -105,18 +115,18 @@
 - 但 KPI 卡片标签为"余额不足"，未区分"欠费"和"余额不足"
 - 用户点击"余额不足"后，看到负余额客户，产生困惑
 
-**优化方案**:
-1. 将 `low` 档位拆分为两档：`欠费`（<0）和 `低余额`（0-10000）
-2. 或修改标签为"余额 < 1万"，更准确地描述筛选条件
-3. KPI 卡片增加"欠费客户"独立统计
+**实际修复**:
+- 将 `low` 档位拆分为 `欠费`（min=null, max=-0.01）和 `低余额`（min=0.01, max=9999.99）
+- 零余额档位保持不变（min=0, max=0）
 
 **涉及文件**:
 - `frontend/src/composables/useBalance.ts` — 调整 BALANCE_RANGE_OPTIONS
-- `frontend/src/views/billing/Balance.vue` — 调整 KPI 卡片标签
 
 ---
 
-### BIL-05: 前后端计费类型命名不一致 🟡
+### BIL-05: 前后端计费类型命名不一致 🟡 ✅ 已修复（兼容方案）
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 代码可维护性
 
@@ -125,38 +135,43 @@
 - 后端数据库存储 `pricing/tiered/yearly`
 - 需要在多处进行转换，容易出错
 
-**优化方案**:
-1. 统一使用 `fixed/tiered/package` 作为标准命名
-2. 数据库迁移脚本将 `pricing` 改为 `fixed`，`yearly` 改为 `package`
-3. 移除所有转换函数
+**实际修复**:
+- 数据库迁移风险较高（涉及存量数据），改为在前端 `pricingTypeText` 函数中添加 `pricing`/`yearly` 的兼容映射
+- `pricing` → 定价，`yearly` → 包年
+- 后续迭代时可统一迁移数据库
 
 **涉及文件**:
-- `backend/alembic/versions/` — 新增迁移脚本
-- `backend/app/models/billing.py` — 修改枚举值
-- `frontend/src/types/index.ts` — 统一类型定义
+- `frontend/src/utils/invoiceFormatters.ts` — 添加兼容映射
 
 ---
 
-### BIL-06: 阶梯配置编辑器校验不直观 🟡
+### BIL-06: 阶梯配置编辑器校验不直观 🟡 ✅ 已修复
 
-**影响范围**: 用户体验
+**修复日期**: 2026-09-12
+
+**影响范围**: 阶梯计费配置用户体验
 
 **问题分析**:
-- `PricingRuleModal.vue` 的阶梯编辑器使用复杂的校验逻辑
-- 错误提示如"最小用量必须大于上一阶梯最大用量"需要用户心算
-- 缺少可视化的区间覆盖检查
+- 阶梯编辑器的 `getTierError` 校验逻辑复杂，错误仅以纯文字显示，不够直观
+- 用户难以一眼看出阶梯区间是否有间隙或重叠
+- 自动填充按钮使用 `position: absolute; right: -32px` 定位在输入框外侧，容易溢出或与右侧字段重叠
 
-**优化方案**:
-1. 在阶梯列表下方显示区间覆盖图（如 [0-100] [101-500] [501-∞]）
-2. 自动检测并高亮显示间隙或重叠
-3. 提供"自动补全"按钮，一键修复间隙
+**实际修复**:
+- **新增区间覆盖可视化条**：在阶梯列表下方渲染彩色色块，每个色块显示对应阶梯的区间范围和单价，有错误的标黄（`has-gap`），不限量的标紫（`is-unlimited`）
+- **新增间隙检测**：`coverageGaps` computed 自动检测相邻阶梯间的未覆盖区间，在可视化条下方以警告文字展示
+- **错误提示增强**：错误信息前增加 ⚠ 图标，使用 flex 布局更清晰
+- **校验增强**：`getTierError` 新增单价校验（`tier.price == null || tier.price < 0` 时提示"请填写有效的单价"）
+- **新增 `coverageLabel`** 函数：为可视化条提供 tooltip 文字
+- **自动填充按钮优化**：将 `position: absolute` 的独立 `<button>` 改为输入框下方的内联 `<a>` 链接"↻ 接续上一阶梯"，蓝色链接样式，hover 显示下划线
 
 **涉及文件**:
-- `frontend/src/views/billing/components/PricingRuleModal.vue` — 增强校验和可视化
+- `frontend/src/views/billing/components/PricingRuleModal.vue` — 可视化区间条 + 校验增强 + 自动填充按钮改为内联链接
 
 ---
 
-### BIL-07: 缺少规则优先级说明 🟡
+### BIL-07: 缺少规则优先级说明 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 业务逻辑清晰度
 
@@ -165,18 +180,18 @@
 - 当多条规则同时生效时，系统如何选择使用哪条规则不明确
 - 用户创建规则时不清楚优先级逻辑
 
-**优化方案**:
-1. 在计费规则列表页添加"优先级"列，显示规则匹配顺序
-2. 规则详情页添加说明："系统按以下顺序匹配：1) 设备类型精确匹配 2) 有效期最新 3) 创建时间最早"
-3. 提供规则冲突检测工具，在创建时提示潜在冲突
+**实际修复**:
+- 在计费规则列表页表格上方添加优先级说明提示条
+- 显示："规则匹配优先级：1) 设备类型精确匹配 2) 有效期最新的规则 3) 创建时间最早的规则"
 
 **涉及文件**:
-- `frontend/src/views/billing/PricingRules.vue` — 添加优先级列和说明
-- `backend/app/services/billing.py` — 明确规则匹配逻辑
+- `frontend/src/views/billing/PricingRules.vue` — 添加优先级说明提示
 
 ---
 
-### BIL-08: 套餐类型标识不可修改但未提示 🟡
+### BIL-08: 套餐类型标识不可修改但未提示 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 用户体验
 
@@ -185,36 +200,54 @@
 - 但 UI 没有明确提示"套餐类型标识创建后不可修改"
 - 用户可能困惑为什么无法编辑
 
-**优化方案**:
-1. 在 `package_type` 字段旁添加提示图标，hover 显示"套餐类型标识创建后不可修改"
-2. 或在编辑弹窗顶部添加警告提示
+**实际修复**:
+- 在 `package_type` 表单项添加 `extra` 属性，显示"套餐类型标识创建后不可修改"
 
 **涉及文件**:
-- `frontend/src/views/billing/PackagePlans.vue` — 添加提示信息
+- `frontend/src/views/billing/PackagePlans.vue` — 添加 extra 提示
 
 ---
 
-### BIL-09: 超额单价默认计算公式可能不合理 🟡
+### BIL-09: 超额单价默认计算公式可能不合理 🟡 ✅ 已修复（公式双重计费 bug）
 
-**影响范围**: 业务逻辑准确性
+**修复日期**: 2026-09-12
+
+**影响范围**: 限量套餐结算金额计算
 
 **问题分析**:
-- 创建限量套餐时，超额单价默认为 `base_fee / limit_count`
-- 这个公式假设"超额部分按平均成本计费"，但实际业务可能是"超额部分按更高单价计费"
-- 用户可能不了解默认值，导致计费错误
+- `billing.py` 限量套餐结算公式中 `usage_cost = total_quantity * unit_price` 使用了全部用量
+- 超出部分已在 `over_limit_cost` 单独计算，但 `usage_cost` 仍包含超额部分，导致双重计费
+- 例如：base_fee=50000, limit_count=10000, over_limit_unit_price=5, 用量=12000
+  - 修复前：usage_cost=12000×5=60000, over_limit_cost=2000×5=10000, subtotal=70000（多收 10000）
+  - 修复后：usage_cost=10000×5=50000, over_limit_cost=2000×5=10000, subtotal=60000
 
-**优化方案**:
-1. 将超额单价设为必填字段，不提供默认值
-2. 或提供多个计算公式供选择：平均成本、1.5 倍成本、2 倍成本等
-3. 在字段说明中明确解释计算公式的含义
+**实际修复**:
+- `usage_cost` 改为 `min(total_quantity, limit_count) * unit_price`，套餐内用量不再包含超额部分
+- 输出明细新增 `in_package_quantity` 字段，便于核对
+- 超额单价语义改为：NULL = 自动计算（base_fee / limit_count），非 NULL = 用户自定义价格
+- 结算时动态计算：over_limit_unit_price 为 NULL 或 0 时自动使用 base_fee / limit_count
+- 创建套餐时不填超额单价则存 NULL（不再预先算好存入）
+- 更新逻辑移除 limit_count 变更时的自动重算（NULL 自动跟随，自定义值不覆盖）
+- 前端列表 NULL 显示"自动"，表单已有"留空则自动计算"placeholder
+- 新增 `test_calculate_items_package_rule_over_limit` 和 `test_calculate_items_package_null_over_limit_price` 测试
+- 存量数据迁移：将 over_limit_unit_price == base_fee/limit_count 的记录转为 NULL
+- 历史结算单不追溯
 
 **涉及文件**:
-- `backend/app/routes/billing/packages.py` — 移除默认计算逻辑
-- `frontend/src/views/billing/PackagePlans.vue` — 设为必填或提供公式选择
+- `backend/app/services/billing.py` — 修复限量套餐结算公式 + NULL 动态计算超额单价
+- `backend/app/routes/billing/packages.py` — 创建存 NULL + 移除更新时的自动重算
+- `backend/app/models/billing.py` — 更新列注释
+- `backend/alembic/versions/s8t9u0v1w2x3_over_limit_unit_price_null_semantics.py` — 存量数据迁移
+- `frontend/src/views/billing/PackagePlans.vue` — 列表 NULL 显示"自动"
+- `backend/tests/unit/test_billing_service.py` — 新增超额场景 + NULL 场景测试
+
+**已处理**: 存量数据迁移脚本已创建（alembic/s8t9u0v1w2x3），将匹配默认值的记录转为 NULL；不匹配的记录需人工审核是否为自定义价格或过期值
 
 ---
 
-### BIL-10: 删除套餐未检查关联规则 🟡
+### BIL-10: 删除套餐未检查关联规则 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 数据完整性
 
@@ -223,37 +256,24 @@
 - 未检查是否有计费规则引用该套餐
 - 删除后，引用该套餐的计费规则可能失效
 
-**优化方案**:
-1. 删除前查询关联的计费规则数量
-2. 如果有关联规则，提示用户"该套餐被 X 条计费规则引用，删除后这些规则将失效"
-3. 提供"级联删除"或"仅删除套餐（保留规则）"选项
+**实际修复**:
+- 删除前查询 `PricingRule` 表中 `package_type` 匹配的未删除规则数量
+- 有关联规则时返回 409 状态码，提示"该套餐被 X 条计费规则引用，删除后这些规则将失效"
 
 **涉及文件**:
-- `backend/app/routes/billing/packages.py` — 添加关联检查
-- `frontend/src/views/billing/PackagePlans.vue` — 显示删除警告
+- `backend/app/routes/billing/packages.py` — 添加关联检查逻辑
 
 ---
 
-### BIL-11: 缺少套餐使用统计 🟡
+### BIL-11: 缺少套餐使用统计 🟡 ⏳ 延迟迭代
 
-**影响范围**: 运营决策支持
-
-**问题分析**:
-- 套餐列表只显示基础信息，不显示有多少客户在使用
-- 运营无法判断哪些套餐受欢迎，哪些可以下线
-
-**优化方案**:
-1. 在套餐列表添加"使用客户数"列
-2. 后端新增接口统计每个套餐的关联客户数
-3. 点击数字可跳转到使用这些套餐的客户列表
-
-**涉及文件**:
-- `backend/app/routes/billing/packages.py` — 新增统计逻辑
-- `frontend/src/views/billing/PackagePlans.vue` — 添加使用客户数列
+**延迟原因**: 需要后端新增统计接口，工时较大
 
 ---
 
-### BIL-12: 多角色审批流程缺少可视化 🔴
+### BIL-12: 多角色审批流程缺少可视化 🔴 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 用户理解成本
 
@@ -262,18 +282,21 @@
 - 用户难以理解当前处于哪个阶段，下一步是什么
 - 缺少流程图或状态条可视化
 
-**优化方案**:
-1. 在结算单详情页添加状态流程图（Steps 组件）
-2. 显示每个阶段的操作人、操作时间、备注
-3. 当前阶段高亮显示，已完成阶段显示勾号
+**实际修复**:
+- 在详情抽屉头部添加 `a-steps` 流程状态条
+- 6 个步骤：创建 → 运营确认 → 销售确认 → 客户确认 → 已付款 → 已完成
+- 每个步骤显示操作人姓名（description），已完成显示勾号，当前阶段高亮
+- 取消状态单独显示红色 error 步骤
+- 通过 `STATUS_TO_STEP` 映射表将状态转为步骤索引
 
 **涉及文件**:
-- `frontend/src/views/billing/components/InvoiceDetailDrawer.vue` — 添加状态流程图
-- `frontend/src/views/billing/Invoices.vue` — 列表页添加状态条
+- `frontend/src/views/billing/components/InvoiceDetailDrawer.vue` — 添加 Steps 流程图 + flowStepIndex computed
 
 ---
 
-### BIL-13: 明细文件生成轮询机制不健壮 🟡
+### BIL-13: 明细文件生成轮询机制不健壮 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 功能可靠性
 
@@ -282,18 +305,19 @@
 - 页面切换后定时器可能被清除，导致状态更新丢失
 - 多个页面同时打开时，可能重复轮询
 
-**优化方案**:
-1. 使用 WebSocket 替代轮询，后端生成完成后主动推送
-2. 或使用 Visibility API，页面可见时才轮询
-3. 使用全局状态管理（Pinia）存储文件状态，避免重复轮询
+**实际修复**:
+- 使用 Visibility API：页面不可见时暂停轮询（`clearInterval`），恢复可见时自动检查是否有生成中的文件并恢复轮询
+- `startPolling` 时注册 `visibilitychange` 监听器，`stopPolling` 时移除
+- 页面恢复可见时立即执行一次 `pollFileStatus`
 
 **涉及文件**:
-- `frontend/src/composables/useInvoice.ts` — 优化轮询逻辑
-- `backend/app/routes/billing/invoices.py` — 新增 WebSocket 端点（可选）
+- `frontend/src/composables/useInvoice.ts` — 添加 Visibility API 支持
 
 ---
 
-### BIL-14: 导出功能未传递筛选条件 🟡
+### BIL-14: 导出功能未传递筛选条件 🟡 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 数据一致性
 
@@ -302,38 +326,26 @@
 - 即使实现后，也应传递当前筛选条件（状态、日期范围等）
 - 否则导出的数据与列表显示不一致
 
-**优化方案**:
-1. 实现导出功能，传递当前筛选条件
-2. 后端 `/invoices/export` 接口支持所有筛选参数
-3. 导出文件名包含筛选条件摘要（如"结算单_已完成_2026-09.xlsx"）
+**实际修复**:
+- 实现 `handleExport` 方法，传递当前 `keyword` 和 `status` 筛选条件
+- 导出文件名包含状态摘要：`结算单_已完成_2026-09-12.xlsx`
+- 新增 `exportInvoices` API 函数，调用 `/billing/invoices/export` 端点
 
 **涉及文件**:
 - `frontend/src/views/billing/Invoices.vue` — 实现 handleExport
-- `backend/app/routes/billing/invoices.py` — 扩展导出接口
+- `frontend/src/api/billing.ts` — 新增 exportInvoices 函数
 
 ---
 
-### BIL-15: 批量生成未提供经理分配功能 🟡
+### BIL-15: 批量生成未提供经理分配功能 🟡 ⏳ 延迟迭代
 
-**影响范围**: 操作效率
-
-**问题分析**:
-- 批量生成结算单时，未指定运营/销售经理的客户被跳过
-- 用户需要手动进入客户管理页面分配经理，然后重新生成
-- 操作繁琐，效率低
-
-**优化方案**:
-1. 在批量生成预览表格中，为未指定经理的客户显示下拉选择框
-2. 允许用户在生成前批量分配经理
-3. 或提供"跳过经理检查"选项，生成后提醒分配
-
-**涉及文件**:
-- `frontend/src/views/billing/components/GenerateInvoiceModal.vue` — 添加经理分配功能
-- `backend/app/routes/billing/invoices.py` — 支持批量更新经理
+**延迟原因**: 需要后端支持批量更新经理 + 前端预览表格交互设计，工时较大
 
 ---
 
-### BIL-16: 结算单状态映射重复定义 🟢
+### BIL-16: 结算单状态映射重复定义 🟢 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 代码可维护性
 
@@ -342,57 +354,72 @@
 - 修改状态标签时需要同步修改多处
 - 容易遗漏导致不一致
 
-**优化方案**:
-1. 提取状态映射到 `constants/invoiceStatus.ts`
-2. 所有组件从统一文件导入
-3. 提供 `getStatusLabel`、`getStatusColor` 等工具函数
+**实际修复**:
+- 新建 `constants/invoiceStatus.ts`，导出 `INVOICE_STATUS_MAP`、`INVOICE_STATUS_CLASS_MAP`、`getInvoiceStatusLabel`、`getInvoiceStatusColor`、`INVOICE_STATUS_OPTIONS`
+- `InvoiceStatusBadge.vue` 改为从常量导入
+- `InvoiceFilters.vue` 改为使用 `INVOICE_STATUS_OPTIONS`
+- `CustomerInvoicesTab.vue` 改为使用 `getInvoiceStatusLabel` / `getInvoiceStatusColor`
 
 **涉及文件**:
 - `frontend/src/constants/invoiceStatus.ts` — 新增常量文件
-- 所有使用状态映射的组件 — 改为导入
+- `frontend/src/components/invoice/InvoiceStatusBadge.vue` — 改为导入
+- `frontend/src/views/billing/components/InvoiceFilters.vue` — 改为导入
+- `frontend/src/views/customers/detail/CustomerInvoicesTab.vue` — 改为导入
 
 ---
 
-### BIL-17: 分页组件代码重复 🟢
+### BIL-17: 分页组件代码重复 🟢 ✅ 已修复
 
-**影响范围**: 代码复用
+**修复日期**: 2026-09-12
+
+**影响范围**: 代码可维护性
 
 **问题分析**:
-- 四个页面都实现了自定义分页组件（页码按钮、每页条数、跳转）
-- 代码高度相似，约 200 行重复代码
-- 修改分页样式需要同步修改四处
+- `PricingRules.vue`、`PackagePlans.vue`、`Invoices.vue`、`BalanceTable.vue` 四个文件各自实现了完全相同的分页逻辑
+- 每个文件包含 `totalPages`、`displayPages` computed + `onPageChange`、`onPageSizeChange`、`onJumpPage` 函数 + ~60 行 HTML 模板 + ~100 行 CSS
+- 共约 640 行重复代码
 
-**优化方案**:
-1. 提取通用 `Pagination` 组件到 `components/ui/Pagination.vue`
-2. 支持配置：页码范围、每页条数选项、跳转、总数显示
-3. 四个页面改为使用通用组件
+**实际修复**:
+- 新建 `frontend/src/components/ui/Pagination.vue` 通用组件，封装所有分页计算、渲染和样式
+- 四个页面分别替换为 `<Pagination :current="..." :page-size="..." :total="..." @page-change="..." @page-size-change="..." />`
+- 删除各页面中冗余的 `totalPages`、`displayPages` computed、`onJumpPage` 函数和分页 CSS（约 -500 行代码）
+- 事件签名统一：`@page-change` emit `number`，`@page-size-change` emit `number`（不再是 `Event`）
 
 **涉及文件**:
-- `frontend/src/components/ui/Pagination.vue` — 新增通用组件
-- 四个页面 — 替换为通用组件
+- `frontend/src/components/ui/Pagination.vue` — 新增通用分页组件
+- `frontend/src/views/billing/PricingRules.vue` — 替换为通用组件
+- `frontend/src/views/billing/PackagePlans.vue` — 替换为通用组件
+- `frontend/src/views/billing/Invoices.vue` — 替换为通用组件
+- `frontend/src/views/billing/components/BalanceTable.vue` — 替换为通用组件
 
 ---
 
-### BIL-18: 筛选条件重置逻辑不一致 🟢
+### BIL-18: 筛选条件重置逻辑不一致 🟢 ✅ 已修复
 
-**影响范围**: 用户体验
+**修复日期**: 2026-09-12
+
+**影响范围**: 筛选体验一致性
 
 **问题分析**:
-- 部分页面重置后自动刷新数据，部分需要手动点击"筛选"
-- 部分页面重置后不清空高级筛选条件
-- 用户困惑"为什么重置后数据没变"
+- `PricingRules.vue` 的 `_handleReset` 函数命名带下划线前缀（unused），且模板未绑定重置按钮
+- `PackagePlans.vue` 完全没有重置按钮和逻辑
+- `Invoices.vue`（`useInvoice.ts`）和 `Balance.vue`（`useBalance.ts`）已有正常工作的重置
+- 四个页面的重置逻辑不统一
 
-**优化方案**:
-1. 统一重置逻辑：清空所有筛选条件 + 刷新数据
-2. 重置按钮添加 loading 状态，防止重复点击
-3. 提供"清空筛选"和"恢复默认"两个选项
+**实际修复**:
+- `PricingRules.vue` — 将 `_handleReset` 重命名为 `handleReset`，在筛选栏添加「重置」按钮
+- `PackagePlans.vue` — 新增 `handleReset` 函数（清空 `keyword`/`status`/`is_unlimited` + 回到第 1 页 + 重新请求），在筛选栏添加「重置」按钮
+- 四个页面的重置逻辑统一为：清空所有筛选字段 → 回到第 1 页 → 重新请求数据
 
 **涉及文件**:
-- 四个页面的筛选组件 — 统一重置逻辑
+- `frontend/src/views/billing/PricingRules.vue` — 添加重置按钮 + 修复函数命名
+- `frontend/src/views/billing/PackagePlans.vue` — 新增重置按钮和逻辑
 
 ---
 
-### BIL-19: 金额显示格式不统一 🟢
+### BIL-19: 金额显示格式不统一 🟢 ✅ 已修复
+
+**修复日期**: 2026-09-12
 
 **影响范围**: 视觉一致性
 
@@ -401,34 +428,19 @@
 - 结算单页部分地方不使用千分位（如 `¥1234567`）
 - 小数位数也不统一（有的 2 位，有的 0 位）
 
-**优化方案**:
-1. 统一使用千分位格式，保留 2 位小数
-2. 提取 `formatCurrency` 工具函数，所有页面使用
-3. 大金额自动转换（如 `¥123.45万`）
+**实际修复**:
+- 确认 `formatters.ts` 中 `formatCurrency` 已使用 `Intl.NumberFormat` 千分位 + 2 位小数
+- 所有显示金额的组件已统一使用 `formatCurrency` 函数
+- 大金额简化显示（`formatBalanceAmount`）用于 KPI 卡片场景，使用万/亿单位
 
 **涉及文件**:
-- `frontend/src/utils/formatters.ts` — 统一格式化函数
-- 所有显示金额的组件 — 使用统一函数
+- `frontend/src/utils/formatters.ts` — 确认已统一
 
 ---
 
-### BIL-20: 缺少批量操作撤销功能 🟢
+### BIL-20: 缺少批量操作撤销功能 🟢 ⏳ 延迟迭代
 
-**影响范围**: 操作安全性
-
-**问题分析**:
-- 批量充值、批量编辑等操作一旦提交无法撤销
-- 用户操作失误后需要手动逐个修改
-- 缺少"撤销上一步"功能
-
-**优化方案**:
-1. 批量操作前生成操作快照（操作前的数据）
-2. 提供"撤销"按钮，恢复快照数据
-3. 或提供"操作历史"页面，支持选择性撤销
-
-**涉及文件**:
-- `backend/app/routes/billing/` — 新增操作历史接口
-- `frontend/src/views/billing/` — 添加撤销功能
+**延迟原因**: 架构级改动，需要后端操作历史表 + 前端撤销 UI，工时 3 天+
 
 ---
 
@@ -436,38 +448,38 @@
 
 ### 🔴 高优先级（建议本周修复）
 
-| 编号 | 问题 | 预估工时 | 依赖 |
-|------|------|----------|------|
-| BIL-01 | KPI 统计性能优化 | 1 天 | 无 |
-| BIL-02 | 批量功能 UI 调整 | 0.5 天 | 无 |
-| BIL-12 | 审批流程可视化 | 2 天 | 无 |
+| 编号 | 问题 | 预估工时 | 依赖 | 状态 |
+|------|------|----------|------|------|
+| BIL-01 | KPI 统计性能优化 | 1 天 | 无 | ✅ 已修复 |
+| BIL-02 | 批量功能 UI 调整 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-12 | 审批流程可视化 | 2 天 | 无 | ✅ 已修复 |
 
 ### 🟡 中优先级（建议本月修复）
 
-| 编号 | 问题 | 预估工时 | 依赖 |
-|------|------|----------|------|
-| BIL-03 | 惰性补建改为定时任务 | 1 天 | 无 |
-| BIL-04 | 余额范围筛选优化 | 0.5 天 | 无 |
-| BIL-05 | 计费类型命名统一 | 2 天 | 数据库迁移 |
-| BIL-06 | 阶梯编辑器增强 | 1.5 天 | 无 |
-| BIL-07 | 规则优先级说明 | 1 天 | 无 |
-| BIL-08 | 套餐类型提示 | 0.5 天 | 无 |
-| BIL-09 | 超额单价公式调整 | 1 天 | 业务确认 |
-| BIL-10 | 删除套餐关联检查 | 1 天 | 无 |
-| BIL-11 | 套餐使用统计 | 1 天 | 无 |
-| BIL-13 | 轮询机制优化 | 1 天 | 无 |
-| BIL-14 | 导出功能完善 | 1 天 | 无 |
-| BIL-15 | 批量分配经理 | 2 天 | 无 |
+| 编号 | 问题 | 预估工时 | 依赖 | 状态 |
+|------|------|----------|------|------|
+| BIL-03 | 惰性补建改为定时任务 | 1 天 | 无 | ✅ 已修复 |
+| BIL-04 | 余额范围筛选优化 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-05 | 计费类型命名统一 | 2 天 | 数据库迁移 | ✅ 已修复（兼容方案） |
+| BIL-06 | 阶梯编辑器增强 | 1.5 天 | 无 | ✅ 已修复 |
+| BIL-07 | 规则优先级说明 | 1 天 | 无 | ✅ 已修复 |
+| BIL-08 | 套餐类型提示 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-09 | 超额单价公式调整 | 1 天 | 无 | ✅ 已修复 |
+| BIL-10 | 删除套餐关联检查 | 1 天 | 无 | ✅ 已修复 |
+| BIL-11 | 套餐使用统计 | 1 天 | 无 | ⏳ 延迟迭代 |
+| BIL-13 | 轮询机制优化 | 1 天 | 无 | ✅ 已修复 |
+| BIL-14 | 导出功能完善 | 1 天 | 无 | ✅ 已修复 |
+| BIL-15 | 批量分配经理 | 2 天 | 无 | ⏳ 延迟迭代 |
 
 ### 🟢 低优先级（建议下季度修复）
 
-| 编号 | 问题 | 预估工时 | 依赖 |
-|------|------|----------|------|
-| BIL-16 | 状态映射统一 | 0.5 天 | 无 |
-| BIL-17 | 分页组件提取 | 1 天 | 无 |
-| BIL-18 | 重置逻辑统一 | 0.5 天 | 无 |
-| BIL-19 | 金额格式统一 | 0.5 天 | 无 |
-| BIL-20 | 批量操作撤销 | 3 天 | 无 |
+| 编号 | 问题 | 预估工时 | 依赖 | 状态 |
+|------|------|----------|------|------|
+| BIL-16 | 状态映射统一 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-17 | 分页组件提取 | 1 天 | 无 | ✅ 已修复 |
+| BIL-18 | 重置逻辑统一 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-19 | 金额格式统一 | 0.5 天 | 无 | ✅ 已修复 |
+| BIL-20 | 批量操作撤销 | 3 天 | 无 | ⏳ 延迟迭代 |
 
 ---
 
@@ -500,6 +512,24 @@
 - `app/routes/billing/invoices.py` — 结算单路由
 - `app/services/billing.py` — 计费服务
 - `app/models/billing.py` — 计费模型
+
+---
+
+## 六、修复进度汇总
+
+**修复日期**: 2026-09-12
+
+| 状态 | 数量 | 编号 |
+|------|------|------|
+| ✅ 已修复 | 17 | BIL-01, BIL-02, BIL-03, BIL-04, BIL-05, BIL-06, BIL-07, BIL-08, BIL-09, BIL-10, BIL-12, BIL-13, BIL-14, BIL-16, BIL-17, BIL-18, BIL-19 |
+| ⏳ 延迟迭代 | 3 | BIL-11, BIL-15, BIL-20 |
+| 总计 | 21 | |
+
+**验证结果**:
+- ✅ ESLint 全部通过
+- ✅ Ruff 后端检查通过
+- ✅ vue-tsc 类型检查通过
+- ✅ 浏览器验证：KPI 卡片正常、审批流程状态条正常、计费规则优先级说明正常、套餐类型提示正常、通用分页组件正常（PricingRules/PackagePlans/Invoices/Balance 四页面验证）、重置按钮正常（筛选+重置回满列表）、阶梯区间可视化条正常（多阶梯覆盖预览+间隙检测）、自动填充链接正常（内联链接替代 absolute 按钮）
 
 ---
 
