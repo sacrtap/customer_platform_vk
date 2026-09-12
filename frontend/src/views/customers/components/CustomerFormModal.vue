@@ -268,7 +268,7 @@ const handleCustomerSubmit = async () => {
       name: customerForm.name,
       email: customerForm.email || undefined,
       account_type: customerForm.account_type || undefined,
-      industry_type_id: customerForm.industry_type_id,
+      industry_type_id: customerForm.industry_type_id ?? undefined,
       settlement_type: customerForm.settlement_type || undefined,
       settlement_cycle: customerForm.settlement_cycle || undefined,
       is_key_customer: customerForm.is_key_customer,
