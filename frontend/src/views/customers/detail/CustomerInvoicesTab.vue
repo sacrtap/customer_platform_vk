@@ -34,6 +34,7 @@ import type { Invoice } from '@/api/billing'
 import { reactive, watch } from 'vue'
 import { formatCurrency } from '@/utils/formatters'
 import EmptyState from '@/components/EmptyState.vue'
+import { getInvoiceStatusLabel, getInvoiceStatusColor } from '@/constants/invoiceStatus'
 
 const props = defineProps<{
   invoices: Invoice[]
@@ -71,33 +72,8 @@ const onPageSizeChange = (size: number) => {
   pagination.current = 1
 }
 
-const getStatusTagClass = (status: string) => {
-  const statusMap: Record<string, string> = {
-    draft: 'gray',
-    pending_ops: 'amber',
-    pending_sales: 'amber',
-    pending_customer: 'orange',
-    customer_confirmed: 'blue',
-    paid: 'green',
-    completed: 'green',
-    cancelled: 'red',
-  }
-  return statusMap[status] || 'gray'
-}
-
-const getStatusText = (status: string) => {
-  const statusMap: Record<string, string> = {
-    draft: '草稿',
-    pending_ops: '待运营经理确认',
-    pending_sales: '待销售经理确认',
-    pending_customer: '待客户确认',
-    customer_confirmed: '客户已确认',
-    paid: '已付款',
-    completed: '已完成',
-    cancelled: '已取消',
-  }
-  return statusMap[status] || status
-}
+const getStatusTagClass = getInvoiceStatusColor
+const getStatusText = getInvoiceStatusLabel
 
 const invoiceColumns = [
   { title: '结算单号', dataIndex: 'invoice_no' },

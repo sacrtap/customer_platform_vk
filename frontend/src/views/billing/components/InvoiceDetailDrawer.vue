@@ -16,6 +16,23 @@
           </div>
         </div>
 
+        <!-- 审批流程状态条 -->
+        <div v-if="invoice.status !== 'cancelled'" class="flow-steps">
+          <a-steps :current="flowStepIndex" size="small">
+            <a-step title="创建" :description="invoice.created_by_name || undefined" />
+            <a-step title="运营确认" :description="invoice.ops_confirmed_name || undefined" />
+            <a-step title="销售确认" :description="invoice.sales_confirmed_name || undefined" />
+            <a-step title="客户确认" :description="invoice.customer_confirmed_name || undefined" />
+            <a-step title="已付款" />
+            <a-step title="已完成" />
+          </a-steps>
+        </div>
+        <div v-else class="flow-steps flow-cancelled">
+          <a-steps :current="0" size="small" status="error">
+            <a-step title="已取消" :description="invoice.cancelled_name || undefined" />
+          </a-steps>
+        </div>
+
         <a-descriptions :column="2" bordered size="small" class="detail-info">
           <a-descriptions-item label="客户名称">
             <a-link @click="emit('go-customer', invoice.customer_id)">{{
@@ -298,6 +315,21 @@ const salesDisabledTip = computed(() => {
   return '您不是该客户指定的销售经理，无法确认'
 })
 
+// ===== 审批流程状态条 =====
+const STATUS_TO_STEP: Record<string, number> = {
+  draft: 0,
+  pending_ops: 1,
+  pending_sales: 2,
+  pending_customer: 3,
+  customer_confirmed: 4,
+  paid: 4,
+  completed: 5,
+}
+const flowStepIndex = computed(() => {
+  if (!props.invoice) return 0
+  return STATUS_TO_STEP[props.invoice.status] ?? 0
+})
+
 // ===== 明细文件下载/重试 =====
 const handleDownload = async () => {
   if (!props.invoice) return
@@ -328,6 +360,16 @@ const handleRegenerate = async () => {
 </script>
 
 <style scoped>
+.flow-steps {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px 6px;
+}
+.flow-cancelled {
+  padding: 16px 20px;
+}
+
 .drawer-content {
   display: flex;
   flex-direction: column;

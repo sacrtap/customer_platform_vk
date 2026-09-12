@@ -481,6 +481,16 @@ export function getRecentInvoices(limit: number = 10) {
   return getInvoices({ page: 1, page_size: limit })
 }
 
+// 导出结算单（传递筛选条件，与后端 /billing/invoices/export 端点参数对齐）
+export function exportInvoices(params?: {
+  customer_id?: number
+  status?: string
+  start_date?: string
+  end_date?: string
+}) {
+  return api.get('/billing/invoices/export', { params, responseType: 'blob' })
+}
+
 // ==================== 余额趋势 ====================
 
 export interface BalanceTrendItem {

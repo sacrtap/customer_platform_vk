@@ -131,11 +131,11 @@
               <button
                 v-if="idx > 0"
                 type="button"
-                class="tier-auto-btn"
+                class="tier-auto-link"
                 title="自动填充为上一阶梯最大值+1"
                 @click="autoFillMin(idx)"
               >
-                自动
+                ↻ 接续上一阶梯
               </button>
             </div>
             <div class="tier-field">
@@ -169,7 +169,37 @@
               ✕
             </button>
           </div>
-          <div v-if="getTierError(idx)" class="tier-error">{{ getTierError(idx) }}</div>
+          <div v-if="getTierError(idx)" class="tier-error">
+            <span class="tier-error-icon">⚠</span>
+            {{ getTierError(idx) }}
+          </div>
+        </div>
+
+        <!-- 阶梯区间可视化 -->
+        <div v-if="formData.tiers.length > 0" class="tier-coverage-bar">
+          <div class="coverage-label">区间覆盖预览</div>
+          <div class="coverage-track">
+            <div
+              v-for="(tier, idx) in formData.tiers"
+              :key="idx"
+              class="coverage-segment"
+              :class="{
+                'has-gap': getTierError(idx),
+                'is-unlimited': tier.unlimited,
+              }"
+              :title="coverageLabel(tier, idx)"
+            >
+              <span class="coverage-range">{{
+                tier.unlimited ? `${tier.min}+` : `${tier.min}~${tier.max ?? '?'}`
+              }}</span>
+              <span class="coverage-price">¥{{ tier.price ?? '-' }}</span>
+            </div>
+          </div>
+          <div v-if="coverageGaps.length > 0" class="coverage-warnings">
+            <span v-for="gap in coverageGaps" :key="gap" class="coverage-warning-item">
+              ⚠ {{ gap }}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -473,8 +503,30 @@ const getTierError = (idx: number): string => {
     return '最小用量与最大用量不能一致'
   if (!tier.unlimited && tier.max != null && tier.max < tier.min) return '最大用量必须大于最小用量'
   if (tier.unlimited && idx < formData.tiers.length - 1) return '只有最后一阶梯可设为「不限」'
+  if (tier.price == null || tier.price < 0) return '请填写有效的单价'
   return ''
 }
+
+// 阶梯区间覆盖标签
+const coverageLabel = (tier: Tier, idx: number): string => {
+  const range = tier.unlimited ? `${tier.min}+` : `${tier.min} ~ ${tier.max ?? '?'}`
+  return `阶梯${idx + 1}: ${range} → ¥${tier.price}`
+}
+
+// 检测阶梯间隙
+const coverageGaps = computed((): string[] => {
+  const gaps: string[] = []
+  for (let i = 0; i < formData.tiers.length - 1; i++) {
+    const cur = formData.tiers[i]
+    const next = formData.tiers[i + 1]
+    if (cur.unlimited) continue
+    if (cur.max == null || next.min == null) continue
+    if (next.min > cur.max + 1) {
+      gaps.push(`阶梯${i + 1}与阶梯${i + 2}之间有未覆盖区间: ${cur.max + 1} ~ ${next.min - 1}`)
+    }
+  }
+  return gaps
+})
 
 const onPricingTypeChange = (val: 'fixed' | 'tiered' | 'package') => {
   formData.tiers = []
@@ -678,22 +730,21 @@ const handleSubmit = async () => {
   margin-bottom: 4px;
 }
 
-.tier-auto-btn {
-  position: absolute;
-  right: -32px;
-  bottom: 0;
+.tier-auto-link {
+  display: inline-block;
   font-size: 11px;
-  padding: 2px 6px;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  color: #64748b;
+  color: #3b82f6;
   cursor: pointer;
+  margin-top: 2px;
   white-space: nowrap;
+  text-decoration: none;
+  border: none;
+  background: none;
+  padding: 0;
 }
 
-.tier-auto-btn:hover {
-  background: #e2e8f0;
+.tier-auto-link:hover {
+  text-decoration: underline;
 }
 
 .tier-price-field {
@@ -719,6 +770,79 @@ const handleSubmit = async () => {
   color: #ef4444;
   font-size: 12px;
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tier-error-icon {
+  font-size: 14px;
+}
+
+/* 阶梯区间可视化 */
+.tier-coverage-bar {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.coverage-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.coverage-track {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.coverage-segment {
+  flex: 1;
+  min-width: 80px;
+  background: #e0f2fe;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.coverage-segment.has-gap {
+  background: #fef3c7;
+  border-color: #fbbf24;
+}
+
+.coverage-segment.is-unlimited {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+.coverage-range {
+  display: block;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.coverage-price {
+  display: block;
+  font-size: 12px;
+  color: #1e40af;
+  margin-top: 2px;
+}
+
+.coverage-warnings {
+  margin-top: 8px;
+}
+
+.coverage-warning-item {
+  display: block;
+  font-size: 12px;
+  color: #d97706;
+  margin-top: 2px;
 }
 
 .btn {

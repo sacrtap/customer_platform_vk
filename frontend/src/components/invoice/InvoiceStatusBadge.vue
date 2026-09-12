@@ -7,24 +7,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { INVOICE_STATUS_MAP, INVOICE_STATUS_CLASS_MAP } from '@/constants/invoiceStatus'
 
 const props = defineProps<{
   status: string
 }>()
 
-const statusMap: Record<string, { text: string; cls: string }> = {
-  draft: { text: '草稿', cls: 'gray' },
-  pending_ops: { text: '待运营经理确认', cls: 'amber' },
-  pending_sales: { text: '待销售经理确认', cls: 'amber' },
-  pending_customer: { text: '待客户确认', cls: 'orange' },
-  customer_confirmed: { text: '客户已确认', cls: 'blue' },
-  paid: { text: '已付款', cls: 'green' },
-  completed: { text: '已完成', cls: 'green' },
-  cancelled: { text: '已取消', cls: 'red' },
-}
-
 const statusConfig = computed(() => {
-  return statusMap[props.status] || { text: props.status, cls: 'gray' }
+  return {
+    text: INVOICE_STATUS_MAP[props.status] || props.status,
+    cls: INVOICE_STATUS_CLASS_MAP[props.status] || 'gray',
+  }
 })
 </script>
 

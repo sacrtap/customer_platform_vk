@@ -300,29 +300,40 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.total_balance).toBe(999999.99)
   })
 
-  it('loadStats 使用 getBalances 获取 total_customers（与列表一致）', async () => {
-    // getBalances 返回 total=42
-    mockGetBalances.mockImplementation((params: Record<string, unknown>) => {
-      // 基础参数调用（无 balance_min/max）返回 42
-      if (params.balance_min === undefined && params.balance_max === undefined) {
-        return Promise.resolve({ data: { list: [], total: 42 } })
-      }
-      return Promise.resolve({ data: { list: [], total: 0 } })
+  it('loadStats 使用 getBalanceStats 获取 total_customers', async () => {
+    mockGetBalanceStats.mockResolvedValue({
+      data: {
+        total_balance: 0,
+        total_customers: 42,
+        this_month_count: 0,
+        this_month_amount: 0,
+        this_month_real_amount: 0,
+        this_month_bonus_amount: 0,
+        low_balance_count: 0,
+        zero_balance_count: 0,
+      },
     })
 
     const { stats, loadStats } = useBalance()
     await loadStats()
 
     expect(stats.total_customers).toBe(42)
+    expect(mockGetBalanceStats).toHaveBeenCalledTimes(1)
+    expect(mockGetBalances).not.toHaveBeenCalled()
   })
 
-  it('loadStats 使用 getBalances 获取 low_balance_count（与列表一致）', async () => {
-    mockGetBalances.mockImplementation((params: Record<string, unknown>) => {
-      // low 不含 balance_min（包含负余额），只有 balance_max
-      if (params.balance_min === undefined && params.balance_max === 9999.99) {
-        return Promise.resolve({ data: { list: [], total: 8 } })
-      }
-      return Promise.resolve({ data: { list: [], total: 0 } })
+  it('loadStats 使用 getBalanceStats 获取 low_balance_count', async () => {
+    mockGetBalanceStats.mockResolvedValue({
+      data: {
+        total_balance: 0,
+        total_customers: 0,
+        this_month_count: 0,
+        this_month_amount: 0,
+        this_month_real_amount: 0,
+        this_month_bonus_amount: 0,
+        low_balance_count: 8,
+        zero_balance_count: 0,
+      },
     })
 
     const { stats, loadStats } = useBalance()
@@ -331,12 +342,18 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.low_balance_count).toBe(8)
   })
 
-  it('loadStats 使用 getBalances 获取 zero_balance_count（与列表一致）', async () => {
-    mockGetBalances.mockImplementation((params: Record<string, unknown>) => {
-      if (params.balance_min === 0 && params.balance_max === 0) {
-        return Promise.resolve({ data: { list: [], total: 3 } })
-      }
-      return Promise.resolve({ data: { list: [], total: 0 } })
+  it('loadStats 使用 getBalanceStats 获取 zero_balance_count', async () => {
+    mockGetBalanceStats.mockResolvedValue({
+      data: {
+        total_balance: 0,
+        total_customers: 0,
+        this_month_count: 0,
+        this_month_amount: 0,
+        this_month_real_amount: 0,
+        this_month_bonus_amount: 0,
+        low_balance_count: 0,
+        zero_balance_count: 3,
+      },
     })
 
     const { stats, loadStats } = useBalance()
@@ -345,24 +362,22 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.zero_balance_count).toBe(3)
   })
 
-  it('loadStats 不再使用 getBalances 获取本月充值数据', async () => {
+  it('loadStats 不再调用 getBalances', async () => {
     const { loadStats } = useBalance()
     await loadStats()
 
-    // 检查所有 getBalances 调用，不应有 recharge_date_from/recharge_date_to 参数
-    for (const call of mockGetBalances.mock.calls) {
-      const params = call[0] as Record<string, unknown>
-      expect(params.recharge_date_from).toBeUndefined()
-      expect(params.recharge_date_to).toBeUndefined()
-    }
+    // loadStats 重构后仅调用 getBalanceStats，不再调用 getBalances
+    expect(mockGetBalanceStats).toHaveBeenCalledTimes(1)
+    expect(mockGetBalances).not.toHaveBeenCalled()
   })
 
-  it('loadStats 只发起 3 次 getBalances 请求（总客户/余额不足/零余额）', async () => {
+  it('loadStats 仅发起 1 次 getBalanceStats 请求（不再调用 getBalances）', async () => {
     const { loadStats } = useBalance()
     await loadStats()
 
-    // 之前是 4 次（含本月充值），修复后应为 3 次
-    expect(mockGetBalances).toHaveBeenCalledTimes(3)
+    // 重构后从多次 getBalances 改为单次 getBalanceStats 聚合请求
+    expect(mockGetBalanceStats).toHaveBeenCalledTimes(1)
+    expect(mockGetBalances).not.toHaveBeenCalled()
   })
 
   it('loadStats 传递 industry 和 account_type 给 getBalanceStats', async () => {
@@ -387,20 +402,5 @@ describe('useBalance - KPI 统计计算', () => {
     // 不应抛出异常，stats 保持默认值
     expect(stats.total_balance).toBe(0)
     expect(stats.this_month_count).toBe(0)
-  })
-
-  it('lowParams 使用 balance_max=9999.99 且不含 balance_min（含负余额）', async () => {
-    const { loadStats } = useBalance()
-    await loadStats()
-
-    // 找到 lowParams 调用：不含 balance_min，有 balance_max
-    const lowCall = mockGetBalances.mock.calls.find((call) => {
-      const params = call[0] as Record<string, unknown>
-      return params.balance_min === undefined && params.balance_max === 9999.99
-    })
-    expect(lowCall).toBeTruthy()
-    const params = lowCall![0] as Record<string, unknown>
-    expect(params.balance_max).toBe(9999.99)
-    expect(params.balance_min).toBeUndefined()
   })
 })

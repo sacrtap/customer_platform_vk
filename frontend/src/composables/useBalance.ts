@@ -35,8 +35,9 @@ export interface SortState {
 
 // 余额范围预设
 // 注意：max 值使用 9999.99/99999.99/999999.99 避免与下一档 min 边界重叠
-// 'low' 的 min=null 包含负余额（欠费）和零余额，与 KPI 统计逻辑一致
+// 'debt' 单独标识欠费客户（负余额），'low' 为低余额（0-1万，不含负数）
 export const BALANCE_RANGE_OPTIONS = [
+  { label: '欠费', value: 'debt', min: null as number | null, max: -0.01 },
   { label: '零余额', value: 'zero', min: 0, max: 0 },
   { label: '1万以下', value: 'low', min: null as number | null, max: 9999.99 },
   { label: '1万-10万', value: 'mid', min: 10000, max: 99999.99 },
@@ -151,32 +152,7 @@ export function useBalance() {
     }
   }
 
-  // 构建 KPI 统计基础参数（与列表筛选条件保持一致）
-  // 包含所有基础筛选条件（keyword, industry, account_type, is_key_customer 等），
-  // 但不包含 KPI 专属筛选（balance_range, recharge_date），
-  // 确保 KPI 卡片数字与列表筛选结果在基础维度上保持一致。
-  const buildKpiBaseParams = (): Record<string, unknown> => {
-    const params: Record<string, unknown> = {
-      page: 1,
-      page_size: 1,
-    }
-    if (filters.keyword) params.keyword = filters.keyword
-    if (filters.industry?.length) params.industry = filters.industry.join(',')
-    if (filters.account_type) params.account_type = filters.account_type
-    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
-      params.is_key_customer = filters.is_key_customer
-    }
-    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
-      params.is_real_estate = filters.is_real_estate
-    }
-    if (filters.settlement_type) params.settlement_type = filters.settlement_type
-    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
-    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
-    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
-    return params
-  }
-
-  // 构建 getBalanceStats 的筛选参数（与 buildKpiBaseParams 保持一致）
+  // 构建 getBalanceStats 的筛选参数（与列表筛选条件保持一致）
   const buildStatsParams = (): Record<string, unknown> => {
     const params: Record<string, unknown> = {}
     if (filters.keyword) params.keyword = filters.keyword
@@ -195,55 +171,22 @@ export function useBalance() {
     return params
   }
 
-  // 加载 KPI 统计
-  // 使用与列表相同的 getBalances API，通过不同筛选条件获取 total 计数
-  // 确保 KPI 卡片数字与点击后列表筛选结果完全一致
-  // 注意：总余额、本月充值金额/笔数使用后端 balance-stats 聚合接口
+  // 加载 KPI 统计 — 单次请求获取所有 KPI 数据
+  // 后端 balance-stats 接口已聚合返回全部指标（总余额、客户数、本月充值、低余额、零余额、即将耗尽）
+  // 无需额外发起多次 getBalances 请求
   const loadStats = async () => {
     try {
-      const baseParams = buildKpiBaseParams()
-
-      // 构建各 KPI 的筛选参数（与点击 KPI 卡片后列表筛选条件完全一致）
-      // 余额不足：total_amount < 10000（含欠费/负余额客户）
-      const lowParams = { ...baseParams, balance_max: 9999.99 }
-      // 零余额：total_amount = 0（与 BALANCE_RANGE_OPTIONS 的 'zero' 一致）
-      const zeroParams = { ...baseParams, balance_min: 0, balance_max: 0 }
-
-      const results = await Promise.allSettled([
-        getBalances(baseParams), // 总客户数
-        getBalances(lowParams), // 余额不足
-        getBalances(zeroParams), // 零余额
-      ])
-
-      // 总客户数
-      if (results[0].status === 'fulfilled') {
-        stats.total_customers = results[0].value.data?.total ?? 0
-      }
-      // 余额不足客户数
-      if (results[1].status === 'fulfilled') {
-        stats.low_balance_count = results[1].value.data?.total ?? 0
-      }
-      // 零余额客户数
-      if (results[2].status === 'fulfilled') {
-        stats.zero_balance_count = results[2].value.data?.total ?? 0
-      }
-
-      // 总余额、本月充值金额/笔数：使用后端 balance-stats 接口的 SQL 聚合查询
-      // 不受分页限制，确保金额计算准确
-      // this_month_count 为实际充值交易笔数（非客户数），与卡片 "X 笔" 含义一致
-      // 传入所有基础筛选条件，与列表筛选保持一致
-      try {
-        const statsRes = await getBalanceStats(buildStatsParams())
-        if (statsRes.data) {
-          stats.total_balance = statsRes.data.total_balance
-          stats.this_month_amount = statsRes.data.this_month_amount
-          stats.this_month_count = statsRes.data.this_month_count
-          stats.this_month_real_amount = statsRes.data.this_month_real_amount
-          stats.this_month_bonus_amount = statsRes.data.this_month_bonus_amount
-          stats.burning_soon_count = statsRes.data.burning_soon_count ?? 0
-        }
-      } catch {
-        // 静默失败
+      const statsRes = await getBalanceStats(buildStatsParams())
+      if (statsRes.data) {
+        stats.total_balance = statsRes.data.total_balance
+        stats.total_customers = statsRes.data.total_customers
+        stats.this_month_amount = statsRes.data.this_month_amount
+        stats.this_month_count = statsRes.data.this_month_count
+        stats.this_month_real_amount = statsRes.data.this_month_real_amount
+        stats.this_month_bonus_amount = statsRes.data.this_month_bonus_amount
+        stats.low_balance_count = statsRes.data.low_balance_count ?? 0
+        stats.zero_balance_count = statsRes.data.zero_balance_count ?? 0
+        stats.burning_soon_count = statsRes.data.burning_soon_count ?? 0
       }
     } catch {
       // 静默失败，不影响列表

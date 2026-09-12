@@ -5,7 +5,9 @@
         >已选择 <b>{{ selectedCount }}</b> 项</span
       >
       <button class="btn" @click="emit('batchAction', 'recharge')">批量充值</button>
-      <button class="btn" @click="emit('batchAction', 'export')">批量导出</button>
+      <button class="btn" disabled title="即将上线">
+        批量导出 <span class="soon-badge">即将上线</span>
+      </button>
       <button class="btn" @click="emit('clear')">取消选择</button>
     </div>
   </transition>
@@ -61,6 +63,21 @@ const emit = defineEmits<{
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.soon-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #f59e0b;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 4px;
 }
 
 .slide-down-enter-active,

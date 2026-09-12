@@ -97,6 +97,25 @@ export function useInvoice() {
   const startPolling = () => {
     if (pollTimer) return
     pollTimer = setInterval(pollFileStatus, POLL_INTERVAL)
+    // 使用 Visibility API：页面不可见时暂停轮询，可见时恢复
+    document.addEventListener('visibilitychange', onVisibilityChange)
+  }
+
+  /** 页面可见性变化处理 */
+  const onVisibilityChange = () => {
+    if (document.hidden && pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    } else if (!document.hidden && !pollTimer) {
+      // 页面恢复可见时，检查是否还有生成中的文件
+      const hasGenerating =
+        invoices.value.some((inv) => inv.detail_file_status === 'generating') ||
+        currentDetail.value?.detail_file_status === 'generating'
+      if (hasGenerating) {
+        pollTimer = setInterval(pollFileStatus, POLL_INTERVAL)
+        pollFileStatus() // 立即执行一次
+      }
+    }
   }
 
   /** 停止轮询 */
@@ -105,6 +124,7 @@ export function useInvoice() {
       clearInterval(pollTimer)
       pollTimer = null
     }
+    document.removeEventListener('visibilitychange', onVisibilityChange)
   }
 
   // 组件卸载时清理定时器
