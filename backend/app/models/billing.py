@@ -273,8 +273,7 @@ class PackagePlan(BaseModel):
     over_limit_unit_price = Column(
         DECIMAL(10, 2),
         nullable=True,
-        comment="超额单价（限量套餐超出 limit_count 后的每单位用量价格，"
-        "默认为 base_fee / limit_count）",
+        comment="超额单价: NULL=自动计算(base_fee/limit_count), 非NULL=自定义价格",
     )
     description = Column(Text, nullable=True, comment="套餐描述")
     status = Column(
