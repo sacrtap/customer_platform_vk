@@ -1232,6 +1232,120 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert total_amount == Decimal("300")  # 3 × (5000/50) = 300
 
     @pytest.mark.asyncio
+    async def test_calculate_items_package_rule_over_limit(self, invoice_service, mock_db_session):
+        """测试结算明细计算 - 限量套餐超额场景（双重计费修复验证）
+
+        base_fee=10000, limit_count=100, over_limit_unit_price=100
+        total_quantity=120 (超出 20)
+        → in_package_quantity = min(120, 100) = 100
+        → usage_cost = 100 × (10000/100) = 100 × 100 = 10000
+        → over_limit_quantity = 120 - 100 = 20
+        → over_limit_cost = 20 × 100 = 2000
+        → subtotal = 10000 + 2000 = 12000
+
+        修复前（bug）：usage_cost = 120 × 100 = 12000，subtotal = 12000 + 2000 = 14000（多收 2000）
+        """
+        usage_row = MagicMock()
+        usage_row.device_type = "X"
+        usage_row.layer_type = "single"
+        usage_row.total_quantity = 120
+        usage_row.total_floor_count = 120
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.device_type = None
+        mock_package.layer_type = None
+        mock_package.pricing_type = "package"
+        mock_package.package_type = "A"
+        mock_package.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+            "over_limit_unit_price": 100,
+        }
+        mock_package.unit_price = None
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_package]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
+        )
+
+        assert len(items) == 1
+        item = items[0]
+        assert item["pricing_rule_id"] == 9
+        assert item["package_type"] == "limited"
+        assert item["in_package_quantity"] == 100
+        assert item["over_limit_quantity"] == 20
+        assert item["usage_cost"] == Decimal("10000")
+        assert item["over_limit_cost"] == Decimal("2000")
+        assert item["subtotal"] == Decimal("12000")
+        assert total_amount == Decimal("12000")
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_package_null_over_limit_price(
+        self, invoice_service, mock_db_session
+    ):
+        """测试结算明细计算 - 超额单价为 NULL 时自动按 base_fee/limit_count 计算
+
+        base_fee=10000, limit_count=100, over_limit_unit_price=None (自动)
+        total_quantity=120 (超出 20)
+        → over_limit_unit_price = 10000/100 = 100 (自动计算)
+        → in_package_quantity = min(120, 100) = 100
+        → usage_cost = 100 × 100 = 10000
+        → over_limit_cost = 20 × 100 = 2000
+        → subtotal = 10000 + 2000 = 12000
+        """
+        usage_row = MagicMock()
+        usage_row.device_type = "X"
+        usage_row.layer_type = "single"
+        usage_row.total_quantity = 120
+        usage_row.total_floor_count = 120
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_package = MagicMock(spec=PricingRule)
+        mock_package.id = 9
+        mock_package.device_type = None
+        mock_package.layer_type = None
+        mock_package.pricing_type = "package"
+        mock_package.package_type = "A"
+        mock_package.package_limits = {
+            "base_fee": 10000,
+            "is_unlimited": False,
+            "limit_count": 100,
+            "over_limit_unit_price": None,  # NULL = 自动计算
+        }
+        mock_package.unit_price = None
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_package]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
+        )
+
+        assert len(items) == 1
+        item = items[0]
+        assert item["over_limit_unit_price"] == Decimal("100")  # 自动计算 = base_fee/limit_count
+        assert item["over_limit_cost"] == Decimal("2000")
+        assert item["subtotal"] == Decimal("12000")
+        assert total_amount == Decimal("12000")
+
+    @pytest.mark.asyncio
     async def test_generate_invoice_uses_subtotal(self, invoice_service, mock_db_session):
         """测试生成结算单 - 使用 subtotal 字段计算总金额"""
         items = [
