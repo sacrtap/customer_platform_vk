@@ -139,7 +139,7 @@ async def create_package_plan(request: Request):
         "is_unlimited": false,
         "limit_count": 10000,      // is_unlimited=false 时必填
         "base_fee": 50000.00,
-        "over_limit_unit_price": 5.00,  // 限量套餐超额单价（可选，默认 base_fee/limit_count）
+        "over_limit_unit_price": 5.00,  // 限量套餐超额单价（可选，不填则自动按 base_fee/limit_count 计算）
         "description": "...",      // 可选
         "status": "active"         // 可选，默认 active
     }
@@ -190,7 +190,7 @@ async def create_package_plan(request: Request):
         except (ValueError, TypeError):
             return json({"code": 40001, "message": "限量数量格式错误"}, status=400)
 
-        # 超额单价：可选，默认 base_fee / limit_count
+        # 超额单价：可选，不填则存 NULL（结算时自动按 base_fee / limit_count 计算）
         over_limit_unit_price_raw = data.get("over_limit_unit_price")
         if over_limit_unit_price_raw is not None:
             try:
@@ -203,8 +203,8 @@ async def create_package_plan(request: Request):
             except (ValueError, TypeError):
                 return json({"code": 40001, "message": "超额单价格式错误"}, status=400)
         else:
-            # 默认：base_fee / limit_count
-            over_limit_unit_price = (base_fee / Decimal(limit_count)).quantize(Decimal("0.01"))
+            # 不填则存 NULL，结算时动态计算 base_fee / limit_count
+            over_limit_unit_price = None
     else:
         # 不限量时清空 limit_count 和 over_limit_unit_price
         limit_count = None
@@ -364,13 +364,6 @@ async def update_package_plan(request: Request, plan_id: int):
         except (ValueError, TypeError):
             return json({"code": 40001, "message": "限量数量格式错误"}, status=400)
 
-        # 如果 over_limit_unit_price 未单独传值，且 base_fee 已知，重新计算默认超额单价
-        if "over_limit_unit_price" not in data and plan.base_fee:
-            default_over = (Decimal(str(plan.base_fee)) / Decimal(limit_count)).quantize(
-                Decimal("0.01")
-            )
-            plan.over_limit_unit_price = default_over  # pyright: ignore[reportAttributeAccessIssue]
-
     # 唯一性校验：package_type（如果修改了）
     if "package_type" in data:
         new_type = data["package_type"].strip()
@@ -430,9 +423,9 @@ async def delete_package_plan(request: Request, plan_id: int):
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
 
-    from sqlalchemy import select
+    from sqlalchemy import func, select
 
-    from ...models.billing import PackagePlan
+    from ...models.billing import PackagePlan, PricingRule
 
     result = await db.execute(
         select(PackagePlan).where(PackagePlan.id == plan_id, PackagePlan.deleted_at.is_(None))
@@ -442,9 +435,27 @@ async def delete_package_plan(request: Request, plan_id: int):
     if not plan:
         return json({"code": 40401, "message": "套餐不存在"}, status=404)
 
-    before_data = _package_plan_to_dict(plan)
+    # 检查是否有关联的计费规则
+    related_rules_count = (
+        await db.execute(
+            select(func.count(PricingRule.id)).where(
+                PricingRule.package_type == plan.package_type,
+                PricingRule.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
 
-    from sqlalchemy import func
+    if related_rules_count > 0:
+        return json(
+            {
+                "code": 40900,
+                "message": f"该套餐被 {related_rules_count} 条计费规则引用，删除后这些规则将失效。请先处理关联规则。",
+                "data": {"related_rules_count": related_rules_count},
+            },
+            status=409,
+        )
+
+    before_data = _package_plan_to_dict(plan)
 
     plan.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
     await db.commit()
