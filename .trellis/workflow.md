@@ -601,8 +601,6 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 **Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
 
-**Reviewed-validation preamble**: before drafting commits, ensure the final change set has a reviewed validation record — the mapped affected checks, their exact commands, observed results, and reviewed status (produced by `trellis-check` Step 3). Without it, acceptance rests on an assistant handoff, not auditable evidence. Either include the record in the final commit message (e.g. `验证: pytest tests/integration/test_billing_api.py 通过`) or reference the task artifact that holds it; then `git commit` after the plan is confirmed.
-
 The AI drives a batched commit of this task's code changes so `/finish-work` can run cleanly afterwards. Goal: produce work commits FIRST, then bookkeeping (archive + journal) commits land after — never interleaved.
 
 **Step-by-step**:
@@ -653,23 +651,7 @@ The AI drives a batched commit of this task's code changes so `/finish-work` can
 
 #### 3.5 Wrap-up reminder
 
-**提交与收尾的固定次序**（`/finish-work` 之前必须完成 3.4 提交，切勿颠倒）：
-
-```
-Phase 3.4 提交（work commits） → /finish-work（归档 + 记录 journal）
-```
-
-1. **必须先提交，再 finish-work**：`/finish-work`（Trellis 命令）只做归档与 journal 记录，
-   **不做代码提交**。工作区有未提交的本任务改动时，`/finish-work` 会直接 bail out
-   （提示返回 3.4）。任何「先归档再补提交」都会破坏最终 git log 次序
-   （`work commits → chore(task): archive → chore: record journal`）。
-2. **pre-commit 失败是正常的首次结果**：Ruff 的 `--fix --exit-non-zero-on-fix` 会自动
-   修复并提示「Found N errors (N fixed)」，Prettier 是 `--check` 只报不改。
-   处理方式：让自动修复落地 → `git add` 重新暂存修复后的文件 → 重跑
-   `pre-commit run`，直到所有 hook 通过。**不要用 `--no-verify` 跳过**。
-3. **提交后再提醒**：
-   > 可运行 `/finish-work` 收尾（归档任务、记录会话）。如有其他已完成任务需要一并归档，
-   > 在 `/finish-work` 第一步确认。
+After the above, remind the user they can run `/finish-work` to wrap up (archive the task, record the session).
 
 ---
 
