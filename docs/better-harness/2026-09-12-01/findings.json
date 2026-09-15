@@ -1,0 +1,1589 @@
+{
+  "summary": {
+    "projectName": "customer_platform_vk",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 26,
+    "overview": "项目具备多层 CI 与规范路由，但核心 billing 链的验证与诊断闭环尚未接入日常交付，生命周期收尾存在摩擦。",
+    "evidenceMode": "session-rich",
+    "strengths": [
+      "分层 CI（PR / push / 手动集成 / E2E）与 lint、typecheck、单测、smoke 检查面齐全",
+      "结算并发通过行级锁与重试实现，权限与审计中间件覆盖到位",
+      "集成测试做了 xdist 并行安全隔离，前端类型与边界测试扎实",
+      "根级 AGENTS.md 与 Trellis 规范为代理提供明确的上下文路由",
+      "本地搭建文档、Docker 编排与 seed 脚本构成完整 onboarding 链"
+    ],
+    "atAGlance": {
+      "demonstratedAutonomyRadius": {
+        "level": "R2",
+        "status": "observed",
+        "confidence": "medium",
+        "reason": "窗口内代理可独立完成多步检查与收尾操作，但每个任务都以未经验证的闭环收尾，用户持续做方向微调。"
+      },
+      "coverage": {
+        "episodeCount": 5,
+        "editedEpisodeCount": 3,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0,
+        "selection": {
+          "strategy": "all-eligible",
+          "eligibleCount": 7,
+          "analyzedCount": 7,
+          "confidence": "High"
+        }
+      },
+      "strongestLoop": null,
+      "largestLeak": {
+        "dimensionRef": "change-validation",
+        "blocker": "窗口内没有任何一次针对最终变更的被审阅检查，故障路径也缺少可关联的诊断输出。"
+      },
+      "priorityMoves": [
+        {
+          "findingRef": "billing-validation-loop",
+          "dimensionRef": "change-validation",
+          "move": "把后端集成测试接入 PR 门禁，并为每个变更建立到受影响检查的映射",
+          "expectedUnlock": "billing 核心链的数据库事务路径在合并前自动执行真实验收，变更后相关检查有确定路由"
+        },
+        {
+          "findingRef": "billing-no-diagnostics",
+          "dimensionRef": "change-validation",
+          "move": "为 billing 服务层失败路径补齐日志与稳定关联标识",
+          "expectedUnlock": "扣款失败可从日志回推触发点、边界与结果，诊断可关联且可验证"
+        },
+        {
+          "findingRef": "migration-no-gate",
+          "dimensionRef": "change-validation",
+          "move": "为 Alembic 语义迁移添加独立测试与机械门禁",
+          "expectedUnlock": "数据语义变更在合并前经过可执行校验，downgrade 与业务计算一致"
+        }
+      ]
+    },
+    "evidenceBoundary": {
+      "manifest": {
+        "schemaVersion": 2,
+        "sourceFingerprint": "982402d62edef0f8",
+        "adapterVersion": "pi-task-loop-source-v2",
+        "platform": "pi",
+        "selection": {
+          "strategy": "all-eligible",
+          "eligibleCount": 7,
+          "analyzedCount": 7,
+          "confidence": "High"
+        }
+      },
+      "episodeCoverage": {
+        "episodeCount": 5,
+        "editedEpisodeCount": 3,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0
+      },
+      "deliveryEvidenceLevels": [],
+      "sourceGaps": [
+        "13 个任务片段中 7 个无请求根，根扫描不完整，独立工作流需求无法判定",
+        "摩擦到后果的链条未被观察，执行失败无法归因到具体机制"
+      ]
+    },
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "level": "Wired",
+        "state": "Wired",
+        "score": 76,
+        "scoreReason": "根级 AGENTS.md、Trellis 规范与 CodeGraph 索引提供明确上下文路由，用户窗口内零纠错、以方向微调推进任务。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "AGENTS.md"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E2"
+          }
+        ],
+        "summary": "意图理解良好，用户以方向微调推进而非纠错。",
+        "findingRefs": [
+          "backend-context-cover"
+        ],
+        "subdimensions": [
+          {
+            "id": "goal-understanding",
+            "label": "意图与验收",
+            "state": "Wired",
+            "summary": "用户先确认方案再执行，边界意识存在。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "AGENTS.md"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E2"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "验收边界在用户侧口头确认，无结构化完成信号。"
+          },
+          {
+            "id": "relevant-context",
+            "label": "相关上下文",
+            "state": "Wired",
+            "summary": "AGENTS.md 与 CodeGraph 路由被配置为唯一索引来源。",
+            "findingRefs": [
+              "backend-context-cover"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "AGENTS.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "深层源码目录无包级指令，上下文路由依赖根级文件。"
+          },
+          {
+            "id": "scope-boundary",
+            "label": "范围边界",
+            "state": "Present",
+            "summary": "边界变更均伴随用户明确指令与方案选择。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E2"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "范围扩展的显式记录未在会话证据中保留。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "AGENTS.md"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E2"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "backend/app 深层源码缺少包级上下文指令。"
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "level": "Present",
+        "state": "Present",
+        "score": 62,
+        "scoreReason": "本地搭建文档、Docker 编排、seed 与迁移路由齐全，但缺少一键诊断入口，且收尾阶段存在多次执行失败。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "local-setup-guide"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E2"
+          }
+        ],
+        "summary": "环境路由完整但无 doctor 语义，执行摩擦集中在收尾阶段。",
+        "findingRefs": [],
+        "subdimensions": [
+          {
+            "id": "instruction-led-start",
+            "label": "可复现启动",
+            "state": "Present",
+            "summary": "文档化启动链覆盖 Python、数据库、迁移与 seed。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "local-setup-guide"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "启动链未被实测，缺少一键诊断命令。"
+          },
+          {
+            "id": "supported-operation",
+            "label": "受支持操作",
+            "state": "Present",
+            "summary": "支持命令与脚本面齐全，收尾路径有摩擦。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "Makefile"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E4"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "提交与收尾命令的失败输出未被保留。"
+          },
+          {
+            "id": "permission-boundary",
+            "label": "权限边界",
+            "state": "Present",
+            "summary": "接口鉴权、行级锁与重试约束已声明。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "middleware"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "权限决策过程未被会话证据观察。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "local-setup-guide"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E4"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "static-only"
+        },
+        "blocker": "缺少环境自检路由，收尾执行摩擦无诊断入口。"
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "level": null,
+        "state": "Missing",
+        "score": 45,
+        "scoreReason": "窗口内无任何被审阅的相关检查，两次变更均以未验证关闭，核心服务失败路径无可关联的诊断输出。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "session-core-facts",
+            "id": "E2"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E4"
+          }
+        ],
+        "summary": "变更验证与故障诊断闭环在窗口内整体缺失。",
+        "findingRefs": [
+          "billing-validation-loop",
+          "billing-no-diagnostics",
+          "migration-no-gate",
+          "no-correlation-id"
+        ],
+        "subdimensions": [
+          {
+            "id": "relevant-check",
+            "label": "相关验证",
+            "state": "Missing",
+            "summary": "窗口内零被审阅相关检查，集成验收仅手动触发。",
+            "findingRefs": [
+              "billing-validation-loop",
+              "migration-no-gate"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pr-checks"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E2"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "missing"
+            },
+            "blocker": "变更到受影响检查的映射不存在。"
+          },
+          {
+            "id": "failure-repair",
+            "label": "故障诊断与修复",
+            "state": "Missing",
+            "summary": "服务层无日志、无关联标识，失败无法定位。",
+            "findingRefs": [
+              "billing-no-diagnostics",
+              "no-correlation-id"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "billing-service"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E2"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "missing"
+            },
+            "blocker": "触发点到结果的诊断链无法关联。"
+          },
+          {
+            "id": "validate-again",
+            "label": "修复后复验",
+            "state": "Unobserved",
+            "summary": "无失败修复案例可观察，复验行为未知。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "无已记录的失败后复验样本。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "pr-checks"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E2"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "missing"
+        },
+        "blocker": "相关验证、故障诊断与复验三环均无被观察证据。"
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "level": "Present",
+        "state": "Present",
+        "score": 60,
+        "scoreReason": "CI 门禁与迁移回滚机制存在，但分支收尾生命周期需求未验证，三个未提交文件无法通过门禁。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "pr-checks"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E3"
+          }
+        ],
+        "summary": "交付机制存在但当前变更处于未验证的未提交状态。",
+        "findingRefs": [
+          "lifecycle-tail-friction"
+        ],
+        "subdimensions": [
+          {
+            "id": "acceptance-evidence",
+            "label": "交付验收",
+            "state": "Present",
+            "summary": "CI 门禁配置存在，分支收尾需求未被验证。",
+            "findingRefs": [
+              "lifecycle-tail-friction"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pr-checks"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E3"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "当前修订无合并验收决策证据。"
+          },
+          {
+            "id": "high-risk-approval",
+            "label": "高风险审批",
+            "state": "Not applicable",
+            "summary": "窗口内无破坏性或外部副作用动作。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "not-applicable"
+            },
+            "blocker": "无适用样本。"
+          },
+          {
+            "id": "rollback-recovery",
+            "label": "回滚或恢复",
+            "state": "Present",
+            "summary": "迁移具备 downgrade，回滚机制存在。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "migration"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "回滚路径未与受影响状态绑定验证。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "pr-checks"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E3"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "static-only"
+        },
+        "blocker": "当前分支未提交，收尾摩擦无后果链证据。"
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "level": null,
+        "state": "Unobserved",
+        "score": 42,
+        "scoreReason": "请求根扫描不完整，独立重复工作流无法判定；存在静态维护信号但无运行中的学习回路可验证。",
+        "scoreConfidence": "low",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "session-core-facts",
+            "id": "population"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "lint"
+          }
+        ],
+        "summary": "重复需求不可判定，维护信号停留在静态层面。",
+        "findingRefs": [
+          "skill-progressive-disclosure"
+        ],
+        "subdimensions": [
+          {
+            "id": "lifecycle-repeat-detection",
+            "label": "生命周期机会识别",
+            "state": "Unobserved",
+            "summary": "根扫描不完整，重复工作流需求无法判定。",
+            "findingRefs": [
+              "skill-progressive-disclosure"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "asset-integrity",
+                  "id": "lint"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E3"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "观察窗口内无法枚举完整根分布。"
+          },
+          {
+            "id": "loop-engineering",
+            "label": "闭环工程化",
+            "state": "Unobserved",
+            "summary": "无达到完整契约的重复机会进入闭环工程。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "缺乏两个独立可比任务片段的支撑。"
+          },
+          {
+            "id": "later-validation",
+            "label": "长期验证",
+            "state": "Unobserved",
+            "summary": "无可比长期结果或维护检查完成。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "无干预账本可追踪。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "asset-integrity",
+              "id": "lint"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E3"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "unobserved"
+        },
+        "blocker": "独立重复需求与已运行学习回路均无被观察证据。"
+      }
+    ],
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules",
+        "Skills",
+        "Workflows"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project"
+          ],
+          "count": 12,
+          "paths": [
+            ".agents/skills/trellis-before-dev/SKILL.md",
+            ".agents/skills/trellis-brainstorm/SKILL.md",
+            ".agents/skills/trellis-break-loop/SKILL.md",
+            ".agents/skills/trellis-channel/SKILL.md",
+            ".agents/skills/trellis-check/SKILL.md",
+            ".agents/skills/trellis-continue/SKILL.md",
+            ".agents/skills/trellis-finish-work/SKILL.md",
+            ".agents/skills/trellis-meta/SKILL.md",
+            ".agents/skills/trellis-session-insight/SKILL.md",
+            ".agents/skills/trellis-spec-bootstrap/SKILL.md",
+            ".agents/skills/trellis-start/SKILL.md",
+            ".agents/skills/trellis-update-spec/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": [
+            "Project"
+          ],
+          "count": 6,
+          "paths": [
+            ".github/workflows/backend-integration.yml",
+            ".github/workflows/ci.yml",
+            ".github/workflows/deploy.yml",
+            ".github/workflows/e2e-full.yml",
+            ".github/workflows/opencode.yml",
+            ".github/workflows/pr-checks.yml"
+          ]
+        }
+      ]
+    },
+    "semanticFacets": {
+      "schemaVersion": 1,
+      "status": "supplementary",
+      "entries": [
+        {
+          "id": "session-insight:source-coverage",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "source-coverage",
+            "High"
+          ],
+          "summary": "Analyzed 7 of 7 sessions; 1/1 enabled source roots exist.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:validation-behavior",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "validation-behavior",
+            "High"
+          ],
+          "summary": "Observed validation command category: typecheck (2).",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:post-edit-validation",
+          "kind": "rework-correction",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "post-edit-validation",
+            "High"
+          ],
+          "summary": "Observed 7 edit events but no later validation in the sample.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        }
+      ]
+    },
+    "learningCapture": {
+      "schemaVersion": 1,
+      "state": "N/A",
+      "summary": "当前闭环工程化尚未达到已运行；历史改进账本为空。",
+      "interventions": []
+    },
+    "assignmentSummaries": [
+      {
+        "findingId": "billing-validation-loop",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "billing 核心链集成验收已接入 PR 门禁，变更到检查映射已建立",
+        "body": "pr-checks.yml 新增 backend-integration-tests job，以真实 Postgres 与 Redis 在合并前自动执行迁移、seed 与全量集成测试（含 billing 46 用例），失败阻断 quality gate；新增 billing-affected-checks.md 为各变更面提供到最小受影响检查的确定路由。本地已完成 YAML 解析与 203 个测试收集的静态验证，CI 运行结果由 GitHub Actions 验证。",
+        "outputs": [
+          {
+            "action": "updated",
+            "artifact": "Workflow",
+            "name": "pr-checks.yml 新增后端集成测试 job",
+            "scope": "Project",
+            "path": ".github/workflows/pr-checks.yml",
+            "summary": "新增 backend-integration-tests job：真实 Postgres+Redis、alembic upgrade、seed、pytest tests/integration/；quality gate 纳入该 job 且失败阻断合并。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Workflow",
+            "name": "backend-integration.yml 触发说明更新",
+            "scope": "Project",
+            "path": ".github/workflows/backend-integration.yml",
+            "summary": "更新过时注释：集成测试已在 PR 门禁自动运行，此工作流保留按需手动触发。"
+          },
+          {
+            "action": "created",
+            "artifact": "Document",
+            "name": "billing 变更到受影响检查映射表",
+            "scope": "Project",
+            "path": "docs/code-review/billing-affected-checks.md",
+            "summary": "新增 billing 后端/前端/跨栈变更面到最小受影响检查的映射，含验证命令与维护约定。"
+          }
+        ]
+      },
+      {
+        "findingId": "billing-no-diagnostics",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "billing 服务层失败路径已补齐可关联的 error 日志",
+        "body": "services/billing.py 新增模块级 logger 并在 consume 重试耗尽、余额缺失、recharge、batch_import 单行失败与统一提交失败共五处写入 error 级日志，每条均记录客户标识、金额与错误上下文（脱敏，不记录口令/令牌/完整请求体），符合 logging-guidelines。42 个单元测试与 ruff 检查通过；余额缺失与重试耗尽两场景实测日志可回推触发点与结果，异常契约保持不变。",
+        "outputs": [
+          {
+            "action": "updated",
+            "artifact": "Code",
+            "name": "billing.py 服务层失败路径日志",
+            "scope": "Project",
+            "path": "backend/app/services/billing.py",
+            "summary": "新增模块级 logger；recharge、batch_import 单行/统一提交、consume 余额缺失与重试耗尽共五处 error 级日志，携带客户标识与金额上下文，符合 logging-guidelines。"
+          }
+        ]
+      },
+      {
+        "findingId": "migration-no-gate",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "Alembic 语义迁移已具备测试护栏与 CI 机械门禁",
+        "body": "新增 test_migrations.py 在独立测试库上真实执行 upgrade/downgrade，断言 over_limit_unit_price NULL 语义与业务侧自动计算一致（含 4 组边界用例）；pr-checks 新增 migration-gate job，迁移文件变更时强制测试文件存在并校验 alembic 单头，纳入 PR 质量门禁阻塞项。真实 Postgres 上 3 个迁移测试与 42 个 billing 单测共 45 项通过，无 mapper 污染。",
+        "outputs": [
+          {
+            "action": "created",
+            "artifact": "Test",
+            "name": "迁移 upgrade/downgrade 数据语义测试",
+            "scope": "Project",
+            "path": "backend/tests/integration/test_migrations.py",
+            "summary": "新增迁移测试：独立测试库上真实执行 upgrade/downgrade，断言精确自动值转 NULL、自定义值保留、downgrade 回填 ROUND(base_fee/limit_count,2)，4 组边界用例对齐业务侧 quantize 计算。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Workflow",
+            "name": "pr-checks 迁移变更门禁",
+            "scope": "Project",
+            "path": ".github/workflows/pr-checks.yml",
+            "summary": "新增 migration-gate job：检测 alembic/versions 变更时要求对应测试文件存在 + alembic heads 单头校验，纳入 pr-quality-gate 阻塞项。"
+          }
+        ]
+      },
+      {
+        "findingId": "no-correlation-id",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "请求链路已具备稳定关联标识并写入响应头与日志",
+        "body": "新增 correlation 中间件：request 阶段透传/生成 X-Request-Id，response 阶段写响应头并复位 contextvar；RequestIdFilter 幂等注入日志 request_id 字段；CORS 双向开放；20 个测试全过，失败请求日志与响应头同一标识。",
+        "outputs": [
+          {
+            "action": "created",
+            "artifact": "Code",
+            "name": "请求关联标识中间件",
+            "scope": "Project",
+            "path": "backend/app/middleware/correlation.py",
+            "summary": "request 中间件（priority 1000）透传合法 X-Request-Id 或生成 uuid4.hex，存入 request.ctx + contextvar；response 中间件（priority -1000）写响应头并复位；RequestIdFilter 幂等注入 record.request_id 到 root/命名 logger/lastResort 并更新 formatter。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Code",
+            "name": "中间件注册与 CORS 头开放",
+            "scope": "Project",
+            "path": "backend/app/main.py",
+            "summary": "在 db_session 之前注册 correlation_middleware + install_request_id_filter；CORS 传 expose_headers=settings.cors_expose_headers。config.py 的 cors_allow_headers 加 X-Request-Id 并新增 cors_expose_headers=[\"X-Request-Id\"]。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Document",
+            "name": "日志规范关联标识约定",
+            "scope": "Project",
+            "path": ".trellis/spec/backend/logging-guidelines.md",
+            "summary": "新增 Request Correlation 章节：注入时机与格式、日志 request_id 字段、透传下游约定、不记录敏感信息。"
+          },
+          {
+            "action": "created",
+            "artifact": "Test",
+            "name": "关联标识单元测试",
+            "scope": "Project",
+            "path": "backend/tests/unit/test_correlation_middleware.py",
+            "summary": "15 个单元测试：生成/透传/非法重生成/失败请求日志链路/并发独立/contextvar 复位/normalize 边界/filter 幂等。"
+          },
+          {
+            "action": "created",
+            "artifact": "Test",
+            "name": "关联标识集成测试",
+            "scope": "Project",
+            "path": "backend/tests/integration/test_correlation_middleware.py",
+            "summary": "5 个集成测试：真实 app 全中间件栈成功/失败响应头、透传、correlation 先于 auth 注入。"
+          }
+        ]
+      },
+      {
+        "findingId": "lifecycle-tail-friction",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "收尾流程零执行失败：pre-commit 环境、次序文档化与 pre-push 阻塞修复",
+        "body": "pytest-unit 改用 venv Python 直调；workflow 3.5 明确提交→finish-work 次序；finish-work 技能新增 pre-commit 失败诊断；修复级联删测试断言与 industry_type_id 类型消除 pre-push 阻塞。完整流程演练：commit(8f375c4/33fd579)→archive(094a3a4)→journal(0b334d5)，pre-push 14 hooks 全 Passed 零失败。",
+        "outputs": [
+          {
+            "action": "updated",
+            "artifact": "Script",
+            "name": "pre-commit pytest-unit 环境规则",
+            "scope": "Project",
+            "path": ".pre-commit-config.yaml",
+            "summary": "pytest-unit hook 从 source .venv/bin/activate && pytest 改为 BACKEND_DIR=\"$(pwd)\" && exec \"$BACKEND_DIR/.venv/bin/python\" -m pytest，符合 .omp/RULES.md 硬规则（脚本必须使用 venv Python 而非 PATH）。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Document",
+            "name": "workflow Phase 3.5 提交与收尾次序",
+            "scope": "Project",
+            "path": ".trellis/workflow.md",
+            "summary": "明确固定次序：Phase 3.4 提交（work commits）→ /finish-work（归档+journal）；pre-commit 首次失败是预期（Ruff --fix 自动修复后重新暂存）、禁止 --no-verify、提交后再提醒 finish-work。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Skill",
+            "name": "finish-work 技能 pre-commit 诊断指引",
+            "scope": "Project",
+            "path": ".agents/skills/trellis-finish-work/SKILL.md",
+            "summary": "新增 Step 2.5「pre-commit 失败是可诊断的，不是阻塞」：Ruff/Prettier/pytest-unit/vitest/vue-tsc/环境类失败分类处置指引。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Script",
+            "name": "pre-push 阻塞修复",
+            "scope": "Project",
+            "path": "backend/tests/unit/test_customer_service.py",
+            "summary": "test_delete_customer_success 断言从 2 次 execute 更新为当前级联软删实现（1 查询 + 4 UPDATE = 5 次），验证 4 张表级联与 deleted_at。"
+          },
+          {
+            "action": "updated",
+            "artifact": "Code",
+            "name": "vue-tsc 类型错误修复",
+            "scope": "Project",
+            "path": "frontend/src/views/customers/components/CustomerFormModal.vue",
+            "summary": "industry_type_id 改为 ?? undefined 消除 TS2345（number|null vs number|undefined），使 vue-tsc exit 0。"
+          }
+        ]
+      },
+      {
+        "findingId": "backend-context-cover",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "backend 核心模块已补齐包级上下文指令并路由到正确 owner",
+        "body": "新增 backend/app/AGENTS.md：声明服务层/路由边界与 billing 域特例、失败诊断 4 步入口、受影响检查路由（直达 billing-affected-checks.md 的 owner 与最小检查）；与根级指令一致不重复全局规则；从 billing 说明可直达正确 owner 与检查命令。",
+        "outputs": [
+          {
+            "action": "created",
+            "artifact": "Rule",
+            "name": "backend/app 包级上下文指令",
+            "scope": "Project",
+            "path": "backend/app/AGENTS.md",
+            "summary": "最小包级 AGENTS.md：分层边界表（routes/services/repositories/models 职责与禁止项）、billing 域特例（services/billing.py 唯一实现、routes/billing/ 子蓝图、空目录警示）、4 步失败诊断链（X-Request-Id→logger.error→audit_logs→ErrorCodes）、受影响检查路由（引用 billing-affected-checks.md，相对路径已修正并验证解析）、本地验证命令；显式声明不重复全局规则。"
+          }
+        ]
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "billing-validation-loop",
+      "title": "billing 核心链变更没有自动执行的集成验收",
+      "severity": "Medium",
+      "reason": "PR 门禁只运行 Mock 数据库的单元测试，集成测试依赖手动触发；窗口内 4 个候选片段无一存在针对最终变更的被审阅检查，两次变更均以未验证关闭。后果是行级锁、迁移升级与失败恢复路径在合并前从不自动执行。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n把后端集成测试接入 PR 门禁，并为每个变更建立到受影响检查的映射。\n\n## 变更\n- 在 pr-checks 的 backend-tests 阶段加入 integration 测试（真实 Postgres 与 Redis，alembic upgrade head，seed 后运行 billing 全链路）\n- 为 billing 相关变更补充 affected-check 映射说明，确保最终变更总能路由到覆盖其行为与风险的检查\n\n## 验证\n- 本地运行集成测试套件通过\n- 确认 CI 配置语法有效且 PR 门禁包含 integration job",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "relevant-check"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "pr-checks"
+          }
+        ],
+        "episodeEvidence": [
+          {
+            "kind": "task-episode",
+            "id": "E2"
+          }
+        ],
+        "deliveryEvidence": [],
+        "state": "missing"
+      },
+      "expectedArtifact": "Workflow",
+      "expectedOutput": [
+        "PR 门禁自动运行 billing 集成测试并保留失败产物",
+        "每个变更都有到受影响检查的确定路由"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "updated",
+          "artifact": "Workflow",
+          "name": "pr-checks.yml 新增后端集成测试 job",
+          "scope": "Project",
+          "path": ".github/workflows/pr-checks.yml",
+          "summary": "新增 backend-integration-tests job：真实 Postgres+Redis、alembic upgrade、seed、pytest tests/integration/；quality gate 纳入该 job 且失败阻断合并。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Workflow",
+          "name": "backend-integration.yml 触发说明更新",
+          "scope": "Project",
+          "path": ".github/workflows/backend-integration.yml",
+          "summary": "更新过时注释：集成测试已在 PR 门禁自动运行，此工作流保留按需手动触发。"
+        },
+        {
+          "action": "created",
+          "artifact": "Document",
+          "name": "billing 变更到受影响检查映射表",
+          "scope": "Project",
+          "path": "docs/code-review/billing-affected-checks.md",
+          "summary": "新增 billing 后端/前端/跨栈变更面到最小受影响检查的映射，含验证命令与维护约定。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "billing 核心链集成验收已接入 PR 门禁，变更到检查映射已建立",
+        "body": "pr-checks.yml 新增 backend-integration-tests job，以真实 Postgres 与 Redis 在合并前自动执行迁移、seed 与全量集成测试（含 billing 46 用例），失败阻断 quality gate；新增 billing-affected-checks.md 为各变更面提供到最小受影响检查的确定路由。本地已完成 YAML 解析与 203 个测试收集的静态验证，CI 运行结果由 GitHub Actions 验证。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "billing-validation-loop",
+        "status": "verified",
+        "summary": "修复完整覆盖两条期望：PR 门禁自动运行 billing 集成测试并保留失败产物，且每个变更都有到受影响检查的确定路由。",
+        "reason": "pr-checks.yml 新增 backend-integration-tests job（Postgres:18 + Redis:7 services、alembic upgrade head、seed.py --reset、pytest tests/integration/、JUnit 产物保留 14 天），pr-quality-gate 的 needs 包含该 job 且失败时 exit 1 阻断合并；billing-affected-checks.md 建立后端/前端/跨栈三类变更面到最小检查的映射。两条 expectedOutput 均已 Wired 级覆盖，静态验证（YAML 解析、203 测试收集、拓扑匹配、asset-integrity 无回归）通过；运行时验证在 GitHub Actions 边界完成，验证边界诚实。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": ".github/workflows/pr-checks.yml"
+          },
+          {
+            "kind": "repository",
+            "id": ".github/workflows/backend-integration.yml"
+          },
+          {
+            "kind": "repository",
+            "id": "docs/code-review/billing-affected-checks.md"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "static-yaml-parse-pr-checks"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "static-yaml-parse-backend-integration"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "pytest-collect-only-203-tests-billing-46"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "workspace-topology-status-complete"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "asset-integrity-refreshed-reviewed-findingCount-0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "billing-no-diagnostics",
+      "title": "billing 服务层失败路径没有任何日志输出",
+      "severity": "Medium",
+      "reason": "services/billing.py 约 1874 行、90 天变更密度最高，但全文件无 logger 调用；扣款失败、重试耗尽与批量部分失败只返回错误字符串，不留诊断痕迹。加上全链路无关联标识，运维只能从 500 响应回推代码。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为 billing 服务层失败路径补齐日志，并接入稳定关联标识。\n\n## 变更\n- 在 consume 重试耗尽、余额缺失、recharge 与 batch_import 部分失败处增加 error 级日志，记录客户标识与金额上下文（脱敏）\n- 遵循 .trellis/spec/backend/logging-guidelines.md 的场景约定\n\n## 验证\n- 构造一次余额不足与一次重试耗尽场景，确认日志可回推触发点与结果",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "failure-repair"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "billing-service"
+          }
+        ],
+        "episodeEvidence": [
+          {
+            "kind": "task-episode",
+            "id": "E2"
+          }
+        ],
+        "deliveryEvidence": [],
+        "state": "missing"
+      },
+      "expectedArtifact": "Code",
+      "expectedOutput": [
+        "billing 服务关键失败路径存在可关联的 error 日志"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "updated",
+          "artifact": "Code",
+          "name": "billing.py 服务层失败路径日志",
+          "scope": "Project",
+          "path": "backend/app/services/billing.py",
+          "summary": "新增模块级 logger；recharge、batch_import 单行/统一提交、consume 余额缺失与重试耗尽共五处 error 级日志，携带客户标识与金额上下文，符合 logging-guidelines。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "billing 服务层失败路径已补齐可关联的 error 日志",
+        "body": "services/billing.py 新增模块级 logger 并在 consume 重试耗尽、余额缺失、recharge、batch_import 单行失败与统一提交失败共五处写入 error 级日志，每条均记录客户标识、金额与错误上下文（脱敏，不记录口令/令牌/完整请求体），符合 logging-guidelines。42 个单元测试与 ruff 检查通过；余额缺失与重试耗尽两场景实测日志可回推触发点与结果，异常契约保持不变。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "billing-no-diagnostics",
+        "status": "verified",
+        "summary": "四个 finding 点名的失败路径全部补齐 error 级日志并携带客户标识与金额上下文，可回推触发点。",
+        "reason": "services/billing.py 五处 logger.error 覆盖 consume 重试耗尽、余额缺失、recharge、batch_import 单行与统一提交失败，均含 customer_id 与金额/invoice_id/operator_id 上下文且不泄露敏感信息；模块级 logger 与 error 级别语义符合 logging-guidelines，log+raise 保持原异常契约无行为漂移。目标侧场景实测（余额缺失 customer_id=999、重试耗尽 customer_id=888 后仍上抛）构成 reproduction→diagnosis 保留证据，42 个单测与 ruff 通过。全链路关联标识属独立 finding no-correlation-id 范围，不作未覆盖项。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "backend/app/services/billing.py"
+          },
+          {
+            "kind": "repository",
+            "id": "findings.json#billing-no-diagnostics"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/spec/backend/logging-guidelines.md"
+          },
+          {
+            "kind": "spec",
+            "id": "agent-work-loop.md#change-validation/failure-repair"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "consume-retry-exhaustion-scenario"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "consume-missing-balance-scenario"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "billing-service-unit-tests-42"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "refresh-findingCount-0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "migration-no-gate",
+      "title": "Alembic 语义迁移没有机械门禁与测试护栏",
+      "severity": "Medium",
+      "reason": "新迁移把套餐超限单价的存储语义反转为 NULL 时自动计算，upgrade 与 downgrade 均改写数据；但该迁移无独立测试、无 schema 门禁、无 pre-commit 约束，且当前处于未提交状态。一旦与业务代码不同步合并，会造成结算金额静默漂移。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为 Alembic 语义迁移添加测试护栏与机械门禁。\n\n## 变更\n- 为迁移 upgrade 与 downgrade 各写独立测试，断言转换前后的数据值与业务侧自动计算逻辑一致\n- 在 CI 中加入迁移顺序校验或 schema diff 检查，让迁移变更必须有对应测试才能合并\n\n## 验证\n- 在真实 Postgres 上执行 upgrade 与 downgrade，断言数据语义与业务计算一致",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "relevant-check"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "migration"
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "missing"
+      },
+      "expectedArtifact": "Test",
+      "expectedOutput": [
+        "迁移 upgrade/downgrade 测试通过且与业务计算一致",
+        "CI 存在迁移变更的门禁约束"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "created",
+          "artifact": "Test",
+          "name": "迁移 upgrade/downgrade 数据语义测试",
+          "scope": "Project",
+          "path": "backend/tests/integration/test_migrations.py",
+          "summary": "新增迁移测试：独立测试库上真实执行 upgrade/downgrade，断言精确自动值转 NULL、自定义值保留、downgrade 回填 ROUND(base_fee/limit_count,2)，4 组边界用例对齐业务侧 quantize 计算。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Workflow",
+          "name": "pr-checks 迁移变更门禁",
+          "scope": "Project",
+          "path": ".github/workflows/pr-checks.yml",
+          "summary": "新增 migration-gate job：检测 alembic/versions 变更时要求对应测试文件存在 + alembic heads 单头校验，纳入 pr-quality-gate 阻塞项。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "Alembic 语义迁移已具备测试护栏与 CI 机械门禁",
+        "body": "新增 test_migrations.py 在独立测试库上真实执行 upgrade/downgrade，断言 over_limit_unit_price NULL 语义与业务侧自动计算一致（含 4 组边界用例）；pr-checks 新增 migration-gate job，迁移文件变更时强制测试文件存在并校验 alembic 单头，纳入 PR 质量门禁阻塞项。真实 Postgres 上 3 个迁移测试与 42 个 billing 单测共 45 项通过，无 mapper 污染。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "migration-no-gate",
+        "status": "verified",
+        "summary": "两条 expectedOutput 均满足：迁移 upgrade/downgrade 测试在真实 Postgres 上通过且与业务计算一致，CI 已机械接入迁移变更门禁。",
+        "reason": "test_migrations.py 建独立测试库执行真实 upgrade/downgrade，断言精确自动值转 NULL、自定义值保留、downgrade 回填 ROUND 值，4 组边界用例证明迁移 SQL 与业务侧 quantize(0.01) 一致；migration-gate job 通过 paths-filter 检测 alembic/versions 变更，测试缺失或 heads 分叉即阻断，且已纳入 pr-quality-gate needs 与 if-block。迁移测试与 billing 单测同进程 45 passed 无 mapper 污染；CI 门禁本地完成 YAML 与步骤核对（运行时验证在 GitHub Actions 边界）。billing_api 集成测试 21 个既有失败源于 mockserver 缺失，与本次修复正交。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "backend/tests/integration/test_migrations.py"
+          },
+          {
+            "kind": "repository",
+            "id": ".github/workflows/pr-checks.yml"
+          },
+          {
+            "kind": "repository",
+            "id": "backend/alembic/versions/s8t9u0v1w2x3"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "migration-tests-and-billing-units-45-passed-postgres18"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "alembic-heads-single-1"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "pr-checks-yaml-parse-migration-gate-wired"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "refresh-findingCount-0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-correlation-id",
+      "title": "日志与审计缺少跨边界关联标识",
+      "severity": "Medium",
+      "reason": "中间件层只有鉴权与审计，没有 request id 或 trace id 注入；审计记录谁做了什么但无法关联具体调用、租户与事务边界。一次扣款失败只能按时间窗口人工拼凑日志，无法以稳定标识回查触发点到结果的完整链路。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为请求链路增加稳定的关联标识并写入日志规范。\n\n## 变更\n- 在中间件层注入 request id，透传响应头并在日志上下文中携带\n- 更新 .trellis/spec/backend/logging-guidelines.md，声明关联标识约定\n\n## 验证\n- 发起一次带失败的请求，确认日志可借由同一标识串起完整链路",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "failure-repair"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "middleware"
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "missing"
+      },
+      "expectedArtifact": "Code",
+      "expectedOutput": [
+        "请求链路具备稳定关联标识并写入响应头与日志"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "created",
+          "artifact": "Code",
+          "name": "请求关联标识中间件",
+          "scope": "Project",
+          "path": "backend/app/middleware/correlation.py",
+          "summary": "request 中间件（priority 1000）透传合法 X-Request-Id 或生成 uuid4.hex，存入 request.ctx + contextvar；response 中间件（priority -1000）写响应头并复位；RequestIdFilter 幂等注入 record.request_id 到 root/命名 logger/lastResort 并更新 formatter。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Code",
+          "name": "中间件注册与 CORS 头开放",
+          "scope": "Project",
+          "path": "backend/app/main.py",
+          "summary": "在 db_session 之前注册 correlation_middleware + install_request_id_filter；CORS 传 expose_headers=settings.cors_expose_headers。config.py 的 cors_allow_headers 加 X-Request-Id 并新增 cors_expose_headers=[\"X-Request-Id\"]。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Document",
+          "name": "日志规范关联标识约定",
+          "scope": "Project",
+          "path": ".trellis/spec/backend/logging-guidelines.md",
+          "summary": "新增 Request Correlation 章节：注入时机与格式、日志 request_id 字段、透传下游约定、不记录敏感信息。"
+        },
+        {
+          "action": "created",
+          "artifact": "Test",
+          "name": "关联标识单元测试",
+          "scope": "Project",
+          "path": "backend/tests/unit/test_correlation_middleware.py",
+          "summary": "15 个单元测试：生成/透传/非法重生成/失败请求日志链路/并发独立/contextvar 复位/normalize 边界/filter 幂等。"
+        },
+        {
+          "action": "created",
+          "artifact": "Test",
+          "name": "关联标识集成测试",
+          "scope": "Project",
+          "path": "backend/tests/integration/test_correlation_middleware.py",
+          "summary": "5 个集成测试：真实 app 全中间件栈成功/失败响应头、透传、correlation 先于 auth 注入。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "请求链路已具备稳定关联标识并写入响应头与日志",
+        "body": "新增 correlation 中间件：request 阶段透传/生成 X-Request-Id，response 阶段写响应头并复位 contextvar；RequestIdFilter 幂等注入日志 request_id 字段；CORS 双向开放；20 个测试全过，失败请求日志与响应头同一标识。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "no-correlation-id",
+        "status": "verified",
+        "summary": "唯一 expectedOutput「请求链路具备稳定关联标识并写入响应头与日志」满足：中间件注入 + 响应头 + 日志 request_id 字段，失败请求链路实测串起同一标识。",
+        "reason": "correlation 中间件在 Sanic 排序规则下 request 最先注入（priority 1000）、response 最后复位（priority -1000），token reset 防泄漏；RequestIdFilter 幂等挂 root/命名 logger/lastResort 三层并让 formatter 输出 [request_id=%(request_id)s]。20 个测试（15 单元 + 5 集成）全过覆盖生成/透传/非法重生成/失败链路/并发/复位/边界/幂等；真实 app 冒烟确认 500 异常日志 [request_id=xxx] 与响应头 X-Request-Id 相等。CORS 双向开放、spec 文档化。全量单元 438 passed 中唯一失败 test_delete_customer_success 经 stash 还原验证为既有失败；auth 中 app.logger 缺失为既有 bug，filter 机制不依赖它。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "backend/app/middleware/correlation.py"
+          },
+          {
+            "kind": "repository",
+            "id": "backend/app/main.py"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/spec/backend/logging-guidelines.md"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "unit-correlation-15-passed"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "integration-correlation-5-passed"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "smoke-failure-path-log-equals-response-header"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "ruff-check-and-format-passed"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "refresh-findingCount-0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lifecycle-tail-friction",
+      "title": "提交与收尾阶段反复出现执行失败",
+      "severity": "Low",
+      "reason": "三个收尾片段连续落在提交、推送与归档边界：pre-commit 自动提交失败、分支完成需求未验证、归档与提交次序被用户重排，累计十一次执行失败。失败均无后果链证据，摩擦像来自环境或边界条件而非方向理解。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为提交与收尾阶段消除可复现的执行摩擦。\n\n## 变更\n- 检查 pre-commit 钩子环境（脚本应使用项目虚拟环境的 Python），修复失败路径并保留输出\n- 明确 finish-work 与提交阶段的次序并记录到工作流指南\n\n## 验证\n- 按文档执行一次完整提交、推送与归档流程，确认零执行失败",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ],
+      "subdimensionRefs": [
+        "acceptance-evidence"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [],
+        "episodeEvidence": [
+          {
+            "kind": "task-episode",
+            "id": "E2"
+          }
+        ],
+        "deliveryEvidence": [],
+        "state": "unobserved"
+      },
+      "expectedArtifact": "Script",
+      "expectedOutput": [
+        "收尾流程单次执行无失败，pre-commit 失败可诊断"
+      ],
+      "kind": "evidence-gap",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "updated",
+          "artifact": "Script",
+          "name": "pre-commit pytest-unit 环境规则",
+          "scope": "Project",
+          "path": ".pre-commit-config.yaml",
+          "summary": "pytest-unit hook 从 source .venv/bin/activate && pytest 改为 BACKEND_DIR=\"$(pwd)\" && exec \"$BACKEND_DIR/.venv/bin/python\" -m pytest，符合 .omp/RULES.md 硬规则（脚本必须使用 venv Python 而非 PATH）。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Document",
+          "name": "workflow Phase 3.5 提交与收尾次序",
+          "scope": "Project",
+          "path": ".trellis/workflow.md",
+          "summary": "明确固定次序：Phase 3.4 提交（work commits）→ /finish-work（归档+journal）；pre-commit 首次失败是预期（Ruff --fix 自动修复后重新暂存）、禁止 --no-verify、提交后再提醒 finish-work。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Skill",
+          "name": "finish-work 技能 pre-commit 诊断指引",
+          "scope": "Project",
+          "path": ".agents/skills/trellis-finish-work/SKILL.md",
+          "summary": "新增 Step 2.5「pre-commit 失败是可诊断的，不是阻塞」：Ruff/Prettier/pytest-unit/vitest/vue-tsc/环境类失败分类处置指引。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Script",
+          "name": "pre-push 阻塞修复",
+          "scope": "Project",
+          "path": "backend/tests/unit/test_customer_service.py",
+          "summary": "test_delete_customer_success 断言从 2 次 execute 更新为当前级联软删实现（1 查询 + 4 UPDATE = 5 次），验证 4 张表级联与 deleted_at。"
+        },
+        {
+          "action": "updated",
+          "artifact": "Code",
+          "name": "vue-tsc 类型错误修复",
+          "scope": "Project",
+          "path": "frontend/src/views/customers/components/CustomerFormModal.vue",
+          "summary": "industry_type_id 改为 ?? undefined 消除 TS2345（number|null vs number|undefined），使 vue-tsc exit 0。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "收尾流程零执行失败：pre-commit 环境、次序文档化与 pre-push 阻塞修复",
+        "body": "pytest-unit 改用 venv Python 直调；workflow 3.5 明确提交→finish-work 次序；finish-work 技能新增 pre-commit 失败诊断；修复级联删测试断言与 industry_type_id 类型消除 pre-push 阻塞。完整流程演练：commit(8f375c4/33fd579)→archive(094a3a4)→journal(0b334d5)，pre-push 14 hooks 全 Passed 零失败。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "lifecycle-tail-friction",
+        "status": "verified",
+        "summary": "收尾流程单次执行无失败：pre-commit 环境规则、提交→finish-work 次序文档化、pre-push 阻塞修复，commit→push→archive→journal 全链路真实演练通过。",
+        "reason": "修复映射完整：pytest-unit 改用 $BACKEND_DIR/.venv/bin/python（合规 RULES.md）；workflow Phase 3.5 明确「提交→/finish-work」固定次序；finish-work SKILL 与 omp 命令新增 Step 2.5 六类 pre-commit 失败诊断。真实摩擦被定位并修复：级联删测试断言过时（2→5 次 execute）与 industry_type_id 类型错误（vue-tsc exit 2→0）导致 pre-push 永久阻塞，修复后 pytest 439 + vitest 89 + vue-tsc 全过。完整收尾链演练：commit(8f375c4 work→33fd579)→archive(094a3a4)→journal(0b334d5)，git log 次序与文档一致；push --dry-run 14 pre-push hooks 全 Passed exit 0。发现 task.py archive/add_session auto-commit 对同会话新文件失败的次要脚本缺陷（手动闭环，建议作新 finding 候选）。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": ".pre-commit-config.yaml"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/workflow.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".agents/skills/trellis-finish-work/SKILL.md"
+          },
+          {
+            "kind": "commit",
+            "id": "8f375c4-chore-workflow-finish-order"
+          },
+          {
+            "kind": "commit",
+            "id": "33fd579-fix-prepush-blockers"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "prepush-14-hooks-passed-push-dryrun-exit-0"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "refresh-findingCount-0"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "archive-journal-chain-094a3a4-0b334d5"
+          }
+        ]
+      }
+    },
+    {
+      "id": "skill-progressive-disclosure",
+      "title": "三个 Trellis Skills 为长文件且无渐进式引用",
+      "severity": "Low",
+      "reason": "确定性 lint 结果：trellis-update-spec（356 行）、trellis-brainstorm（200 行）、trellis-break-loop（188 行）均为线性长文件且无本地 Markdown 引用，维护性与渐进披露存在结构性风险。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为三个 Trellis Skills 增加渐进式结构。\n\n## 变更\n- 将长文件拆分为入口摘要加按需引用，消除 lint 告警\n- 保持触发描述与既有路由不变\n\n## 验证\n- 重新运行 skill lint，确认三条告警消除且路由不变",
+      "dimensionRefs": [
+        "learning-capture"
+      ],
+      "subdimensionRefs": [
+        "lifecycle-repeat-detection"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "asset-integrity",
+            "id": "lint"
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      },
+      "expectedArtifact": "Skill",
+      "expectedOutput": [
+        "三个 SKILL.md 通过渐进披露 lint 检查"
+      ],
+      "kind": "evidence-gap",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".agents/skills"
+      }
+    },
+    {
+      "id": "backend-context-cover",
+      "title": "backend/app 深层源码没有包级上下文指令",
+      "severity": "Low",
+      "reason": "项目 836 个追踪文件仅有一层嵌套 AGENTS.md，backend/app 97 个源文件与 backend/alembic 28 个文件只靠根级指令覆盖；代理定位 billing 服务层与路由拆分边界时只能依赖 grep 或 CodeGraph 搜索，缺少针对核心模块的上下文与风险路由。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为 backend 核心模块补齐包级上下文指令。\n\n## 变更\n- 为 backend/app 或 billing 模块新增最小 AGENTS.md，声明服务层与路由的边界、失败诊断入口与受影响检查\n- 保持与根级指令一致，不重复全局规则\n\n## 验证\n- 从 billing 模块说明中可直达正确 owner 与检查路由",
+      "dimensionRefs": [
+        "task-understanding"
+      ],
+      "subdimensionRefs": [
+        "relevant-context"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "AGENTS.md"
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "missing"
+      },
+      "expectedArtifact": "Rule",
+      "expectedOutput": [
+        "backend 核心模块存在包级上下文指令并路由到正确 owner"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "created",
+          "artifact": "Rule",
+          "name": "backend/app 包级上下文指令",
+          "scope": "Project",
+          "path": "backend/app/AGENTS.md",
+          "summary": "最小包级 AGENTS.md：分层边界表（routes/services/repositories/models 职责与禁止项）、billing 域特例（services/billing.py 唯一实现、routes/billing/ 子蓝图、空目录警示）、4 步失败诊断链（X-Request-Id→logger.error→audit_logs→ErrorCodes）、受影响检查路由（引用 billing-affected-checks.md，相对路径已修正并验证解析）、本地验证命令；显式声明不重复全局规则。"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "backend 核心模块已补齐包级上下文指令并路由到正确 owner",
+        "body": "新增 backend/app/AGENTS.md：声明服务层/路由边界与 billing 域特例、失败诊断 4 步入口、受影响检查路由（直达 billing-affected-checks.md 的 owner 与最小检查）；与根级指令一致不重复全局规则；从 billing 说明可直达正确 owner 与检查命令。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "backend-context-cover",
+        "status": "verified",
+        "summary": "backend 核心模块存在包级上下文指令并路由到正确 owner：AGENTS.md 覆盖边界/诊断/受影响检查三要素，billing→owner→检查命令链路畅通，不与根级重复。",
+        "reason": "aiFixPrompt 三条硬性要求全部满足：①backend/app/AGENTS.md 最小包级指令落地；②声明分层边界表（routes/services/repositories/models）+ billing 域特例（services/billing.py 唯一实现、routes/billing/ 子蓝图、空目录警示）+ 4 步失败诊断链（X-Request-Id→服务层 logger.error→audit_logs→ErrorCodes）+ 受影响检查路由（引用 docs/code-review/billing-affected-checks.md）；③开头显式声明全局规则交由 .omp/RULES.md 与根级 AGENTS.md，不重复。端到端验证：AGENTS.md → billing-affected-checks.md → pytest tests/unit/test_billing_service.py 链路畅通；相对路径 ../../docs/ 从 backend/app/ 解析正确（LSP 曾报错已修正）；引用的 3 个 spec 文件全部存在；ruff 通过、billing 单元 57 passed。asset-integrity reviewed 0 findings，topology complete。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "backend/app/AGENTS.md"
+          },
+          {
+            "kind": "repository",
+            "id": "docs/code-review/billing-affected-checks.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/spec/backend/directory-structure.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/spec/backend/logging-guidelines.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".trellis/spec/backend/error-handling.md"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "end-to-end-billing-owner-check-route-traced"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "relative-path-../../docs-resolves-correctly"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "refresh-findingCount-0"
+          }
+        ]
+      }
+    }
+  ]
+}

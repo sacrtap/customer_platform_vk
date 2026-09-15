@@ -1,0 +1,919 @@
+{
+  "summary": {
+    "projectName": "customer_platform_vk",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 26,
+    "semanticFacets": {
+      "schemaVersion": 1,
+      "status": "supplementary",
+      "entries": [
+        {
+          "id": "session-insight:validation-behavior",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "validation-behavior",
+            "High"
+          ],
+          "summary": "4/5 候选在最终变更后运行 pytest/lint/typecheck 且通过，但全部标记 after-final-change-unreviewed；0 条 reviewed-relevant-check、0 条 user-feedback。",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:source-coverage",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "source-coverage",
+            "Medium"
+          ],
+          "summary": "Analyzed 14 of 14 sessions; 1/1 enabled source roots exist; diagnostic flags include portfolio-truncated.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:friction-profile",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "friction-profile",
+            "Medium"
+          ],
+          "summary": "populationCoverage.withExecutionFriction=10/14；E4 单候选 executionFailures=16 显著高于其余（1–3），但 frictionConsequenceSignals 为空，归因限于 Task complexity 与 Unknown。",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:lifecycle-demand",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "lifecycle-demand",
+            "Low"
+          ],
+          "summary": "E3 为唯一 lifecycle-demand episode（合并 PR，0 edits/0 checks），薄交付尾不足以支撑交付工作流存在性。",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:learning-activity",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "learning-activity",
+            "Low"
+          ],
+          "summary": "无 retrieved/applied Memory 证据，Learning Capture 完整链（exists→retrieved→relevant→applied→later outcome）无任何环节被观察到。",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "agent-customize:skill-structure",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "progressive-disclosure",
+            "High"
+          ],
+          "summary": "lint advisory 确定性：trellis-brainstorm (200 行)、trellis-break-loop (188 行)、trellis-update-spec (356 行) 无渐进式引用；同批 trellis-meta 已用 references/ 树，组织方式不一致。",
+          "evidenceRefs": [],
+          "modelVersion": "agent-customize-v1"
+        },
+        {
+          "id": "agent-customize:memory-boundary",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "memory-inventory",
+            "Unavailable"
+          ],
+          "summary": "pi provider 下 Memory inventory 仅实现于 qoder/codex，titleCount=0 与未扫描不可区分；integrity 0 候选不承载 Memory 健康判定。",
+          "evidenceRefs": [],
+          "modelVersion": "agent-customize-v1"
+        }
+      ]
+    },
+    "evidenceMode": "session-rich",
+    "strengths": [
+      "集成测试已接入 PR 门禁并在真实 Postgres/Redis 上自动执行，本窗口 PR #24 的 Backend Integration Tests 与 Migration Test Gate 均实际跑通（CI 7/7 通过）",
+      "billing 服务层五处失败路径已补齐携带客户标识与金额上下文的 error 日志，consume 重试耗尽与余额缺失场景可回推触发点",
+      "correlation 中间件已启用：RequestIdFilter 挂接 root/命名 logger/lastResort 三层，响应头与日志均带稳定关联标识",
+      "backend/app 包级上下文指令已落地：分层边界、billing 域特例、失败诊断链与受影响检查路由清晰",
+      "迁移测试在独立测试库执行真实 upgrade/downgrade 并断言与业务计算一致，migration-gate 以 paths-filter 阻断缺失测试与 heads 分叉",
+      "pre-commit 环境规则合规化：pytest-unit 改用 $BACKEND_DIR/.venv/bin/python，收尾流程提交→finish-work 次序文档化"
+    ],
+    "atAGlance": {
+      "demonstratedAutonomyRadius": {
+        "level": "R2",
+        "status": "observed",
+        "confidence": "medium",
+        "reason": "窗口内代理可独立完成多步检查与收尾操作，PR 修复从复现、定位到推送与 CI 确认闭环执行，但会话内验证仍以未审阅的检查与 assistant-handoff 收尾，用户做方向微调。"
+      },
+      "coverage": {
+        "episodeCount": 5,
+        "editedEpisodeCount": 3,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0,
+        "selection": {
+          "strategy": "all-eligible",
+          "eligibleCount": 14,
+          "analyzedCount": 14,
+          "confidence": "Medium"
+        }
+      },
+      "strongestLoop": null,
+      "largestLeak": {
+        "dimensionRef": "change-validation",
+        "blocker": "CI 门禁已自动执行集成验收且实际跑通，但会话内最终变更后的检查仍全部标记为 unreviewed，验收信号由 assistant-handoff 而非被审阅的相关检查承载。"
+      },
+      "priorityMoves": [
+        {
+          "findingRef": "session-review-signal-gap",
+          "dimensionRef": "change-validation",
+          "move": "为每个会话内变更记录被审阅的相关检查与验收结果，替代以 assistant-handoff 作为唯一验收信号",
+          "expectedUnlock": "变更到最终验证的链路可被后续窗口审阅，验收信号不再是代理自述"
+        },
+        {
+          "findingRef": "skill-progressive-disclosure",
+          "dimensionRef": "learning-capture",
+          "move": "将三个长 Trellis Skill 抽取渐进式 references/ 结构，与 trellis-meta 的组织方式对齐",
+          "expectedUnlock": "Skill 正文进入上下文时按需加载，长文件触发开销可维护"
+        }
+      ]
+    },
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "level": "Wired",
+        "state": "Wired",
+        "score": 78,
+        "scoreReason": "根级 AGENTS.md、backend/app 包级指令、Trellis 规范与 CodeGraph 索引提供分层上下文路由；窗口内用户零纠错，以方向微调推进。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "AGENTS.md"
+          },
+          {
+            "kind": "repository",
+            "id": "backend/app/AGENTS.md"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E1"
+          }
+        ],
+        "summary": "分层上下文路由完整，用户以方向微调推进而非纠错。",
+        "findingRefs": [],
+        "subdimensions": [
+          {
+            "id": "goal-understanding",
+            "label": "意图与验收",
+            "state": "Wired",
+            "summary": "用户先确认方案再执行，PR 修复目标与验收边界明确。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "AGENTS.md"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "验收边界在用户侧口头确认，无结构化完成信号。"
+          },
+          {
+            "id": "relevant-context",
+            "label": "相关上下文",
+            "state": "Wired",
+            "summary": "AGENTS.md 包级指令与 CodeGraph 路由构成唯一索引来源，billing 域特例已文档化。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "backend/app/AGENTS.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "深层模块依赖根级与包级文件组合路由，无逐目录指令。"
+          },
+          {
+            "id": "scope-boundary",
+            "label": "范围边界",
+            "state": "Present",
+            "summary": "修复范围以 CI 失败集为边界，未扩散到无关模块。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "范围扩展的显式记录未在会话证据中保留。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "AGENTS.md"
+            },
+            {
+              "kind": "repository",
+              "id": "backend/app/AGENTS.md"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E1"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "上下文路由完整但会话内使用证据不足，行为判定保持 wired-unobserved。"
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "level": "Present",
+        "state": "Present",
+        "score": 68,
+        "scoreReason": "本地搭建文档、Docker 编排、seed、迁移与 pre-commit 路由齐全且本窗口实测通过；收尾摩擦在上次修复后未再出现，但缺少一键诊断入口。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "Makefile"
+          },
+          {
+            "kind": "repository",
+            "id": "pre-commit-config"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E1"
+          }
+        ],
+        "summary": "环境路由完整，本窗口实测可复现启动与验证。",
+        "findingRefs": [],
+        "subdimensions": [
+          {
+            "id": "instruction-led-start",
+            "label": "可复现启动",
+            "state": "Present",
+            "summary": "文档化启动链覆盖 Python、数据库、迁移与 seed，本窗口实测可用。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "README.md"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "本地测试库 schema 曾过期（缺 detail_file_path 列），需重建后才能复现 CI 场景。"
+          },
+          {
+            "id": "supported-operation",
+            "label": "受支持操作",
+            "state": "Present",
+            "summary": "Makefile 命令面与 CI 分层（quick/unit/integration/migration/E2E）齐全。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "Makefile"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "无一键 doctor 命令统一诊断环境问题。"
+          },
+          {
+            "id": "permission-boundary",
+            "label": "权限边界",
+            "state": "Present",
+            "summary": "接口鉴权、行级锁、重试与 pre-commit 权限约束已声明并执行。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pre-commit-config"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "权限模式的运行时行为未被会话证据行使。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "Makefile"
+            },
+            {
+              "kind": "repository",
+              "id": "pre-commit-config"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E1"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "static-only"
+        },
+        "blocker": "环境机制声明完整，运行时行使证据有限。"
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "level": "Wired",
+        "state": "Wired",
+        "score": 72,
+        "scoreReason": "集成测试、迁移门禁与失败路径日志已接入 CI 并实际跑通（本窗口 PR #24 的 Backend Integration Tests 25m 与 Migration Test Gate 33s 均 pass），验证机制从缺位转为 Wired；但会话内最终变更后的检查仍全部 unreviewed，验收信号未与变更绑定。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "pr-checks"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E1"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E4"
+          }
+        ],
+        "summary": "CI 机械验证已接线并实际跑通，会话内审阅信号未闭合。",
+        "findingRefs": [
+          "session-review-signal-gap"
+        ],
+        "subdimensions": [
+          {
+            "id": "relevant-check",
+            "label": "相关验证",
+            "state": "Wired",
+            "summary": "CI 门禁自动执行 billing 集成测试与迁移测试，失败阻断合并；本窗口实际跑通。",
+            "findingRefs": [
+              "session-review-signal-gap"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pr-checks"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "CI 层验证已接线，但会话内检查全部 unreviewed，验收信号由 assistant-handoff 承载。"
+          },
+          {
+            "id": "failure-repair",
+            "label": "故障诊断与修复",
+            "state": "Wired",
+            "summary": "billing 失败路径有可关联 error 日志，correlation 中间件挂接全链路；修复可回推触发点。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "services/billing.py"
+                },
+                {
+                  "kind": "repository",
+                  "id": "middleware/correlation.py"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "修复流程的复现与诊断保留未在会话证据中显式记录。"
+          },
+          {
+            "id": "validate-again",
+            "label": "修复后复验",
+            "state": "Present",
+            "summary": "修复后重跑聚焦测试与 CI 全量，但会话内无被审阅的最终变更后检查记录。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "复验结果未以被审阅检查的形式留存。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "pr-checks"
+            },
+            {
+              "kind": "repository",
+              "id": "services/billing.py"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E1"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "CI 门禁已验证接线，会话内审阅信号缺口仍开放。"
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "level": "Wired",
+        "state": "Wired",
+        "score": 70,
+        "scoreReason": "PR 门禁强制集成测试与迁移测试通过后才可合并，JUnit 失败产物保留 14 天；本窗口修复经 CI 7/7 通过后合并，交付边界清晰。",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "pr-checks"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E1"
+          }
+        ],
+        "summary": "合并前自动执行完整验证链，失败产物可审计。",
+        "findingRefs": [],
+        "subdimensions": [
+          {
+            "id": "acceptance-evidence",
+            "label": "交付验收",
+            "state": "Wired",
+            "summary": "合并前自动执行完整验证链并保留失败产物，PR #24 实际 7/7 通过后合并。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pr-checks"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "交付验收由 CI 机械信号承载，无 provider-confirmed-delivery 记录。"
+          },
+          {
+            "id": "high-risk-approval",
+            "label": "高风险审批",
+            "state": "Wired",
+            "summary": "quality gate 纳入集成与迁移 job，失败即阻断合并。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "pr-checks"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "审批路径的拒绝行为未被会话事件行使。"
+          },
+          {
+            "id": "rollback-recovery",
+            "label": "回滚或恢复",
+            "state": "Present",
+            "summary": "迁移 downgrade 测试覆盖回滚路径，收尾流程文档化。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "test_migrations"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "生产回滚演练未观察到，仅迁移级回滚有测试。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "pr-checks"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E1"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "交付机制完整，运行时交付证据限于本窗口单次合并。"
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "level": null,
+        "state": "Unobserved",
+        "score": 44,
+        "scoreReason": "请求根扫描不完整，独立重复工作流无法判定；三个 Trellis Skill 长文件无渐进式引用（lint advisory 确定性）；pi provider 下 Memory inventory 未实现，完整性判定不可用。",
+        "scoreConfidence": "low",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "session-core-facts",
+            "id": "population"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "lint"
+          }
+        ],
+        "summary": "无运行中学习回路可验证，重复工作流判定受观测器缺口限制。",
+        "findingRefs": [
+          "skill-progressive-disclosure",
+          "root-scan-incomplete"
+        ],
+        "subdimensions": [
+          {
+            "id": "lifecycle-repeat-detection",
+            "label": "生命周期机会识别",
+            "state": "Unobserved",
+            "summary": "requestRoots 缺失、candidate 截断，重复工作流无法判定；无正向 Learning Capture 链。",
+            "findingRefs": [
+              "skill-progressive-disclosure",
+              "root-scan-incomplete"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                },
+                {
+                  "kind": "task-episode",
+                  "id": "E5"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "证据边界：unknown 是证据缺失而非无重复。"
+          },
+          {
+            "id": "loop-engineering",
+            "label": "闭环工程化",
+            "state": "Unobserved",
+            "summary": "无达到完整契约的重复机会进入闭环工程；Skill 存在但无会话内使用证据。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".agents/skills/trellis-update-spec/SKILL.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "生命周期识别未 Exercised，闭环工程不可评分。"
+          },
+          {
+            "id": "later-validation",
+            "label": "长期验证",
+            "state": "Unobserved",
+            "summary": "pi provider 下 Memory inventory 不可用，无后续窗口比较证据。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "inventory.memories"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "Memory 完整性判定不可用，纵向效果无法验证。"
+          }
+        ],
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": ".agents/skills/trellis-update-spec/SKILL.md"
+            }
+          ],
+          "episodeEvidence": [],
+          "deliveryEvidence": [],
+          "state": "unobserved"
+        },
+        "blocker": "学习回路未运行，重复与维护判定均受证据边界限制。"
+      }
+    ],
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules",
+        "Skills",
+        "Workflows"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project"
+          ],
+          "count": 12,
+          "paths": [
+            ".agents/skills/trellis-before-dev/SKILL.md",
+            ".agents/skills/trellis-brainstorm/SKILL.md",
+            ".agents/skills/trellis-break-loop/SKILL.md",
+            ".agents/skills/trellis-channel/SKILL.md",
+            ".agents/skills/trellis-check/SKILL.md",
+            ".agents/skills/trellis-continue/SKILL.md",
+            ".agents/skills/trellis-finish-work/SKILL.md",
+            ".agents/skills/trellis-meta/SKILL.md",
+            ".agents/skills/trellis-session-insight/SKILL.md",
+            ".agents/skills/trellis-spec-bootstrap/SKILL.md",
+            ".agents/skills/trellis-start/SKILL.md",
+            ".agents/skills/trellis-update-spec/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": [
+            "Project"
+          ],
+          "count": 6,
+          "paths": [
+            ".github/workflows/pr-checks.yml",
+            ".github/workflows/backend-integration.yml",
+            ".github/workflows/ci.yml",
+            ".github/workflows/deploy.yml",
+            ".github/workflows/e2e-full.yml",
+            ".github/workflows/opencode.yml"
+          ]
+        }
+      ]
+    },
+    "evidenceBoundary": {
+      "manifest": {
+        "schemaVersion": 2,
+        "sourceFingerprint": "982402d62edef0f8",
+        "adapterVersion": "pi-task-loop-source-v2",
+        "platform": "pi",
+        "selection": {
+          "strategy": "all-eligible",
+          "eligibleCount": 14,
+          "analyzedCount": 14,
+          "confidence": "Medium"
+        }
+      },
+      "episodeCoverage": {
+        "episodeCount": 5,
+        "editedEpisodeCount": 3,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0
+      },
+      "deliveryEvidenceLevels": [],
+      "sourceGaps": [
+        "信封未提供 requestRoots 数组，Phase 1 根聚类无法执行；11 个 candidate 被 candidateBudget 截断，重复工作流判定为 unknown 而非无重复",
+        "摩擦到后果的链条未被记录（frictionConsequenceSignals 空），E4 的 16 次执行失败无法归因到具体机制",
+        "pi provider 下 Memory inventory 未实现（skipped pi memories），Memory 标题元数据不可用"
+      ]
+    },
+    "learningCapture": {
+      "schemaVersion": 1,
+      "state": "N/A",
+      "summary": "本窗口无已运行的历史改进账本：6 项修复虽经独立验证，但属于 finding-bound fix 流程外的常规开发落实，未进入干预台账，later-validation 不可判定。",
+      "interventions": []
+    },
+    "assignmentSummaries": [],
+    "overview": "上次六项缺口已落实并验证，CI 集成验收跑通；残留为会话内审阅信号与 Skill 结构。"
+  },
+  "findings": [
+    {
+      "id": "session-review-signal-gap",
+      "title": "会话内最终变更后的检查全部 unreviewed，验收信号由 assistant-handoff 承载",
+      "severity": "Medium",
+      "reason": "CI 门禁已自动执行集成验收且本窗口实际跑通（PR #24 的 Backend Integration Tests 与 Migration Test Gate 均 pass），但窗口内 4/5 候选在最终变更后运行的 pytest/lint/typecheck 全部标记为 after-final-change-unreviewed，0 条 reviewed-relevant-check、0 条 user-feedback、0 条 provider-confirmed-delivery；所有 acceptanceSignals 均由 assistant-handoff 承载。后果是会话内的验证结果无法被后续窗口审阅，验收边界依赖代理自述而非可审计的相关检查。机制已 Wired，缺口在会话内审阅信号未与变更绑定。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为会话内最终变更记录被审阅的相关检查与验收结果，替代 assistant-handoff 作为唯一验收信号。\n\n## 变更\n- 在收尾流程中显式记录：最终变更对应的相关检查命令、运行结果与被审阅状态\n- 为每个变更建立到受影响检查的映射（可复用 docs/code-review/billing-affected-checks.md 模式）\n\n## 验证\n- 下一个窗口的会话证据中出现 reviewed-relevant-check，且验收信号可关联到具体变更",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "relevant-check"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": "pr-checks"
+          }
+        ],
+        "episodeEvidence": [
+          {
+            "kind": "task-episode",
+            "id": "E1"
+          }
+        ],
+        "deliveryEvidence": [],
+        "state": "wired-unobserved"
+      },
+      "expectedArtifact": "Workflow",
+      "expectedOutput": [
+        "会话内变更→受影响检查→被审阅结果的链路可被后续窗口审计",
+        "验收信号来自可关联的相关检查而非代理自述"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      }
+    },
+    {
+      "id": "skill-progressive-disclosure",
+      "title": "三个 Trellis Skill 为长文件且无渐进式引用，与 trellis-meta 组织方式不一致",
+      "severity": "Low",
+      "reason": "lint advisory 确定性：trellis-brainstorm (200 行)、trellis-break-loop (188 行)、trellis-update-spec (356 行) 均无本地 Markdown 相对链接或 references/ 子目录引用，rubricRef=Progressive Disclosure；同批 trellis-meta 已提供完整 references/ 树。后果是三个 Skill 每次触发都会把全部正文带进模型可见上下文，长文件维护与加载开销无渐进式缓解；lint advisory 只证明静态结构，未证实运行时成本，但组织方式不一致是确定性事实。上次报告同题未修复。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n为三个长 Trellis Skill 抽取渐进式 references/ 结构，与 trellis-meta 对齐。\n\n## 变更\n- trellis-brainstorm、trellis-break-loop、trellis-update-spec 按 trellis-meta 模式拆分正文到 references/ 子目录，SKILL.md 保留入口与路由\n- 保持 frontmatter description 触发语义不变\n\n## 验证\n- ruff lint 不再报告 skill-long-without-progressive-references\n- 各 SKILL.md 行数显著下降且引用可解析",
+      "dimensionRefs": [
+        "learning-capture"
+      ],
+      "subdimensionRefs": [
+        "lifecycle-repeat-detection"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "repository",
+            "id": ".agents/skills/trellis-brainstorm/SKILL.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".agents/skills/trellis-break-loop/SKILL.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".agents/skills/trellis-update-spec/SKILL.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".agents/skills/trellis-meta/SKILL.md"
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "present"
+      },
+      "expectedArtifact": "Skill",
+      "expectedOutput": [
+        "三个长 Skill 采用渐进式引用结构，入口与引用分离",
+        "lint advisory 消除，正文行数下降"
+      ],
+      "kind": "missing-mechanism",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".agents/skills"
+      }
+    },
+    {
+      "id": "root-scan-incomplete",
+      "title": "requestRoots 缺失且候选截断，重复工作流判定保持 unknown",
+      "severity": "Low",
+      "reason": "信封未提供 requestRoots 数组，reference 要求的 Phase 1 根聚类无法执行；11 个 candidate 被 candidateBudget 截断，5 个 noRequest；全部 5 个 emitted candidate 同属 contextGroup G1，按独立性约束不构成独立需求。后果是本窗口无法判定是否存在稳定重复工作流，procedureConfidence 全部为 unknown；这不是\"无重复需求\"的结论，而是证据缺失。若重复的 PR 检查修复、CI 验证边界决策等工作流确实存在，将无法路由到复用资产。",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在观测器输出中补充 requestRoots 数组并提高 candidateBudget，使根聚类可执行。\n\n## 变更\n- session 证据信封输出 requestRoots（含 request.summary/ref/contextGroup/candidateRef）\n- candidateBudget 覆盖全部候选或明确标注截断\n\n## 验证\n- 下一个窗口可执行 Phase 1 根聚类，重复工作流判定为 supported/defer/reject 而非 unknown",
+      "dimensionRefs": [
+        "learning-capture"
+      ],
+      "subdimensionRefs": [
+        "lifecycle-repeat-detection"
+      ],
+      "evidenceBridge": {
+        "staticEvidence": [],
+        "episodeEvidence": [
+          {
+            "kind": "task-episode",
+            "id": "E1"
+          },
+          {
+            "kind": "task-episode",
+            "id": "E5"
+          }
+        ],
+        "deliveryEvidence": [],
+        "state": "unobserved"
+      },
+      "expectedArtifact": "Config",
+      "expectedOutput": [
+        "根聚类可执行，重复工作流判定可收敛",
+        "证据边界从 unknown 转为可检查"
+      ],
+      "kind": "evidence-gap",
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "."
+      }
+    }
+  ]
+}
