@@ -160,14 +160,14 @@ async def list_customers(request: Request):
                 )
                 .group_by(DailyConsumption.customer_id)
             )
-        usage_result = await db_session.execute(usage_stmt)
-        for row in usage_result.all():
-            usage_map[row.customer_id] = {
-                "order_count": int(row.order_count),
-                "total_cost": float(row.total_cost),
-            }
-        # 写入缓存（TTL 5 分钟）
-        await cache_service.set("customer_usage_30d", usage_map, usage_cache_key, ttl=300)
+            usage_result = await db_session.execute(usage_stmt)
+            for row in usage_result.all():
+                usage_map[row.customer_id] = {
+                    "order_count": int(row.order_count),
+                    "total_cost": float(row.total_cost),
+                }
+            # 写入缓存（TTL 5 分钟）
+            await cache_service.set("customer_usage_30d", usage_map, usage_cache_key, ttl=300)
 
     result = {
         "code": 0,

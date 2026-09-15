@@ -15,6 +15,7 @@ Customers API 集成测试
 """
 
 import io
+from unittest.mock import AsyncMock
 
 import bcrypt
 import pytest
@@ -120,6 +121,53 @@ async def test_list_customers_success(test_client, auth_headers, customer_data):
     assert "list" in data["data"]
     assert "total" in data["data"]
     assert len(data["data"]["list"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_list_customers_usage_30d_cache_hit(test_client, auth_headers, customer_data):
+    """测试获取客户列表 - usage30d 缓存命中时直接复用缓存，不执行查询
+
+    回归测试：commit 2ecdf08f 将 usage_stmt 移入 else 分支但未同步缩进
+    execute/写缓存三行，缓存命中时触发 NameError（usage_stmt 未定义）→ 500。
+    修复前该测试失败（500），修复后通过（200 且直接复用缓存值）。
+    """
+    from unittest.mock import patch
+
+    customer_id = customer_data["customer_id"]
+
+    async def fake_get(namespace, key):
+        if namespace == "customer_list":
+            return None
+        if namespace == "customer_usage_30d":
+            return {customer_id: {"order_count": 7, "total_cost": 88.5}}
+        return None
+
+    # 直接替换路由模块绑定的 cache_service，绕过 conftest 的 mock 注入时机问题
+    with patch("app.routes.customers.cache_service") as mock_cache:
+        mock_cache.get = AsyncMock(side_effect=fake_get)
+        mock_cache.set = AsyncMock(return_value=True)
+
+        request, response = await test_client.get(
+            "/api/v1/customers",
+            headers=auth_headers,
+        )
+
+        # 命中 usage 缓存：应查询 usage 缓存，且不再写 usage 缓存（未走数据库查询分支）
+        usage_get_calls = [
+            c for c in mock_cache.get.await_args_list if c.args[0] == "customer_usage_30d"
+        ]
+        assert len(usage_get_calls) == 1
+        usage_set_calls = [
+            c for c in mock_cache.set.await_args_list if c.args[0] == "customer_usage_30d"
+        ]
+        assert len(usage_set_calls) == 0
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    item = next(c for c in data["data"]["list"] if c["id"] == customer_id)
+    assert item["usage_30d"] == 7
+    assert item["usage_30d_amount"] == 88.5
 
 
 @pytest.mark.asyncio
@@ -1174,7 +1222,6 @@ async def test_customers_unauthorized(test_client):
 @pytest.mark.asyncio
 async def test_customers_missing_permission(test_client, db_session):
     """测试缺少权限访问"""
-    from unittest.mock import AsyncMock
 
     username = "no_perm_user"
     password = "test123456"
