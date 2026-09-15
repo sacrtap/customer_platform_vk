@@ -601,6 +601,8 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 **Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
 
+**Reviewed-validation preamble**: before drafting commits, ensure the final change set has a reviewed validation record — the mapped affected checks, their exact commands, observed results, and reviewed status (produced by `trellis-check` Step 3). Without it, acceptance rests on an assistant handoff, not auditable evidence. Either include the record in the final commit message (e.g. `验证: pytest tests/integration/test_billing_api.py 通过`) or reference the task artifact that holds it; then `git commit` after the plan is confirmed.
+
 The AI drives a batched commit of this task's code changes so `/finish-work` can run cleanly afterwards. Goal: produce work commits FIRST, then bookkeeping (archive + journal) commits land after — never interleaved.
 
 **Step-by-step**:
