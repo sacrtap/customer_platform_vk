@@ -10,7 +10,7 @@
     @cancel="handleCancel"
     @close="handleCancel"
   >
-    <a-spin :loading="fetchLoading" tip="加载客户数据中...">
+    <a-spin :loading="fetchLoading">
       <div v-show="!fetchLoading">
         <a-form
           ref="editFormRef"
