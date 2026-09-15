@@ -25,6 +25,7 @@ from . import daily_consumption  # noqa: E402
 from . import sync_task  # noqa: E402
 from . import token_blacklist  # noqa: E402
 from . import api_key  # noqa: E402
+from . import forecast_config  # noqa: E402
 
 # isort: on
 
@@ -45,4 +46,5 @@ __all__ = [
     "daily_order",
     "sync_task",
     "api_key",
+    "forecast_config",
 ]
