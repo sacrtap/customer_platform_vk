@@ -15,12 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
 from ...config import settings
+from ...constants.error_codes import ErrorCodes
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.excel_import import read_import_dataframe
+from ...utils.tiers import TierFormatError
 from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
 
@@ -168,11 +170,18 @@ async def get_invoice(request: Request, invoice_id: int):
     # 重新调用 calculate_items_from_rules 获取完整计费规则信息
     # 数据库 InvoiceItem 只存储基础字段（device_type/layer_type/quantity/unit_price），
     # pricing_type/package_type/tiers/over_limit 等需通过 PricingRule 关联获取
-    recalculated_items, _ = await invoice_service.calculate_items_from_rules(
-        customer_id=invoice.customer_id,
-        period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
-        period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
-    )
+    try:
+        recalculated_items, _ = await invoice_service.calculate_items_from_rules(
+            customer_id=invoice.customer_id,
+            period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
+            period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
+        )
+    except TierFormatError as e:
+        # 与 calculate-items 一致：阶梯配置非法时返回业务错误码而非 500
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+            status=400,
+        )
 
     # 格式化 items（与 calculate-items 路由一致的字段结构）
     formatted_items = [
@@ -311,12 +320,17 @@ async def calculate_invoice_items(request: Request):
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
     # 调用服务层计算
-    items, total_amount = await invoice_service.calculate_items_from_rules(
-        customer_id=data["customer_id"],
-        period_start=period_start,
-        period_end=period_end,
-    )
-
+    try:
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=data["customer_id"],
+            period_start=period_start,
+            period_end=period_end,
+        )
+    except TierFormatError as e:
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+            status=400,
+        )
     if not items:
         return json(
             {
@@ -556,11 +570,18 @@ async def generate_invoice(request: Request):
     # 区分"未提供 items"和"items 为空列表"
     if "items" not in data:
         # 未提供 items，自动根据计费规则 + 用量计算
-        items, _ = await invoice_service.calculate_items_from_rules(
-            customer_id=data["customer_id"],
-            period_start=period_start,
-            period_end=period_end,
-        )
+        try:
+            items, _ = await invoice_service.calculate_items_from_rules(
+                customer_id=data["customer_id"],
+                period_start=period_start,
+                period_end=period_end,
+            )
+        except TierFormatError as e:
+            # 与 calculate-items 一致：阶梯配置非法时返回业务错误码而非 500
+            return json(
+                {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+                status=400,
+            )
         if not items:
             return json(
                 {
@@ -1256,7 +1277,7 @@ async def export_invoices(request: Request):
         "周期开始",
         "周期结束",
         "总金额",
-        "折扣金额",
+        "减免金额",
         "最终金额",
         "状态",
         "创建时间",
@@ -1362,7 +1383,7 @@ async def import_invoices(request: Request):
     - period_start (必填) - 账期开始 YYYY-MM-DD
     - period_end (必填) - 账期结束 YYYY-MM-DD
     - total_amount (必填) - 结算金额（元，≥0）
-    - discount_amount (可选) - 折扣金额（元，默认 0）
+    - discount_amount (可选) - 减免金额（元，默认 0）
     - invoice_no (可选) - 结算单号，缺省自动生成
 
     导入的结算单统一为 draft（草稿）状态，不进入确认/付款流程。
@@ -1470,13 +1491,13 @@ async def import_invoices(request: Request):
                     try:
                         discount_amount = Decimal(str(discount_raw))
                         if discount_amount < 0:
-                            errors.append(f"第 {row_num} 行：折扣金额不能为负数")
+                            errors.append(f"第 {row_num} 行：减免金额不能为负数")
                             continue
                     except (InvalidOperation, ValueError, TypeError):
-                        errors.append(f"第 {row_num} 行：折扣金额格式错误")
+                        errors.append(f"第 {row_num} 行：减免金额格式错误")
                         continue
                 if discount_amount > total_amount:
-                    errors.append(f"第 {row_num} 行：折扣金额不能大于结算金额")
+                    errors.append(f"第 {row_num} 行：减免金额不能大于结算金额")
                     continue
 
                 # invoice_no（可选，缺省自动生成）
@@ -1592,7 +1613,7 @@ async def download_invoice_import_template(request: Request):
         "必填：账期开始 YYYY-MM-DD",
         "必填：账期结束 YYYY-MM-DD",
         "必填：结算金额（元）",
-        "可选：折扣金额（元）",
+        "可选：减免金额（元）",
         "可选：结算单号，缺省自动生成",
     ]
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]

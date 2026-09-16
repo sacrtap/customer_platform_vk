@@ -22,6 +22,7 @@ from ..models.daily_consumption import DailyConsumption
 from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
+from ..utils.tiers import TierFormatError, normalize_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -2283,10 +2284,17 @@ class AnalyticsService:
         expected_usage = 0.0
         if pricing_result and pricing_result.tiers:
             # 从 tiers 中提取预期用量（如果有配置）
-            tiers = pricing_result.tiers
-            if isinstance(tiers, list) and len(tiers) > 0:
-                # 取最后一个 tier 的 threshold 作为预期用量参考
-                expected_usage = float(tiers[-1].get("threshold", 0))
+            # 历史脏数据可能无法归一化：该分支只影响预测展示，降级为「无阶梯配置」而非报错
+            try:
+                tiers = normalize_tiers(pricing_result.tiers) or []
+            except TierFormatError as e:
+                logger.warning("定价规则 tiers 形态非法，已忽略预期用量：%s", e)
+                tiers = []
+            if len(tiers) > 0:
+                # 取最后一个 tier 的 max 作为预期用量参考
+                last_max = tiers[-1].get("max")
+                if last_max is not None:
+                    expected_usage = float(last_max)
         if expected_usage == 0:
             # 回退：用近30天的日均 * 30 作为预期
             expected_usage = actual_usage if actual_usage > 0 else 0

@@ -113,8 +113,110 @@ else:
     invoice.detail_file_status = "completed"
 ```
 
-> **Warning（真实事故 2026-09-16）**：`invoice_39` 的 `detail_file_status=completed`、
-> `detail_file_path=invoices/2026/08/invoice_39.xlsx`，但 `backend/uploads/invoices/2026/` 是**空目录**，
-> 而项目根 `uploads/invoices/2026/07/` 留有 5 天前的文件 —— 证明历史上曾从不同 cwd 启动后端，
-> 产物分裂到两个 `uploads/`。下载端点返回 404，而列表页仍显示「已完成」。
-> 当时以 `regenerate-detail` 重建文件消除症状；**根因（相对路径配置）需显式设置 `FILE_STORAGE_PATH` 才能根治**。
+> **Warning（真实事故 2026-09-16 发现，根因 2026-09-17 定位并修复）**：
+>
+> **现象**：`invoice_39` 的 `detail_file_status=completed`、`detail_file_path=invoices/2026/08/invoice_39.xlsx`，
+> 但 `backend/uploads/invoices/2026/` 是**空目录**。下载端点返回 `404 明细文件不存在`，而列表页仍显示「已完成」。
+>
+> **主因（置信度 97%）—— 清理任务无差别删除业务文件**：`tasks/file_cleanup.py` 的
+> `cleanup_temp_files` 每日 03:00 以**存储根**为 `os.walk` 起点，且**无任何排除规则**，
+> 把超过 7 天保留期的业务文件当「临时文件」删除。DB + 磁盘实测：
+> 5 条 `completed` 记录中 **4 条文件已 MISSING**（`invoice_35..38`，全部为 7 月产物），
+> **状态-实体不一致率 80%**；缺失文件**全部是 7 天前的产物**，与清理任务行为完全吻合。
+> `avatars/`（用户头像）、`payment_proof`（付款凭证）、`discount_attachment`（减免附件）同属受害者。
+>
+> **次因 —— 存储根为相对路径**：`FILE_STORAGE_PATH` 未设置时回退 `./uploads`，相对进程 cwd 解析；
+> 历史上曾从项目根启动过后端，留下 `uploads/invoices/2026/07/` 空目录树（项目根 `uploads/` 现仅空目录）。
+> 文件位置随启动目录漂移，而 DB 状态不受影响 → 静默不一致。**此项是真实存在的独立缺陷，但不是本次事故的主因**。
+>
+> **修复**：
+> 1. 清理范围**物理收缩**到 `<FILE_STORAGE_PATH>/temp/`（见下节「临时文件清理边界」），业务目录永不被扫描；
+> 2. 启动期对相对路径 `logger.warning`（不阻断启动）；
+> 3. 落盘后二次确认文件存在且非空，失败置 `failed`；
+> 4. 提供 `backend/scripts/check_detail_files.py --detect / --reset-pending` 处置存量不一致记录。
+
+---
+
+## 临时文件清理边界（清理任务的范围契约）
+
+### Scope / Trigger
+
+- 触发：修改 `backend/app/tasks/file_cleanup.py`，或新增任何写入 `<FILE_STORAGE_PATH>` 的文件生产者
+- 强制深度理由：**数据丢失级事故**（业务凭证被当临时文件删除，且 DB 状态不随之变化）
+
+### Signatures
+
+```python
+# backend/app/tasks/file_cleanup.py
+TEMP_SUBDIR = "temp"          # 唯一被清理的目录：<FILE_STORAGE_PATH>/temp/
+RETENTION_DAYS = 7            # 保留期
+
+async def cleanup_temp_files() -> None
+```
+
+### Contracts
+
+| 项 | 约定 |
+|---|---|
+| **被清理范围** | `<FILE_STORAGE_PATH>/temp/` 子树**唯一**。`os.walk` 的根**必须**是该目录，不得是存储根 |
+| **业务目录（永不清除）** | `invoices/**`、`avatars/**`、`<YYYY>/<MM>/**`（通用上传：付款凭证 / 减免附件） |
+| `temp/` 不存在 | 记 info 日志并 `return` —— **不遍历存储根、不执行任何删除** |
+| 空目录清理 | 同样只作用于 `temp/` 子树 |
+| 软链接防御 | `temp_dir.resolve()` 必须位于 `<storage>.resolve()` 之下，否则记 error 并 `return` |
+
+> **设计依据（为何用「物理隔离」而非「白名单豁免」）**：`uploads/` 下**不存在任何临时文件生产者**
+> （已 grep 全后端确认），三类现有目录全为业务数据。若采用「全量扫描 + 排除 `invoices/`、`avatars/`」
+> 的白名单方案，**通用上传目录（`<YYYY>/<MM>/`）中的付款凭证与减免附件仍会被删除** —— 白名单必然遗漏。
+> 物理隔离使「临时」成为显式路径约定，而非靠穷举排除项维持正确性。
+
+### Validation & Error Matrix
+
+| 条件 | 结果 |
+|---|---|
+| `temp/` 下文件超过保留期 | **删除**（预期行为） |
+| `temp/` 下文件在保留期内 | 保留 |
+| `invoices/**`、`avatars/**`、`<YYYY>/<MM>/**` 下文件超过保留期 | **保留**（回归断言点） |
+| `temp/` 不存在 | 无操作，记 info 日志 |
+| `temp/` 解析后越出存储根（软链接） | 记 error，不清理 |
+
+### Good/Base/Bad Cases
+
+- **Good**：`temp/` 放 8 天前文件 + `invoices/2026/07/invoice_35.xlsx` 同为 8 天前 → 执行清理 → 前者删除、后者保留
+- **Base**：`temp/` 不存在 → 执行清理 → 无任何文件变动
+- **Bad（历史事故）**：以存储根为 `os.walk` 起点 → 结算明细、头像、凭证全部在 7 天后被删除，而 DB 仍标 `completed`
+
+### Tests Required
+
+| 断言点 | 说明 |
+|---|---|
+| 删该删的 | `temp/` 下过期文件被删除 |
+| 留该留的 | `invoices/`、`avatars/`、`<YYYY>/<MM>/` 下过期文件**全部保留**；业务目录下的**空目录也保留** |
+| 无目录即无操作 | `temp/` 缺失时不抛异常、不删除任何文件 |
+| 越界防御 | 指向存储根之外的软链接被拒绝清理 |
+
+> 现有覆盖：`backend/tests/unit/test_tasks.py::TestFileCleanupTask`（含上述四组断言）。
+> 反向验证手法：临时把 `os.walk` 根改回存储根 → 该测试立即以「业务文件被清理任务误删」失败。
+
+### Wrong vs Correct
+
+```python
+# ❌ Wrong：以存储根为遍历起点 —— 「临时文件」与「业务文件」无法区分
+upload_dir = settings.file_storage_path
+for root, dirs, files in os.walk(upload_dir):
+    if file_mtime < cutoff_timestamp:
+        os.remove(file_path)
+
+# ✅ Correct：只管显式临时目录；目录不存在即无操作
+temp_dir = Path(settings.file_storage_path) / TEMP_SUBDIR
+if not temp_dir.exists():
+    logger.info("临时目录不存在（%s），无文件可清理", temp_dir)
+    return
+resolved_temp = temp_dir.resolve()
+try:
+    resolved_temp.relative_to(Path(settings.file_storage_path).resolve())
+except ValueError:
+    logger.error("临时目录越出存储根，拒绝清理：%s", resolved_temp)
+    return
+for root, dirs, files in os.walk(resolved_temp):
+    ...
+```

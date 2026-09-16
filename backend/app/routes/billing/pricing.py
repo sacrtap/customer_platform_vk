@@ -16,6 +16,7 @@ from ...repository import PricingRepository
 from ...services.billing import PricingService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 from ...utils.excel_import import read_import_dataframe
+from ...utils.tiers import parse_tiers_or_raise
 from ...utils.timezone import local_date_to_utc_end, local_date_to_utc_start
 from . import billing_bp
 
@@ -422,16 +423,20 @@ async def import_pricing_rules(request: Request):
                     str(package_type_raw).strip() if not pd.isna(package_type_raw) else None
                 )
 
-                # tiers JSON 解析
+                # tiers JSON 解析（归一化与校验由 parse_tiers_or_raise 统一处理）
                 tiers = None
                 tiers_raw = row.get("tiers")
                 if tiers_raw is not None and not pd.isna(tiers_raw):
                     try:
-                        tiers = _json.loads(tiers_raw) if isinstance(tiers_raw, str) else tiers_raw
-                        if not isinstance(tiers, list):
-                            raise ValueError("tiers 必须是数组")
-                    except (ValueError, TypeError) as e:
+                        parsed = _json.loads(tiers_raw) if isinstance(tiers_raw, str) else tiers_raw
+                        tiers = parse_tiers_or_raise(parsed, row_num=row_num)
+                    except _json.JSONDecodeError as e:
+                        # JSON 本身不合法（JSONDecodeError 是 ValueError 子类，须先捕获）
                         errors.append(f"第 {row_num} 行：阶梯配置 JSON 格式错误：{e}")
+                        continue
+                    except ValueError as e:
+                        # parse_tiers_or_raise 已生成「第 N 行：阶梯配置 JSON 格式错误：…」文案
+                        errors.append(str(e))
                         continue
 
                 # expiry_date

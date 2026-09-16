@@ -223,6 +223,8 @@ import PricingRuleModal from './components/PricingRuleModal.vue'
 import ImportModal from './components/ImportModal.vue'
 import Pagination from '@/components/ui/Pagination.vue'
 import { formatDate } from '@/utils/formatters'
+import { parseTiers } from '@/utils/tiers'
+import type { Tier } from '@/utils/tiers'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -235,7 +237,7 @@ interface PricingRule {
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
-  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
+  tiers?: Tier[] | null
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
@@ -407,18 +409,12 @@ const onModalSaved = () => {
 }
 
 // 格式化阶梯配置的 tooltip 内容
-const formatTiersTooltip = (tiers: Record<string, unknown> | undefined): string => {
-  if (!tiers) return '未配置阶梯'
-  let ranges: Array<{ min: number; max: number | null; price: number }> = []
-  if (Array.isArray(tiers)) {
-    ranges = tiers as Array<{ min: number; max: number | null; price: number }>
-  } else if (typeof tiers === 'object' && tiers !== null && 'ranges' in tiers) {
-    ranges = (tiers as { ranges: Array<{ min: number; max: number | null; price: number }> }).ranges
-  }
-  if (!ranges || ranges.length === 0) return '未配置阶梯'
+const formatTiersTooltip = (tiers: unknown): string => {
+  const ranges = parseTiers(tiers)
+  if (ranges.length === 0) return '未配置阶梯'
   return ranges
     .map((r) => {
-      const maxStr = r.max === null || r.max === undefined ? '不限' : r.max
+      const maxStr = r.max == null ? '不限' : r.max
       return `${r.min}-${maxStr}: ¥${r.price}`
     })
     .join('\n')

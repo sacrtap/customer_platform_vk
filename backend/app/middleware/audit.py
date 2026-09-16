@@ -88,7 +88,7 @@ def audit_middleware(app: Sanic):
                 return
 
             # Billing 发票动作端点：只跳过状态变更端点
-            # 生成/折扣/删除保持中间件自动审计
+            # 生成/减免/删除保持中间件自动审计
             if request.path.startswith("/api/v1/billing/invoices/"):
                 action_endpoints = ("/submit", "/confirm", "/pay", "/complete", "/cancel")
                 if any(request.path.endswith(action) for action in action_endpoints):

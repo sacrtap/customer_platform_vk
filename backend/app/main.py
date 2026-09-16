@@ -1,3 +1,5 @@
+import logging
+from pathlib import Path
 from typing import Union
 
 from sanic import Sanic
@@ -16,6 +18,8 @@ from .config import settings
 from .middleware.audit import audit_middleware
 from .middleware.auth import auth_middleware
 from .middleware.correlation import correlation_middleware, install_request_id_filter
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(
@@ -104,6 +108,16 @@ def create_app(
     audit_middleware(app)
 
     # 注册静态文件服务（上传文件目录）
+    # FILE_STORAGE_PATH 相对路径告警：相对路径将相对进程 cwd 解析，
+    # 从不同目录启动会导致文件写入不同位置；生产环境请设为绝对路径。
+    if not Path(settings.file_storage_path).is_absolute():
+        logger.warning(
+            "FILE_STORAGE_PATH 为相对路径（%s），将相对进程 cwd（%s）解析。"
+            "生产环境请设置为绝对路径，否则从不同目录启动会导致文件写入不同位置。",
+            settings.file_storage_path,
+            Path.cwd(),
+        )
+
     app.static("/uploads/", settings.file_storage_path, name="uploads")
 
     # 注册路由蓝图

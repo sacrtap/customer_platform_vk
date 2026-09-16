@@ -206,7 +206,6 @@ def make_mock_row(data):
         setattr(row, "company_id", data[2])
         setattr(row, "total_amount", data[3])
     # 7 元素：(id, name, company_id, device_type, pricing_type, unit_price, tiers) - 定价规则
-    # 或 (id, name, company_id, device_type, pricing_model, unit_price, min_quantity)
     elif len(data) == 7:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
@@ -217,10 +216,8 @@ def make_mock_row(data):
         setattr(row, "pricing_type", data[4])
         setattr(row, "pricing_model", data[4])
         setattr(row, "unit_price", data[5])
-        setattr(row, "min_quantity", data[6])
         setattr(row, "tiers", data[6])
     # 8 元素：(id, name, company_id, device_type, pricing_type, unit_price, tiers, package_type) - 定价规则
-    # 或 (id, name, company_id, device_type, pricing_model, unit_price, min_quantity, max_quantity)
     elif len(data) == 8:
         setattr(row, "id", data[0])
         setattr(row, "customer_id", data[0])
@@ -231,8 +228,6 @@ def make_mock_row(data):
         setattr(row, "pricing_type", data[4])
         setattr(row, "pricing_model", data[4])
         setattr(row, "unit_price", data[5])
-        setattr(row, "min_quantity", data[6])
-        setattr(row, "max_quantity", data[7])
         setattr(row, "tiers", data[6])
         setattr(row, "package_type", data[7])
 
@@ -1296,8 +1291,8 @@ class TestCustomerHealthScoreService:
             # 2. PricingRule（从 tiers 提取预期用量）
             pricing_row = MagicMock()
             pricing_row.tiers = [
-                {"threshold": 500, "price": 10},
-                {"threshold": 1000, "price": 8},
+                {"min": 0, "max": 500, "price": 10},
+                {"min": 501, "max": 1000, "price": 8},
             ]
 
             # 3. CustomerBalance（当前余额）
@@ -1336,7 +1331,7 @@ class TestCustomerHealthScoreService:
             assert "payment_rate" in result
             assert "health_level" in result
 
-            # 用量达标率 = min(800/1000, 1.0) * 100 = 80 (从 tiers[-1].threshold=1000)
+            # 用量达标率 = min(800/1000, 1.0) * 100 = 80 (从 tiers[-1].max=1000)
             assert result["usage_rate"] == 80.0
             # 余额充足率 = min(15000/5000, 1.0) * 100 = 100
             assert result["balance_rate"] == 100.0

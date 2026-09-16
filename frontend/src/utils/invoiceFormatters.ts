@@ -7,13 +7,7 @@
 
 import { formatCurrency } from './formatters'
 import type { InvoiceItem } from '@/api/billing'
-
-/** 阶梯配置条目 */
-interface TierRange {
-  min: number
-  max: number | null
-  price: number
-}
+import { parseTiers } from './tiers'
 
 /** 计费类型文本 — 兼容后端 pricing/tiered/yearly 和前端 fixed/tiered/package */
 export function pricingTypeText(type?: string): string {
@@ -109,26 +103,4 @@ export function formatRuleDetail(record: InvoiceItem): string[] {
   }
 
   return ['—']
-}
-
-/** 解析阶梯配置 */
-export function parseTiers(raw: unknown): TierRange[] {
-  if (!raw) return []
-  let arr: Array<{ min?: number; max?: number | null; price?: number }> = []
-  if (Array.isArray(raw)) {
-    arr = raw as Array<{ min?: number; max?: number | null; price?: number }>
-  } else if (typeof raw === 'object' && raw !== null) {
-    const obj = raw as Record<string, unknown>
-    if (Array.isArray(obj.ranges)) {
-      arr = obj.ranges as Array<{ min?: number; max?: number | null; price?: number }>
-    }
-  }
-  return arr
-    .filter((t) => t.min != null && t.price != null)
-    .map((t) => ({
-      min: t.min ?? 0,
-      max: t.max ?? null,
-      price: t.price ?? 0,
-    }))
-    .sort((a, b) => a.min - b.min)
 }

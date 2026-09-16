@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/file-storage.md", "reason": "存储路径语义、状态-实体一致性契约(R1-R3 判定依据)"}
+{"file": ".trellis/spec/backend/import-export.md", "reason": "模板说明行前缀契约、行级错误文案风格、权限码(R6/AC9 修改对象)"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "语义重命名传播与宽严解析不一致清单(C/D 的方法论依据)"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "session 使用规范与既有 JSON 字段处理先例"}

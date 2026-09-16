@@ -1,4 +1,5 @@
 import api from './index'
+import type { Tier } from '@/utils/tiers'
 
 // ==================== 余额管理 ====================
 
@@ -155,7 +156,7 @@ export interface PricingRule {
   unit_price?: number
   multi_floor_pricing_type?: 'unified' | 'incremental'
   additional_floor_price?: number
-  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
+  tiers?: Tier[]
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string

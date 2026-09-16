@@ -1,16 +1,25 @@
 """
 P6-10: 临时文件清理任务
 每日清理 7 天前的临时文件
+
+本任务只清理显式临时目录（<FILE_STORAGE_PATH>/temp/），业务数据
+（invoices/、avatars/、<YYYY>/<MM>/）永不被清理。
+历史事故见 prd.md 缺陷 B：原实现以存储根为 os.walk 根，无差别删除
+超过保留期的业务凭证文件，导致 DB 状态与磁盘实体永久脱节。
 """
 
 import logging
 import os
 import shutil
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+# 业务文件与临时文件的物理隔离边界：唯一被清理的子目录。
+TEMP_SUBDIR = "temp"
 
 
 async def cleanup_temp_files():
@@ -18,17 +27,35 @@ async def cleanup_temp_files():
     清理临时文件
 
     执行时间：每日 03:00
-    职责：清理 uploads 目录中 7 天前的文件
+    职责：仅清理 <FILE_STORAGE_PATH>/temp/ 目录中 7 天前的文件及空目录。
+    业务目录（invoices/、avatars/、<YYYY>/<MM>/）永不被遍历。
     """
     logger.info("🧹 开始执行临时文件清理任务")
 
     try:
-        upload_dir = settings.file_storage_path
-        retention_days = 7
+        storage_root = Path(settings.file_storage_path).resolve()
+        temp_dir = storage_root / TEMP_SUBDIR
 
-        if not os.path.exists(upload_dir):
-            logger.info(f"📁 上传目录不存在：{upload_dir}，跳过清理")
+        # temp/ 不存在 → 无文件可清理，直接返回（不遍历存储根、不报错）
+        if not temp_dir.exists():
+            logger.info("📁 临时目录不存在（%s），无文件可清理", temp_dir)
             return
+
+        # 软链接防御：temp_dir 实际路径必须仍位于 storage_root 之下，
+        # 防止 temp/ 被误配为指向存储根外部的软链接而误删外部文件。
+        resolved_temp = temp_dir.resolve()
+        try:
+            resolved_temp.relative_to(storage_root)
+        except ValueError:
+            logger.error(
+                "❌ 临时目录 %s 解析后（%s）不在存储根 %s 之下，疑似软链接越界，拒绝清理",
+                temp_dir,
+                resolved_temp,
+                storage_root,
+            )
+            return
+
+        retention_days = 7
 
         # 计算 cutoff 时间
         cutoff_time = datetime.now() - timedelta(days=retention_days)
@@ -39,8 +66,8 @@ async def cleanup_temp_files():
         deleted_size = 0
         skipped_count = 0
 
-        # 遍历上传目录
-        for root, dirs, files in os.walk(upload_dir):
+        # 仅遍历 temp_dir —— 不再以存储根为 os.walk 的根
+        for root, dirs, files in os.walk(resolved_temp):
             for file in files:
                 file_path = os.path.join(root, file)
 
@@ -62,7 +89,7 @@ async def cleanup_temp_files():
                     logger.error(f"❌ 文件处理失败 {file_path}: {str(e)}")
                     continue
 
-            # 清理空目录
+            # 空目录清理：同样只作用于 temp/ 子树
             for dir_name in dirs:
                 dir_path = os.path.join(root, dir_name)
                 try:

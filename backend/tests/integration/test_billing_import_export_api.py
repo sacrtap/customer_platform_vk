@@ -673,7 +673,7 @@ async def test_export_package_plans_forbidden_without_permission(test_client, au
 
 @pytest.mark.asyncio
 async def test_invoice_import_template_download(test_client, auth_token):
-    """结算单导入模板可下载"""
+    """结算单导入模板可下载，且列名/列序与术语契约保持稳定"""
     _request, response = await test_client.get(
         "/api/v1/billing/invoices/import-template",
         headers={"Authorization": f"Bearer {auth_token}"},
@@ -681,6 +681,28 @@ async def test_invoice_import_template_download(test_client, auth_token):
 
     assert response.status == 200
     assert response.body[:2] == b"PK"
+
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+    header = [c.value for c in ws[1]]
+    notes = [c.value for c in ws[2]]
+
+    # 列名与列顺序：改动会使已下载模板的存量导入错列
+    assert header == [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ], header
+    # 第 2 行说明行前缀契约：excel_import._is_template_note_row 依赖「必填」/「可选」开头
+    assert all(str(v).startswith(("必填：", "可选：")) for v in notes if v), notes
+    assert len(notes) == len(header), (notes, header)
+    # 用户可见文案统一为「减免」，不得回退为「折扣」
+    assert notes[4] == "可选：减免金额（元）", notes
+    assert "折扣" not in "".join(str(v) for v in header + notes), (header, notes)
+    # 说明行不被当作数据行（导入无虚假行级错误）由 test_import_invoices_from_downloaded_template 覆盖
 
 
 @pytest.mark.asyncio

@@ -111,9 +111,10 @@ class TestCostCalcService:
         """测试阶梯价格计算 - 多阶梯"""
         pricing_rule = MagicMock(spec=PricingRule)
 
-        # 创建阶梯配置（使用 dict）
-        tier1 = {"min_quantity": 0, "max_quantity": 10, "price": Decimal("100.00")}
-        tier2 = {"min_quantity": 10, "max_quantity": 100, "price": Decimal("80.00")}
+        # 创建阶梯配置（唯一形态：min/max 为闭区间整数边界，max=null 表示无上界；
+        # price 为 JSON 原生数值，DB 层 tiers 为 JSON 列）
+        tier1 = {"min": 0, "max": 9, "price": 100.0}
+        tier2 = {"min": 10, "max": 99, "price": 80.0}
 
         pricing_rule.tiers = [tier1, tier2]
         pricing_rule.unit_price = Decimal("50.00")

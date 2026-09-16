@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.models.billing import PricingRule
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
+from app.utils.tiers import normalize_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -382,12 +383,12 @@ class CostCalcService:
 
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
-        tiers = pricing_rule.tiers or []
-        if not tiers:  # pyright: ignore[reportGeneralTypeIssues]
+        tiers = normalize_tiers(pricing_rule.tiers) or []
+        if not tiers:
             return Decimal(str(pricing_rule.unit_price or 0)) * quantity
 
-        # Sort tiers by min_quantity
-        sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))  # pyright: ignore[reportCallIssue, reportArgumentType, reportAttributeAccessIssue]
+        # 按 min 升序排列
+        sorted_tiers = sorted(tiers, key=lambda t: t.get("min", 0))
 
         remaining = quantity
         total_cost = Decimal("0")
@@ -396,9 +397,12 @@ class CostCalcService:
             if remaining <= 0:
                 break
 
-            min_qty = tier.get("min_quantity", 0)
-            max_qty = tier.get("max_quantity", 999999)
-            tier_range = max_qty - min_qty
+            min_qty = tier.get("min", 0)
+            max_qty = tier.get("max")
+            if max_qty is not None:
+                tier_range = max_qty - min_qty + 1
+            else:
+                tier_range = remaining  # 无上限，使用剩余数量
             tier_quantity = min(remaining, tier_range)
             tier_price = Decimal(str(tier.get("price", pricing_rule.unit_price or 0)))
             total_cost += Decimal(tier_quantity) * tier_price

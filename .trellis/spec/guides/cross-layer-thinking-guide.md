@@ -178,6 +178,16 @@ This meant users could not filter by `pending_ops` or `pending_sales` status, an
 
 **教训**：术语重命名的 grep 必须覆盖**后端生成用户可见文本**的位置（导出/模板/错误文案），而不是只 grep 前端。
 
+**已修复（2026-09-17，任务 `09-16-legacy-fixes-ternary-storage-consistency`）**：8 处全部统一为「减免」，
+`grep -rn "折扣" backend/app` 为 0。修复时的**硬约束**（缺一即破坏存量导入）：
+
+1. 模板第 2 行说明**必须保留** `必填：` / `可选：` 前缀 —— `utils/excel_import.py::_is_template_note_row` 据此判定说明行；
+2. **列名与列顺序不得变**（否则已下载模板的存量导入会错列）——表头文案可改，列数不可改。
+
+> **可复用的验证手法**：把模板契约写进集成测试（`test_billing_import_export_api.py` 的模板下载用例），
+> 断言「列名与列序 == 期望列表」「说明行逐列以 `必填：/可选：` 开头」「表头与说明行均不含旧词」。
+> 只断言新文案出现是不够的 —— 必须同时锁住**未变的部分**（列序、前缀），才能同时防「漏改」与「改坏」。
+
 ---
 
 ## Widening vs Narrowing Parser (同一结构的宽严解析不一致)
@@ -212,6 +222,30 @@ ranges = tiers.get("ranges", [])   # tiers 若是 list → AttributeError → HT
 两端对同一字段的「合法形态」定义不同，且无归一化 owner。
 
 **正确方向**：定义一次（如后端 Pydantic 模型 + 前端同一归一化函数），两端共用；异形输入返回 `40002` 类业务错误。
+
+**已修复（2026-09-17，任务 `09-16-legacy-fixes-ternary-storage-consistency`）**：收敛为**数组**单一形态
+`[{"min": int, "max": int|null, "price": number}]`，并建立两个唯一 owner：
+
+- 后端 `backend/app/utils/tiers.py`：`normalize_tiers()`（归一化）/ `parse_tiers_or_raise()`（校验 + 行级文案）/ `TierFormatError`
+- 前端 `frontend/src/utils/tiers.ts`：`parseTiers()`（唯一解析实现）
+
+消费点全部改为调用 owner：`services/billing.py`、`services/cost_calc.py`、`services/analytics.py`、
+`routes/billing/pricing.py`（导入校验）；前端 `invoiceFormatters.ts`、`PricingRules.vue`、`PricingRuleModal.vue`。
+
+**修复过程中新暴露的三类坑（值得记住）**：
+
+1. **宽严收敛会制造新的 500 面**：把「宽容」替换为「严格归一化」后，原先靠 `isinstance(x, list)` 守卫而
+   **侥幸不崩**的调用点（如 `analytics` 健康度评分）会开始抛 `TierFormatError` → 500。
+   收敛时必须 `grep` 出**全部**消费点，而非只改已知的那几个；纯展示型消费点应 `try/except` 降级为「无阶梯配置」。
+2. **写入口必须校验，否则缺陷被推迟到结算期**：`create` / `update` 若不归一化，非法 `tiers` 会落库，
+   直到生成结算单时才炸，而那时用户已看不到上下文。写入口统一经 `normalize_tiers`（非法 → `40001`）。
+3. **边界校验决定「静默错值」还是「显式失败」**：只校验类型不校验关系，`max < min` 会让下游
+   `容量 = max - min + 1` 变负 → **静默算出负数金额**。必须补 `max >= min`、`price >= 0` 两条关系校验。
+   （`price == 0`、`max == min` 仍合法，不要过度收紧。）
+
+> **验证手法**：用边界矩阵（本例 22 例：空数组/缺键/类型错/关系错/混合类型/null 等）逐一断言
+> 「返回 `None`」或「抛 `TierFormatError`」，不允许出现「不崩但错值」。再用端到端用例锁住
+> 「导入 → 存储形态为数组 → 结算计价正确」这条链路。
 
 ---
 

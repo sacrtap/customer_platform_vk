@@ -286,10 +286,12 @@ import { reactive, ref, watch, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import * as billingApi from '@/api/billing'
+import { parseTiers } from '@/utils/tiers'
 
 type PricingRule = billingApi.PricingRule
 
-interface Tier {
+/** 编辑器内部的阶梯条目（在共享 Tier 基础上增加 unlimited 开关） */
+interface EditorTier {
   min: number
   max: number | null
   price: number
@@ -320,7 +322,7 @@ const formData = reactive({
   unit_price: undefined as number | undefined,
   additional_floor_price: undefined as number | undefined,
   multi_floor_pricing_type: 'unified' as 'unified' | 'incremental',
-  tiers: [] as Tier[],
+  tiers: [] as EditorTier[],
   package_type: undefined as string | undefined,
   effective_date: undefined as string | undefined,
   expiry_date: undefined as string | undefined,
@@ -368,7 +370,7 @@ watch(
           additional_floor_price: record.additional_floor_price,
           multi_floor_pricing_type:
             (record.multi_floor_pricing_type as 'unified' | 'incremental') || 'unified',
-          tiers: parseTiers(record.tiers),
+          tiers: parseEditorTiers(record.tiers),
           package_type: record.package_type,
           effective_date: record.effective_date,
           expiry_date: record.expiry_date,
@@ -414,22 +416,14 @@ const onMultiFloorPricingTypeChange = () => {
   }
 }
 
-// 解析后端返回的 tiers 数据为编辑器可用的数组
-const parseTiers = (raw: unknown): Tier[] => {
-  if (!raw) return []
-  let arr: Array<{ min?: number; max?: number | null; price?: number }> = []
-  if (Array.isArray(raw)) {
-    arr = raw as typeof arr
-  } else if (typeof raw === 'object' && raw !== null && 'ranges' in raw) {
-    arr = (raw as { ranges: typeof arr }).ranges
-  }
-  return arr.map((t) => ({
-    min: Number(t.min) || 0,
-    max: t.max == null ? null : Number(t.max),
-    price: Number(t.price) || 0,
+/** 将共享 parseTiers 结果映射为编辑器可用的数组（补充 unlimited 开关） */
+const parseEditorTiers = (raw: unknown): EditorTier[] =>
+  parseTiers(raw).map((t) => ({
+    min: t.min,
+    max: t.max,
+    price: t.price,
     unlimited: t.max == null,
   }))
-}
 
 // 阶梯编辑器操作
 const addTier = () => {
@@ -508,7 +502,7 @@ const getTierError = (idx: number): string => {
 }
 
 // 阶梯区间覆盖标签
-const coverageLabel = (tier: Tier, idx: number): string => {
+const coverageLabel = (tier: EditorTier, idx: number): string => {
   const range = tier.unlimited ? `${tier.min}+` : `${tier.min} ~ ${tier.max ?? '?'}`
   return `阶梯${idx + 1}: ${range} → ¥${tier.price}`
 }
