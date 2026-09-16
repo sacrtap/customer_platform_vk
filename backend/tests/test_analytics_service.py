@@ -1341,6 +1341,56 @@ class TestCustomerHealthScoreService:
             assert result["score"] == 86.0
             assert result["health_level"] == "healthy"
 
+    async def test_get_health_score_unbounded_last_tier(self, analytics_service):
+        """末档无上界（max=null）时用量维度必须参与评分
+
+        规范阶梯形态允许末档 max 为 null（无上界，见 utils/tiers.py）。早期实现取
+        tiers[-1].get("max")，该形态下 expected_usage 恒为 0 → 落入「预期用量 = 实际用量」
+        回退 → usage_rate 恒为 100%，占健康度 50% 权重的用量维度实际失效、掩盖用量不足。
+        本用例在该形态下断言预期用量取末档入口边界（501）。
+        """
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            usage_row = MagicMock()
+            usage_row.total_quantity = Decimal("250")
+
+            pricing_row = MagicMock()
+            pricing_row.tiers = [
+                {"min": 0, "max": 500, "price": 10},
+                {"min": 501, "max": None, "price": 8},
+            ]
+
+            balance_row = MagicMock()
+            balance_row.total_amount = Decimal("15000.00")
+            balance_row.real_amount = Decimal("12000.00")
+            balance_row.bonus_amount = Decimal("3000.00")
+
+            avg_consumption_row = MagicMock()
+            avg_consumption_row.avg_amount = Decimal("5000.00")
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row]),  # 实际用量
+                make_mock_execute_result([pricing_row]),  # 定价规则
+                make_mock_execute_result([balance_row]),  # 当前余额
+                make_mock_execute_result([avg_consumption_row]),  # 月均消耗
+                make_mock_execute_result([], scalar_value=10),  # 总结算单数
+                make_mock_execute_result([], scalar_value=8),  # 按时付款数
+            ]
+
+            result = await service.get_customer_health_score(customer_id=1)
+
+            # 预期用量 = 末档入口边界 501 → 250/501 = 49.9%（未修复时为 100.0%）
+            assert result["usage_rate"] == 49.9
+            assert result["balance_rate"] == 100.0
+            assert result["payment_rate"] == 80.0
+            # 49.9*0.5 + 100*0.3 + 80*0.2 = 70.95（未修复时为 86.0）
+            assert result["score"] == 70.95
+            assert result["health_level"] == "normal"
+
     async def test_get_health_score_no_data(self, analytics_service):
         """测试无数据时返回默认值"""
         service, mock_db = analytics_service
