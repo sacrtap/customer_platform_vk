@@ -21,8 +21,15 @@ class CacheService:
 
     def __init__(self):
         self._redis = None
-        # 唯一 TTL 语义来源：每个 key 都必须有真实消费点，且值必须与线上实际生效的
-        # TTL 一致 —— 否则配置沦为谎值。调用方一律经 ttl_for() 读取，不得硬编码副本。
+        # 本表是「经 ttl_for() 统一读取」的 key 的 TTL 语义来源：值必须与线上实际生效
+        # 的 TTL 一致，否则配置沦为谎值。CacheService.set() 默认走 ttl_for(prefix)，
+        # 但仍有少数调用方显式传 ttl= 硬编码、绕过本表（已知例外，值为其实际生效 TTL）：
+        #   - routes/analytics.py 8 处：dashboard_trend / cross_dimension / tag_usage /
+        #     health_risk_trend / forecast_vs_actual / payment_top / monthly_compare /
+        #     priority_customers（均 300，等于 default）
+        #   - routes/customers.py 2 处：customer_usage_30d（300）、customer_kpi（60）
+        # 这些 key 未入本表，ttl_for() 会回退 default(300)。若将来迁移到 ttl_for()，
+        # customer_kpi 会 60→300（可观测行为变更），需单独评估，故暂保持硬编码。
         self._ttl_config = {
             "customer_list": 600,  # 10 分钟
             "customer_detail": 600,  # 10 分钟

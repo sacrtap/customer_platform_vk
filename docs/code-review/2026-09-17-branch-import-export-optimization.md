@@ -746,3 +746,236 @@ $ .venv/bin/ruff format --check <5 个改动的 app 文件>
 1. **low 档位 58 条从未落代码** —— 这是目标约定的边界（「修复面仅 blocker/critical/major」），不代表它们不真实；其中 §9.7 与 §8.8 列出的同族项建议优先排期。
 2. **第 3 轮有 3/69 条带未完成审查**，结论不含这些文件的第 3 轮复核。
 3. **三轮均为 LLM 审查**，`R3-M3` 的因果主张被实测证伪即为例证：审查结论必须逐条实证，不能直接采信。
+
+---
+
+## 十一、low 级 finding 的逐条核实与修复（rounds 1–3 累积 58 条）
+
+### 11.1 范围与去重
+
+前三轮共报出 **58 条 low**（第 1 轮 21 / 第 2 轮 20 / 第 3 轮 17）。跨轮重报与「被后续轮次顺带修复」较多，去重后为 **38 条独立项**：
+
+- **9 条已被后续轮次修复**（不再需要动作）：`tiers.py` 区间连续性校验（第 2 轮 M12）、`invoices.py` commit 后写审计（第 2 轮 M8）、`ImportModal.vue` 关闭不重置（第 2 轮 M2 + 第 3 轮 M5）、`pricing.py` `multi_floor_pricing_type` 校验（第 3 轮 M6）、`services/customers.py` datetime 归一化（第 3 轮 M3）、`pricing.py` 导出列 `customer_id`→`company_id`（第 2 轮 M17）等。
+- **1 条属禁区文件**（`.trellis/scripts/common/io.py:148`，`write_text_atomic` 强制补 `\n`）—— 按边界只报不改。
+
+实际核实 **36 个条目**（部分 finding 合并核实），终态如下。
+
+### 11.2 逐条核实与终态
+
+| 来源 | 位置 | 判定 | 终态 |
+|---|---|---|---|
+| R1#17 / R3 | `pricing.py` 列表/创建/导出 6 处 | 属实 | ✅ 真值判断改 `is not None`（0 元单价不再导出为空） |
+| R3-L6 | `pricing.py` `customer_id` 解析 | 属实 | ✅ 非数字由 500 → 400 |
+| R3-L8 | `pricing.py` 导出同步阻塞 | 属实 | ✅ 抽 `_build_pricing_rules_excel` + `asyncio.to_thread`（与 balances 同一切分边界） |
+| R2-6 | `pricing.py` 行级 `str(e)` 回传 | 属实 | ✅ 兜底except改通用文案 + `logger.warning` 留全量异常；`ValueError` 分支保留（全为业务校验文案） |
+| R3-L7 | `packages.py` 外层 except 未回滚 | 属实 | ✅ 补 `await request.ctx.db_session.rollback()` |
+| R3-L17 | `packages.py` `int(limit_count_raw)` 截断 | 属实 | ✅ 浮点非整值改为拒绝「限量数量必须为整数」 |
+| R3-L4 / R2-3 | `excel_import.py:38` 说明行前缀过宽 | 属实 | ✅ 收窄为精确匹配 + `必填：/可选：` 前缀（不再误丢「可选服务包」） |
+| R1#16 / R2-11 / R3-L2 | `services/customers.py` 日期格式 | 属实 | ✅ 恢复 4 格式解析（`%Y-%m-%d`/`%Y/%m/%d`/`%m/%d/%Y`/`%Y%m%d`） |
+| R3-L1 | `routes/customers.py` 行业剔除后行号错位 | 属实（第 2 轮 M9 副作用） | ✅ valid_rows 携带原始行号，错误消息改用真实 Excel 行号；M9 语义保留 |
+| R2-18 | `balances.py` `page/page_size` 解析 | 属实 | ✅ 非数字由 500 → 400 |
+| R1#29 | `api/billing.ts` tiers 类型不一致 | 属实 | ✅ 改为 `Tier[] \| null` |
+| R1#30 / R2-2 / R3-L9 | `api/billing.ts` 三组导入函数重复 + 手写 `Content-Type` | 属实 | ✅ 抽 `importFile`/`fetchImportTemplate` 两个 helper；4 处手写 multipart 头移除（由浏览器生成 boundary） |
+| R1#31 / R2-9 | `seed.py` 权限码缺失静默跳过 | 属实 | ✅ `permissions.get()` 返回 None 时 `raise ValueError`（实测 48 码全命中，正常路径不受影响） |
+| R1#23 / R2-20 / R3-L10 | `check_detail_files.py` `--detect` 死代码 | 属实 | ✅ 删除该参数（从未被读取） |
+| R1#24 | `check_detail_files.py` TOCTOU | 属实 | ✅ `exists()`+`getsize()` 改单次 `getsize` + `except OSError` |
+| R1#28 | `backfill_balance_archives.sql` | 属实 | ✅ 加 `\set ON_ERROR_STOP on` |
+| R1#26 | `cache/base.py` 注释与实现漂移 | 属实 | ✅ 注释改为与事实一致（列出 analytics 8 处 / customers 2 处例外）；调用方迁移列为后续建议（其中 `customer_kpi` 迁移会 60→300 秒，属可观测行为变更，需单独评估） |
+| R1#27 | `test_cache.py` 快照断言退化为抽样 | 属实 | ✅ 恢复 18 键全量快照断言 |
+| R1#25 | `test_auth_api.py` 硬编码 `50000` | 属实 | ✅ 改用 `ErrorCodes.INTERNAL_ERROR` |
+| R2-4 | 导入导出测试未覆盖 `POST /billing/import` | 属实 | ✅ 新增 `test_import_balances_forbidden_without_permission` |
+| R1#34 | `tests/e2e/conftest.py` `test_user` 不校验 | 属实 | ✅ 命中已存在分支时 `ON CONFLICT DO UPDATE` 校正密码/启用状态（连续两次运行均通过） |
+| R2-10 | `test_test_data_consistency.py` 顶层导入 seed | 属实 | ✅ 移入函数内（消除收集期副作用） |
+| R3-L3 | `api/index.ts` `JSON.parse` 未做类型收敛 | 属实 | ✅ message 仅 string 时采用、code 仅 number 时采用；补 `typeof Blob !== 'undefined'` 守卫 |
+| R3-L11 / R2-19 | `useBalance.ts` 参数构建重复 | 属实 | ✅ 抽 `buildCommonFilterParams`，删除冗余 `buildStatsParams` |
+| R1#21 / R2-5 / R3-L5 | `ImportModal.vue` `revokeObjectURL` 过早 + `downloadTemplate` 无错误处理 | 属实 | ✅ 延迟 1s 回收（仍回收，不泄漏）+ 下载包 try/catch 并提示后端文案 |
+| R1#19 / R2-17 / R3-L15 | `invoices.py` `int()` 静默截断 | 属实 | ✅ 仅对 float 非整值拒绝（字符串 `"100001.0"` 等旧行为不变，避免扩大行为变更） |
+| R1#20 / R2-12 | `invoices.py` 无后端体积限制 | 属实 | ✅ 复用 `settings.max_file_size`（10MB），与前端 `f.size > 10*1024*1024` 同口径 |
+| R2-13 | `invoices.py` 兜底 except 回传 `str(e)` | 属实 | ✅ 改 `logger.exception` + 固定文案；HTTP 500 与错误码 50001 不变 |
+| R2-15 | `invoices.py` 错误码硬编码 | 属实 | ✅ 改 `ErrorCodes.*`（数值 1:1 不变） |
+| R2-16 | `invoices.py` Content-Disposition 中文名 | 属实 | ✅ 保留 `filename` 兜底 + 追加 RFC 5987 `filename*`（前端用 blob + `link.download` 自设名，无硬依赖） |
+| R3-L16 | `invoices.py` 结算单号 4 位随机码 | 属实 | ✅ 改为 `ascii_uppercase + digits`（36^4），与 `services/billing.py` 既有单号规则对齐 |
+| R2-14 | `invoices.py` 行号换算 | **误报** | ❌ 实测 `idx+2` 正确（见 §11.3） |
+| R1#32 / R2-8 / R3-L12 | `utils/tiers.ts` + `PricingRules.vue` 宽松相等 | **误报** | ❌ 项目未启用 `eqeqeq`（见 §11.3） |
+| R3-L14 | `Balance.vue` blob 错误体 | 已被前轮修复 | ❌ 无需改动（见 §11.4） |
+| R1#33 | `tests/e2e/conftest.py` 两套 app 模块树 | 只报告 | ⏸ 无状态泄漏证据（见 §11.4） |
+| R3-L13 | `cost_calc.py` 首档 `min > 0` 静默多收 | 属实 | ⏸ **只报告，待你拍板**（见 §11.4） |
+
+**小计：30 条修复 / 2 条证伪 / 1 条已由前轮修复 / 3 条只报告（其中 1 条待决策）。**
+
+### 11.3 证伪的两条（附证据）
+
+**(a) `invoices.py:1470-1471` 行号换算「漂移」—— 误报。**
+审查主张「无说明行文件首行数据索引为 1，`idx + 2` 会比真实行号大 1」。实测 `pd.read_excel(header=0)` 首行数据索引为 0：有/无说明行两种 xlsx 的 `df.iloc[1:]` 均保留原始 RangeIndex，`read_import_dataframe` 的 docstring 明确「第 i 行数据的 Excel 行号为 i+2」，与路由 `row_num = idx + 2` 一致。
+
+**(b) 前端 `!=`/`==` 宽松相等「违反项目 lint 规则」—— 误报。**
+`eslint.config.js` 未启用 `eqeqeq`（`js.configs.recommended` / `tseslint recommended` 均不含），pre-commit 仅跑 eslint（扁平配置）+ prettier。实测对 `tiers.ts` / `PricingRules.vue` 与临时构造的 `a == null` 用例均无报错。且这里用宽松相等是有意为之 —— 同时捕获 `null` 与 `undefined`。
+
+### 11.4 只报告的三条（附事实依据）
+
+1. **`tests/e2e/conftest.py:23-25` 两套 app 模块树**：integration 与 e2e conftest 均在模块级 `del sys.modules["app*"]` + 重载；根 `tests/conftest.py` 用 `setdefault` 统一 `JWT_SECRET`/`WEBHOOK_SECRET` 等，两套树的 settings 单例等价。实测 integration/e2e 分层均通过，**无具体证据表明状态泄漏或顺序依赖导致失败**，故不动 —— 改动测试引导层（conftest 加载模型）的收益不确定而风险实在。
+2. **`cost_calc.py:414-415` 首档 `min > 0` 静默多收**：实测 `min=5/price=10`、用量 3 得 **30**（语义应为 0）。**未改的原因**：结算侧修正等于改变历史与将来的结算金额；导入侧拒绝会推翻第 2 轮已落地的决策（`_validate_tier_coverage` 的 docstring 明确「不强制首档 `min = 0`，避免拒绝历史数据」），且只防新增、治不了存量。属低危且影响面小，**需你明确选择口径后再落地**。
+3. **`.trellis/scripts/common/io.py:148`**：禁区文件，仅记录 —— `write_text_atomic` 对所有不以 `\n` 结尾的文本静默追加换行（空串 → `"\n"`），docstring 未声明该规范化契约。
+
+### 11.5 验证证据
+
+```
+# 后端全量 + 覆盖率门禁（末轮，覆盖全部 20 个改动文件）
+$ cd backend && .venv/bin/python -m pytest tests/ --cov=app --cov-fail-under=50 -q -p no:randomly
+TOTAL                                        10608   4474    58%
+Required test coverage of 50% reached. Total coverage: 57.82%
+================ 892 passed, 482 warnings in 365.47s (0:06:05) =================
+
+# 前端
+$ npx vue-tsc --noEmit        -> exit 0（无输出）
+$ npx eslint <4 个改动文件>    -> exit 0
+$ npx vitest run              -> Test Files 14 passed (14) / Tests 89 passed (89)
+
+# 切片定向验证（自验）
+pytest tests/test_cache.py                                     -> 46 passed
+pytest tests/integration/test_auth_api.py::test_auth_middleware_exception_returns_json_500 -> passed
+pytest tests/unit/test_test_data_consistency.py                -> passed
+pytest tests/integration/test_billing_import_export_api.py::test_import_balances_forbidden_without_permission -> passed
+pytest tests/integration/test_billing_import_export_api.py -k "invoice" -> 7 passed
+pytest tests/unit/test_import_field_mapping.py                 -> 30 passed  /  test_customers_api.py 90 passed
+tests/e2e/test_sync_task_e2e.py 连续两次                        -> 3 passed（验证 conftest 自愈分支）
+```
+
+---
+
+## 十二、第 4 轮（补跑）审查与修复
+
+### 12.1 为什么补跑、以及补跑的方式
+
+第 3 轮的 69 个条带中有 **3 个**未完成审查：**结算单模块整组 6 文件**（`invoices.py`、`invoice_excel.py`、`useInvoice.ts`、`invoiceFormatters.ts`、`Invoices.vue`、`GenerateInvoiceModal.vue`）连续 6 次 HTTP 524 后失败（另 2 个「失败」是同一组的重试与一次内部读文件区间参数错误）。即第 3 轮的「仅 17 条 low」是在**缺一个模块组**的前提下得出的。
+
+```
+$ ocr review --resume 1043cab0-32c4-4568-ace7-5b0ad3268188 --audience agent --from main --to HEAD
+Error: resume rejected: the reviewed input changed since session "1043cab0-…" — a ref may now point at a
+different commit, or the selected file set changed; start a new review instead of resuming
+```
+
+`--resume` 被拒（第 3 轮修复的提交 `31273ad` 使 HEAD 位移），因此改为**对当前 HEAD 起一次全新全量审查**：`ocr review --audience agent --from main --to HEAD --format json`。
+
+**结果（覆盖缺口已闭合）**：
+
+```
+Review complete: 33 finding(s) across 70 selected item(s).
+files_reviewed: 70   comments: 33   elapsed: 46m39s
+tool_calls: 630   failure: 0        # 上一轮的 provider 错误（502/524/530）本次全部重试恢复
+```
+
+🡒 上一轮失败的结算单模块组本次**已完成审查**，并报出 2 条 medium（见 12.2）。
+
+### 12.2 分布与终态（1 high / 9 medium / 23 low）
+
+> 注：本轮审查基线是提交 `31273ad`，而我在它运行期间**并行修复了第 1–3 轮的 58 条 low**（§十一），因此 23 条 low 中有 11 条属于「重报 + 已修」。
+
+**high（1 条，已修）**
+
+| 位置 | 问题 | 终态 |
+|---|---|---|
+| `services/cost_calc.py:396` | 脏 tiers（旧键名 `min_quantity`/`threshold`）无法归一化且 `unit_price` 为 `NULL`（该列可空；tiered 规则通常不填）时，降级分支 `unit_price or 0` 算出 **0 元** —— 账单从「按阶梯计费」静默变成「免费」 | ✅ 改为抛 `TierFormatError` |
+
+实测（修复前 / 后，`quantity=1000`）：
+
+```
+脏 tiers + unit_price=None : 0        ->  RAISED TierFormatError（拒绝按 0 元结算）
+脏 tiers + unit_price=2.5  : 1250.0   ->  1250.0（不变）
+正常 tiers + unit_price=None: 2500    ->  2500（不变）
+空 tiers[] / None + unit_price=None: 0 ->  RAISED
+```
+
+**批量影响**：`sync_task_service` 的 `try/except` 粒度是**按天**（每个 `sync_date` 一个循环），单条脏规则只使当天结算失败并回滚，次日起继续，`task.failed_count+1` 后状态可见（partial/failed）；`calculate_daily_cost` 开头的 `_clear_consumptions` 保证重跑幂等。**当天失败优于静默免费出账**——后者会生成看起来成功的错误账单。已补回归用例 `tests/unit/services/test_cost_calc.py`。
+
+**medium（9 条）**
+
+| 位置 | 问题 | 终态 |
+|---|---|---|
+| `services/customers.py:1103` | 日期格式回归（4→1 种） | ✅ 已在 §11 修复 |
+| `routes/billing/seed.py:262` | 权限迁移后未失效 Redis 权限缓存 → 已登录用户最长 10 分钟持续 403 | ✅ `asyncio.run(cache_service.invalidate_pattern("cache:permissions:*"))`；Redis 不可用时仅告警不阻断 |
+| `routes/billing/invoices.py:1436` | 客户映射未过滤软删除客户 | ✅ 补 `Customer.deleted_at.is_(None)`（与 §9.3.3 的 `pricing.py` 同写法） |
+| `routes/billing/invoices.py:1550` | 导出存在公式注入 | ✅ 导出写入时对 `=` 前缀置 `data_type='s'`（**部分证伪**：实测 openpyxl 3.1.2 对 `+`/`-`/`@` 不视为公式，仅 `=` 成立；防御仍全量覆盖且值原样保留，往返无损） |
+| `routes/billing/pricing.py:390` | `company_id` `int()` 静默截断小数 | ✅ 仅对 `float 且非整值` 拒绝（与 `invoices.py` 同写法） |
+| `routes/billing/packages.py:838` | `over_limit_unit_price` 真值判断丢 0 | ✅ 全文件排查后改 `is not None`（`base_fee` 同型一并处理） |
+| `routes/billing/imports.py:50` | 余额导入模板内嵌示例数据行会被当真数据 | ✅ 移除（与 §9.3.4 同类） |
+| `routes/billing/pricing.py:697` | 单价 0 导出为空 | ✅ 已在 §11 修复 |
+| `services/analytics.py:2302` | 单档无界阶梯（`[{"min":0,"max":null,"price":5}]`，即第 2 轮后模板推荐形态）用量维度恒 100% | ⏸ **只报告，待产品拍板**（见 12.4） |
+
+**low（23 条）**：6 条本轮修复 / 11 条已在 §11 修复（重报）/ 3 条证伪 / 3 条只报告。
+
+| 位置 | 处置 |
+|---|---|
+| `utils/excel_import.py:25` + `routes/customers.py:788` + `invoices.py:1458` | ✅ **本轮修复**：`read_import_dataframe` 的 5 个调用点全部 `await asyncio.to_thread(...)`（`packages`/`pricing`/`imports` 由切片改，`customers`/`invoices` 由主会话补齐） |
+| `routes/billing/pricing.py:695` | ✅ **本轮修复**：导出不再把包年规则的 `layer_type=NULL` 写成 `"single"`，往返闭合 |
+| `frontend/src/types/index.ts:204` | ✅ **本轮修复**：删除无人引用的死类型 `PricingRule`（含随之无用的 `Tier` 导入） |
+| `views/billing/components/ImportModal.vue:176` / `:0` | ✅ **本轮修复**：`appendChild(a)` + 回收时 `a.remove()`；新增 `pickErrorMessage()` 使 `null` reject 不再二次抛 TypeError |
+| `routes/billing/balances.py:687` | ✅ **本轮修复（注释）**：明确 `_assemble_balance_rows` 入线程的前提（三级 `selectinload` 预加载、返回后无 commit/expire），**未改已论证的切分边界** |
+| `tests/integration/test_billing_import_export_api.py:5` | ✅ **本轮修复**：补余额导入端点的模板回灌用例；顺带修了 `import_customer` fixture teardown 对 `recharge_records` 的 FK 清理 |
+| `sync_logs.py` / `e2e/conftest.py` 的 `IN :codes` tuple 绑定 | ❌ **证伪**：psycopg2 2.9.9 在 DBAPI 层把 tuple 渲染为 `IN (a,b,c)`（`mogrify` 实测），真实测试库执行返回 3 行 ✓；实为 list 才会被当成 ARRAY |
+| `frontend/src/utils/tiers.ts:38`、`views/billing/PricingRules.vue:417`、`components/PricingRuleModal.vue:425` 的 `==`/`!=` | ❌ **证伪**：全仓（`.omp/RULES.md`、`.omp/rules/` 13 文件、`.omp/AGENTS.md`、`~/.omp/agent/{AGENTS.md,rules/}`、`.trellis/spec/frontend/` 7 文档、`frontend/eslint.config.js`）grep `eqeqeq` 与「禁止 ==/!=」**零匹配**；`x != null` 是有意同时捕获 `null`+`undefined` |
+| `routes/billing/balances.py:677` | ⏸ 只报告：5 万行仍加载完整 ORM（已由 §9.3.5/§11 的 to_thread 缓解阻塞，「减少加载量」属重构） |
+| `routes/billing/invoices.py:1414` | ⏸ 部分修复：体积上限已在 §11 加（10MB）；「行数上限在解析之后」无法避免（需先解析才知行数），已有体积上限兜底 |
+| `.trellis/scripts/common/io.py:148` | ⏸ **禁区文件，只报告** |
+
+### 12.3 本轮证伪的 4 条（附实测证据）
+
+1. **`IN :codes` 非 expanding 绑定会失效** —— psycopg2 `mogrify` 输出 `... WHERE code IN ('billing:view', 'billing:recharge', 'billing:balance_export')`；真实测试库插入 3 条权限后执行该 `text()` + tuple 绑定返回 3 行。SQLAlchemy 本身不展开非 expanding 绑定，但**驱动层把 tuple 渲染成了 IN 列表**。
+2. **`+`/`-`/`@` 前缀构成公式注入** —— openpyxl 3.1.2 实测这三者本就写为 `data_type='s'`；只有 `=` 会变成公式（`data_type='f'`）。防御仍按全量覆盖实现。
+3. **项目规范禁止 `==`/`!=`** —— 见上表（6 处规则/规范文件 grep 均零匹配）。
+4. （第 3 轮已记）`invoices.py` 行号换算假设漂移 —— 实测 `idx+2` 两种场景均正确。
+
+### 12.4 待产品拍板（两条，均为「口径」而非「实现」）
+
+1. **`analytics.py:2302` 平板定价客户的用量维度**：单档无界形态没有「预期用量」参照，任何取值都是产品决策。选项：
+   - **A 保持现状 + 文档化**：零风险，但平板客户的用量维度（健康度 50% 权重）恒 100%，失去区分能力。
+   - **B 改用近 30 天日均×30 作参照**：能反映用量增减，但「预期用量」语义从「合同阈值」变为「自身历史节奏」（顺带修掉代码里回退注释与实现不一致的问题）。
+2. **`cost_calc` 首档 `min > 0` 的计费口径**（§11.4 第 2 条）：结算侧修正（改历史金额）/ 导入侧拒绝（只防新不治旧）/ 维持现状。
+
+### 12.5 验证证据
+
+**(a) 后端全量 + 覆盖率门禁（末轮，覆盖全部改动）**
+
+```
+$ cd backend && .venv/bin/python -m pytest tests/ --cov=app --cov-fail-under=50 -q -p no:randomly
+TOTAL                                        10624   4435    58%
+Required test coverage of 50% reached. Total coverage: 58.25%
+================ 894 passed, 484 warnings in 346.42s (0:05:46) =================
+```
+
+退出码 0；894 passed（门禁 ≥876）；覆盖率 58.25%（门禁 ≥50%）。用例数演进：885（第 2 轮）→ 892（§十一）→ **894**（本轮 +R4-H1 回归用例 +余额模板用例）。
+
+**(b) 前端**
+
+```
+$ npx vue-tsc --noEmit   -> exit 0（无输出）
+$ npx eslint src/        -> exit 0
+$ npx vitest run         -> Test Files 14 passed (14) / Tests 89 passed (89)
+```
+
+**(c) 切片定向验证**
+
+```
+pytest tests/unit/services/test_cost_calc.py                                        -> 31 passed（含 R4-H1 新增回归用例）
+pytest tests/integration/test_billing_import_export_api.py tests/e2e/test_sync_task_e2e.py -> 36 passed
+pytest tests/unit/test_import_field_mapping.py                                      -> 30 passed
+pytest tests/test_cache.py                                                          -> 46 passed
+```
+
+**(d) 证伪所依据的实测输出**
+
+```
+# psycopg2 2.9.9 mogrify（tuple 绑定）
+SELECT code FROM permissions WHERE code IN ('billing:view', 'billing:recharge', 'billing:balance_export')
+→ 真实测试库执行返回 3 行（对照：传 list 才会被当成 ARRAY 而报类型错误）
+
+# openpyxl 3.1.2 写入后读回 data_type
+'=HYPERLINK(...)' -> f（公式，可执行）      '+SUM(1,1)' -> s
+'=cmd|...'        -> f                     '-2+3'      -> s        '@import' -> s
+修复后：所有危险前缀值 -> s，且 value_roundtrip = True（值原样保留，无前导引号/空格污染）
+
+# R4-H1 修复前后金额对比（quantity=1000）
+脏 tiers + unit_price=None : 0        -> RAISED TierFormatError
+脏 tiers + unit_price=2.5  : 1250.0   -> 1250.0
+正常 tiers + unit_price=None: 2500    -> 2500
+```

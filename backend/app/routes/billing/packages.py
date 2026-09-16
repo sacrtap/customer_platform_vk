@@ -1,5 +1,6 @@
 """套餐计划路由 — CRUD 管理"""
 
+import asyncio
 import io
 import logging
 from datetime import datetime
@@ -29,10 +30,11 @@ def _package_plan_to_dict(plan):
         "layer_type": plan.layer_type,
         "is_unlimited": plan.is_unlimited,
         "limit_count": plan.limit_count,
-        "base_fee": float(plan.base_fee) if plan.base_fee else 0,
-        "over_limit_unit_price": float(plan.over_limit_unit_price)
-        if plan.over_limit_unit_price
-        else None,  # pyright: ignore[reportAttributeAccessIssue]
+        "base_fee": float(plan.base_fee) if plan.base_fee is not None else 0,
+        # Decimal("0") 为 falsy，真值判断会把超额单价 0 导出为空（丢 0），须显式判 None
+        "over_limit_unit_price": (
+            float(plan.over_limit_unit_price) if plan.over_limit_unit_price is not None else None
+        ),  # pyright: ignore[reportAttributeAccessIssue]
         "description": plan.description,
         "status": plan.status,
         "created_at": plan.created_at.isoformat() if plan.created_at else None,
@@ -527,8 +529,9 @@ async def import_package_plans(request: Request):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
     try:
-        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
-        df = read_import_dataframe(excel_file.body, "name")
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。pd.read_excel 为 CPU+I/O
+        # 密集操作，10MB xlsx 解析可能阻塞事件循环数百毫秒到数秒，移到线程执行。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "name")
 
         # 必填列检查
         required_columns = ["name", "package_type", "base_fee"]
@@ -623,6 +626,11 @@ async def import_package_plans(request: Request):
                         errors.append(f"第 {row_num} 行：限量套餐必须填写具体数量")
                         continue
                     try:
+                        # 浮点单元格（如 Excel 写 10000.5）会被 int() 静默截断为 10000，
+                        # 先拒绝非整数值，避免用户以为配置了 10000.5 实际落库成 10000。
+                        if isinstance(limit_count_raw, float) and not limit_count_raw.is_integer():
+                            errors.append(f"第 {row_num} 行：限量数量必须为整数")
+                            continue
                         limit_count = int(limit_count_raw)
                         if limit_count <= 0:
                             errors.append(f"第 {row_num} 行：限量数量必须大于 0")
@@ -734,6 +742,8 @@ async def import_package_plans(request: Request):
             }
         )
     except Exception as e:
+        # 外层失败（如最终 commit 或审计 commit 抛错）也需回滚，避免把 PendingRollback 会话归还连接池
+        await request.ctx.db_session.rollback()
         return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
 
 

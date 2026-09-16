@@ -1,7 +1,9 @@
 """客户管理路由"""
 
+import asyncio
 import hashlib
 import io
+import logging
 import math
 import re
 from datetime import date, datetime, timedelta
@@ -26,6 +28,8 @@ from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 from ..utils.excel_import import read_import_dataframe
 
 customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
+
+logger = logging.getLogger(__name__)
 
 
 @customers_bp.get("")
@@ -780,8 +784,10 @@ async def import_customers(request: Request):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
     try:
-        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
-        df = read_import_dataframe(excel_file.body, "company_id")
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。
+        # pd.read_excel 是 CPU+I/O 密集的同步调用，10MB xlsx 可阻塞事件循环数百毫秒至数秒，
+        # 与 packages/pricing/imports 三处导入端点保持一致的 to_thread 处理。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
         # 必填列检查
         required_columns = ["company_id", "name"]
@@ -797,6 +803,12 @@ async def import_customers(request: Request):
 
         # 转换数据为字典列表
         customers_data = df.to_dict(orient="records")
+        # 保留与 Excel 对齐的原始行号：read_import_dataframe 刻意保留索引标签
+        # （第 idx 行数据对应 Excel 行 idx+2），但 to_dict(orient="records") 丢弃了索引；
+        # 这里把行号写入每条记录，供行业映射错误与 batch_create_customers 的行级错误
+        # 定位到真实 Excel 行（行业剔除后的行不再使后续行号错位）。
+        for idx, record in zip(df.index, customers_data):
+            record["_row_num"] = int(idx) + 2  # Excel 行号（含表头）
 
         # 处理 industry 列：将行业类型名称转换为 industry_type_id
         from sqlalchemy import select
@@ -816,7 +828,9 @@ async def import_customers(request: Request):
                 industry_name = None
             if industry_name:
                 if industry_name not in industry_map:
-                    industry_errors.append(f"行业类型 '{industry_name}' 不存在")
+                    industry_errors.append(
+                        f"行{row['_row_num']}: 行业类型 '{industry_name}' 不存在"
+                    )
                     continue
                 row["industry_type_id"] = industry_map[industry_name]
                 del row["industry"]
@@ -886,8 +900,11 @@ async def import_customers(request: Request):
             }
         )
 
-    except Exception as e:
-        return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+    except Exception:
+        # 不把 str(e) 原样回传前端：可能泄露数据库约束名/驱动报错等内部实现细节
+        # （与 pricing.py / invoices.py 导入端点同一处理方式）。
+        logger.exception("客户导入失败")
+        return json({"code": 50001, "message": "导入失败，请稍后重试"}, status=500)
 
 
 @customers_bp.get("/import-template")

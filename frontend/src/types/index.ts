@@ -1,7 +1,6 @@
 /**
  * 通用类型定义
  */
-import type { Tier } from '@/utils/tiers'
 
 /** API 响应格式 */
 export interface ApiResponse<T = unknown> {
@@ -192,21 +191,6 @@ export interface ApiKey {
   created_at: string
   // 仅创建时返回
   key?: string
-}
-
-/** 计费规则 */
-export interface PricingRule {
-  id: number
-  customer_id: number | null
-  device_type?: string
-  pricing_type: string
-  unit_price: number | null
-  tiers: Tier[] | null
-  package_type: string | null
-  package_limits: Record<string, unknown> | null
-  effective_date: string
-  expiry_date: string | null
-  created_at: string
 }
 
 /** 结算单 */

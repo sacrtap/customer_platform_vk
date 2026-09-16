@@ -7,6 +7,7 @@ import pytest
 
 from app.models.billing import PricingRule
 from app.services.cost_calc import CostCalcService
+from app.utils.tiers import TierFormatError
 from app.utils.timezone import local_date_to_utc_start
 
 
@@ -122,6 +123,22 @@ class TestCostCalcService:
         # 15 层：前 10 层 * 100 + 后 5 层 * 80 = 1000 + 400 = 1400
         cost = service._calc_tiered(quantity=15, pricing_rule=pricing_rule)
         assert cost == Decimal("1400.00")
+
+    async def test_calc_tiered_price_dirty_tiers_no_unit_price_raises(self, service):
+        """测试阶梯价格计算 - 脏 tiers 且无 unit_price 时拒绝按 0 元结算
+
+        tiered 规则的 unit_price 列可空（DECIMAL nullable），通常不填；
+        历史脏数据（旧键名 min_quantity/threshold）无法被 normalize_tiers 归一化时，
+        降级为 unit_price * quantity。若此时 unit_price 为 None，旧实现会得出 0 元，
+        账单金额从「按阶梯计费」静默变成「免费」。修复后必须显式抛 TierFormatError，
+        让上层结算任务把该天/该任务标记为失败，而不是静默落 0 元记录。
+        """
+        pricing_rule = MagicMock(spec=PricingRule)
+        pricing_rule.tiers = [{"min_quantity": 0, "threshold": 1000, "price": 2.5}]
+        pricing_rule.unit_price = None
+
+        with pytest.raises(TierFormatError):
+            service._calc_tiered(quantity=1000, pricing_rule=pricing_rule)
 
     # ========== 包年价格计算 ==========
 

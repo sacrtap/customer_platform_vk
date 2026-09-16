@@ -91,13 +91,16 @@ def test_user(sync_test_engine):
         )
         count = result.scalar()
 
-        if count > 0:
-            return {"username": username, "password": password}
+        if count == 0:
+            # 首次初始化：清空旧数据后重建（仅 admin 不存在时执行，避免破坏已有数据）
+            session.execute(
+                text("TRUNCATE user_roles, role_permissions, roles, permissions, users CASCADE")
+            )
+            session.commit()
 
-        session.execute(
-            text("TRUNCATE user_roles, role_permissions, roles, permissions, users CASCADE")
-        )
-        session.commit()
+        # 以下写入全部幂等，admin 无论是否存在都会执行：命中「已存在」分支时不再直接
+        # 返回，而是校正密码（is_active）并补齐角色/权限 —— 测试库数据漂移时自愈，
+        # 避免后续登录用例因 admin 密码被改/权限缺失而连锁 401 且根因难定位。
 
         session.execute(
             text("""
@@ -144,7 +147,9 @@ def test_user(sync_test_engine):
             text("""
             INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
             VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
-            ON CONFLICT (username) DO NOTHING
+            ON CONFLICT (username) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash,
+                    is_active = EXCLUDED.is_active
             """),
             {
                 "username": username,

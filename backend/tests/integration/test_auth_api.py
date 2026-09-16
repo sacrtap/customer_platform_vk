@@ -313,6 +313,7 @@ async def test_auth_middleware_exception_returns_json_500(monkeypatch):
     from sanic.response import json as sanic_json
 
     import app.middleware.auth as auth_mod
+    from app.constants import ErrorCodes
     from app.middleware.auth import auth_middleware
     from app.services.auth import AuthService
 
@@ -351,5 +352,5 @@ async def test_auth_middleware_exception_returns_json_500(monkeypatch):
     assert calls, "测试未能触发认证中间件的黑名单分支"
     assert response.status == 500
     body = response.json
-    assert body["code"] == 50000
+    assert body["code"] == ErrorCodes.INTERNAL_ERROR
     assert "中间件错误" in body["message"]

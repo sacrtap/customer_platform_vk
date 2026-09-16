@@ -104,6 +104,17 @@ interface ImportResult {
   errors?: string[]
 }
 
+/**
+ * 从任意 reject 值中安全提取可展示的错误文案。
+ * 后端经 axios 拦截器统一 reject 为 { code, message, category } 普通对象（非 Error 实例），
+ * 因此不能只判 instanceof Error；对 null/undefined 或缺失 message 的情况回退到兜底文案，
+ * 避免 `(error as Error).message` 在 error 为 null/undefined 时二次抛 TypeError、用户无任何提示。
+ */
+const pickErrorMessage = (error: unknown, fallback: string): string => {
+  const msg = (error as { message?: unknown } | null | undefined)?.message
+  return typeof msg === 'string' && msg ? msg : fallback
+}
+
 const props = defineProps<{
   visible: boolean
   /** 弹窗标题，如「批量导入计费规则」 */
@@ -172,13 +183,27 @@ const formatFileSize = (b: number) => {
 }
 
 const downloadTemplate = async () => {
-  const res = await props.templateApi()
-  const url = URL.createObjectURL(res.data)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = props.templateFileName
-  a.click()
-  URL.revokeObjectURL(url)
+  try {
+    const res = await props.templateApi()
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = props.templateFileName
+    // Firefox 部分版本对不在文档树中的锚点 click() 不触发下载，需先挂载到 DOM；
+    // 回收时再 remove，避免遗留无用的 DOM 节点。
+    document.body.appendChild(a)
+    a.click()
+    // 延迟回收 object URL：部分浏览器（Safari/Firefox）可能在下载开始前就撤销，
+    // 导致下载失败；用 setTimeout 在下一拍回收，既保证下载已启动又不永久泄漏，
+    // 并顺带把已无用的锚点从 DOM 移除。
+    setTimeout(() => {
+      URL.revokeObjectURL(url)
+      a.remove()
+    }, 1000)
+  } catch (error: unknown) {
+    // 模板下载失败时给用户明确提示，避免未处理的 Promise rejection
+    Message.error(pickErrorMessage(error, '模板下载失败'))
+  }
 }
 
 const handleSubmit = async () => {
@@ -204,7 +229,7 @@ const handleSubmit = async () => {
     }
     return !hasErrors
   } catch (error: unknown) {
-    Message.error((error as Error).message || '导入失败')
+    Message.error(pickErrorMessage(error, '导入失败'))
     return false
   } finally {
     loading.value = false

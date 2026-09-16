@@ -165,17 +165,24 @@ service.interceptors.response.use(
     let backendMessage: string = error.response.statusText || '请求失败'
     let code: number | string = error.response.status * 100
 
-    if (data instanceof Blob) {
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
       try {
-        const parsed = JSON.parse(await data.text())
-        backendMessage = parsed?.message || backendMessage
-        code = parsed?.code || code
+        const parsed: unknown = JSON.parse(await data.text())
+        // 后端错误体约定为 { code: number, message: string }，这里只做类型收敛：
+        // 避免 code 为字符串 / message 非字符串时污染 message，或让 getErrorCategory
+        // 兜底成 SERVER_ERROR（用户看到「系统繁忙」而非真实错误）。
+        if (parsed && typeof parsed === 'object') {
+          const { message, code: parsedCode } = parsed as { message?: unknown; code?: unknown }
+          if (typeof message === 'string' && message) backendMessage = message
+          if (typeof parsedCode === 'number') code = parsedCode
+        }
       } catch {
         // 非 JSON 错误体，保留 statusText
       }
-    } else if (data?.message || data?.code) {
-      backendMessage = data.message || backendMessage
-      code = data.code || code
+    } else if (data && typeof data === 'object') {
+      const { message, code: dataCode } = data as { message?: unknown; code?: unknown }
+      if (typeof message === 'string' && message) backendMessage = message
+      if (typeof dataCode === 'number') code = dataCode
     }
 
     return Promise.reject({

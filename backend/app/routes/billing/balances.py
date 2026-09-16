@@ -612,9 +612,12 @@ async def get_balances(request: Request):
     """获取余额列表（支持服务端筛选、排序和分页）"""
     db: AsyncSession = request.ctx.db_session
 
-    # 分页参数
-    page = int(request.args.get("page", 1))
-    page_size = int(request.args.get("page_size", 20))
+    # 分页参数（非数字输入应返回 400，而非抛 ValueError → 500）
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 20))
+    except ValueError:
+        return json({"code": 40001, "message": "page 和 page_size 必须为整数"}, status=400)
     page_size = min(page_size, 100)
 
     # 筛选参数（统一解析与校验）
@@ -683,7 +686,13 @@ async def export_balances(request: Request):
     )
 
     # 行组装（Decimal→float、燃尽计算）是纯 CPU 工作，5 万行规模下会阻塞事件循环，
-    # 与 DataFrame/Excel 生成一起移入线程；组装只访问 selectinload 预加载的属性，安全。
+    # 与 DataFrame/Excel 生成一起移入线程。此处在线程中直接访问 ORM 实例属性
+    # （b.customer、b.customer.profile 等）的安全前提是：
+    #   1) _query_balance_rows_raw 已用 selectinload 三级预加载
+    #      （CustomerBalance.customer → Customer.profile → CustomerProfile.industry_type），
+    #      访问的属性均已 eager load，不会在另一线程触发懒加载；
+    #   2) 查询返回后到进入线程之间无 commit/expire，实例属性不会过期、不会触发刷新。
+    # 任一前提不成立时，应先在此处取出纯数据再入线程，而非直接传 ORM 实例。
     rows = await asyncio.to_thread(
         _assemble_balance_rows, balances, last_recharge_map, consumption_stats_map
     )

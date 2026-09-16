@@ -10,6 +10,22 @@ import type { Tier } from '@/utils/tiers'
  */
 const LONG_RUNNING_REQUEST_TIMEOUT = 120000
 
+/**
+ * 上传文件进行导入（后端同步逐行写入，单独放宽超时避免前端先断）。
+ * 注意：不要手动设置 Content-Type，让浏览器/axios 自动生成含 boundary 的 multipart 头；
+ * 手写 `multipart/form-data`（无 boundary）反而会导致后端无法解析文件边界。
+ */
+function importFile(url: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post(url, formData, { timeout: LONG_RUNNING_REQUEST_TIMEOUT })
+}
+
+/** 下载导入模板（blob 响应）。 */
+function fetchImportTemplate(url: string) {
+  return api.get(url, { responseType: 'blob' })
+}
+
 // ==================== 余额管理 ====================
 
 export interface Balance {
@@ -165,7 +181,7 @@ export interface PricingRule {
   unit_price?: number
   multi_floor_pricing_type?: 'unified' | 'incremental'
   additional_floor_price?: number
-  tiers?: Tier[]
+  tiers?: Tier[] | null
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
@@ -527,20 +543,11 @@ export function getBalanceTrend(customerId: number, months: number = 6) {
 // ==================== 余额导入 ====================
 
 export function importBalances(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/billing/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
-  })
+  return importFile('/billing/import', file)
 }
 
 export function downloadBalanceImportTemplate() {
-  return api.get('/billing/import-template', {
-    responseType: 'blob',
-  })
+  return fetchImportTemplate('/billing/import-template')
 }
 
 // ==================== 包年套餐管理 ====================
@@ -603,20 +610,11 @@ export function exportBalances(params?: BalanceQueryParams) {
 // ==================== 计费规则导入导出 ====================
 
 export function importPricingRules(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/billing/pricing-rules/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
-  })
+  return importFile('/billing/pricing-rules/import', file)
 }
 
 export function downloadPricingRuleTemplate() {
-  return api.get('/billing/pricing-rules/import-template', {
-    responseType: 'blob',
-  })
+  return fetchImportTemplate('/billing/pricing-rules/import-template')
 }
 
 export function exportPricingRules(params?: {
@@ -636,20 +634,11 @@ export function exportPricingRules(params?: {
 // ==================== 包年套餐导入导出 ====================
 
 export function importPackagePlans(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/billing/package-plans/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
-  })
+  return importFile('/billing/package-plans/import', file)
 }
 
 export function downloadPackagePlanTemplate() {
-  return api.get('/billing/package-plans/import-template', {
-    responseType: 'blob',
-  })
+  return fetchImportTemplate('/billing/package-plans/import-template')
 }
 
 export function exportPackagePlans(params?: {
@@ -667,18 +656,9 @@ export function exportPackagePlans(params?: {
 // ==================== 结算单导入 ====================
 
 export function importInvoices(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/billing/invoices/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
-  })
+  return importFile('/billing/invoices/import', file)
 }
 
 export function downloadInvoiceTemplate() {
-  return api.get('/billing/invoices/import-template', {
-    responseType: 'blob',
-  })
+  return fetchImportTemplate('/billing/invoices/import-template')
 }

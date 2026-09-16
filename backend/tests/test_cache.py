@@ -45,9 +45,28 @@ async def cache_with_mock_redis(mock_redis: AsyncMock) -> CacheService:
 class TestCacheServiceInit:
     """缓存服务初始化测试"""
 
-    def test_ttl_for_returns_configured_values(self, cache_service: CacheService):
-        assert cache_service.ttl_for("customer_list") == 600
-        assert cache_service.ttl_for("tag_list") == 3600
+    def test_init_default_ttl_config(self, cache_service: CacheService):
+        """全量快照：锁定每个缓存前缀的 TTL，防止配置漂移（新增/改动 key 需同步此处）"""
+        assert cache_service._ttl_config == {
+            "customer_list": 600,  # 10 分钟
+            "customer_detail": 600,  # 10 分钟
+            "tag_list": 3600,  # 1 小时
+            "analytics_dashboard_stats": 300,  # 5 分钟
+            "analytics_dashboard_chart": 900,  # 15 分钟
+            "analytics_health_stats": 600,  # 10 分钟
+            "analytics_health_warning": 180,  # 3 分钟
+            "analytics_health_inactive": 600,  # 10 分钟
+            "analytics_profile": 300,  # 5 分钟
+            "analytics_invoice_status": 300,  # 5 分钟
+            "analytics_consumption_trend": 900,  # 15 分钟
+            "analytics_top_customers": 900,  # 15 分钟
+            "analytics_device_distribution": 900,  # 15 分钟
+            "analytics_payment_analysis": 600,  # 10 分钟
+            "analytics_prediction": 300,  # 5 分钟
+            "analytics_prediction_forecast": 1800,  # 30 分钟
+            "billing_consumption": 300,  # 5 分钟
+            "default": 300,  # 5 分钟
+        }
 
     def test_ttl_for_unknown_prefix_falls_back_to_default(self, cache_service: CacheService):
         assert cache_service.ttl_for("nonexistent_prefix") == cache_service.ttl_for("default")

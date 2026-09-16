@@ -1,5 +1,6 @@
 """定价规则路由 — CRUD 和冲突检测"""
 
+import asyncio
 import io
 import json as _json
 import logging
@@ -37,7 +38,12 @@ async def get_pricing_rules(request: Request):
     page_size = min(page_size, 100)
 
     # 筛选参数
-    customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+    try:
+        customer_id = (
+            int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+        )
+    except ValueError:
+        return json({"code": 40001, "message": "customer_id 参数必须为整数"}, status=400)
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
     device_type = request.args.get("device_type")
     layer_type = request.args.get("layer_type")
@@ -66,10 +72,13 @@ async def get_pricing_rules(request: Request):
                         "device_type": r.device_type,
                         "layer_type": r.layer_type or "single",
                         "pricing_type": r.pricing_type,
-                        "unit_price": float(r.unit_price) if r.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                        # 真值判断会把 0 元单价/加层单价当成 None，须显式判 None
+                        "unit_price": float(r.unit_price) if r.unit_price is not None else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "multi_floor_pricing_type": r.multi_floor_pricing_type,  # pyright: ignore[reportAttributeAccessIssue]
                         "additional_floor_price": (
-                            float(r.additional_floor_price) if r.additional_floor_price else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
+                            float(r.additional_floor_price)
+                            if r.additional_floor_price is not None
+                            else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
                         ),
                         "tiers": r.tiers,
                         "package_type": r.package_type,
@@ -136,10 +145,13 @@ async def create_pricing_rule(request: Request):
                 "device_type": rule.device_type,
                 "layer_type": rule.layer_type or "single",
                 "pricing_type": rule.pricing_type,
-                "unit_price": float(rule.unit_price) if rule.unit_price else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                # 真值判断会把 0 元单价/加层单价当成 None，须显式判 None
+                "unit_price": float(rule.unit_price) if rule.unit_price is not None else None,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "multi_floor_pricing_type": rule.multi_floor_pricing_type,  # pyright: ignore[reportAttributeAccessIssue]
                 "additional_floor_price": (
-                    float(rule.additional_floor_price) if rule.additional_floor_price else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
+                    float(rule.additional_floor_price)
+                    if rule.additional_floor_price is not None
+                    else None  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType, reportGeneralTypeIssues]
                 ),
             },
         },
@@ -329,8 +341,9 @@ async def import_pricing_rules(request: Request):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
     try:
-        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
-        df = read_import_dataframe(excel_file.body, "company_id")
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。pd.read_excel 为 CPU+I/O
+        # 密集操作，10MB xlsx 解析可能阻塞事件循环数百毫秒到数秒，移到线程执行。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
         # 必填列检查
         required_columns = ["company_id", "pricing_type", "effective_date"]
@@ -387,6 +400,10 @@ async def import_pricing_rules(request: Request):
                     errors.append(f"第 {row_num} 行：客户编号为空")
                     continue
                 try:
+                    # 先拒绝非整数值：Excel 单元格写 100001.9 会被 int() 静默截断成
+                    # 100001，命中错误客户并静默创建规则；字符串 "100001.0" 等旧行为不变。
+                    if isinstance(company_id, float) and not company_id.is_integer():
+                        raise ValueError
                     company_id = int(company_id)
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
@@ -542,8 +559,9 @@ async def import_pricing_rules(request: Request):
                 errors.append(f"第 {row_num} 行：{str(e)}")
             except Exception as e:  # 兜底，避免单行异常中断整个导入
                 await db_session.rollback()
+                # 通用异常只记录日志，不回传 str(e)：DB 约束名/驱动报错可能泄露内部信息到前端
                 logger.warning("计费规则导入第 %d 行失败: %s", row_num, e)
-                errors.append(f"第 {row_num} 行：{str(e)}")
+                errors.append(f"第 {row_num} 行：导入失败，请检查该行数据")
 
         # 清除计费规则相关缓存
         await cache_service.invalidate_billing_cache()
@@ -649,18 +667,70 @@ async def download_pricing_rule_import_template(request: Request):
     )
 
 
+def _build_pricing_rules_excel(rules: list) -> bytes:
+    """在独立线程中完成计费规则的 DataFrame 组装与 Excel 写入（纯 CPU）
+
+    只访问 selectinload 预加载的 customer 关系与 JSON/日期普通列，不会在另一线程
+    触发懒加载；供 export 端点经 ``asyncio.to_thread`` 调用，避免 5 万行规模下
+    阻塞事件循环。
+    """
+    import pandas as pd
+
+    # 组装 DataFrame（列与列表对齐）
+    data = [
+        {
+            "id": r.id,
+            # 与导入模板对齐：导入以 company_id（客户编号）为主键列。导出若给
+            # customer_id（数据库内部主键），导出文件将无法回灌（报「缺少必填列：company_id」），
+            # 与 balances 导出的 company_id / 「客户ID」约定也不一致。
+            "company_id": r.customer.company_id if r.customer else None,
+            "customer_name": r.customer.name if r.customer else None,
+            "device_type": r.device_type,
+            # 包年规则 layer_type 可为 NULL（模型注释「为空表示通用」）。导出用 or "single"
+            # 会把 NULL 写成 "single"，回灌后规则 layer_type 从 NULL 被改成 "single"，
+            # 往返不闭合；结算层已按 (device_type, layer_type or "single") 兜底，导出无需填默认值。
+            "layer_type": r.layer_type,
+            "pricing_type": r.pricing_type,
+            # 真值判断会把 0 元单价/加层单价当成 None，须显式判 None
+            "unit_price": float(r.unit_price) if r.unit_price is not None else None,
+            "multi_floor_pricing_type": r.multi_floor_pricing_type,
+            "additional_floor_price": (
+                float(r.additional_floor_price) if r.additional_floor_price is not None else None
+            ),
+            "tiers": _json.dumps(r.tiers, ensure_ascii=False) if r.tiers else None,
+            "package_type": r.package_type,
+            # 必须按 CST 日期输出：DB 里存的是 UTC 时刻（CST 当日 00:00 -> UTC 前一日 16:00），
+            # 直接 isoformat() 会得到 "2026-03-31T16:00:00+00:00"，导入端按 str()[:10] 取日期会
+            # 得到 2026-03-31 并按 CST 重新解析 -> 导出再导入整体提前一天，往返不闭合。
+            "effective_date": utc_to_cst_date_str(r.effective_date),
+            "expiry_date": utc_to_cst_date_str(r.expiry_date),
+        }
+        for r in rules
+    ]
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="计费规则")
+
+    return output.getvalue()
+
+
 @billing_bp.get("/pricing-rules/export")
 @auth_required
 @require_permission("billing:pricing_export")
 async def export_pricing_rules(request: Request):
     """导出计费规则为 Excel（按当前筛选条件导出全部匹配数据，上限 50000 条）"""
-    import pandas as pd
-
     db: AsyncSession = request.ctx.db_session
     pricing_service = PricingService(PricingRepository(db))
 
     # 筛选参数（与列表页一致）
-    customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+    try:
+        customer_id = (
+            int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+        )
+    except ValueError:
+        return json({"code": 40001, "message": "customer_id 参数必须为整数"}, status=400)
     keyword = request.args.get("keyword")
     device_type = request.args.get("device_type")
     layer_type = request.args.get("layer_type")
@@ -682,46 +752,16 @@ async def export_pricing_rules(request: Request):
             status=400,
         )
 
-    # 组装 DataFrame（列与列表对齐）
-    data = [
-        {
-            "id": r.id,
-            # 与导入模板对齐：导入以 company_id（客户编号）为主键列。导出若给
-            # customer_id（数据库内部主键），导出文件将无法回灌（报「缺少必填列：company_id」），
-            # 与 balances 导出的 company_id / 「客户ID」约定也不一致。
-            "company_id": r.customer.company_id if r.customer else None,
-            "customer_name": r.customer.name if r.customer else None,
-            "device_type": r.device_type,
-            "layer_type": r.layer_type or "single",
-            "pricing_type": r.pricing_type,
-            "unit_price": float(r.unit_price) if r.unit_price else None,
-            "multi_floor_pricing_type": r.multi_floor_pricing_type,
-            "additional_floor_price": (
-                float(r.additional_floor_price) if r.additional_floor_price else None
-            ),
-            "tiers": _json.dumps(r.tiers, ensure_ascii=False) if r.tiers else None,
-            "package_type": r.package_type,
-            # 必须按 CST 日期输出：DB 里存的是 UTC 时刻（CST 当日 00:00 -> UTC 前一日 16:00），
-            # 直接 isoformat() 会得到 "2026-03-31T16:00:00+00:00"，导入端按 str()[:10] 取日期会
-            # 得到 2026-03-31 并按 CST 重新解析 -> 导出再导入整体提前一天，往返不闭合。
-            "effective_date": utc_to_cst_date_str(r.effective_date),
-            "expiry_date": utc_to_cst_date_str(r.expiry_date),
-        }
-        for r in rules
-    ]
-    df = pd.DataFrame(data)
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="计费规则")
-
-    output.seek(0)
+    # 行组装 + DataFrame + Excel 生成是纯 CPU 工作，5 万行规模下会阻塞事件循环，
+    # 与 balances 导出一致移入线程（DB 查询留在异步层）；组装只访问 selectinload
+    # 预加载的 customer 属性，不会在另一线程触发懒加载。
+    excel_bytes = await asyncio.to_thread(_build_pricing_rules_excel, rules)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"pricing_rules_{timestamp}.xlsx"
 
     return raw(
-        output.read(),
+        excel_bytes,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

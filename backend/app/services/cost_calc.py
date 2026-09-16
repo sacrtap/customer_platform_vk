@@ -395,7 +395,17 @@ class CostCalcService:
             )
             tiers = []
         if not tiers:
-            return Decimal(str(pricing_rule.unit_price or 0)) * quantity
+            unit_price = pricing_rule.unit_price
+            if unit_price is None:
+                # 无法归一化 tiers 且无 unit_price 可降级：不能按 0 元结算。
+                # 阶梯计费规则静默变成「免费」比中断结算更难发现（只有 error 日志可追溯），
+                # 因此显式抛错，让调用方（sync_task_service 的按天 try/except、定时任务、
+                # 手动同步路由）把该天/该任务标记为失败，强制人工介入修正脏规则。
+                raise TierFormatError(
+                    f"定价规则 tiers 非法且无 unit_price 可降级（rule_id={pricing_rule.id}），"
+                    "拒绝按 0 元结算"
+                )
+            return Decimal(str(unit_price)) * quantity
 
         # 按 min 升序排列
         sorted_tiers = sorted(tiers, key=lambda t: t.get("min", 0))

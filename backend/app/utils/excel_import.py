@@ -32,7 +32,14 @@ def read_import_dataframe(body: bytes, first_column: str) -> "pd.DataFrame":
 
 
 def _is_template_note_row(df: "pd.DataFrame", first_column: str) -> bool:
-    """判断第 1 行是否为模板的中文说明行"""
+    """判断第 1 行是否为模板的中文说明行
+
+    说明行首列要么精确等于「必填」/「可选」（旧逻辑与测试夹具使用的简写），
+    要么以「必填：」/「可选：」开头（模板真实说明行格式）。不能只按
+    「必填」/「可选」做前缀匹配：包年套餐模板首列 `name` 是自由文本，
+    若用户首行数据 name 形如「可选服务包」会被误判为说明行而静默丢弃。
+    """
     if df.empty or first_column not in df.columns:
         return False
-    return str(df.iloc[0].get(first_column, "")).strip().startswith(("必填", "可选"))
+    value = str(df.iloc[0].get(first_column, "")).strip()
+    return value in ("必填", "可选") or value.startswith(("必填：", "可选："))

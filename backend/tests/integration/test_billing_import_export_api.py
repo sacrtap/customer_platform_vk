@@ -2,7 +2,8 @@
 Billing 导入导出 API 集成测试
 
 覆盖新增端点：
-1. GET  /api/v1/billing/balances/export                  (billing:balance_export)
+1. POST /api/v1/billing/import                           (billing:balance_import)
+   GET  /api/v1/billing/balances/export                  (billing:balance_export)
 2. POST /api/v1/billing/pricing-rules/import             (billing:pricing_import)
    GET  /api/v1/billing/pricing-rules/import-template
    GET  /api/v1/billing/pricing-rules/export             (billing:pricing_export)
@@ -132,6 +133,8 @@ async def import_customer(db_session):
             "DELETE FROM pricing_rules WHERE customer_id = :cid",
             "DELETE FROM invoices WHERE customer_id = :cid",
             "DELETE FROM customer_balances WHERE customer_id = :cid",
+            # 余额导入会创建 recharge_records（FK 指向 customers），须先于 customers 删除
+            "DELETE FROM recharge_records WHERE customer_id = :cid",
             "DELETE FROM customers WHERE id = :cid",
         ):
             db_session.execute(text(stmt), {"cid": cid})
@@ -179,6 +182,57 @@ async def test_export_balances_forbidden_without_permission(test_client, auth_to
             headers={"Authorization": f"Bearer {auth_token}"},
         )
     assert response.status == 403
+
+
+# ==================== 余额导入 ====================
+
+
+@pytest.mark.asyncio
+async def test_import_balances_forbidden_without_permission(test_client, auth_token):
+    """余额导入：缺少 billing:balance_import 权限返回 403"""
+    with _no_permissions():
+        _request, response = await test_client.post(
+            "/api/v1/billing/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+    assert response.status == 403
+
+
+@pytest.mark.asyncio
+async def test_import_balances_from_downloaded_template(
+    test_client, auth_token, db_session, import_customer
+):
+    """下载的余额导入模板可直接导入：第 2 行中文说明行不被当作数据行"""
+    _request, template = await test_client.get(
+        "/api/v1/billing/import-template",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    body = _fill_template_example_row(
+        template.body,
+        {1: import_customer["company_id"]},
+        # 模板已不含示例行，先补一整行合法数据，再用 values 覆盖 company_id
+        default_row=[100001, 100.0, 50.0, None],
+        # 追加一条未知客户的行，位于 Excel 第 4 行
+        extra_rows=[[999999999, 10.0, 0.0, None]],
+    )
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1
+    assert data["error_count"] == 1
+    assert data["errors"][0].startswith("第 4 行")
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 1
 
 
 # ==================== 计费规则导入 / 导出 ====================

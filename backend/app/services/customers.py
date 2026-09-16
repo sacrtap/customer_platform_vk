@@ -102,10 +102,14 @@ def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
     val = str(value).strip()
     if not val or val in ("#N/A", "None"):
         return None
-    try:
-        return datetime.strptime(val, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+    # 兼容历史导入的多种日期格式（YYYY-MM-DD / YYYY/MM/DD / MM/DD/YYYY / YYYYMMDD），
+    # 解析失败返回 None（由调用方行级校验兜底，不在此处抛错中断整批导入）。
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%Y%m%d"):
+        try:
+            return datetime.strptime(val, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
@@ -996,6 +1000,9 @@ class CustomerService:
         errors = []
 
         for i, data in enumerate(customers_data):
+            # 行号优先取路由写入的 Excel 行号（_row_num），
+            # 直接调用（测试/其它路径）未携带时退化为列表序号 + 1。
+            row_num = data.get("_row_num", i + 1)
             try:
                 company_id = data.get("company_id")
                 name = data.get("name")
@@ -1045,22 +1052,22 @@ class CustomerService:
                     try:
                         company_id = int(company_id)
                     except (ValueError, TypeError):
-                        errors.append(f"行{i + 1}: company_id '{company_id}' 不是有效的整数")
+                        errors.append(f"行{row_num}: company_id '{company_id}' 不是有效的整数")
                         continue
 
                 if not company_id:
-                    errors.append(f"行{i + 1}: 缺少 company_id")
+                    errors.append(f"行{row_num}: 缺少 company_id")
                     continue
 
                 if not name:
-                    errors.append(f"行{i + 1}: 缺少 name")
+                    errors.append(f"行{row_num}: 缺少 name")
                     continue
 
                 email = data.get("email")
                 if email and not re.match(
                     r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", str(email)
                 ):
-                    errors.append(f"行{i + 1}: 邮箱格式错误")
+                    errors.append(f"行{row_num}: 邮箱格式错误")
                     continue
 
                 price_policy = data.get("price_policy")
@@ -1069,7 +1076,7 @@ class CustomerService:
                     storage_value = convert_price_policy_to_storage(price_policy)
                     if storage_value is None:
                         errors.append(
-                            f"行{i + 1}: 无效的计费模式: {price_policy} (可选值：定价/阶梯/包年)"
+                            f"行{row_num}: 无效的计费模式: {price_policy} (可选值：定价/阶梯/包年)"
                         )
                         continue
                 else:
@@ -1142,7 +1149,7 @@ class CustomerService:
 
                 # 检查是否已存在
                 if company_id in existing_company_ids:
-                    errors.append(f"行{i + 1}: 公司 ID {company_id} 已存在")
+                    errors.append(f"行{row_num}: 公司 ID {company_id} 已存在")
                     continue
 
                 # 暂存 profile 数据（等待 flush 后设置 customer_id）
@@ -1191,7 +1198,7 @@ class CustomerService:
 
                 success_count += 1
             except Exception as e:
-                errors.append(f"行{i + 1}: {str(e)}")
+                errors.append(f"行{row_num}: {str(e)}")
 
         # 批量创建余额记录和 profile
         if success_count > 0:

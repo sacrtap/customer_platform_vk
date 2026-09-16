@@ -71,12 +71,6 @@ def main() -> None:
         description="检查结算单明细文件状态与磁盘实体一致性",
     )
     parser.add_argument(
-        "--detect",
-        action="store_true",
-        default=True,
-        help="检测不一致记录（默认行为）",
-    )
-    parser.add_argument(
         "--reset-pending",
         action="store_true",
         help="将不一致记录（completed 但文件缺失）重置为 pending",
@@ -116,7 +110,14 @@ def main() -> None:
                 # 绝对路径或 ../ 越界：无法可靠校验，跳过并单列告警
                 out_of_root.append((inv_id, inv_no, rel_path))
                 continue
-            if not os.path.exists(abs_path) or os.path.getsize(abs_path) == 0:
+            # 用单次 getsize 取代 exists()+getsize() 两步检查：避免二者之间文件被
+            # 并发删除导致的 TOCTOU（exists 通过后 getsize 抛 FileNotFoundError 中止脚本）。
+            # getsize 抛 OSError（含文件已被删除、不可读）时视为「文件缺失」。
+            try:
+                size = os.path.getsize(abs_path)
+            except OSError:
+                size = 0
+            if size == 0:
                 inconsistent.append((inv_id, inv_no, rel_path))
 
         # 输出

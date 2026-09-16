@@ -1,10 +1,12 @@
 """发票管理路由 — 生成、审批、支付、导出"""
 
+import asyncio
 import logging
 import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from urllib.parse import quote
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -28,6 +30,30 @@ from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
+
+
+def _content_disposition(filename: str) -> str:
+    """生成 Content-Disposition 响应头值，附带 RFC 5987 的 filename*。
+
+    中文文件名在部分 HTTP 客户端/浏览器下会乱码或下载失败；这里保留原始
+    ``filename`` 兜底，并追加百分号编码的 ``filename*=UTF-8''...``，让支持
+    RFC 5987 的客户端正确解码中文文件名。
+    """
+    return f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+def _write_cell_text_safe(cell, value):
+    """把值写入 xlsx 单元格，防御公式/CSV 注入（CWE-1236）。
+
+    openpyxl 会把以 ``=`` 开头的字符串当作公式存储（data_type=``f``），导入接口
+    允许 invoice_no 为任意自由文本，若含 ``=HYPERLINK(...)`` 等前缀，导出的 xlsx
+    在 Excel 中打开时会执行公式/外部链接。这里对危险前缀的字符串显式标记
+    ``data_type='s'``（以 inlineStr 存储为纯文本）：值本身保持不变（区别于加前导
+    单引号/空格会污染值），因此纯数字/普通单号不受影响，导出文件可无损回填导入。
+    """
+    cell.value = value
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        cell.data_type = "s"
 
 
 async def _trigger_detail_generation(request: Request, invoice_id: int):
@@ -1328,7 +1354,10 @@ async def export_invoices(request: Request):
         ]
 
         for col_num, value in enumerate(row_data, 1):
-            cell = ws.cell(row=row_num, column=col_num, value=value)  # pyright: ignore[reportOptionalMemberAccess]
+            cell = ws.cell(row=row_num, column=col_num)  # pyright: ignore[reportOptionalMemberAccess]
+            # 防御公式注入：invoice_no / customer_name 等文本字段若以 = + - @ 开头，
+            # 会被 openpyxl 当作公式存储，导出文件在 Excel 打开时可能执行恶意公式。
+            _write_cell_text_safe(cell, value)
             cell.alignment = cell_alignment
             cell.border = thin_border
 
@@ -1360,7 +1389,7 @@ async def export_invoices(request: Request):
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": _content_disposition(filename),
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0",
@@ -1402,17 +1431,33 @@ async def import_invoices(request: Request):
 
     files = request.files
     if "file" not in files:  # pyright: ignore[reportOperatorIssue]
-        return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
+        return json({"code": ErrorCodes.BAD_REQUEST, "message": "请上传 Excel 文件"}, status=400)
 
     excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
     if not excel_file.name.endswith(".xlsx"):
-        return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": "请上传 .xlsx 格式的文件"}, status=400
+        )
+
+    # 服务端体积上限兜底：前端虽限 10MB，但可被绕过；.xlsx 是 zip 容器，
+    # 高压缩比/超大工作簿会在整体读入内存解析时造成内存耗尽（DoS）。在解析前
+    # 拦截，上限与前端 ImportModal 的 10MB 口径一致（settings.max_file_size）。
+    if len(excel_file.body) > settings.max_file_size:
+        return json(
+            {
+                "code": ErrorCodes.BAD_REQUEST,
+                "message": f"文件大小超过限制（最大 {settings.max_file_size // (1024 * 1024)}MB）",
+            },
+            status=400,
+        )
 
     db: AsyncSession = request.ctx.db_session
 
     try:
-        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
-        df = read_import_dataframe(excel_file.body, "company_id")
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。
+        # pd.read_excel 是 CPU+I/O 密集的同步调用，10MB xlsx 可阻塞事件循环数百毫秒至数秒，
+        # 与 packages/pricing/imports 三处导入端点保持一致的 to_thread 处理。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
         # 必填列检查
         required_columns = ["company_id", "period_start", "period_end", "total_amount"]
@@ -1420,7 +1465,7 @@ async def import_invoices(request: Request):
         if missing_columns:
             return json(
                 {
-                    "code": 40003,
+                    "code": ErrorCodes.INVALID_FILE,
                     "message": f"Excel 缺少必填列：{', '.join(missing_columns)}",
                 },
                 status=400,
@@ -1429,12 +1474,17 @@ async def import_invoices(request: Request):
         # 行数限制
         if len(df) > 1000:
             return json(
-                {"code": 40004, "message": "单次最多导入 1000 条记录"},
+                {"code": ErrorCodes.MISSING_PARAMETER, "message": "单次最多导入 1000 条记录"},
                 status=400,
             )
 
-        # 预加载客户 company_id -> customer_id 映射
-        result = await db.execute(select(Customer.id, Customer.company_id))
+        # 预加载客户 company_id -> customer_id 映射（排除软删除客户：
+        # 列表 get_invoices 与导出 export_invoices 均通过 join 过滤了软删除客户，
+        # 导入若仍可命中会为其创建结算单，但这些结算单在列表/导出中不可见，形成
+        # 不可见的脏数据；与 pricing.py 导入侧的处理保持一致）
+        result = await db.execute(
+            select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
+        )
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
         # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
@@ -1477,6 +1527,11 @@ async def import_invoices(request: Request):
                     errors.append(f"第 {row_num} 行：客户编号为空")
                     continue
                 try:
+                    # pandas 会把带小数的数字单元格读成 float（如 100001.9），
+                    # int() 会静默截断为 100001，把结算单挂到错误客户名下；
+                    # 先判定是否为整数值，非整数一律按行级错误拒绝。
+                    if isinstance(company_id, float) and not company_id.is_integer():
+                        raise ValueError
                     company_id = int(company_id)
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
@@ -1554,7 +1609,10 @@ async def import_invoices(request: Request):
                 else:
                     customer_key = company_to_customer[company_id]
                     while True:
-                        code = "".join(random.choices(string.digits, k=4))
+                        # 与 services/billing.py 的既有单号规则一致：4 位随机码取自
+                        # 大写字母+数字（36^4 命名空间）。原先仅用数字（10^4）会使同
+                        # 客户同日的碰撞概率高出 168 倍，且单日超 1 万条时会无限循环。
+                        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
                         invoice_no = (
                             f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_key}-{code}"
                         )
@@ -1631,10 +1689,14 @@ async def import_invoices(request: Request):
                 },
             }
         )
-    except Exception as e:
+    except Exception:
         # 外层失败（如最终 commit 抛错）也需回滚，避免把中毒会话归还连接池
         await db.rollback()
-        return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+        # 不把原始异常信息返回客户端，避免泄露 SQL/驱动层细节；完整堆栈记入服务端日志
+        logger.exception("结算单导入失败")
+        return json(
+            {"code": ErrorCodes.SERVICE_ERROR, "message": "导入失败，请稍后重试"}, status=500
+        )
 
 
 @billing_bp.get("/invoices/import-template")
@@ -1682,7 +1744,7 @@ async def download_invoice_import_template(request: Request):
     return raw(
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="结算单导入模板.xlsx"'},
+        headers={"Content-Disposition": _content_disposition("结算单导入模板.xlsx")},
     )
 
 
@@ -1716,7 +1778,7 @@ async def download_invoice_detail(request: Request, invoice_id: int):
     return await response_file(
         file_path,
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": _content_disposition(filename),
             "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )

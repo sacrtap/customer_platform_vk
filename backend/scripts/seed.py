@@ -9,6 +9,7 @@
 """
 
 import argparse
+import asyncio
 import os
 import sys
 
@@ -254,7 +255,11 @@ def seed(reset: bool = False):
             # 关联指定权限
             for code in perm_codes:
                 perm = permissions.get(code)
-                if perm and perm not in biz_role.permissions:
+                if perm is None:
+                    # PRESET_ROLES 引用了 ALL_PERMISSIONS 之外的权限码（映射笔误）。
+                    # 若静默跳过，角色会静默缺权限且无任何报错，故显式失败。
+                    raise ValueError(f"预置角色 {role_name} 引用了未定义的权限码: {code}")
+                if perm not in biz_role.permissions:
                     biz_role.permissions.append(perm)
             print(f"  ✅ {role_name} 已关联 {len(perm_codes)} 个权限")
         session.flush()
@@ -284,7 +289,14 @@ def seed(reset: bool = False):
                     continue
                 for new_code in new_codes:
                     new_perm = permissions.get(new_code)
-                    if new_perm and new_perm not in role.permissions:
+                    if new_perm is None:
+                        # LEGACY_TO_NEW_PERMISSIONS 引用了 ALL_PERMISSIONS 之外的权限码
+                        # （映射笔误）。若静默跳过，步骤 2.7 又会无条件删除旧码 → 角色
+                        # 权限被静默降权且不可逆，故显式失败。
+                        raise ValueError(
+                            f"迁移映射引用了未定义的权限码: {new_code}（旧码 {legacy_code}）"
+                        )
+                    if new_perm not in role.permissions:
                         role.permissions.append(new_perm)
                         migrated_count += 1
         if migrated_count:
@@ -341,6 +353,27 @@ def seed(reset: bool = False):
                 print(f"  ⏭️  admin 已有角色: {SUPER_ADMIN_ROLE_NAME}")
 
         session.commit()
+
+        # ---- 失效 Redis 权限缓存 ----
+        # 步骤 2.6/2.7 迁移改变了角色→权限绑定（授新细粒度码、删旧码），但
+        # PermissionCache（key `cache:permissions:{user_id}`，TTL 600s）仍缓存旧权限
+        # 集合：若不失效，迁移前已登录用户在最长 10 分钟内访问结算导入/导出端点会因
+        # 命中旧码集合持续 403。故提交成功后全量失效权限缓存。
+        try:
+            # cache_service 是 async（底层 redis.asyncio），而本脚本是同步脚本：
+            # 用 asyncio.run 临时起一个事件循环执行失效即可，进程随后退出。
+            # 延迟导入，避免在测试收集期（import seed.py）引入额外应用栈副作用。
+            from app.cache.base import cache_service
+
+            asyncio.run(cache_service.invalidate_pattern("cache:permissions:*"))
+            print("  ✅ 已失效权限缓存 cache:permissions:*")
+        except Exception as e:
+            # Redis 不可用不应阻断种子初始化，仅提示运维手动失效。
+            print(
+                "  ⚠️  权限缓存失效失败，请手动清理 cache:permissions:* "
+                f"（redis-cli --scan --pattern 'cache:permissions:*' | xargs redis-cli DEL）：{e}"
+            )
+
         print("\n✅ 种子数据初始化完成!")
         print("   登录账号: admin")
         print("   登录密码: admin123")
