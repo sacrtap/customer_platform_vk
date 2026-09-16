@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-09-16
 <!-- @@@/auto:current-status -->
 
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-09-16 | 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷 | `f94e54a` | `feature/import-export-optimization` |
 | 12 | 2026-09-16 | 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建 | `76f71fc` | `feature/import-export-optimization` |
 | 11 | 2026-09-16 | 导入导出功能优化：结算页面补齐导入导出与权限码细粒度拆分 | `043d2a5`, `f5b3cdf` | `feature/import-export-optimization` |
 | 10 | 2026-09-16 | 修复分析页面报错+角色权限清单修正+部署加固 | `b674bbf`, `648ba1c`, `d39e0ea` | `fix/health-prediction-bugs` |

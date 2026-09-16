@@ -329,3 +329,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷
+<!-- trellis-session: v=2 fp=21d1c7bd65e22cf8 -->
+
+**Date**: 2026-09-16
+**Task**: 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 pytest 全量收集冲突（--import-mode=importlib，恢复被同名遮蔽的 23 项）、tests/ 根目录遗留测试过时断言、.trellis 脚本产物缺尾换行导致的 pre-commit 反复阻断。定位过程中额外修复 3 处生产缺陷（customer_repo 的 cast 误用必抛 TypeError；sync_logs 返回体缺 task_id/operator_id/start_date/end_date/sync_mode；sync_task_service.get_progress 用 bytes 键查 decode_responses=True 的 Redis 导致进度恒为空）与 2 处测试隔离缺陷（JWT_SECRET 单例冲突致 e2e 401；mock_cache 未覆盖模块级 import 绑定致端点绕过 mock）。二分定位方法：tests/unit 根目录逐级收敛至 test_avatar_upload.py。最终 872 passed / 0 failed，覆盖率 57.61%，unit 447、integration 243。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f94e54a` | fix(test): 修复全量测试收集冲突、遗留测试过时与 3 处生产缺陷 |
+
+### Status
+
+[OK] **Completed**
