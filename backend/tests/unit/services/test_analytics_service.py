@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.exc import ProgrammingError
 
 from app.services.analytics import AnalyticsService
 
@@ -120,12 +121,17 @@ class TestGetUnitPrices:
     async def test_falls_back_to_defaults_when_table_missing(self, service):
         """表缺失（未跑迁移）时兜底返回默认单价，不抛 500"""
         db = service.db
-        db.execute.side_effect = Exception("relation forecast_unit_prices does not exist")
+        db.execute.side_effect = ProgrammingError(
+            "relation forecast_unit_prices does not exist", {}, Exception()
+        )
 
         prices = await service.get_unit_prices()
 
-        # 默认值来自 config.py consumption_forecast_unit_prices
-        assert prices == {"L": 14.5, "N": 30.0, "X": 30.0}
+        # 默认值直接来自 config.py，避免期望值过时
+        from app.config import get_settings
+
+        expected = dict(get_settings().consumption_forecast_unit_prices)
+        assert prices == expected
 
     async def test_falls_back_to_defaults_when_table_empty(self, service):
         """表存在但为空时回退默认单价"""
@@ -136,4 +142,6 @@ class TestGetUnitPrices:
 
         prices = await service.get_unit_prices()
 
-        assert prices == {"L": 14.5, "N": 30.0, "X": 30.0}
+        from app.config import get_settings
+
+        assert prices == dict(get_settings().consumption_forecast_unit_prices)

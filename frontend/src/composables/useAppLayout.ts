@@ -100,6 +100,12 @@ export function useAppLayout() {
             to: '/system/api-keys',
             permission: 'api_keys:manage',
           },
+          {
+            key: 'database-management',
+            label: '数据清空',
+            to: '/system/database-management',
+            permission: 'system:database_clear',
+          },
         ],
       },
       {
@@ -123,12 +129,6 @@ export function useAppLayout() {
             label: '结算单日志',
             to: '/system/invoice-logs',
             permission: 'billing:view',
-          },
-          {
-            key: 'database-management',
-            label: '数据清空',
-            to: '/system/database-management',
-            permission: 'system:database_clear',
           },
         ],
       },
@@ -203,7 +203,8 @@ export function useAppLayout() {
         p === '/system/industry-types' ||
         p === '/system/cooperation-statuses' ||
         p === '/system/erp-systems' ||
-        p === '/system/api-keys'
+        p === '/system/api-keys' ||
+        p === '/system/database-management'
       )
     return false
   }

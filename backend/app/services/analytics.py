@@ -1,10 +1,12 @@
 """客户分析服务"""
 
+import logging
 from calendar import monthrange
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, case, extract, func, or_, select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import (
@@ -20,6 +22,8 @@ from ..models.daily_consumption import DailyConsumption
 from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsService:
@@ -1937,8 +1941,9 @@ class AnalyticsService:
         try:
             stmt = select(ForecastUnitPrice)
             result = (await self.db.execute(stmt)).scalars().all()
-        except Exception:
+        except ProgrammingError as exc:
             # 表缺失（远程未跑迁移）时兜底，避免预测消费接口 500
+            logger.warning("读取 forecast_unit_prices 表失败，回退默认单价: %s", exc)
             from ..config import get_settings
 
             return dict(get_settings().consumption_forecast_unit_prices)

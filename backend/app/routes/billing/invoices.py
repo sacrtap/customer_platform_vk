@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sanic.request import Request
 from sanic.response import file as response_file
-from sanic.response import json
+from sanic.response import json, raw
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
@@ -1331,8 +1331,6 @@ async def export_invoices(request: Request):
     filename = f"结算单导出_{timestamp}.xlsx"
 
     # 返回文件
-    from sanic.response import raw
-
     return raw(
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
