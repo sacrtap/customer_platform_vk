@@ -1489,19 +1489,31 @@ async def import_invoices(request: Request):
                 period_start_raw = row.get("period_start")
                 period_end_raw = row.get("period_end")
                 try:
-                    period_start = datetime.strptime(str(period_start_raw)[:10], "%Y-%m-%d")
-                    period_end = datetime.strptime(str(period_end_raw)[:10], "%Y-%m-%d")
+                    # 先做可读的格式校验，再统一转 UTC 入库
+                    period_start_str = str(period_start_raw)[:10]
+                    period_end_str = str(period_end_raw)[:10]
+                    datetime.strptime(period_start_str, "%Y-%m-%d")
+                    datetime.strptime(period_end_str, "%Y-%m-%d")
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：账期格式错误（应为 YYYY-MM-DD）")
                     continue
-                if period_end < period_start:
+                if period_end_str < period_start_str:
                     errors.append(f"第 {row_num} 行：账期结束不能早于开始")
                     continue
+                # 与 calculate_invoice_items / generate_invoice 一致，账期须转 UTC 后入库
+                period_start, period_end = local_date_range_to_utc(period_start_str, period_end_str)
 
                 # 金额
                 total_amount_raw = row.get("total_amount")
+                if pd.isna(total_amount_raw) or total_amount_raw is None:
+                    errors.append(f"第 {row_num} 行：结算金额为空")
+                    continue
                 try:
                     total_amount = Decimal(str(total_amount_raw))
+                    # NaN 会抛 InvalidOperation，Infinity 则会绕过 <0 比较，须显式拒绝非有限值
+                    if not total_amount.is_finite():
+                        errors.append(f"第 {row_num} 行：结算金额格式错误")
+                        continue
                     if total_amount < 0:
                         errors.append(f"第 {row_num} 行：结算金额不能为负数")
                         continue
@@ -1514,6 +1526,9 @@ async def import_invoices(request: Request):
                 if discount_raw is not None and not pd.isna(discount_raw):
                     try:
                         discount_amount = Decimal(str(discount_raw))
+                        if not discount_amount.is_finite():
+                            errors.append(f"第 {row_num} 行：减免金额格式错误")
+                            continue
                         if discount_amount < 0:
                             errors.append(f"第 {row_num} 行：减免金额不能为负数")
                             continue
@@ -1572,7 +1587,11 @@ async def import_invoices(request: Request):
 
         await db.commit()
 
-        # 记录审计日志
+        # 导入成功后清除结算相关缓存
+        await cache_service.invalidate_billing_cache()
+
+        # 记录审计日志。审计写入失败不应影响导入结果：结算单已持久化，
+        # 若抛异常导致 500，客户端重试会产生重复导入，故将失败解耦处理。
         from ...utils.audit_helpers import build_batch_audit_summary
 
         summary = build_batch_audit_summary(
@@ -1582,21 +1601,24 @@ async def import_invoices(request: Request):
             failed_count=len(errors),
             details=errors[:10],
         )
-        await create_audit_entry(
-            db_session=db,
-            user_id=operator_id,
-            action="batch_create",
-            module="billing",
-            record_id=None,
-            record_type="invoice",
-            changes={"after": {"count": success_count}},
-            operation_type="batch",
-            extra_metadata=summary,
-            ip_address=request.headers.get(
-                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-            ),
-            auto_commit=True,
-        )
+        try:
+            await create_audit_entry(
+                db_session=db,
+                user_id=operator_id,
+                action="batch_create",
+                module="billing",
+                record_id=None,
+                record_type="invoice",
+                changes={"after": {"count": success_count}},
+                operation_type="batch",
+                extra_metadata=summary,
+                ip_address=request.headers.get(
+                    "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+                ),
+                auto_commit=True,
+            )
+        except Exception:
+            logger.exception("结算单导入审计日志写入失败")
 
         return json(
             {
@@ -1650,8 +1672,8 @@ async def download_invoice_import_template(request: Request):
     for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
         ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
 
-    # 示例数据
-    ws.append([100001, "2026-04-01", "2026-04-30", 12500.50, 0, None])  # pyright: ignore[reportOptionalMemberAccess]
+    # 不写入示例数据行：示例行会被当作真实数据导入（公司 100001 的 draft 结算单）。
+    # 表头行（第 1 行）与中文说明行（第 2 行）契约由模板下载测试断言，保持不变。
 
     output = io.BytesIO()
     wb.save(output)

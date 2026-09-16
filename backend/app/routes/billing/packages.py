@@ -661,6 +661,15 @@ async def import_package_plans(request: Request):
                     errors.append(f"第 {row_num} 行：状态必须为 active/inactive")
                     continue
 
+                # 取值白名单校验（与 pricing.py 导入保持一致，避免非法字符串静默写入脏数据）：
+                # 设备/楼层类型为空表示通用，故仅在非空时校验
+                if device_type and device_type not in ("X", "N", "L"):
+                    errors.append(f"第 {row_num} 行：设备类型必须为 X/N/L")
+                    continue
+                if layer_type and layer_type not in ("single", "multi"):
+                    errors.append(f"第 {row_num} 行：楼层类型必须为 single/multi")
+                    continue
+
                 plan = PackagePlan(
                     name=name,
                     package_type=package_type,

@@ -2292,9 +2292,14 @@ class AnalyticsService:
                 tiers = []
             if len(tiers) > 0:
                 # 取最后一个 tier 的 max 作为预期用量参考
-                last_max = tiers[-1].get("max")
+                last_tier = tiers[-1]
+                last_max = last_tier.get("max")
                 if last_max is not None:
                     expected_usage = float(last_max)
+                else:
+                    # 末档无上界（max=null，规范阶梯形态）：退用其入口边界 min 作为预期用量，
+                    # 语义最接近旧实现读末档 threshold 的有限值，避免落入 usage_rate=100% 的回退
+                    expected_usage = float(last_tier.get("min", 0))
         if expected_usage == 0:
             # 回退：用近30天的日均 * 30 作为预期
             expected_usage = actual_usage if actual_usage > 0 else 0

@@ -714,7 +714,12 @@ async def test_import_invoices_from_downloaded_template(
         "/api/v1/billing/invoices/import-template",
         headers={"Authorization": f"Bearer {auth_token}"},
     )
-    body = _fill_template_example_row(template.body, {1: import_customer["company_id"]})
+    # 模板不再内嵌示例数据行，在返回的 workbook 上追加一行真实数据后上传
+    wb = load_workbook(io.BytesIO(template.body))
+    wb.active.append([import_customer["company_id"], "2026-04-01", "2026-04-30", 12500.50, 0, None])
+    buf = io.BytesIO()
+    wb.save(buf)
+    body = buf.getvalue()
 
     _request, response = await test_client.post(
         "/api/v1/billing/invoices/import",

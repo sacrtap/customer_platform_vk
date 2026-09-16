@@ -808,14 +808,19 @@ async def import_customers(request: Request):
         industry_map = {it.name: it.id for it in industry_result.scalars().all()}
 
         industry_errors: list[str] = []
+        valid_rows: list[dict] = []
         for row in customers_data:
             industry_name = row.get("industry")
+            # pandas 空单元格为 NaN，bool(NaN) 为 True，须先归一化为 None 避免虚假行级错误
+            if isinstance(industry_name, float) and math.isnan(industry_name):
+                industry_name = None
             if industry_name:
                 if industry_name not in industry_map:
                     industry_errors.append(f"行业类型 '{industry_name}' 不存在")
                     continue
                 row["industry_type_id"] = industry_map[industry_name]
                 del row["industry"]
+            valid_rows.append(row)
 
         # 处理 is_key_customer 列
         for row in customers_data:
@@ -834,7 +839,7 @@ async def import_customers(request: Request):
         db_session: AsyncSession = request.ctx.db_session
         service = CustomerService(db_session)
 
-        success_count, service_errors = await service.batch_create_customers(customers_data)
+        success_count, service_errors = await service.batch_create_customers(valid_rows)
         # 行业映射阶段的行级错误必须保留：原实现直接赋值覆盖 errors，
         # 使「行业类型不存在」等校验结果被静默丢弃，用户误以为全部导入成功。
         errors = industry_errors + service_errors

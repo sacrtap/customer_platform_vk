@@ -776,6 +776,16 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     wb.save(output)
     output.seek(0)
 
+    # 行业名必须已存在于 industry_types：行业映射失败的行会被行级拒绝、不入库
+    # （对齐其它导入路径「行级错误 → 该行不入库」的约定），故成功场景须先 seed 行内用到的行业。
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('互联网', 1, NOW()), ('房地产', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
     files = {
         "file": (
             "test_import.xlsx",
@@ -1156,7 +1166,14 @@ async def test_import_customers_unknown_industry_reports_error(
     assert data["code"] == 0
     errors = data["data"]["errors"]
     assert any(unknown_industry in e for e in errors), data["data"]
-    assert data["data"]["error_count"] >= 1
+    assert data["data"]["error_count"] == 1
+    # M9 回归防护：行业映射失败的行不入库（success_count 仅统计有效行）
+    assert data["data"]["success_count"] == 1
+    # 直接查库确认无效行（company_id=1000050）未被创建
+    created_count = db_session.execute(
+        text("SELECT COUNT(*) FROM customers WHERE company_id = 1000050")
+    ).scalar()
+    assert created_count == 0
 
     db_session.execute(
         text("DELETE FROM customers WHERE company_id >= 1000050 AND company_id < 1000060")

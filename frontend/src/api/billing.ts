@@ -1,6 +1,15 @@
 import api from './index'
 import type { Tier } from '@/utils/tiers'
 
+/**
+ * 同步重载端点的超时（毫秒）。
+ *
+ * 导入/导出由后端在请求内同步完成：逐行 DB 写入（或上限 5 万行的查询 + openpyxl 生成），
+ * 大文件在 DB 负载高时会明显超过 axios 实例的全局 15s 超时。前端一旦中断，服务端仍会
+ * 继续执行并提交数据 —— 用户看到「失败」而数据已落库，重试即产生重复数据，故单独放宽。
+ */
+const LONG_RUNNING_REQUEST_TIMEOUT = 120000
+
 // ==================== 余额管理 ====================
 
 export interface Balance {
@@ -494,7 +503,12 @@ export function exportInvoices(params?: {
   start_date?: string
   end_date?: string
 }) {
-  return api.get('/billing/invoices/export', { params, responseType: 'blob' })
+  // 同步 openpyxl 写盘，大导出会超过全局 15s 超时
+  return api.get('/billing/invoices/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 余额趋势 ====================
@@ -519,6 +533,7 @@ export function importBalances(file: File) {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
   })
 }
 
@@ -578,7 +593,11 @@ export function deletePackagePlan(id: number) {
 export function exportBalances(params?: BalanceQueryParams) {
   // 导出为同步生成（含近 30 天消费聚合 + openpyxl），大导出耗时可能超过全局 15s 超时，
   // 单独放宽超时避免前端在服务端仍在处理时中断。
-  return api.get('/billing/balances/export', { params, responseType: 'blob', timeout: 120000 })
+  return api.get('/billing/balances/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 计费规则导入导出 ====================
@@ -590,6 +609,7 @@ export function importPricingRules(file: File) {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
   })
 }
 
@@ -606,7 +626,11 @@ export function exportPricingRules(params?: {
   layer_type?: string
   pricing_type?: string
 }) {
-  return api.get('/billing/pricing-rules/export', { params, responseType: 'blob' })
+  return api.get('/billing/pricing-rules/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 包年套餐导入导出 ====================
@@ -618,6 +642,7 @@ export function importPackagePlans(file: File) {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
   })
 }
 
@@ -632,7 +657,11 @@ export function exportPackagePlans(params?: {
   status?: string
   is_unlimited?: string
 }) {
-  return api.get('/billing/package-plans/export', { params, responseType: 'blob' })
+  return api.get('/billing/package-plans/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 结算单导入 ====================
@@ -644,6 +673,7 @@ export function importInvoices(file: File) {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
   })
 }
 

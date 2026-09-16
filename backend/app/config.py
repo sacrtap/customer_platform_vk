@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         "Origin",
         "X-Request-Id",
     ]
-    cors_expose_headers: list = ["X-Request-Id"]
+    cors_expose_headers: list = ["X-Request-Id", "X-Truncated", "X-Total-Count"]
 
     # 文件存储配置
     file_storage_path: str = "./uploads"

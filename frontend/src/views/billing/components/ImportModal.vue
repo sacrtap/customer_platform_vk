@@ -95,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 
 interface ImportResult {
@@ -123,6 +123,21 @@ const fileInputRef = ref<HTMLInputElement>()
 const file = ref<File | null>(null)
 const loading = ref(false)
 const result = ref<ImportResult | null>(null)
+
+// 本组件由父级常驻挂载（v-model:visible 只控制显隐，关闭不销毁实例），重开时必须清空
+// 上次选择与结果，否则用户直接再点「开始导入」会重复提交同一文件 —— 计费规则会重复建
+// 数据、结算单会再生成一条、余额充值可能重复入账。同时清空 input.value，否则重新选择
+// 同一个文件不会触发 change 事件。
+watch(
+  () => props.visible,
+  (visible) => {
+    if (!visible) return
+    file.value = null
+    result.value = null
+    loading.value = false
+    if (fileInputRef.value) fileInputRef.value.value = ''
+  }
+)
 
 const triggerFileInput = () => fileInputRef.value?.click()
 const handleFileInputChange = (event: Event) => {

@@ -110,11 +110,42 @@ def normalize_tiers(raw: Any) -> Optional[List[dict]]:
     raise TierFormatError(f"tiers 必须是数组或 null，得到 {type(raw).__name__}")
 
 
+def _validate_tier_coverage(tiers: List[dict]) -> None:
+    """校验阶梯覆盖完整性（导入路径专用）。
+
+    约束（与前端编辑器 getTierError / coverageGaps 对齐）：
+    - 相邻档必须连续：后一档 ``min`` 必须等于前一档 ``max + 1``；
+    - 仅最后一档允许 ``max`` 为 ``null``（无上界）。
+
+    ``cost_calc._calc_tiered`` 按 ``max - min + 1`` 逐档切块计费：区间存在缺口时
+    超出覆盖范围的用量不会被计费（静默少收），重叠时会被重复计费，因此导入时必须拒绝。
+
+    末档允许有上界（前端编辑器 ``PricingRuleModal`` 同样允许）：此时超出末档 ``max``
+    的用量不再计费，属定价语义而非格式错误，故末档不参与连续性校验。
+
+    注：首档 ``min`` 允许非 0（前端编辑器要求为 0）。首档 ``min > 0`` 仅使
+    0 ~ min-1 的用量不计费，量级可忽略；强制该约束会与导入模板既有示例
+    （``[{"min":1,"max":null,"price":5}]``）冲突，故不在此处校验。
+    """
+    # 只校验相邻档（末档不校验，见 docstring）
+    for index in range(len(tiers) - 1):
+        tier = tiers[index]
+        if tier["max"] is None:
+            raise TierFormatError(f"第 {index + 1} 档阶梯 max 为 null，仅最后一档允许无上界")
+        next_tier = tiers[index + 1]
+        if next_tier["min"] != tier["max"] + 1:
+            raise TierFormatError(
+                f"第 {index + 1} 档与第 {index + 2} 档阶梯区间不连续"
+                f"（前者 max={tier['max']}，后者 min={next_tier['min']}）"
+            )
+
+
 def parse_tiers_or_raise(raw: Any, row_num: Optional[int] = None) -> List[dict]:
     """供导入路径使用：归一化 tiers 并把 ``TierFormatError`` 翻译为行级错误文案。
 
     与 ``normalize_tiers`` 的区别：
     - ``None`` → 返回空列表 ``[]``（导入场景下 None 表示未填写，合法）
+    - 追加覆盖完整性校验（见 ``_validate_tier_coverage``）
     - 校验失败时抛出 ``ValueError``，消息为行级错误文案
       （如 ``"第 N 行：阶梯配置 JSON 格式错误：…"``）
 
@@ -127,6 +158,8 @@ def parse_tiers_or_raise(raw: Any, row_num: Optional[int] = None) -> List[dict]:
     """
     try:
         result = normalize_tiers(raw)
+        if result:
+            _validate_tier_coverage(result)
     except TierFormatError as e:
         prefix = f"第 {row_num} 行：" if row_num is not None else ""
         raise ValueError(f"{prefix}阶梯配置 JSON 格式错误：{e}") from e

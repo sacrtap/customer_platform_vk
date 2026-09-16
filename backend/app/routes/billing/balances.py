@@ -1,5 +1,6 @@
 """余额管理路由 — 充值、记录、统计、趋势"""
 
+import asyncio
 import json as _json
 import logging
 from datetime import date, datetime, timedelta
@@ -651,33 +652,36 @@ async def export_balances(request: Request):
             status=400,
         )
 
-    # 组装 DataFrame（列与 BalanceTable 对齐）
-    data = [
-        {
-            "客户ID": r["company_id"],
-            "客户名称": r["customer_name"],
-            "行业": r["industry_type"],
-            "账号类型": r["account_type"],
-            "结算方式": r["settlement_type"],
-            "余额（元）": r["total_amount"],
-            "实充余额（元）": r["real_amount"],
-            "赠送余额（元）": r["bonus_amount"],
-            "已消耗（元）": r["used_total"],
-            "最新充值时间": r["last_recharge_at"],
-            "预计可支撑天数": r["days_remaining"],
-            "日均消耗（元）": r["daily_avg_cost"],
-            "消耗天数": r["consumption_days"],
-        }
-        for r in rows
-    ]
-    df = pd.DataFrame(data)
+    # 纯 CPU 的 DataFrame 组装 + Excel 生成移入线程，避免阻塞事件循环
+    def _build_excel(rows: list[dict]) -> bytes:
+        """在独立线程中完成 DataFrame 组装与 Excel 写入（列与 BalanceTable 对齐）"""
+        data = [
+            {
+                "客户ID": r["company_id"],
+                "客户名称": r["customer_name"],
+                "行业": r["industry_type"],
+                "账号类型": r["account_type"],
+                "结算方式": r["settlement_type"],
+                "余额（元）": r["total_amount"],
+                "实充余额（元）": r["real_amount"],
+                "赠送余额（元）": r["bonus_amount"],
+                "已消耗（元）": r["used_total"],
+                "最新充值时间": r["last_recharge_at"],
+                "预计可支撑天数": r["days_remaining"],
+                "日均消耗（元）": r["daily_avg_cost"],
+                "消耗天数": r["consumption_days"],
+            }
+            for r in rows
+        ]
+        df = pd.DataFrame(data)
 
-    # 生成 Excel 文件
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="余额列表")
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="余额列表")
 
-    output.seek(0)
+        return output.getvalue()
+
+    excel_bytes = await asyncio.to_thread(_build_excel, rows)
 
     # 生成文件名
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -687,7 +691,7 @@ async def export_balances(request: Request):
     truncated = total > len(rows)
 
     return raw(
-        output.read(),
+        excel_bytes,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',

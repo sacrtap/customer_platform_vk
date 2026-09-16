@@ -513,8 +513,14 @@ async def import_pricing_rules(request: Request):
                 await pricing_service.create_pricing_rule(rule_data)
                 success_count += 1
             except ValueError as e:
+                # create_pricing_rule 内部逐行 commit，失败行的工作本就未落库；
+                # 但 DB 级异常会让会话进入 PendingRollback，必须回滚才能继续后续行，
+                # 否则后续所有行与最终审计 commit 全部失败 → 整批报 500 而前面的行已永久落库。
+                # 此处不能用 begin_nested()：create_pricing_rule 内部的 commit 会直接释放保存点。
+                await db_session.rollback()
                 errors.append(f"第 {row_num} 行：{str(e)}")
             except Exception as e:  # 兜底，避免单行异常中断整个导入
+                await db_session.rollback()
                 logger.warning("计费规则导入第 %d 行失败: %s", row_num, e)
                 errors.append(f"第 {row_num} 行：{str(e)}")
 
@@ -558,6 +564,8 @@ async def import_pricing_rules(request: Request):
             }
         )
     except Exception as e:
+        # 外层失败（如审计 commit 抛错）也需回滚，避免把中毒会话归还连接池
+        await request.ctx.db_session.rollback()
         return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
 
 
@@ -657,7 +665,10 @@ async def export_pricing_rules(request: Request):
     data = [
         {
             "id": r.id,
-            "customer_id": r.customer_id,
+            # 与导入模板对齐：导入以 company_id（客户编号）为主键列。导出若给
+            # customer_id（数据库内部主键），导出文件将无法回灌（报「缺少必填列：company_id」），
+            # 与 balances 导出的 company_id / 「客户ID」约定也不一致。
+            "company_id": r.customer.company_id if r.customer else None,
             "customer_name": r.customer.name if r.customer else None,
             "device_type": r.device_type,
             "layer_type": r.layer_type or "single",
