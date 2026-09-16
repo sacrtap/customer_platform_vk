@@ -307,3 +307,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建
+<!-- trellis-session: v=2 fp=a534966fa8fc325f -->
+
+**Date**: 2026-09-16
+**Task**: 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 5 项运行期缺陷：P1 middleware 误用 app.logger（共 5 处；request 中间件异常时返回 HTML 500 而非约定 JSON，真实异常被 AttributeError 掩盖）；P2 前端 axios 未解析 Blob 错误体（下载链路失败提示英文 Bad Request）；P3 计费规则导入缺 device_type/layer_type 行级校验（可写脏数据）；P4 docs/specs 旧权限码迁移至 billing:balance_import；P5 删除余额无效惰性补建（写入被回滚）并交付补偿脚本 backfill_balance_archives.sql。新增 3 个回归测试（中间件 JSON 500 / 导入字段校验 / 余额列表无写入）；相关集成测试 37 passed、unit+integration 690 passed 且覆盖率 51.47%；前端 type-check+lint 通过；浏览器实测五页面导入导出与模板下载。同步更新 spec：logging-guidelines（中间件禁用 app.logger，此为本次缺陷源头规范）、import-export（收录新增校验规则）、component-guidelines。另发现既有测试基础设施问题未在本次修复：同名测试文件跨目录冲突致 pytest 收集失败 2 例、根目录老测试引用已变更模型字段致 34 failed（使 make test-cov 失效）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `76f71fc` | fix(runtime): 修复 middleware logger 误用、Blob 错误提示与导入校验 |
+
+### Status
+
+[OK] **Completed**

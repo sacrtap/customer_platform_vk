@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 13
 - **Last Active**: 2026-09-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~309 | Active |
+| `journal-1.md` | ~353 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-09-16 | 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建 | `76f71fc` | `feature/import-export-optimization` |
 | 11 | 2026-09-16 | 导入导出功能优化：结算页面补齐导入导出与权限码细粒度拆分 | `043d2a5`, `f5b3cdf` | `feature/import-export-optimization` |
 | 10 | 2026-09-16 | 修复分析页面报错+角色权限清单修正+部署加固 | `b674bbf`, `648ba1c`, `d39e0ea` | `fix/health-prediction-bugs` |
 | 9 | 2026-09-12 | better-harness 4 个 finding 修复 + 收尾摩擦消除 | `8f375c4`, `33fd579`, `094a3a4` | `fix-bug` |
