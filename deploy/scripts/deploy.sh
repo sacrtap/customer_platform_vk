@@ -360,10 +360,11 @@ run_migrations() {
     # 注意：只删除容器，不删除数据卷，数据不会丢失
     log_info "清理所有相关容器..."
     # 按依赖逆序删除：先删除依赖者，再删除被依赖者
-    # 依赖链：nginx→app→db,redis；seed→migrate→app
-    # 删除顺序：nginx → seed → migrate → app → db → redis
+    # 依赖链：nginx→app→db,redis；seed→migrate→app；cleanup→seed→migrate→db
+    # 删除顺序：nginx → cleanup → seed → migrate → app → db → redis
     local containers_in_order=(
         "customer-platform-nginx"
+        "customer-platform-cleanup"
         "customer-platform-seed"
         "customer-platform-migrate"
         "customer-platform-app"
@@ -420,6 +421,14 @@ run_migrations() {
         return 1
     fi
     log_info "种子数据初始化完成"
+
+    # 运行弃用权限清理（幂等；删除前校验代码引用，仍被引用则跳过）
+    log_step "清理弃用权限..."
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE up cleanup; then
+        log_error "弃用权限清理失败！"
+        return 1
+    fi
+    log_info "弃用权限清理完成"
 }
 
 # 启动所有服务

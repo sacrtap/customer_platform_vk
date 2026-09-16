@@ -10,6 +10,7 @@
 """
 
 import os
+import pathlib
 import sys
 
 # 添加项目根目录到 Python 路径
@@ -25,6 +26,10 @@ except ImportError:
 
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
+
+# 代码引用扫描范围：后端 app 与前端 src（容器内无 frontend 时仅扫后端）
+BACKEND_APP_DIR = pathlib.Path(__file__).resolve().parent.parent / "app"
+FRONTEND_SRC_DIR = pathlib.Path(__file__).resolve().parent.parent.parent / "frontend" / "src"
 
 # 从环境变量读取数据库 URL
 DATABASE_URL = os.getenv(
@@ -51,6 +56,51 @@ DEPRECATED_PERMISSIONS = [
     "profiles:export",
 ]
 
+# 扫描代码中仍引用的权限 code，防止误删在用权限
+SCAN_EXTENSIONS = {".py", ".ts", ".tsx", ".vue", ".js", ".jsx"}
+# 跳过目录（虚拟环境、构建产物、测试辅助缓存）
+SKIP_DIR_PARTS = {
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+}
+
+
+def find_code_references(code: str) -> list[pathlib.Path]:
+    """在 backend/app 与 frontend/src 中查找仍引用该权限 code 的文件
+
+    匹配后端装饰器 require_permission("code") 与前端 can('code') / hasPermission('code')。
+    返回引用文件列表；空列表表示无引用，可安全删除。
+    """
+    patterns = (
+        f'require_permission("{code}")',
+        f"require_permission('{code}')",
+        f"can('{code}')",
+        f'can("{code}")',
+        f"hasPermission('{code}')",
+        f'hasPermission("{code}")',
+    )
+    referenced: list[pathlib.Path] = []
+    for base_dir in (BACKEND_APP_DIR, FRONTEND_SRC_DIR):
+        if not base_dir.is_dir():
+            continue
+        for path in base_dir.rglob("*"):
+            if not path.is_file() or path.suffix not in SCAN_EXTENSIONS:
+                continue
+            if any(part in SKIP_DIR_PARTS for part in path.parts):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if any(pattern in content for pattern in patterns):
+                referenced.append(path)
+    return referenced
+
 
 def cleanup():
     """执行清理"""
@@ -76,6 +126,29 @@ def cleanup():
         print(f"  ⚠️  发现 {len(deprecated_perms)} 个弃用权限:")
         for perm in deprecated_perms:
             print(f"     - {perm.code} ({perm.name})")
+
+        # ---- 1.5 代码引用校验：仍被代码引用的权限跳过删除 ----
+        print("\n📋 步骤 1.5: 校验代码引用（防止误删在用权限）...")
+        safe_perms = []
+        for perm in deprecated_perms:
+            refs = find_code_references(perm.code)
+            if refs:
+                ref_desc = ", ".join(str(p) for p in refs[:5])
+                extra = f" 等 {len(refs)} 个文件" if len(refs) > 5 else ""
+                print(f"  ⚠️  '{perm.code}' 仍被代码引用: {ref_desc}{extra}")
+                print("     ⏭️  跳过删除（请先清理代码引用后再弃用）")
+            else:
+                safe_perms.append(perm)
+                print(f"  ✅ '{perm.code}' 无代码引用，可安全删除")
+
+        deprecated_perms = safe_perms
+        if not deprecated_perms:
+            print("  ⏭️  所有弃用权限均仍被代码引用，无权限可删除")
+            return
+
+        print(
+            f"\n  📌 待删除 {len(deprecated_perms)} 个权限: {', '.join(p.code for p in deprecated_perms)}"
+        )
 
         # ---- 2. 检查关联角色 ----
         print("\n📋 步骤 2: 检查关联角色...")

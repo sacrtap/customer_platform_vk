@@ -134,6 +134,23 @@ services:
       - customer-platform-network
     command: python scripts/seed.py
 
+  # 弃用权限清理服务 (一次性运行, 幂等)
+  # 删除历史遗留的弃用权限记录；删除前校验代码引用，仍被引用则跳过
+  cleanup:
+    image: customer_platform_app:latest
+    build:
+      context: ../backend
+      dockerfile: ./docker/Containerfile
+    container_name: customer-platform-cleanup
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${POSTGRES_DB:-customer_platform}
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    networks:
+      - customer-platform-network
+    command: python scripts/cleanup_deprecated_permissions.py
+
 networks:
   customer-platform-network:
     driver: bridge
