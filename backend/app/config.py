@@ -76,17 +76,6 @@ class Settings(BaseSettings):
     external_mysql_pool_size: int = 5
     external_mysql_pool_recycle: int = 3600
 
-    # 缓存 TTL 配置 (秒)
-    cache_ttl_dashboard_stats: int = 300  # 5 分钟
-    cache_ttl_dashboard_chart: int = 900  # 15 分钟
-    cache_ttl_analytics_health: int = 600  # 10 分钟
-    cache_ttl_analytics_profile: int = 3600  # 1 小时
-    cache_ttl_analytics_invoice: int = 300  # 5 分钟
-    cache_ttl_analytics_warning: int = 180  # 3 分钟
-    cache_ttl_analytics_prediction: int = 1800  # 30 分钟
-    cache_ttl_pricing_rules: int = 3600  # 1 小时
-    cache_ttl_analytics_trend: int = 900  # 15 分钟
-
     # 消费预测单价矩阵（元/套）
     consumption_forecast_unit_prices: dict = {
         "L": 14.5,

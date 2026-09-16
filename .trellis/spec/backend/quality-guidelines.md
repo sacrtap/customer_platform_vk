@@ -187,7 +187,9 @@ sync_tasks_routes.cache_service = original_routes_cache
 
 `app/config.py` 的 `settings` 是**模块级单例**（`lru_cache`）。`tests/conftest.py` 以 `os.environ.setdefault("JWT_SECRET", "test-secret-key")` 设定基线后，子层 conftest（`integration/`、`e2e/`）**不得**再强制赋值不同密钥：全量会话中两者都会被导入，最后加载者胜出 → 「签发用 A、验证用 B」→ 401。
 
-子层 conftest 只应设置**本层独有**的变量（如 `WEBHOOK_SECRET`）。
+正确判据不是「哪一层需要」，而是「该变量是否经共享的 `app.config.settings` 单例读取」。**任何**经该单例读取的变量（`JWT_SECRET`、`WEBHOOK_SECRET` 等）都**只能在 `tests/conftest.py` 设定一次基线**（`setdefault`）；子层需要不同值时，应在本层测试内 `monkeypatch`，而不是在子层 conftest 里永久覆盖 settings 单例——否则同样落入「最后加载者胜出」。
+
+> 本次修复依据：integration 与 e2e 两层曾各自强制设置**不同**的 `WEBHOOK_SECRET`（与已修的 `JWT_SECRET` 401 同型，`settings.webhook_secret` 由 `os.getenv("WEBHOOK_SECRET")` 读取），已于 2026-09-17 收敛为仅 `tests/conftest.py` 一处 `setdefault`。
 
 ---
 

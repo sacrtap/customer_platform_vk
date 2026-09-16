@@ -11,10 +11,13 @@ E2E 测试配置 — 提供数据库、Redis mock、认证等基础 fixture。
 import os
 import sys
 
+from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS
+
 # JWT_SECRET 统一由 tests/conftest.py 设置（setdefault "test-secret-key"），此处不得强制覆盖：
 # 与 integration/conftest.py 共存于同一全量会话时，各自设置不同密钥会让模块级 settings 单例
 # 与实际签发/验证使用的密钥不一致，表现为登录成功后请求仍 401。
-os.environ["WEBHOOK_SECRET"] = "e2e_test_webhook_secret_key_fixed_12345678"
+# WEBHOOK_SECRET 同样由 tests/conftest.py 的 setdefault 提供基线；
+# 任一层需要不同值时应在本层测试内 monkeypatch，而非在 conftest 永久覆盖 settings 单例。
 
 # 清除所有可能的 settings 缓存
 modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
@@ -105,50 +108,7 @@ def test_user(sync_test_engine):
             {"name": "admin", "description": "系统管理员"},
         )
 
-        permissions = [
-            ("customers:view", "查看客户", "customers"),
-            ("customers:create", "新建客户", "customers"),
-            ("customers:edit", "编辑客户", "customers"),
-            ("customers:delete", "删除客户", "customers"),
-            ("customers:export", "导出客户", "customers"),
-            ("customers:import", "导入客户", "customers"),
-            ("billing:view", "查看结算", "billing"),
-            ("billing:edit", "编辑结算", "billing"),
-            ("billing:recharge", "充值操作", "billing"),
-            ("billing:balance_import", "导入余额", "billing"),
-            ("billing:balance_export", "导出余额", "billing"),
-            ("billing:pricing_import", "导入计费规则", "billing"),
-            ("billing:pricing_export", "导出计费规则", "billing"),
-            ("billing:package_import", "导入包年套餐", "billing"),
-            ("billing:package_export", "导出包年套餐", "billing"),
-            ("billing:invoice_import", "导入结算单", "billing"),
-            ("billing:invoice_export", "导出结算单", "billing"),
-            ("billing:delete", "结算删除", "billing"),
-            ("billing:confirm", "结算确认", "billing"),
-            ("billing:pay", "结算付款", "billing"),
-            ("files:view", "查看文件", "files"),
-            ("files:delete", "删除文件", "files"),
-            ("users:view", "查看用户", "users"),
-            ("users:create", "新建用户", "users"),
-            ("users:edit", "编辑用户", "users"),
-            ("users:delete", "删除用户", "users"),
-            ("users:role_assign", "分配角色", "users"),
-            ("roles:view", "查看角色", "roles"),
-            ("roles:create", "新建角色", "roles"),
-            ("roles:edit", "编辑角色", "roles"),
-            ("roles:delete", "删除角色", "roles"),
-            ("roles:assign", "分配权限", "roles"),
-            ("system:view", "查看系统", "system"),
-            ("analytics:view", "查看分析", "analytics"),
-            ("analytics:export", "导出报表", "analytics"),
-            ("analytics:profile_tag_edit", "编辑画像标签", "analytics"),
-            ("tags:view", "查看标签", "tags"),
-            ("tags:create", "新建标签", "tags"),
-            ("tags:edit", "编辑标签", "tags"),
-            ("tags:delete", "删除标签", "tags"),
-            ("industry_types:manage", "行业类型管理", "system"),
-            ("cooperation_statuses:manage", "合作状态管理", "system"),
-        ]
+        permissions = PERMISSION_ROWS
         for perm_code, desc, module in permissions:
             session.execute(
                 text("""
@@ -261,50 +221,7 @@ async def mock_cache():
     mock_redis.exists = AsyncMock(return_value=False)
     mock_cache._get_redis = AsyncMock(return_value=mock_redis)
 
-    FULL_PERMISSIONS = {
-        "customers:view",
-        "customers:create",
-        "customers:edit",
-        "customers:delete",
-        "customers:export",
-        "customers:import",
-        "billing:view",
-        "billing:edit",
-        "billing:recharge",
-        "billing:balance_import",
-        "billing:balance_export",
-        "billing:pricing_import",
-        "billing:pricing_export",
-        "billing:package_import",
-        "billing:package_export",
-        "billing:invoice_import",
-        "billing:invoice_export",
-        "billing:delete",
-        "billing:confirm",
-        "billing:pay",
-        "files:view",
-        "files:delete",
-        "users:view",
-        "users:create",
-        "users:edit",
-        "users:delete",
-        "users:role_assign",
-        "roles:view",
-        "roles:create",
-        "roles:edit",
-        "roles:delete",
-        "roles:assign",
-        "system:view",
-        "analytics:view",
-        "analytics:export",
-        "analytics:profile_tag_edit",
-        "tags:view",
-        "tags:create",
-        "tags:edit",
-        "tags:delete",
-        "industry_types:manage",
-        "cooperation_statuses:manage",
-    }
+    FULL_PERMISSIONS = PERMISSION_CODES
 
     mock_perm_cache = MagicMock()
     mock_perm_cache.get_permissions = AsyncMock(return_value=FULL_PERMISSIONS)

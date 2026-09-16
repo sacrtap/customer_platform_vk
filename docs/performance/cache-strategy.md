@@ -40,46 +40,58 @@ cache:{prefix}:{part1}:{part2}:...
 
 ---
 
-## 二、TTL 配置表
+## 二、TTL 配置
 
-### 核心配置（`config.py` 环境变量可覆盖）
+> **重要：缓存 TTL 不通过环境变量配置。**
+>
+> 唯一真实来源是**代码** `backend/app/cache/base.py` 的 `CacheService._ttl_config`，
+> 读取入口为 `CacheService.ttl_for(prefix)`（未配置的前缀回退到 `default`）。
+> 调整 TTL 需修改该字典；设置环境变量**不生效**。
+>
+> **历史遗留（已于 2026-09-17 清理）**：`app/config.py` 曾定义 9 个 `cache_ttl_*` 字段，
+> 并被 `.env.example` 与本文档描述为「环境变量可覆盖」。但生产代码**从未读取**它们 ——
+> 按旧文档配置完全不生效。死字段、`.env.example` 中的注释块与本文档的旧表格均已移除，
+> 详见 `docs/technical_debt/test-infrastructure-residue-2026-09.md`。
 
-| 配置项 | 环境变量 | 默认值 | 说明 |
-|--------|----------|--------|------|
-| `cache_ttl_dashboard_stats` | `CACHE_TTL_DASHBOARD_STATS` | 300s (5min) | 仪表盘统计数据 |
-| `cache_ttl_dashboard_chart` | `CACHE_TTL_DASHBOARD_CHART` | 900s (15min) | 仪表盘图表数据 |
-| `cache_ttl_analytics_health` | `CACHE_TTL_ANALYTICS_HEALTH` | 600s (10min) | 健康度分析 |
-| `cache_ttl_analytics_profile` | `CACHE_TTL_ANALYTICS_PROFILE` | 3600s (1h) | 画像分析 |
-| `cache_ttl_analytics_invoice` | `CACHE_TTL_ANALYTICS_INVOICE` | 300s (5min) | 结算单分析 |
-| `cache_ttl_analytics_warning` | `CACHE_TTL_ANALYTICS_WARNING` | 180s (3min) | 预警数据 |
-| `cache_ttl_analytics_prediction` | `CACHE_TTL_ANALYTICS_PREDICTION` | 1800s (30min) | 预测数据 |
-| `cache_ttl_pricing_rules` | `CACHE_TTL_PRICING_RULES` | 3600s (1h) | 定价规则 |
-| `cache_ttl_analytics_trend` | `CACHE_TTL_ANALYTICS_TREND` | 900s (15min) | 趋势数据 |
-
-### 代码内 TTL 配置（`cache/base.py` `_ttl_config`）
+### TTL 条目（`cache/base.py::CacheService._ttl_config`，共 18 条）
 
 | Prefix | TTL | 说明 |
 |--------|-----|------|
 | `customer_list` | 600s (10min) | 客户列表 |
 | `customer_detail` | 600s (10min) | 客户详情 |
 | `tag_list` | 3600s (1h) | 标签列表 |
-| `tag_stats` | 1800s (30min) | 标签统计 |
-| `analytics` | 900s (15min) | 通用分析 |
 | `analytics_dashboard_stats` | 300s (5min) | 仪表盘统计 |
 | `analytics_dashboard_chart` | 900s (15min) | 仪表盘图表 |
 | `analytics_health_stats` | 600s (10min) | 健康度统计 |
 | `analytics_health_warning` | 180s (3min) | 健康预警 |
 | `analytics_health_inactive` | 600s (10min) | 不活跃客户 |
-| `analytics_profile` | 3600s (1h) | 画像分析 |
+| `analytics_profile` | 300s (5min) | 画像分析（键按小时分桶） |
 | `analytics_invoice_status` | 300s (5min) | 结算单状态 |
 | `analytics_consumption_trend` | 900s (15min) | 消耗趋势 |
 | `analytics_top_customers` | 900s (15min) | Top 客户 |
 | `analytics_device_distribution` | 900s (15min) | 设备分布 |
 | `analytics_payment_analysis` | 600s (10min) | 回款分析 |
-| `analytics_prediction` | 1800s (30min) | 预测数据 |
-| `billing_pricing_rules` | 3600s (1h) | 定价规则 |
-| `permissions` | 600s (10min) | 用户权限 |
-| `default` | 300s (5min) | 默认 TTL |
+| `analytics_prediction` | 300s (5min) | 回款预测（`/prediction/*`，读实时结算数据） |
+| `analytics_prediction_forecast` | 1800s (30min) | 消费预测（`/consumption/forecast*`，基于单价矩阵） |
+| `billing_consumption` | 300s (5min) | 每客户每日消费聚合（`balances.py` 经 `ttl_for()` 取用） |
+| `default` | 300s (5min) | 默认 TTL（未配置前缀回退至此） |
+
+### 不在本表中的 TTL
+
+- **权限缓存**：`app/cache/permissions.py::PermissionCache` **自持** TTL
+  （`self._ttl = 600`），不经 `_ttl_config` —— 它以
+  `cache_service.set(prefix, data, user_id, ttl=self._ttl)` 显式传入。
+- 任何未在 `_ttl_config` 中出现的前缀，一律回退 `default`（300s）。此类前缀若需**更长**缓存，
+  当前实现是在调用点显式传 `ttl=`（如 `analytics_dashboard_trend`、`analytics_cross_dimension`、
+  `analytics_tag_usage`、`analytics_priority_customers` 等，均 300s）。这是**已知的未收敛面**：
+  这些显式值与 `default` 同值，故行为无差异，但语义未上收到配置表。
+
+### 不在本表中的 TTL
+
+- **权限缓存**：`app/cache/permissions.py::PermissionCache` **自持** TTL
+  （`self._ttl = 600`），不经 `_ttl_config` —— 它以
+  `cache_service.set(prefix, data, user_id, ttl=self._ttl)` 显式传入。
+- 任何未在 `_ttl_config` 中出现的前缀，一律回退 `default`（300s）。
 
 ---
 
@@ -150,7 +162,7 @@ cached = await cache_service.get("analytics_profile", cached_key)
 | 创建/更新/删除客户 | `customer_list:*` + `customer_detail:{id}` | `invalidate_customer_cache(id)` |
 | 创建/更新/删除标签 | `tag_list:*` + `tag_stats:*` | `invalidate_tag_cache()` |
 | 生成/支付结算单 | `billing_*` + `analytics_*` | `invalidate_billing_cache()` |
-| 更新定价规则 | `billing_pricing_rules:*` | `invalidate_billing_cache()` |
+| 更新定价规则/包年套餐 | `billing_*` + `analytics_*` | `invalidate_billing_cache()` |
 | 用户角色变更 | `permissions:{user_id}` | `permission_cache.invalidate(user_id)` |
 
 ### 被动失效（TTL 过期）
@@ -218,5 +230,5 @@ await cache_service.invalidate_analytics_cache("health")
 | `backend/app/cache/base.py` | CacheService 核心实现 |
 | `backend/app/cache/permissions.py` | PermissionCache 权限缓存 |
 | `backend/app/cache/__init__.py` | 缓存模块导出 |
-| `backend/app/config.py` | TTL 环境变量配置 |
+| `backend/app/config.py` | 全局配置（Redis 连接等）——**不含** TTL，TTL 见 `cache/base.py` |
 | `docs/performance/redis-cache-analysis.md` | 缓存优化分析报告 |

@@ -95,9 +95,10 @@ async def _batch_query_consumption_stats(
         if cache_writes:
             try:
                 redis = await cache_service._get_redis()
+                ttl = cache_service.ttl_for("billing_consumption")
                 pipe = redis.pipeline()
                 for key, val in cache_writes:
-                    pipe.setex(key, 300, val)
+                    pipe.setex(key, ttl, val)
                 await pipe.execute()
             except Exception as e:
                 logger.warning("L1 缓存写入失败 billing_consumption: %s", e)

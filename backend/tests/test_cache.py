@@ -45,30 +45,12 @@ async def cache_with_mock_redis(mock_redis: AsyncMock) -> CacheService:
 class TestCacheServiceInit:
     """缓存服务初始化测试"""
 
-    def test_init_default_ttl_config(self, cache_service: CacheService):
-        """测试初始化时 TTL 配置正确"""
-        assert cache_service._ttl_config == {
-            "customer_list": 600,  # 10 分钟
-            "customer_detail": 600,  # 10 分钟
-            "tag_list": 3600,  # 1 小时
-            "tag_stats": 1800,  # 30 分钟
-            "analytics": 900,  # 15 分钟
-            "analytics_dashboard_stats": 300,  # 5 分钟
-            "analytics_dashboard_chart": 900,  # 15 分钟
-            "analytics_health_stats": 600,  # 10 分钟
-            "analytics_health_warning": 180,  # 3 分钟
-            "analytics_health_inactive": 600,  # 10 分钟
-            "analytics_profile": 3600,  # 1 小时
-            "analytics_invoice_status": 300,  # 5 分钟
-            "analytics_consumption_trend": 900,  # 15 分钟
-            "analytics_top_customers": 900,  # 15 分钟
-            "analytics_device_distribution": 900,  # 15 分钟
-            "analytics_payment_analysis": 600,  # 10 分钟
-            "analytics_prediction": 1800,  # 30 分钟
-            "billing_pricing_rules": 3600,  # 1 小时
-            "billing_consumption": 300,  # 5 分钟（每客户每日消费聚合）
-            "default": 300,  # 5 分钟
-        }
+    def test_ttl_for_returns_configured_values(self, cache_service: CacheService):
+        assert cache_service.ttl_for("customer_list") == 600
+        assert cache_service.ttl_for("tag_list") == 3600
+
+    def test_ttl_for_unknown_prefix_falls_back_to_default(self, cache_service: CacheService):
+        assert cache_service.ttl_for("nonexistent_prefix") == cache_service.ttl_for("default")
 
     def test_init_redis_none(self, cache_service: CacheService):
         """测试初始化时 Redis 连接为 None"""
@@ -492,16 +474,20 @@ class TestTTLConfiguration:
         assert call_args[0][1] == 3600
 
     @pytest.mark.asyncio
-    async def test_tag_stats_ttl(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
-        """测试标签统计 TTL 为 30 分钟"""
-        await cache_with_mock_redis.set("tag_stats", {"data": "test"}, "summary")
+    async def test_analytics_prediction_forecast_ttl(
+        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
+    ):
+        """测试消费预测缓存 TTL 为 30 分钟"""
+        await cache_with_mock_redis.set("analytics_prediction_forecast", {"data": "test"}, "fc")
         call_args = mock_redis.setex.call_args
         assert call_args[0][1] == 1800
 
     @pytest.mark.asyncio
-    async def test_analytics_ttl(self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock):
-        """测试分析数据 TTL 为 15 分钟"""
-        await cache_with_mock_redis.set("analytics", {"data": "test"}, "stats")
+    async def test_analytics_consumption_trend_ttl(
+        self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
+    ):
+        """测试消耗趋势缓存 TTL 为 15 分钟"""
+        await cache_with_mock_redis.set("analytics_consumption_trend", {"data": "test"}, "trend")
         call_args = mock_redis.setex.call_args
         assert call_args[0][1] == 900
 

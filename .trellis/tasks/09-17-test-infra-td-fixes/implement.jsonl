@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试隔离两条陷阱(模块级 from...import 使属性替换失效;子层 conftest 不得覆盖 settings 单例)——R1/R3 的直接判据"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "R4 将 stdout 探针改为 logger.error 的约定依据"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "测试库表结构与权限插入的既有先例"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "同一语义多副本的识别与收敛方法论(R1/R5/R6 共用)"}

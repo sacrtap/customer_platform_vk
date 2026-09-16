@@ -10,14 +10,19 @@
 # ============================================================
 # 必须在导入 ANY 应用代码之前设置环境变量
 # ============================================================
+import logging
 import os
 import sys
+
+from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS
+
+logger = logging.getLogger(__name__)
 
 # JWT_SECRET 统一由 tests/conftest.py 设置（setdefault "test-secret-key"），此处不得强制覆盖：
 # 全量 pytest 会话中 integration/ 与 e2e/ 的 conftest 都会被加载，而 app.config.settings
 # 是模块级单例（lru_cache）；各自设置不同密钥会导致「签发用 A、验证用 B」→ 401。
-# WEBHOOK_SECRET 仅本层需要，保留强制设置。
-os.environ["WEBHOOK_SECRET"] = "integration_test_webhook_secret_key_fixed_12345678"
+# WEBHOOK_SECRET 同样由 tests/conftest.py 的 setdefault 提供基线；
+# 任一层需要不同值时应在本层测试内 monkeypatch，而非在 conftest 永久覆盖 settings 单例。
 
 # 清除所有可能的 settings 缓存
 modules_to_clear = [k for k in list(sys.modules.keys()) if k.startswith("app")]
@@ -155,8 +160,6 @@ def test_user(sync_test_engine):
     - 测试间数据隔离由 db_session 的事务回滚负责
     - 使用 DELETE + ON CONFLICT 替代 TRUNCATE，避免并行测试死锁
     """
-    import sys
-
     import bcrypt
 
     username = "admin"
@@ -173,20 +176,13 @@ def test_user(sync_test_engine):
             {"username": username},
         )
         count = result.scalar()
-        sys.stdout.write(f"[DEBUG] test_user: users表查询结果 count={count}\n")
-        sys.stdout.flush()
 
         if count > 0:
-            sys.stdout.write(f"[DEBUG] test_user: 用户已存在，返回 {username}\n")
-            sys.stdout.flush()
             # 已初始化，直接返回
             return {
                 "username": username,
                 "password": password,
             }
-
-        sys.stdout.write(f"[DEBUG] test_user: 开始创建用户 {username}\n")
-        sys.stdout.flush()
 
         # 清理旧数据（TRUNCATE CASCADE 级联清除所有引用 users/roles/permissions 的表）
         # 解决 audit_logs 等表的外键约束阻止 DELETE FROM users 的问题
@@ -194,8 +190,6 @@ def test_user(sync_test_engine):
             text("TRUNCATE user_roles, role_permissions, roles, permissions, users CASCADE")
         )
         session.commit()
-        sys.stdout.write("[DEBUG] test_user: 清理旧数据完成\n")
-        sys.stdout.flush()
 
         # 创建管理员角色（ON CONFLICT 防止并行 worker 竞态）
         session.execute(
@@ -206,54 +200,9 @@ def test_user(sync_test_engine):
             """),
             {"name": "admin", "description": "系统管理员"},
         )
-        sys.stdout.write("[DEBUG] test_user: 角色创建完成\n")
-        sys.stdout.flush()
 
         # 创建权限（细粒度权限，与 seed.py 定义一致）
-        permissions = [
-            ("customers:view", "查看客户", "customers"),
-            ("customers:create", "新建客户", "customers"),
-            ("customers:edit", "编辑客户", "customers"),
-            ("customers:delete", "删除客户", "customers"),
-            ("customers:export", "导出客户", "customers"),
-            ("customers:import", "导入客户", "customers"),
-            ("billing:view", "查看结算", "billing"),
-            ("billing:edit", "编辑结算", "billing"),
-            ("billing:recharge", "充值操作", "billing"),
-            ("billing:balance_import", "导入余额", "billing"),
-            ("billing:balance_export", "导出余额", "billing"),
-            ("billing:pricing_import", "导入计费规则", "billing"),
-            ("billing:pricing_export", "导出计费规则", "billing"),
-            ("billing:package_import", "导入包年套餐", "billing"),
-            ("billing:package_export", "导出包年套餐", "billing"),
-            ("billing:invoice_import", "导入结算单", "billing"),
-            ("billing:invoice_export", "导出结算单", "billing"),
-            ("billing:delete", "结算删除", "billing"),
-            ("billing:confirm", "结算确认", "billing"),
-            ("billing:pay", "结算付款", "billing"),
-            ("files:view", "查看文件", "files"),
-            ("files:delete", "删除文件", "files"),
-            ("users:view", "查看用户", "users"),
-            ("users:create", "新建用户", "users"),
-            ("users:edit", "编辑用户", "users"),
-            ("users:delete", "删除用户", "users"),
-            ("users:role_assign", "分配角色", "users"),
-            ("roles:view", "查看角色", "roles"),
-            ("roles:create", "新建角色", "roles"),
-            ("roles:edit", "编辑角色", "roles"),
-            ("roles:delete", "删除角色", "roles"),
-            ("roles:assign", "分配权限", "roles"),
-            ("system:view", "查看系统", "system"),
-            ("analytics:view", "查看分析", "analytics"),
-            ("analytics:export", "导出报表", "analytics"),
-            ("analytics:profile_tag_edit", "编辑画像标签", "analytics"),
-            ("tags:view", "查看标签", "tags"),
-            ("tags:create", "新建标签", "tags"),
-            ("tags:edit", "编辑标签", "tags"),
-            ("tags:delete", "删除标签", "tags"),
-            ("industry_types:manage", "行业类型管理", "system"),
-            ("cooperation_statuses:manage", "合作状态管理", "system"),
-        ]
+        permissions = PERMISSION_ROWS
         for perm_code, desc, module in permissions:
             session.execute(
                 text("""
@@ -303,20 +252,15 @@ def test_user(sync_test_engine):
                 "is_active": True,
             },
         )
-        sys.stdout.write("[DEBUG] test_user: 用户插入完成\n")
-        sys.stdout.flush()
 
         # 获取用户 ID 并关联角色
         result = session.execute(
             text("SELECT id FROM users WHERE username = :username"), {"username": username}
         ).fetchone()
         if result is None:
-            sys.stdout.write("[ERROR] test_user: 用户创建后查询不到!\n")
-            sys.stdout.flush()
+            logger.error("test_user: 用户创建后查询不到（username=%s）", username)
             raise Exception("用户创建后查询不到")
         user_id = result[0]
-        sys.stdout.write(f"[DEBUG] test_user: 用户ID={user_id}\n")
-        sys.stdout.flush()
 
         session.execute(
             text("""
@@ -328,8 +272,6 @@ def test_user(sync_test_engine):
         )
 
         session.commit()
-        sys.stdout.write("[DEBUG] test_user: 全部完成，返回用户信息\n")
-        sys.stdout.flush()
     finally:
         session.close()
 
@@ -438,50 +380,7 @@ async def mock_cache():
     mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
     # Mock 权限缓存 - 简单方案：所有用户返回完整权限
     # test_customers_missing_permission 测试需要特殊处理
-    FULL_PERMISSIONS = {
-        "customers:view",
-        "customers:create",
-        "customers:edit",
-        "customers:delete",
-        "customers:export",
-        "customers:import",
-        "billing:view",
-        "billing:edit",
-        "billing:recharge",
-        "billing:balance_import",
-        "billing:balance_export",
-        "billing:pricing_import",
-        "billing:pricing_export",
-        "billing:package_import",
-        "billing:package_export",
-        "billing:invoice_import",
-        "billing:invoice_export",
-        "billing:delete",
-        "billing:confirm",
-        "billing:pay",
-        "files:view",
-        "files:delete",
-        "users:view",
-        "users:create",
-        "users:edit",
-        "users:delete",
-        "users:role_assign",
-        "roles:view",
-        "roles:create",
-        "roles:edit",
-        "roles:delete",
-        "roles:assign",
-        "system:view",
-        "analytics:view",
-        "analytics:export",
-        "analytics:profile_tag_edit",
-        "tags:view",
-        "tags:create",
-        "tags:edit",
-        "tags:delete",
-        "industry_types:manage",
-        "cooperation_statuses:manage",
-    }
+    FULL_PERMISSIONS = PERMISSION_CODES
 
     mock_perm_cache = MagicMock()
     mock_perm_cache.get_permissions = AsyncMock(return_value=FULL_PERMISSIONS)
