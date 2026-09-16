@@ -1,10 +1,12 @@
 """客户分析服务"""
 
+import logging
 from calendar import monthrange
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, case, extract, func, or_, select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import (
@@ -20,6 +22,8 @@ from ..models.daily_consumption import DailyConsumption
 from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyticsService:
@@ -979,22 +983,26 @@ class AnalyticsService:
 
         now = datetime.utcnow().date()
         result = (await self.db.execute(stmt)).all()
-        return [
-            {
-                "customer_id": row.id,
-                "company_id": row.company_id,
-                "customer_name": row.name,
-                "manager_id": row.manager_id,
-                "manager_name": row.manager_name or "未分配",
-                "last_consumption_date": (
-                    row.last_consumption_date.isoformat() if row.last_consumption_date else None
-                ),
-                "days": (now - row.last_consumption_date).days
-                if row.last_consumption_date
-                else days,
-            }
-            for row in result
-        ]
+        items = []
+        for row in result:
+            # consumption_date 为 timestamptz（datetime），统一转为 date 再计算天数
+            last_date = row.last_consumption_date
+            if isinstance(last_date, datetime):
+                last_date = last_date.date()
+            items.append(
+                {
+                    "customer_id": row.id,
+                    "company_id": row.company_id,
+                    "customer_name": row.name,
+                    "manager_id": row.manager_id,
+                    "manager_name": row.manager_name or "未分配",
+                    "last_consumption_date": (
+                        row.last_consumption_date.isoformat() if row.last_consumption_date else None
+                    ),
+                    "days": (now - last_date).days if last_date else days,
+                }
+            )
+        return items
 
     # ========== 画像分析 ==========
 
@@ -1930,8 +1938,15 @@ class AnalyticsService:
 
     async def get_unit_prices(self) -> Dict[str, float]:
         """获取单价配置：优先从配置表，无数据时回退到 config.py 默认值"""
-        stmt = select(ForecastUnitPrice)
-        result = (await self.db.execute(stmt)).scalars().all()
+        try:
+            stmt = select(ForecastUnitPrice)
+            result = (await self.db.execute(stmt)).scalars().all()
+        except ProgrammingError as exc:
+            # 表缺失（远程未跑迁移）时兜底，避免预测消费接口 500
+            logger.warning("读取 forecast_unit_prices 表失败，回退默认单价: %s", exc)
+            from ..config import get_settings
+
+            return dict(get_settings().consumption_forecast_unit_prices)
         if result:
             return {row.device_type: float(row.unit_price) for row in result}
         from ..config import get_settings

@@ -12,7 +12,7 @@
           <span v-else>⟳</span>
           数据刷新
         </button>
-        <button v-if="can('balance:import')" class="btn" @click="importModalVisible = true">
+        <button v-if="can('billing:import')" class="btn" @click="importModalVisible = true">
           导入
         </button>
         <button v-if="can('billing:recharge')" class="btn primary" @click="openRechargeModal()">

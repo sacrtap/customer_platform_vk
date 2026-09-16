@@ -260,3 +260,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: 修复分析页面报错+角色权限清单修正+部署加固
+<!-- trellis-session: v=2 fp=7764d308c608bed9 -->
+
+**Date**: 2026-09-16
+**Task**: 修复分析页面报错+角色权限清单修正+部署加固
+**Branch**: `fix/health-prediction-bugs`
+
+### Summary
+
+1) 修复健康度分析与预测消费页面 500：get_inactive_customers 日期类型错误（date-datetime 相减 TypeError）+ forecast_unit_prices 表无迁移致远程缺表，补建迁移、注册模型、get_unit_prices 表缺失兜底，新增 6 项单元测试（b674bbf）。2) 按 ROLE_PERMISSION_CONFIG_PLAN.md 修正角色权限清单：analytics:forecast→forecast_edit、billing:export 接上控制点、删 7 孤儿权限（权限总数 49→42）、清理脚本追加 8 code（含历史残留 profiles:export）、permissionGroups 删冗余键、侧边栏补 4 入口、conftest 同步，并修复导出接口 response_file 传参 bug（648ba1c）。3) 部署加固：清理脚本增加代码引用校验（防误删在用权限，容器内无 frontend 自动降级），compose 新增 cleanup 一次性服务，deploy.sh 接入 migrate→seed→cleanup 链（d39e0ea）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b674bbf` | fix(analytics): 修复健康度分析与预测消费页面 500 报错 |
+| `648ba1c` | fix(roles): 角色权限清单修正 - 消除 code 不一致与孤儿权限 |
+| `d39e0ea` | chore(deploy): 弃用权限清理脚本接入部署流程并增加代码引用校验 |
+
+### Status
+
+[OK] **Completed**

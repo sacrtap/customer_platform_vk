@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sanic.request import Request
 from sanic.response import file as response_file
-from sanic.response import json
+from sanic.response import json, raw
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
@@ -1144,7 +1144,7 @@ async def delete_invoice(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/export")
 @auth_required
-@require_permission("billing:view")
+@require_permission("billing:export")
 async def export_invoices(request: Request):
     """
     导出结算单为 Excel 文件
@@ -1331,9 +1331,9 @@ async def export_invoices(request: Request):
     filename = f"结算单导出_{timestamp}.xlsx"
 
     # 返回文件
-    return await response_file(
-        output,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # pyright: ignore[reportCallIssue]
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "no-cache, no-store, must-revalidate",

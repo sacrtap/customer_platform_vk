@@ -47,6 +47,7 @@ export function useAppLayout() {
               { key: 'balance', label: '余额管理', to: '/billing/balance' },
               { key: 'pricing-rules', label: '计费规则', to: '/billing/pricing-rules' },
               { key: 'invoices', label: '结算单管理', to: '/billing/invoices' },
+              { key: 'package-plans', label: '套餐方案', to: '/billing/package-plans' },
             ],
           },
         ],
@@ -87,18 +88,41 @@ export function useAppLayout() {
             to: '/system/cooperation-statuses',
             permission: 'cooperation_statuses:manage',
           },
+          {
+            key: 'erp-systems',
+            label: 'ERP系统',
+            to: '/system/erp-systems',
+            permission: 'erp_systems:manage',
+          },
+          {
+            key: 'api-keys',
+            label: 'API-Key管理',
+            to: '/system/api-keys',
+            permission: 'api_keys:manage',
+          },
+          {
+            key: 'database-management',
+            label: '数据清空',
+            to: '/system/database-management',
+            permission: 'system:database_clear',
+          },
         ],
       },
       {
         key: 'tools',
         title: '系统工具',
         items: [
-          { key: 'sync-logs', label: '同步日志', to: '/system/sync-logs', permission: 'sync:view' },
+          {
+            key: 'sync-logs',
+            label: '同步日志',
+            to: '/system/sync-logs',
+            permission: 'system:view',
+          },
           {
             key: 'audit-logs',
             label: '审计日志',
             to: '/system/audit-logs',
-            permission: 'audit:view',
+            permission: 'system:view',
           },
           {
             key: 'invoice-logs',
@@ -177,7 +201,10 @@ export function useAppLayout() {
         p === '/users' ||
         p === '/roles' ||
         p === '/system/industry-types' ||
-        p === '/system/cooperation-statuses'
+        p === '/system/cooperation-statuses' ||
+        p === '/system/erp-systems' ||
+        p === '/system/api-keys' ||
+        p === '/system/database-management'
       )
     return false
   }
@@ -206,6 +233,8 @@ export function useAppLayout() {
           newPath === '/roles' ||
           newPath === '/system/industry-types' ||
           newPath === '/system/cooperation-statuses' ||
+          newPath === '/system/erp-systems' ||
+          newPath === '/system/api-keys' ||
           newPath === '/system/database-management' ||
           newPath === '/system/invoice-logs'
         )

@@ -865,7 +865,7 @@ async def get_consumption_data_readiness(request: Request):
 
 @analytics.route("/consumption/accuracy", methods=["POST"])
 @auth_required
-@require_permission("analytics:forecast")
+@require_permission("analytics:forecast_edit")
 async def record_consumption_accuracy(request: Request):
     """记录预测准确度（预测 vs 实际消费）
 
@@ -899,7 +899,7 @@ async def get_price_config(request: Request):
 
 @analytics.route("/consumption/price-config", methods=["PUT"])
 @auth_required
-@require_permission("analytics:forecast")
+@require_permission("analytics:forecast_edit")
 async def update_price_config(request: Request):
     """更新消费预测单价配置"""
     data = request.json
@@ -1195,6 +1195,7 @@ async def get_health_risk_trend(request: Request):
 
 @analytics.route("/health/export", methods=["GET"])
 @auth_required
+@require_permission("analytics:export")
 async def export_health_report(request: Request):
     """导出健康度预警清单"""
     import io

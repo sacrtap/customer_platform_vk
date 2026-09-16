@@ -3,7 +3,7 @@
     <!-- PageHeader -->
     <PageHeader eyebrow="Billing" title="结算单管理" subtitle="结算单列表、详情查看与状态流转">
       <template #actions>
-        <button v-if="can('billing:view')" class="btn" @click="handleExport">导出</button>
+        <button v-if="can('billing:export')" class="btn" @click="handleExport">导出</button>
         <button v-if="can('billing:edit')" class="btn primary" @click="generateModalVisible = true">
           生成结算单
         </button>
