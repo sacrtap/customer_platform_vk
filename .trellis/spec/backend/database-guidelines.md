@@ -198,6 +198,39 @@ stmt = stmt.where(Customer.id < 0)
 
 ---
 
+## 关系属性序列化必须预加载
+
+[来源: Bug fix 2026-09-16 — `GET /billing/invoices/detail-logs` 在真实请求下返回 500]
+
+异步会话下访问**未加载**的 `relationship` 属性会触发隐式懒加载；懒加载需要同步 IO，
+在 `AsyncSession` 中直接抛 `MissingGreenlet` → 端点 500。
+
+`Invoice.customer = relationship("Customer")` **未**配置 `lazy="selectin"`（对比同一文件里
+`PricingRule.customer` 配了 `lazy="selectin"`），因此凡是在**序列化阶段**读 `inv.customer.name`
+的查询，都必须在查询处显式预加载：
+
+```python
+# WRONG — 序列化时读 inv.customer.name 触发懒加载 → MissingGreenlet → HTTP 500
+stmt = select(Invoice).where(Invoice.detail_file_status != "pending")
+...
+"customer_name": inv.customer.name if inv.customer else None,
+
+# CORRECT — 在同一个查询上显式预加载
+from sqlalchemy.orm import selectinload
+
+stmt = (
+    select(Invoice)
+    .options(selectinload(Invoice.customer))
+    .where(Invoice.detail_file_status != "pending")
+)
+```
+
+> **Warning**: 这类缺陷**只在真实请求路径下暴露**。若测试或调试时关系已被装入实例（或提前访问过），
+> 就不会触发懒加载，`MissingGreenlet` 被掩盖。审查口诀：序列化函数里出现
+> `obj.<relationship>.<field>`，同一查询就必须有对应的 `selectinload`。
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)

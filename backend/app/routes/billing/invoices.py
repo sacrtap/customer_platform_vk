@@ -1679,6 +1679,7 @@ async def get_invoice_detail_logs(request: Request):
     """结算单明细文件生成日志列表"""
     db: AsyncSession = request.ctx.db_session
     from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
 
     from ...models.billing import Invoice
 
@@ -1688,7 +1689,13 @@ async def get_invoice_detail_logs(request: Request):
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
-    stmt = select(Invoice).where(Invoice.detail_file_status != "pending")
+    # 预加载 customer：序列化时读取 inv.customer.name，而 Invoice.customer 未配置
+    # lazy="selectin"，异步会话下懒加载会抛 MissingGreenlet 导致 500。
+    stmt = (
+        select(Invoice)
+        .options(selectinload(Invoice.customer))
+        .where(Invoice.detail_file_status != "pending")
+    )
     count_stmt = (
         select(func.count()).select_from(Invoice).where(Invoice.detail_file_status != "pending")
     )

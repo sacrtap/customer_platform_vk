@@ -92,3 +92,44 @@ interface ImportResult {
 | 页面白屏，`#app` 只剩 `<!---->`，无 console 报错 | 访问了未定义的路由路径（如 `/billing/balance`，实际路由是 `/billing/balances`），`router-view` 渲染空注释节点 | 核对 `router/index.ts` 的实际 `path`；路径错误不会产生 JS 错误 |
 | 断言"弹窗未打开"却读到别的弹窗内容 | 页面 DOM 中同时存在多个 `.arco-modal`（历史弹窗未卸载） | 按可见性过滤：`Array.from(document.querySelectorAll('.arco-modal')).find(x => x.offsetParent !== null)` |
 | 导出失败时提示英文 `Bad Request` 而非后端文案 | axios 拦截器错误分支未解析 Blob 错误体 | **已修复**：`api/index.ts` 错误分支对 `Blob` 先 `await data.text()` 再 `JSON.parse`。新增下载链路无需额外处理，但**不要**在拦截器外重复解析 Blob |
+
+---
+
+## 受控显示文本组件：清空显示需重建实例
+
+**现象**：父组件把 `v-model` 绑定的值置为 `undefined` 后，子组件输入框里**仍显示上一次选中的文本**（数据层已清空，视图层没清）。
+
+**原因**：`CustomerAutoComplete` 这类组件把显示文本存在**组件内部 ref**（`displayText`），
+模板绑的是 `:model-value="displayText"` 而不是 `props.modelValue`：
+
+```vue
+<!-- 子组件内部：显示文本与 modelValue 解耦 -->
+<a-auto-complete :model-value="displayText" @select="handleSelect" @input="handleInput" />
+```
+
+组件只在自己交互（`handleSelect` / `handleClear` / `handleInput`）或 `displayName` prop 变化时更新它。
+父组件**单向**改 `modelValue`（尤其置 `undefined`）不会回写显示文本。
+
+**处理**（在不改动通用组件本身的前提下）：父组件用 `:key` 重建该实例。
+
+```vue
+<!-- 父组件：每次弹窗打开递增 key，强制重建 → displayText 归零 -->
+<CustomerAutoComplete :key="customerPickerKey" v-model="form.customer_id" />
+```
+
+```ts
+const customerPickerKey = ref(0)
+
+watch(
+  () => props.visible,
+  (val) => {
+    if (val) {
+      customerPickerKey.value += 1 // 先重建组件，再清数据模型
+      form.customer_id = undefined
+    }
+  }
+)
+```
+
+> **验证陷阱**：`watch(() => form.customer_id)` **在值未变化时不触发**（例如重新选中同一个客户）。
+> 因此「重选同一客户」不能用来验证刷新逻辑 —— 必须做真实变更（改周期、换客户）。

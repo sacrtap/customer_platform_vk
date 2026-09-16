@@ -42,7 +42,7 @@
                   <span>总金额</span>
                   <span class="th-sort-indicator"></span>
                 </th>
-                <th style="width: 90px; text-align: right">折扣</th>
+                <th style="width: 90px; text-align: right">减免金额</th>
                 <th
                   :class="getThClass('final_amount')"
                   style="width: 120px; text-align: right"

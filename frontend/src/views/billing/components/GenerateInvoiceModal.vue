@@ -19,7 +19,12 @@
       <!-- ============ 按指定客户 ============ -->
       <template v-if="mode === 'customer'">
         <a-form-item label="客户" required>
-          <CustomerAutoComplete v-model="form.customer_id" placeholder="请选择客户" width="100%" />
+          <CustomerAutoComplete
+            :key="customerPickerKey"
+            v-model="form.customer_id"
+            placeholder="请选择客户"
+            width="100%"
+          />
         </a-form-item>
         <a-form-item label="结算周期" required>
           <a-range-picker v-model="periodRange" style="width: 100%" @change="handlePeriodChange" />
@@ -205,6 +210,10 @@ const form = reactive({
 
 const periodRange = ref<string[]>([])
 
+// 弹窗每次打开时递增：CustomerAutoComplete 的显示文本由组件内部 displayText 维护，
+// 不随 modelValue 变化，需重建组件才能清空输入框（不改动该组件本身）
+const customerPickerKey = ref(0)
+
 const itemColumns = [
   { title: '计费类型', slotName: 'pricingType', width: 90 },
   { title: '设备类型', slotName: 'deviceType', width: 80 },
@@ -378,6 +387,7 @@ watch(
     if (val) {
       mode.value = 'customer'
       // 清空客户和预览
+      customerPickerKey.value += 1
       calculatedItems.value = []
       form.customer_id = undefined
       form.period_start = periodRange.value.length === 2 ? periodRange.value[0] : ''

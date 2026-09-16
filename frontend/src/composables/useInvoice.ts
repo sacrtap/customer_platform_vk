@@ -234,7 +234,7 @@ export function useInvoice() {
 
   const doApplyDiscount = async (invoiceId: number, discountAmount: number, reason: string) => {
     await applyDiscount(invoiceId, { discount_amount: discountAmount, discount_reason: reason })
-    Message.success('折扣申请提交成功')
+    Message.success('减免申请提交成功')
     loadInvoices()
   }
 
