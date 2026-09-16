@@ -153,7 +153,7 @@ def audit_middleware(app: Sanic):
             db_session.add(audit_entry)
             await db_session.commit()
         except Exception as e:
-            app.logger.error(f"Audit log failed: {e}")  # pyright: ignore[reportAttributeAccessIssue]
+            logger.error("Audit log failed: %s", e, exc_info=True)
 
 
 def build_changes(

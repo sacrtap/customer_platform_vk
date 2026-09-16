@@ -98,6 +98,19 @@ async def import_customer(db_session):
         ),
         {"id": cid, "cid": cid, "name": f"导入测试客户_{cid}"},
     )
+    # 余额档案：真实业务路径（create_customer / batch_create_customers）会自动建档，
+    # 这里用 raw SQL 造数据需显式补上，否则该客户在余额列表/导出中不可见
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customer_balances (customer_id, total_amount, real_amount,
+                                           bonus_amount, used_total, used_real, used_bonus,
+                                           created_at, updated_at)
+            VALUES (:cid, 10000, 8000, 2000, 0, 0, 0, NOW(), NOW())
+            """
+        ),
+        {"cid": cid},
+    )
     db_session.commit()
 
     try:
@@ -809,3 +822,157 @@ async def test_import_invoices_forbidden_without_permission(test_client, auth_to
             files=_upload(_xlsx(headers, rows)),
         )
     assert response.status == 403
+
+
+@pytest.mark.asyncio
+async def test_import_pricing_rules_requires_device_and_layer_for_non_package(
+    test_client, auth_token, import_customer
+):
+    """计费规则导入：非包年结算的设备类型/楼层类型必填且限值域，包年行不受约束"""
+    headers = [
+        "company_id",
+        "pricing_type",
+        "effective_date",
+        "device_type",
+        "layer_type",
+        "unit_price",
+        "additional_floor_price",
+        "multi_floor_pricing_type",
+        "tiers",
+        "package_type",
+        "expiry_date",
+    ]
+    rows = [
+        # 设备类型与楼层类型均缺失 → 报首个缺失字段（设备类型）
+        [
+            import_customer["company_id"],
+            "fixed",
+            "2026-04-01",
+            None,
+            None,
+            12.5,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        # 设备类型取值非法 → 行级错误
+        [
+            import_customer["company_id"],
+            "tiered",
+            "2026-04-01",
+            "abc",
+            "single",
+            None,
+            None,
+            None,
+            '[{"min":1,"max":null,"price":5}]',
+            None,
+            None,
+        ],
+        # 设备类型合法但楼层类型缺失 → 行级错误
+        [
+            import_customer["company_id"],
+            "fixed",
+            "2026-04-01",
+            "X",
+            None,
+            8.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        # 楼层类型取值非法 → 行级错误
+        [
+            import_customer["company_id"],
+            "fixed",
+            "2026-04-01",
+            "X",
+            "floor-9",
+            9.9,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        # 包年结算：设备类型/楼层类型允许为空 → 成功导入
+        [
+            import_customer["company_id"],
+            "package",
+            "2026-06-01",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "A",
+            None,
+        ],
+    ]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/pricing-rules/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows)),
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1
+    assert data["error_count"] == 4
+    joined = " ".join(data["errors"])
+    assert "设备类型不能为空" in joined
+    assert "楼层类型不能为空" in joined
+    assert "设备类型必须为 X/N/L" in joined
+    assert "楼层类型必须为 single/multi/single_and_multi" in joined
+
+
+@pytest.mark.asyncio
+async def test_balances_list_excludes_customer_without_archive(test_client, auth_token, db_session):
+    """余额列表：无余额档案的客户不入结果，total 与 list 一致，且不触发建档写入"""
+    cid = 930000 + abs(hash(uuid.uuid4().hex[:8])) % 40000
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+            """
+        ),
+        {"id": cid, "cid": cid, "name": f"无余额档案客户_{cid}"},
+    )
+    db_session.commit()
+
+    try:
+        _request, response = await test_client.get(
+            "/api/v1/billing/balances",
+            params={"customer_id": cid},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        # 无档案客户不可见；total 与实际返回行数保持一致（不得出现 total=0 却带数据行）
+        assert data["total"] == 0
+        assert data["list"] == []
+
+        # 查询过程不得写入（旧实现的惰性补建在同请求内可见但会被回滚）
+        db_session.expire_all()
+        archived = db_session.execute(
+            text("SELECT COUNT(*) FROM customer_balances WHERE customer_id = :cid"),
+            {"cid": cid},
+        ).scalar()
+        assert archived == 0
+    finally:
+        for stmt in (
+            "DELETE FROM customer_balances WHERE customer_id = :cid",
+            "DELETE FROM customers WHERE id = :cid",
+        ):
+            db_session.execute(text(stmt), {"cid": cid})
+        db_session.commit()

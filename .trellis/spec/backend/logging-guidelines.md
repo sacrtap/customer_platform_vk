@@ -6,7 +6,7 @@
 
 ## Overview
 
-The project uses **Python stdlib `logging`** — no structured logging library (e.g., structlog, loguru). Loggers are created per-module with `logging.getLogger(__name__)`. Sanic's built-in `app.logger` is used inside middleware and app lifecycle hooks.
+The project uses **Python stdlib `logging`** — no structured logging library (e.g., structlog, loguru). Loggers are created per-module with `logging.getLogger(__name__)`. **Middleware and lifecycle hooks follow the same rule** — `Sanic` 实例没有 `logger` 属性，`app.logger.<level>(...)` 会抛 `AttributeError`。
 
 ---
 
@@ -15,9 +15,9 @@ The project uses **Python stdlib `logging`** — no structured logging library (
 | Level | When to use | Example location |
 |-------|-------------|-----------------|
 | `debug` | Diagnostic detail, parse failures in audit | `middleware/audit.py:119` |
-| `info` | App lifecycle, successful operations | `main.py:185`, `middleware/auth.py:71` |
-| `warning` | Recoverable issues (token verification, blacklisted tokens) | `middleware/auth.py:54,71` |
-| `error` | Failures that need attention (audit log failure, middleware exceptions) | `middleware/auth.py:80`, `middleware/audit.py:156` |
+| `info` | App lifecycle, successful operations | `main.py:185`, `middleware/auth.py:85` |
+| `warning` | Recoverable issues (token verification, blacklisted tokens) | `middleware/auth.py:68,166` |
+| `error` | Failures that need attention (audit log failure, middleware exceptions) | `middleware/auth.py:94`, `middleware/audit.py:156` |
 
 ---
 
@@ -25,18 +25,31 @@ The project uses **Python stdlib `logging`** — no structured logging library (
 
 ### In middleware and lifecycle hooks
 
-Use Sanic's `app.logger`:
+**Use a module-level logger.** `Sanic` 对象没有 `logger` 属性
+（`hasattr(Sanic, "logger") is False`，实测 Sanic 22.12），`app.logger.<level>(...)` 必抛 `AttributeError`。
 
-[来源: 项目源码 — `backend/app/middleware/auth.py:54`]
+[来源: 项目源码 — `backend/app/middleware/auth.py:21,68`]
 
 ```python
-@app.middleware("request")
-async def authenticate(request: Request):
-    try:
-        payload = AuthService.verify_token(token)
-    except Exception as e:
-        app.logger.warning(f"Token verification failed: {e}")
+import logging
+
+logger = logging.getLogger(__name__)
+
+def auth_middleware(app: Sanic):
+    @app.middleware("request")
+    async def authenticate(request: Request):
+        try:
+            payload = AuthService.verify_token(token)
+        except Exception as e:
+            logger.warning("Token verification failed: %s", e)
 ```
+
+> **Warning（误用后果分级，均已在 `09-16-runtime-tech-debt-fixes` 中修复并加测试）**：
+> - **request 中间件**内抛错 → Sanic 返回 **HTML 500** 而非约定 JSON，前端解析失败；
+>   traceback 只剩 `AttributeError`，真实异常（DB/Redis 故障等）彻底丢失。
+> - **response 中间件**内抛错 → Sanic 吞掉异常，响应仍正常，但日志同样只留 `AttributeError`，真实原因丢失。
+>
+> 结论：中间件内**禁止**使用 `app.logger`；异常分支建议带 `exc_info=True`。
 
 ### In services and standalone modules
 
@@ -55,7 +68,7 @@ def audit_middleware(app: Sanic):
         try:
             # ... audit logic ...
         except Exception as e:
-            app.logger.error(f"Audit log failed: {e}")
+            logger.error("Audit log failed: %s", e, exc_info=True)
 ```
 
 ### In app startup

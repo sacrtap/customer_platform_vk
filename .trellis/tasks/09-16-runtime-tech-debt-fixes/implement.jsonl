@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端分层约定、错误响应格式、质量门禁"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误码体系与响应 envelope（P1 认证错误响应、P2 错误提示）"}

@@ -91,4 +91,4 @@ interface ImportResult {
 |---|---|---|
 | 页面白屏，`#app` 只剩 `<!---->`，无 console 报错 | 访问了未定义的路由路径（如 `/billing/balance`，实际路由是 `/billing/balances`），`router-view` 渲染空注释节点 | 核对 `router/index.ts` 的实际 `path`；路径错误不会产生 JS 错误 |
 | 断言"弹窗未打开"却读到别的弹窗内容 | 页面 DOM 中同时存在多个 `.arco-modal`（历史弹窗未卸载） | 按可见性过滤：`Array.from(document.querySelectorAll('.arco-modal')).find(x => x.offsetParent !== null)` |
-| 导出失败时提示英文 `Bad Request` 而非后端文案 | axios 拦截器错误分支不解析 Blob 错误体（`api/index.ts`） | 已知遗留项，需要时在错误分支对 `Blob` 先 `await blob.text()` 再 `JSON.parse` |
+| 导出失败时提示英文 `Bad Request` 而非后端文案 | axios 拦截器错误分支未解析 Blob 错误体 | **已修复**：`api/index.ts` 错误分支对 `Blob` 先 `await data.text()` 再 `JSON.parse`。新增下载链路无需额外处理，但**不要**在拦截器外重复解析 Blob |

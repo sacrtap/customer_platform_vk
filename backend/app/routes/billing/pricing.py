@@ -305,8 +305,8 @@ async def import_pricing_rules(request: Request):
     - company_id (必填) - 客户编号
     - pricing_type (必填) - fixed/tiered/package
     - effective_date (必填) - 生效日期 YYYY-MM-DD
-    - device_type (可选) - X/N/L（包年结算可为空）
-    - layer_type (可选) - single/multi/single_and_multi
+    - device_type (非包年必填) - X/N/L（包年结算可为空）
+    - layer_type (非包年必填) - single/multi/single_and_multi
     - unit_price (可选) - 定价单价
     - additional_floor_price (可选) - 加层单价
     - multi_floor_pricing_type (可选) - unified/incremental
@@ -449,6 +449,23 @@ async def import_pricing_rules(request: Request):
                     errors.append(f"第 {row_num} 行：包年结算必须填写套餐类型")
                     continue
 
+                # 非包年结算：设备类型与楼层类型必填且取值合法（与 UI 表单 required + 下拉选项一致）
+                if pricing_type != "package":
+                    if not device_type:
+                        errors.append(f"第 {row_num} 行：设备类型不能为空（非包年结算必填）")
+                        continue
+                    if device_type not in ("X", "N", "L"):
+                        errors.append(f"第 {row_num} 行：设备类型必须为 X/N/L")
+                        continue
+                    if not layer_type:
+                        errors.append(f"第 {row_num} 行：楼层类型不能为空（非包年结算必填）")
+                        continue
+                    if layer_type not in ("single", "multi", "single_and_multi"):
+                        errors.append(
+                            f"第 {row_num} 行：楼层类型必须为 single/multi/single_and_multi"
+                        )
+                        continue
+
                 rule_data = {
                     "customer_id": company_to_customer[company_id],
                     "pricing_type": pricing_type,
@@ -544,8 +561,8 @@ async def download_pricing_rule_import_template(request: Request):
         "必填：客户编号（整数）",
         "必填：fixed/tiered/package",
         "必填：YYYY-MM-DD",
-        "可选：X/N/L（包年可为空）",
-        "可选：single/multi/single_and_multi",
+        "必填：X/N/L（非包年必填，包年可空）",
+        "必填：single/multi/single_and_multi（非包年必填）",
         "可选：单价",
         "可选：加层单价",
         "可选：unified/incremental",

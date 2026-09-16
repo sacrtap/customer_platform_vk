@@ -114,6 +114,8 @@ GET  /api/v1/billing/invoices/import-template
 | `company_id` 不存在 | 行级错误：`第 N 行：客户编号 999999 不存在` |
 | 金额列非数字 | 行级错误：`第 N 行：结算金额格式错误`（不得回显 Python 异常类名） |
 | 必填字段缺失 | 行级错误：`第 N 行：<字段名> 不能为空` |
+| 非包年计费规则（`pricing_type != package`）缺 `device_type` / `layer_type` | 行级错误：`第 N 行：设备类型不能为空（非包年结算必填）`；`layer_type` 对应 `第 N 行：楼层类型不能为空（非包年结算必填）` |
+| 非包年规则取值越界：`device_type` ∉ {`X`,`N`,`L`}、`layer_type` ∉ {`single`,`multi`,`single_and_multi`} | 行级错误：`第 N 行：设备类型必须为 X/N/L` / `第 N 行：楼层类型必须为 single/multi/single_and_multi` |
 | `package_type` 重复（含软删除比对） | 行级错误 |
 | 计费规则冲突（package/single overlap） | 行级错误（由服务层 `create_pricing_rule` 抛出） |
 | 导出无匹配数据 | `40002` |

@@ -19,6 +19,7 @@
 | 版本 | 日期 | 变更内容 | 作者 |
 |------|------|----------|------|
 | v1.0 | 2026-06-14 | 初始版本：余额管理导入功能完整 PRD | AI Product Manager |
+| v1.1 | 2026-09-16 | 权限码迁移：`billing:import` → `billing:balance_import`。旧粗粒度码 `billing:import` / `billing:export` 已拆分为 8 个细粒度权限码 `billing:{balance,pricing,package,invoice}_{import,export}`，存量角色绑定由 `seed.py` 步骤 2.6/2.7 等价迁移 | AI |
 
 ---
 
@@ -94,7 +95,7 @@
 **作为**运营人员，**我希望**能通过上传 Excel 文件批量为客户充值，**以便**一次性完成多个客户的充值操作。
 
 **验收标准**：
-- [ ] 余额管理页面提供「导入」按钮，需具备 `billing:import` 权限
+- [ ] 余额管理页面提供「导入」按钮，需具备 `billing:balance_import` 权限
 - [ ] 支持 .xlsx 格式文件，文件大小限制 ≤ 10MB
 - [ ] 上传弹窗包含文件选择区域（支持点击和拖拽上传）
 - [ ] 前端校验文件格式和扩展名，不符合时即时提示
@@ -127,7 +128,7 @@
 
 ```mermaid
 flowchart TD
-    A['用户点击导入按钮'] --> B{'权限校验: billing:import'}
+    A['用户点击导入按钮'] --> B{'权限校验: billing:balance_import'}
     B -->|无权限| C['按钮不可见/禁用']
     B -->|有权限| D['弹出导入弹窗']
     D --> E['用户可点击下载模板']
@@ -254,7 +255,7 @@ flowchart TD
 
 ### F-1.2 导入按钮与权限控制
 
-**功能描述**：在余额管理页面工具栏添加「导入」按钮，仅对拥有 `billing:import` 权限的用户可见。
+**功能描述**：在余额管理页面工具栏添加「导入」按钮，仅对拥有 `billing:balance_import` 权限的用户可见。
 
 **触发时机**：用户进入余额管理页面。
 
@@ -264,11 +265,11 @@ flowchart TD
 - 无权限用户不渲染该按钮（非禁用，而是完全不显示）
 
 **场景行为**：
-- 有 `billing:import` 权限：显示「导入」按钮
+- 有 `billing:balance_import` 权限：显示「导入」按钮
 - 无权限：按钮不渲染，用户无法感知该功能存在
 
 **验收标准**：
-- [ ] 拥有 `billing:import` 权限的用户可见「导入」按钮
+- [ ] 拥有 `billing:balance_import` 权限的用户可见「导入」按钮
 - [ ] 无权限用户页面中不渲染该按钮
 - [ ] 按钮点击后弹出导入弹窗
 
@@ -357,7 +358,7 @@ flowchart TD
 **交互说明**：
 - 接口路径：`POST /api/v1/billing/import`
 - 请求格式：`multipart/form-data`，字段名 `file`
-- 权限要求：`billing:import`
+- 权限要求：`billing:balance_import`
 - 响应格式：`{ code: 0, data: { success_count, error_count, errors: string[] } }`
 
 **场景行为**：
@@ -639,7 +640,7 @@ flowchart TD
 | 客户管理模块（company_id 校验） | completed | 导入时需校验客户编号是否存在于 customers 表 |
 | 余额管理服务（CustomerBalance） | completed | 充值操作依赖余额表存在 |
 | 审计日志服务（AuditLog） | completed | 导入操作需写入审计日志 |
-| 权限系统（billing:import） | confirmed | 需在权限系统中新增 `billing:import` 权限点 |
+| 权限系统（billing:balance_import） | confirmed | 需在权限系统中新增 `billing:balance_import` 权限点 |
 | 文件上传基础设施 | completed | 复用现有文件上传中间件（MIME 校验、大小限制） |
 
 ### 已知限制
@@ -669,7 +670,7 @@ flowchart TD
 | D2 | 使用行级锁（FOR UPDATE）保证并发安全 | 现有 `BalanceService.consume()` 已使用相同模式，经过生产验证；防止并发充值导致金额覆盖 | 乐观锁（版本号） | 行级锁在充值场景更可靠，死锁重试机制已有先例 |
 | D3 | 单次导入上限 1000 行 | 防止内存溢出和长事务阻塞；与客户导入限制一致 | 5000 行 / 无限制 | 1000 行覆盖 95% 场景，超大量可通过分批或未来异步导入解决 |
 | D4 | 部分成功模式（非全部回滚） | 客户导入采用相同模式；用户不需要因少量错误行重新提交全部数据 | 全部成功才提交 | 部分成功提升用户体验，错误行可修正后单独重新导入 |
-| D5 | 新增 `billing:import` 权限点 | 余额管理和客户管理属于不同权限域；财务操作需独立权限控制 | 复用 `customers:import` | 独立权限更精细，符合最小权限原则 |
+| D5 | 新增 `billing:balance_import` 权限点 | 余额管理和客户管理属于不同权限域；财务操作需独立权限控制 | 复用 `customers:import` | 独立权限更精细，符合最小权限原则 |
 | D6 | 每行生成独立 RechargeRecord | 与现有单笔充值记录结构一致；便于审计追溯和后续对账 | 批量记录合并为一条 | 独立记录粒度更细，支持逐条查询和审计 |
 | D7 | 模板包含示例数据行和字段说明行 | 客户导入模板采用相同设计，用户已有使用经验 | 仅含列标题 | 降低用户学习成本，减少格式错误 |
 
@@ -688,7 +689,7 @@ flowchart TD
 | pandas | Python 数据分析库，用于 Excel 文件解析 | 后端 Excel 处理依赖 |
 | openpyxl | Python 库，pandas 读取 .xlsx 文件的引擎 | Excel 解析依赖 |
 | ImportResult | 导入结果数据结构：`{ success_count, error_count, errors: string[] }` | 前后端导入结果通信格式 |
-| billing:import | 余额导入权限标识 | RBAC 权限系统 |
+| billing:balance_import | 余额导入权限标识 | RBAC 权限系统 |
 | multipart/form-data | HTTP 请求格式，用于文件上传 | 文件上传标准协议 |
 | READ COMMITTED | 数据库事务隔离级别，保证读取已提交数据 | 事务隔离策略 |
 
@@ -698,7 +699,7 @@ flowchart TD
 
 | # | 假设内容 | 来源章节 | 置信度 | 状态 | 验证方式 |
 |---|----------|----------|--------|------|----------|
-| A1 | 权限系统可新增 `billing:import` 权限点，无需修改现有权限架构 | Ch6 F-1.2, Ch10 | 高 | ✅ 已确认 | 用户确认 |
+| A1 | 权限系统可新增 `billing:balance_import` 权限点，无需修改现有权限架构 | Ch6 F-1.2, Ch10 | 高 | ✅ 已确认 | 用户确认 |
 | A2 | 现有 `BalanceService.recharge()` 的行级锁 + 死锁重试机制可直接复用 | Ch7 F-1.6 | 高 | ✅ 已确认 | 用户确认 |
 | A3 | 单次 1000 行导入在现有服务器配置下处理时间 ≤ 30 秒 | Ch7 F-1.5, Ch10 | 中 | ✅ 已确认 | 用户确认，上线前仍需压测验证 |
 | A4 | 用户已有 Excel 导入经验（客户管理导入功能已上线），学习成本低 | Ch1, Ch9 | 高 | 待验证 | 客户导入功能已在使用中 |
