@@ -38,14 +38,14 @@
 | 技术 | 版本 | 说明 |
 |------|------|------|
 | **Python** | 3.12 | 运行环境 |
-| **Sanic** | 22.12.0 | 异步 Web 框架 |
-| **SQLAlchemy** | 2.0.25 | ORM 框架 |
+| **Sanic** | 24.12.0 | 异步 Web 框架 |
+| **SQLAlchemy** | 2.0.51 | ORM 框架 |
 | **Alembic** | 1.13.1 | 数据库迁移 |
 | **PostgreSQL** | 18 | 主数据库 |
 | **Redis** | 7 | 缓存 |
-| **PyJWT** | 2.8.0 | JWT 认证 |
+| **PyJWT** | 2.12.1 | JWT 认证 |
 | **APScheduler** | 3.10.4 | 定时任务 |
-| **Pydantic** | 2.5.3 | 数据验证 |
+| **Pydantic** | 2.13.4 | 数据验证 |
 
 ### 前端 (Frontend)
 
@@ -58,7 +58,7 @@
 | **Axios** | 1.6.5 | HTTP 客户端 |
 | **ECharts** | 5.4.3 | 数据可视化 |
 | **TypeScript** | 5.3.3 | 类型系统 |
-| **Vite** | 5.0.11 | 构建工具 |
+| **Vite** | 7.3.3 | 构建工具 |
 
 ### 部署 (Deploy)
 
@@ -85,17 +85,22 @@ customer_platform_vk/
 │   ├── tests/            # 测试代码
 │   │   ├── unit/         # 单元测试
 │   │   ├── integration/  # 集成测试
-│   │   └── performance/  # 性能测试
+│   │   ├── performance/  # 性能测试
+│   │   ├── services/     # 服务层测试
+│   │   └── e2e/          # 端到端测试
 │   ├── alembic/          # 数据库迁移
 │   ├── scripts/          # 工具脚本
 │   └── requirements.txt  # Python 依赖
 ├── frontend/             # Vue3 + TypeScript 前端
-│   └── src/
-│       ├── views/        # 页面组件
-│       ├── components/   # 通用组件
-│       ├── api/          # API 调用
-│       ├── stores/       # 状态管理
-│       └── router/       # 路由配置
+│   ├── src/
+│   │   ├── views/        # 页面组件
+│   │   ├── components/   # 通用组件
+│   │   ├── composables/  # 组合式函数
+│   │   ├── api/          # API 调用
+│   │   ├── stores/       # 状态管理
+│   │   └── router/       # 路由配置
+│   └── tests/
+│       └── e2e/          # Playwright 端到端测试
 ├── deploy/               # 部署配置
 │   ├── docker/           # Docker 镜像配置
 │   ├── scripts/          # 部署脚本
@@ -211,7 +216,7 @@ python scripts/seed.py
 # 默认管理员账号：admin / admin123
 
 # ===== (可选) 创建测试数据 =====
-python scripts/create_test_data.py
+python scripts/generate_test_data.py
 
 # ===== 启动开发服务器 =====
 # ⚠️ 以下命令需在激活虚拟环境后执行
@@ -281,21 +286,20 @@ python scripts/seed.py
 
 # 执行后会创建：
 # - admin 超级管理员账号（拥有所有权限）
-# - 12 个系统权限定义
-# - "超级管理员"角色
+# - 42 个系统权限定义
+# - "超级管理员"及"运营经理"、"销售经理"预置角色
 ```
 
 #### 4. 本地测试账号
 
 ```
 管理员：admin / admin123        # 种子数据创建后使用
-运营经理：operator / operator123  # 测试数据创建后使用
-销售：sales / sales123          # 测试数据创建后使用
 ```
 
 **说明**：
-- `seed.py` - 创建 admin 管理员账号和系统权限（首次启动必需）
-- `create_test_data.py` - 创建测试用户和测试客户数据（可选）
+- `seed.py` - 创建 admin 管理员账号、42 个权限定义和预置角色（首次启动必需）
+- `generate_test_data.py` - 为已有客户生成消耗分析测试数据（可选，需先存在客户数据）
+- `replace_test_data.py` - 替换现有测试数据（可选）
 
 ### 方式二：Docker Compose 部署 (推荐)
 
@@ -329,8 +333,11 @@ docker-compose -f docker-compose.yml up -d --build
 # 运行数据库迁移
 docker-compose -f docker-compose.yml up migrate
 
-# (可选) 创建测试数据
+# 初始化种子数据（管理员账号 + 权限 + 预置角色）
 docker-compose -f docker-compose.yml up seed
+
+# 清理弃用权限（迁移/种子后执行）
+docker-compose -f docker-compose.yml up cleanup
 
 # 查看服务状态
 docker-compose -f docker-compose.yml ps
@@ -338,6 +345,8 @@ docker-compose -f docker-compose.yml ps
 # 查看应用日志
 docker-compose -f docker-compose.yml logs -f app
 ```
+
+> **发版流程**：`deploy.sh` 自动按 `migrate → seed → cleanup` 顺序执行数据库初始化与权限清理，手动部署时请勿省略 cleanup 步骤。
 
 #### 3. 部署验证
 
@@ -391,21 +400,27 @@ open htmlcov/index.html  # macOS
 ```bash
 cd frontend
 
-# 运行 E2E 测试
+# 运行单元测试（Vitest）
+npm test
+
+# 运行单元测试（Watch 模式）
+npm run test:ui
+
+# 运行 E2E 测试（Playwright）
 npm run test:e2e
 
-# 运行 Playwright 测试
-npx playwright test
+# 运行单个 E2E 测试文件
+npx playwright test tests/e2e/test_sync_task.spec.ts
 
-# 生成测试报告
-npx playwright show-report
+# 生成 E2E 测试报告
+npm run test:e2e:report
 ```
 
 ### 当前测试状态
 
-- **后端测试**: 724+ (34 个测试文件)
-- **前端 E2E 测试**: 134 (16 个测试文件)
-- **总测试数**: 858+
+- **后端测试**: 654 项（unit 447 + integration 207）
+- **前端 E2E 测试**: 34 个 spec 文件
+- **前端单元测试**: Vitest
 - **测试状态**: ✅ 全部通过
 
 ---
@@ -432,8 +447,8 @@ python -m alembic revision --autogenerate -m "描述"
 python -m alembic upgrade head
 python -m alembic downgrade -1
 
-# 创建测试数据
-python scripts/create_test_data.py
+# 创建测试数据（消耗分析）
+python scripts/generate_test_data.py
 
 # 备份数据库
 python scripts/backup_db.py
@@ -527,11 +542,11 @@ WEBHOOK_SECRET=your-random-32-byte-secret-here
 SMTP_HOST=smtp.company.com
 SMTP_PORT=587
 SMTP_USERNAME=noreply@company.com
-SMTP_PASSWORD=your-smtp-password
+SMTP_PASSWORD=<你的 SMTP 密码>
 
 # 外部 API 配置
 EXTERNAL_API_BASE_URL=https://business-api.company.com
-EXTERNAL_API_TOKEN=your-api-token
+EXTERNAL_API_TOKEN=<你的外部 API Token>
 
 # Redis 配置
 REDIS_URL=redis://localhost:6379/0
@@ -560,7 +575,9 @@ REDIS_URL=redis://localhost:6379/0
 | **部署指南**        | `deploy/README.md`                                              |
 | **Podman 部署**     | `deploy/PODMAN_MACOS.md`                                        |
 | **数据库迁移**      | `docs/guides/database-migration-guide.md`                       |
-| **Graphify 工作流** | `Graphify.md`                                                   |
+| **CodeGraph**      | 代码知识图谱 (`.codegraph/codegraph.db`)                        |
+| **代码审查报告**    | `docs/code-review/` (审查报告目录)                              |
+| **技术债务**        | `docs/technical_debt/`                                          |
 
 ---
 
@@ -691,19 +708,19 @@ npx playwright test test_customer_crud.spec.ts --headed
 - **当前版本**: v1.0.0
 - **开发状态**: Phase 0-7 完成
 - **测试覆盖率**: CI 门槛 ≥50% (核心模块 60%+)
-- **后端测试**: 724+ (34 个测试文件)
-- **前端 E2E 测试**: 134 (16 个测试文件)
-- **最后更新**: 2026-04-29
+- **后端测试**: 654 项（unit 447 + integration 207）
+- **前端 E2E 测试**: 34 个 spec 文件
+- **最后更新**: 2026-09-16
 
 ---
 
-## 🧠 Graphify 知识图谱
+## 🧠 CodeGraph 代码知识图谱
 
-本项目使用 Graphify 构建代码知识图谱，帮助快速理解代码架构和依赖关系。
+本项目使用 CodeGraph 构建代码知识图谱，帮助快速理解代码架构和依赖关系。
 
-- **图谱报告**: `graphify-out/GRAPH_REPORT.md`
-- **使用方式**: 通过 `graphify_query_graph` 等工具查询模块间依赖关系
-- **更新图谱**: 修改代码后运行 `_rebuild_code(Path('.'))` 重新生成
+- **图谱索引**: `.codegraph/codegraph.db`（文件监听自动同步）
+- **使用方式**: 通过 codegraph MCP 工具查询符号定义、调用链和依赖关系
+- **更新图谱**: 代码变更后由文件监听器自动同步索引
 
 ---
 
@@ -722,8 +739,3 @@ MIT License
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 提交 Pull Request
-
----
-
-**项目维护者**: Alex
-**联系方式**: alex@company.com

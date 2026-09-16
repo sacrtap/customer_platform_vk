@@ -1,6 +1,6 @@
 # 客户运营中台 - 文档导航
 
-> 最后更新: 2026-04-27
+> 最后更新: 2026-09-16
 
 ---
 
@@ -15,7 +15,8 @@
 | **性能优化**   | [performance/](performance/)            | 查询优化、缓存、监控     |
 | **测试文档**   | [testing/](testing/)                    | 测试计划、报告、环境配置 |
 | **前端组件**   | [frontend/components.md](frontend/components.md) | Vue 组件清单与复用指南 |
-| **数据库文档** | [database/](database/)                  | 数据库变更日志           |
+| **代码审查**   | [code-review/](code-review/)                    | 代码审查报告           |
+| **技术债务**   | [technical_debt/](technical_debt/)              | 技术债跟踪             |
 | **Superpowers** | [superpowers/](superpowers/)            | AI 工作流产出的规格与计划 |
 | **原型**       | [prototypes/](prototypes/)              | HTML 原型文件            |
 
