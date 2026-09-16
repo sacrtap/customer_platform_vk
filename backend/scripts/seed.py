@@ -51,13 +51,12 @@ ALL_PERMISSIONS = [
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     # ============================================================
-    # 结算管理 (9)
+    # 结算管理 (10)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑结算", "修改定价规则", "billing"),
     ("billing:delete", "删除定价", "删除定价规则", "billing"),
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
-    ("billing:refund", "退款操作", "执行退款", "billing"),
     ("billing:export", "导出账单", "导出结算数据", "billing"),
     ("billing:import", "导入余额", "批量导入充值数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
@@ -95,24 +94,15 @@ ALL_PERMISSIONS = [
     ("roles:delete", "删除角色", "删除自定义角色", "roles"),
     ("roles:assign", "分配权限", "为角色分配权限", "roles"),
     # ============================================================
-    # 系统管理 (4)
+    # 系统管理 (2)
     # ============================================================
     ("system:view", "查看系统", "查看同步/审计日志", "system"),
-    ("system:export", "导出日志", "导出系统日志", "system"),
-    ("system:settings", "系统设置", "修改系统配置", "system"),
     ("system:database_clear", "数据清空", "清空客户及关联数据", "system"),
-    # ============================================================
-    # 客户画像 (2)
-    # ============================================================
-    ("profiles:view", "查看画像", "查看客户画像信息", "profiles"),
-    ("profiles:edit", "编辑画像", "修改客户画像等级", "profiles"),
     # ============================================================
     # 其他模块 (2)
     # ============================================================
     ("files:view", "查看文件", "查看和下载文件", "files"),
-    ("files:upload", "上传文件", "上传新文件", "files"),
     ("files:delete", "删除文件", "删除文件", "files"),
-    ("webhooks:manage", "Webhook 管理", "管理 Webhook 配置", "webhooks"),
     # ============================================================
     # 行业类型管理 (1)
     # ============================================================
@@ -144,6 +134,7 @@ PRESET_ROLES = {
             "users:view",
             "billing:view",
             "billing:edit",
+            "billing:export",
             "billing:recharge",
             "billing:ops_approve",
             "billing:confirm",
@@ -156,6 +147,7 @@ PRESET_ROLES = {
         [
             "customers:view",
             "billing:view",
+            "billing:export",
             "billing:sales_approve",
             "analytics:view",
         ],

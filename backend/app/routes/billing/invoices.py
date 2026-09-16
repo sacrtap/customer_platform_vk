@@ -1144,7 +1144,7 @@ async def delete_invoice(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/export")
 @auth_required
-@require_permission("billing:view")
+@require_permission("billing:export")
 async def export_invoices(request: Request):
     """
     导出结算单为 Excel 文件
@@ -1331,9 +1331,11 @@ async def export_invoices(request: Request):
     filename = f"结算单导出_{timestamp}.xlsx"
 
     # 返回文件
-    return await response_file(
-        output,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # pyright: ignore[reportCallIssue]
+    from sanic.response import raw
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "no-cache, no-store, must-revalidate",

@@ -27,9 +27,7 @@ export const MODULE_NAME_MAP: Record<string, string> = {
   tags: '标签管理',
   users: '用户管理',
   roles: '角色权限',
-  industry_types: '行业类型',
   system: '系统管理',
-  groups: '客户分组',
   files: '文件管理',
   webhooks: 'Webhook 管理',
   profiles: '客户画像',
@@ -44,13 +42,8 @@ export const MODULE_ORDER: string[] = [
   'tags',
   'users',
   'roles',
-  'industry_types',
   'system',
   'files',
-  'webhooks',
-  'profiles',
-  'groups',
-  'other',
 ]
 
 /**

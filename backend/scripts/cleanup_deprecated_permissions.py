@@ -39,6 +39,16 @@ DEPRECATED_PERMISSIONS = [
     "users:manage",
     "roles:manage",
     "tags:manage",
+    # 2026-09-16 角色权限清单修正：孤儿权限（前端/后端均无对应功能）
+    "billing:refund",
+    "system:settings",
+    "webhooks:manage",
+    "profiles:view",
+    "profiles:edit",
+    "system:export",
+    "files:upload",
+    # 历史迁移残留：profiles:* 已迁移至 analytics:*（8d87a55），数据库中仍有该孤儿
+    "profiles:export",
 ]
 
 
