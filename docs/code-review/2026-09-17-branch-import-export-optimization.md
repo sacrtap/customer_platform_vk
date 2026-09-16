@@ -302,6 +302,13 @@ EXIT=0
 - `balances.py` 的 `get_balance_stats`（KPI 端点）存在与 #10 同型的、无保护的 `tag_ids` 解析。本次只修复了 `_query_balance_rows` 的两条路径，未扩展至该端点。
 - `balances.py` 导出新增的自定义响应头在跨域直连部署下需补 `cors_expose_headers`（当前同源部署不受影响）。
 
+### 6.4 终态为「不修」的中危 finding（2 条，均为误报）
+
+| # | 位置 | 终态 | 原因 |
+|---|---|---|---|
+| 5 | `backend/app/routes/billing/invoices.py:1480-1481` | 不修 | 经证伪为**误报**：`Decimal('NaN') < 0` 抛 `InvalidOperation` 并被既有 `except (InvalidOperation, ValueError, TypeError)` 捕获 → 产出行级错误，NaN 到不了 DB 层。缺陷不存在，无代码可修（§4.1 含复现命令与实际输出） |
+| 9 | `backend/tests/integration/test_customers_api.py:835-839` | 不修（该 finding 本身） | 经证伪为**误报**：修复前该断言恒成立（行业校验错误被 service 返回值覆盖）。其**指向的真实缺陷已修复**并加回归测试，属另一条独立改动（§4.2） |
+
 ---
 
 ## 七、未收敛面
