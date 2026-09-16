@@ -51,10 +51,19 @@ def _get_sync_engine():
     return create_engine(sync_url, echo=False)
 
 
-def _resolve_file_path(detail_file_path: str) -> str:
-    """拼接存储根路径与相对路径，得到磁盘绝对路径"""
-    storage_root = settings.file_storage_path
-    return os.path.join(storage_root, detail_file_path)
+def _resolve_file_path(detail_file_path: str) -> str | None:
+    """拼接存储根路径与相对路径，得到磁盘绝对路径。
+
+    对绝对路径或包含 ``../`` 等越界路径，解析后若不在存储根之下，
+    返回 None（表示无法可靠校验，需跳过并单列告警）。
+    """
+    storage_root = Path(settings.file_storage_path).resolve()
+    resolved = (storage_root / detail_file_path).resolve()
+    try:
+        resolved.relative_to(storage_root)
+    except ValueError:
+        return None
+    return str(resolved)
 
 
 def main() -> None:
@@ -93,6 +102,7 @@ def main() -> None:
 
         total_completed = len(rows)
         inconsistent = []  # (id, invoice_no, detail_file_path)
+        out_of_root = []  # (id, invoice_no, detail_file_path)：越界路径，跳过校验
 
         for row in rows:
             inv_id, inv_no, rel_path = row
@@ -102,6 +112,10 @@ def main() -> None:
                 continue
 
             abs_path = _resolve_file_path(rel_path)
+            if abs_path is None:
+                # 绝对路径或 ../ 越界：无法可靠校验，跳过并单列告警
+                out_of_root.append((inv_id, inv_no, rel_path))
+                continue
             if not os.path.exists(abs_path) or os.path.getsize(abs_path) == 0:
                 inconsistent.append((inv_id, inv_no, rel_path))
 
@@ -110,14 +124,24 @@ def main() -> None:
         print("结算单明细文件一致性检查" + ("（dry-run 模式）" if args.dry_run else ""))
         print("=" * 70)
         print(f"completed 状态结算单总数:   {total_completed}")
-        print(f"一致（文件存在）:           {total_completed - len(inconsistent)}")
+        print(
+            f"一致（文件存在）:           {total_completed - len(inconsistent) - len(out_of_root)}"
+        )
         print(f"不一致（文件缺失）:         {len(inconsistent)}")
+        print(f"越界路径（跳过）:           {len(out_of_root)}")
 
         if inconsistent:
             print("\n不一致清单:")
             print(f"{'ID':<8} {'结算单号':<20} {'文件路径'}")
             print("-" * 70)
             for inv_id, inv_no, rel_path in inconsistent:
+                print(f"{inv_id:<8} {inv_no:<20} {rel_path}")
+
+        if out_of_root:
+            print("\n越界路径告警（跳过校验，不参与重置）:")
+            print(f"{'ID':<8} {'结算单号':<20} {'文件路径'}")
+            print("-" * 70)
+            for inv_id, inv_no, rel_path in out_of_root:
                 print(f"{inv_id:<8} {inv_no:<20} {rel_path}")
 
         if args.reset_pending:
@@ -145,7 +169,10 @@ def main() -> None:
             # 有不一致且未处置
             sys.exit(1)
         elif not inconsistent:
-            print("\n✅ 全部一致，无需处置。")
+            if out_of_root:
+                print("\n✅ 无不一致记录（存在越界路径告警，已跳过）。")
+            else:
+                print("\n✅ 全部一致，无需处置。")
             sys.exit(0)
         else:
             # 已处置（reset-pending 且非 dry-run）或 dry-run 模式下已预览

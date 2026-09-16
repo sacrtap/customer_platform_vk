@@ -317,6 +317,7 @@ async def import_pricing_rules(request: Request):
     """
     import pandas as pd
 
+    from ...models.billing import PackagePlan
     from ...models.customers import Customer
 
     files = request.files
@@ -355,6 +356,15 @@ async def import_pricing_rules(request: Request):
         # 预加载所有客户 company_id -> customer_id 映射
         result = await db_session.execute(select(Customer.id, Customer.company_id))
         company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 预加载有效的包年套餐类型（仅 active 且未软删除，与 create_pricing_rule 查询条件一致）
+        plan_result = await db_session.execute(
+            select(PackagePlan.package_type).where(
+                PackagePlan.deleted_at.is_(None),
+                PackagePlan.status == "active",
+            )
+        )
+        active_package_types = set(plan_result.scalars().all())
 
         current_user = get_current_user(request)
         operator_id = current_user.get("user_id") if current_user else 1
@@ -454,6 +464,11 @@ async def import_pricing_rules(request: Request):
                     errors.append(f"第 {row_num} 行：包年结算必须填写套餐类型")
                     continue
 
+                # 包年结算：套餐类型必须存在且 status='active'（否则会静默创建 unit_price=None 的规则）
+                if pricing_type == "package" and package_type not in active_package_types:
+                    errors.append(f"第 {row_num} 行：套餐类型 '{package_type}' 不存在或已停用")
+                    continue
+
                 # 非包年结算：设备类型与楼层类型必填且取值合法（与 UI 表单 required + 下拉选项一致）
                 if pricing_type != "package":
                     if not device_type:
@@ -470,6 +485,15 @@ async def import_pricing_rules(request: Request):
                             f"第 {row_num} 行：楼层类型必须为 single/multi/single_and_multi"
                         )
                         continue
+
+                # 定价内容完整性：与 UI 表单对齐（fixed 必填 unit_price，tiered 必填至少一条阶梯），
+                # 否则会静默按 0 元结算
+                if pricing_type == "fixed" and unit_price is None:
+                    errors.append(f"第 {row_num} 行：定价结算必须填写单价")
+                    continue
+                if pricing_type == "tiered" and not tiers:
+                    errors.append(f"第 {row_num} 行：阶梯结算必须至少配置一条阶梯")
+                    continue
 
                 rule_data = {
                     "customer_id": company_to_customer[company_id],

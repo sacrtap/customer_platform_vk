@@ -820,6 +820,17 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
     output = io.BytesIO()
     wb.save(output)
 
+    # 模板示例行的 industry 为「房产经纪」：该行业类型须先存在，否则路由会如实回传
+    # 「行业类型 '房产经纪' 不存在」的行级错误（该错误此前被 service 返回值覆盖而
+    # 静默丢失，故旧断言在「错误被吞掉」的前提下才成立）。
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
     request, response = await test_client.post(
         "/api/v1/customers/import",
         headers=auth_headers,
@@ -841,6 +852,7 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
         db_session.execute(
             text("DELETE FROM customers WHERE company_id = :cid"), {"cid": company_id}
         )
+        db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
         db_session.commit()
 
 
@@ -1101,6 +1113,55 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
     data = response.json
     assert data["code"] == 0
     assert data["data"]["error_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_import_customers_unknown_industry_reports_error(
+    test_client, auth_headers, db_session
+):
+    """测试导入 - 行业类型不存在时须回传行级错误
+
+    回归防护 —— 行业映射阶段的校验错误若被 service 返回的 errors 整体覆盖，
+    响应会退化为 error_count=0 / errors=[]，用户误以为全部导入成功。
+    """
+    from openpyxl import Workbook
+
+    unknown_industry = "绝不存在的行业名ZZZ"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id", "name", "industry"])
+    ws.append([1000050, "未知行业客户", unknown_industry])
+    ws.append([1000051, "正常客户", None])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_unknown_industry.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    errors = data["data"]["errors"]
+    assert any(unknown_industry in e for e in errors), data["data"]
+    assert data["data"]["error_count"] >= 1
+
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id >= 1000050 AND company_id < 1000060")
+    )
+    db_session.commit()
 
 
 @pytest.mark.asyncio

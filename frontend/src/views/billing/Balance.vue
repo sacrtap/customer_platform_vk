@@ -330,7 +330,12 @@ const handleExport = async () => {
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    Message.success('导出成功')
+    const truncated = res.headers?.['x-truncated'] === 'true'
+    if (truncated) {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    } else {
+      Message.success('导出成功')
+    }
   } catch (error: unknown) {
     Message.error((error as Error).message || '导出失败')
   } finally {

@@ -832,6 +832,42 @@ async def test_import_invoices_duplicate_invoice_no(
 
 
 @pytest.mark.asyncio
+async def test_import_invoices_row_db_error_isolation(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导入：单行的 DB 级失败（单号超长）不得拖垮整批
+
+    回归防护 —— 行级错误若只记录而不回滚会话，SQLAlchemy 会话会进入
+    PendingRollback，后续行的 flush 与最终 commit 全部失败，整批（含已 flush
+    成功的行）一并落空，接口退化为 500。
+    """
+    headers = ["company_id", "period_start", "period_end", "total_amount", "invoice_no"]
+    rows = [
+        [import_customer["company_id"], "2026-04-01", "2026-04-30", 100.0, None],
+        # invoice_no 列定义 String(50)：60 字符触发 DB 级 flush 错误
+        [import_customer["company_id"], "2026-05-01", "2026-05-31", 200.0, "X" * 60],
+        [import_customer["company_id"], "2026-06-01", "2026-06-30", 300.0, None],
+    ]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows)),
+    )
+
+    assert response.status == 200, response.json
+    data = response.json["data"]
+    assert data["success_count"] == 2, data
+    assert data["error_count"] == 1, data
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM invoices WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 2, count
+
+
+@pytest.mark.asyncio
 async def test_import_invoices_forbidden_without_permission(test_client, auth_token):
     """结算单导入：缺少 billing:invoice_import 权限返回 403"""
     headers = ["company_id", "period_start", "period_end", "total_amount"]
@@ -848,9 +884,23 @@ async def test_import_invoices_forbidden_without_permission(test_client, auth_to
 
 @pytest.mark.asyncio
 async def test_import_pricing_rules_requires_device_and_layer_for_non_package(
-    test_client, auth_token, import_customer
+    test_client, auth_token, db_session, import_customer
 ):
     """计费规则导入：非包年结算的设备类型/楼层类型必填且限值域，包年行不受约束"""
+    # 包年行须引用存在且 status='active' 的套餐：套餐不存在/已停用时按行级错误拒绝，
+    # 避免静默创建 unit_price=None 的规则并在结算时按 0 元少计费。
+    ptype = f"PLAN{uuid.uuid4().hex[:6].upper()}"
+    db_session.execute(
+        text(
+            """
+            INSERT INTO package_plans (name, package_type, is_unlimited, base_fee, status, created_at, updated_at)
+            VALUES (:name, :ptype, FALSE, 10000, 'active', NOW(), NOW())
+            """
+        ),
+        {"name": f"规则导入套餐_{ptype}", "ptype": ptype},
+    )
+    db_session.commit()
+
     headers = [
         "company_id",
         "pricing_type",
@@ -932,26 +982,32 @@ async def test_import_pricing_rules_requires_device_and_layer_for_non_package(
             None,
             None,
             None,
-            "A",
+            ptype,
             None,
         ],
     ]
 
-    _request, response = await test_client.post(
-        "/api/v1/billing/pricing-rules/import",
-        headers={"Authorization": f"Bearer {auth_token}"},
-        files=_upload(_xlsx(headers, rows)),
-    )
+    try:
+        _request, response = await test_client.post(
+            "/api/v1/billing/pricing-rules/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows)),
+        )
 
-    assert response.status == 200
-    data = response.json["data"]
-    assert data["success_count"] == 1
-    assert data["error_count"] == 4
-    joined = " ".join(data["errors"])
-    assert "设备类型不能为空" in joined
-    assert "楼层类型不能为空" in joined
-    assert "设备类型必须为 X/N/L" in joined
-    assert "楼层类型必须为 single/multi/single_and_multi" in joined
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["success_count"] == 1
+        assert data["error_count"] == 4
+        joined = " ".join(data["errors"])
+        assert "设备类型不能为空" in joined
+        assert "楼层类型不能为空" in joined
+        assert "设备类型必须为 X/N/L" in joined
+        assert "楼层类型必须为 single/multi/single_and_multi" in joined
+    finally:
+        db_session.execute(
+            text("DELETE FROM package_plans WHERE package_type = :ptype"), {"ptype": ptype}
+        )
+        db_session.commit()
 
 
 @pytest.mark.asyncio

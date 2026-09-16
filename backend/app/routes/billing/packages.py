@@ -673,8 +673,10 @@ async def import_package_plans(request: Request):
                     description=description,
                     status=status,
                 )
-                db_session.add(plan)
-                await db_session.flush()
+                # SAVEPOINT 隔离：flush 失败只回滚该行，外层事务与已成功行不受影响
+                async with db_session.begin_nested():
+                    db_session.add(plan)
+                    await db_session.flush()
                 existing_types.add(package_type)
                 success_count += 1
             except Exception as e:  # 兜底，避免单行异常中断整个导入

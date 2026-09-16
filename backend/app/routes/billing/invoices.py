@@ -1,5 +1,6 @@
 """发票管理路由 — 生成、审批、支付、导出"""
 
+import logging
 import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -25,6 +26,8 @@ from ...utils.excel_import import read_import_dataframe
 from ...utils.tiers import TierFormatError
 from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
+
+logger = logging.getLogger(__name__)
 
 
 async def _trigger_detail_generation(request: Request, invoice_id: int):
@@ -1434,9 +1437,30 @@ async def import_invoices(request: Request):
         result = await db.execute(select(Customer.id, Customer.company_id))
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
-        # 预加载已存在的 invoice_no（避免随机码碰撞）
-        existing_no_result = await db.execute(select(Invoice.invoice_no))
-        existing_invoice_nos = set(existing_no_result.scalars().all())
+        # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
+        # 范围收敛为「本日自动生成前缀」+「本次 Excel 显式指定的单号」：原实现
+        # select(Invoice.invoice_no) 会把该列全表加载，随表增长内存与耗时无限膨胀。
+        today_prefix = f"INV-{datetime.now().strftime('%Y%m%d')}-"
+        existing_invoice_nos = set(
+            (
+                await db.execute(
+                    select(Invoice.invoice_no).where(Invoice.invoice_no.like(f"{today_prefix}%"))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # 用户显式指定的单号需与全表判重，但只查本次出现的取值（行数上限 1000）
+        supplied_nos = {
+            str(v).strip()
+            for v in (df["invoice_no"].tolist() if "invoice_no" in df.columns else [])
+            if v is not None and not pd.isna(v) and str(v).strip()
+        }
+        if supplied_nos:
+            taken_result = await db.execute(
+                select(Invoice.invoice_no).where(Invoice.invoice_no.in_(supplied_nos))
+            )
+            existing_invoice_nos |= set(taken_result.scalars().all())
 
         current_user = get_current_user(request)
         operator_id = current_user.get("user_id") if current_user else 1
@@ -1533,14 +1557,17 @@ async def import_invoices(request: Request):
                     is_auto_generated=False,
                     created_by=operator_id,
                 )
-                db.add(invoice)
-                await db.flush()
+                # SAVEPOINT 行级隔离：单行 flush 触发 DB 错误（唯一约束冲突、字段超长等）
+                # 时只回滚该行。原实现仅记录异常而不回滚，会话会进入 PendingRollback
+                # 状态，导致后续所有行的 flush 与最终 commit 全部失败 —— 整批（含已成功
+                # 的行）一并落空，行级错误隔离形同虚设。
+                async with db.begin_nested():
+                    db.add(invoice)
+                    await db.flush()
                 existing_invoice_nos.add(invoice_no)
                 success_count += 1
             except Exception as e:  # 兜底，避免单行异常中断整个导入
-                import logging
-
-                logging.getLogger(__name__).warning("结算单导入第 %d 行失败: %s", row_num, e)
+                logger.warning("结算单导入第 %d 行失败: %s", row_num, e)
                 errors.append(f"第 {row_num} 行：{str(e)}")
 
         await db.commit()
@@ -1583,6 +1610,8 @@ async def import_invoices(request: Request):
             }
         )
     except Exception as e:
+        # 外层失败（如最终 commit 抛错）也需回滚，避免把中毒会话归还连接池
+        await db.rollback()
         return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
 
 

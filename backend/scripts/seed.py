@@ -269,11 +269,10 @@ def seed(reset: bool = False):
                 "billing:package_export",
                 "billing:invoice_export",
             ],
+            # billing:import 历史上仅用于「导入余额」端点，等价语义仅为 balance_import；
+            # 其余导入码（pricing/package/invoice）敏感度更高，需角色管理显式授予，避免权限膨胀
             "billing:import": [
                 "billing:balance_import",
-                "billing:pricing_import",
-                "billing:package_import",
-                "billing:invoice_import",
             ],
         }
         migrated_count = 0

@@ -162,6 +162,16 @@ def _parse_balance_filters(request: Request) -> dict:
     recharge_date_to = request.args.get("recharge_date_to")
     tag_ids = request.args.get("tag_ids")
 
+    # 充值日期：解析为 datetime（畸形参数抛 ValueError，由调用方统一转 400）
+    recharge_date_from = datetime.fromisoformat(recharge_date_from) if recharge_date_from else None
+    recharge_date_to = (
+        datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
+        if recharge_date_to
+        else None
+    )
+    # 标签 ID：逗号分隔的整数列表（畸形参数抛 ValueError，由调用方统一转 400）
+    tag_ids = [int(t.strip()) for t in tag_ids.split(",") if t.strip()] if tag_ids else None
+
     is_key_customer = request.args.get("is_key_customer")
     if is_key_customer is not None and is_key_customer.strip() != "":
         if is_key_customer.lower() not in ("true", "false"):
@@ -310,23 +320,13 @@ async def _query_balance_rows(
         )
         # 使用 HAVING 子句过滤（聚合函数必须在 HAVING 中）
         if recharge_date_from:
-            try:
-                from_dt = datetime.fromisoformat(recharge_date_from)
-                recharge_filter_stmt = recharge_filter_stmt.having(
-                    func.max(RechargeRecord.created_at) >= from_dt
-                )
-            except (ValueError, TypeError):
-                logger.warning("Invalid recharge_date_from format: %s", recharge_date_from)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) >= recharge_date_from
+            )
         if recharge_date_to:
-            try:
-                to_dt = datetime.fromisoformat(recharge_date_to).replace(
-                    hour=23, minute=59, second=59
-                )
-                recharge_filter_stmt = recharge_filter_stmt.having(
-                    func.max(RechargeRecord.created_at) <= to_dt
-                )
-            except (ValueError, TypeError):
-                logger.warning("Invalid recharge_date_to format: %s", recharge_date_to)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) <= recharge_date_to
+            )
 
         base_stmt = base_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
 
@@ -334,17 +334,15 @@ async def _query_balance_rows(
     if tag_ids:
         from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
-        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
-        if tag_id_list:
-            tag_customer_subq = (
-                select(CustomerTag.customer_id)
-                .where(
-                    CustomerTag.tag_id.in_(tag_id_list),
-                    CustomerTag.deleted_at.is_(None),
-                )
-                .group_by(CustomerTag.customer_id)
+        tag_customer_subq = (
+            select(CustomerTag.customer_id)
+            .where(
+                CustomerTag.tag_id.in_(tag_ids),
+                CustomerTag.deleted_at.is_(None),
             )
-            base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
+            .group_by(CustomerTag.customer_id)
+        )
+        base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
 
     # 总数查询
     count_stmt = (
@@ -391,30 +389,26 @@ async def _query_balance_rows(
             .group_by(RechargeRecord.customer_id)
         )
         if recharge_date_from:
-            from_dt = datetime.fromisoformat(recharge_date_from)
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) >= from_dt
+                func.max(RechargeRecord.created_at) >= recharge_date_from
             )
         if recharge_date_to:
-            to_dt = datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) <= to_dt
+                func.max(RechargeRecord.created_at) <= recharge_date_to
             )
         count_stmt = count_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
     if tag_ids:
         from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
-        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
-        if tag_id_list:
-            tag_customer_subq = (
-                select(CustomerTag.customer_id)
-                .where(
-                    CustomerTag.tag_id.in_(tag_id_list),
-                    CustomerTag.deleted_at.is_(None),
-                )
-                .group_by(CustomerTag.customer_id)
+        tag_customer_subq = (
+            select(CustomerTag.customer_id)
+            .where(
+                CustomerTag.tag_id.in_(tag_ids),
+                CustomerTag.deleted_at.is_(None),
             )
-            count_stmt = count_stmt.where(Customer.id.in_(tag_customer_subq))
+            .group_by(CustomerTag.customer_id)
+        )
+        count_stmt = count_stmt.where(Customer.id.in_(tag_customer_subq))
 
     total = (await db.execute(count_stmt)).scalar()
 
@@ -643,7 +637,7 @@ async def export_balances(request: Request):
         return json({"code": 40001, "message": str(e)}, status=400)
 
     # 全量导出（上限 50000 条，不分页）
-    rows, _ = await _query_balance_rows(
+    rows, total = await _query_balance_rows(
         db,
         filters,
         sort_by="customer.id",
@@ -689,10 +683,17 @@ async def export_balances(request: Request):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"balances_{timestamp}.xlsx"
 
+    # 截断标记：匹配总数超过导出上限时通过响应头告知前端
+    truncated = total > len(rows)
+
     return raw(
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Total-Count": str(total),
+            "X-Truncated": "true" if truncated else "false",
+        },
     )
 
 

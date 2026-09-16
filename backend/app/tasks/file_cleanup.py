@@ -41,14 +41,14 @@ async def cleanup_temp_files():
             logger.info("📁 临时目录不存在（%s），无文件可清理", temp_dir)
             return
 
-        # 软链接防御：temp_dir 实际路径必须仍位于 storage_root 之下，
-        # 防止 temp/ 被误配为指向存储根外部的软链接而误删外部文件。
+        # 软链接防御：temp/ 解析后的实际路径必须恰为存储根下的一级目录 temp。
+        # 若 temp/ 被误配为指向存储根内部（如 invoices/、avatars/、<YYYY>/<MM>/）
+        # 或外部的软链接，解析路径都不等于 storage_root/temp，一律拒绝清理，
+        # 防止误删业务凭证文件（历史事故 B：DB 状态与磁盘实体脱节）。
         resolved_temp = temp_dir.resolve()
-        try:
-            resolved_temp.relative_to(storage_root)
-        except ValueError:
+        if resolved_temp != storage_root / TEMP_SUBDIR:
             logger.error(
-                "❌ 临时目录 %s 解析后（%s）不在存储根 %s 之下，疑似软链接越界，拒绝清理",
+                "❌ 临时目录 %s 解析后（%s）不是存储根 %s 下的一级目录 temp，疑似软链接越界，拒绝清理",
                 temp_dir,
                 resolved_temp,
                 storage_root,

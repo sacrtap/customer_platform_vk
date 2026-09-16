@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.models.billing import PricingRule
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
-from app.utils.tiers import normalize_tiers
+from app.utils.tiers import TierFormatError, normalize_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +383,12 @@ class CostCalcService:
 
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
-        tiers = normalize_tiers(pricing_rule.tiers) or []
+        try:
+            tiers = normalize_tiers(pricing_rule.tiers) or []
+        except TierFormatError as e:
+            # 历史脏数据无法归一化时降级为按 unit_price 结算，避免整批结算中断
+            logger.warning("定价规则 tiers 形态非法，降级为按 unit_price 结算：%s", e)
+            tiers = []
         if not tiers:
             return Decimal(str(pricing_rule.unit_price or 0)) * quantity
 

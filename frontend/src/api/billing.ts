@@ -576,7 +576,9 @@ export function deletePackagePlan(id: number) {
 // ==================== 余额导出 ====================
 
 export function exportBalances(params?: BalanceQueryParams) {
-  return api.get('/billing/balances/export', { params, responseType: 'blob' })
+  // 导出为同步生成（含近 30 天消费聚合 + openpyxl），大导出耗时可能超过全局 15s 超时，
+  // 单独放宽超时避免前端在服务端仍在处理时中断。
+  return api.get('/billing/balances/export', { params, responseType: 'blob', timeout: 120000 })
 }
 
 // ==================== 计费规则导入导出 ====================

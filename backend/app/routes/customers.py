@@ -798,9 +798,6 @@ async def import_customers(request: Request):
         # 转换数据为字典列表
         customers_data = df.to_dict(orient="records")
 
-        # 初始化错误列表
-        errors = []
-
         # 处理 industry 列：将行业类型名称转换为 industry_type_id
         from sqlalchemy import select
 
@@ -810,11 +807,12 @@ async def import_customers(request: Request):
         industry_result = await db_session.execute(select(IndustryType))
         industry_map = {it.name: it.id for it in industry_result.scalars().all()}
 
+        industry_errors: list[str] = []
         for row in customers_data:
             industry_name = row.get("industry")
             if industry_name:
                 if industry_name not in industry_map:
-                    errors.append(f"行业类型 '{industry_name}' 不存在")
+                    industry_errors.append(f"行业类型 '{industry_name}' 不存在")
                     continue
                 row["industry_type_id"] = industry_map[industry_name]
                 del row["industry"]
@@ -836,7 +834,10 @@ async def import_customers(request: Request):
         db_session: AsyncSession = request.ctx.db_session
         service = CustomerService(db_session)
 
-        success_count, errors = await service.batch_create_customers(customers_data)
+        success_count, service_errors = await service.batch_create_customers(customers_data)
+        # 行业映射阶段的行级错误必须保留：原实现直接赋值覆盖 errors，
+        # 使「行业类型不存在」等校验结果被静默丢弃，用户误以为全部导入成功。
+        errors = industry_errors + service_errors
 
         # 清除客户列表缓存
         await cache_service.invalidate_customer_cache()
