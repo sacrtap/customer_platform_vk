@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-09-17
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~397 | Active |
+| `journal-1.md` | ~421 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-09-17 | 测试基础设施遗留项修复（TD-1/2/4/5 + R6） | `b60d3cd`, `1d0d78c`, `0a5f5b0` | `feature/import-export-optimization` |
 | 16 | 2026-09-17 | 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一 | `a619eda` | `feature/import-export-optimization` |
 | 15 | 2026-09-16 | 结算单两任务验收与归档（09-02 / 09-03） | `8f82ba1` | `feature/import-export-optimization` |
 | 14 | 2026-09-16 | 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷 | `f94e54a` | `feature/import-export-optimization` |

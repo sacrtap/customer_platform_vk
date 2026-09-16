@@ -395,3 +395,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 17: 测试基础设施遗留项修复（TD-1/2/4/5 + R6）
+<!-- trellis-session: v=2 fp=739135da0778c5f9 -->
+
+**Date**: 2026-09-17
+**Task**: 测试基础设施遗留项修复（TD-1/2/4/5 + R6）
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 TD-1/2/4/5（TD-3 按用户要求排除）：42 项权限清单 4 处逐字副本收敛为 tests/_test_data.py 单一常量并加种子漂移守护；WEBHOOK_SECRET 收敛至 tests/conftest.py 一处 setdefault；移除 test_user 内 8 处 [DEBUG] stdout 探针；TTL 收敛为 _ttl_config + ttl_for() 单一入口（清 5 个零消费/谎值条目、拆 analytics_prediction_forecast 前缀、消除 analytics.py 9 处与 balances.py 1 处硬编码副本）。R6 删除 app/config.py 的 9 个零消费 cache_ttl_* 字段并清理 .env.example 与 cache-strategy.md 的误导性可配项文档。零行为变更。验证：876 passed（基线 874），覆盖率 57.65%；同会话 e2e+integration 246 passed。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b60d3cd` | fix(test,cache): 收敛测试权限清单与 TTL 配置为单一真相 |
+| `1d0d78c` | docs: 回写 TD-1/2/4/5 修复状态（提交 b60d3cd） |
+| `0a5f5b0` | docs(spec): 沉淀 TTL 配置单一真相契约（_ttl_config + ttl_for） |
+
+### Status
+
+[OK] **Completed**
