@@ -92,6 +92,11 @@ def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
     """将前端日期字符串转换为 datetime.date 对象"""
     if value is None:
         return None
+    # datetime 是 date 的子类，但 DATE 列需要纯 date 对象：
+    # pd.read_excel 会把 Excel 日期型单元格解析为 datetime/Timestamp，
+    # 这里统一归一化为 date，避免把带时间分量的对象交给日期列。
+    if isinstance(value, datetime):
+        return value.date()
     if isinstance(value, date):
         return value
     val = str(value).strip()

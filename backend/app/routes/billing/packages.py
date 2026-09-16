@@ -778,8 +778,9 @@ async def download_package_plan_import_template(request: Request):
     for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
         ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
 
-    # 示例数据
-    ws.append(["A 套餐", "A", 50000.00, "X", "single", "否", 10000, 5.00, "示例套餐", "active"])  # pyright: ignore[reportOptionalMemberAccess]
+    # 不写入示例数据行：read_import_dataframe 只丢弃第 2 行中文说明行，第 3 行示例数据
+    # 会被当作真实套餐导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默创建
+    # 成一条「A 套餐」；表头行与中文说明行的契约由模板下载测试断言，保持不变。
 
     output = io.BytesIO()
     wb.save(output)

@@ -102,25 +102,20 @@ class TestSyncTaskE2E:
         start_date = (date.today() - timedelta(days=2)).isoformat()
         end_date = date.today().isoformat()
 
-        # 创建第一个任务
-        _request, response1 = await test_client.post(
-            "/api/v1/sync-tasks",
-            json={
-                "start_date": start_date,
-                "end_date": end_date,
-                "sync_mode": "skip_existing",
-            },
-            headers=auth_headers,
-        )
-        assert response1.status == 201
+        # 第一个 POST 成功后会触发 request.app.add_task(run_task())，后台任务会在同一
+        # 事件循环里真实执行 execute_task → OrderSyncService.sync_orders：若测试环境配置了
+        # EXTERNAL_MYSQL_URL 会发起真实外网连接，即便未配置也会写库并与 db_session 夹具
+        # teardown 对 sync_tasks/sync_task_logs 的清理竞态。本用例只验证 409，故对第一个
+        # 请求同样 mock OrderSyncService（与 test_full_sync_flow 一致），消除真实外连与副作用。
+        with patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync:
+            mock_order_service = AsyncMock()
+            mock_order_service.sync_orders = AsyncMock(
+                return_value=MagicMock(success=0, failed=0, skipped=0, unmatched=0)
+            )
+            MockOrderSync.return_value = mock_order_service
 
-        # 第二次调用 create_task 抛冲突异常，模拟锁竞争
-        with patch.object(
-            SyncTaskService,
-            "create_task",
-            new=AsyncMock(side_effect=Exception("已有相同周期的同步任务正在执行")),
-        ):
-            _request, response2 = await test_client.post(
+            # 创建第一个任务
+            _request, response1 = await test_client.post(
                 "/api/v1/sync-tasks",
                 json={
                     "start_date": start_date,
@@ -129,8 +124,25 @@ class TestSyncTaskE2E:
                 },
                 headers=auth_headers,
             )
-            assert response2.status == 409
-            assert "已有相同周期的同步任务正在执行" in response2.json["message"]
+            assert response1.status == 201
+
+            # 第二次调用 create_task 抛冲突异常，模拟锁竞争
+            with patch.object(
+                SyncTaskService,
+                "create_task",
+                new=AsyncMock(side_effect=Exception("已有相同周期的同步任务正在执行")),
+            ):
+                _request, response2 = await test_client.post(
+                    "/api/v1/sync-tasks",
+                    json={
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "sync_mode": "skip_existing",
+                    },
+                    headers=auth_headers,
+                )
+                assert response2.status == 409
+                assert "已有相同周期的同步任务正在执行" in response2.json["message"]
 
     async def test_date_range_validation(self, test_client, auth_headers):
         """测试日期范围校验"""

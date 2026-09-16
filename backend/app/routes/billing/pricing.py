@@ -17,7 +17,7 @@ from ...services.billing import PricingService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 from ...utils.excel_import import read_import_dataframe
 from ...utils.tiers import parse_tiers_or_raise
-from ...utils.timezone import local_date_to_utc_end, local_date_to_utc_start
+from ...utils.timezone import local_date_to_utc_end, local_date_to_utc_start, utc_to_cst_date_str
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -353,8 +353,11 @@ async def import_pricing_rules(request: Request):
 
         db_session: AsyncSession = request.ctx.db_session
 
-        # 预加载所有客户 company_id -> customer_id 映射
-        result = await db_session.execute(select(Customer.id, Customer.company_id))
+        # 预加载所有客户 company_id -> customer_id 映射（排除软删除客户：
+        # 软删除客户已不可在页面选择，导入若仍可命中会为其创建规则，导出后也无法回灌）
+        result = await db_session.execute(
+            select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
+        )
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
         # 预加载有效的包年套餐类型（仅 active 且未软删除，与 create_pricing_rule 查询条件一致）
@@ -428,6 +431,15 @@ async def import_pricing_rules(request: Request):
                     if not pd.isna(multi_floor_pricing_type_raw)
                     else None
                 )
+                # 多楼层计费方式：只允许 unified/incremental（与模型字段/UI 下拉/模板说明一致）。
+                # 非法值此前会被原样落库，结算时按「非 incremental 即 unified」静默处理，
+                # 用户以为配置生效但金额口径不是所选方式。
+                if multi_floor_pricing_type and multi_floor_pricing_type not in (
+                    "unified",
+                    "incremental",
+                ):
+                    errors.append(f"第 {row_num} 行：多楼层计费方式必须为 unified/incremental")
+                    continue
                 package_type_raw = row.get("package_type")
                 package_type = (
                     str(package_type_raw).strip() if not pd.isna(package_type_raw) else None
@@ -485,6 +497,15 @@ async def import_pricing_rules(request: Request):
                             f"第 {row_num} 行：楼层类型必须为 single/multi/single_and_multi"
                         )
                         continue
+
+                # 单价不允许为负：负单价会直接参与结算金额计算（产生负向账单），
+                # UI 表单输入框同样限制非负，导入端不应放宽。
+                if unit_price is not None and unit_price < 0:
+                    errors.append(f"第 {row_num} 行：单价不能为负数")
+                    continue
+                if additional_floor_price is not None and additional_floor_price < 0:
+                    errors.append(f"第 {row_num} 行：加层单价不能为负数")
+                    continue
 
                 # 定价内容完整性：与 UI 表单对齐（fixed 必填 unit_price，tiered 必填至少一条阶梯），
                 # 否则会静默按 0 元结算
@@ -603,7 +624,7 @@ async def download_pricing_rule_import_template(request: Request):
         "可选：单价",
         "可选：加层单价",
         "可选：unified/incremental",
-        '可选：JSON 数组，如 [{"min":1,"max":null,"price":5}]',
+        '可选：JSON 数组，如 [{"min":0,"max":null,"price":5}]（首档 min 须为 0）',
         "可选：A/B/C/D（包年必填）",
         "可选：YYYY-MM-DD",
     ]
@@ -612,10 +633,10 @@ async def download_pricing_rule_import_template(request: Request):
     for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
         ws.column_dimensions[col[0].column_letter].width = 26  # pyright: ignore[reportOptionalMemberAccess]
 
-    # 示例数据
-    ws.append(
-        [100001, "fixed", "2026-04-01", "X", "single", 10.00, None, None, None, None, "2026-12-31"]
-    )  # pyright: ignore[reportOptionalMemberAccess]
+    # 不再追加示例数据行：read_import_dataframe 只丢弃第 2 行（说明行），第 3 行会被当作
+    # 真实数据导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默创建成一条
+    # 计费规则（客户编号 100001 不存在时还会整行报错，干扰用户判断）。
+    # 如需示例，表头 + 说明行已足以指导填写。
 
     output = io.BytesIO()
     wb.save(output)
@@ -680,8 +701,11 @@ async def export_pricing_rules(request: Request):
             ),
             "tiers": _json.dumps(r.tiers, ensure_ascii=False) if r.tiers else None,
             "package_type": r.package_type,
-            "effective_date": (r.effective_date.isoformat() if r.effective_date else None),
-            "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+            # 必须按 CST 日期输出：DB 里存的是 UTC 时刻（CST 当日 00:00 -> UTC 前一日 16:00），
+            # 直接 isoformat() 会得到 "2026-03-31T16:00:00+00:00"，导入端按 str()[:10] 取日期会
+            # 得到 2026-03-31 并按 CST 重新解析 -> 导出再导入整体提前一天，往返不闭合。
+            "effective_date": utc_to_cst_date_str(r.effective_date),
+            "expiry_date": utc_to_cst_date_str(r.expiry_date),
         }
         for r in rules
     ]

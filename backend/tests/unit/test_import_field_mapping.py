@@ -1,13 +1,15 @@
 """测试导入字段映射转换函数"""
 
-from datetime import datetime
+from datetime import date, datetime
 
+import pandas as pd
 import pytest
 
 from app.services.customers import (
     convert_account_type,
     convert_bool_field,
     convert_date_field,
+    parse_date_to_object,
 )
 
 
@@ -77,3 +79,31 @@ class TestConvertDateField:
 
     def test_unparseable_returns_none(self):
         assert convert_date_field("not-a-date") is None
+
+
+class TestParseDateToObject:
+    """parse_date_to_object：Excel 日期单元格（datetime/Timestamp）应归一化为纯 date"""
+
+    def test_datetime_normalized_to_date(self):
+        # pd.read_excel 会把 Excel 日期型单元格解析为 datetime，需归一化为纯 date
+        result = parse_date_to_object(datetime(2024, 3, 15, 8, 30))
+        assert result == date(2024, 3, 15)
+        assert type(result) is date
+
+    def test_timestamp_normalized_to_date(self):
+        # pandas Timestamp 是 datetime 子类，同样需归一化
+        result = parse_date_to_object(pd.Timestamp("2024-03-15"))
+        assert result == date(2024, 3, 15)
+        assert type(result) is date
+
+    def test_date_passthrough(self):
+        result = parse_date_to_object(date(2024, 3, 15))
+        assert result == date(2024, 3, 15)
+        assert type(result) is date
+
+    def test_string_parse(self):
+        assert parse_date_to_object("2024-01-15") == date(2024, 1, 15)
+
+    def test_none_and_empty(self):
+        assert parse_date_to_object(None) is None
+        assert parse_date_to_object("") is None

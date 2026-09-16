@@ -218,7 +218,7 @@ def _parse_balance_filters(request: Request) -> dict:
     }
 
 
-async def _query_balance_rows(
+async def _query_balance_rows_raw(
     db: AsyncSession,
     filters: dict,
     sort_by: str = "customer.id",
@@ -226,8 +226,11 @@ async def _query_balance_rows(
     page: int = 1,
     page_size: int = 100,
     limit: int | None = None,
-) -> tuple[list[dict], int]:
-    """查询余额并组装行（列表与导出共用）
+) -> tuple[list, int, dict, dict]:
+    """查询余额原始数据（不含行组装），供列表与导出共用
+
+    行组装（Decimal→float、燃尽计算等纯 CPU 工作）由 _assemble_balance_rows 单独完成，
+    导出场景可在 asyncio.to_thread 中执行，避免阻塞事件循环。
 
     Args:
         filters: _parse_balance_filters 返回的筛选参数
@@ -236,7 +239,7 @@ async def _query_balance_rows(
         limit: 最大返回行数（导出用，传入时忽略分页）
 
     Returns:
-        (组装后的行 dict 列表, 匹配总数)
+        (balance ORM 对象列表, 匹配总数, 最新充值时间映射, 消费统计映射)
     """
     from sqlalchemy import func, select
     from sqlalchemy.orm import selectinload
@@ -535,6 +538,20 @@ async def _query_balance_rows(
     # 批量查询消费统计（L1 缓存）
     consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
 
+    return balances, total, last_recharge_map, consumption_stats_map
+
+
+def _assemble_balance_rows(
+    balances: list,
+    last_recharge_map: dict,
+    consumption_stats_map: dict,
+) -> list[dict]:
+    """纯 CPU 行组装：Decimal→float、属性访问与燃尽计算（可安全移入线程）
+
+    只访问已通过 selectinload 预加载的属性（Customer / CustomerProfile /
+    IndustryType 均已 eager load），不会在另一线程触发懒加载；
+    last_recharge_map / consumption_stats_map 为纯 Python dict，无 ORM 依赖。
+    """
     rows = [
         {
             "id": b.id,
@@ -567,6 +584,24 @@ async def _query_balance_rows(
         }
         for b in balances
     ]
+
+    return rows
+
+
+async def _query_balance_rows(
+    db: AsyncSession,
+    filters: dict,
+    sort_by: str = "customer.id",
+    sort_order: str = "asc",
+    page: int = 1,
+    page_size: int = 100,
+    limit: int | None = None,
+) -> tuple[list[dict], int]:
+    """查询余额并组装行（列表用，页大小 ≤ 100，行组装量小可在事件循环内完成）"""
+    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
+        db, filters, sort_by, sort_order, page, page_size, limit
+    )
+    rows = _assemble_balance_rows(balances, last_recharge_map, consumption_stats_map)
     return rows, total
 
 
@@ -637,13 +672,20 @@ async def export_balances(request: Request):
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
 
-    # 全量导出（上限 50000 条，不分页）
-    rows, total = await _query_balance_rows(
+    # 全量导出（上限 50000 条，不分页）：
+    # DB 查询（await）留在异步层，纯 CPU 的行组装移入线程，避免阻塞事件循环。
+    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
         db,
         filters,
         sort_by="customer.id",
         sort_order="asc",
         limit=50000,
+    )
+
+    # 行组装（Decimal→float、燃尽计算）是纯 CPU 工作，5 万行规模下会阻塞事件循环，
+    # 与 DataFrame/Excel 生成一起移入线程；组装只访问 selectinload 预加载的属性，安全。
+    rows = await asyncio.to_thread(
+        _assemble_balance_rows, balances, last_recharge_map, consumption_stats_map
     )
 
     if not rows:

@@ -194,7 +194,15 @@ const handleSubmit = async () => {
       Message.success(`导入成功：${res.data.success_count} 条`)
       emit('success')
     }
-    return res.data.error_count === 0
+    const hasErrors = res.data.error_count > 0
+    if (hasErrors) {
+      // 部分失败时清空已选文件：此时返回 false 会让弹窗保持打开、确认按钮恢复为
+      // 可用的「开始导入」，若不清空，用户看到错误结果后再点一次就会重复提交同一
+      // 文件 —— 余额充值会重复入账、计费规则/结算单会重复建数据。removeFile 会同时
+      // 清空 input.value，使同一文件可被重新选择并触发 change 事件。
+      removeFile()
+    }
+    return !hasErrors
   } catch (error: unknown) {
     Message.error((error as Error).message || '导入失败')
     return false

@@ -44,11 +44,23 @@ def _upload(content: bytes, name: str = "import.xlsx") -> dict:
 
 
 def _fill_template_example_row(
-    template_body: bytes, values: dict[int, object], extra_rows: list | None = None
+    template_body: bytes,
+    values: dict[int, object],
+    default_row: list | None = None,
+    extra_rows: list | None = None,
 ) -> bytes:
-    """把下载到的模板第 3 行（示例数据行）按列号改写为真实数据，用于模板回灌验证"""
+    """把下载到的模板第 3 行改写为一整行真实数据，用于模板回灌验证
+
+    各 ``import-template`` 端点已不再内嵌示例数据行（示例数据行会被
+    ``read_import_dataframe`` 当作真实数据导入），因此这里先用 ``default_row``
+    在第 3 行写入一整行合法数据，再用 ``values`` 按列号覆盖指定列，最后追加
+    ``extra_rows``。
+    """
     wb = load_workbook(io.BytesIO(template_body))
     ws = wb.active
+    if default_row:
+        for column, value in enumerate(default_row, start=1):
+            ws.cell(row=3, column=column).value = value
     for column, value in values.items():
         ws.cell(row=3, column=column).value = value
     for row in extra_rows or []:
@@ -197,6 +209,20 @@ async def test_import_pricing_rules_from_downloaded_template(
     body = _fill_template_example_row(
         template.body,
         {1: import_customer["company_id"]},
+        # 模板已不含示例行，先补一整行合法数据，再用 values 覆盖 company_id
+        default_row=[
+            100001,
+            "fixed",
+            "2026-04-01",
+            "X",
+            "single",
+            10.00,
+            None,
+            None,
+            None,
+            None,
+            "2026-12-31",
+        ],
         # 追加一条未知客户的行，位于 Excel 第 4 行
         extra_rows=[
             [999999999, "fixed", "2026-04-01", "X", "single", 12.5, None, None, None, None, None]
@@ -408,6 +434,76 @@ async def test_export_pricing_rules_success(test_client, auth_token, import_cust
 
 
 @pytest.mark.asyncio
+async def test_export_pricing_rules_date_round_trip(
+    test_client, auth_token, db_session, import_customer
+):
+    """生效日期导出后再导入不得漂移（导出必须是 CST 日期本身）
+
+    回归：导出曾直接 ``isoformat()`` 输出 UTC 时刻（CST 2026-07-01 存为
+    2026-06-30T16:00:00+00:00），导入端按 ``str(...)[:10]`` 取到 2026-06-30
+    再按 CST 解析，导出→导入整体提前一天。
+    """
+    headers = [
+        "company_id",
+        "pricing_type",
+        "effective_date",
+        "device_type",
+        "layer_type",
+        "unit_price",
+    ]
+    await test_client.post(
+        "/api/v1/billing/pricing-rules/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(
+            _xlsx(
+                headers,
+                [[import_customer["company_id"], "fixed", "2026-07-01", "L", "single", 9.9]],
+            )
+        ),
+    )
+
+    async def _export() -> bytes:
+        _req, resp = await test_client.get(
+            "/api/v1/billing/pricing-rules/export",
+            params={"customer_id": import_customer["id"]},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert resp.status == 200
+        return resp.body
+
+    def _effective_date_cell(body: bytes) -> object:
+        ws = load_workbook(io.BytesIO(body)).active
+        columns = [cell.value for cell in ws[1]]
+        return ws.cell(row=2, column=columns.index("effective_date") + 1).value
+
+    exported = await _export()
+    # 导出的日期就是用户填写的 CST 日期，不带时间与时区
+    assert _effective_date_cell(exported) == "2026-07-01"
+
+    # 删除原规则后回灌导出的文件（否则会命中「有效期存在重叠」校验）
+    rule_id = db_session.execute(
+        text("SELECT id FROM pricing_rules WHERE customer_id = :cid AND deleted_at IS NULL"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    _request, deleted = await test_client.delete(
+        f"/api/v1/billing/pricing-rules/{rule_id}",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert deleted.status == 200
+
+    _request, reimported = await test_client.post(
+        "/api/v1/billing/pricing-rules/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(exported),
+    )
+    assert reimported.status == 200
+    assert reimported.json["data"]["success_count"] == 1
+
+    # 回灌后再次导出，日期仍是 2026-07-01（未提前一天）
+    assert _effective_date_cell(await _export()) == "2026-07-01"
+
+
+@pytest.mark.asyncio
 async def test_export_pricing_rules_forbidden_without_permission(test_client, auth_token):
     """计费规则导出：缺少权限返回 403"""
     with _no_permissions():
@@ -443,7 +539,23 @@ async def test_import_package_plans_from_downloaded_template(test_client, auth_t
         "/api/v1/billing/package-plans/import-template",
         headers={"Authorization": f"Bearer {auth_token}"},
     )
-    body = _fill_template_example_row(template.body, {1: f"模板套餐_{suffix}", 2: ptype})
+    body = _fill_template_example_row(
+        template.body,
+        {1: f"模板套餐_{suffix}", 2: ptype},
+        # 模板已不含示例行，先补一整行合法数据，再用 values 覆盖 name/package_type
+        default_row=[
+            "A 套餐",
+            "A",
+            50000.00,
+            "X",
+            "single",
+            "否",
+            10000,
+            5.00,
+            "示例套餐",
+            "active",
+        ],
+    )
 
     try:
         _request, response = await test_client.post(
