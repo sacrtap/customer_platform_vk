@@ -373,3 +373,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 16: 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一
+<!-- trellis-session: v=2 fp=a1efc468b7818758 -->
+
+**Date**: 2026-09-17
+**Task**: 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+定位并修复 09-16 验收暴露的四个遗留缺陷。主因：cleanup_temp_files 每日以存储根为 os.walk 起点且无排除规则，把 7 天前的业务文件当临时文件删除（DB 实测 5 条 completed 记录中 4 条文件缺失，不一致率 80%）；修复为物理收缩到 uploads/temp/ 子树并补软链接防御与启动期相对路径告警。次要：pricing_rules.tiers 契约冲突（导入写数组、结算读对象必 500）收敛为数组单一形态并建立前后端各一归一化 owner；min_quantity/threshold 键名残留清除；补 max>=min、price>=0 关系校验避免静默错值。后端 8 处用户可见折扣文案统一为减免（保留模板必填/可选前缀与列序）。前端三份 tiers 解析合并为单一实现。门禁：pytest 874 passed 覆盖率 58%、ruff check/format、pnpm type-check 全绿；浏览器实跑三处阶梯渲染正确。spec 更新 backend/file-storage.md（新增临时文件清理边界契约并修正事故根因归因）与 guides/cross-layer-thinking-guide.md（两处反面案例标注修复）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a619eda` | fix(billing): 修复清理任务误删业务凭证、tiers 契约冲突与文案不一致 |
+
+### Status
+
+[OK] **Completed**
