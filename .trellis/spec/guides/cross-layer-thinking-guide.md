@@ -146,6 +146,75 @@ This meant users could not filter by `pending_ops` or `pending_sales` status, an
 
 ---
 
+## Semantic Rename Propagation (文案/字段语义重命名)
+
+当把一个**面向用户的术语**改名（如「折扣」→「减免」、「客户」→「账户」），改动几乎从不只在一处。
+
+### Checklist: 术语重命名后必须全栈检索旧词
+
+- [ ] `grep -rn "<旧词>" frontend/src/` — 前端 UI 文案、提示语、表头
+- [ ] `grep -rn "<旧词>" backend/app/` — **导出表头、导入模板说明、导入校验错误文案**、日志/审计
+- [ ] 检查 `backend/app/routes/**/import-template` 与 `/export` 生成的**列名/说明行**（用户在 Excel 里直接看到）
+- [ ] 检查 `backend/scripts/seed.py` 等数据初始化文案
+- [ ] 注释/docstring 单独确认（可接受保留，但要有意为之而非遗漏）
+- [ ] 把「旧词残留」写进测试：导出/导入模板文案断言（见下）
+
+> **关键区分**：AC 写「详情页和列表页显示『减免金额』」时，**范围限定在前端**。后端导出/导入文案属于**另一层**，
+> 若不同步，会出现「前端叫减免、导出的 Excel 表头叫折扣」——同一份文件里两套术语。
+
+### Real-world example (2026-09-16)
+
+09-02 把「折扣」重构为「减免」（允许负值=加价），前端全部改完（`grep 折扣|折后 frontend/src` 为 0），
+但后端仍存 8 处：
+
+| 位置 | 内容 | 用户可见性 |
+|---|---|---|
+| `routes/billing/invoices.py:1259` | 导出表头「折扣金额」 | **用户可见**（下载的 Excel） |
+| `routes/billing/invoices.py:1365`、`:1595` | 导入模板说明文案 | **用户可见** |
+| `routes/billing/invoices.py:1473`、`:1476`、`:1479` | 导入校验行级错误文案 | **用户可见** |
+| `models/billing.py:126`、`middleware/audit.py:91` | 注释 | 不可见 |
+
+结果：**同一份导出文件，前端列表列头是「减免金额」，Excel 表头是「折扣金额」**。8 处中 6 处面向用户。
+
+**教训**：术语重命名的 grep 必须覆盖**后端生成用户可见文本**的位置（导出/模板/错误文案），而不是只 grep 前端。
+
+---
+
+## Widening vs Narrowing Parser (同一结构的宽严解析不一致)
+
+同一个字段/结构，**两端解析宽容度不同**时，宽的一端能写出的数据，严的一端会崩。
+
+### Checklist: 结构形态有多副本时
+
+- [ ] 找全该结构的**所有**解析点：`grep -rn "<字段名>" frontend/src backend/app`
+- [ ] 若某端做多种形态兼容（`Array.isArray(x) || x.ranges`），说明**历史或他处确实产生过多种形态** → 另一端必须同样兼容，或统一归一化
+- [ ] 归一化收敛到**单一 owner 函数**，而非每个消费点各自 `try/except`
+- [ ] 严的一端对异形输入必须**可控失败**（4xx + 可读文案），不得裸抛异常变成 500
+
+### Real-world example (2026-09-16)
+
+`pricing_rules.tiers` 字段：
+
+```typescript
+// 前端 frontend/src/utils/invoiceFormatters.ts —— 宽容：两种形态都认
+export function parseTiers(raw: unknown): TierRange[] {
+  if (Array.isArray(raw)) arr = raw
+  else if (typeof raw === 'object' && Array.isArray(raw.ranges)) arr = raw.ranges
+}
+```
+
+```python
+# 后端 backend/app/services/billing.py —— 严格：只认对象
+ranges = tiers.get("ranges", [])   # tiers 若是 list → AttributeError → HTTP 500
+```
+
+后果：把 `tiers` 写成裸数组（前端可见形态之一）时，`calculate-items` 返回 **500** 而非 400/降级为 0。
+两端对同一字段的「合法形态」定义不同，且无归一化 owner。
+
+**正确方向**：定义一次（如后端 Pydantic 模型 + 前端同一归一化函数），两端共用；异形输入返回 `40002` 类业务错误。
+
+---
+
 ## Cross-Platform Template Consistency
 
 In Trellis, command templates (e.g., `record-session.md`) exist in **multiple platforms** with identical or near-identical content. This is a cross-layer boundary.

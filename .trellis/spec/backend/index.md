@@ -15,6 +15,7 @@ Before writing backend code, read and follow:
 - [ ] [Quality Guidelines](./quality-guidelines.md) — testing (unit/integration), forbidden patterns
 - [ ] [Analytics Forecast](./analytics-forecast.md) — 预测消费接口/算法/数据字段契约
 - [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单
+- [ ] [File Storage](./file-storage.md) — `FILE_STORAGE_PATH` 解析规则、相对路径语义、DB 状态与磁盘实体一致性
 
 ---
 

@@ -36,6 +36,8 @@ These guides help you **ask the right questions before coding**.
 - [ ] You're not sure where to put some logic
 - [ ] You are adding an event kind, JSONL record, RPC payload, or config field
 - [ ] UI / command code starts casting raw payload fields directly
+- [ ] **You are renaming a user-facing term (「折扣」→「减免」) — grep BOTH frontend and backend templates/exports**
+- [ ] **You are parsing a structure that another layer also parses — check both parsers' tolerance**
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
 
