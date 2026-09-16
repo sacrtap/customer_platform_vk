@@ -14,6 +14,7 @@ Before writing backend code, read and follow:
 - [ ] [Database Guidelines](./database-guidelines.md) — `request.ctx.db_session`, soft delete, cache invalidation
 - [ ] [Quality Guidelines](./quality-guidelines.md) — testing (unit/integration), forbidden patterns
 - [ ] [Analytics Forecast](./analytics-forecast.md) — 预测消费接口/算法/数据字段契约
+- [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单
 
 ---
 
@@ -29,6 +30,8 @@ Before writing backend code, read and follow:
 | Testing | pytest + pytest-asyncio (unit/integration/e2e) | `backend/tests/` |
 | Migrations | Alembic (`backend/alembic/versions/`) | `backend/alembic/` |
 | Cache | Redis via `cache_service` singleton | `backend/app/cache/base.py` |
+| Batch import | `read_import_dataframe()` → 行级错误 `{success_count, error_count, errors[:10]}` | `backend/app/utils/excel_import.py` |
+| Batch export | 复用列表查询函数 + `limit=50000`，空数据 `40002` | `backend/app/routes/billing/balances.py` |
 
 ---
 
