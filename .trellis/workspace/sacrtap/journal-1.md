@@ -351,3 +351,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 15: 结算单两任务验收与归档（09-02 / 09-03）
+<!-- trellis-session: v=2 fp=5bb021c8faf5fc2c -->
+
+**Date**: 2026-09-16
+**Task**: 结算单两任务验收与归档（09-02 / 09-03）
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+逐条验收 09-02（7 AC）与 09-03（10 AC）共 17 项 AC，全部通过；期间发现并修复 3 处缺陷：detail-logs 端点因未预加载关系抛 MissingGreenlet 导致 500、生成结算单弹窗重开后客户输入框未清空、列表页与提交提示残留「折扣」文案；同步沉淀 2 条 spec 惯例（异步 ORM 关系序列化必须预加载、受控显示文本组件需 :key 重建）；两份 prd 的 AC 已回写并归档两个历史任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f82ba1` | fix(billing): 修复明细日志 500、弹窗客户清空与减免文案残留 |
+
+### Status
+
+[OK] **Completed**

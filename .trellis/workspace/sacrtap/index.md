@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-09-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~353 | Active |
+| `journal-1.md` | ~375 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-09-16 | 结算单两任务验收与归档（09-02 / 09-03） | `8f82ba1` | `feature/import-export-optimization` |
 | 14 | 2026-09-16 | 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷 | `f94e54a` | `feature/import-export-optimization` |
 | 12 | 2026-09-16 | 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建 | `76f71fc` | `feature/import-export-optimization` |
 | 11 | 2026-09-16 | 导入导出功能优化：结算页面补齐导入导出与权限码细粒度拆分 | `043d2a5`, `f5b3cdf` | `feature/import-export-optimization` |
