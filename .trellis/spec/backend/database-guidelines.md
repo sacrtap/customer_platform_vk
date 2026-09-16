@@ -125,6 +125,35 @@ await cache_service.invalidate_billing_cache()
 
 ---
 
+## Redis Hash Key Encoding
+
+[来源: Bug fix 2026-09-16 — `SyncTaskService.get_progress` 在真实 Redis 路径下所有字段静默取默认值]
+
+`CacheService._get_redis()` 固定以 `decode_responses=True` 创建客户端（`backend/app/cache/base.py`）：
+
+```python
+redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+```
+
+因此 `hgetall()` 返回的 dict **键是 `str`、值也是 `str`**。读取时必须用 **str 键**：
+
+```python
+# WRONG — 键不匹配，静默返回 None → 所有字段取默认值（不抛异常，最难排查）
+data = await redis.hgetall(key)
+status = data.get(b"status", "")      # 永远拿不到真实值
+
+# CORRECT — str 键，与 decode_responses=True 一致
+status = data.get("status", "")
+
+# 需要兼容两种客户端配置时，显式回退
+def raw(name: str):
+    return data.get(name, data.get(name.encode()))
+```
+
+> **Warning**: 键不匹配**不会抛异常**，只会静默取默认值。若读取端为字段设了默认值（如 `""`、`0`），故障表现是「数据恒为空」而非报错 —— 这类问题只能靠回归测试（如 `tests/services/test_sync_task_service.py::TestGetProgress::test_get_progress_from_redis_str_keys`）守住。
+
+---
+
 ## AsyncSession Concurrency Constraint
 
 **CRITICAL**: `AsyncSession` does NOT support concurrent `execute()` calls on the same session instance.

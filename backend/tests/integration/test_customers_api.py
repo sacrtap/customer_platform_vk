@@ -21,6 +21,8 @@ import bcrypt
 import pytest
 from sqlalchemy import text
 
+from app.cache.base import cache_service
+
 
 @pytest.fixture
 async def auth_token(test_client, test_user):
@@ -1545,6 +1547,7 @@ async def test_list_customers_by_industry_real_estate_erp(test_client, auth_head
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
     # 插入行业类型
     db_session.execute(
@@ -1648,6 +1651,7 @@ async def test_list_customers_by_industry_real_estate_erp(test_client, auth_head
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
 
 @pytest.mark.asyncio
@@ -1657,6 +1661,7 @@ async def test_list_customers_by_industry_erp_empty(test_client, auth_headers, d
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
     # 插入行业类型但不插入房产ERP的任何客户
     db_session.execute(
@@ -1692,6 +1697,7 @@ async def test_list_customers_by_industry_erp_empty(test_client, auth_headers, d
     db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
 
 @pytest.mark.asyncio

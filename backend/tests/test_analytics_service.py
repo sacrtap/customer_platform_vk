@@ -503,11 +503,11 @@ class TestGetInvoiceStatusStats:
         )
 
         assert len(result) == 4
-        assert result[0]["status"] == "draft"
+        assert result[0]["name"] == "draft"
         assert result[0]["count"] == 5
         assert result[0]["total_amount"] == 5000.00
-        assert result[1]["status"] == "pending_customer"
-        assert result[2]["status"] == "paid"
+        assert result[1]["name"] == "pending_customer"
+        assert result[2]["name"] == "paid"
 
     async def test_get_invoice_status_stats_empty(self, analytics_service):
         """测试空结果"""
@@ -547,14 +547,12 @@ class TestGetCustomerHealthStats:
         """测试获取客户健康度统计成功"""
         service, mock_db = analytics_service
 
-        # 模拟 2 次查询：stats 聚合 + churn 计数
-        stats_row = MagicMock()
-        stats_row.total_count = 100
-        stats_row.active_count = 50
-        stats_row.warning_count = 10
+        # 模拟 4 次查询：active_count + total_count + warning_count + churn_count
         mock_db.execute.side_effect = [
-            make_mock_execute_result([stats_row]),  # stats 聚合查询
-            make_mock_execute_result([], scalar_value=15),  # churn 计数
+            make_mock_execute_result([], scalar_value=50),  # active_count
+            make_mock_execute_result([], scalar_value=100),  # total_count
+            make_mock_execute_result([], scalar_value=10),  # warning_count
+            make_mock_execute_result([], scalar_value=15),  # churn_count
         ]
 
         result = await service.get_customer_health_stats()
@@ -570,13 +568,12 @@ class TestGetCustomerHealthStats:
         """测试无最近消耗客户（全部为流失风险）"""
         service, mock_db = analytics_service
 
-        stats_row = MagicMock()
-        stats_row.total_count = 50
-        stats_row.active_count = 30
-        stats_row.warning_count = 5
+        # 模拟 4 次查询：active_count + total_count + warning_count + churn_count
         mock_db.execute.side_effect = [
-            make_mock_execute_result([stats_row]),  # stats 聚合查询
-            make_mock_execute_result([], scalar_value=20),  # churn 计数
+            make_mock_execute_result([], scalar_value=30),  # active_count
+            make_mock_execute_result([], scalar_value=50),  # total_count
+            make_mock_execute_result([], scalar_value=5),  # warning_count
+            make_mock_execute_result([], scalar_value=20),  # churn_count
         ]
 
         result = await service.get_customer_health_stats()
@@ -589,13 +586,12 @@ class TestGetCustomerHealthStats:
         """测试所有客户最近都有消耗（无流失风险）"""
         service, mock_db = analytics_service
 
-        stats_row = MagicMock()
-        stats_row.total_count = 50
-        stats_row.active_count = 30
-        stats_row.warning_count = 5
+        # 模拟 4 次查询：active_count + total_count + warning_count + churn_count
         mock_db.execute.side_effect = [
-            make_mock_execute_result([stats_row]),  # stats 聚合查询
-            make_mock_execute_result([], scalar_value=0),  # churn 计数
+            make_mock_execute_result([], scalar_value=30),  # active_count
+            make_mock_execute_result([], scalar_value=50),  # total_count
+            make_mock_execute_result([], scalar_value=5),  # warning_count
+            make_mock_execute_result([], scalar_value=0),  # churn_count
         ]
 
         result = await service.get_customer_health_stats()
@@ -606,13 +602,12 @@ class TestGetCustomerHealthStats:
         """测试总客户数为 0 的情况"""
         service, mock_db = analytics_service
 
-        stats_row = MagicMock()
-        stats_row.total_count = 0
-        stats_row.active_count = 0
-        stats_row.warning_count = 0
+        # 模拟 4 次查询：active_count + total_count + warning_count + churn_count
         mock_db.execute.side_effect = [
-            make_mock_execute_result([stats_row]),  # stats 聚合查询
-            make_mock_execute_result([], scalar_value=0),  # churn 计数
+            make_mock_execute_result([], scalar_value=0),  # active_count
+            make_mock_execute_result([], scalar_value=0),  # total_count
+            make_mock_execute_result([], scalar_value=0),  # warning_count
+            make_mock_execute_result([], scalar_value=0),  # churn_count
         ]
 
         result = await service.get_customer_health_stats()
@@ -798,6 +793,7 @@ class TestGetRealEstateStats:
         mock_db.execute.side_effect = [
             make_mock_execute_result([], scalar_value=100),  # total
             make_mock_execute_result([], scalar_value=40),  # real_estate
+            make_mock_execute_result([], scalar_value=0),  # profile_count
         ]
 
         result = await service.get_real_estate_stats()
@@ -810,10 +806,10 @@ class TestGetRealEstateStats:
     async def test_get_real_estate_stats_zero_total(self, analytics_service):
         """测试总客户数为 0"""
         service, mock_db = analytics_service
-
         mock_db.execute.side_effect = [
             make_mock_execute_result([], scalar_value=0),  # total
             make_mock_execute_result([], scalar_value=0),  # real_estate
+            make_mock_execute_result([], scalar_value=0),  # profile_count
         ]
 
         result = await service.get_real_estate_stats()
@@ -883,17 +879,20 @@ class TestPredictMonthlyPayment:
         """测试预测月度回款成功"""
         service, mock_db = analytics_service
 
-        # 定价规则查询结果
-        pricing_rows = [
-            (1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None),
+        # predict_monthly_payment 执行单次联合查询（DailyConsumption 子查询 + JOIN Customer/PricingRule）
+        # 返回行包含: customer_id, customer_name, company_id, device_type, total_cost, total_orders, pricing_type
+        mock_rows = [
+            {
+                "customer_id": 1,
+                "customer_name": "客户 A",
+                "company_id": "COMP001",
+                "device_type": "X",
+                "total_cost": Decimal("1000"),
+                "total_orders": 1000,
+                "pricing_type": "fixed",
+            }
         ]
-        # 用量查询结果
-        usage_rows = [{"device_type": "X", "total_cost": Decimal("1000")}]
-
-        mock_db.execute.side_effect = [
-            make_mock_execute_result(pricing_rows),  # 定价规则
-            make_mock_execute_result(usage_rows),  # 用量
-        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
         result = await service.predict_monthly_payment(year=2026, month=4)
 
@@ -909,13 +908,18 @@ class TestPredictMonthlyPayment:
         """测试按客户 ID 筛选预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [(1, "客户 A", "COMP001", "X", "fixed", Decimal("10.00"), None, None)]
-        usage_rows = [{"device_type": "X", "total_cost": Decimal("500")}]
-
-        mock_db.execute.side_effect = [
-            make_mock_execute_result(pricing_rows),
-            make_mock_execute_result(usage_rows),
+        mock_rows = [
+            {
+                "customer_id": 1,
+                "customer_name": "客户 A",
+                "company_id": "COMP001",
+                "device_type": "X",
+                "total_cost": Decimal("500"),
+                "total_orders": 500,
+                "pricing_type": "fixed",
+            }
         ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
         result = await service.predict_monthly_payment(year=2026, month=4, customer_id=1)
 
@@ -937,35 +941,40 @@ class TestPredictMonthlyPayment:
         """测试阶梯定价预测"""
         service, mock_db = analytics_service
 
-        tiers = [
-            {"threshold": 100, "price": 10},
-            {"threshold": 500, "price": 8},
+        mock_rows = [
+            {
+                "customer_id": 1,
+                "customer_name": "客户 A",
+                "company_id": "COMP001",
+                "device_type": "X",
+                "total_cost": Decimal("600"),
+                "total_orders": 600,
+                "pricing_type": "tiered",
+            }
         ]
-        pricing_rows = [(1, "客户 A", "COMP001", "X", "tiered", Decimal("5.00"), tiers, None)]
-        usage_rows = [{"device_type": "X", "total_cost": Decimal("600")}]
-
-        mock_db.execute.side_effect = [
-            make_mock_execute_result(pricing_rows),
-            make_mock_execute_result(usage_rows),
-        ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
         result = await service.predict_monthly_payment(year=2026, month=4)
 
         assert len(result) == 1
-        # 100 * 10 + 500 * 8 = 1000 + 4000 = 5000
         assert result[0]["predicted_amount"] == 600.00  # 直接用 total_cost
 
     async def test_predict_monthly_payment_package_pricing(self, analytics_service):
         """测试套餐定价预测"""
         service, mock_db = analytics_service
 
-        pricing_rows = [(1, "客户 A", "COMP001", "L", "package", Decimal("0"), None, "A")]
-        usage_rows = [{"device_type": "L", "total_cost": Decimal("1000")}]
-
-        mock_db.execute.side_effect = [
-            make_mock_execute_result(pricing_rows),
-            make_mock_execute_result(usage_rows),
+        mock_rows = [
+            {
+                "customer_id": 1,
+                "customer_name": "客户 A",
+                "company_id": "COMP001",
+                "device_type": "L",
+                "total_cost": Decimal("1000"),
+                "total_orders": 1000,
+                "pricing_type": "package",
+            }
         ]
+        mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
         result = await service.predict_monthly_payment(year=2026, month=4)
 
@@ -1070,148 +1079,6 @@ class TestGetDashboardChartData:
                 assert len(result["payment_trend"]) == 3
                 assert result["payment_trend"][0]["invoiced"] == 10000.00
                 assert result["payment_trend"][0]["paid"] == 8000.00
-
-
-# ==================== 辅助方法测试 ====================
-
-
-class TestCalculatePredictedAmount:
-    """_calculate_predicted_amount 辅助方法测试"""
-
-    async def test_calculate_fixed_pricing(self, analytics_service):
-        """测试固定价格计算"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="fixed",
-            unit_price=10.00,
-            tiers=None,
-            package_type=None,
-            quantity=100,
-        )
-
-        assert result == 1000.00
-
-    async def test_calculate_tiered_pricing_single_tier(self, analytics_service):
-        """测试单阶梯定价计算"""
-        service, mock_db = analytics_service
-
-        tiers = [{"threshold": 500, "price": 8}]
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="tiered",
-            unit_price=10.00,
-            tiers=tiers,
-            package_type=None,
-            quantity=300,
-        )
-
-        # 300 < 500, 所以 300 * 8 = 2400
-        assert result == 2400.00
-
-    async def test_calculate_tiered_pricing_multiple_tiers(self, analytics_service):
-        """测试多阶梯定价计算"""
-        service, mock_db = analytics_service
-
-        tiers = [
-            {"threshold": 100, "price": 10},
-            {"threshold": 500, "price": 8},
-        ]
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="tiered",
-            unit_price=5.00,
-            tiers=tiers,
-            package_type=None,
-            quantity=600,
-        )
-
-        # 100 * 10 + 500 * 8 + (600-600) * 5 = 1000 + 4000 = 5000
-        assert result == 5000.00
-
-    async def test_calculate_package_pricing_type_a(self, analytics_service):
-        """测试套餐 A 定价"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="package",
-            unit_price=0,
-            tiers=None,
-            package_type="A",
-            quantity=1000,
-        )
-
-        assert result == 10000.00
-
-    async def test_calculate_package_pricing_type_b(self, analytics_service):
-        """测试套餐 B 定价"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="package",
-            unit_price=0,
-            tiers=None,
-            package_type="B",
-            quantity=1000,
-        )
-
-        assert result == 20000.00
-
-    async def test_calculate_package_pricing_type_c(self, analytics_service):
-        """测试套餐 C 定价"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="package",
-            unit_price=0,
-            tiers=None,
-            package_type="C",
-            quantity=1000,
-        )
-
-        assert result == 30000.00
-
-    async def test_calculate_package_pricing_type_d(self, analytics_service):
-        """测试套餐 D 定价"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="package",
-            unit_price=0,
-            tiers=None,
-            package_type="D",
-            quantity=1000,
-        )
-
-        assert result == 50000.00
-
-    async def test_calculate_unknown_package_type(self, analytics_service):
-        """测试未知套餐类型"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="package",
-            unit_price=0,
-            tiers=None,
-            package_type="Z",
-            quantity=1000,
-        )
-
-        assert result == 0
-
-    async def test_calculate_default_fallback(self, analytics_service):
-        """测试默认回退计算"""
-        service, mock_db = analytics_service
-
-        result = await service._calculate_predicted_amount(
-            pricing_type="unknown",
-            unit_price=15.00,
-            tiers=None,
-            package_type=None,
-            quantity=100,
-        )
-
-        assert result == 1500.00
 
 
 # ==================== 边缘情况测试 ====================

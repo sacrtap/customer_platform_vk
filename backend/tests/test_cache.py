@@ -48,27 +48,26 @@ class TestCacheServiceInit:
     def test_init_default_ttl_config(self, cache_service: CacheService):
         """测试初始化时 TTL 配置正确"""
         assert cache_service._ttl_config == {
-            "customer_list": 300,  # 5 分钟
+            "customer_list": 600,  # 10 分钟
             "customer_detail": 600,  # 10 分钟
             "tag_list": 3600,  # 1 小时
             "tag_stats": 1800,  # 30 分钟
             "analytics": 900,  # 15 分钟
-            "default": 300,  # 5 分钟
-            # 分析数据细分 TTL
-            "analytics_consumption_trend": 900,  # 15 分钟
-            "analytics_top_customers": 900,  # 15 分钟
-            "analytics_device_distribution": 900,  # 15 分钟
             "analytics_dashboard_stats": 300,  # 5 分钟
             "analytics_dashboard_chart": 900,  # 15 分钟
             "analytics_health_stats": 600,  # 10 分钟
             "analytics_health_warning": 180,  # 3 分钟
             "analytics_health_inactive": 600,  # 10 分钟
-            "analytics_invoice_status": 300,  # 5 分钟
-            "analytics_payment_analysis": 600,  # 10 分钟
             "analytics_profile": 3600,  # 1 小时
+            "analytics_invoice_status": 300,  # 5 分钟
+            "analytics_consumption_trend": 900,  # 15 分钟
+            "analytics_top_customers": 900,  # 15 分钟
+            "analytics_device_distribution": 900,  # 15 分钟
+            "analytics_payment_analysis": 600,  # 10 分钟
             "analytics_prediction": 1800,  # 30 分钟
-            # 结算数据 TTL
             "billing_pricing_rules": 3600,  # 1 小时
+            "billing_consumption": 300,  # 5 分钟（每客户每日消费聚合）
+            "default": 300,  # 5 分钟
         }
 
     def test_init_redis_none(self, cache_service: CacheService):
@@ -200,7 +199,7 @@ class TestSet:
         mock_redis.setex.assert_called_once()
         call_args = mock_redis.setex.call_args
         assert call_args[0][0] == "cache:customer_list:all"
-        assert call_args[0][1] == 300  # customer_list 的默认 TTL
+        assert call_args[0][1] == 600  # customer_list 的默认 TTL（10 分钟）
         assert json.loads(call_args[0][2]) == test_data
 
     @pytest.mark.asyncio
@@ -471,10 +470,10 @@ class TestTTLConfiguration:
     async def test_customer_list_ttl(
         self, cache_with_mock_redis: CacheService, mock_redis: AsyncMock
     ):
-        """测试客户列表 TTL 为 5 分钟"""
+        """测试客户列表 TTL 为 10 分钟"""
         await cache_with_mock_redis.set("customer_list", {"data": "test"}, "all")
         call_args = mock_redis.setex.call_args
-        assert call_args[0][1] == 300
+        assert call_args[0][1] == 600
 
     @pytest.mark.asyncio
     async def test_customer_detail_ttl(

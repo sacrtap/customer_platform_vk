@@ -93,16 +93,27 @@ class TestSortConstants:
     def test_allowed_sort_fields_contains_expected_fields(self):
         """验证排序字段白名单包含预期字段（包括新扩展的 industry, settlement_type, manager_id, sales_manager_id, is_key_customer）"""
         expected_fields = {
+            # Customer 表原生字段
             "id",
             "company_id",
             "name",
+            "account_type",
             "created_at",
             "updated_at",
-            "industry_type_id",  # 行业类型 ID (CustomerProfile 表)
-            "settlement_type",  # 结算方式 (Customer 表)
-            "manager_id",  # 运营经理 (Customer 表)
-            "sales_manager_id",  # 商务经理 (Customer 表)
-            "is_key_customer",  # 重点客户 (Customer 表)
+            "settlement_type",
+            "manager_id",
+            "sales_manager_id",
+            "is_key_customer",
+            # CustomerProfile 表字段（需 JOIN）
+            "industry_type_id",
+            "industry",
+            "scale_level",
+            "consume_level",
+            # CustomerBalance 表字段（需 JOIN）
+            "balance",
+            # 占位字段（无实际 DB 列，排序退化为按 id）
+            "usage_30d",
+            "health",
         }
         assert ALLOWED_SORT_FIELDS == expected_fields
 
@@ -464,16 +475,21 @@ class TestSortEdgeCases:
         assert len(customers) == 3
 
     @pytest.mark.asyncio
-    async def test_all_allowed_sort_fields_are_valid_customer_attributes(self):
-        """验证所有允许的排序字段都是有效字段（Customer 或 CustomerProfile 的属性）"""
-        from app.models.customers import CustomerProfile
+    async def test_all_allowed_sort_fields_are_actually_sortable(self, customer_service):
+        """白名单即契约：每个允许的排序字段都能被 get_all_customers 实际处理
 
-        for field in ALLOWED_SORT_FIELDS:
-            # industry_type_id 字段在 CustomerProfile 表中
-            if field == "industry_type_id":
-                assert hasattr(CustomerProfile, field), (
-                    f"{field} is not a valid CustomerProfile attribute"
-                )
-            else:
-                # 其他字段在 Customer 表中
-                assert hasattr(Customer, field), f"{field} is not a valid Customer attribute"
+        白名单字段跨 Customer / CustomerProfile / CustomerBalance 三张表，另有派生字段
+        （usage_30d 走 DailyConsumption 聚合子查询）与占位字段（health 退化为按 id 排序），
+        因此不能用 hasattr(Customer, field) 统一断言。这里逐个实际排序：只要
+        get_all_customers 的排序分派对白名单中的某个字段没有实现，就会抛
+        ValueError（白名单校验）或 AttributeError（getattr 兜底），测试即失败。
+        """
+        service, mock_db = customer_service
+
+        for field in sorted(ALLOWED_SORT_FIELDS):
+            mock_db.execute.return_value = make_mock_execute_result([], scalar_value=0)
+            customers, total = await service.get_all_customers(
+                page=1, page_size=10, sort_by=field, sort_order="asc"
+            )
+            assert customers == [], f"sort_by={field} 未能完成排序"
+            assert total == 0, f"sort_by={field} 未能完成计数"

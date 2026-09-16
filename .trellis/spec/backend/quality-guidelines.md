@@ -32,6 +32,7 @@ The project uses **pytest + pytest-asyncio** with three test tiers:
 
 - `tests/conftest.py` — sets env vars before any app import, clears module cache
 - `tests/integration/conftest.py` — fixtures: `sync_test_engine`, `test_user`, `db_session`, `app`, `test_client`, `mock_cache`
+- `tests/e2e/conftest.py` — 同上一组 fixture（e2e 层副本，`test_client` 用 Sanic 自带 `asgi_client`）；`mock_cache` 额外覆盖 `app.routes.sync_tasks.cache_service` 模块级引用
 - Test DB: `customer_platform_test` (PostgreSQL), Redis DB index 1
 
 ---
@@ -149,6 +150,44 @@ async def mock_cache():
     base.cache_service = original_cache
     permissions.permission_cache = original_perm_cache
 ```
+
+### 陷阱：模块级 `from ... import cache_service` 使属性替换失效
+
+[来源: Bug fix 2026-09-16 — e2e `test_full_sync_flow` 在全量会话中恒失败，单独跑却通过]
+
+替换 `base.cache_service` **属性**只对「以 `base.cache_service` 形式访问」的代码生效。若被测模块用 `from app.cache.base import cache_service` **导入时绑定名字**，替换对其无效 —— 端点仍拿到真实 `CacheService` 并连真实 Redis：
+
+```python
+# 被测代码（app/routes/sync_tasks.py）
+from app.cache.base import cache_service          # 导入时绑定
+redis_client = await cache_service._get_redis()   # 属性替换影响不到这里
+
+# 测试 fixture（仅替换属性 → 对上面的引用无效）
+base.cache_service = mock_cache
+```
+
+**是否暴露取决于导入时机**：若某个测试文件在**收集阶段**提前导入 `app.routes` 包（例如 `from app.routes.users import upload_avatar`），绑定发生在 fixture 替换**之前** → mock 失效；否则绑定在替换之后 → mock 侥幸生效。这正是「单独跑通过、全量跑失败」类隔离问题的典型成因。
+
+**修复**：fixture 必须显式覆盖端点真正引用的模块属性，并在 teardown 还原：
+
+```python
+from app.routes import sync_tasks as sync_tasks_routes
+
+original_routes_cache = sync_tasks_routes.cache_service
+sync_tasks_routes.cache_service = mock_cache
+yield mock_cache
+sync_tasks_routes.cache_service = original_routes_cache
+```
+
+**排查手法**：二分定位触发文件（`pytest <可疑测试文件> <目标测试>`），再用临时探针打印 `type(模块.cache_service).__name__` 确认 mock 是否生效，最后移除探针。
+
+### 陷阱：子层 conftest 不得强制覆盖 `JWT_SECRET`
+
+[来源: Bug fix 2026-09-16 — 全量会话中 e2e 登录成功但请求仍 401]
+
+`app/config.py` 的 `settings` 是**模块级单例**（`lru_cache`）。`tests/conftest.py` 以 `os.environ.setdefault("JWT_SECRET", "test-secret-key")` 设定基线后，子层 conftest（`integration/`、`e2e/`）**不得**再强制赋值不同密钥：全量会话中两者都会被导入，最后加载者胜出 → 「签发用 A、验证用 B」→ 401。
+
+子层 conftest 只应设置**本层独有**的变量（如 `WEBHOOK_SECRET`）。
 
 ---
 

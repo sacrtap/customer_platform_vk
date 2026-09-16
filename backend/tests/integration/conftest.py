@@ -13,8 +13,10 @@
 import os
 import sys
 
-# 强制设置固定的 JWT_SECRET 和 WEBHOOK_SECRET
-os.environ["JWT_SECRET"] = "integration_test_jwt_secret_key_fixed_12345678"
+# JWT_SECRET 统一由 tests/conftest.py 设置（setdefault "test-secret-key"），此处不得强制覆盖：
+# 全量 pytest 会话中 integration/ 与 e2e/ 的 conftest 都会被加载，而 app.config.settings
+# 是模块级单例（lru_cache）；各自设置不同密钥会导致「签发用 A、验证用 B」→ 401。
+# WEBHOOK_SECRET 仅本层需要，保留强制设置。
 os.environ["WEBHOOK_SECRET"] = "integration_test_webhook_secret_key_fixed_12345678"
 
 # 清除所有可能的 settings 缓存

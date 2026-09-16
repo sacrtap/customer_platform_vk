@@ -133,13 +133,12 @@ async def sample_invoice(db_session: AsyncSession, sample_customer: Customer) ->
 async def sample_pricing_rule(db_session: AsyncSession, sample_customer: Customer) -> PricingRule:
     """创建测试定价规则"""
     pricing_rule = PricingRule(
-        name="测试定价规则",
-        device_type="server",
-        layer_type="standard",
-        price_type="unit",
+        customer_id=sample_customer.id,
+        device_type="X",
+        layer_type="single",
+        pricing_type="fixed",
         unit_price=Decimal("100.00"),
-        effective_from=date(2026, 1, 1),
-        is_active=True,
+        effective_date=date(2026, 1, 1),
     )
     db_session.add(pricing_rule)
     await db_session.commit()
