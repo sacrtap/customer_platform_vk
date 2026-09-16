@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sanic.request import Request
-from sanic.response import json
+from sanic.response import json, raw
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -145,54 +145,35 @@ def _compute_burn_down(
     }
 
 
-@billing_bp.get("/balances")
-@auth_required
-@require_permission("billing:view")
-async def get_balances(request: Request):
-    """获取余额列表（支持服务端筛选、排序和分页）"""
-    db: AsyncSession = request.ctx.db_session
+def _parse_balance_filters(request: Request) -> dict:
+    """解析余额列表/导出共用的筛选参数（含类型转换与校验）
 
-    from sqlalchemy import func, select
-    from sqlalchemy.orm import selectinload
-
-    from ...models.billing import CustomerBalance, RechargeRecord
-    from ...models.customers import Customer, CustomerProfile
-
-    # 分页参数
-    page = int(request.args.get("page", 1))
-    page_size = int(request.args.get("page_size", 20))
-    page_size = min(page_size, 100)
-
-    # 筛选参数
-    keyword = request.args.get("keyword")  # 客户名称模糊搜索
+    校验失败时抛出 ValueError（由调用方转换为 400 响应）。
+    """
+    keyword = request.args.get("keyword")
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
-
-    # 新增筛选参数
     account_type = request.args.get("account_type")
-    industry = request.args.get("industry")  # 多选逗号分隔
+    industry = request.args.get("industry")
     manager_id = int(request.args.get("manager_id")) if request.args.get("manager_id") else None
     sales_manager_id = (
         int(request.args.get("sales_manager_id")) if request.args.get("sales_manager_id") else None
     )
     recharge_date_from = request.args.get("recharge_date_from")
     recharge_date_to = request.args.get("recharge_date_to")
-    tag_ids = request.args.get("tag_ids")  # 多选逗号分隔
+    tag_ids = request.args.get("tag_ids")
+
     is_key_customer = request.args.get("is_key_customer")
     if is_key_customer is not None and is_key_customer.strip() != "":
         if is_key_customer.lower() not in ("true", "false"):
-            return json(
-                {"code": 40001, "message": "is_key_customer 参数必须为 'true' 或 'false'"},
-                status=400,
-            )
+            raise ValueError("is_key_customer 参数必须为 'true' 或 'false'")
         is_key_customer = is_key_customer.lower() == "true"
+    else:
+        is_key_customer = None
 
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None and is_real_estate.strip() != "":
         if is_real_estate.lower() not in ("true", "false"):
-            return json(
-                {"code": 40001, "message": "is_real_estate 参数必须为 'true' 或 'false'"},
-                status=400,
-            )
+            raise ValueError("is_real_estate 参数必须为 'true' 或 'false'")
         is_real_estate = is_real_estate.lower() == "true"
     else:
         is_real_estate = None
@@ -201,7 +182,6 @@ async def get_balances(request: Request):
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
 
-    # 余额范围筛选
     balance_min = (
         float(request.args.get("balance_min")) if request.args.get("balance_min") else None
     )
@@ -209,11 +189,64 @@ async def get_balances(request: Request):
         float(request.args.get("balance_max")) if request.args.get("balance_max") else None
     )
 
-    # 排序参数
-    sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
-    sort_order = request.args.get("sort_order", "asc")
-    if sort_order not in ("asc", "desc"):
-        sort_order = "asc"
+    return {
+        "keyword": keyword,
+        "customer_id": customer_id,
+        "account_type": account_type,
+        "industry": industry,
+        "manager_id": manager_id,
+        "sales_manager_id": sales_manager_id,
+        "recharge_date_from": recharge_date_from,
+        "recharge_date_to": recharge_date_to,
+        "tag_ids": tag_ids,
+        "is_key_customer": is_key_customer,
+        "is_real_estate": is_real_estate,
+        "settlement_type": settlement_type,
+        "balance_min": balance_min,
+        "balance_max": balance_max,
+    }
+
+
+async def _query_balance_rows(
+    db: AsyncSession,
+    filters: dict,
+    sort_by: str = "customer.id",
+    sort_order: str = "asc",
+    page: int = 1,
+    page_size: int = 100,
+    limit: int | None = None,
+) -> tuple[list[dict], int]:
+    """查询余额并组装行（列表与导出共用）
+
+    Args:
+        filters: _parse_balance_filters 返回的筛选参数
+        sort_by / sort_order: 排序字段与方向
+        page / page_size: 分页参数（limit 为 None 时生效）
+        limit: 最大返回行数（导出用，传入时忽略分页）
+
+    Returns:
+        (组装后的行 dict 列表, 匹配总数)
+    """
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
+
+    from ...models.billing import CustomerBalance, RechargeRecord
+    from ...models.customers import Customer, CustomerProfile
+
+    keyword = filters["keyword"]
+    customer_id = filters["customer_id"]
+    account_type = filters["account_type"]
+    industry = filters["industry"]
+    manager_id = filters["manager_id"]
+    sales_manager_id = filters["sales_manager_id"]
+    recharge_date_from = filters["recharge_date_from"]
+    recharge_date_to = filters["recharge_date_to"]
+    tag_ids = filters["tag_ids"]
+    is_key_customer = filters["is_key_customer"]
+    is_real_estate = filters["is_real_estate"]
+    settlement_type = filters["settlement_type"]
+    balance_min = filters["balance_min"]
+    balance_max = filters["balance_max"]
 
     # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
     sort_field_map = {
@@ -496,13 +529,16 @@ async def get_balances(request: Request):
         # 默认排序：按客户 ID 升序
         base_stmt = base_stmt.order_by(Customer.id.asc())
 
-    # 分页查询
+    # 分页/限制查询
     stmt = base_stmt.options(
         selectinload(CustomerBalance.customer)
         .selectinload(Customer.profile)
         .selectinload(CustomerProfile.industry_type)
     )
-    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
     balances = result.scalars().all()
@@ -527,49 +563,159 @@ async def get_balances(request: Request):
     # 批量查询消费统计（L1 缓存）
     consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
 
+    rows = [
+        {
+            "id": b.id,
+            "customer_id": b.customer_id,
+            "company_id": b.customer.company_id if b.customer else None,
+            "customer_name": b.customer.name if b.customer else None,
+            "account_type": b.customer.account_type if b.customer else None,
+            "industry_type": b.customer.profile.industry_type.name
+            if b.customer and b.customer.profile and b.customer.profile.industry_type
+            else None,
+            "settlement_type": (b.customer.settlement_type if b.customer else None),
+            "is_key_customer": (b.customer.is_key_customer if b.customer else False),
+            "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "last_recharge_at": (
+                last_recharge_map[b.customer_id].isoformat()
+                if b.customer_id in last_recharge_map and last_recharge_map[b.customer_id]
+                else None
+            ),
+            **_compute_burn_down(
+                real_amount=float(b.real_amount) if b.real_amount else 0,
+                bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
+                settlement_type=b.customer.settlement_type if b.customer else None,
+                stats=consumption_stats_map.get(b.customer_id),
+            ),
+        }
+        for b in balances
+    ]
+    return rows, total
+
+
+@billing_bp.get("/balances")
+@auth_required
+@require_permission("billing:view")
+async def get_balances(request: Request):
+    """获取余额列表（支持服务端筛选、排序和分页）"""
+    db: AsyncSession = request.ctx.db_session
+
+    # 分页参数
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+    page_size = min(page_size, 100)
+
+    # 筛选参数（统一解析与校验）
+    try:
+        filters = _parse_balance_filters(request)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 排序参数
+    sort_by = request.args.get("sort_by", "customer.id")
+    sort_order = request.args.get("sort_order", "asc")
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
+
+    rows, total = await _query_balance_rows(
+        db,
+        filters,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+    )
+
     return json(
         {
             "code": 0,
             "message": "success",
             "data": {
-                "list": [
-                    {
-                        "id": b.id,
-                        "customer_id": b.customer_id,
-                        "company_id": b.customer.company_id if b.customer else None,
-                        "customer_name": b.customer.name if b.customer else None,
-                        "account_type": b.customer.account_type if b.customer else None,
-                        "industry_type": b.customer.profile.industry_type.name
-                        if b.customer and b.customer.profile and b.customer.profile.industry_type
-                        else None,
-                        "settlement_type": (b.customer.settlement_type if b.customer else None),
-                        "is_key_customer": (b.customer.is_key_customer if b.customer else False),
-                        "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "last_recharge_at": (
-                            last_recharge_map[b.customer_id].isoformat()
-                            if b.customer_id in last_recharge_map
-                            and last_recharge_map[b.customer_id]
-                            else None
-                        ),
-                        **_compute_burn_down(
-                            real_amount=float(b.real_amount) if b.real_amount else 0,
-                            bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
-                            settlement_type=b.customer.settlement_type if b.customer else None,
-                            stats=consumption_stats_map.get(b.customer_id),
-                        ),
-                    }
-                    for b in balances
-                ],
+                "list": rows,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
             },
         }
+    )
+
+
+# ==================== 余额导出 ====================
+
+
+@billing_bp.get("/balances/export")
+@auth_required
+@require_permission("billing:balance_export")
+async def export_balances(request: Request):
+    """导出余额列表为 Excel（按当前筛选条件导出全部匹配数据，上限 50000 条）"""
+    import io
+
+    import pandas as pd
+
+    db: AsyncSession = request.ctx.db_session
+
+    # 筛选参数（统一解析与校验）
+    try:
+        filters = _parse_balance_filters(request)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 全量导出（上限 50000 条，不分页）
+    rows, _ = await _query_balance_rows(
+        db,
+        filters,
+        sort_by="customer.id",
+        sort_order="asc",
+        limit=50000,
+    )
+
+    if not rows:
+        return json(
+            {"code": 40002, "message": "没有找到符合条件的余额数据"},
+            status=400,
+        )
+
+    # 组装 DataFrame（列与 BalanceTable 对齐）
+    data = [
+        {
+            "客户ID": r["company_id"],
+            "客户名称": r["customer_name"],
+            "行业": r["industry_type"],
+            "账号类型": r["account_type"],
+            "结算方式": r["settlement_type"],
+            "余额（元）": r["total_amount"],
+            "实充余额（元）": r["real_amount"],
+            "赠送余额（元）": r["bonus_amount"],
+            "已消耗（元）": r["used_total"],
+            "最新充值时间": r["last_recharge_at"],
+            "预计可支撑天数": r["days_remaining"],
+            "日均消耗（元）": r["daily_avg_cost"],
+            "消耗天数": r["consumption_days"],
+        }
+        for r in rows
+    ]
+    df = pd.DataFrame(data)
+
+    # 生成 Excel 文件
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="余额列表")
+
+    output.seek(0)
+
+    # 生成文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"balances_{timestamp}.xlsx"
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -39,7 +39,7 @@ export interface BalanceStats {
   burning_soon_count: number
 }
 
-export function getBalances(params?: {
+export interface BalanceQueryParams {
   customer_id?: number
   keyword?: string
   account_type?: string
@@ -54,11 +54,16 @@ export function getBalances(params?: {
   settlement_type?: string
   balance_min?: number
   balance_max?: number
-  sort_by?: string
-  sort_order?: string
-  page?: number
-  page_size?: number
-}) {
+}
+
+export function getBalances(
+  params?: BalanceQueryParams & {
+    sort_by?: string
+    sort_order?: string
+    page?: number
+    page_size?: number
+  }
+) {
   return api.get('/billing/balances', { params })
 }
 
@@ -565,4 +570,82 @@ export function updatePackagePlan(id: number, data: Partial<PackagePlan>) {
 
 export function deletePackagePlan(id: number) {
   return api.delete(`/billing/package-plans/${id}`)
+}
+
+// ==================== 余额导出 ====================
+
+export function exportBalances(params?: BalanceQueryParams) {
+  return api.get('/billing/balances/export', { params, responseType: 'blob' })
+}
+
+// ==================== 计费规则导入导出 ====================
+
+export function importPricingRules(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/billing/pricing-rules/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function downloadPricingRuleTemplate() {
+  return api.get('/billing/pricing-rules/import-template', {
+    responseType: 'blob',
+  })
+}
+
+export function exportPricingRules(params?: {
+  customer_id?: number
+  keyword?: string
+  device_type?: string
+  layer_type?: string
+  pricing_type?: string
+}) {
+  return api.get('/billing/pricing-rules/export', { params, responseType: 'blob' })
+}
+
+// ==================== 包年套餐导入导出 ====================
+
+export function importPackagePlans(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/billing/package-plans/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function downloadPackagePlanTemplate() {
+  return api.get('/billing/package-plans/import-template', {
+    responseType: 'blob',
+  })
+}
+
+export function exportPackagePlans(params?: {
+  keyword?: string
+  status?: string
+  is_unlimited?: string
+}) {
+  return api.get('/billing/package-plans/export', { params, responseType: 'blob' })
+}
+
+// ==================== 结算单导入 ====================
+
+export function importInvoices(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/billing/invoices/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+export function downloadInvoiceTemplate() {
+  return api.get('/billing/invoices/import-template', {
+    responseType: 'blob',
+  })
 }

@@ -3,7 +3,10 @@
     <!-- PageHeader -->
     <PageHeader eyebrow="Billing" title="结算单管理" subtitle="结算单列表、详情查看与状态流转">
       <template #actions>
-        <button v-if="can('billing:export')" class="btn" @click="handleExport">导出</button>
+        <button v-if="can('billing:invoice_import')" class="btn" @click="importModalVisible = true">
+          导入
+        </button>
+        <button v-if="can('billing:invoice_export')" class="btn" @click="handleExport">导出</button>
         <button v-if="can('billing:edit')" class="btn primary" @click="generateModalVisible = true">
           生成结算单
         </button>
@@ -271,6 +274,16 @@
       :invoice-id="selectedInvoiceId"
       @success="handlePaySuccess"
     />
+
+    <!-- 导入弹窗 -->
+    <ImportModal
+      v-model:visible="importModalVisible"
+      title="批量导入结算单"
+      :import-api="importInvoices"
+      :template-api="downloadInvoiceTemplate"
+      template-file-name="结算单导入模板.xlsx"
+      @success="loadInvoices"
+    />
   </div>
 </template>
 
@@ -283,8 +296,14 @@ import Pagination from '@/components/ui/Pagination.vue'
 import { useUserStore } from '@/stores/user'
 import { useInvoice } from '@/composables/useInvoice'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
-import { type Invoice, exportInvoices } from '@/api/billing'
+import {
+  type Invoice,
+  exportInvoices,
+  importInvoices,
+  downloadInvoiceTemplate,
+} from '@/api/billing'
 import InvoiceFilters from './components/InvoiceFilters.vue'
+import ImportModal from './components/ImportModal.vue'
 import InvoiceDetailDrawer from './components/InvoiceDetailDrawer.vue'
 import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
 import SubmitModal from './components/SubmitModal.vue'
@@ -345,6 +364,7 @@ const {
 
 const drawerVisible = ref(false)
 const generateModalVisible = ref(false)
+const importModalVisible = ref(false)
 const submitModalVisible = ref(false)
 const discountEditVisible = ref(false)
 const payModalVisible = ref(false)

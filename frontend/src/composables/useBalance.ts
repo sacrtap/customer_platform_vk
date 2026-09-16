@@ -1,7 +1,7 @@
 import { reactive, ref, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { getBalances, getBalanceStats, recharge as rechargeApi } from '@/api/billing'
-import type { Balance } from '@/api/billing'
+import type { Balance, BalanceQueryParams } from '@/api/billing'
 import { getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
@@ -171,6 +171,34 @@ export function useBalance() {
     return params
   }
 
+  // 构建余额导出的筛选参数（与列表筛选条件保持一致，不含分页与排序）
+  const buildExportParams = (): BalanceQueryParams => {
+    const params: BalanceQueryParams = {}
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.industry?.length) params.industry = filters.industry.join(',')
+    if (filters.recharge_date?.length === 2) {
+      params.recharge_date_from = filters.recharge_date[0]
+      params.recharge_date_to = filters.recharge_date[1]
+    }
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
+    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
+      params.is_real_estate = String(filters.is_real_estate)
+    }
+    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
+      params.is_key_customer = String(filters.is_key_customer)
+    }
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+
+    const rangeParams = getBalanceRangeParams()
+    if (rangeParams.balance_min != null) params.balance_min = rangeParams.balance_min
+    if (rangeParams.balance_max != null) params.balance_max = rangeParams.balance_max
+
+    return params
+  }
+
   // 加载 KPI 统计 — 单次请求获取所有 KPI 数据
   // 后端 balance-stats 接口已聚合返回全部指标（总余额、客户数、本月充值、低余额、零余额、即将耗尽）
   // 无需额外发起多次 getBalances 请求
@@ -297,6 +325,7 @@ export function useBalance() {
     hasSelected,
     loadBalances,
     loadStats,
+    buildExportParams,
     handleRefresh,
     handlePageChange,
     handlePageSizeChange,

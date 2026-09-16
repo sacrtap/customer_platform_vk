@@ -51,14 +51,20 @@ ALL_PERMISSIONS = [
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     # ============================================================
-    # 结算管理 (10)
+    # 结算管理 (16)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑结算", "修改定价规则", "billing"),
     ("billing:delete", "删除定价", "删除定价规则", "billing"),
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
-    ("billing:export", "导出账单", "导出结算数据", "billing"),
-    ("billing:import", "导入余额", "批量导入充值数据", "billing"),
+    ("billing:balance_import", "导入余额", "批量导入充值数据", "billing"),
+    ("billing:balance_export", "导出余额", "导出客户余额数据", "billing"),
+    ("billing:pricing_import", "导入计费规则", "批量导入计费规则", "billing"),
+    ("billing:pricing_export", "导出计费规则", "导出计费规则数据", "billing"),
+    ("billing:package_import", "导入包年套餐", "批量导入包年套餐", "billing"),
+    ("billing:package_export", "导出包年套餐", "导出包年套餐数据", "billing"),
+    ("billing:invoice_import", "导入结算单", "批量导入外部结算单", "billing"),
+    ("billing:invoice_export", "导出结算单", "导出结算单数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
     ("billing:pay", "结算付款", "标记付款和完成结算", "billing"),
     ("billing:ops_approve", "运营经理确认", "运营经理确认结算单（第一步）", "billing"),
@@ -134,7 +140,10 @@ PRESET_ROLES = {
             "users:view",
             "billing:view",
             "billing:edit",
-            "billing:export",
+            "billing:balance_export",
+            "billing:pricing_export",
+            "billing:package_export",
+            "billing:invoice_export",
             "billing:recharge",
             "billing:ops_approve",
             "billing:confirm",
@@ -147,7 +156,10 @@ PRESET_ROLES = {
         [
             "customers:view",
             "billing:view",
-            "billing:export",
+            "billing:balance_export",
+            "billing:pricing_export",
+            "billing:package_export",
+            "billing:invoice_export",
             "billing:sales_approve",
             "analytics:view",
         ],
@@ -246,6 +258,60 @@ def seed(reset: bool = False):
                     biz_role.permissions.append(perm)
             print(f"  ✅ {role_name} 已关联 {len(perm_codes)} 个权限")
         session.flush()
+
+        # ---- 2.6 存量权限迁移：旧粗粒度码 → 新细粒度码（等价迁移） ----
+        print("\n📋 步骤 2.6/3: 迁移存量权限绑定（旧码 → 新码）...")
+        # 旧码 → 新码等价映射（方向内全量授予，保证权限范围不缩水）
+        LEGACY_TO_NEW_PERMISSIONS = {
+            "billing:export": [
+                "billing:balance_export",
+                "billing:pricing_export",
+                "billing:package_export",
+                "billing:invoice_export",
+            ],
+            "billing:import": [
+                "billing:balance_import",
+                "billing:pricing_import",
+                "billing:package_import",
+                "billing:invoice_import",
+            ],
+        }
+        migrated_count = 0
+        all_roles = session.execute(select(Role)).scalars().all()
+        for legacy_code, new_codes in LEGACY_TO_NEW_PERMISSIONS.items():
+            for role in all_roles:
+                role_codes = {p.code for p in role.permissions}
+                if legacy_code not in role_codes:
+                    continue
+                for new_code in new_codes:
+                    new_perm = permissions.get(new_code)
+                    if new_perm and new_perm not in role.permissions:
+                        role.permissions.append(new_perm)
+                        migrated_count += 1
+        if migrated_count:
+            session.flush()
+            print(f"  ✅ 迁移完成：为 {migrated_count} 个旧权限绑定授予等价新码")
+        else:
+            print("  ⏭️  无旧权限码绑定，跳过迁移")
+
+        # ---- 2.7 清理废弃的旧权限码记录（等价授予已完成，避免权限清单出现僵尸权限） ----
+        removed_count = 0
+        for legacy_code in LEGACY_TO_NEW_PERMISSIONS:
+            legacy_perm = session.execute(
+                select(Permission).where(Permission.code == legacy_code)
+            ).scalar_one_or_none()
+            if legacy_perm is None:
+                continue
+            for role in all_roles:
+                if legacy_perm in role.permissions:
+                    role.permissions.remove(legacy_perm)
+            session.delete(legacy_perm)
+            removed_count += 1
+        if removed_count:
+            session.flush()
+            print(f"  ✅ 清理废弃权限码 {removed_count} 个")
+        else:
+            print("  ⏭️  无废弃权限码，跳过清理")
 
         # ---- 3. 创建 admin 用户并分配超级管理员角色 ----
         print("\n📋 步骤 3/3: 创建 admin 用户...")

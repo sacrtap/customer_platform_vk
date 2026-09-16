@@ -12,12 +12,13 @@ from ...middleware.auth import auth_required, get_current_user, require_permissi
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ...utils.excel_import import read_import_dataframe
 from . import billing_bp
 
 
 @billing_bp.post("/import")
 @auth_required
-@require_permission("billing:import")
+@require_permission("billing:balance_import")
 async def import_balance(request: Request):
     """
     Excel 批量充值导入
@@ -46,16 +47,8 @@ async def import_balance(request: Request):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
     try:
-        # 读取 Excel 文件
-        df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl")
-
-        # 如果第 2 行是中文说明行（模板特征），跳过它
-        if (
-            len(df) > 0
-            and isinstance(df.iloc[0].get("company_id"), (int, float, str))
-            and str(df.iloc[0].get("company_id")) in ("必填", "可选")
-        ):
-            df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1])
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
+        df = read_import_dataframe(excel_file.body, "company_id")
 
         # 必填列检查
         required_columns = ["company_id", "real_amount", "bonus_amount"]

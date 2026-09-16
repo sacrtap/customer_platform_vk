@@ -7,6 +7,17 @@
       subtitle="管理包年结算套餐明细，支持限量与不限量配置"
     >
       <template #actions>
+        <button v-if="can('billing:package_import')" class="btn" @click="importModalVisible = true">
+          导入套餐
+        </button>
+        <button
+          v-if="can('billing:package_export')"
+          class="btn"
+          :disabled="exporting"
+          @click="handleExport"
+        >
+          {{ exporting ? '导出中...' : '导出' }}
+        </button>
         <button v-if="can('billing:edit')" class="btn primary" @click="showCreateModal">
           新建套餐
         </button>
@@ -252,6 +263,16 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 导入弹窗 -->
+    <ImportModal
+      v-model:visible="importModalVisible"
+      title="批量导入包年套餐"
+      :import-api="billingApi.importPackagePlans"
+      :template-api="billingApi.downloadPackagePlanTemplate"
+      template-file-name="包年套餐导入模板.xlsx"
+      @success="fetchData"
+    />
   </div>
 </template>
 
@@ -262,6 +283,7 @@ import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import PageHeader from '@/components/PageHeader.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import ImportModal from './components/ImportModal.vue'
 import Pagination from '@/components/ui/Pagination.vue'
 
 const userStore = useUserStore()
@@ -312,6 +334,38 @@ const modalVisible = ref(false)
 const modalTitle = ref('新建套餐')
 const modalLoading = ref(false)
 const isEdit = ref(false)
+
+// --- 导入 / 导出 ---
+const importModalVisible = ref(false)
+const exporting = ref(false)
+
+// 导出包年套餐：按当前筛选条件导出全部匹配数据
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const res = await billingApi.exportPackagePlans({
+      keyword: filters.keyword || undefined,
+      status: filters.status || undefined,
+      is_unlimited: filters.is_unlimited || undefined,
+    })
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `package_plans_${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    Message.success('导出成功')
+  } catch (err: unknown) {
+    Message.error((err as Error)?.message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 const formData = reactive({
   id: null as number | null,

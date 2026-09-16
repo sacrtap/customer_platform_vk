@@ -801,6 +801,48 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
 
 
 @pytest.mark.asyncio
+async def test_import_customers_from_downloaded_template(test_client, auth_headers, db_session):
+    """测试下载的模板可直接导入：模板第 2 行中文说明行不被当作数据行"""
+    from openpyxl import load_workbook
+
+    request, template = await test_client.get(
+        "/api/v1/customers/import-template",
+        headers=auth_headers,
+    )
+    assert template.status == 200
+
+    company_id = 1000021
+    wb = load_workbook(io.BytesIO(template.body))
+    ws = wb.active
+    ws.cell(row=3, column=1).value = company_id
+    output = io.BytesIO()
+    wb.save(output)
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files={
+            "file": (
+                "template.xlsx",
+                output.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    try:
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["errors"] == []
+        assert data["success_count"] == 1
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id = :cid"), {"cid": company_id}
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_import_customers_missing_file(test_client, auth_headers):
     """测试 Excel 导入客户 - 缺少文件"""
     request, response = await test_client.post(

@@ -2,7 +2,7 @@
 
 import os
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -20,6 +20,7 @@ from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
+from ...utils.excel_import import read_import_dataframe
 from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
 
@@ -1144,7 +1145,7 @@ async def delete_invoice(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/export")
 @auth_required
-@require_permission("billing:export")
+@require_permission("billing:invoice_export")
 async def export_invoices(request: Request):
     """
     导出结算单为 Excel 文件
@@ -1340,6 +1341,276 @@ async def export_invoices(request: Request):
             "Pragma": "no-cache",
             "Expires": "0",
         },
+    )
+
+
+# ==================== 结算单导入 ====================
+
+
+@billing_bp.post("/invoices/import")
+@auth_required
+@require_permission("billing:invoice_import")
+async def import_invoices(request: Request):
+    """
+    Excel 批量导入外部/历史结算单
+
+    Form:
+    - file: Excel 文件 (.xlsx)
+
+    Excel 列要求:
+    - company_id (必填) - 客户编号
+    - period_start (必填) - 账期开始 YYYY-MM-DD
+    - period_end (必填) - 账期结束 YYYY-MM-DD
+    - total_amount (必填) - 结算金额（元，≥0）
+    - discount_amount (可选) - 折扣金额（元，默认 0）
+    - invoice_no (可选) - 结算单号，缺省自动生成
+
+    导入的结算单统一为 draft（草稿）状态，不进入确认/付款流程。
+    """
+    import random
+    import string
+
+    import pandas as pd
+    from sqlalchemy import select
+
+    from ...models.billing import Invoice
+    from ...models.customers import Customer
+
+    files = request.files
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
+        return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
+
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
+    if not excel_file.name.endswith(".xlsx"):
+        return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
+
+    db: AsyncSession = request.ctx.db_session
+
+    try:
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
+        df = read_import_dataframe(excel_file.body, "company_id")
+
+        # 必填列检查
+        required_columns = ["company_id", "period_start", "period_end", "total_amount"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return json(
+                {
+                    "code": 40003,
+                    "message": f"Excel 缺少必填列：{', '.join(missing_columns)}",
+                },
+                status=400,
+            )
+
+        # 行数限制
+        if len(df) > 1000:
+            return json(
+                {"code": 40004, "message": "单次最多导入 1000 条记录"},
+                status=400,
+            )
+
+        # 预加载客户 company_id -> customer_id 映射
+        result = await db.execute(select(Customer.id, Customer.company_id))
+        company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 预加载已存在的 invoice_no（避免随机码碰撞）
+        existing_no_result = await db.execute(select(Invoice.invoice_no))
+        existing_invoice_nos = set(existing_no_result.scalars().all())
+
+        current_user = get_current_user(request)
+        operator_id = current_user.get("user_id") if current_user else 1
+
+        errors = []
+        success_count = 0
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # Excel 行号（含表头）
+
+            try:
+                # company_id
+                company_id = row.get("company_id")
+                if pd.isna(company_id) or company_id is None:
+                    errors.append(f"第 {row_num} 行：客户编号为空")
+                    continue
+                try:
+                    company_id = int(company_id)
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
+                    continue
+                if company_id not in company_to_customer:
+                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    continue
+
+                # 账期
+                period_start_raw = row.get("period_start")
+                period_end_raw = row.get("period_end")
+                try:
+                    period_start = datetime.strptime(str(period_start_raw)[:10], "%Y-%m-%d")
+                    period_end = datetime.strptime(str(period_end_raw)[:10], "%Y-%m-%d")
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：账期格式错误（应为 YYYY-MM-DD）")
+                    continue
+                if period_end < period_start:
+                    errors.append(f"第 {row_num} 行：账期结束不能早于开始")
+                    continue
+
+                # 金额
+                total_amount_raw = row.get("total_amount")
+                try:
+                    total_amount = Decimal(str(total_amount_raw))
+                    if total_amount < 0:
+                        errors.append(f"第 {row_num} 行：结算金额不能为负数")
+                        continue
+                except (InvalidOperation, ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：结算金额格式错误")
+                    continue
+
+                discount_amount = Decimal("0")
+                discount_raw = row.get("discount_amount")
+                if discount_raw is not None and not pd.isna(discount_raw):
+                    try:
+                        discount_amount = Decimal(str(discount_raw))
+                        if discount_amount < 0:
+                            errors.append(f"第 {row_num} 行：折扣金额不能为负数")
+                            continue
+                    except (InvalidOperation, ValueError, TypeError):
+                        errors.append(f"第 {row_num} 行：折扣金额格式错误")
+                        continue
+                if discount_amount > total_amount:
+                    errors.append(f"第 {row_num} 行：折扣金额不能大于结算金额")
+                    continue
+
+                # invoice_no（可选，缺省自动生成）
+                invoice_no = None
+                invoice_no_raw = row.get("invoice_no")
+                if (
+                    invoice_no_raw is not None
+                    and not pd.isna(invoice_no_raw)
+                    and str(invoice_no_raw).strip()
+                ):
+                    invoice_no = str(invoice_no_raw).strip()
+                    if invoice_no in existing_invoice_nos:
+                        errors.append(f"第 {row_num} 行：结算单号 {invoice_no} 已存在")
+                        continue
+                else:
+                    customer_key = company_to_customer[company_id]
+                    while True:
+                        code = "".join(random.choices(string.digits, k=4))
+                        invoice_no = (
+                            f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_key}-{code}"
+                        )
+                        if invoice_no not in existing_invoice_nos:
+                            break
+
+                invoice = Invoice(
+                    invoice_no=invoice_no,
+                    customer_id=company_to_customer[company_id],
+                    period_start=period_start,
+                    period_end=period_end,
+                    total_amount=total_amount,
+                    discount_amount=discount_amount,
+                    status="draft",
+                    is_auto_generated=False,
+                    created_by=operator_id,
+                )
+                db.add(invoice)
+                await db.flush()
+                existing_invoice_nos.add(invoice_no)
+                success_count += 1
+            except Exception as e:  # 兜底，避免单行异常中断整个导入
+                import logging
+
+                logging.getLogger(__name__).warning("结算单导入第 %d 行失败: %s", row_num, e)
+                errors.append(f"第 {row_num} 行：{str(e)}")
+
+        await db.commit()
+
+        # 记录审计日志
+        from ...utils.audit_helpers import build_batch_audit_summary
+
+        summary = build_batch_audit_summary(
+            operation="invoice_import",
+            total_count=len(df),
+            success_count=success_count,
+            failed_count=len(errors),
+            details=errors[:10],
+        )
+        await create_audit_entry(
+            db_session=db,
+            user_id=operator_id,
+            action="batch_create",
+            module="billing",
+            record_id=None,
+            record_type="invoice",
+            changes={"after": {"count": success_count}},
+            operation_type="batch",
+            extra_metadata=summary,
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=True,
+        )
+
+        return json(
+            {
+                "code": 0,
+                "message": "导入完成",
+                "data": {
+                    "success_count": success_count,
+                    "error_count": len(errors),
+                    "errors": errors[:10],
+                },
+            }
+        )
+    except Exception as e:
+        return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+
+
+@billing_bp.get("/invoices/import-template")
+@auth_required
+async def download_invoice_import_template(request: Request):
+    """下载结算单导入 Excel 模板"""
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "结算单导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+
+    headers = [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ]
+    ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
+
+    notes = [
+        "必填：客户编号（整数）",
+        "必填：账期开始 YYYY-MM-DD",
+        "必填：账期结束 YYYY-MM-DD",
+        "必填：结算金额（元）",
+        "可选：折扣金额（元）",
+        "可选：结算单号，缺省自动生成",
+    ]
+    ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
+
+    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
+        ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
+
+    # 示例数据
+    ws.append([100001, "2026-04-01", "2026-04-30", 12500.50, 0, None])  # pyright: ignore[reportOptionalMemberAccess]
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="结算单导入模板.xlsx"'},
     )
 
 

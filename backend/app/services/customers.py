@@ -1094,9 +1094,9 @@ class CustomerService:
                         }
                         data["cooperation_status"] = status_map.get(cooperation_status)
 
-                # 转换日期字段
-                data["first_payment_date"] = convert_date_field(data.get("first_payment_date"))
-                data["onboarding_date"] = convert_date_field(data.get("onboarding_date"))
+                # 转换日期字段（DATE 列需要 date 对象，字符串会在 flush 时报错）
+                data["first_payment_date"] = parse_date_to_object(data.get("first_payment_date"))
+                data["onboarding_date"] = parse_date_to_object(data.get("onboarding_date"))
 
                 # 转换结算周期：中文→英文
                 settlement_cycle = data.get("settlement_cycle")

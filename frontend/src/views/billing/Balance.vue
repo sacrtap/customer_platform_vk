@@ -12,8 +12,16 @@
           <span v-else>⟳</span>
           数据刷新
         </button>
-        <button v-if="can('billing:import')" class="btn" @click="importModalVisible = true">
+        <button v-if="can('billing:balance_import')" class="btn" @click="importModalVisible = true">
           导入
+        </button>
+        <button
+          v-if="can('billing:balance_export')"
+          class="btn"
+          :disabled="exporting"
+          @click="handleExport"
+        >
+          {{ exporting ? '导出中...' : '导出' }}
         </button>
         <button v-if="can('billing:recharge')" class="btn primary" @click="openRechargeModal()">
           充值
@@ -130,7 +138,7 @@ import { onMounted, ref, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useBalance } from '@/composables/useBalance'
 import { Message, Modal } from '@arco-design/web-vue'
-import { recalculateBalance } from '@/api/billing'
+import { exportBalances, recalculateBalance } from '@/api/billing'
 import { formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/PageHeader.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
@@ -159,6 +167,7 @@ const {
   hasSelected,
   loadBalances,
   loadStats,
+  buildExportParams,
   handleRefresh,
   handlePageChange,
   handlePageSizeChange,
@@ -302,6 +311,31 @@ const handleBatchAction = (action: string) => {
 // 数据刷新：强制重新加载列表 + 统计
 const handleDataRefresh = async () => {
   await handleRefresh()
+}
+
+// 导出余额：按当前筛选条件导出全部匹配数据
+const exporting = ref(false)
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const res = await exportBalances(buildExportParams())
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `balances_${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    Message.success('导出成功')
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(() => {

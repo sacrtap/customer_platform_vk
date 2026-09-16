@@ -1,15 +1,25 @@
 """定价规则路由 — CRUD 和冲突检测"""
 
+import io
+import json as _json
+import logging
+from datetime import datetime
+
 from sanic.request import Request
-from sanic.response import json
+from sanic.response import json, raw
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...repository import PricingRepository
 from ...services.billing import PricingService
+from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ...utils.excel_import import read_import_dataframe
 from ...utils.timezone import local_date_to_utc_end, local_date_to_utc_start
 from . import billing_bp
+
+logger = logging.getLogger(__name__)
 
 
 @billing_bp.get("/pricing-rules")
@@ -275,6 +285,364 @@ async def check_pricing_rule_conflict(request: Request):
                 ],
             },
         }
+    )
+
+
+# ==================== 计费规则导入导出 ====================
+
+
+@billing_bp.post("/pricing-rules/import")
+@auth_required
+@require_permission("billing:pricing_import")
+async def import_pricing_rules(request: Request):
+    """
+    Excel 批量导入计费规则
+
+    Form:
+    - file: Excel 文件 (.xlsx)
+
+    Excel 列要求:
+    - company_id (必填) - 客户编号
+    - pricing_type (必填) - fixed/tiered/package
+    - effective_date (必填) - 生效日期 YYYY-MM-DD
+    - device_type (可选) - X/N/L（包年结算可为空）
+    - layer_type (可选) - single/multi/single_and_multi
+    - unit_price (可选) - 定价单价
+    - additional_floor_price (可选) - 加层单价
+    - multi_floor_pricing_type (可选) - unified/incremental
+    - tiers (可选) - 阶梯配置 JSON 字符串，如 [{"min":1,"max":null,"price":5}]
+    - package_type (可选) - A/B/C/D（包年结算必填）
+    - expiry_date (可选) - 失效日期 YYYY-MM-DD
+    """
+    import pandas as pd
+
+    from ...models.customers import Customer
+
+    files = request.files
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
+        return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
+
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
+    if not excel_file.name.endswith(".xlsx"):
+        return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
+
+    try:
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）
+        df = read_import_dataframe(excel_file.body, "company_id")
+
+        # 必填列检查
+        required_columns = ["company_id", "pricing_type", "effective_date"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return json(
+                {
+                    "code": 40003,
+                    "message": f"Excel 缺少必填列：{', '.join(missing_columns)}",
+                },
+                status=400,
+            )
+
+        # 行数限制
+        if len(df) > 1000:
+            return json(
+                {"code": 40004, "message": "单次最多导入 1000 条记录"},
+                status=400,
+            )
+
+        db_session: AsyncSession = request.ctx.db_session
+
+        # 预加载所有客户 company_id -> customer_id 映射
+        result = await db_session.execute(select(Customer.id, Customer.company_id))
+        company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        current_user = get_current_user(request)
+        operator_id = current_user.get("user_id") if current_user else 1
+
+        pricing_service = PricingService(PricingRepository(db_session))
+
+        # 逐行校验并创建
+        errors = []
+        success_count = 0
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # Excel 行号（含表头）
+
+            try:
+                # 校验 company_id
+                company_id = row.get("company_id")
+                if pd.isna(company_id) or company_id is None:
+                    errors.append(f"第 {row_num} 行：客户编号为空")
+                    continue
+                try:
+                    company_id = int(company_id)
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
+                    continue
+                if company_id not in company_to_customer:
+                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    continue
+
+                # 校验 pricing_type
+                pricing_type = str(row.get("pricing_type", "")).strip().lower()
+                if pricing_type not in ("fixed", "tiered", "package"):
+                    errors.append(f"第 {row_num} 行：计费类型必须为 fixed/tiered/package")
+                    continue
+
+                # 校验 effective_date
+                effective_date_raw = row.get("effective_date")
+                if pd.isna(effective_date_raw) or effective_date_raw is None:
+                    errors.append(f"第 {row_num} 行：生效日期为空")
+                    continue
+                try:
+                    effective_date = local_date_to_utc_start(str(effective_date_raw)[:10])
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：生效日期格式错误")
+                    continue
+
+                # 可选字段
+                device_type_raw = row.get("device_type")
+                device_type = str(device_type_raw).strip() if not pd.isna(device_type_raw) else None
+                layer_type_raw = row.get("layer_type")
+                layer_type = str(layer_type_raw).strip() if not pd.isna(layer_type_raw) else None
+                unit_price_raw = row.get("unit_price")
+                unit_price = float(unit_price_raw) if not pd.isna(unit_price_raw) else None
+                additional_floor_price_raw = row.get("additional_floor_price")
+                additional_floor_price = (
+                    float(additional_floor_price_raw)
+                    if not pd.isna(additional_floor_price_raw)
+                    else None
+                )
+                multi_floor_pricing_type_raw = row.get("multi_floor_pricing_type")
+                multi_floor_pricing_type = (
+                    str(multi_floor_pricing_type_raw).strip()
+                    if not pd.isna(multi_floor_pricing_type_raw)
+                    else None
+                )
+                package_type_raw = row.get("package_type")
+                package_type = (
+                    str(package_type_raw).strip() if not pd.isna(package_type_raw) else None
+                )
+
+                # tiers JSON 解析
+                tiers = None
+                tiers_raw = row.get("tiers")
+                if tiers_raw is not None and not pd.isna(tiers_raw):
+                    try:
+                        tiers = _json.loads(tiers_raw) if isinstance(tiers_raw, str) else tiers_raw
+                        if not isinstance(tiers, list):
+                            raise ValueError("tiers 必须是数组")
+                    except (ValueError, TypeError) as e:
+                        errors.append(f"第 {row_num} 行：阶梯配置 JSON 格式错误：{e}")
+                        continue
+
+                # expiry_date
+                expiry_date = None
+                expiry_date_raw = row.get("expiry_date")
+                if expiry_date_raw is not None and not pd.isna(expiry_date_raw):
+                    try:
+                        expiry_date = local_date_to_utc_end(str(expiry_date_raw)[:10])
+                    except (ValueError, TypeError):
+                        errors.append(f"第 {row_num} 行：失效日期格式错误")
+                        continue
+
+                # 包年结算必填 package_type
+                if pricing_type == "package" and not package_type:
+                    errors.append(f"第 {row_num} 行：包年结算必须填写套餐类型")
+                    continue
+
+                rule_data = {
+                    "customer_id": company_to_customer[company_id],
+                    "pricing_type": pricing_type,
+                    "effective_date": effective_date,
+                    "expiry_date": expiry_date,
+                    "device_type": device_type,
+                    "layer_type": layer_type,
+                    "unit_price": unit_price,
+                    "additional_floor_price": additional_floor_price,
+                    "multi_floor_pricing_type": multi_floor_pricing_type,
+                    "tiers": tiers,
+                    "package_type": package_type,
+                    "created_by": operator_id,
+                }
+
+                await pricing_service.create_pricing_rule(rule_data)
+                success_count += 1
+            except ValueError as e:
+                errors.append(f"第 {row_num} 行：{str(e)}")
+            except Exception as e:  # 兜底，避免单行异常中断整个导入
+                logger.warning("计费规则导入第 %d 行失败: %s", row_num, e)
+                errors.append(f"第 {row_num} 行：{str(e)}")
+
+        # 清除计费规则相关缓存
+        await cache_service.invalidate_billing_cache()
+
+        # 记录审计日志
+        summary = build_batch_audit_summary(
+            operation="pricing_rule_import",
+            total_count=len(df),
+            success_count=success_count,
+            failed_count=len(errors),
+            details=errors[:10],
+        )
+
+        await create_audit_entry(
+            db_session=db_session,
+            user_id=operator_id,
+            action="batch_create",
+            module="billing",
+            record_id=None,
+            record_type="pricing_rule",
+            changes={"after": {"count": success_count}},
+            operation_type="batch",
+            extra_metadata=summary,
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=True,
+        )
+
+        return json(
+            {
+                "code": 0,
+                "message": "导入完成",
+                "data": {
+                    "success_count": success_count,
+                    "error_count": len(errors),
+                    "errors": errors[:10],
+                },
+            }
+        )
+    except Exception as e:
+        return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+
+
+@billing_bp.get("/pricing-rules/import-template")
+@auth_required
+async def download_pricing_rule_import_template(request: Request):
+    """下载计费规则导入 Excel 模板"""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "计费规则导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+
+    headers = [
+        "company_id",
+        "pricing_type",
+        "effective_date",
+        "device_type",
+        "layer_type",
+        "unit_price",
+        "additional_floor_price",
+        "multi_floor_pricing_type",
+        "tiers",
+        "package_type",
+        "expiry_date",
+    ]
+    ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
+
+    notes = [
+        "必填：客户编号（整数）",
+        "必填：fixed/tiered/package",
+        "必填：YYYY-MM-DD",
+        "可选：X/N/L（包年可为空）",
+        "可选：single/multi/single_and_multi",
+        "可选：单价",
+        "可选：加层单价",
+        "可选：unified/incremental",
+        '可选：JSON 数组，如 [{"min":1,"max":null,"price":5}]',
+        "可选：A/B/C/D（包年必填）",
+        "可选：YYYY-MM-DD",
+    ]
+    ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
+
+    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
+        ws.column_dimensions[col[0].column_letter].width = 26  # pyright: ignore[reportOptionalMemberAccess]
+
+    # 示例数据
+    ws.append(
+        [100001, "fixed", "2026-04-01", "X", "single", 10.00, None, None, None, None, "2026-12-31"]
+    )  # pyright: ignore[reportOptionalMemberAccess]
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="计费规则导入模板.xlsx"'},
+    )
+
+
+@billing_bp.get("/pricing-rules/export")
+@auth_required
+@require_permission("billing:pricing_export")
+async def export_pricing_rules(request: Request):
+    """导出计费规则为 Excel（按当前筛选条件导出全部匹配数据，上限 50000 条）"""
+    import pandas as pd
+
+    db: AsyncSession = request.ctx.db_session
+    pricing_service = PricingService(PricingRepository(db))
+
+    # 筛选参数（与列表页一致）
+    customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
+    keyword = request.args.get("keyword")
+    device_type = request.args.get("device_type")
+    layer_type = request.args.get("layer_type")
+    pricing_type = request.args.get("pricing_type")
+
+    rules, _total = await pricing_service.get_pricing_rules(
+        customer_id=customer_id,
+        keyword=keyword,
+        device_type=device_type,
+        layer_type=layer_type,
+        pricing_type=pricing_type,
+        page=1,
+        page_size=50000,
+    )
+
+    if not rules:
+        return json(
+            {"code": 40002, "message": "没有找到符合条件的计费规则"},
+            status=400,
+        )
+
+    # 组装 DataFrame（列与列表对齐）
+    data = [
+        {
+            "id": r.id,
+            "customer_id": r.customer_id,
+            "customer_name": r.customer.name if r.customer else None,
+            "device_type": r.device_type,
+            "layer_type": r.layer_type or "single",
+            "pricing_type": r.pricing_type,
+            "unit_price": float(r.unit_price) if r.unit_price else None,
+            "multi_floor_pricing_type": r.multi_floor_pricing_type,
+            "additional_floor_price": (
+                float(r.additional_floor_price) if r.additional_floor_price else None
+            ),
+            "tiers": _json.dumps(r.tiers, ensure_ascii=False) if r.tiers else None,
+            "package_type": r.package_type,
+            "effective_date": (r.effective_date.isoformat() if r.effective_date else None),
+            "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,
+        }
+        for r in rules
+    ]
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="计费规则")
+
+    output.seek(0)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"pricing_rules_{timestamp}.xlsx"
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
