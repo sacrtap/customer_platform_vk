@@ -32,12 +32,11 @@ vi.mock('@/api/analytics', () => ({
       month_consumption: 500000,
     },
   }),
-  getDashboardChartData: vi.fn().mockResolvedValue({
+  getDashboardTrend: vi.fn().mockResolvedValue({
     data: {
-      consumption_trend: [
-        { period: '2024-01', total_amount: 100000 },
-        { period: '2024-02', total_amount: 120000 },
-      ],
+      dates: ['2024-01', '2024-02'],
+      values: [100000, 120000],
+      metric: 'consumption',
     },
   }),
   getPendingTasks: vi.fn().mockResolvedValue({
