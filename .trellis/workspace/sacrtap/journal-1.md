@@ -313,3 +313,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 19: 运营工作台页面功能修复（3 个显示问题）
+<!-- trellis-session: v=2 fp=b5bb8d3dd491ab6c -->
+
+**Date**: 2026-09-18
+**Task**: 运营工作台页面功能修复（3 个显示问题）
+**Branch**: `feature/dashboard-visual-fixes`
+
+### Summary
+
+修复运营工作台 3 个问题：1)「异常与待办」宽度——hero grid 子项 min-width:0 恢复 1.35fr/0.65fr（800/385px），根因 echarts canvas 固定宽撑破 fr 轨道；2)「经营趋势」图表空白——前端改按 tab 请求 /dashboard/trend（consumption 用 DailyConsumption 真实数据，payment 修 list.get 500，customer_count/health 补真实源），tab 切换数据源+空态文案；3)「今日优先跟进客户」表格空——后端 risk_customers 键不存在改为 get_risk_customers 真实查询（余额覆盖不足+流失风险）。AC1-AC8 全通过（浏览器实测+接口验证），全量测试 835 passed 与基线一致无新增回归。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `38d43e1` | feat(analytics): 新增消耗趋势/客户数趋势/风险客户服务方法（Dashboard 数据源） |
+| `7c4b03b` | fix(analytics): 修复 dashboard/trend 各 metric 与 priority-customers 风险客户数据源 |
+| `e82c325` | fix(dashboard): 经营趋势按 tab 切换数据源、hero 宽度修复、优先跟进表格空态 |
+
+### Status
+
+[OK] **Completed**
