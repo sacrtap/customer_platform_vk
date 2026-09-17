@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "验收需对照该指南新章节的检查清单：转发规则逐入口核对 + Content-Type 断言"}
+{"file": "frontend/vite.config.ts", "reason": "本次唯一代码改动点（proxy 增加 /uploads 转发）"}
