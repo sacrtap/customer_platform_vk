@@ -284,3 +284,32 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 18: 同步日志执行信息优化与定时同步配置化
+<!-- trellis-session: v=2 fp=8d717d52ed24607f -->
+
+**Date**: 2026-09-18
+**Task**: 同步日志执行信息优化与定时同步配置化
+**Branch**: `feature/sync-execution-info`
+
+### Summary
+
+同步日志「错误信息」列改为「执行信息」三态（警告/正常/错误）+明细Drawer（含客户ID/名称）；定时任务合并为每日自动同步（原01:00订单+01:30费用），纳入同步日志页配置（开关/时间/模式，权限system:sync_schedule仅超管）；遗留/consumption/sync统一进任务链路。AC1-AC10全量实证通过（浏览器+接口）；发现并修复2个缺陷（迁移缺created_at/updated_at/deleted_at列、local_yesterday_utc_start().date()取UTC日期致同步前天而非昨天）。全量测试835 passed（28+3为既有失败）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `23a0a1d` | feat(sync): 新增执行明细与定时配置迁移（建表/operator_id可空/权限） |
+| `7fcbce5` | feat(sync): 新增 SyncTaskLogDetail/SyncScheduleConfig 模型与 SyncDetail DTO |
+| `ba889b8` | feat(sync): 订单同步与费用计算注入 detail_collector 埋点（警告/错误/成功聚合） |
+| `f6df04f` | feat(sync): 任务服务支持明细收集落库/三态回退/计数聚合/operator可空 |
+| `afdabbb` | feat(sync): 执行明细接口/定时配置接口(权限隔离)/遗留 consumption/sync 纳入任务链路 |
+| `1fcedd1` | feat(sync): 定时任务合并为每日自动同步并支持动态配置注册（删除旧任务文件） |
+| `dccd38e` | feat(sync): 同步日志页执行信息三态/明细Drawer/定时配置区（权限隔离） |
+| `fc0c766` | test(sync): 新增明细落库/三态回退/接口权限测试并适配既有断言 |
+
+### Status
+
+[OK] **Completed**
