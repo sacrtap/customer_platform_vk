@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.customers import Customer
 from app.models.daily_order import DailyOrder
-from app.services.dto import SyncResult
+from app.services.dto import SyncDetail, SyncResult
 
 logger = logging.getLogger(__name__)
 
@@ -54,14 +54,33 @@ class OrderSyncService:
 
         return config
 
-    async def sync_orders(self, sync_date: datetime) -> SyncResult:
+    async def sync_orders(
+        self, sync_date: datetime, detail_collector: Optional[List[SyncDetail]] = None
+    ) -> SyncResult:
         """同步指定日期的订单
 
         如果外部数据源连接失败，异常会向上传播，由调用方（execute_task）的
         逐天异常处理器捕获并记录 failed_count。
+
+        Args:
+            sync_date: 同步日期（UTC datetime）
+            detail_collector: 可选执行明细收集器（注入后记录同步过程明细，
+                默认 None 不记录，行为与旧版一致）
         """
         # 1. 获取订单（异常时向上传播，不吞掉错误）
-        orders = await self._fetch_orders(sync_date)
+        try:
+            orders = await self._fetch_orders(sync_date)
+        except Exception as e:
+            if detail_collector is not None:
+                detail_collector.append(
+                    SyncDetail(
+                        sync_date=sync_date.date(),
+                        level="error",
+                        category="order_fetch",
+                        message=f"外部数据源拉取订单失败: {type(e).__name__}: {e}",
+                    )
+                )
+            raise
 
         if not orders:
             return SyncResult(
@@ -72,7 +91,9 @@ class OrderSyncService:
         await self._clear_orders(sync_date)
 
         # 3. 匹配客户并保存
-        return await self._match_and_save(orders=orders, sync_date=sync_date)
+        return await self._match_and_save(
+            orders=orders, sync_date=sync_date, detail_collector=detail_collector
+        )
 
     async def _fetch_orders(self, sync_date: datetime) -> List[Dict]:
         """从外部 MySQL 获取订单
@@ -206,13 +227,32 @@ class OrderSyncService:
         await self.db.commit()
         logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
 
-    async def _match_and_save(self, orders: List[Dict], sync_date: datetime) -> SyncResult:
+    async def _match_and_save(
+        self,
+        orders: List[Dict],
+        sync_date: datetime,
+        detail_collector: Optional[List[SyncDetail]] = None,
+    ) -> SyncResult:
         """匹配客户并保存订单"""
         result = SyncResult()
         saved_orders = []  # 收集成功保存的订单
         seen_keys = set()  # 内存级去重，防止同一 (order_code, sync_date) 重复插入
+        # 成功明细按客户聚合：customer_id -> {"customer_name", "count"}
+        success_by_customer: Dict[int, Dict[str, Any]] = {}
 
         # 注意：清空逻辑已移至 sync_orders 入口
+
+        def _emit(level: str, category: str, message: str, **kwargs) -> None:
+            if detail_collector is not None:
+                detail_collector.append(
+                    SyncDetail(
+                        sync_date=sync_date.date(),
+                        level=level,
+                        category=category,
+                        message=message,
+                        **kwargs,
+                    )
+                )
 
         for order in orders:
             order_code = order.get("order_code")
@@ -227,6 +267,19 @@ class OrderSyncService:
                 customer = await self._match_customer(order)
                 if customer is None:
                     result.unmatched += 1
+                    _emit(
+                        "warning",
+                        "order_match",
+                        "订单未匹配到内部客户（外部客户ID={}，公司名={}）".format(
+                            order.get("group_type") or "未知",
+                            order.get("company_name") or "未知",
+                        ),
+                        external_customer_id=str(order.get("group_type"))
+                        if order.get("group_type") is not None
+                        else None,
+                        company_name=order.get("company_name"),
+                        order_code=order_code,
+                    )
                     continue
 
                 # 检查订单是否已存在（使用与唯一约束一致的字段）
@@ -262,10 +315,26 @@ class OrderSyncService:
                 saved_orders.append(daily_order)
                 result.success += 1
 
+                # 成功明细按客户聚合
+                if customer.id in success_by_customer:
+                    success_by_customer[customer.id]["count"] += 1
+                else:
+                    success_by_customer[customer.id] = {
+                        "customer_name": customer.name,
+                        "count": 1,
+                    }
+
             except Exception as e:
                 # 捕获匹配客户时的异常
                 logger.error("处理订单失败 %s: %s", order_code, e)
                 result.failed += 1
+                _emit(
+                    "error",
+                    "order_save",
+                    f"订单处理失败: {type(e).__name__}: {e}",
+                    company_name=order.get("company_name"),
+                    order_code=order_code,
+                )
 
         # 统一提交所有成功的订单
         if saved_orders:
@@ -279,6 +348,23 @@ class OrderSyncService:
                 # 将已成功的订单标记为失败
                 result.failed += len(saved_orders)
                 result.success -= len(saved_orders)
+                _emit(
+                    "error",
+                    "order_save",
+                    f"批量提交 {len(saved_orders)} 条订单失败: {type(e).__name__}: {e}",
+                )
+                success_by_customer.clear()
+
+        # 成功明细按客户生成 info 记录
+        for customer_id, agg in success_by_customer.items():
+            _emit(
+                "info",
+                "order_save",
+                f"成功同步 {agg['count']} 条订单",
+                customer_id=customer_id,
+                customer_name=agg["customer_name"],
+                record_count=agg["count"],
+            )
 
         # 设置结果消息
         if result.failed > 0 and result.success > 0:
