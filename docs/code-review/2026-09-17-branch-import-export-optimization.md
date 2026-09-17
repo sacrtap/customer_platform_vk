@@ -1089,6 +1089,8 @@ pytest tests/test_analytics_service.py -k "health_score"    -> 5 passed
 - **不解决**：存量脏规则行为不变（少收依旧），只防新增。
 - **风险**：低。
 
+> **状态：用户已确认，按 B + C 落地，实现与证据见 §13.3。**
+
 **方案 C — 维持现状 + 文档化**
 
 - 零风险；已在 `tiers.py` docstring 用实测数据记录真实语义（含两种形态的差异）。
@@ -1096,3 +1098,62 @@ pytest tests/test_analytics_service.py -k "health_score"    -> 5 passed
 
 **建议**：**B + C** —— B 阻断新脏数据（前端与模板已一致，无回归），C 让现行语义可追溯；
 A 需你方先确认「首档 `min > 0` 的业务口径」以及**是否需要重算历史账期**，再单独排期。
+
+### 13.3 方案 B + C 已落地 —— 写入侧拒绝首档 `min ≠ 0`
+
+**代码**
+
+| 文件 | 变更 |
+|---|---|
+| `app/utils/tiers.py` | `_validate_tier_coverage` 增加首档校验 `tiers[0]["min"] != 0` → `TierFormatError`；docstring 由「不强制首档 min=0」改写为实际约束（含 §13.2 实测数据，即方案 C） |
+| `app/utils/tiers.py` | 新增 `validate_tiers_or_raise(raw)`：规则写入路径入口，归一化 + 覆盖校验，`None` 保持 `None`（与 `normalize_tiers` 语义一致） |
+| `app/utils/tiers.py` | `parse_tiers_or_raise` 拆分为「形态错误 → 阶梯配置 JSON 格式错误」/「语义错误 → 阶梯配置不合法」，避免语义问题被误导到 JSON 语法 |
+| `app/services/billing.py` | `create_pricing_rule` / `update_pricing_rule` 两处 `normalize_tiers` → `validate_tiers_or_raise`（这两个方法是全仓**唯一**的 `tiers` 写入点） |
+| `app/routes/billing/pricing.py` | 规则 Body 文档示例 `min:1` → `min:0`；修正引用旧文案的注释 |
+
+**覆盖范围核对**：`grep "tiers=" app/` 仅命中 `billing.py:619/704`（均在 `create_pricing_rule` 内，已过校验）；
+导入路径经 `parse_tiers_or_raise` → `_validate_tier_coverage` 同样受约束。前端 `PricingRuleModal.getTierError`
+（`:485` `if (idx === 0 && tier.min !== 0) return '首阶梯最小用量必须为 0'`）本就拦截，故无 UX 回归。
+
+**既有测试数据迁移**（新约束下失效的用例，全部改为 `min=0`，语义不变）：
+
+- `tests/unit/test_tiers_validation.py`：参数化夹具 `_tiers` 由 `min=1` 起改为 `min=0` 起（原先 6 条用例会撞上新约束）；
+- `tests/integration/test_billing_import_export_api.py:387`（阶梯导入正向用例）、`:1113`（设备类型非法行的附带 tiers）；
+- `scripts/generate_test_data.py`：首档本就是 0，但相邻档写成 `0..100 / 100..500 / 500..None`（区间重叠，
+  它直连 ORM 绕过校验）→ 一并改为 `101 起 / 501 起`，使本地造数与写入侧校验保持同一形态；
+
+**新增用例**
+
+```
+tests/unit/test_tiers_validation.py
+  + 参数化新增「首档-min-非-0-单档 / 多档」两条（断言拒绝且文案为「首档阶梯 min 必须为 0」）
+  + TestValidateTiersOrRaise：None→None、合法归一化、首档 min≠0 拒绝、区间不连续拒绝、非法形态拒绝
+tests/integration/test_billing_import_export_api.py
+  + test_import_pricing_rules_rejects_non_zero_first_tier_min
+    （同一文件两行：min=5 报「第 2 行：…首档阶梯 min 必须为 0」，min=0 成功导入 → success_count=1/error_count=1）
+tests/integration/test_billing_api.py
+  + pricing_rule_customer 夹具（独立客户 + 清理；定价规则对 customers 有外键，凭空构造 id 会 500）
+  + test_create_pricing_rule_rejects_non_zero_first_tier_min（400 / 40001）
+  + test_update_pricing_rule_rejects_non_zero_first_tier_min（400 / 40001，且复读规则确认原 tiers 未被改写）
+```
+
+**规格沉淀**：`.trellis/spec/backend/import-export.md` 的「Validation & Error Matrix」补 `tiers` 形态/语义
+两类错误码归属，「Wrong vs Correct」新增第 4 条（`normalize_tiers` vs `validate_tiers_or_raise`）。
+
+**验证证据**
+
+```
+pytest tests/unit/test_tiers_validation.py                                   -> 13 passed
+pytest tests/integration/test_billing_import_export_api.py -k tiered        -> 2 passed
+pytest tests/integration/test_billing_api.py                                 -> 48 passed
+
+# 后端全量 + 覆盖率门禁（覆盖 §13.1 与 §13.3 全部改动）
+$ cd backend && .venv/bin/python -m pytest tests/ --cov=app --cov-fail-under=50 -q -p no:randomly
+TOTAL                                        10641   4424    58%
+Required test coverage of 50% reached. Total coverage: 58.42%
+================ 906 passed, 490 warnings in 406.74s (0:06:46) =================
+exit=0        # 用例数演进：894（§十二 末轮）→ 896（§13.1 方案 B）→ 906（本节）
+```
+
+**未做（明确排除）**：存量脏规则的迁移与历史金额重算（属方案 A，需业务口径 + 单独排期）；
+`cost_calc._calc_tiered` / `InvoiceService._calculate_tiered_price` 的计算逻辑未改（行为与历史一致）。

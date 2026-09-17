@@ -117,6 +117,9 @@ GET  /api/v1/billing/invoices/import-template
 | 非包年计费规则（`pricing_type != package`）缺 `device_type` / `layer_type` | 行级错误：`第 N 行：设备类型不能为空（非包年结算必填）`；`layer_type` 对应 `第 N 行：楼层类型不能为空（非包年结算必填）` |
 | 非包年规则取值越界：`device_type` ∉ {`X`,`N`,`L`}、`layer_type` ∉ {`single`,`multi`,`single_and_multi`} | 行级错误：`第 N 行：设备类型必须为 X/N/L` / `第 N 行：楼层类型必须为 single/multi/single_and_multi` |
 | `package_type` 重复（含软删除比对） | 行级错误 |
+| 计费规则 `tiers` 形态非法（非数组 / 元素缺字段） | 行级错误：`第 N 行：阶梯配置 JSON 格式错误：…` |
+| 计费规则 `tiers` 语义非法（首档 `min` ≠ 0、相邻档区间不连续、非末档无上界） | 行级错误：`第 N 行：阶梯配置不合法：…`；
+创建/编辑规则（`POST`/`PUT /pricing-rules`）同约束 → `400` / `40001` |
 | 计费规则冲突（package/single overlap） | 行级错误（由服务层 `create_pricing_rule` 抛出） |
 | 导出无匹配数据 | `40002` |
 
@@ -188,6 +191,25 @@ try:
 except (ValueError, TypeError, InvalidOperation):
     errors.append(f"第 {idx + 2} 行：基础费用格式错误")
 ```
+
+### 4. 阶梯配置（`tiers`）写入
+
+```python
+# ❌ Wrong：只做形态归一化就落库 → 首档 min>0 / 区间缺口/重叠的脏规则进入结算
+#    _calc_tiered 不减去首档 min 偏移：超档用量落到更便宜的下一档（静默少收，
+#    实测 [5..100 @10, 101..∞ @8] 用量 100 得 992，等价 min=0 应为 1000）；
+#    单档无上界时 min 完全不参与计算
+data["tiers"] = normalize_tiers(data["tiers"])
+
+# ✅ Correct：规则创建/编辑走 validate_tiers_or_raise（归一化 + 覆盖完整性，None 保持 None）
+from app.utils.tiers import validate_tiers_or_raise
+
+data["tiers"] = validate_tiers_or_raise(data["tiers"])
+```
+
+Excel 导入路径用 `parse_tiers_or_raise(parsed, row_num=...)`（同样校验，并翻译为行级文案）。
+前端 `PricingRuleModal.getTierError` 已强制首档 `min=0`，后端只是把该约束下沉统一把关；
+**存量脏数据不迁移、历史金额不重算**（改口径需单独排期）。
 
 ---
 

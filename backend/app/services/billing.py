@@ -36,7 +36,7 @@ from ..repository import (
     InvoiceRepositoryProtocol,
     PricingRepositoryProtocol,
 )
-from ..utils.tiers import normalize_tiers
+from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
 
 logger = logging.getLogger(__name__)
 
@@ -543,11 +543,11 @@ class PricingService:
 
         包年结算（pricing_type='package'）时，device_type 和 layer_type 可为 None。
         """
-        # tiers 归一化：全链路唯一形态为数组（见 utils/tiers.py）。
-        # 非法形态在此可控失败（TierFormatError 是 ValueError 子类，路由层转 40001），
+        # tiers 归一化 + 覆盖完整性校验：全链路唯一形态为数组（见 utils/tiers.py）。
+        # 非法形态/非法语义在此可控失败（TierFormatError 是 ValueError 子类，路由层转 40001），
         # 避免脏数据落库后把失败推迟到结算计算。
         if data.get("tiers") is not None:
-            data["tiers"] = normalize_tiers(data["tiers"])
+            data["tiers"] = validate_tiers_or_raise(data["tiers"])
 
         customer_id = data.get("customer_id")
         pricing_type = data["pricing_type"]
@@ -725,9 +725,9 @@ class PricingService:
         if not rule:
             return None
 
-        # tiers 归一化：与 create_pricing_rule 同一约束（唯一形态为数组）
+        # tiers 归一化 + 覆盖完整性校验：与 create_pricing_rule 同一约束（唯一形态为数组）
         if data.get("tiers") is not None:
-            data["tiers"] = normalize_tiers(data["tiers"])
+            data["tiers"] = validate_tiers_or_raise(data["tiers"])
 
         # 检查是否需要重叠校验
         overlap_fields = {

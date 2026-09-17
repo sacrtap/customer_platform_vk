@@ -56,9 +56,11 @@ async def generate_test_data():
                 pricing_type="tiered",  # 阶梯定价
                 unit_price=Decimal("100.00"),
                 tiers=[
+                    # 区间必须连续无重叠（101 起、501 起）：本脚本直连 ORM 绕过校验，
+                    # 但产物须与写入侧校验保持同一形态，否则本地数据无法通过任何 API 复现
                     {"min": 0, "max": 100, "price": 10.00},
-                    {"min": 100, "max": 500, "price": 8.00},
-                    {"min": 500, "max": None, "price": 6.00},
+                    {"min": 101, "max": 500, "price": 8.00},
+                    {"min": 501, "max": None, "price": 6.00},
                 ],
                 effective_date=local_date_to_utc_start(
                     (date.today() - timedelta(days=365)).isoformat()

@@ -384,7 +384,7 @@ async def test_import_pricing_rules_tiered(test_client, auth_token, db_session, 
             8.0,
             None,
             None,
-            '[{"min": 1, "max": 100, "price": 8}, {"min": 101, "max": null, "price": 6}]',
+            '[{"min": 0, "max": 100, "price": 8}, {"min": 101, "max": null, "price": 6}]',
             None,
             None,
         ]
@@ -437,6 +437,62 @@ async def test_import_pricing_rules_invalid_tiers_json(test_client, auth_token, 
     assert response.status == 200
     assert response.json["data"]["error_count"] == 1
     assert "阶梯配置" in response.json["data"]["errors"][0]
+
+
+@pytest.mark.asyncio
+async def test_import_pricing_rules_rejects_non_zero_first_tier_min(
+    test_client, auth_token, import_customer
+):
+    """计费规则导入：首档 min 非 0 产生行级错误并拒绝落库
+
+    `cost_calc._calc_tiered` 不减去首档 min 偏移，首档 min>0 时超档用量会落到更便宜的
+    下一档（静默少收）、单档无上界时 min 完全不参与计算，故写入侧必须拒绝。
+    """
+    headers = [
+        "company_id",
+        "pricing_type",
+        "effective_date",
+        "device_type",
+        "layer_type",
+        "unit_price",
+        "tiers",
+    ]
+    rows = [
+        # 首档 min=5 → 不合法
+        [
+            import_customer["company_id"],
+            "tiered",
+            "2026-06-01",
+            "X",
+            "single",
+            None,
+            '[{"min": 5, "max": 100, "price": 10}, {"min": 101, "max": null, "price": 8}]',
+        ],
+        # 首档 min=0 → 合法
+        [
+            import_customer["company_id"],
+            "tiered",
+            "2026-06-01",
+            "X",
+            "single",
+            None,
+            '[{"min": 0, "max": 100, "price": 10}, {"min": 101, "max": null, "price": 8}]',
+        ],
+    ]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/pricing-rules/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows)),
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1
+    assert data["error_count"] == 1
+    error = data["errors"][0]
+    assert "首档阶梯 min 必须为 0" in error
+    assert error.startswith("第 2 行：")  # 第 1 行是说明行，数据行号为 Excel 行号
 
 
 @pytest.mark.asyncio
@@ -1110,7 +1166,7 @@ async def test_import_pricing_rules_requires_device_and_layer_for_non_package(
             None,
             None,
             None,
-            '[{"min":1,"max":null,"price":5}]',
+            '[{"min":0,"max":null,"price":5}]',
             None,
             None,
         ],

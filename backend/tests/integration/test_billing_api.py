@@ -1492,6 +1492,117 @@ async def test_create_pricing_rule(test_client, auth_token):
     assert data["data"]["pricing_type"] == "fixed"
 
 
+@pytest.fixture
+def pricing_rule_customer(db_session):
+    """创建独立客户供定价规则写入用例使用（返回 customer_id）
+
+    必须真实落库：定价规则对 customers 有外键约束，凭空构造的 id 会在写库时报 500。
+    独立客户同时避免与其他用例的规则发生同客户重叠冲突。
+    """
+    customer_id = _unique_customer_id(99000)
+    db_session.execute(
+        text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+    )
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+            """
+        ),
+        {"id": customer_id, "cid": customer_id, "name": f"首档校验客户_{customer_id}"},
+    )
+    db_session.commit()
+
+    try:
+        yield customer_id
+    finally:
+        db_session.execute(
+            text("DELETE FROM pricing_rules WHERE customer_id = :id"), {"id": customer_id}
+        )
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_pricing_rule_rejects_non_zero_first_tier_min(
+    test_client, auth_token, pricing_rule_customer
+):
+    """创建定价规则：首档 min 非 0 返回 40001
+
+    首档起点非 0 时计费语义不明确：`cost_calc._calc_tiered` 不减去该偏移，超档用量会落到
+    更便宜的下一档（静默少收），单档无上界时 min 更是完全不参与计算。写入侧必须拒绝，
+    否则脏规则落库后由结算阶段静默承担。
+    """
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.post(
+        "/api/v1/billing/pricing-rules",
+        json={
+            "customer_id": pricing_rule_customer,
+            "device_type": "X",
+            "pricing_type": "tiered",
+            "tiers": [
+                {"min": 5, "max": 100, "price": 10},
+                {"min": 101, "max": None, "price": 8},
+            ],
+            "effective_date": "2026-07-01",
+        },
+        headers=headers,
+    )
+
+    assert response.status == 400
+    assert response.json["code"] == 40001
+    assert "首档阶梯 min 必须为 0" in response.json["message"]
+
+
+@pytest.mark.asyncio
+async def test_update_pricing_rule_rejects_non_zero_first_tier_min(
+    test_client, auth_token, db_session, pricing_rule_customer
+):
+    """更新定价规则：首档 min 非 0 同样被拒绝，且原规则未被改写"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    _request, created = await test_client.post(
+        "/api/v1/billing/pricing-rules",
+        json={
+            "customer_id": pricing_rule_customer,
+            "device_type": "X",
+            "layer_type": "single",
+            "pricing_type": "tiered",
+            "tiers": [
+                {"min": 0, "max": 100, "price": 10},
+                {"min": 101, "max": None, "price": 8},
+            ],
+            "effective_date": "2026-08-01",
+        },
+        headers=headers,
+    )
+    assert created.status == 201, f"创建规则失败: {created.json}"
+    rule_id = created.json["data"]["id"]
+
+    _request, response = await test_client.put(
+        f"/api/v1/billing/pricing-rules/{rule_id}",
+        json={"tiers": [{"min": 5, "max": None, "price": 10}]},
+        headers=headers,
+    )
+
+    assert response.status == 400
+    assert response.json["code"] == 40001
+    assert "首档阶梯 min 必须为 0" in response.json["message"]
+
+    # 拒绝必须发生在落库前：原规则仍保持合法形态
+    stored = db_session.execute(
+        text("SELECT tiers FROM pricing_rules WHERE id = :id"), {"id": rule_id}
+    ).scalar()
+    assert stored is not None
+    assert stored[0]["min"] == 0
+    assert stored[0]["max"] == 100
+
+
 @pytest.mark.asyncio
 async def test_unauthorized_access(test_client):
     """测试未授权访问"""

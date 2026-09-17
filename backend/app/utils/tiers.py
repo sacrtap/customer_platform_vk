@@ -111,7 +111,7 @@ def normalize_tiers(raw: Any) -> Optional[List[dict]]:
 
 
 def _validate_tier_coverage(tiers: List[dict]) -> None:
-    """校验阶梯覆盖完整性（导入路径专用）。
+    """校验阶梯覆盖完整性（导入与规则写入路径共用）。
 
     约束（与前端编辑器 getTierError / coverageGaps 对齐）：
     - 相邻档必须连续：后一档 ``min`` 必须等于前一档 ``max + 1``；
@@ -134,9 +134,13 @@ def _validate_tier_coverage(tiers: List[dict]) -> None:
     - 单档无上界（``[{min:5, max:null, price:10}]``）时 ``min`` 完全不参与计算，
       金额恒等于 ``用量 × 价格``（等价平价）。
 
-    此处不强制首档 ``min = 0``（避免拒绝历史数据），模板说明行已改用
-    ``[{"min":0,"max":null,"price":5}]`` 引导正确写法。
+    首档 ``min`` 必须为 0：首档起点非 0 时计费语义不明确（见上），故在写入侧拒绝。
+    前端 ``PricingRuleModal.getTierError`` 与导入模板示例均为 ``[{"min":0,"max":null,"price":5}]``，
+    本就要求 0，此处只是把该约束下沉到后端统一把关；**存量脏数据不做迁移**（不重算历史金额）。
     """
+    if tiers[0]["min"] != 0:
+        raise TierFormatError(f"首档阶梯 min 必须为 0（当前 {tiers[0]['min']}）")
+
     # 只校验相邻档（末档不校验，见 docstring）
     for index in range(len(tiers) - 1):
         tier = tiers[index]
@@ -157,7 +161,8 @@ def parse_tiers_or_raise(raw: Any, row_num: Optional[int] = None) -> List[dict]:
     - ``None`` → 返回空列表 ``[]``（导入场景下 None 表示未填写，合法）
     - 追加覆盖完整性校验（见 ``_validate_tier_coverage``）
     - 校验失败时抛出 ``ValueError``，消息为行级错误文案
-      （如 ``"第 N 行：阶梯配置 JSON 格式错误：…"``）
+      （形态错误 → ``"第 N 行：阶梯配置 JSON 格式错误：…"``；
+       语义错误 → ``"第 N 行：阶梯配置不合法：…"``）
 
     Args:
         raw: 原始 tiers 值（已 JSON 解析）。
@@ -166,12 +171,30 @@ def parse_tiers_or_raise(raw: Any, row_num: Optional[int] = None) -> List[dict]:
     Returns:
         归一化后的 ``list[dict]``，``None`` 时返回空列表。
     """
+    prefix = f"第 {row_num} 行：" if row_num is not None else ""
     try:
         result = normalize_tiers(raw)
-        if result:
-            _validate_tier_coverage(result)
     except TierFormatError as e:
-        prefix = f"第 {row_num} 行：" if row_num is not None else ""
         raise ValueError(f"{prefix}阶梯配置 JSON 格式错误：{e}") from e
 
+    if result:
+        try:
+            _validate_tier_coverage(result)
+        except TierFormatError as e:
+            # 覆盖完整性/首档起点属语义约束，报「JSON 格式错误」会让用户去查 JSON 语法
+            raise ValueError(f"{prefix}阶梯配置不合法：{e}") from e
+
     return result if result is not None else []
+
+
+def validate_tiers_or_raise(raw: Any) -> Optional[List[dict]]:
+    """供规则写入路径（创建/编辑计费规则）使用：归一化 + 覆盖完整性校验。
+
+    与 ``parse_tiers_or_raise`` 的区别：无行号上下文，且 ``None`` 保持 ``None``
+    （表示「无阶梯配置」，与 ``normalize_tiers`` 语义一致；导入场景才需要 ``[]``）。
+    ``TierFormatError`` 直接向上抛，由路由层翻译为 40001。
+    """
+    result = normalize_tiers(raw)
+    if result:
+        _validate_tier_coverage(result)
+    return result

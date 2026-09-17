@@ -323,7 +323,7 @@ async def import_pricing_rules(request: Request):
     - unit_price (可选) - 定价单价
     - additional_floor_price (可选) - 加层单价
     - multi_floor_pricing_type (可选) - unified/incremental
-    - tiers (可选) - 阶梯配置 JSON 字符串，如 [{"min":1,"max":null,"price":5}]
+    - tiers (可选) - 阶梯配置 JSON 字符串，如 [{"min":0,"max":null,"price":5}]
     - package_type (可选) - A/B/C/D（包年结算必填）
     - expiry_date (可选) - 失效日期 YYYY-MM-DD
     """
@@ -474,7 +474,7 @@ async def import_pricing_rules(request: Request):
                         errors.append(f"第 {row_num} 行：阶梯配置 JSON 格式错误：{e}")
                         continue
                     except ValueError as e:
-                        # parse_tiers_or_raise 已生成「第 N 行：阶梯配置 JSON 格式错误：…」文案
+                        # parse_tiers_or_raise 已生成「第 N 行：阶梯配置…」行级文案
                         errors.append(str(e))
                         continue
 
