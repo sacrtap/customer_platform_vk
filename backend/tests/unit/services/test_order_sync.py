@@ -181,7 +181,9 @@ class TestOrderSyncServiceSyncOrders:
         assert result.failed == 0
 
         svc._fetch_orders.assert_awaited_once_with(TEST_SYNC_DATE)
-        svc._match_and_save.assert_awaited_once_with(orders=orders, sync_date=TEST_SYNC_DATE)
+        svc._match_and_save.assert_awaited_once_with(
+            orders=orders, sync_date=TEST_SYNC_DATE, detail_collector=None
+        )
 
     async def test_sync_orders_fetch_fails(self):
         """获取外部订单失败时异常向上传播"""
