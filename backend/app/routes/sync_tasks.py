@@ -286,3 +286,105 @@ async def cancel_sync_task(request: Request, task_id: UUID):
             )
         logger.error(f"取消任务失败: {e}")
         return json({"code": 500, "message": f"取消失败: {err_str}"}, status=500)
+
+
+@sync_tasks_bp.get("/<task_id:uuid>/details")
+@auth_required
+async def get_sync_task_details(request: Request, task_id: UUID):
+    """获取任务执行明细
+
+    Query Params:
+        level: 级别筛选 (info/warning/error，可选)
+        page: 页码 (default: 1)
+        page_size: 每页数量 (default: 20)
+
+    Response:
+        {
+            "code": 0,
+            "data": {
+                "summary": {"info_count": N, "warning_count": N, "error_count": N, "total_count": N},
+                "list": [...],
+                "pagination": {"page": 1, "page_size": 20, "total": N}
+            }
+        }
+    """
+    try:
+        from sqlalchemy import case, func, select
+        from sqlalchemy import desc as sa_desc
+
+        from app.models.billing import SyncTaskLogDetail
+
+        session = request.ctx.db_session
+
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 20))
+        level = request.args.get("level")
+
+        # 全量汇总（不受 level 过滤影响）
+        summary_result = await session.execute(
+            select(
+                func.sum(case((SyncTaskLogDetail.level == "info", 1), else_=0)),
+                func.sum(case((SyncTaskLogDetail.level == "warning", 1), else_=0)),
+                func.sum(case((SyncTaskLogDetail.level == "error", 1), else_=0)),
+                func.count(SyncTaskLogDetail.id),
+            ).where(SyncTaskLogDetail.task_id == task_id)
+        )
+        srow = summary_result.one()
+        info_count = srow[0] or 0
+        warning_count = srow[1] or 0
+        error_count = srow[2] or 0
+        total_count = srow[3] or 0
+
+        # 明细查询（level 过滤 + 分页）
+        query = select(SyncTaskLogDetail).where(SyncTaskLogDetail.task_id == task_id)
+        count_query = select(func.count(SyncTaskLogDetail.id)).where(
+            SyncTaskLogDetail.task_id == task_id
+        )
+        if level:
+            query = query.where(SyncTaskLogDetail.level == level)
+            count_query = count_query.where(SyncTaskLogDetail.level == level)
+
+        filtered_total = (await session.execute(count_query)).scalar() or 0
+
+        query = query.order_by(sa_desc(SyncTaskLogDetail.id))
+        query = query.limit(page_size).offset((page - 1) * page_size)
+        details = (await session.execute(query)).scalars().all()
+
+        return json(
+            {
+                "code": 0,
+                "data": {
+                    "summary": {
+                        "info_count": info_count,
+                        "warning_count": warning_count,
+                        "error_count": error_count,
+                        "total_count": total_count,
+                    },
+                    "list": [
+                        {
+                            "id": d.id,
+                            "sync_date": d.sync_date.isoformat() if d.sync_date else None,
+                            "level": d.level,
+                            "category": d.category,
+                            "message": d.message,
+                            "customer_id": d.customer_id,
+                            "customer_name": d.customer_name,
+                            "external_customer_id": d.external_customer_id,
+                            "company_name": d.company_name,
+                            "order_code": d.order_code,
+                            "record_count": d.record_count,
+                            "created_at": d.created_at.isoformat() if d.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        }
+                        for d in details
+                    ],
+                    "pagination": {
+                        "page": page,
+                        "page_size": page_size,
+                        "total": filtered_total,
+                    },
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"获取任务明细失败: {e}")
+        return json({"code": 500, "message": f"获取任务明细失败: {str(e)}"}, status=500)

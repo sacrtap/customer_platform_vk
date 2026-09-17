@@ -123,6 +123,7 @@ def create_app(
     from .routes.permissions import permissions_bp
     from .routes.roles import roles_bp
     from .routes.sync_logs import sync_logs_bp
+    from .routes.sync_schedule import sync_schedule_bp
     from .routes.sync_tasks import sync_tasks_bp
     from .routes.tags import customer_tags_bp, profile_tags_bp, tags_bp
     from .routes.users import users_bp
@@ -138,6 +139,7 @@ def create_app(
     app.blueprint(files_bp)
     app.blueprint(sync_logs_bp)
     app.blueprint(sync_tasks_bp)
+    app.blueprint(sync_schedule_bp)
     app.blueprint(audit_logs_bp)
     app.blueprint(roles_bp)
     app.blueprint(permissions_bp)

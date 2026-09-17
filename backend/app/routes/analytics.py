@@ -214,10 +214,15 @@ async def get_device_distribution(request: Request):
 @analytics.route("/consumption/sync", methods=["POST"])
 @auth_required
 async def manual_sync_consumption(request: Request):
-    """手动触发消耗数据同步"""
+    """手动触发消耗数据同步（同步昨日数据）
 
-    from ..services.cost_calc import CostCalcService
-    from ..services.order_sync import OrderSyncService
+    统一走 SyncTaskService.create_task + execute_task 链路：
+    产生任务记录与执行明细，可在「同步日志」页面查看执行信息。
+    """
+
+    from datetime import date, timedelta
+
+    from ..services.sync_task_service import SyncTaskService
 
     db_session = request.ctx.db_session
 
@@ -246,55 +251,48 @@ async def manual_sync_consumption(request: Request):
         )
 
     try:
-        # 同步订单数据（昨日）
-        from ..utils.timezone import local_yesterday_utc_start
-
-        sync_date = local_yesterday_utc_start()
-        logger.info("开始数据同步，日期: %s", sync_date)
+        # 同步昨日数据（与定时任务一致的目标日期），强制覆盖保持原接口语义
+        yesterday = date.today() - timedelta(days=1)
+        logger.info("创建同步任务，日期: %s", yesterday)
         external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
-        order_service = OrderSyncService(db_session, external_engine=external_engine)
-        order_result = await order_service.sync_orders(sync_date=sync_date)
-        logger.info(
-            "订单同步完成: success=%d, failed=%d, message=%s",
-            order_result.success,
-            order_result.failed,
-            order_result.message,
+        service = SyncTaskService(
+            db=db_session, redis_client=redis_client, external_engine=external_engine
+        )
+        task = await service.create_task(
+            start_date=yesterday,
+            end_date=yesterday,
+            sync_mode="force_overwrite",
+            operator_id=request.ctx.user["user_id"],
         )
 
-        # 计算费用（昨日）
-        cost_service = CostCalcService(db_session)
-        cost_result = await cost_service.calculate_daily_cost(consumption_date=sync_date)
-        logger.info(
-            "费用计算完成: total=%d, calculated=%d, no_rule=%d",
-            cost_result["total_customers"],
-            cost_result["calculated"],
-            cost_result["no_rule"],
-        )
+        # 后台执行（独立 session）
+        async_session_maker = request.app.ctx.async_session_maker
 
-        # 清除消费分析的缓存，确保前端能获取最新数据
-        await cache_service.invalidate_pattern("cache:analytics_*")
-        logger.info("已清除所有消费分析缓存")
+        async def run_task():
+            async with async_session_maker() as new_session:
+                bg_service = SyncTaskService(
+                    db=new_session,
+                    redis_client=redis_client,
+                    external_engine=external_engine,
+                )
+                await bg_service.execute_task(task.id)  # pyright: ignore[reportArgumentType]
+
+        request.app.add_task(run_task())
 
         return json(
             {
                 "code": 0,
-                "message": "同步成功",
+                "message": "同步任务已提交",
                 "data": {
-                    "order_sync": {
-                        "success": order_result.success,
-                        "failed": order_result.failed,
-                        "skipped": order_result.skipped,
-                        "message": order_result.message,
-                    },
-                    "cost_calc": {
-                        "total_customers": cost_result["total_customers"],
-                        "calculated": cost_result["calculated"],
-                        "no_rule": cost_result["no_rule"],
-                    },
+                    "task_id": str(task.id),
+                    "status": task.status,
                 },
             }
         )
     except Exception as e:
+        if "已有相同周期的同步任务正在执行" in str(e):
+            return json({"code": 409, "message": str(e)}, status=409)
+        logger.error(f"创建同步任务失败: {e}")
         return json({"code": 500, "message": f"同步失败：{str(e)}"}, status=500)
     finally:
         # 释放锁
