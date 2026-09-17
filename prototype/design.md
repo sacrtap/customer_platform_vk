@@ -459,10 +459,16 @@ gap: 10px;
 
 ```css
 display: grid;
-grid-template-columns: 1.35fr .65fr;   /* 左宽右窄 */
+grid-template-columns: minmax(0, 1.35fr) minmax(0, .65fr);   /* 左宽右窄 */
 gap: 18px;
 margin-bottom: 18px;
 ```
+
+> `minmax(0, …)` 不可省略成裸 `1.35fr .65fr`：`fr` 轨道的自动最小值是 min-content，
+> 左卡内的 ECharts 画布会把它的 min-content 撑到约 800px（画布 762 + 内边距/边框），
+> 超过其 `1.35fr` 份额后右轨道会停在自身 min-content（约 250px）不再增长，整行尾部留出
+> 约 117px 空白 —— 表现为「异常与待办」贴不到右边缘、内部快捷操作被压到 46~74px
+> （标签折 2~3 行）。单列断点（`≤1100px`）实测无此问题，保持 `1fr` 不变。
 
 ### 3.15 空状态（EmptyState）
 
@@ -1168,7 +1174,7 @@ max-width: 1000px, min-height: 600px, border-radius: 18px, shadow
 | `.grid-3` | `repeat(3, 1fr)` | `14px` |
 | `.grid-2` | `repeat(2, 1fr)` | `14px` |
 | `.kpi-strip` | `repeat(6, 1fr)` | `10px` |
-| `.hero` | `1.35fr .65fr` | `18px` |
+| `.hero` | `minmax(0, 1.35fr) minmax(0, .65fr)` | `18px` |
 | `.ia` | `repeat(5, 1fr)` | `12px` |
 | `.prototype-note` | `repeat(3, 1fr)` | `12px` |
 

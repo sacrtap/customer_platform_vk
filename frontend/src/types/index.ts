@@ -193,21 +193,6 @@ export interface ApiKey {
   key?: string
 }
 
-/** 计费规则 */
-export interface PricingRule {
-  id: number
-  customer_id: number | null
-  device_type?: string
-  pricing_type: string
-  unit_price: number | null
-  tiers: Record<string, unknown> | null
-  package_type: string | null
-  package_limits: Record<string, unknown> | null
-  effective_date: string
-  expiry_date: string | null
-  created_at: string
-}
-
 /** 结算单 */
 export interface Invoice {
   id: number

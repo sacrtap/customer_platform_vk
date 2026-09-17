@@ -21,6 +21,8 @@ import bcrypt
 import pytest
 from sqlalchemy import text
 
+from app.cache.base import cache_service
+
 
 @pytest.fixture
 async def auth_token(test_client, test_user):
@@ -774,6 +776,16 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
     wb.save(output)
     output.seek(0)
 
+    # 行业名必须已存在于 industry_types：行业映射失败的行会被行级拒绝、不入库
+    # （对齐其它导入路径「行级错误 → 该行不入库」的约定），故成功场景须先 seed 行内用到的行业。
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('互联网', 1, NOW()), ('房地产', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
     files = {
         "file": (
             "test_import.xlsx",
@@ -798,6 +810,60 @@ async def test_import_customers_success(test_client, auth_headers, db_session):
         text("DELETE FROM customers WHERE company_id >= 1000000 AND company_id < 1000010")
     )
     db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_from_downloaded_template(test_client, auth_headers, db_session):
+    """测试下载的模板可直接导入：模板第 2 行中文说明行不被当作数据行"""
+    from openpyxl import load_workbook
+
+    request, template = await test_client.get(
+        "/api/v1/customers/import-template",
+        headers=auth_headers,
+    )
+    assert template.status == 200
+
+    company_id = 1000021
+    wb = load_workbook(io.BytesIO(template.body))
+    ws = wb.active
+    ws.cell(row=3, column=1).value = company_id
+    output = io.BytesIO()
+    wb.save(output)
+
+    # 模板示例行的 industry 为「房产经纪」：该行业类型须先存在，否则路由会如实回传
+    # 「行业类型 '房产经纪' 不存在」的行级错误（该错误此前被 service 返回值覆盖而
+    # 静默丢失，故旧断言在「错误被吞掉」的前提下才成立）。
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files={
+            "file": (
+                "template.xlsx",
+                output.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    try:
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["errors"] == []
+        assert data["success_count"] == 1
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id = :cid"), {"cid": company_id}
+        )
+        db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -1057,6 +1123,62 @@ async def test_import_customers_invalid_price_policy(test_client, auth_headers):
     data = response.json
     assert data["code"] == 0
     assert data["data"]["error_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_import_customers_unknown_industry_reports_error(
+    test_client, auth_headers, db_session
+):
+    """测试导入 - 行业类型不存在时须回传行级错误
+
+    回归防护 —— 行业映射阶段的校验错误若被 service 返回的 errors 整体覆盖，
+    响应会退化为 error_count=0 / errors=[]，用户误以为全部导入成功。
+    """
+    from openpyxl import Workbook
+
+    unknown_industry = "绝不存在的行业名ZZZ"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id", "name", "industry"])
+    ws.append([1000050, "未知行业客户", unknown_industry])
+    ws.append([1000051, "正常客户", None])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_unknown_industry.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    errors = data["data"]["errors"]
+    assert any(unknown_industry in e for e in errors), data["data"]
+    assert data["data"]["error_count"] == 1
+    # M9 回归防护：行业映射失败的行不入库（success_count 仅统计有效行）
+    assert data["data"]["success_count"] == 1
+    # 直接查库确认无效行（company_id=1000050）未被创建
+    created_count = db_session.execute(
+        text("SELECT COUNT(*) FROM customers WHERE company_id = 1000050")
+    ).scalar()
+    assert created_count == 0
+
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id >= 1000050 AND company_id < 1000060")
+    )
+    db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -1503,6 +1625,7 @@ async def test_list_customers_by_industry_real_estate_erp(test_client, auth_head
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
     # 插入行业类型
     db_session.execute(
@@ -1606,6 +1729,7 @@ async def test_list_customers_by_industry_real_estate_erp(test_client, auth_head
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
 
 @pytest.mark.asyncio
@@ -1615,6 +1739,7 @@ async def test_list_customers_by_industry_erp_empty(test_client, auth_headers, d
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.execute(text("TRUNCATE customer_profiles CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
     # 插入行业类型但不插入房产ERP的任何客户
     db_session.execute(
@@ -1650,6 +1775,7 @@ async def test_list_customers_by_industry_erp_empty(test_client, auth_headers, d
     db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.execute(text("TRUNCATE industry_types CASCADE"))
     db_session.commit()
+    await cache_service.invalidate_customer_cache()
 
 
 @pytest.mark.asyncio

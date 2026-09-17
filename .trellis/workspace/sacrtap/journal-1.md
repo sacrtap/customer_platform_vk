@@ -284,3 +284,138 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 11: 导入导出功能优化：结算页面补齐导入导出与权限码细粒度拆分
+<!-- trellis-session: v=2 fp=a960171db6b0b824 -->
+
+**Date**: 2026-09-16
+**Task**: 导入导出功能优化：结算页面补齐导入导出与权限码细粒度拆分
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+检查客户管理导入导出链路并修复两处硬缺陷（模板中文说明行被当数据行、日期列写字符串导致 500）；为余额管理补导出、计费规则/包年套餐补导入导出、结算单管理补导入；权限码拆分 8 个细粒度码并完成存量等价迁移与旧码清理；新增集成测试 27 项；浏览器端到端验证五页面按钮/导出下载/模板下载及部分成功导入（成功1失败1，行号定位准确、列表刷新）；覆盖率 50.95% 达标
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `043d2a5` | feat(billing): 结算页面补齐导入导出并细粒度拆分权限码 |
+| `f5b3cdf` | docs(spec): 收录导入导出端点契约与前端组件规范 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 12: 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建
+<!-- trellis-session: v=2 fp=a534966fa8fc325f -->
+
+**Date**: 2026-09-16
+**Task**: 运行期技术债修复：middleware logger / Blob 错误体 / 导入校验 / 无效补建
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 5 项运行期缺陷：P1 middleware 误用 app.logger（共 5 处；request 中间件异常时返回 HTML 500 而非约定 JSON，真实异常被 AttributeError 掩盖）；P2 前端 axios 未解析 Blob 错误体（下载链路失败提示英文 Bad Request）；P3 计费规则导入缺 device_type/layer_type 行级校验（可写脏数据）；P4 docs/specs 旧权限码迁移至 billing:balance_import；P5 删除余额无效惰性补建（写入被回滚）并交付补偿脚本 backfill_balance_archives.sql。新增 3 个回归测试（中间件 JSON 500 / 导入字段校验 / 余额列表无写入）；相关集成测试 37 passed、unit+integration 690 passed 且覆盖率 51.47%；前端 type-check+lint 通过；浏览器实测五页面导入导出与模板下载。同步更新 spec：logging-guidelines（中间件禁用 app.logger，此为本次缺陷源头规范）、import-export（收录新增校验规则）、component-guidelines。另发现既有测试基础设施问题未在本次修复：同名测试文件跨目录冲突致 pytest 收集失败 2 例、根目录老测试引用已变更模型字段致 34 failed（使 make test-cov 失效）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `76f71fc` | fix(runtime): 修复 middleware logger 误用、Blob 错误提示与导入校验 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 14: 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷
+<!-- trellis-session: v=2 fp=21d1c7bd65e22cf8 -->
+
+**Date**: 2026-09-16
+**Task**: 测试基础设施修复：收集冲突、遗留测试过时与 3 处生产缺陷
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 pytest 全量收集冲突（--import-mode=importlib，恢复被同名遮蔽的 23 项）、tests/ 根目录遗留测试过时断言、.trellis 脚本产物缺尾换行导致的 pre-commit 反复阻断。定位过程中额外修复 3 处生产缺陷（customer_repo 的 cast 误用必抛 TypeError；sync_logs 返回体缺 task_id/operator_id/start_date/end_date/sync_mode；sync_task_service.get_progress 用 bytes 键查 decode_responses=True 的 Redis 导致进度恒为空）与 2 处测试隔离缺陷（JWT_SECRET 单例冲突致 e2e 401；mock_cache 未覆盖模块级 import 绑定致端点绕过 mock）。二分定位方法：tests/unit 根目录逐级收敛至 test_avatar_upload.py。最终 872 passed / 0 failed，覆盖率 57.61%，unit 447、integration 243。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f94e54a` | fix(test): 修复全量测试收集冲突、遗留测试过时与 3 处生产缺陷 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 15: 结算单两任务验收与归档（09-02 / 09-03）
+<!-- trellis-session: v=2 fp=5bb021c8faf5fc2c -->
+
+**Date**: 2026-09-16
+**Task**: 结算单两任务验收与归档（09-02 / 09-03）
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+逐条验收 09-02（7 AC）与 09-03（10 AC）共 17 项 AC，全部通过；期间发现并修复 3 处缺陷：detail-logs 端点因未预加载关系抛 MissingGreenlet 导致 500、生成结算单弹窗重开后客户输入框未清空、列表页与提交提示残留「折扣」文案；同步沉淀 2 条 spec 惯例（异步 ORM 关系序列化必须预加载、受控显示文本组件需 :key 重建）；两份 prd 的 AC 已回写并归档两个历史任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f82ba1` | fix(billing): 修复明细日志 500、弹窗客户清空与减免文案残留 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 16: 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一
+<!-- trellis-session: v=2 fp=a1efc468b7818758 -->
+
+**Date**: 2026-09-17
+**Task**: 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+定位并修复 09-16 验收暴露的四个遗留缺陷。主因：cleanup_temp_files 每日以存储根为 os.walk 起点且无排除规则，把 7 天前的业务文件当临时文件删除（DB 实测 5 条 completed 记录中 4 条文件缺失，不一致率 80%）；修复为物理收缩到 uploads/temp/ 子树并补软链接防御与启动期相对路径告警。次要：pricing_rules.tiers 契约冲突（导入写数组、结算读对象必 500）收敛为数组单一形态并建立前后端各一归一化 owner；min_quantity/threshold 键名残留清除；补 max>=min、price>=0 关系校验避免静默错值。后端 8 处用户可见折扣文案统一为减免（保留模板必填/可选前缀与列序）。前端三份 tiers 解析合并为单一实现。门禁：pytest 874 passed 覆盖率 58%、ruff check/format、pnpm type-check 全绿；浏览器实跑三处阶梯渲染正确。spec 更新 backend/file-storage.md（新增临时文件清理边界契约并修正事故根因归因）与 guides/cross-layer-thinking-guide.md（两处反面案例标注修复）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a619eda` | fix(billing): 修复清理任务误删业务凭证、tiers 契约冲突与文案不一致 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 17: 测试基础设施遗留项修复（TD-1/2/4/5 + R6）
+<!-- trellis-session: v=2 fp=739135da0778c5f9 -->
+
+**Date**: 2026-09-17
+**Task**: 测试基础设施遗留项修复（TD-1/2/4/5 + R6）
+**Branch**: `feature/import-export-optimization`
+
+### Summary
+
+修复 TD-1/2/4/5（TD-3 按用户要求排除）：42 项权限清单 4 处逐字副本收敛为 tests/_test_data.py 单一常量并加种子漂移守护；WEBHOOK_SECRET 收敛至 tests/conftest.py 一处 setdefault；移除 test_user 内 8 处 [DEBUG] stdout 探针；TTL 收敛为 _ttl_config + ttl_for() 单一入口（清 5 个零消费/谎值条目、拆 analytics_prediction_forecast 前缀、消除 analytics.py 9 处与 balances.py 1 处硬编码副本）。R6 删除 app/config.py 的 9 个零消费 cache_ttl_* 字段并清理 .env.example 与 cache-strategy.md 的误导性可配项文档。零行为变更。验证：876 passed（基线 874），覆盖率 57.65%；同会话 e2e+integration 246 passed。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b60d3cd` | fix(test,cache): 收敛测试权限清单与 TTL 配置为单一真相 |
+| `1d0d78c` | docs: 回写 TD-1/2/4/5 修复状态（提交 b60d3cd） |
+| `0a5f5b0` | docs(spec): 沉淀 TTL 配置单一真相契约（_ttl_config + ttl_for） |
+
+### Status
+
+[OK] **Completed**

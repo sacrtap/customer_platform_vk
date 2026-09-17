@@ -17,6 +17,7 @@ os.environ.setdefault(
 )
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 os.environ.setdefault("JWT_SECRET", "test-secret-key")
+os.environ.setdefault("WEBHOOK_SECRET", "test-webhook-secret-key")
 os.environ.setdefault("JWT_ALGORITHM", "HS256")
 
 # 清除所有可能的 app 模块缓存

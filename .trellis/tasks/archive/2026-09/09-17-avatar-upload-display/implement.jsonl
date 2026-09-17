@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层契约方法论；本次根因（后端相对资源路径在前端入口的可达性）已沉淀为此指南新章节"}
+{"file": ".trellis/spec/backend/file-storage.md", "reason": "文件存储路径语义与 /uploads/ 静态服务契约（本任务涉及的存储侧背景）"}

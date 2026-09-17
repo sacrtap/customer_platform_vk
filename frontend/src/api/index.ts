@@ -160,9 +160,30 @@ service.interceptors.response.use(
     }
 
     // 提取后端返回的错误信息
-    // 优先使用 response.data.message，其次是 statusText
-    const backendMessage = error.response.data?.message || error.response.statusText || '请求失败'
-    const code = error.response.data?.code || error.response.status * 100
+    // 注意：blob 下载失败时响应体是 Blob，必须先读文本再解析，否则拿不到后端的 message/code
+    const data = error.response.data
+    let backendMessage: string = error.response.statusText || '请求失败'
+    let code: number | string = error.response.status * 100
+
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      try {
+        const parsed: unknown = JSON.parse(await data.text())
+        // 后端错误体约定为 { code: number, message: string }，这里只做类型收敛：
+        // 避免 code 为字符串 / message 非字符串时污染 message，或让 getErrorCategory
+        // 兜底成 SERVER_ERROR（用户看到「系统繁忙」而非真实错误）。
+        if (parsed && typeof parsed === 'object') {
+          const { message, code: parsedCode } = parsed as { message?: unknown; code?: unknown }
+          if (typeof message === 'string' && message) backendMessage = message
+          if (typeof parsedCode === 'number') code = parsedCode
+        }
+      } catch {
+        // 非 JSON 错误体，保留 statusText
+      }
+    } else if (data && typeof data === 'object') {
+      const { message, code: dataCode } = data as { message?: unknown; code?: unknown }
+      if (typeof message === 'string' && message) backendMessage = message
+      if (typeof dataCode === 'number') code = dataCode
+    }
 
     return Promise.reject({
       code,

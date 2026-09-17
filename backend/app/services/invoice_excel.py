@@ -613,4 +613,9 @@ class InvoiceExcelService:
         abs_path = os.path.join(abs_dir, filename)
         wb.save(abs_path)
 
+        # 落盘后二次确认：文件必须存在且非空，状态才可置 completed
+        # 若文件写入异常（磁盘满、权限等），抛出异常让调用方置 failed
+        if not os.path.exists(abs_path) or os.path.getsize(abs_path) == 0:
+            raise IOError(f"明细文件写入后验证失败（不存在或为空）: {abs_path}")
+
         return os.path.join(rel_dir, filename)

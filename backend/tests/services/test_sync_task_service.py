@@ -281,7 +281,7 @@ class TestExecuteTask:
         ):
             mock_order_service = AsyncMock()
             mock_order_service.sync_orders = AsyncMock(
-                return_value=MagicMock(success=10, failed=0, skipped=0)
+                return_value=MagicMock(success=10, failed=0, skipped=0, unmatched=0)
             )
             MockOrderSync.return_value = mock_order_service
 
@@ -328,7 +328,7 @@ class TestExecuteTask:
         ):
             mock_order_service = AsyncMock()
             mock_order_service.sync_orders = AsyncMock(
-                return_value=MagicMock(success=10, failed=0, skipped=0)
+                return_value=MagicMock(success=10, failed=0, skipped=0, unmatched=0)
             )
             MockOrderSync.return_value = mock_order_service
 
@@ -381,9 +381,9 @@ class TestExecuteTask:
             # 第二天失败
             mock_order_service.sync_orders = AsyncMock(
                 side_effect=[
-                    MagicMock(success=10, failed=0, skipped=0),  # 第一天成功
+                    MagicMock(success=10, failed=0, skipped=0, unmatched=0),  # 第一天成功
                     Exception("外部数据源异常"),  # 第二天失败
-                    MagicMock(success=10, failed=0, skipped=0),  # 第三天成功
+                    MagicMock(success=10, failed=0, skipped=0, unmatched=0),  # 第三天成功
                 ]
             )
             MockOrderSync.return_value = mock_order_service
@@ -398,7 +398,7 @@ class TestExecuteTask:
             await service.execute_task(task_id)
 
             # 验证
-            assert task.status == "completed"  # 部分成功也算完成
+            assert task.status == "partial"  # 有成功有失败 → partial
             assert task.completed_days == 2
             assert task.failed_count == 1
 
@@ -483,6 +483,38 @@ class TestGetProgress:
         assert progress["completed_days"] == 5
         assert progress["skipped_days"] == 2
         assert progress["percentage"] == 0.71
+
+    async def test_get_progress_from_redis_str_keys(self, service, mock_redis):
+        """测试真实客户端配置（decode_responses=True）返回 str 键时的解析
+
+        回归保护：此前用 bytes 键（b"status"）查询 hash，而生产客户端固定
+        decode_responses=True（app/cache/base.py 的 redis.from_url），
+        导致真实 Redis 路径下所有字段静默取默认值 —— 任务进度恒为空。
+        """
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                "status": "running",
+                "sync_mode": "skip_existing",
+                "total_days": "7",
+                "completed_days": "5",
+                "skipped_days": "2",
+                "current_date": "2026-06-22",
+                "success_count": "150",
+                "failed_count": "0",
+                "percentage": "71",
+                "error_message": "",
+            }
+        )
+
+        progress = await service.get_progress(task_id)
+
+        assert progress["status"] == "running"
+        assert progress["sync_mode"] == "skip_existing"
+        assert progress["total_days"] == 7
+        assert progress["completed_days"] == 5
+        assert progress["percentage"] == 0.71
+        assert progress["current_date"] == "2026-06-22"
 
     async def test_get_progress_fallback_to_db(self, service, mock_db, mock_redis):
         """测试 Redis 无数据时回退到数据库"""

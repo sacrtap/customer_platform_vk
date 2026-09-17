@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="zh-CN" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="better-harness codex-html">
+  <title>Harness 洞察 · customer_platform_vk</title>
+  <style>
+    :root { color-scheme: dark; --bg:#111315; --panel:#1a1d20; --panel-2:#21252a; --line:#31363d; --text:#f5f7fa; --muted:#9aa3ad; --blue:#6cb8ff; --blue-2:#1b6ca8; --orange:#ff9a5a; --green:#53d69b; --red:#ff6b6b; }
+    * { box-sizing:border-box; }
+    html { background:var(--bg); scroll-behavior:smooth; }
+    .cjk-phrase { white-space:nowrap; }
+    body { margin:0; min-width:320px; font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:radial-gradient(circle at 12% -10%,#22364a 0,transparent 34rem),var(--bg); line-height:1.55; }
+    .sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.22; background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size:28px 28px; }
+    main { position:relative; width:min(1180px,calc(100% - 40px)); margin:0 auto; padding:52px 0 88px; }
+    h1,h2,h3,p { margin-top:0; }
+    .eyebrow,.label { color:var(--blue); font-size:12px; font-weight:700; letter-spacing:.11em; text-transform:uppercase; }
+    .hero { display:grid; grid-template-columns:minmax(0,1fr) 190px; gap:36px; align-items:end; min-height:270px; padding:42px; border:1px solid var(--line); border-radius:28px; background:linear-gradient(135deg,rgba(36,43,51,.96),rgba(21,24,27,.94)); box-shadow:0 28px 70px rgba(0,0,0,.28); }
+    .hero h1 { margin:12px 0 10px; font-size:clamp(42px,7vw,82px); line-height:.96; letter-spacing:-.055em; }
+    .hero p { max-width:760px; margin-bottom:22px; color:#c9d0d8; font-size:18px; }
+    .hero-tags { display:flex; flex-wrap:wrap; gap:8px; }
+    .score-orbit { width:174px; aspect-ratio:1; display:grid; place-content:center; text-align:center; border:14px solid #343a41; border-top-color:var(--blue); border-right-color:var(--blue-2); border-radius:50%; background:#1a2026; box-shadow:inset 0 0 0 1px var(--line); }
+    .score-orbit strong { font-size:44px; line-height:1; }
+    .score-orbit > span { width:110px; margin-top:7px; color:var(--muted); font-size:12px; }
+    .pill { display:inline-flex; align-items:center; min-height:26px; padding:3px 10px; border-radius:999px; color:#d4dae0; background:#30353b; font-size:12px; font-weight:700; }
+    .pill.accent { color:#c9e8ff; background:#164e75; }.pill.good { color:#c9f9e5; background:#165c43; }.pill.warning { color:#ffe1c8; background:#754322; }.pill.danger { color:#ffd4d4; background:#762e31; }.pill.muted,.pill.neutral { color:#c8cdd3; background:#34383d; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:18px 0 54px; }
+    .metric { min-height:126px; padding:22px 24px; border:1px solid var(--line); border-radius:20px; background:rgba(30,34,38,.9); }
+    .metric > span,.metric > small { display:block; color:var(--muted); }.metric > strong { display:block; margin:5px 0 2px; font-size:34px; line-height:1.1; }.metric > small { font-size:12px; }
+    .section { margin-top:64px; scroll-margin-top:24px; }.section-heading { display:flex; justify-content:space-between; gap:30px; align-items:end; margin-bottom:20px; }.section-heading h2 { margin:5px 0 0; font-size:30px; letter-spacing:-.025em; }.section-heading > p { max-width:420px; margin:0; color:var(--muted); text-align:right; font-size:14px; }
+    .dimension-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }.dimension-card { min-height:230px; padding:19px; border:1px solid var(--line); border-radius:19px; background:linear-gradient(180deg,var(--panel-2),var(--panel)); }.dimension-top { display:flex; min-height:52px; justify-content:space-between; gap:8px; align-items:flex-start; font-weight:700; }.score-line { display:flex; align-items:baseline; gap:4px; margin-top:14px; }.score-line strong { font-size:34px; }.score-line span { color:var(--muted); font-size:12px; }.track { height:8px; margin:8px 0 16px; overflow:hidden; border-radius:999px; background:#30353a; }.track i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--blue-2),var(--blue)); }.dimension-card p { margin:0; color:var(--muted); font-size:13px; }
+    .activity-layout { display:grid; grid-template-columns:minmax(0,1.8fr) minmax(230px,.7fr); gap:14px; }.activity-panel,.subpanel,.finding,.custom-grid article,.evidence-grid,.evidence-note { border:1px solid var(--line); border-radius:19px; background:var(--panel); }.activity-panel { display:flex; min-width:0; flex-direction:column; justify-content:center; padding:22px; overflow:hidden; }.heat-scroll { width:100%; min-width:0; overflow-x:auto; padding-bottom:8px; }.heatmap,.heat-axis { display:grid; grid-template-columns:repeat(var(--heat-days),minmax(13px,1fr)); column-gap:4px; min-width:var(--heat-min-width); }.heatmap { align-items:center; }.heat-cell { width:13px; height:13px; justify-self:center; border-radius:3px; background:#2b3035; }.heat-cell.l1{background:#174d70}.heat-cell.l2{background:#206f9e}.heat-cell.l3{background:#319bd1}.heat-cell.l4{background:#70c9ff}.heat-axis { margin-top:10px; color:var(--muted); font-size:10px; }.heat-tick { justify-self:center; white-space:nowrap; }.heat-tick.first { justify-self:start; }.heat-tick.last { justify-self:end; }.heatmap-empty { color:var(--muted); }.stacked-metrics { display:grid; gap:14px; }.stacked-metrics .metric { min-height:0; }
+    .long-session-review { margin-top:14px; padding:22px; border:1px solid var(--line); border-radius:19px; background:linear-gradient(180deg,#201f1d,var(--panel)); }.long-session-heading { display:flex; justify-content:space-between; gap:24px; align-items:end; }.long-session-heading h3 { margin:4px 0 0; font-size:20px; }.long-session-heading > p { max-width:520px; margin:0; color:var(--muted); text-align:right; font-size:12px; }.long-session-list { display:grid; gap:12px; margin-top:18px; }.long-session-card { min-width:0; padding:17px; overflow:hidden; border:1px solid var(--line); border-radius:16px; background:#181b1e; }.long-session-meta { display:flex; justify-content:space-between; gap:16px; align-items:center; color:var(--muted); font-size:12px; }.long-session-tags { min-width:0; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }.long-session-tags strong { color:var(--text); font-size:15px; }.long-session-request,.long-session-locator { display:grid; grid-template-columns:72px minmax(0,1fr); gap:10px; margin:12px 0 0; color:#d2d8df; overflow-wrap:anywhere; font-size:13px; }.long-session-request > span,.long-session-locator > span { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }.long-session-locator code { min-width:0; overflow:hidden; color:#bfe3ff; text-overflow:ellipsis; white-space:nowrap; }.tool-trace-details { margin-top:14px; border-top:1px solid var(--line); }.tool-trace-details summary { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:13px 2px 0; color:#dce5ed; cursor:pointer; font-size:13px; font-weight:700; }.tool-trace-details summary small { color:var(--muted); font-weight:400; text-align:right; }.tool-trace-details summary:focus-visible,.tool-trace-scroll:focus-visible { outline:2px solid var(--blue); outline-offset:3px; }.tool-trace-body { padding-top:12px; }.tool-trace-scroll { width:100%; max-width:100%; overflow-x:auto; padding-bottom:8px; overscroll-behavior-inline:contain; }.tool-trace-svg { display:block; max-width:none; color:#d6dde5; overflow:visible; }.tool-trace-row-alt { fill:currentColor; opacity:.035; }.tool-trace-lane-line { stroke:currentColor; stroke-dasharray:3 5; opacity:.22; }.tool-trace-grid-line { stroke:currentColor; opacity:.12; }.tool-trace-axis-line { stroke:currentColor; opacity:.25; }.tool-trace-lane-label,.tool-trace-tick,.tool-trace-axis-label { fill:currentColor; font-size:11px; opacity:.68; }.tool-trace-axis-label { font-weight:700; }.tool-trace-point { fill:#64748b; stroke:currentColor; stroke-width:1; }.tool-trace-point.failed { fill:var(--orange); }.tool-trace-point:focus { outline:none; stroke:var(--blue); stroke-width:3; }.tool-trace-body > p,.long-session-boundary { margin:4px 0 0; color:var(--muted); font-size:12px; }.tool-trace-empty { min-width:680px; margin:0; padding:24px; border:1px dashed var(--line); border-radius:12px; }.long-session-boundary { margin-top:14px; }
+    .two-column { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }.subpanel { padding:22px; }.subpanel h3 { font-size:15px; }.usage-list { display:grid; gap:12px; }.usage-row { display:grid; grid-template-columns:minmax(100px,.75fr) 1fr 52px; gap:12px; align-items:center; font-size:12px; }.usage-row > span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.usage-row i { height:7px; overflow:hidden; border-radius:999px; background:#30353a; }.usage-row b { display:block; height:100%; background:linear-gradient(90deg,var(--blue-2),var(--blue)); }.usage-row strong { text-align:right; }
+    .finding-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }.finding-card { min-width:0; min-height:220px; display:flex; flex-direction:column; padding:18px; border:1px solid var(--line); border-radius:19px; background:linear-gradient(180deg,#1c2329,var(--panel)); }.finding-card-main { display:grid; gap:10px; }.finding-meta { display:flex; flex-wrap:wrap; gap:7px; }.finding-card h3 { min-height:2.8em; margin:0; display:-webkit-box; overflow:hidden; font-size:17px; line-height:1.4; -webkit-box-orient:vertical; -webkit-line-clamp:2; }.finding-preview { margin:0; color:#c7ced6; display:-webkit-box; overflow:hidden; font-size:13px; line-height:1.55; -webkit-box-orient:vertical; -webkit-line-clamp:2; }.finding-actions,.dialog-actions { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; margin-top:auto; padding-top:16px; }.action-button { min-height:38px; padding:8px 13px; border:1px solid transparent; border-radius:10px; color:var(--text); background:#30363d; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }.action-button:hover { filter:brightness(1.12); }.action-button:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }.action-button.secondary { color:#cceaff; border-color:#286d9b; background:#164e75; }.action-button.ghost { color:#d4dae0; border-color:var(--line); background:transparent; }.finding-dialog,.manual-copy-dialog { width:min(880px,calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; padding:24px; border:1px solid var(--line); border-radius:20px; color:var(--text); background:var(--panel); box-shadow:0 30px 90px rgba(0,0,0,.55); }.finding-dialog::backdrop,.manual-copy-dialog::backdrop { background:rgba(4,8,12,.72); }.dialog-heading { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; }.dialog-heading h3 { margin:6px 0 0; font-size:24px; }.dialog-section { margin-top:18px; }.dialog-section p { margin:7px 0 0; color:#d1d7de; }.dialog-section ol,.dialog-section ul { margin:8px 0 0; padding-left:22px; color:#d1d7de; }.manual-copy-dialog textarea { width:100%; min-height:260px; margin-top:14px; padding:14px; resize:vertical; border:1px solid var(--line); border-radius:12px; color:var(--text); background:#11161b; font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }.no-js .finding-actions,.no-js .manual-copy-dialog { display:none!important; }.no-js .finding-dialog:not([open]) { display:block; position:static; width:auto; max-height:none; margin-top:16px; box-shadow:none; }
+    .suggestion-block { margin-top:28px; padding-top:24px; border-top:1px solid var(--line); }.suggestion-heading { display:flex; justify-content:space-between; gap:20px; align-items:end; margin-bottom:14px; }.suggestion-heading h3 { margin:4px 0 0; font-size:20px; }.suggestion-heading p { margin:0; color:var(--muted); font-size:12px; }.suggestion-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }.suggestion { padding:18px; border:1px solid var(--line); border-radius:17px; background:linear-gradient(180deg,#1b252d,var(--panel)); }.suggestion-top { display:flex; justify-content:space-between; gap:8px; }.suggestion h3 { margin:13px 0 7px; font-size:16px; }.suggestion > p { color:#c7ced6; font-size:13px; }.suggestion dl { display:grid; gap:9px; margin:14px 0 0; }.suggestion dl div { display:grid; gap:2px; }.suggestion dt { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }.suggestion dd { margin:0; color:#d7dde4; font-size:12px; }
+    .custom-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }.custom-grid article { display:flex; gap:14px; align-items:center; padding:18px; }.custom-grid h3 { margin:0; font-size:15px; }.custom-grid p { margin:3px 0 0; color:var(--muted); font-size:12px; }.custom-mark { display:grid; flex:0 0 38px; aspect-ratio:1; place-content:center; border-radius:12px; color:#d9efff; background:#164e75; font-weight:800; }
+    .evidence-grid { display:grid; grid-template-columns:repeat(3,1fr); overflow:hidden; }.evidence-grid div { padding:20px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }.evidence-grid > div > span,.evidence-grid > div > strong { display:block; }.evidence-grid > div > span { color:var(--muted); font-size:12px; }.evidence-grid > div > strong { margin-top:4px; }.evidence-note { margin-top:14px; padding:20px; }.method-note,.empty { color:var(--muted); }.method-note { max-width:800px; margin:18px 0 0; font-size:13px; }
+    footer { margin-top:64px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    @media (max-width:1000px) { .finding-list{grid-template-columns:repeat(2,minmax(0,1fr))} }
+    @media (max-width:900px) { .metrics,.dimension-grid{grid-template-columns:repeat(2,1fr)}.activity-layout,.two-column{grid-template-columns:1fr}.evidence-grid{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:680px) { .finding-list{grid-template-columns:1fr}.finding-card{min-height:0} }
+    @media (max-width:620px) { main{width:min(100% - 24px,1180px);padding-top:18px}.hero{grid-template-columns:1fr;min-height:0;padding:25px;border-radius:22px}.hero h1{font-size:44px}.hero p{font-size:15px}.score-orbit{width:126px}.score-orbit strong{font-size:34px}.metrics{grid-template-columns:1fr;margin-bottom:42px}.metric{min-height:0}.section{margin-top:46px}.section-heading,.suggestion-heading,.long-session-heading{display:block}.section-heading > p,.suggestion-heading > p,.long-session-heading > p{text-align:left;margin-top:8px}.dimension-grid{grid-template-columns:1fr}.dimension-card{min-height:0}.evidence-grid{grid-template-columns:1fr}.usage-row{grid-template-columns:minmax(92px,.7fr) 1fr 44px}.long-session-review{padding:15px}.long-session-meta,.tool-trace-details summary{align-items:flex-start;flex-direction:column}.long-session-request,.long-session-locator{grid-template-columns:1fr;gap:3px}.finding-dialog{padding:18px}.dialog-heading{display:grid} }
+    @media print { :root{color-scheme:light;--bg:#fff;--panel:#fff;--panel-2:#f6f8fa;--line:#d8dee4;--text:#111;--muted:#59636e}body{background:#fff}body::before{display:none}.hero{box-shadow:none}.section{break-inside:avoid}.finding-list{display:block}.finding-card,.long-session-card{margin-bottom:16px;break-inside:avoid}.finding-actions,.dialog-actions,.manual-copy-dialog{display:none!important}.finding-dialog:not([open]),details.tool-trace-details:not([open]) > :not(summary){display:block!important;position:static;width:auto;max-height:none;margin-top:16px;box-shadow:none}.tool-trace-scroll{overflow:visible}.tool-trace-svg{width:100%;height:auto} }
+  </style>
+</head>
+<body>
+<div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>
+<main id="harness-report" data-report-mode="codex-html">
+<header class="hero" data-section="overview">
+    <div class="hero-copy">
+      <span class="eyebrow">Harness <span class="cjk-phrase">洞察</span> · 便携式 HTML</span>
+      <h1><span class="cjk-phrase">客户</span><span class="cjk-phrase">运营</span>中台<span class="cjk-phrase">平台</span></h1>
+      <p><span class="cjk-phrase">验证</span>链路已接线且<span class="cjk-phrase">真实</span><span class="cjk-phrase">执行</span>，<span class="cjk-phrase">交付</span><span class="cjk-phrase">验收</span>与<span class="cjk-phrase">会话</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">判定</span><span class="cjk-phrase">仍是</span>空档。</p>
+      <div class="hero-tags"><span class="pill accent">agent-work-loop-v4</span><span class="pill muted"><span class="cjk-phrase">证据</span>有界</span></div>
+    </div>
+    <div class="score-orbit"><strong>5</strong><span><span class="cjk-phrase">独立</span><span class="cjk-phrase">复核</span>维度</span></div>
+  </header>
+  <div class="metrics">
+    <div class="metric">
+    <span><span class="cjk-phrase">循环</span><span class="cjk-phrase">有效性</span></span>
+    <strong>66 / 100</strong>
+    <small><span class="cjk-phrase">等待</span>后续<span class="cjk-phrase">任务</span><span class="cjk-phrase">结果</span>后<span class="cjk-phrase">更新</span></small>
+  </div>
+    <div class="metric">
+    <span><span class="cjk-phrase">资产</span><span class="cjk-phrase">健康</span> / <span class="cjk-phrase">修复</span><span class="cjk-phrase">进度</span></span>
+    <strong>29 / 100</strong>
+    <small>2 项已<span class="cjk-phrase">验证</span> · 0 项<span class="cjk-phrase">部分</span><span class="cjk-phrase">完成</span> · 5 项待<span class="cjk-phrase">处理</span></small>
+  </div>
+    <div class="metric">
+    <span><span class="cjk-phrase">会话</span><span class="cjk-phrase">样本</span></span>
+    <strong>40 / 72</strong>
+    <small>Medium</small>
+  </div>
+    <div class="metric">
+    <span>待<span class="cjk-phrase">处理</span> Finding</span>
+    <strong>7</strong>
+    <small>0 High · 3 Medium</small>
+  </div>
+  </div>
+  <section class="section" data-section="fluency" aria-labelledby="section-fluency">
+    <div class="section-heading">
+      <div><span class="eyebrow">01 · <span class="cjk-phrase">就绪</span>度</span><h2 id="section-fluency">五维<span class="cjk-phrase">流畅</span>度</h2></div>
+      <p><span class="cjk-phrase">分数</span>与<span class="cjk-phrase">状态</span><span class="cjk-phrase">来自</span>已<span class="cjk-phrase">复核</span> source。</p>
+    </div>
+    <div class="dimension-grid">
+    <article class="dimension-card" data-dimension-id="task-understanding">
+        <div class="dimension-top"><span><span class="cjk-phrase">任务</span><span class="cjk-phrase">理解</span></span><span class="pill accent">Wired</span></div>
+        <div class="score-line"><strong>74</strong><span>/ 100</span></div>
+        <div class="track" role="progressbar" aria-label="任务理解 74 of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="74"><i style="width:74%"></i></div>
+        <p><span class="cjk-phrase">指令</span><span class="cjk-phrase">资产</span><span class="cjk-phrase">丰富</span>且已接线，但五套<span class="cjk-phrase">配置</span><span class="cjk-phrase">目录</span><span class="cjk-phrase">只有</span>两套可从<span class="cjk-phrase">入口</span><span class="cjk-phrase">发现</span>。</p>
+      </article>
+<article class="dimension-card" data-dimension-id="controlled-execution">
+        <div class="dimension-top"><span>可控<span class="cjk-phrase">执行</span></span><span class="pill accent">Wired</span></div>
+        <div class="score-line"><strong>72</strong><span>/ 100</span></div>
+        <div class="track" role="progressbar" aria-label="可控执行 72 of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="72"><i style="width:72%"></i></div>
+        <p><span class="cjk-phrase">启动</span>与<span class="cjk-phrase">验证</span><span class="cjk-phrase">入口</span><span class="cjk-phrase">齐全</span>，<span class="cjk-phrase">仍有</span><span class="cjk-phrase">一条</span><span class="cjk-phrase">指令</span><span class="cjk-phrase">指向</span><span class="cjk-phrase">不存在</span>的<span class="cjk-phrase">目录</span>。</p>
+      </article>
+<article class="dimension-card" data-dimension-id="change-validation">
+        <div class="dimension-top"><span>改动<span class="cjk-phrase">验证</span></span><span class="pill good">Exercised</span></div>
+        <div class="score-line"><strong>80</strong><span>/ 100</span></div>
+        <div class="track" role="progressbar" aria-label="改动验证 80 of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="80"><i style="width:80%"></i></div>
+        <p><span class="cjk-phrase">验证</span>被<span class="cjk-phrase">真实</span><span class="cjk-phrase">执行</span>，<span class="cjk-phrase">覆盖</span>率<span class="cjk-phrase">门禁</span>的<span class="cjk-phrase">声明</span>与<span class="cjk-phrase">实施</span><span class="cjk-phrase">数值</span><span class="cjk-phrase">不一致</span>。</p>
+      </article>
+<article class="dimension-card" data-dimension-id="reliable-delivery">
+        <div class="dimension-top"><span><span class="cjk-phrase">可靠</span><span class="cjk-phrase">交付</span></span><span class="pill accent">Present</span></div>
+        <div class="score-line"><strong>58</strong><span>/ 100</span></div>
+        <div class="track" role="progressbar" aria-label="可靠交付 58 of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="58"><i style="width:58%"></i></div>
+        <p><span class="cjk-phrase">交付</span><span class="cjk-phrase">机制</span>已<span class="cjk-phrase">配置</span>，<span class="cjk-phrase">窗口</span>内<span class="cjk-phrase">没有</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">验收</span><span class="cjk-phrase">证据</span>。</p>
+      </article>
+<article class="dimension-card" data-dimension-id="learning-capture">
+        <div class="dimension-top"><span><span class="cjk-phrase">经验</span><span class="cjk-phrase">沉淀</span></span><span class="pill accent">Present</span></div>
+        <div class="score-line"><strong>48</strong><span>/ 100</span></div>
+        <div class="track" role="progressbar" aria-label="经验沉淀 48 of 100" aria-valuemin="0" aria-valuemax="100" aria-valuenow="48"><i style="width:48%"></i></div>
+        <p><span class="cjk-phrase">沉淀</span><span class="cjk-phrase">资产</span><span class="cjk-phrase">活跃</span>，两条<span class="cjk-phrase">缺口</span>在历次<span class="cjk-phrase">报告</span>中<span class="cjk-phrase">重复</span><span class="cjk-phrase">出现</span>且未<span class="cjk-phrase">闭合</span>。</p>
+      </article>
+  </div>
+  </section>
+
+  <section class="section" data-section="findings" aria-labelledby="section-findings">
+    <div class="section-heading">
+      <div><span class="eyebrow">03 · <span class="cjk-phrase">行动</span></span><h2 id="section-findings">Finding 与<span class="cjk-phrase">建议</span></h2></div>
+      <p>7 条 finding · 0 条<span class="cjk-phrase">建议</span></p>
+    </div>
+    <div class="finding-list"><article class="finding-card" data-finding-id="coverage-gate-mismatch">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill warning">Medium</span>
+          <span class="pill neutral">改动<span class="cjk-phrase">验证</span></span>
+        </div>
+        <h3>硬<span class="cjk-phrase">规则</span><span class="cjk-phrase">声明</span>的<span class="cjk-phrase">覆盖</span>率<span class="cjk-phrase">门槛</span>未被 CI <span class="cjk-phrase">实施</span>，<span class="cjk-phrase">实际</span><span class="cjk-phrase">阻断</span>线<span class="cjk-phrase">只有</span><span class="cjk-phrase">声明</span>值的<span class="cjk-phrase">一半</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：.omp/RULES.md <span class="cjk-phrase">作为</span><span class="cjk-phrase">始终</span><span class="cjk-phrase">附着</span>的硬<span class="cjk-phrase">规则</span><span class="cjk-phrase">声明</span>「CI <span class="cjk-phrase">要求</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">覆盖</span>率 ≥50%（--cov-fail-under=50）」。<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span> .github/workflows/ <span class="cjk-phrase">全部</span> 6 个<span class="cjk-phrase">文件</span>后，<span class="cjk-phrase">唯一</span>带<span class="cjk-phrase">覆盖</span>率阈值<span class="cjk-phrase">的是</span> pr-checks.yml <span class="cjk-phrase">单元</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">作业</span>，<span class="cjk-phrase">参数</span>为 --cov-fail-under=25；<span class="cjk-phrase">同一</span><span class="cjk-phrase">文件</span>的<span class="cjk-phrase">集成</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">作业</span>与 backend-integration.yml 的<span class="cjk-phrase">集成</span><span class="cjk-phrase">测试</span>只<span class="cjk-phrase">生成</span> term-missing <span class="cjk-phrase">报告</span><span class="cjk-phrase">而不</span>设阈值；ci.yml 的<span class="cjk-phrase">单元</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">完全</span>不<span class="cjk-phrase">测量</span><span class="cjk-phrase">覆盖</span>率。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">每次</span><span class="cjk-phrase">会话</span>都被<span class="cjk-phrase">注入</span>「<span class="cjk-phrase">下限</span> 50%」这一<span class="cjk-phrase">验收</span><span class="cjk-phrase">边界</span>，而<span class="cjk-phrase">真正</span>能<span class="cjk-phrase">阻断</span><span class="cjk-phrase">合并</span>的<span class="cjk-phrase">门槛</span>是 25%，<span class="cjk-phrase">两者</span><span class="cjk-phrase">相差</span><span class="cjk-phrase">一倍</span>；<span class="cjk-phrase">并且</span>「≥50%」<span class="cjk-phrase">没有</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">机械</span>化<span class="cjk-phrase">检查</span><span class="cjk-phrase">可以</span><span class="cjk-phrase">验证</span>或<span class="cjk-phrase">修复</span>。<span class="cjk-phrase">归属</span>：实测<span class="cjk-phrase">单元</span><span class="cjk-phrase">覆盖</span>率 32% <span class="cjk-phrase">低于</span> 50%，<span class="cjk-phrase">提升</span><span class="cjk-phrase">实施</span><span class="cjk-phrase">门槛</span>会<span class="cjk-phrase">立即</span><span class="cjk-phrase">破坏</span><span class="cjk-phrase">所有</span> PR，<span class="cjk-phrase">因此</span><span class="cjk-phrase">唯一</span><span class="cjk-phrase">安全</span>收敛<span class="cjk-phrase">方向</span>是把<span class="cjk-phrase">声明</span>收敛到<span class="cjk-phrase">实施</span>值 25%。不<span class="cjk-phrase">确定</span>度：低——<span class="cjk-phrase">两侧</span><span class="cjk-phrase">都是</span><span class="cjk-phrase">静态</span><span class="cjk-phrase">配置</span>且已<span class="cjk-phrase">打开</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">无法</span><span class="cjk-phrase">确定</span><span class="cjk-phrase">团队</span><span class="cjk-phrase">意图</span>是把 CI <span class="cjk-phrase">提到</span> 50% <span class="cjk-phrase">还是</span>把<span class="cjk-phrase">规则</span>下调到 25%，<span class="cjk-phrase">因此</span><span class="cjk-phrase">修复</span>只<span class="cjk-phrase">要求</span>对齐<span class="cjk-phrase">而不</span><span class="cjk-phrase">指定</span><span class="cjk-phrase">方向</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="coverage-gate-mismatch" aria-label="复制 AI 修复: 硬规则声明的覆盖率门槛未被 CI 实施，实际阻断线只有声明值的一半"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-1" aria-label="查看详情: 硬规则声明的覆盖率门槛未被 CI 实施，实际阻断线只有声明值的一半"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-1" data-finding-dialog-id="coverage-gate-mismatch" aria-labelledby="finding-dialog-1-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-1-title">硬<span class="cjk-phrase">规则</span><span class="cjk-phrase">声明</span>的<span class="cjk-phrase">覆盖</span>率<span class="cjk-phrase">门槛</span>未被 CI <span class="cjk-phrase">实施</span>，<span class="cjk-phrase">实际</span><span class="cjk-phrase">阻断</span>线<span class="cjk-phrase">只有</span><span class="cjk-phrase">声明</span>值的<span class="cjk-phrase">一半</span></h3></div>
+          <span class="pill warning">Medium</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：.omp/RULES.md <span class="cjk-phrase">作为</span><span class="cjk-phrase">始终</span><span class="cjk-phrase">附着</span>的硬<span class="cjk-phrase">规则</span><span class="cjk-phrase">声明</span>「CI <span class="cjk-phrase">要求</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">覆盖</span>率 ≥50%（--cov-fail-under=50）」。<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span> .github/workflows/ <span class="cjk-phrase">全部</span> 6 个<span class="cjk-phrase">文件</span>后，<span class="cjk-phrase">唯一</span>带<span class="cjk-phrase">覆盖</span>率阈值<span class="cjk-phrase">的是</span> pr-checks.yml <span class="cjk-phrase">单元</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">作业</span>，<span class="cjk-phrase">参数</span>为 --cov-fail-under=25；<span class="cjk-phrase">同一</span><span class="cjk-phrase">文件</span>的<span class="cjk-phrase">集成</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">作业</span>与 backend-integration.yml 的<span class="cjk-phrase">集成</span><span class="cjk-phrase">测试</span>只<span class="cjk-phrase">生成</span> term-missing <span class="cjk-phrase">报告</span><span class="cjk-phrase">而不</span>设阈值；ci.yml 的<span class="cjk-phrase">单元</span><span class="cjk-phrase">测试</span><span class="cjk-phrase">完全</span>不<span class="cjk-phrase">测量</span><span class="cjk-phrase">覆盖</span>率。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">每次</span><span class="cjk-phrase">会话</span>都被<span class="cjk-phrase">注入</span>「<span class="cjk-phrase">下限</span> 50%」这一<span class="cjk-phrase">验收</span><span class="cjk-phrase">边界</span>，而<span class="cjk-phrase">真正</span>能<span class="cjk-phrase">阻断</span><span class="cjk-phrase">合并</span>的<span class="cjk-phrase">门槛</span>是 25%，<span class="cjk-phrase">两者</span><span class="cjk-phrase">相差</span><span class="cjk-phrase">一倍</span>；<span class="cjk-phrase">并且</span>「≥50%」<span class="cjk-phrase">没有</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">机械</span>化<span class="cjk-phrase">检查</span><span class="cjk-phrase">可以</span><span class="cjk-phrase">验证</span>或<span class="cjk-phrase">修复</span>。<span class="cjk-phrase">归属</span>：实测<span class="cjk-phrase">单元</span><span class="cjk-phrase">覆盖</span>率 32% <span class="cjk-phrase">低于</span> 50%，<span class="cjk-phrase">提升</span><span class="cjk-phrase">实施</span><span class="cjk-phrase">门槛</span>会<span class="cjk-phrase">立即</span><span class="cjk-phrase">破坏</span><span class="cjk-phrase">所有</span> PR，<span class="cjk-phrase">因此</span><span class="cjk-phrase">唯一</span><span class="cjk-phrase">安全</span>收敛<span class="cjk-phrase">方向</span>是把<span class="cjk-phrase">声明</span>收敛到<span class="cjk-phrase">实施</span>值 25%。不<span class="cjk-phrase">确定</span>度：低——<span class="cjk-phrase">两侧</span><span class="cjk-phrase">都是</span><span class="cjk-phrase">静态</span><span class="cjk-phrase">配置</span>且已<span class="cjk-phrase">打开</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">无法</span><span class="cjk-phrase">确定</span><span class="cjk-phrase">团队</span><span class="cjk-phrase">意图</span>是把 CI <span class="cjk-phrase">提到</span> 50% <span class="cjk-phrase">还是</span>把<span class="cjk-phrase">规则</span>下调到 25%，<span class="cjk-phrase">因此</span><span class="cjk-phrase">修复</span>只<span class="cjk-phrase">要求</span>对齐<span class="cjk-phrase">而不</span><span class="cjk-phrase">指定</span><span class="cjk-phrase">方向</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li>让 .omp/RULES.md <span class="cjk-phrase">声明</span>的<span class="cjk-phrase">覆盖</span>率<span class="cjk-phrase">门槛</span>与 CI <span class="cjk-phrase">实际</span><span class="cjk-phrase">执行</span>的阈值收敛为同<span class="cjk-phrase">一个</span><span class="cjk-phrase">数值</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">运行</span> grep -n &quot;cov-fail-under&quot; .github/workflows/*.yml，<span class="cjk-phrase">确认</span><span class="cjk-phrase">出现</span>的阈值与 .omp/RULES.md 的<span class="cjk-phrase">文本</span><span class="cjk-phrase">一致</span></li><li><span class="cjk-phrase">确认</span>带阈值的<span class="cjk-phrase">作业</span><span class="cjk-phrase">位于</span>会<span class="cjk-phrase">阻断</span><span class="cjk-phrase">合并</span>的<span class="cjk-phrase">工作</span>流中</li><li><span class="cjk-phrase">确认</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">其它</span><span class="cjk-phrase">工作</span>流在不设阈值的<span class="cjk-phrase">情况</span>下<span class="cjk-phrase">运行</span>同<span class="cjk-phrase">一批</span><span class="cjk-phrase">测试</span>而<span class="cjk-phrase">形成</span><span class="cjk-phrase">相反</span><span class="cjk-phrase">方向</span>的<span class="cjk-phrase">豁免</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="coverage-gate-mismatch" aria-label="复制 AI 修复: 硬规则声明的覆盖率门槛未被 CI 实施，实际阻断线只有声明值的一半"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-1"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="instruction-root-routing-gap">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill warning">Medium</span>
+          <span class="pill neutral"><span class="cjk-phrase">任务</span><span class="cjk-phrase">理解</span></span>
+        </div>
+        <h3>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span>只路由五套 agent <span class="cjk-phrase">配置</span><span class="cjk-phrase">中的</span>两套，<span class="cjk-phrase">承载</span>硬<span class="cjk-phrase">规则</span>的 .omp/ 与 .catpaw/ 零<span class="cjk-phrase">提及</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：<span class="cjk-phrase">仓库</span><span class="cjk-phrase">并存</span> .agents/、.catpaw/、.codex/、.omp/、.trellis/ 五套 agent <span class="cjk-phrase">配置</span><span class="cjk-phrase">目录</span>。<span class="cjk-phrase">核验</span>根 AGENTS.md（2895 字节，仅 TRELLIS 与 CODEGRAPH <span class="cjk-phrase">两段</span>）后<span class="cjk-phrase">统计</span><span class="cjk-phrase">提及</span><span class="cjk-phrase">次数</span>：trellis 7、agents 2、codex 1、omp 0、catpaw 0。<span class="cjk-phrase">承载</span><span class="cjk-phrase">项目</span>硬<span class="cjk-phrase">规则</span>的 .omp/AGENTS.md、.omp/RULES.md 与 .omp/rules/ 下 14 个<span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">因此</span><span class="cjk-phrase">不在</span>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span>的路由内；<span class="cjk-phrase">反向</span><span class="cjk-phrase">也不</span>通——.omp/AGENTS.md <span class="cjk-phrase">全文</span>仅 1 处 AGENTS.md <span class="cjk-phrase">匹配</span>且<span class="cjk-phrase">指向</span><span class="cjk-phrase">用户</span>级<span class="cjk-phrase">全局</span><span class="cjk-phrase">文件</span>，不<span class="cjk-phrase">引用</span>根 AGENTS.md 或 .trellis/。.catpaw/rules/codebase-indexing.md <span class="cjk-phrase">标记</span>为<span class="cjk-phrase">始终</span><span class="cjk-phrase">生效</span>，<span class="cjk-phrase">同样</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">索引</span><span class="cjk-phrase">入口</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">同一</span><span class="cjk-phrase">仓库</span>在<span class="cjk-phrase">不同</span> agent <span class="cjk-phrase">工具</span>下会<span class="cjk-phrase">装载</span><span class="cjk-phrase">不同</span>的<span class="cjk-phrase">规则</span><span class="cjk-phrase">集合</span>，<span class="cjk-phrase">只加</span>载 .omp/ <span class="cjk-phrase">之外</span><span class="cjk-phrase">目录</span>树的<span class="cjk-phrase">会话</span><span class="cjk-phrase">看不到</span><span class="cjk-phrase">事务</span>、<span class="cjk-phrase">权限</span>、<span class="cjk-phrase">覆盖</span>率、Python <span class="cjk-phrase">版本</span>、<span class="cjk-phrase">并发</span><span class="cjk-phrase">安全</span>与 pre-commit <span class="cjk-phrase">环境</span>这<span class="cjk-phrase">六条</span>硬<span class="cjk-phrase">规则</span>。<span class="cjk-phrase">资产</span><span class="cjk-phrase">清单</span><span class="cjk-phrase">只把</span>根 AGENTS.md 计为<span class="cjk-phrase">唯一</span> Rules surface（count=1），使<span class="cjk-phrase">读者</span><span class="cjk-phrase">进一步</span><span class="cjk-phrase">低估</span><span class="cjk-phrase">真实</span>的<span class="cjk-phrase">指令</span>层数（实测<span class="cjk-phrase">至少</span> 1 个根<span class="cjk-phrase">文件</span> + 1 份<span class="cjk-phrase">项目</span><span class="cjk-phrase">指南</span> + 1 份硬<span class="cjk-phrase">规则</span> + 14 个<span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span>）。<span class="cjk-phrase">归属</span>：根 AGENTS.md 中<span class="cjk-phrase">托管</span>块<span class="cjk-phrase">之外</span>的可<span class="cjk-phrase">保留</span><span class="cjk-phrase">区域</span>，<span class="cjk-phrase">以及</span> .omp/rules/README.md 的<span class="cjk-phrase">索引</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">本次</span><span class="cjk-phrase">运行</span>的<span class="cjk-phrase">注入</span><span class="cjk-phrase">内容</span><span class="cjk-phrase">包含</span> .omp/AGENTS.md，<span class="cjk-phrase">说明</span><span class="cjk-phrase">当前</span> provider 会加载它；<span class="cjk-phrase">缺口</span><span class="cjk-phrase">影响</span><span class="cjk-phrase">的是</span><span class="cjk-phrase">依赖</span>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">导航</span>的<span class="cjk-phrase">其它</span> provider，<span class="cjk-phrase">以及</span>与<span class="cjk-phrase">目录</span><span class="cjk-phrase">实况</span><span class="cjk-phrase">不符</span>的<span class="cjk-phrase">覆盖</span><span class="cjk-phrase">计数</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="instruction-root-routing-gap" aria-label="复制 AI 修复: 根指令文件只路由五套 agent 配置中的两套，承载硬规则的 .omp/ 与 .catpaw/ 零提及"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-2" aria-label="查看详情: 根指令文件只路由五套 agent 配置中的两套，承载硬规则的 .omp/ 与 .catpaw/ 零提及"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-2" data-finding-dialog-id="instruction-root-routing-gap" aria-labelledby="finding-dialog-2-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-2-title">根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span>只路由五套 agent <span class="cjk-phrase">配置</span><span class="cjk-phrase">中的</span>两套，<span class="cjk-phrase">承载</span>硬<span class="cjk-phrase">规则</span>的 .omp/ 与 .catpaw/ 零<span class="cjk-phrase">提及</span></h3></div>
+          <span class="pill warning">Medium</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：<span class="cjk-phrase">仓库</span><span class="cjk-phrase">并存</span> .agents/、.catpaw/、.codex/、.omp/、.trellis/ 五套 agent <span class="cjk-phrase">配置</span><span class="cjk-phrase">目录</span>。<span class="cjk-phrase">核验</span>根 AGENTS.md（2895 字节，仅 TRELLIS 与 CODEGRAPH <span class="cjk-phrase">两段</span>）后<span class="cjk-phrase">统计</span><span class="cjk-phrase">提及</span><span class="cjk-phrase">次数</span>：trellis 7、agents 2、codex 1、omp 0、catpaw 0。<span class="cjk-phrase">承载</span><span class="cjk-phrase">项目</span>硬<span class="cjk-phrase">规则</span>的 .omp/AGENTS.md、.omp/RULES.md 与 .omp/rules/ 下 14 个<span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">因此</span><span class="cjk-phrase">不在</span>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span>的路由内；<span class="cjk-phrase">反向</span><span class="cjk-phrase">也不</span>通——.omp/AGENTS.md <span class="cjk-phrase">全文</span>仅 1 处 AGENTS.md <span class="cjk-phrase">匹配</span>且<span class="cjk-phrase">指向</span><span class="cjk-phrase">用户</span>级<span class="cjk-phrase">全局</span><span class="cjk-phrase">文件</span>，不<span class="cjk-phrase">引用</span>根 AGENTS.md 或 .trellis/。.catpaw/rules/codebase-indexing.md <span class="cjk-phrase">标记</span>为<span class="cjk-phrase">始终</span><span class="cjk-phrase">生效</span>，<span class="cjk-phrase">同样</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">索引</span><span class="cjk-phrase">入口</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">同一</span><span class="cjk-phrase">仓库</span>在<span class="cjk-phrase">不同</span> agent <span class="cjk-phrase">工具</span>下会<span class="cjk-phrase">装载</span><span class="cjk-phrase">不同</span>的<span class="cjk-phrase">规则</span><span class="cjk-phrase">集合</span>，<span class="cjk-phrase">只加</span>载 .omp/ <span class="cjk-phrase">之外</span><span class="cjk-phrase">目录</span>树的<span class="cjk-phrase">会话</span><span class="cjk-phrase">看不到</span><span class="cjk-phrase">事务</span>、<span class="cjk-phrase">权限</span>、<span class="cjk-phrase">覆盖</span>率、Python <span class="cjk-phrase">版本</span>、<span class="cjk-phrase">并发</span><span class="cjk-phrase">安全</span>与 pre-commit <span class="cjk-phrase">环境</span>这<span class="cjk-phrase">六条</span>硬<span class="cjk-phrase">规则</span>。<span class="cjk-phrase">资产</span><span class="cjk-phrase">清单</span><span class="cjk-phrase">只把</span>根 AGENTS.md 计为<span class="cjk-phrase">唯一</span> Rules surface（count=1），使<span class="cjk-phrase">读者</span><span class="cjk-phrase">进一步</span><span class="cjk-phrase">低估</span><span class="cjk-phrase">真实</span>的<span class="cjk-phrase">指令</span>层数（实测<span class="cjk-phrase">至少</span> 1 个根<span class="cjk-phrase">文件</span> + 1 份<span class="cjk-phrase">项目</span><span class="cjk-phrase">指南</span> + 1 份硬<span class="cjk-phrase">规则</span> + 14 个<span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span>）。<span class="cjk-phrase">归属</span>：根 AGENTS.md 中<span class="cjk-phrase">托管</span>块<span class="cjk-phrase">之外</span>的可<span class="cjk-phrase">保留</span><span class="cjk-phrase">区域</span>，<span class="cjk-phrase">以及</span> .omp/rules/README.md 的<span class="cjk-phrase">索引</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">本次</span><span class="cjk-phrase">运行</span>的<span class="cjk-phrase">注入</span><span class="cjk-phrase">内容</span><span class="cjk-phrase">包含</span> .omp/AGENTS.md，<span class="cjk-phrase">说明</span><span class="cjk-phrase">当前</span> provider 会加载它；<span class="cjk-phrase">缺口</span><span class="cjk-phrase">影响</span><span class="cjk-phrase">的是</span><span class="cjk-phrase">依赖</span>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">导航</span>的<span class="cjk-phrase">其它</span> provider，<span class="cjk-phrase">以及</span>与<span class="cjk-phrase">目录</span><span class="cjk-phrase">实况</span><span class="cjk-phrase">不符</span>的<span class="cjk-phrase">覆盖</span><span class="cjk-phrase">计数</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li>根<span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span>在<span class="cjk-phrase">托管</span>块<span class="cjk-phrase">之外</span><span class="cjk-phrase">增加</span><span class="cjk-phrase">指向</span> .omp/ 硬<span class="cjk-phrase">规则</span><span class="cjk-phrase">入口</span>与 .catpaw/ <span class="cjk-phrase">规则</span>的<span class="cjk-phrase">一行</span>路由，使五套<span class="cjk-phrase">配置</span><span class="cjk-phrase">目录</span><span class="cjk-phrase">都可</span>从<span class="cjk-phrase">入口</span><span class="cjk-phrase">发现</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">运行</span> grep -c &quot;omp\|catpaw&quot; AGENTS.md，<span class="cjk-phrase">确认</span>两个<span class="cjk-phrase">目录</span>名都<span class="cjk-phrase">出现</span>在<span class="cjk-phrase">托管</span>块<span class="cjk-phrase">之外</span></li><li><span class="cjk-phrase">确认</span>新路由<span class="cjk-phrase">指向</span>的<span class="cjk-phrase">路径</span>在<span class="cjk-phrase">仓库</span>中<span class="cjk-phrase">真实</span><span class="cjk-phrase">存在</span></li><li><span class="cjk-phrase">确认</span>根 AGENTS.md 仍只<span class="cjk-phrase">描述</span>路由，不<span class="cjk-phrase">复制</span> .omp/RULES.md 的<span class="cjk-phrase">规则</span><span class="cjk-phrase">正文</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="instruction-root-routing-gap" aria-label="复制 AI 修复: 根指令文件只路由五套 agent 配置中的两套，承载硬规则的 .omp/ 与 .catpaw/ 零提及"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-2"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="skill-dangling-sync-path">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill neutral">Low</span>
+          <span class="pill neutral">可控<span class="cjk-phrase">执行</span></span>
+        </div>
+        <h3>trellis-break-loop 的<span class="cjk-phrase">模板</span><span class="cjk-phrase">同步</span><span class="cjk-phrase">步骤</span><span class="cjk-phrase">指向</span><span class="cjk-phrase">仓库</span>中<span class="cjk-phrase">不存在</span>的<span class="cjk-phrase">目录</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：.agents/skills/trellis-break-loop/SKILL.md 的<span class="cjk-phrase">收尾</span><span class="cjk-phrase">小节</span><span class="cjk-phrase">要求</span>「After updating .trellis/spec/, sync to src/templates/markdown/spec/」。<span class="cjk-phrase">核验</span><span class="cjk-phrase">仓库</span>：src/templates/ 与 src/templates/markdown/spec/ 均<span class="cjk-phrase">不存在</span>，<span class="cjk-phrase">仓库</span>根下<span class="cjk-phrase">也没有</span> src/ <span class="cjk-phrase">目录</span>。<span class="cjk-phrase">推断</span>：该<span class="cjk-phrase">步骤</span>在被<span class="cjk-phrase">触发</span>时<span class="cjk-phrase">无法</span><span class="cjk-phrase">完成</span><span class="cjk-phrase">预期</span>的写回——<span class="cjk-phrase">要么</span>在<span class="cjk-phrase">项目</span><span class="cjk-phrase">之外</span><span class="cjk-phrase">创建</span><span class="cjk-phrase">目录</span>，<span class="cjk-phrase">要么</span><span class="cjk-phrase">静默</span>跳过；两种<span class="cjk-phrase">情况</span>下 .trellis/spec/ 的<span class="cjk-phrase">更新</span>都<span class="cjk-phrase">不会</span><span class="cjk-phrase">同步</span>到<span class="cjk-phrase">任何</span><span class="cjk-phrase">消费</span>方，<span class="cjk-phrase">形成</span><span class="cjk-phrase">一条</span><span class="cjk-phrase">永远</span>不<span class="cjk-phrase">生效</span>的<span class="cjk-phrase">指令</span>。<span class="cjk-phrase">归属</span>：.agents/skills/trellis-break-loop/SKILL.md 的<span class="cjk-phrase">模板</span><span class="cjk-phrase">同步</span><span class="cjk-phrase">步骤</span>。不<span class="cjk-phrase">确定</span>度：低——<span class="cjk-phrase">路径</span><span class="cjk-phrase">两侧</span>都已<span class="cjk-phrase">打开</span><span class="cjk-phrase">核验</span>；不<span class="cjk-phrase">确定</span>该<span class="cjk-phrase">目录</span>是被<span class="cjk-phrase">迁移</span>到<span class="cjk-phrase">别处</span><span class="cjk-phrase">还是</span>该<span class="cjk-phrase">步骤</span><span class="cjk-phrase">本身</span>已<span class="cjk-phrase">作废</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">修复</span>只<span class="cjk-phrase">要求</span>让<span class="cjk-phrase">指令</span>与<span class="cjk-phrase">仓库</span><span class="cjk-phrase">实况</span><span class="cjk-phrase">一致</span>或<span class="cjk-phrase">删除</span>该<span class="cjk-phrase">步骤</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="skill-dangling-sync-path" aria-label="复制 AI 修复: trellis-break-loop 的模板同步步骤指向仓库中不存在的目录"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-3" aria-label="查看详情: trellis-break-loop 的模板同步步骤指向仓库中不存在的目录"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-3" data-finding-dialog-id="skill-dangling-sync-path" aria-labelledby="finding-dialog-3-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-3-title">trellis-break-loop 的<span class="cjk-phrase">模板</span><span class="cjk-phrase">同步</span><span class="cjk-phrase">步骤</span><span class="cjk-phrase">指向</span><span class="cjk-phrase">仓库</span>中<span class="cjk-phrase">不存在</span>的<span class="cjk-phrase">目录</span></h3></div>
+          <span class="pill neutral">Low</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：.agents/skills/trellis-break-loop/SKILL.md 的<span class="cjk-phrase">收尾</span><span class="cjk-phrase">小节</span><span class="cjk-phrase">要求</span>「After updating .trellis/spec/, sync to src/templates/markdown/spec/」。<span class="cjk-phrase">核验</span><span class="cjk-phrase">仓库</span>：src/templates/ 与 src/templates/markdown/spec/ 均<span class="cjk-phrase">不存在</span>，<span class="cjk-phrase">仓库</span>根下<span class="cjk-phrase">也没有</span> src/ <span class="cjk-phrase">目录</span>。<span class="cjk-phrase">推断</span>：该<span class="cjk-phrase">步骤</span>在被<span class="cjk-phrase">触发</span>时<span class="cjk-phrase">无法</span><span class="cjk-phrase">完成</span><span class="cjk-phrase">预期</span>的写回——<span class="cjk-phrase">要么</span>在<span class="cjk-phrase">项目</span><span class="cjk-phrase">之外</span><span class="cjk-phrase">创建</span><span class="cjk-phrase">目录</span>，<span class="cjk-phrase">要么</span><span class="cjk-phrase">静默</span>跳过；两种<span class="cjk-phrase">情况</span>下 .trellis/spec/ 的<span class="cjk-phrase">更新</span>都<span class="cjk-phrase">不会</span><span class="cjk-phrase">同步</span>到<span class="cjk-phrase">任何</span><span class="cjk-phrase">消费</span>方，<span class="cjk-phrase">形成</span><span class="cjk-phrase">一条</span><span class="cjk-phrase">永远</span>不<span class="cjk-phrase">生效</span>的<span class="cjk-phrase">指令</span>。<span class="cjk-phrase">归属</span>：.agents/skills/trellis-break-loop/SKILL.md 的<span class="cjk-phrase">模板</span><span class="cjk-phrase">同步</span><span class="cjk-phrase">步骤</span>。不<span class="cjk-phrase">确定</span>度：低——<span class="cjk-phrase">路径</span><span class="cjk-phrase">两侧</span>都已<span class="cjk-phrase">打开</span><span class="cjk-phrase">核验</span>；不<span class="cjk-phrase">确定</span>该<span class="cjk-phrase">目录</span>是被<span class="cjk-phrase">迁移</span>到<span class="cjk-phrase">别处</span><span class="cjk-phrase">还是</span>该<span class="cjk-phrase">步骤</span><span class="cjk-phrase">本身</span>已<span class="cjk-phrase">作废</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">修复</span>只<span class="cjk-phrase">要求</span>让<span class="cjk-phrase">指令</span>与<span class="cjk-phrase">仓库</span><span class="cjk-phrase">实况</span><span class="cjk-phrase">一致</span>或<span class="cjk-phrase">删除</span>该<span class="cjk-phrase">步骤</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li>skill 的<span class="cjk-phrase">收尾</span><span class="cjk-phrase">步骤</span>或<span class="cjk-phrase">指向</span><span class="cjk-phrase">仓库</span>中<span class="cjk-phrase">真实</span><span class="cjk-phrase">存在</span>的<span class="cjk-phrase">同步</span><span class="cjk-phrase">目标</span>，或从<span class="cjk-phrase">流程</span>中<span class="cjk-phrase">移除</span>，<span class="cjk-phrase">不再</span><span class="cjk-phrase">留下</span><span class="cjk-phrase">指向</span>空<span class="cjk-phrase">路径</span>的<span class="cjk-phrase">动作</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">运行</span> ls <span class="cjk-phrase">确认</span><span class="cjk-phrase">修复</span>后<span class="cjk-phrase">步骤</span><span class="cjk-phrase">引用</span>的<span class="cjk-phrase">路径</span><span class="cjk-phrase">真实</span><span class="cjk-phrase">存在</span>，或该<span class="cjk-phrase">步骤</span>已被<span class="cjk-phrase">移除</span></li><li><span class="cjk-phrase">确认</span> skill 中<span class="cjk-phrase">不再</span><span class="cjk-phrase">出现</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">指向</span><span class="cjk-phrase">不存在</span><span class="cjk-phrase">目录</span>的写回<span class="cjk-phrase">动作</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="skill-dangling-sync-path" aria-label="复制 AI 修复: trellis-break-loop 的模板同步步骤指向仓库中不存在的目录"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-3"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="delivery-acceptance-unobserved">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill warning">Medium</span>
+          <span class="pill neutral"><span class="cjk-phrase">可靠</span><span class="cjk-phrase">交付</span></span>
+        </div>
+        <h3>30 天<span class="cjk-phrase">窗口</span>内<span class="cjk-phrase">没有</span><span class="cjk-phrase">交付</span><span class="cjk-phrase">验收</span><span class="cjk-phrase">证据</span>，<span class="cjk-phrase">闭合</span>与<span class="cjk-phrase">恢复</span>的 Task Episode 均为 0</h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：<span class="cjk-phrase">会话</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">边界</span>的<span class="cjk-phrase">交付</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">列表</span>为空，episode <span class="cjk-phrase">覆盖</span><span class="cjk-phrase">统计</span>中<span class="cjk-phrase">闭合</span>数与<span class="cjk-phrase">恢复</span>数均为 0，<span class="cjk-phrase">同时</span> 46 个 episode 里有 34 个<span class="cjk-phrase">发生</span>过<span class="cjk-phrase">编辑</span>。<span class="cjk-phrase">项目</span>侧<span class="cjk-phrase">交付</span><span class="cjk-phrase">机制</span>是<span class="cjk-phrase">存在</span>的——unit、integration、端到端与<span class="cjk-phrase">部署</span>共 6 条<span class="cjk-phrase">工作</span>流，<span class="cjk-phrase">加上</span> pre-push <span class="cjk-phrase">阶段</span>的 pytest-unit 与 vitest <span class="cjk-phrase">钩子</span>——但本<span class="cjk-phrase">窗口</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">采集</span>到<span class="cjk-phrase">任何</span><span class="cjk-phrase">一次</span><span class="cjk-phrase">合并</span>、<span class="cjk-phrase">部署</span>、<span class="cjk-phrase">审批</span>或<span class="cjk-phrase">恢复</span><span class="cjk-phrase">结果</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">交付</span><span class="cjk-phrase">边界</span>靠<span class="cjk-phrase">什么</span><span class="cjk-phrase">判定</span>、<span class="cjk-phrase">失败</span>后由谁<span class="cjk-phrase">恢复</span>，在<span class="cjk-phrase">现有</span><span class="cjk-phrase">证据</span>里<span class="cjk-phrase">没有</span><span class="cjk-phrase">答案</span>，使「改动<span class="cjk-phrase">是否</span>被<span class="cjk-phrase">真正</span><span class="cjk-phrase">接受</span>」<span class="cjk-phrase">只能</span><span class="cjk-phrase">停留在</span><span class="cjk-phrase">推测</span>层。<span class="cjk-phrase">归属</span>：<span class="cjk-phrase">交付</span><span class="cjk-phrase">验收</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">不需要</span><span class="cjk-phrase">新增</span><span class="cjk-phrase">流程</span>，<span class="cjk-phrase">最小</span>落点是把 PR <span class="cjk-phrase">检查</span><span class="cjk-phrase">结论</span>或<span class="cjk-phrase">合并</span><span class="cjk-phrase">结果</span><span class="cjk-phrase">写进</span>可<span class="cjk-phrase">复核</span>的<span class="cjk-phrase">产物</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">证据</span><span class="cjk-phrase">通道</span><span class="cjk-phrase">自述</span>不<span class="cjk-phrase">打开</span><span class="cjk-phrase">外部</span><span class="cjk-phrase">检查</span>与 PR <span class="cjk-phrase">系统</span>，<span class="cjk-phrase">因此</span>这<span class="cjk-phrase">首先是</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">缺口</span>；但<span class="cjk-phrase">项目</span><span class="cjk-phrase">确实</span>有 6 条<span class="cjk-phrase">工作</span>流，<span class="cjk-phrase">无法</span><span class="cjk-phrase">排除</span><span class="cjk-phrase">机制</span><span class="cjk-phrase">正常</span>而<span class="cjk-phrase">只是</span>未被<span class="cjk-phrase">观测</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="delivery-acceptance-unobserved" aria-label="复制 AI 修复: 30 天窗口内没有交付验收证据，闭合与恢复的 Task Episode 均为 0"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-4" aria-label="查看详情: 30 天窗口内没有交付验收证据，闭合与恢复的 Task Episode 均为 0"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-4" data-finding-dialog-id="delivery-acceptance-unobserved" aria-labelledby="finding-dialog-4-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-4-title">30 天<span class="cjk-phrase">窗口</span>内<span class="cjk-phrase">没有</span><span class="cjk-phrase">交付</span><span class="cjk-phrase">验收</span><span class="cjk-phrase">证据</span>，<span class="cjk-phrase">闭合</span>与<span class="cjk-phrase">恢复</span>的 Task Episode 均为 0</h3></div>
+          <span class="pill warning">Medium</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：<span class="cjk-phrase">会话</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">边界</span>的<span class="cjk-phrase">交付</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">列表</span>为空，episode <span class="cjk-phrase">覆盖</span><span class="cjk-phrase">统计</span>中<span class="cjk-phrase">闭合</span>数与<span class="cjk-phrase">恢复</span>数均为 0，<span class="cjk-phrase">同时</span> 46 个 episode 里有 34 个<span class="cjk-phrase">发生</span>过<span class="cjk-phrase">编辑</span>。<span class="cjk-phrase">项目</span>侧<span class="cjk-phrase">交付</span><span class="cjk-phrase">机制</span>是<span class="cjk-phrase">存在</span>的——unit、integration、端到端与<span class="cjk-phrase">部署</span>共 6 条<span class="cjk-phrase">工作</span>流，<span class="cjk-phrase">加上</span> pre-push <span class="cjk-phrase">阶段</span>的 pytest-unit 与 vitest <span class="cjk-phrase">钩子</span>——但本<span class="cjk-phrase">窗口</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">采集</span>到<span class="cjk-phrase">任何</span><span class="cjk-phrase">一次</span><span class="cjk-phrase">合并</span>、<span class="cjk-phrase">部署</span>、<span class="cjk-phrase">审批</span>或<span class="cjk-phrase">恢复</span><span class="cjk-phrase">结果</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">交付</span><span class="cjk-phrase">边界</span>靠<span class="cjk-phrase">什么</span><span class="cjk-phrase">判定</span>、<span class="cjk-phrase">失败</span>后由谁<span class="cjk-phrase">恢复</span>，在<span class="cjk-phrase">现有</span><span class="cjk-phrase">证据</span>里<span class="cjk-phrase">没有</span><span class="cjk-phrase">答案</span>，使「改动<span class="cjk-phrase">是否</span>被<span class="cjk-phrase">真正</span><span class="cjk-phrase">接受</span>」<span class="cjk-phrase">只能</span><span class="cjk-phrase">停留在</span><span class="cjk-phrase">推测</span>层。<span class="cjk-phrase">归属</span>：<span class="cjk-phrase">交付</span><span class="cjk-phrase">验收</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">不需要</span><span class="cjk-phrase">新增</span><span class="cjk-phrase">流程</span>，<span class="cjk-phrase">最小</span>落点是把 PR <span class="cjk-phrase">检查</span><span class="cjk-phrase">结论</span>或<span class="cjk-phrase">合并</span><span class="cjk-phrase">结果</span><span class="cjk-phrase">写进</span>可<span class="cjk-phrase">复核</span>的<span class="cjk-phrase">产物</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">证据</span><span class="cjk-phrase">通道</span><span class="cjk-phrase">自述</span>不<span class="cjk-phrase">打开</span><span class="cjk-phrase">外部</span><span class="cjk-phrase">检查</span>与 PR <span class="cjk-phrase">系统</span>，<span class="cjk-phrase">因此</span>这<span class="cjk-phrase">首先是</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">缺口</span>；但<span class="cjk-phrase">项目</span><span class="cjk-phrase">确实</span>有 6 条<span class="cjk-phrase">工作</span>流，<span class="cjk-phrase">无法</span><span class="cjk-phrase">排除</span><span class="cjk-phrase">机制</span><span class="cjk-phrase">正常</span>而<span class="cjk-phrase">只是</span>未被<span class="cjk-phrase">观测</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li><span class="cjk-phrase">至少</span><span class="cjk-phrase">一次</span>改动<span class="cjk-phrase">带有</span>可<span class="cjk-phrase">复核</span>的<span class="cjk-phrase">验收</span><span class="cjk-phrase">记录</span>：<span class="cjk-phrase">检查</span><span class="cjk-phrase">结论</span>、<span class="cjk-phrase">合并</span><span class="cjk-phrase">判定</span>或<span class="cjk-phrase">恢复</span><span class="cjk-phrase">结果</span><span class="cjk-phrase">三者</span><span class="cjk-phrase">之一</span>被写入<span class="cjk-phrase">仓库</span>内<span class="cjk-phrase">可读</span>的<span class="cjk-phrase">产物</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">触发</span><span class="cjk-phrase">一次</span>受<span class="cjk-phrase">影响</span><span class="cjk-phrase">路径</span>的<span class="cjk-phrase">检查</span>，<span class="cjk-phrase">确认</span><span class="cjk-phrase">结果</span><span class="cjk-phrase">文件</span>被产出且<span class="cjk-phrase">可被</span>后续<span class="cjk-phrase">运行</span>读取</li><li><span class="cjk-phrase">确认</span>该<span class="cjk-phrase">记录</span>能<span class="cjk-phrase">指出</span><span class="cjk-phrase">本次</span>改动的<span class="cjk-phrase">验收</span><span class="cjk-phrase">结论</span>与<span class="cjk-phrase">失败</span>时的<span class="cjk-phrase">恢复</span><span class="cjk-phrase">入口</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="delivery-acceptance-unobserved" aria-label="复制 AI 修复: 30 天窗口内没有交付验收证据，闭合与恢复的 Task Episode 均为 0"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-4"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="conditional-rule-index-gap">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill neutral">Low</span>
+          <span class="pill neutral"><span class="cjk-phrase">任务</span><span class="cjk-phrase">理解</span></span>
+        </div>
+        <h3>从<span class="cjk-phrase">事故</span><span class="cjk-phrase">提炼</span>的<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>未<span class="cjk-phrase">进入</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">索引</span>，<span class="cjk-phrase">无法</span>被<span class="cjk-phrase">检索</span>或<span class="cjk-phrase">审计</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：.omp/rules/ 下有 14 个<span class="cjk-phrase">条目</span>。.omp/AGENTS.md 以<span class="cjk-phrase">引用</span><span class="cjk-phrase">形式</span><span class="cjk-phrase">列出</span><span class="cjk-phrase">其中</span> 9 个，<span class="cjk-phrase">另外</span> 4 个带 condition 与 scope 前置字段的<span class="cjk-phrase">运行</span>时<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>未被<span class="cjk-phrase">任何</span><span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">引用</span>：<span class="cjk-phrase">批量</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">编辑</span>、<span class="cjk-phrase">删除</span><span class="cjk-phrase">模型</span>前的<span class="cjk-phrase">引用</span><span class="cjk-phrase">检查</span>、Vue <span class="cjk-phrase">编辑</span>的<span class="cjk-phrase">完整</span><span class="cjk-phrase">路径</span>、<span class="cjk-phrase">以及</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">损坏</span>时<span class="cjk-phrase">停止</span>重<span class="cjk-phrase">写的</span><span class="cjk-phrase">退出</span><span class="cjk-phrase">协议</span>。.omp/rules/README.md <span class="cjk-phrase">自称</span><span class="cjk-phrase">项目</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">索引</span>，其<span class="cjk-phrase">清单</span>只<span class="cjk-phrase">列出</span> 10 条，<span class="cjk-phrase">漏掉</span><span class="cjk-phrase">其中</span> 3 条<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>。<span class="cjk-phrase">这些</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">正文</span>都<span class="cjk-phrase">记录</span>了<span class="cjk-phrase">具体</span><span class="cjk-phrase">事故</span><span class="cjk-phrase">来源</span>，<span class="cjk-phrase">例如</span>逐<span class="cjk-phrase">文件</span>手动<span class="cjk-phrase">编辑</span><span class="cjk-phrase">导致</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">以上</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">往返</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">这类</span><span class="cjk-phrase">防护</span>的可<span class="cjk-phrase">发现</span>性<span class="cjk-phrase">完全</span><span class="cjk-phrase">依赖</span><span class="cjk-phrase">运行</span>时<span class="cjk-phrase">条件</span><span class="cjk-phrase">正则</span><span class="cjk-phrase">命中</span>，<span class="cjk-phrase">索引</span>不<span class="cjk-phrase">完整</span>使<span class="cjk-phrase">维护</span>者与 agent 都<span class="cjk-phrase">无法</span><span class="cjk-phrase">审计</span><span class="cjk-phrase">覆盖</span><span class="cjk-phrase">范围</span>，也<span class="cjk-phrase">无法</span><span class="cjk-phrase">确认</span>某条<span class="cjk-phrase">防护</span><span class="cjk-phrase">会不会</span>被<span class="cjk-phrase">注入</span>。<span class="cjk-phrase">归属</span>：.omp/rules/README.md 的<span class="cjk-phrase">索引</span><span class="cjk-phrase">清单</span>，<span class="cjk-phrase">必要</span>时<span class="cjk-phrase">区分</span><span class="cjk-phrase">始终</span><span class="cjk-phrase">生效</span><span class="cjk-phrase">规则</span>与<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">索引</span>与<span class="cjk-phrase">目录</span>的<span class="cjk-phrase">差异</span>已<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">运行</span>时<span class="cjk-phrase">是否</span>无<span class="cjk-phrase">条件</span><span class="cjk-phrase">装载</span><span class="cjk-phrase">全部</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">无法</span>从<span class="cjk-phrase">仓库</span><span class="cjk-phrase">判定</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">不断</span>言<span class="cjk-phrase">这些</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">当前</span><span class="cjk-phrase">已经</span><span class="cjk-phrase">失效</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="conditional-rule-index-gap" aria-label="复制 AI 修复: 从事故提炼的条件规则未进入规则索引，无法被检索或审计"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-5" aria-label="查看详情: 从事故提炼的条件规则未进入规则索引，无法被检索或审计"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-5" data-finding-dialog-id="conditional-rule-index-gap" aria-labelledby="finding-dialog-5-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-5-title">从<span class="cjk-phrase">事故</span><span class="cjk-phrase">提炼</span>的<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>未<span class="cjk-phrase">进入</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">索引</span>，<span class="cjk-phrase">无法</span>被<span class="cjk-phrase">检索</span>或<span class="cjk-phrase">审计</span></h3></div>
+          <span class="pill neutral">Low</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：.omp/rules/ 下有 14 个<span class="cjk-phrase">条目</span>。.omp/AGENTS.md 以<span class="cjk-phrase">引用</span><span class="cjk-phrase">形式</span><span class="cjk-phrase">列出</span><span class="cjk-phrase">其中</span> 9 个，<span class="cjk-phrase">另外</span> 4 个带 condition 与 scope 前置字段的<span class="cjk-phrase">运行</span>时<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>未被<span class="cjk-phrase">任何</span><span class="cjk-phrase">指令</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">引用</span>：<span class="cjk-phrase">批量</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">编辑</span>、<span class="cjk-phrase">删除</span><span class="cjk-phrase">模型</span>前的<span class="cjk-phrase">引用</span><span class="cjk-phrase">检查</span>、Vue <span class="cjk-phrase">编辑</span>的<span class="cjk-phrase">完整</span><span class="cjk-phrase">路径</span>、<span class="cjk-phrase">以及</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">损坏</span>时<span class="cjk-phrase">停止</span>重<span class="cjk-phrase">写的</span><span class="cjk-phrase">退出</span><span class="cjk-phrase">协议</span>。.omp/rules/README.md <span class="cjk-phrase">自称</span><span class="cjk-phrase">项目</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">索引</span>，其<span class="cjk-phrase">清单</span>只<span class="cjk-phrase">列出</span> 10 条，<span class="cjk-phrase">漏掉</span><span class="cjk-phrase">其中</span> 3 条<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>。<span class="cjk-phrase">这些</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">正文</span>都<span class="cjk-phrase">记录</span>了<span class="cjk-phrase">具体</span><span class="cjk-phrase">事故</span><span class="cjk-phrase">来源</span>，<span class="cjk-phrase">例如</span>逐<span class="cjk-phrase">文件</span>手动<span class="cjk-phrase">编辑</span><span class="cjk-phrase">导致</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">以上</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">往返</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">这类</span><span class="cjk-phrase">防护</span>的可<span class="cjk-phrase">发现</span>性<span class="cjk-phrase">完全</span><span class="cjk-phrase">依赖</span><span class="cjk-phrase">运行</span>时<span class="cjk-phrase">条件</span><span class="cjk-phrase">正则</span><span class="cjk-phrase">命中</span>，<span class="cjk-phrase">索引</span>不<span class="cjk-phrase">完整</span>使<span class="cjk-phrase">维护</span>者与 agent 都<span class="cjk-phrase">无法</span><span class="cjk-phrase">审计</span><span class="cjk-phrase">覆盖</span><span class="cjk-phrase">范围</span>，也<span class="cjk-phrase">无法</span><span class="cjk-phrase">确认</span>某条<span class="cjk-phrase">防护</span><span class="cjk-phrase">会不会</span>被<span class="cjk-phrase">注入</span>。<span class="cjk-phrase">归属</span>：.omp/rules/README.md 的<span class="cjk-phrase">索引</span><span class="cjk-phrase">清单</span>，<span class="cjk-phrase">必要</span>时<span class="cjk-phrase">区分</span><span class="cjk-phrase">始终</span><span class="cjk-phrase">生效</span><span class="cjk-phrase">规则</span>与<span class="cjk-phrase">条件</span><span class="cjk-phrase">规则</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">索引</span>与<span class="cjk-phrase">目录</span>的<span class="cjk-phrase">差异</span>已<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">运行</span>时<span class="cjk-phrase">是否</span>无<span class="cjk-phrase">条件</span><span class="cjk-phrase">装载</span><span class="cjk-phrase">全部</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">无法</span>从<span class="cjk-phrase">仓库</span><span class="cjk-phrase">判定</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">不断</span>言<span class="cjk-phrase">这些</span><span class="cjk-phrase">规则</span><span class="cjk-phrase">当前</span><span class="cjk-phrase">已经</span><span class="cjk-phrase">失效</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li>.omp/rules/README.md 的<span class="cjk-phrase">清单</span>与<span class="cjk-phrase">目录</span><span class="cjk-phrase">实况</span><span class="cjk-phrase">逐条</span>对齐，并<span class="cjk-phrase">标明</span>每条<span class="cjk-phrase">规则</span>是<span class="cjk-phrase">始终</span><span class="cjk-phrase">生效</span><span class="cjk-phrase">还是</span>按<span class="cjk-phrase">条件</span><span class="cjk-phrase">触发</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">运行</span> ls .omp/rules/ 并逐项<span class="cjk-phrase">对照</span> README <span class="cjk-phrase">清单</span>，<span class="cjk-phrase">确认</span><span class="cjk-phrase">没有</span><span class="cjk-phrase">遗漏</span><span class="cjk-phrase">条目</span></li><li><span class="cjk-phrase">确认</span><span class="cjk-phrase">清单</span>中每条<span class="cjk-phrase">规则</span>都<span class="cjk-phrase">标明</span>了<span class="cjk-phrase">生效</span><span class="cjk-phrase">方式</span></li><li><span class="cjk-phrase">确认</span> README <span class="cjk-phrase">不再</span><span class="cjk-phrase">声称</span><span class="cjk-phrase">会话</span><span class="cjk-phrase">开始</span>时无<span class="cjk-phrase">条件</span>加载<span class="cjk-phrase">全部</span><span class="cjk-phrase">规则</span>，<span class="cjk-phrase">除非</span>这一<span class="cjk-phrase">行为</span>已被<span class="cjk-phrase">核验</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="conditional-rule-index-gap" aria-label="复制 AI 修复: 从事故提炼的条件规则未进入规则索引，无法被检索或审计"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-5"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="skill-progressive-disclosure-recurring">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill neutral">Low</span>
+          <span class="pill neutral"><span class="cjk-phrase">经验</span><span class="cjk-phrase">沉淀</span></span>
+        </div>
+        <h3>三个长 Skill 的<span class="cjk-phrase">渐进</span>式<span class="cjk-phrase">披露</span><span class="cjk-phrase">问题</span><span class="cjk-phrase">连续</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">审查</span>被<span class="cjk-phrase">记录</span>但未<span class="cjk-phrase">修复</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：trellis-update-spec（356 行）、trellis-brainstorm（200 行）、trellis-break-loop（188 行）<span class="cjk-phrase">都是</span><span class="cjk-phrase">线性</span>长<span class="cjk-phrase">文件</span>且<span class="cjk-phrase">不含</span><span class="cjk-phrase">本地</span><span class="cjk-phrase">引用</span>或 references/ 子<span class="cjk-phrase">目录</span>；同批的 trellis-session-insight <span class="cjk-phrase">采用</span>短<span class="cjk-phrase">主体</span>加 references/ 的<span class="cjk-phrase">组织</span><span class="cjk-phrase">方式</span>，是本<span class="cjk-phrase">仓库</span>内已<span class="cjk-phrase">存在</span>的<span class="cjk-phrase">正向</span>范式。本<span class="cjk-phrase">问题</span>在 docs/better-harness 下 2026-09-12-01 与 2026-09-13-01 <span class="cjk-phrase">两次</span><span class="cjk-phrase">审查</span><span class="cjk-phrase">报告</span>中都被<span class="cjk-phrase">保留</span>为 Low 项，<span class="cjk-phrase">后者</span>还<span class="cjk-phrase">明确</span>标注了<span class="cjk-phrase">上次</span><span class="cjk-phrase">报告</span><span class="cjk-phrase">同题</span>未<span class="cjk-phrase">修复</span>；<span class="cjk-phrase">本次</span><span class="cjk-phrase">独立</span><span class="cjk-phrase">复核</span><span class="cjk-phrase">确认</span>它<span class="cjk-phrase">依然</span><span class="cjk-phrase">存在</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">真正</span>未<span class="cjk-phrase">闭合</span>的<span class="cjk-phrase">不是</span>这三个<span class="cjk-phrase">文件</span><span class="cjk-phrase">本身</span>，<span class="cjk-phrase">而是</span>已<span class="cjk-phrase">报告</span>项<span class="cjk-phrase">没有</span><span class="cjk-phrase">进入</span>可<span class="cjk-phrase">追踪</span><span class="cjk-phrase">状态</span>——<span class="cjk-phrase">同一</span><span class="cjk-phrase">问题</span><span class="cjk-phrase">连续</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">进入</span><span class="cjk-phrase">报告</span>，既<span class="cjk-phrase">没有</span>被<span class="cjk-phrase">修复</span>，<span class="cjk-phrase">也没有</span>被显式<span class="cjk-phrase">判定</span>为<span class="cjk-phrase">不需要</span><span class="cjk-phrase">修复</span>。<span class="cjk-phrase">归属</span>：三个 Skill 的<span class="cjk-phrase">引用</span><span class="cjk-phrase">组织</span>，<span class="cjk-phrase">以及</span>让已<span class="cjk-phrase">报告</span>项能被<span class="cjk-phrase">追踪</span>到<span class="cjk-phrase">关闭</span>的<span class="cjk-phrase">最小</span><span class="cjk-phrase">机制</span>。不<span class="cjk-phrase">确定</span>度：低——lint <span class="cjk-phrase">提示</span>、<span class="cjk-phrase">文件</span>行数、<span class="cjk-phrase">目录</span><span class="cjk-phrase">结构</span>与<span class="cjk-phrase">三份</span><span class="cjk-phrase">报告</span>的<span class="cjk-phrase">文本</span>都已<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">没有</span><span class="cjk-phrase">测量</span><span class="cjk-phrase">运行</span>时的<span class="cjk-phrase">上下文</span><span class="cjk-phrase">成本</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">不断</span>言<span class="cjk-phrase">实际</span>加载<span class="cjk-phrase">开销</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="skill-progressive-disclosure-recurring" aria-label="复制 AI 修复: 三个长 Skill 的渐进式披露问题连续三次审查被记录但未修复"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-6" aria-label="查看详情: 三个长 Skill 的渐进式披露问题连续三次审查被记录但未修复"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-6" data-finding-dialog-id="skill-progressive-disclosure-recurring" aria-labelledby="finding-dialog-6-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-6-title">三个长 Skill 的<span class="cjk-phrase">渐进</span>式<span class="cjk-phrase">披露</span><span class="cjk-phrase">问题</span><span class="cjk-phrase">连续</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">审查</span>被<span class="cjk-phrase">记录</span>但未<span class="cjk-phrase">修复</span></h3></div>
+          <span class="pill neutral">Low</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：trellis-update-spec（356 行）、trellis-brainstorm（200 行）、trellis-break-loop（188 行）<span class="cjk-phrase">都是</span><span class="cjk-phrase">线性</span>长<span class="cjk-phrase">文件</span>且<span class="cjk-phrase">不含</span><span class="cjk-phrase">本地</span><span class="cjk-phrase">引用</span>或 references/ 子<span class="cjk-phrase">目录</span>；同批的 trellis-session-insight <span class="cjk-phrase">采用</span>短<span class="cjk-phrase">主体</span>加 references/ 的<span class="cjk-phrase">组织</span><span class="cjk-phrase">方式</span>，是本<span class="cjk-phrase">仓库</span>内已<span class="cjk-phrase">存在</span>的<span class="cjk-phrase">正向</span>范式。本<span class="cjk-phrase">问题</span>在 docs/better-harness 下 2026-09-12-01 与 2026-09-13-01 <span class="cjk-phrase">两次</span><span class="cjk-phrase">审查</span><span class="cjk-phrase">报告</span>中都被<span class="cjk-phrase">保留</span>为 Low 项，<span class="cjk-phrase">后者</span>还<span class="cjk-phrase">明确</span>标注了<span class="cjk-phrase">上次</span><span class="cjk-phrase">报告</span><span class="cjk-phrase">同题</span>未<span class="cjk-phrase">修复</span>；<span class="cjk-phrase">本次</span><span class="cjk-phrase">独立</span><span class="cjk-phrase">复核</span><span class="cjk-phrase">确认</span>它<span class="cjk-phrase">依然</span><span class="cjk-phrase">存在</span>。<span class="cjk-phrase">推断</span>：<span class="cjk-phrase">真正</span>未<span class="cjk-phrase">闭合</span>的<span class="cjk-phrase">不是</span>这三个<span class="cjk-phrase">文件</span><span class="cjk-phrase">本身</span>，<span class="cjk-phrase">而是</span>已<span class="cjk-phrase">报告</span>项<span class="cjk-phrase">没有</span><span class="cjk-phrase">进入</span>可<span class="cjk-phrase">追踪</span><span class="cjk-phrase">状态</span>——<span class="cjk-phrase">同一</span><span class="cjk-phrase">问题</span><span class="cjk-phrase">连续</span><span class="cjk-phrase">三次</span><span class="cjk-phrase">进入</span><span class="cjk-phrase">报告</span>，既<span class="cjk-phrase">没有</span>被<span class="cjk-phrase">修复</span>，<span class="cjk-phrase">也没有</span>被显式<span class="cjk-phrase">判定</span>为<span class="cjk-phrase">不需要</span><span class="cjk-phrase">修复</span>。<span class="cjk-phrase">归属</span>：三个 Skill 的<span class="cjk-phrase">引用</span><span class="cjk-phrase">组织</span>，<span class="cjk-phrase">以及</span>让已<span class="cjk-phrase">报告</span>项能被<span class="cjk-phrase">追踪</span>到<span class="cjk-phrase">关闭</span>的<span class="cjk-phrase">最小</span><span class="cjk-phrase">机制</span>。不<span class="cjk-phrase">确定</span>度：低——lint <span class="cjk-phrase">提示</span>、<span class="cjk-phrase">文件</span>行数、<span class="cjk-phrase">目录</span><span class="cjk-phrase">结构</span>与<span class="cjk-phrase">三份</span><span class="cjk-phrase">报告</span>的<span class="cjk-phrase">文本</span>都已<span class="cjk-phrase">逐一</span><span class="cjk-phrase">核验</span>；<span class="cjk-phrase">没有</span><span class="cjk-phrase">测量</span><span class="cjk-phrase">运行</span>时的<span class="cjk-phrase">上下文</span><span class="cjk-phrase">成本</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">不断</span>言<span class="cjk-phrase">实际</span>加载<span class="cjk-phrase">开销</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li>三个长 Skill <span class="cjk-phrase">采用</span>与<span class="cjk-phrase">仓库</span>内<span class="cjk-phrase">已有</span>范式<span class="cjk-phrase">一致</span>的<span class="cjk-phrase">按需</span><span class="cjk-phrase">引用</span><span class="cjk-phrase">组织</span>，或被<span class="cjk-phrase">明确</span><span class="cjk-phrase">记录</span>为<span class="cjk-phrase">不需要</span><span class="cjk-phrase">修复</span>并<span class="cjk-phrase">关闭</span>该项。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li><span class="cjk-phrase">运行</span> ls .agents/skills/trellis-update-spec/ 等三个<span class="cjk-phrase">目录</span>，<span class="cjk-phrase">确认</span> references/ 子<span class="cjk-phrase">目录</span><span class="cjk-phrase">与本</span><span class="cjk-phrase">文件</span><span class="cjk-phrase">真实</span><span class="cjk-phrase">存在</span></li><li><span class="cjk-phrase">确认</span>三个 SKILL.md <span class="cjk-phrase">主体</span>只<span class="cjk-phrase">保留</span><span class="cjk-phrase">触发</span><span class="cjk-phrase">条件</span>、必做<span class="cjk-phrase">步骤</span>与子<span class="cjk-phrase">文件</span><span class="cjk-phrase">引用</span>，且<span class="cjk-phrase">都能</span><span class="cjk-phrase">解析</span>到<span class="cjk-phrase">实际</span><span class="cjk-phrase">文件</span></li><li><span class="cjk-phrase">确认</span><span class="cjk-phrase">登记</span><span class="cjk-phrase">记录</span><span class="cjk-phrase">可被</span>下<span class="cjk-phrase">一次</span><span class="cjk-phrase">审查</span>读取到该项已<span class="cjk-phrase">关闭</span></li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="skill-progressive-disclosure-recurring" aria-label="复制 AI 修复: 三个长 Skill 的渐进式披露问题连续三次审查被记录但未修复"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-6"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article>
+<article class="finding-card" data-finding-id="session-candidate-emission-gap">
+      <div class="finding-card-main">
+        <div class="finding-meta">
+          <span class="pill neutral">Low</span>
+          <span class="pill neutral"><span class="cjk-phrase">经验</span><span class="cjk-phrase">沉淀</span></span>
+        </div>
+        <h3><span class="cjk-phrase">会话</span><span class="cjk-phrase">候选</span><span class="cjk-phrase">发射</span><span class="cjk-phrase">连续</span>两个<span class="cjk-phrase">窗口</span>为空，<span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>与<span class="cjk-phrase">干净</span><span class="cjk-phrase">窗口</span>都<span class="cjk-phrase">无法</span><span class="cjk-phrase">判定</span></h3>
+        <p class="finding-preview"><span class="cjk-phrase">事实</span>：本<span class="cjk-phrase">窗口</span>的<span class="cjk-phrase">会话</span><span class="cjk-phrase">信封</span>中 admission 层 emittedCandidates 为 0，emittedClasses 为空<span class="cjk-phrase">对象</span>，而可<span class="cjk-phrase">分发</span>类里<span class="cjk-phrase">已有</span> 46 条 validation-repair、57 条 operation-control、41 条 read-only-work 等共 166 条<span class="cjk-phrase">候选</span>；omitted.candidateBudget <span class="cjk-phrase">吞掉</span> 93 条，checkBudget <span class="cjk-phrase">吞掉</span> 367 条；observationCoverage 的九项<span class="cjk-phrase">计数</span>全为 0；93 条<span class="cjk-phrase">请求</span>根<span class="cjk-phrase">只有</span> 5 条带 candidateRef。另<span class="cjk-phrase">核验</span>到 93 条<span class="cjk-phrase">请求</span>根<span class="cjk-phrase">中有</span> 57 条是<span class="cjk-phrase">代理</span>自派发的子<span class="cjk-phrase">任务</span><span class="cjk-phrase">提示</span><span class="cjk-phrase">格式</span>，却未被 selfAnalysis <span class="cjk-phrase">过滤</span>。上一<span class="cjk-phrase">窗口</span>的 docs/better-harness/2026-09-13-01 <span class="cjk-phrase">报告</span>已<span class="cjk-phrase">记录</span>过<span class="cjk-phrase">同类</span>的<span class="cjk-phrase">候选</span><span class="cjk-phrase">截断</span><span class="cjk-phrase">问题</span>并<span class="cjk-phrase">判定</span><span class="cjk-phrase">无法</span><span class="cjk-phrase">识别</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>流。<span class="cjk-phrase">推断</span>：两个<span class="cjk-phrase">窗口</span>都<span class="cjk-phrase">无法</span><span class="cjk-phrase">区分</span><span class="cjk-phrase">稳定</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>、<span class="cjk-phrase">干净</span><span class="cjk-phrase">窗口</span>与<span class="cjk-phrase">维护</span><span class="cjk-phrase">漂移</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">基于</span><span class="cjk-phrase">会话</span>的<span class="cjk-phrase">重复</span><span class="cjk-phrase">需求</span><span class="cjk-phrase">结论</span><span class="cjk-phrase">都会</span><span class="cjk-phrase">混淆</span><span class="cjk-phrase">代理</span><span class="cjk-phrase">内部</span>派发与<span class="cjk-phrase">用户</span><span class="cjk-phrase">意图</span>。<span class="cjk-phrase">归属</span>：<span class="cjk-phrase">会话</span><span class="cjk-phrase">采集</span>侧对<span class="cjk-phrase">请求</span>根的<span class="cjk-phrase">来源</span><span class="cjk-phrase">分类</span>与<span class="cjk-phrase">候选</span><span class="cjk-phrase">发射</span>，<span class="cjk-phrase">而不是</span><span class="cjk-phrase">项目</span><span class="cjk-phrase">代码</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">发射</span>为空与<span class="cjk-phrase">覆盖</span>为零<span class="cjk-phrase">都是</span><span class="cjk-phrase">信封</span><span class="cjk-phrase">内的</span><span class="cjk-phrase">观测</span>值；但归因于<span class="cjk-phrase">采集</span>端<span class="cjk-phrase">还是</span><span class="cjk-phrase">选择</span>端<span class="cjk-phrase">无法</span>从<span class="cjk-phrase">信封</span><span class="cjk-phrase">判定</span>。</p>
+      </div>
+      <div class="finding-actions">
+        <button type="button" class="action-button secondary" data-copy-finding="session-candidate-emission-gap" aria-label="复制 AI 修复: 会话候选发射连续两个窗口为空，重复工作与干净窗口都无法判定"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+        <button type="button" class="action-button ghost" data-view-finding-dialog="finding-dialog-7" aria-label="查看详情: 会话候选发射连续两个窗口为空，重复工作与干净窗口都无法判定"><span class="cjk-phrase">查看</span><span class="cjk-phrase">详情</span></button>
+      </div>
+      <dialog class="finding-dialog" id="finding-dialog-7" data-finding-dialog-id="session-candidate-emission-gap" aria-labelledby="finding-dialog-7-title">
+        <div class="dialog-heading">
+          <div><span class="label">Finding <span class="cjk-phrase">详情</span></span><h3 id="finding-dialog-7-title"><span class="cjk-phrase">会话</span><span class="cjk-phrase">候选</span><span class="cjk-phrase">发射</span><span class="cjk-phrase">连续</span>两个<span class="cjk-phrase">窗口</span>为空，<span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>与<span class="cjk-phrase">干净</span><span class="cjk-phrase">窗口</span>都<span class="cjk-phrase">无法</span><span class="cjk-phrase">判定</span></h3></div>
+          <span class="pill neutral">Low</span>
+        </div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">原因</span></span><p><span class="cjk-phrase">事实</span>：本<span class="cjk-phrase">窗口</span>的<span class="cjk-phrase">会话</span><span class="cjk-phrase">信封</span>中 admission 层 emittedCandidates 为 0，emittedClasses 为空<span class="cjk-phrase">对象</span>，而可<span class="cjk-phrase">分发</span>类里<span class="cjk-phrase">已有</span> 46 条 validation-repair、57 条 operation-control、41 条 read-only-work 等共 166 条<span class="cjk-phrase">候选</span>；omitted.candidateBudget <span class="cjk-phrase">吞掉</span> 93 条，checkBudget <span class="cjk-phrase">吞掉</span> 367 条；observationCoverage 的九项<span class="cjk-phrase">计数</span>全为 0；93 条<span class="cjk-phrase">请求</span>根<span class="cjk-phrase">只有</span> 5 条带 candidateRef。另<span class="cjk-phrase">核验</span>到 93 条<span class="cjk-phrase">请求</span>根<span class="cjk-phrase">中有</span> 57 条是<span class="cjk-phrase">代理</span>自派发的子<span class="cjk-phrase">任务</span><span class="cjk-phrase">提示</span><span class="cjk-phrase">格式</span>，却未被 selfAnalysis <span class="cjk-phrase">过滤</span>。上一<span class="cjk-phrase">窗口</span>的 docs/better-harness/2026-09-13-01 <span class="cjk-phrase">报告</span>已<span class="cjk-phrase">记录</span>过<span class="cjk-phrase">同类</span>的<span class="cjk-phrase">候选</span><span class="cjk-phrase">截断</span><span class="cjk-phrase">问题</span>并<span class="cjk-phrase">判定</span><span class="cjk-phrase">无法</span><span class="cjk-phrase">识别</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>流。<span class="cjk-phrase">推断</span>：两个<span class="cjk-phrase">窗口</span>都<span class="cjk-phrase">无法</span><span class="cjk-phrase">区分</span><span class="cjk-phrase">稳定</span><span class="cjk-phrase">重复</span><span class="cjk-phrase">工作</span>、<span class="cjk-phrase">干净</span><span class="cjk-phrase">窗口</span>与<span class="cjk-phrase">维护</span><span class="cjk-phrase">漂移</span>，<span class="cjk-phrase">因此</span><span class="cjk-phrase">任何</span><span class="cjk-phrase">基于</span><span class="cjk-phrase">会话</span>的<span class="cjk-phrase">重复</span><span class="cjk-phrase">需求</span><span class="cjk-phrase">结论</span><span class="cjk-phrase">都会</span><span class="cjk-phrase">混淆</span><span class="cjk-phrase">代理</span><span class="cjk-phrase">内部</span>派发与<span class="cjk-phrase">用户</span><span class="cjk-phrase">意图</span>。<span class="cjk-phrase">归属</span>：<span class="cjk-phrase">会话</span><span class="cjk-phrase">采集</span>侧对<span class="cjk-phrase">请求</span>根的<span class="cjk-phrase">来源</span><span class="cjk-phrase">分类</span>与<span class="cjk-phrase">候选</span><span class="cjk-phrase">发射</span>，<span class="cjk-phrase">而不是</span><span class="cjk-phrase">项目</span><span class="cjk-phrase">代码</span>。不<span class="cjk-phrase">确定</span>度：中——<span class="cjk-phrase">发射</span>为空与<span class="cjk-phrase">覆盖</span>为零<span class="cjk-phrase">都是</span><span class="cjk-phrase">信封</span><span class="cjk-phrase">内的</span><span class="cjk-phrase">观测</span>值；但归因于<span class="cjk-phrase">采集</span>端<span class="cjk-phrase">还是</span><span class="cjk-phrase">选择</span>端<span class="cjk-phrase">无法</span>从<span class="cjk-phrase">信封</span><span class="cjk-phrase">判定</span>。</p></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">预期</span><span class="cjk-phrase">结果</span></span><ol><li><span class="cjk-phrase">会话</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">再次</span><span class="cjk-phrase">采集</span>时 emittedClasses 非空、自派发的子<span class="cjk-phrase">任务</span><span class="cjk-phrase">提示</span>被<span class="cjk-phrase">单独</span>归类，并<span class="cjk-phrase">至少有</span><span class="cjk-phrase">一条</span><span class="cjk-phrase">带有</span><span class="cjk-phrase">关联</span><span class="cjk-phrase">检查</span>与<span class="cjk-phrase">结果</span>的<span class="cjk-phrase">候选</span>。</li></ol></div>
+        <div class="dialog-section"><span class="label"><span class="cjk-phrase">验收</span><span class="cjk-phrase">检查</span></span><ul><li>重跑<span class="cjk-phrase">会话</span><span class="cjk-phrase">事实</span><span class="cjk-phrase">采集</span>，<span class="cjk-phrase">确认</span> emittedClasses <span class="cjk-phrase">不再是</span>空<span class="cjk-phrase">对象</span></li><li><span class="cjk-phrase">确认</span>自派发的子<span class="cjk-phrase">任务</span><span class="cjk-phrase">提示</span><span class="cjk-phrase">数量</span>被<span class="cjk-phrase">单独</span><span class="cjk-phrase">报告</span>，且<span class="cjk-phrase">不再</span>计入<span class="cjk-phrase">用户</span><span class="cjk-phrase">请求</span>根</li><li><span class="cjk-phrase">确认</span><span class="cjk-phrase">至少</span><span class="cjk-phrase">一条</span><span class="cjk-phrase">候选</span><span class="cjk-phrase">带有</span><span class="cjk-phrase">与其</span><span class="cjk-phrase">关联</span>的<span class="cjk-phrase">检查</span>与<span class="cjk-phrase">结果</span>字段</li></ul></div>
+        <div class="dialog-actions">
+          <button type="button" class="action-button secondary" data-copy-finding="session-candidate-emission-gap" aria-label="复制 AI 修复: 会话候选发射连续两个窗口为空，重复工作与干净窗口都无法判定"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span></button>
+          <button type="button" class="action-button ghost" data-close-finding-dialog="finding-dialog-7"><span class="cjk-phrase">关闭</span></button>
+        </div>
+      </dialog>
+    </article></div>
+  </section>
+  <section class="section" data-section="customize" aria-labelledby="section-customize">
+    <div class="section-heading">
+      <div><span class="eyebrow">04 · <span class="cjk-phrase">能力</span></span><h2 id="section-customize">Agent 自<span class="cjk-phrase">定义</span></h2></div>
+      <p>已<span class="cjk-phrase">检查</span>的<span class="cjk-phrase">项目</span>与<span class="cjk-phrase">授权</span><span class="cjk-phrase">宿主</span><span class="cjk-phrase">能力</span>面。</p>
+    </div>
+    <div class="custom-grid"><article><span class="custom-mark">R</span><div><h3>Rules</h3><p>Project · 1</p></div></article><article><span class="custom-mark">S</span><div><h3>Skills</h3><p>Project · 12</p></div></article><article><span class="custom-mark">W</span><div><h3>Workflows</h3><p>Project · 6</p></div></article><article><span class="custom-mark">C</span><div><h3>Custom Agents</h3><p>Project · 0</p></div></article></div>
+  </section>
+  <section class="section" data-section="methodology" aria-labelledby="section-methodology">
+    <div class="section-heading">
+      <div><span class="eyebrow">05 · <span class="cjk-phrase">边界</span></span><h2 id="section-methodology"><span class="cjk-phrase">证据</span>与<span class="cjk-phrase">方法</span></h2></div>
+      <p>仅<span class="cjk-phrase">使用</span><span class="cjk-phrase">读者</span><span class="cjk-phrase">安全</span><span class="cjk-phrase">证据</span>。</p>
+    </div>
+    <div class="evidence-grid"><div><span><span class="cjk-phrase">证据</span><span class="cjk-phrase">模式</span></span><strong>session-rich</strong></div><div><span><span class="cjk-phrase">任务</span> Episode</span><strong>46</strong></div><div><span>含<span class="cjk-phrase">编辑</span> Episode</span><strong>34</strong></div><div><span><span class="cjk-phrase">抽样</span></span><strong>40 / 72</strong></div><div><span><span class="cjk-phrase">可信度</span></span><strong>Medium</strong></div><div><span><span class="cjk-phrase">学习</span><span class="cjk-phrase">状态</span></span><strong>N/A</strong></div></div>
+
+    <p class="method-note"><span class="cjk-phrase">活动</span><span class="cjk-phrase">总量</span>只<span class="cjk-phrase">描述</span><span class="cjk-phrase">用量</span>，不<span class="cjk-phrase">直接</span><span class="cjk-phrase">代表</span><span class="cjk-phrase">质量</span>、<span class="cjk-phrase">效率</span>或<span class="cjk-phrase">节省</span>。<span class="cjk-phrase">流畅</span>度<span class="cjk-phrase">结论</span><span class="cjk-phrase">来自</span>已<span class="cjk-phrase">复核</span><span class="cjk-phrase">任务</span><span class="cjk-phrase">样本</span>，并受已<span class="cjk-phrase">保留</span><span class="cjk-phrase">证据</span><span class="cjk-phrase">边界</span><span class="cjk-phrase">约束</span>。</p>
+  </section>
+<footer>由同<span class="cjk-phrase">一份</span>已<span class="cjk-phrase">复核</span> Harness source <span class="cjk-phrase">生成</span> · 自<span class="cjk-phrase">包含</span>便携式 HTML</footer>
+</main>
+<dialog id="manual-copy-dialog" class="manual-copy-dialog" aria-labelledby="manual-copy-title" aria-describedby="manual-copy-description">
+  <div class="dialog-heading">
+    <div>
+      <span class="label">手动<span class="cjk-phrase">复制</span></span>
+      <h3 id="manual-copy-title"><span class="cjk-phrase">复制</span> AI <span class="cjk-phrase">修复</span><span class="cjk-phrase">提示</span>词</h3>
+    </div>
+  </div>
+  <p id="manual-copy-description"><span class="cjk-phrase">自动</span><span class="cjk-phrase">复制</span>被<span class="cjk-phrase">阻止</span>，<span class="cjk-phrase">下面</span>已选中<span class="cjk-phrase">完整</span><span class="cjk-phrase">提示</span>词。</p>
+  <textarea id="manual-copy-text" readonly aria-label="AI 修复提示词"></textarea>
+  <div class="dialog-actions">
+    <button type="button" class="action-button ghost" data-close-finding-dialog="manual-copy-dialog"><span class="cjk-phrase">关闭</span></button>
+  </div>
+</dialog>
+<script id="harness-report-data" type="application/json">{"findings":[{"id":"coverage-gate-mismatch","aiFixPrompt":"/better-harness fix this issue\n\n让覆盖率规则与 CI 实际门禁收敛到唯一真值：在 .omp/RULES.md 声明的 50% 与 .github/workflows/pr-checks.yml 当前执行的 25% 之间选定一个，修改另一边，不要同时保留两个数。保留现有的 acceptance boundary，不要新增工作流。\n\n## Validation\n\n- 运行 grep -n \"cov-fail-under\" .github/workflows/*.yml，确认出现的阈值与 .omp/RULES.md 的文本一致\n- 确认带阈值的作业位于会阻断合并的工作流中\n- 确认没有其它工作流在不设阈值的情况下运行同一批测试而形成相反方向的豁免"},{"id":"instruction-root-routing-gap","aiFixPrompt":"/better-harness fix this issue\n\n在 AGENTS.md 的 Trellis 托管块之外补充路由，指向承载项目硬规则的 .omp/AGENTS.md（及其引用的 .omp/RULES.md）与 .catpaw/ 下的规则文件，使五套 agent 配置目录都能从入口文件发现。不要改动托管块内部内容，不要重写 .omp/ 或 .catpaw/ 下的规则正文。\n\n## Validation\n\n- 运行 grep -c \"omp\\|catpaw\" AGENTS.md，确认两个目录名都出现在托管块之外\n- 确认新路由指向的路径在仓库中真实存在\n- 确认根 AGENTS.md 仍只描述路由，不复制 .omp/RULES.md 的规则正文"},{"id":"skill-dangling-sync-path","aiFixPrompt":"/better-harness fix this issue\n\n修正 .agents/skills/trellis-break-loop/SKILL.md 中指向 src/templates/markdown/spec/ 的模板同步步骤。若该目录在本仓库确实存在替代位置，改为真实路径；若确认该机制已不再使用，删除这一步并在同一小节说明规范更新的实际消费方。保留 skill 的其余流程不变。\n\n## Validation\n\n- 运行 ls 确认修复后步骤引用的路径真实存在，或该步骤已被移除\n- 确认 skill 中不再出现任何指向不存在目录的写回动作"},{"id":"delivery-acceptance-unobserved","aiFixPrompt":"/better-harness fix this issue\n\n为交付边界补一条最小可复核记录：让会阻断合并的检查在工作流里产出一个随运行保存的结果文件，或在仓库内已有的评审流程中记录本次改动的验收判定，使「已接受」不再只存在于会话里。不要新建工作流，不要改变现有检查的通过条件。\n\n## Validation\n\n- 触发一次受影响路径的检查，确认结果文件被产出且可被后续运行读取\n- 确认该记录能指出本次改动的验收结论与失败时的恢复入口"},{"id":"conditional-rule-index-gap","aiFixPrompt":"/better-harness fix this issue\n\n补全 .omp/rules/README.md 的规则清单，使其覆盖 .omp/rules/ 下的全部规则文件，并对每条标注是始终生效还是按条件触发，同时说明条件规则在什么条件下被应用。不要修改任何规则文件正文，不要改变规则目录结构。\n\n## Validation\n\n- 运行 ls .omp/rules/ 并逐项对照 README 清单，确认没有遗漏条目\n- 确认清单中每条规则都标明了生效方式\n- 确认 README 不再声称会话开始时无条件加载全部规则，除非这一行为已被核验"},{"id":"skill-progressive-disclosure-recurring","aiFixPrompt":"/better-harness fix this issue\n\n把 trellis-update-spec、trellis-brainstorm、trellis-break-loop 三个长 Skill 改为与仓库内 trellis-session-insight 一致的短主体加 references/ 组织：把可选加载的模板、框架与清单移入各自的 references/ 子文件，主体只保留触发条件、必做步骤与对子文件的引用。同一次改动中，把这三个文件在仓库已有的规范目录中登记为已处理项，使下一次审查能读到它已关闭。不要改动 Skill 的语义、触发条件或验证步骤。\n\n## Validation\n\n- 运行 ls .agents/skills/trellis-update-spec/ 等三个目录，确认 references/ 子目录与本文件真实存在\n- 确认三个 SKILL.md 主体只保留触发条件、必做步骤与子文件引用，且都能解析到实际文件\n- 确认登记记录可被下一次审查读取到该项已关闭"},{"id":"session-candidate-emission-gap","aiFixPrompt":"/better-harness fix this issue\n\n定位会话证据采集侧使候选发射为空的原因：确认 emittedClasses 为空的环节，并让请求根分类把代理自派发的子任务提示与用户请求分开标记，而不是当作 selfAnalysis 为零。修复后重跑一次采集，确认 emittedClasses 非空且自派发提示被单独归类。不要修改项目代码或测试。\n\n## Validation\n\n- 重跑会话事实采集，确认 emittedClasses 不再是空对象\n- 确认自派发的子任务提示数量被单独报告，且不再计入用户请求根\n- 确认至少一条候选带有与其关联的检查与结果字段"}]}</script>
+<script id="harness-report-actions" type="application/json">{"reportRoute":"docs/better-harness/2026-09-17-01/report.html","findings":[{"id":"coverage-gate-mismatch","expectedRevision":1},{"id":"instruction-root-routing-gap","expectedRevision":0},{"id":"skill-dangling-sync-path","expectedRevision":0},{"id":"delivery-acceptance-unobserved","expectedRevision":0},{"id":"conditional-rule-index-gap","expectedRevision":1},{"id":"skill-progressive-disclosure-recurring","expectedRevision":0},{"id":"session-candidate-emission-gap","expectedRevision":0}]}</script>
+<script id="harness-report-interactions">(function installHtmlReportInteractions({
+  document,
+  navigator,
+  location,
+  labels,
+  schedule = (callback, delay) => globalThis.setTimeout(callback, delay),
+}) {
+  document.documentElement.classList.remove("no-js");
+
+  function readJson(id) {
+    const element = document.getElementById(id);
+    if (!element) return { ok: false, value: null };
+    try {
+      return { ok: true, value: JSON.parse(element.textContent || "{}") };
+    } catch {
+      return { ok: false, value: null };
+    }
+  }
+
+  function hasOnlyKeys(value, keys) {
+    return value && typeof value === "object" && !Array.isArray(value)
+      && Object.keys(value).every((key) => keys.includes(key));
+  }
+
+  function safeReportRoute(value) {
+    if (typeof value !== "string" || value.length === 0 || value.includes("\\")) return false;
+    if (value.startsWith("/") || /^[A-Za-z]:/u.test(value)) return false;
+    const segments = value.split("/");
+    return segments.at(-1) === "report.html"
+      && segments.every((segment) => segment && segment !== "." && segment !== "..");
+  }
+
+  const reportDataState = readJson("harness-report-data");
+  const reportActionsState = readJson("harness-report-actions");
+  const prompts = new Map();
+  const actions = new Map();
+  let bindingMode = "invalid";
+  let reportRoute = null;
+
+  if (reportDataState.ok
+    && hasOnlyKeys(reportDataState.value, ["findings"])
+    && Array.isArray(reportDataState.value.findings)) {
+    let validPrompts = true;
+    for (const finding of reportDataState.value.findings) {
+      const id = String(finding?.id ?? "");
+      if (!hasOnlyKeys(finding, ["id", "aiFixPrompt"])
+        || !id
+        || typeof finding.aiFixPrompt !== "string"
+        || finding.aiFixPrompt.trim().length === 0
+        || prompts.has(id)) {
+        validPrompts = false;
+        break;
+      }
+      prompts.set(id, finding.aiFixPrompt);
+    }
+
+    const payload = reportActionsState.value;
+    if (validPrompts
+      && reportActionsState.ok
+      && hasOnlyKeys(payload, ["reportRoute", "findings"])
+      && Array.isArray(payload.findings)) {
+      let validActions = true;
+      for (const finding of payload.findings) {
+        const id = String(finding?.id ?? "");
+        if (!hasOnlyKeys(finding, ["id", "expectedRevision"])
+          || !id
+          || !Number.isInteger(finding.expectedRevision)
+          || finding.expectedRevision < 0
+          || actions.has(id)) {
+          validActions = false;
+          break;
+        }
+        actions.set(id, finding);
+      }
+      const sameIds = actions.size === prompts.size
+        && [...prompts.keys()].every((id) => actions.has(id));
+      if (validActions && payload.reportRoute === null && actions.size === 0) {
+        bindingMode = "empty";
+      } else if (validActions && safeReportRoute(payload.reportRoute) && sameIds) {
+        bindingMode = "bound";
+        reportRoute = payload.reportRoute;
+      }
+    }
+  }
+
+  function resolveBindingPaths() {
+    try {
+      const url = new URL(String(location?.href ?? ""));
+      if (url.protocol !== "file:") return null;
+      const pathname = decodeURIComponent(url.pathname);
+      const windowsDrive = /^\/[A-Za-z]:\//u.test(pathname);
+      const windowsUnc = Boolean(url.hostname);
+      const suffix = `/${reportRoute}`;
+      const comparablePath = windowsDrive || windowsUnc ? pathname.toLowerCase() : pathname;
+      const comparableSuffix = windowsDrive || windowsUnc ? suffix.toLowerCase() : suffix;
+      if (!comparablePath.endsWith(comparableSuffix)) return null;
+
+      const workspaceUrlPath = pathname.slice(0, pathname.length - suffix.length);
+      const reportDirectory = pathname.slice(0, pathname.lastIndexOf("/"));
+      const findingsUrlPath = `${reportDirectory}/findings.json`;
+      const toNativePath = (value) => {
+        if (windowsDrive) return value.slice(1).replace(/\//gu, "\\");
+        if (windowsUnc) {
+          const host = decodeURIComponent(url.hostname);
+          return `\\\\${host}${value.replace(/\//gu, "\\")}`;
+        }
+        return value || "/";
+      };
+      return {
+        workspacePath: toNativePath(workspaceUrlPath),
+        findingsPath: toNativePath(findingsUrlPath),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function promptForFinding(findingId) {
+    if (bindingMode === "invalid") return null;
+    const id = String(findingId);
+    const prompt = prompts.get(id);
+    if (typeof prompt !== "string" || prompt.trim().length === 0) return null;
+    if (bindingMode === "empty") return prompt;
+    const paths = resolveBindingPaths();
+    if (!paths) return prompt;
+    const action = actions.get(id);
+    if (!action) return null;
+    const callback = {
+      contract: "better-harness-fix-output/v1",
+      workspacePath: paths.workspacePath,
+      findingsPath: paths.findingsPath,
+      findingId: id,
+      expectedRevision: action.expectedRevision,
+    };
+    return `${prompt}\n\n<better-harness-fix-output>\n${JSON.stringify(callback)}\n</better-harness-fix-output>`;
+  }
+
+  const status = document.getElementById("copy-status");
+  const manualDialog = document.getElementById("manual-copy-dialog");
+  const manualText = document.getElementById("manual-copy-text");
+  const dialogTriggers = new Map();
+
+  function report(message, state) {
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  }
+
+  function legacyCopy(prompt) {
+    const textarea = document.createElement("textarea");
+    textarea.value = prompt;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    try {
+      textarea.select();
+      return document.execCommand("copy") === true;
+    } catch {
+      return false;
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  function copied(trigger) {
+    report(labels.copySuccess, "success");
+    if (trigger) {
+      const originalLabel = trigger.textContent;
+      trigger.textContent = labels.copied;
+      schedule(() => {
+        trigger.textContent = originalLabel || labels.copy;
+      }, 1800);
+    }
+    return true;
+  }
+
+  async function copyFinding(findingId, trigger) {
+    const prompt = promptForFinding(findingId);
+    if (typeof prompt !== "string" || prompt.length === 0) {
+      report(labels.missingPrompt, "error");
+      return false;
+    }
+
+    try {
+      if (!navigator?.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(prompt);
+      return copied(trigger);
+    } catch {
+      if (legacyCopy(prompt)) return copied(trigger);
+    }
+
+    if (manualDialog && typeof manualDialog.showModal === "function") {
+      dialogTriggers.set(manualDialog.id, trigger);
+      if (!manualDialog.open) manualDialog.showModal();
+    }
+    if (manualText) {
+      manualText.value = prompt;
+      manualText.focus();
+      manualText.select();
+    }
+    report(labels.manualCopy, "error");
+    return false;
+  }
+
+  function openDialog(dialogId, trigger) {
+    const dialog = document.getElementById(dialogId);
+    if (!dialog || typeof dialog.showModal !== "function") return false;
+    dialogTriggers.set(dialogId, trigger);
+    dialog.showModal();
+    return true;
+  }
+
+  function closeDialog(dialogId) {
+    const dialog = document.getElementById(dialogId);
+    if (!dialog || !dialog.open || typeof dialog.close !== "function") return false;
+    dialog.close();
+    return true;
+  }
+
+  for (const trigger of document.querySelectorAll("[data-copy-finding]")) {
+    trigger.addEventListener("click", () => copyFinding(trigger.dataset.copyFinding, trigger));
+  }
+  for (const trigger of document.querySelectorAll("[data-view-finding-dialog]")) {
+    trigger.addEventListener("click", () => openDialog(trigger.dataset.viewFindingDialog, trigger));
+  }
+  for (const trigger of document.querySelectorAll("[data-close-finding-dialog]")) {
+    trigger.addEventListener("click", () => closeDialog(trigger.dataset.closeFindingDialog));
+  }
+  const interactiveDialogs = [
+    ...document.querySelectorAll("dialog[data-finding-dialog-id]"),
+    manualDialog,
+  ].filter(Boolean);
+  for (const dialog of interactiveDialogs) {
+    dialog.addEventListener("close", () => {
+      const trigger = dialogTriggers.get(dialog.id);
+      dialogTriggers.delete(dialog.id);
+      trigger?.focus();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      const outside = event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom;
+      if (outside) closeDialog(dialog.id);
+    });
+  }
+
+  return { copyFinding, openDialog, closeDialog };
+})({document,navigator,location:globalThis.location,labels:{"copy":"复制 AI 修复","copied":"已复制","copySuccess":"已复制，请粘贴到当前 Coding Agent 输入框。","manualCopy":"自动复制被阻止，请手动复制已选中的提示词。","missingPrompt":"这个问题没有可用的 AI 修复提示词。"}});</script>
+</body>
+</html>

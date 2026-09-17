@@ -9,6 +9,7 @@
 """
 
 import argparse
+import asyncio
 import os
 import sys
 
@@ -51,14 +52,20 @@ ALL_PERMISSIONS = [
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     # ============================================================
-    # 结算管理 (10)
+    # 结算管理 (16)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑结算", "修改定价规则", "billing"),
     ("billing:delete", "删除定价", "删除定价规则", "billing"),
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
-    ("billing:export", "导出账单", "导出结算数据", "billing"),
-    ("billing:import", "导入余额", "批量导入充值数据", "billing"),
+    ("billing:balance_import", "导入余额", "批量导入充值数据", "billing"),
+    ("billing:balance_export", "导出余额", "导出客户余额数据", "billing"),
+    ("billing:pricing_import", "导入计费规则", "批量导入计费规则", "billing"),
+    ("billing:pricing_export", "导出计费规则", "导出计费规则数据", "billing"),
+    ("billing:package_import", "导入包年套餐", "批量导入包年套餐", "billing"),
+    ("billing:package_export", "导出包年套餐", "导出包年套餐数据", "billing"),
+    ("billing:invoice_import", "导入结算单", "批量导入外部结算单", "billing"),
+    ("billing:invoice_export", "导出结算单", "导出结算单数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
     ("billing:pay", "结算付款", "标记付款和完成结算", "billing"),
     ("billing:ops_approve", "运营经理确认", "运营经理确认结算单（第一步）", "billing"),
@@ -134,7 +141,10 @@ PRESET_ROLES = {
             "users:view",
             "billing:view",
             "billing:edit",
-            "billing:export",
+            "billing:balance_export",
+            "billing:pricing_export",
+            "billing:package_export",
+            "billing:invoice_export",
             "billing:recharge",
             "billing:ops_approve",
             "billing:confirm",
@@ -147,7 +157,10 @@ PRESET_ROLES = {
         [
             "customers:view",
             "billing:view",
-            "billing:export",
+            "billing:balance_export",
+            "billing:pricing_export",
+            "billing:package_export",
+            "billing:invoice_export",
             "billing:sales_approve",
             "analytics:view",
         ],
@@ -242,10 +255,74 @@ def seed(reset: bool = False):
             # 关联指定权限
             for code in perm_codes:
                 perm = permissions.get(code)
-                if perm and perm not in biz_role.permissions:
+                if perm is None:
+                    # PRESET_ROLES 引用了 ALL_PERMISSIONS 之外的权限码（映射笔误）。
+                    # 若静默跳过，角色会静默缺权限且无任何报错，故显式失败。
+                    raise ValueError(f"预置角色 {role_name} 引用了未定义的权限码: {code}")
+                if perm not in biz_role.permissions:
                     biz_role.permissions.append(perm)
             print(f"  ✅ {role_name} 已关联 {len(perm_codes)} 个权限")
         session.flush()
+
+        # ---- 2.6 存量权限迁移：旧粗粒度码 → 新细粒度码（等价迁移） ----
+        print("\n📋 步骤 2.6/3: 迁移存量权限绑定（旧码 → 新码）...")
+        # 旧码 → 新码等价映射（方向内全量授予，保证权限范围不缩水）
+        LEGACY_TO_NEW_PERMISSIONS = {
+            "billing:export": [
+                "billing:balance_export",
+                "billing:pricing_export",
+                "billing:package_export",
+                "billing:invoice_export",
+            ],
+            # billing:import 历史上仅用于「导入余额」端点，等价语义仅为 balance_import；
+            # 其余导入码（pricing/package/invoice）敏感度更高，需角色管理显式授予，避免权限膨胀
+            "billing:import": [
+                "billing:balance_import",
+            ],
+        }
+        migrated_count = 0
+        all_roles = session.execute(select(Role)).scalars().all()
+        for legacy_code, new_codes in LEGACY_TO_NEW_PERMISSIONS.items():
+            for role in all_roles:
+                role_codes = {p.code for p in role.permissions}
+                if legacy_code not in role_codes:
+                    continue
+                for new_code in new_codes:
+                    new_perm = permissions.get(new_code)
+                    if new_perm is None:
+                        # LEGACY_TO_NEW_PERMISSIONS 引用了 ALL_PERMISSIONS 之外的权限码
+                        # （映射笔误）。若静默跳过，步骤 2.7 又会无条件删除旧码 → 角色
+                        # 权限被静默降权且不可逆，故显式失败。
+                        raise ValueError(
+                            f"迁移映射引用了未定义的权限码: {new_code}（旧码 {legacy_code}）"
+                        )
+                    if new_perm not in role.permissions:
+                        role.permissions.append(new_perm)
+                        migrated_count += 1
+        if migrated_count:
+            session.flush()
+            print(f"  ✅ 迁移完成：为 {migrated_count} 个旧权限绑定授予等价新码")
+        else:
+            print("  ⏭️  无旧权限码绑定，跳过迁移")
+
+        # ---- 2.7 清理废弃的旧权限码记录（等价授予已完成，避免权限清单出现僵尸权限） ----
+        removed_count = 0
+        for legacy_code in LEGACY_TO_NEW_PERMISSIONS:
+            legacy_perm = session.execute(
+                select(Permission).where(Permission.code == legacy_code)
+            ).scalar_one_or_none()
+            if legacy_perm is None:
+                continue
+            for role in all_roles:
+                if legacy_perm in role.permissions:
+                    role.permissions.remove(legacy_perm)
+            session.delete(legacy_perm)
+            removed_count += 1
+        if removed_count:
+            session.flush()
+            print(f"  ✅ 清理废弃权限码 {removed_count} 个")
+        else:
+            print("  ⏭️  无废弃权限码，跳过清理")
 
         # ---- 3. 创建 admin 用户并分配超级管理员角色 ----
         print("\n📋 步骤 3/3: 创建 admin 用户...")
@@ -276,6 +353,27 @@ def seed(reset: bool = False):
                 print(f"  ⏭️  admin 已有角色: {SUPER_ADMIN_ROLE_NAME}")
 
         session.commit()
+
+        # ---- 失效 Redis 权限缓存 ----
+        # 步骤 2.6/2.7 迁移改变了角色→权限绑定（授新细粒度码、删旧码），但
+        # PermissionCache（key `cache:permissions:{user_id}`，TTL 600s）仍缓存旧权限
+        # 集合：若不失效，迁移前已登录用户在最长 10 分钟内访问结算导入/导出端点会因
+        # 命中旧码集合持续 403。故提交成功后全量失效权限缓存。
+        try:
+            # cache_service 是 async（底层 redis.asyncio），而本脚本是同步脚本：
+            # 用 asyncio.run 临时起一个事件循环执行失效即可，进程随后退出。
+            # 延迟导入，避免在测试收集期（import seed.py）引入额外应用栈副作用。
+            from app.cache.base import cache_service
+
+            asyncio.run(cache_service.invalidate_pattern("cache:permissions:*"))
+            print("  ✅ 已失效权限缓存 cache:permissions:*")
+        except Exception as e:
+            # Redis 不可用不应阻断种子初始化，仅提示运维手动失效。
+            print(
+                "  ⚠️  权限缓存失效失败，请手动清理 cache:permissions:* "
+                f"（redis-cli --scan --pattern 'cache:permissions:*' | xargs redis-cli DEL）：{e}"
+            )
+
         print("\n✅ 种子数据初始化完成!")
         print("   登录账号: admin")
         print("   登录密码: admin123")

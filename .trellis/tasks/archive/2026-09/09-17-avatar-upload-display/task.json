@@ -1,0 +1,29 @@
+{
+  "id": "avatar-upload-display",
+  "name": "avatar-upload-display",
+  "title": "修复：个人信息页上传头像后未正确显示（开发环境）",
+  "description": "个人信息页上传头像后提示成功但头像区域仍显示默认首字母。根因：后端返回相对路径 /uploads/avatars/*.jpg，生产 nginx 有 location /uploads/ 转发，但开发环境 vite proxy 只配了 /api，缺 /uploads，SPA fallback 返回 text/html 致 <img> 破图。修复：vite.config.ts 增加 '/uploads' 代理（与 nginx 同构）。",
+  "status": "completed",
+  "dev_type": "bugfix",
+  "scope": null,
+  "package": "frontend",
+  "priority": "P2",
+  "creator": "sacrtap",
+  "assignee": "sacrtap",
+  "createdAt": "2026-09-17",
+  "completedAt": "2026-09-17",
+  "branch": "feature/import-export-optimization",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "39877c8",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "frontend/vite.config.ts",
+    ".trellis/spec/guides/cross-layer-thinking-guide.md"
+  ],
+  "notes": "break-loop 分析已沉淀进 cross-layer-thinking-guide.md「后端相对资源路径可达性」章节",
+  "meta": {}
+}

@@ -1,7 +1,7 @@
 import { reactive, ref, computed } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { getBalances, getBalanceStats, recharge as rechargeApi } from '@/api/billing'
-import type { Balance } from '@/api/billing'
+import type { Balance, BalanceQueryParams } from '@/api/billing'
 import { getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
@@ -105,6 +105,32 @@ export function useBalance() {
     return params
   }
 
+  // 列表（loadBalances）/ 统计（loadStats）/ 导出（buildExportParams）三处
+  // 筛选参数构建共享的通用字段。is_key_customer / is_real_estate 在导出接口
+  // （BalanceQueryParams）中定义为 string，其余接口为 boolean，故用 stringifyBooleans
+  // 区分；axios 序列化时布尔值与 "true"/"false" 字符串在 URL 上等价。
+  const buildCommonFilterParams = (stringifyBooleans: boolean): Record<string, unknown> => {
+    const params: Record<string, unknown> = {}
+    if (filters.keyword) params.keyword = filters.keyword
+    if (filters.account_type) params.account_type = filters.account_type
+    if (filters.industry?.length) params.industry = filters.industry.join(',')
+    if (filters.settlement_type) params.settlement_type = filters.settlement_type
+    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
+    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
+    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
+    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
+      params.is_key_customer = stringifyBooleans
+        ? String(filters.is_key_customer)
+        : filters.is_key_customer
+    }
+    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
+      params.is_real_estate = stringifyBooleans
+        ? String(filters.is_real_estate)
+        : filters.is_real_estate
+    }
+    return params
+  }
+
   const loadBalances = async (forceRefresh = false) => {
     loading.value = true
     try {
@@ -113,26 +139,13 @@ export function useBalance() {
         page_size: pagination.pageSize,
         sort_by: sortState.sort_by || undefined,
         sort_order: sortState.sort_by ? backendSortOrder() : undefined,
+        ...buildCommonFilterParams(false),
       }
       if (forceRefresh) params.force_refresh = true
-      if (filters.keyword) params.keyword = filters.keyword
-      if (filters.account_type) params.account_type = filters.account_type
-      if (filters.industry?.length) params.industry = filters.industry.join(',')
       if (filters.recharge_date?.length === 2) {
         params.recharge_date_from = filters.recharge_date[0]
         params.recharge_date_to = filters.recharge_date[1]
       }
-      if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
-      if (advancedFilters.sales_manager_id)
-        params.sales_manager_id = advancedFilters.sales_manager_id
-      if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
-      if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
-        params.is_real_estate = filters.is_real_estate
-      }
-      if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
-        params.is_key_customer = filters.is_key_customer
-      }
-      if (filters.settlement_type) params.settlement_type = filters.settlement_type
 
       // 余额范围
       const rangeParams = getBalanceRangeParams()
@@ -152,22 +165,18 @@ export function useBalance() {
     }
   }
 
-  // 构建 getBalanceStats 的筛选参数（与列表筛选条件保持一致）
-  const buildStatsParams = (): Record<string, unknown> => {
-    const params: Record<string, unknown> = {}
-    if (filters.keyword) params.keyword = filters.keyword
-    if (filters.industry?.length) params.industry = filters.industry.join(',')
-    if (filters.account_type) params.account_type = filters.account_type
-    if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
-      params.is_key_customer = filters.is_key_customer
+  // 构建余额导出的筛选参数（与列表筛选条件保持一致，不含分页与排序）
+  const buildExportParams = (): BalanceQueryParams => {
+    const params = buildCommonFilterParams(true) as BalanceQueryParams
+    if (filters.recharge_date?.length === 2) {
+      params.recharge_date_from = filters.recharge_date[0]
+      params.recharge_date_to = filters.recharge_date[1]
     }
-    if (filters.is_real_estate !== null && filters.is_real_estate !== undefined) {
-      params.is_real_estate = filters.is_real_estate
-    }
-    if (filters.settlement_type) params.settlement_type = filters.settlement_type
-    if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
-    if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
-    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
+
+    const rangeParams = getBalanceRangeParams()
+    if (rangeParams.balance_min != null) params.balance_min = rangeParams.balance_min
+    if (rangeParams.balance_max != null) params.balance_max = rangeParams.balance_max
+
     return params
   }
 
@@ -176,7 +185,7 @@ export function useBalance() {
   // 无需额外发起多次 getBalances 请求
   const loadStats = async () => {
     try {
-      const statsRes = await getBalanceStats(buildStatsParams())
+      const statsRes = await getBalanceStats(buildCommonFilterParams(false))
       if (statsRes.data) {
         stats.total_balance = statsRes.data.total_balance
         stats.total_customers = statsRes.data.total_customers
@@ -297,6 +306,7 @@ export function useBalance() {
     hasSelected,
     loadBalances,
     loadStats,
+    buildExportParams,
     handleRefresh,
     handlePageChange,
     handlePageSizeChange,

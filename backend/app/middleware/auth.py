@@ -1,5 +1,6 @@
 """认证中间件"""
 
+import logging
 from datetime import datetime
 from functools import wraps
 
@@ -16,6 +17,8 @@ from ..services.auth import AuthService
 # Lazy import to avoid capturing real permission_cache at module load time
 # Tests can mock app.cache.permissions.permission_cache before routes are loaded
 from ..services.token_blacklist import TokenBlacklistService
+
+logger = logging.getLogger(__name__)
 
 # 开放平台 API 路径前缀，使用 API-Key 认证而非 JWT
 OPENAPI_PREFIX = "/api/v1/erp/"
@@ -62,7 +65,7 @@ def auth_middleware(app: Sanic):
             try:
                 payload = AuthService.verify_token(token)
             except Exception as e:
-                app.logger.warning(f"Token verification failed: {e}")  # pyright: ignore[reportAttributeAccessIssue]
+                logger.warning("Token verification failed: %s", e)
                 return json(
                     {"code": ErrorCodes.TOKEN_INVALID, "message": f"Token 验证失败：{str(e)}"},
                     status=401,
@@ -79,7 +82,7 @@ def auth_middleware(app: Sanic):
                 blacklist_service = TokenBlacklistService(request.ctx.db_session)
                 is_blacklisted = await blacklist_service.is_blacklisted(jti)
                 if is_blacklisted:
-                    app.logger.info(f"Blacklisted token used: {jti}")  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.info("Blacklisted token used: %s", jti)
                     return json(
                         {"code": ErrorCodes.TOKEN_BLACKLISTED, "message": "Token 已失效"},
                         status=401,
@@ -88,7 +91,7 @@ def auth_middleware(app: Sanic):
             # 将用户信息存储到 request 上下文
             request.ctx.user = payload
         except Exception as e:
-            app.logger.error(f"认证中间件异常：{e}")  # pyright: ignore[reportAttributeAccessIssue]
+            logger.error("认证中间件异常：%s", e, exc_info=True)
             return json(
                 {"code": ErrorCodes.INTERNAL_ERROR, "message": f"中间件错误：{str(e)}"}, status=500
             )
@@ -160,7 +163,7 @@ async def _authenticate_api_key(request: Request, app: Sanic):
         await service.update_last_used(api_key.id)
     except Exception:
         # 更新使用时间失败不影响请求处理
-        app.logger.warning(f"Failed to update last_used_at for API-Key {api_key.id}")  # pyright: ignore[reportAttributeAccessIssue]
+        logger.warning("Failed to update last_used_at for API-Key %s", api_key.id)
 
 
 def get_current_user(request: Request) -> dict | None:

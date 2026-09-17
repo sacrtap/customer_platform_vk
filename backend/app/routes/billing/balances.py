@@ -1,13 +1,13 @@
 """余额管理路由 — 充值、记录、统计、趋势"""
 
+import asyncio
 import json as _json
 import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sanic.request import Request
-from sanic.response import json
-from sqlalchemy.exc import IntegrityError
+from sanic.response import json, raw
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
@@ -96,9 +96,10 @@ async def _batch_query_consumption_stats(
         if cache_writes:
             try:
                 redis = await cache_service._get_redis()
+                ttl = cache_service.ttl_for("billing_consumption")
                 pipe = redis.pipeline()
                 for key, val in cache_writes:
-                    pipe.setex(key, 300, val)
+                    pipe.setex(key, ttl, val)
                 await pipe.execute()
             except Exception as e:
                 logger.warning("L1 缓存写入失败 billing_consumption: %s", e)
@@ -145,54 +146,45 @@ def _compute_burn_down(
     }
 
 
-@billing_bp.get("/balances")
-@auth_required
-@require_permission("billing:view")
-async def get_balances(request: Request):
-    """获取余额列表（支持服务端筛选、排序和分页）"""
-    db: AsyncSession = request.ctx.db_session
+def _parse_balance_filters(request: Request) -> dict:
+    """解析余额列表/导出共用的筛选参数（含类型转换与校验）
 
-    from sqlalchemy import func, select
-    from sqlalchemy.orm import selectinload
-
-    from ...models.billing import CustomerBalance, RechargeRecord
-    from ...models.customers import Customer, CustomerProfile
-
-    # 分页参数
-    page = int(request.args.get("page", 1))
-    page_size = int(request.args.get("page_size", 20))
-    page_size = min(page_size, 100)
-
-    # 筛选参数
-    keyword = request.args.get("keyword")  # 客户名称模糊搜索
+    校验失败时抛出 ValueError（由调用方转换为 400 响应）。
+    """
+    keyword = request.args.get("keyword")
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
-
-    # 新增筛选参数
     account_type = request.args.get("account_type")
-    industry = request.args.get("industry")  # 多选逗号分隔
+    industry = request.args.get("industry")
     manager_id = int(request.args.get("manager_id")) if request.args.get("manager_id") else None
     sales_manager_id = (
         int(request.args.get("sales_manager_id")) if request.args.get("sales_manager_id") else None
     )
     recharge_date_from = request.args.get("recharge_date_from")
     recharge_date_to = request.args.get("recharge_date_to")
-    tag_ids = request.args.get("tag_ids")  # 多选逗号分隔
+    tag_ids = request.args.get("tag_ids")
+
+    # 充值日期：解析为 datetime（畸形参数抛 ValueError，由调用方统一转 400）
+    recharge_date_from = datetime.fromisoformat(recharge_date_from) if recharge_date_from else None
+    recharge_date_to = (
+        datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
+        if recharge_date_to
+        else None
+    )
+    # 标签 ID：逗号分隔的整数列表（畸形参数抛 ValueError，由调用方统一转 400）
+    tag_ids = [int(t.strip()) for t in tag_ids.split(",") if t.strip()] if tag_ids else None
+
     is_key_customer = request.args.get("is_key_customer")
     if is_key_customer is not None and is_key_customer.strip() != "":
         if is_key_customer.lower() not in ("true", "false"):
-            return json(
-                {"code": 40001, "message": "is_key_customer 参数必须为 'true' 或 'false'"},
-                status=400,
-            )
+            raise ValueError("is_key_customer 参数必须为 'true' 或 'false'")
         is_key_customer = is_key_customer.lower() == "true"
+    else:
+        is_key_customer = None
 
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None and is_real_estate.strip() != "":
         if is_real_estate.lower() not in ("true", "false"):
-            return json(
-                {"code": 40001, "message": "is_real_estate 参数必须为 'true' 或 'false'"},
-                status=400,
-            )
+            raise ValueError("is_real_estate 参数必须为 'true' 或 'false'")
         is_real_estate = is_real_estate.lower() == "true"
     else:
         is_real_estate = None
@@ -201,7 +193,6 @@ async def get_balances(request: Request):
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
 
-    # 余额范围筛选
     balance_min = (
         float(request.args.get("balance_min")) if request.args.get("balance_min") else None
     )
@@ -209,11 +200,67 @@ async def get_balances(request: Request):
         float(request.args.get("balance_max")) if request.args.get("balance_max") else None
     )
 
-    # 排序参数
-    sort_by = request.args.get("sort_by", "customer.id")  # 默认按客户 ID 升序
-    sort_order = request.args.get("sort_order", "asc")
-    if sort_order not in ("asc", "desc"):
-        sort_order = "asc"
+    return {
+        "keyword": keyword,
+        "customer_id": customer_id,
+        "account_type": account_type,
+        "industry": industry,
+        "manager_id": manager_id,
+        "sales_manager_id": sales_manager_id,
+        "recharge_date_from": recharge_date_from,
+        "recharge_date_to": recharge_date_to,
+        "tag_ids": tag_ids,
+        "is_key_customer": is_key_customer,
+        "is_real_estate": is_real_estate,
+        "settlement_type": settlement_type,
+        "balance_min": balance_min,
+        "balance_max": balance_max,
+    }
+
+
+async def _query_balance_rows_raw(
+    db: AsyncSession,
+    filters: dict,
+    sort_by: str = "customer.id",
+    sort_order: str = "asc",
+    page: int = 1,
+    page_size: int = 100,
+    limit: int | None = None,
+) -> tuple[list, int, dict, dict]:
+    """查询余额原始数据（不含行组装），供列表与导出共用
+
+    行组装（Decimal→float、燃尽计算等纯 CPU 工作）由 _assemble_balance_rows 单独完成，
+    导出场景可在 asyncio.to_thread 中执行，避免阻塞事件循环。
+
+    Args:
+        filters: _parse_balance_filters 返回的筛选参数
+        sort_by / sort_order: 排序字段与方向
+        page / page_size: 分页参数（limit 为 None 时生效）
+        limit: 最大返回行数（导出用，传入时忽略分页）
+
+    Returns:
+        (balance ORM 对象列表, 匹配总数, 最新充值时间映射, 消费统计映射)
+    """
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
+
+    from ...models.billing import CustomerBalance, RechargeRecord
+    from ...models.customers import Customer, CustomerProfile
+
+    keyword = filters["keyword"]
+    customer_id = filters["customer_id"]
+    account_type = filters["account_type"]
+    industry = filters["industry"]
+    manager_id = filters["manager_id"]
+    sales_manager_id = filters["sales_manager_id"]
+    recharge_date_from = filters["recharge_date_from"]
+    recharge_date_to = filters["recharge_date_to"]
+    tag_ids = filters["tag_ids"]
+    is_key_customer = filters["is_key_customer"]
+    is_real_estate = filters["is_real_estate"]
+    settlement_type = filters["settlement_type"]
+    balance_min = filters["balance_min"]
+    balance_max = filters["balance_max"]
 
     # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
     sort_field_map = {
@@ -277,23 +324,13 @@ async def get_balances(request: Request):
         )
         # 使用 HAVING 子句过滤（聚合函数必须在 HAVING 中）
         if recharge_date_from:
-            try:
-                from_dt = datetime.fromisoformat(recharge_date_from)
-                recharge_filter_stmt = recharge_filter_stmt.having(
-                    func.max(RechargeRecord.created_at) >= from_dt
-                )
-            except (ValueError, TypeError):
-                logger.warning("Invalid recharge_date_from format: %s", recharge_date_from)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) >= recharge_date_from
+            )
         if recharge_date_to:
-            try:
-                to_dt = datetime.fromisoformat(recharge_date_to).replace(
-                    hour=23, minute=59, second=59
-                )
-                recharge_filter_stmt = recharge_filter_stmt.having(
-                    func.max(RechargeRecord.created_at) <= to_dt
-                )
-            except (ValueError, TypeError):
-                logger.warning("Invalid recharge_date_to format: %s", recharge_date_to)
+            recharge_filter_stmt = recharge_filter_stmt.having(
+                func.max(RechargeRecord.created_at) <= recharge_date_to
+            )
 
         base_stmt = base_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
 
@@ -301,17 +338,15 @@ async def get_balances(request: Request):
     if tag_ids:
         from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
-        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
-        if tag_id_list:
-            tag_customer_subq = (
-                select(CustomerTag.customer_id)
-                .where(
-                    CustomerTag.tag_id.in_(tag_id_list),
-                    CustomerTag.deleted_at.is_(None),
-                )
-                .group_by(CustomerTag.customer_id)
+        tag_customer_subq = (
+            select(CustomerTag.customer_id)
+            .where(
+                CustomerTag.tag_id.in_(tag_ids),
+                CustomerTag.deleted_at.is_(None),
             )
-            base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
+            .group_by(CustomerTag.customer_id)
+        )
+        base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
 
     # 总数查询
     count_stmt = (
@@ -358,55 +393,28 @@ async def get_balances(request: Request):
             .group_by(RechargeRecord.customer_id)
         )
         if recharge_date_from:
-            from_dt = datetime.fromisoformat(recharge_date_from)
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) >= from_dt
+                func.max(RechargeRecord.created_at) >= recharge_date_from
             )
         if recharge_date_to:
-            to_dt = datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) <= to_dt
+                func.max(RechargeRecord.created_at) <= recharge_date_to
             )
         count_stmt = count_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
     if tag_ids:
         from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
-        tag_id_list = [int(t.strip()) for t in tag_ids.split(",") if t.strip()]
-        if tag_id_list:
-            tag_customer_subq = (
-                select(CustomerTag.customer_id)
-                .where(
-                    CustomerTag.tag_id.in_(tag_id_list),
-                    CustomerTag.deleted_at.is_(None),
-                )
-                .group_by(CustomerTag.customer_id)
+        tag_customer_subq = (
+            select(CustomerTag.customer_id)
+            .where(
+                CustomerTag.tag_id.in_(tag_ids),
+                CustomerTag.deleted_at.is_(None),
             )
-            count_stmt = count_stmt.where(Customer.id.in_(tag_customer_subq))
+            .group_by(CustomerTag.customer_id)
+        )
+        count_stmt = count_stmt.where(Customer.id.in_(tag_customer_subq))
 
     total = (await db.execute(count_stmt)).scalar()
-
-    # 惰性补建：为尚无余额记录的活跃客户创建余额档案（幂等，不覆盖历史数据）
-    # 确保余额列表与客户列表保持一致，新增客户无需手动建档即可显示
-    # 使用 try-except + flush 防止高并发时重复插入
-    missing_stmt = (
-        select(Customer.id)
-        .outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
-        .where(CustomerBalance.id.is_(None), Customer.deleted_at.is_(None))
-        .limit(200)  # 单次最多补建 200 条，避免一次请求处理大量缺失
-    )
-    missing_ids = list((await db.execute(missing_stmt)).scalars().all())
-    if missing_ids:
-        try:
-            db.add_all([CustomerBalance(customer_id=cid) for cid in missing_ids])
-            await db.flush()  # pyright: ignore[reportGeneralTypeIssues]
-        except IntegrityError as e:
-            # 并发场景下因唯一索引冲突而失败，忽略
-            logger.debug("惰性补建余额记录跳过（唯一索引冲突）: %s", e)
-            await db.rollback()  # pyright: ignore[reportGeneralTypeIssues]
-        else:
-            logger.info(
-                "惰性补建余额记录 %d 条（缺失客户 ID: %s）", len(missing_ids), missing_ids[:20]
-            )
 
     # 排序
     if sort_by in sort_field_map:
@@ -496,13 +504,16 @@ async def get_balances(request: Request):
         # 默认排序：按客户 ID 升序
         base_stmt = base_stmt.order_by(Customer.id.asc())
 
-    # 分页查询
+    # 分页/限制查询
     stmt = base_stmt.options(
         selectinload(CustomerBalance.customer)
         .selectinload(Customer.profile)
         .selectinload(CustomerProfile.industry_type)
     )
-    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    else:
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
     balances = result.scalars().all()
@@ -527,49 +538,217 @@ async def get_balances(request: Request):
     # 批量查询消费统计（L1 缓存）
     consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
 
+    return balances, total, last_recharge_map, consumption_stats_map
+
+
+def _assemble_balance_rows(
+    balances: list,
+    last_recharge_map: dict,
+    consumption_stats_map: dict,
+) -> list[dict]:
+    """纯 CPU 行组装：Decimal→float、属性访问与燃尽计算（可安全移入线程）
+
+    只访问已通过 selectinload 预加载的属性（Customer / CustomerProfile /
+    IndustryType 均已 eager load），不会在另一线程触发懒加载；
+    last_recharge_map / consumption_stats_map 为纯 Python dict，无 ORM 依赖。
+    """
+    rows = [
+        {
+            "id": b.id,
+            "customer_id": b.customer_id,
+            "company_id": b.customer.company_id if b.customer else None,
+            "customer_name": b.customer.name if b.customer else None,
+            "account_type": b.customer.account_type if b.customer else None,
+            "industry_type": b.customer.profile.industry_type.name
+            if b.customer and b.customer.profile and b.customer.profile.industry_type
+            else None,
+            "settlement_type": (b.customer.settlement_type if b.customer else None),
+            "is_key_customer": (b.customer.is_key_customer if b.customer else False),
+            "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            "last_recharge_at": (
+                last_recharge_map[b.customer_id].isoformat()
+                if b.customer_id in last_recharge_map and last_recharge_map[b.customer_id]
+                else None
+            ),
+            **_compute_burn_down(
+                real_amount=float(b.real_amount) if b.real_amount else 0,
+                bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
+                settlement_type=b.customer.settlement_type if b.customer else None,
+                stats=consumption_stats_map.get(b.customer_id),
+            ),
+        }
+        for b in balances
+    ]
+
+    return rows
+
+
+async def _query_balance_rows(
+    db: AsyncSession,
+    filters: dict,
+    sort_by: str = "customer.id",
+    sort_order: str = "asc",
+    page: int = 1,
+    page_size: int = 100,
+    limit: int | None = None,
+) -> tuple[list[dict], int]:
+    """查询余额并组装行（列表用，页大小 ≤ 100，行组装量小可在事件循环内完成）"""
+    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
+        db, filters, sort_by, sort_order, page, page_size, limit
+    )
+    rows = _assemble_balance_rows(balances, last_recharge_map, consumption_stats_map)
+    return rows, total
+
+
+@billing_bp.get("/balances")
+@auth_required
+@require_permission("billing:view")
+async def get_balances(request: Request):
+    """获取余额列表（支持服务端筛选、排序和分页）"""
+    db: AsyncSession = request.ctx.db_session
+
+    # 分页参数（非数字输入应返回 400，而非抛 ValueError → 500）
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("page_size", 20))
+    except ValueError:
+        return json({"code": 40001, "message": "page 和 page_size 必须为整数"}, status=400)
+    page_size = min(page_size, 100)
+
+    # 筛选参数（统一解析与校验）
+    try:
+        filters = _parse_balance_filters(request)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 排序参数
+    sort_by = request.args.get("sort_by", "customer.id")
+    sort_order = request.args.get("sort_order", "asc")
+    if sort_order not in ("asc", "desc"):
+        sort_order = "asc"
+
+    rows, total = await _query_balance_rows(
+        db,
+        filters,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+    )
+
     return json(
         {
             "code": 0,
             "message": "success",
             "data": {
-                "list": [
-                    {
-                        "id": b.id,
-                        "customer_id": b.customer_id,
-                        "company_id": b.customer.company_id if b.customer else None,
-                        "customer_name": b.customer.name if b.customer else None,
-                        "account_type": b.customer.account_type if b.customer else None,
-                        "industry_type": b.customer.profile.industry_type.name
-                        if b.customer and b.customer.profile and b.customer.profile.industry_type
-                        else None,
-                        "settlement_type": (b.customer.settlement_type if b.customer else None),
-                        "is_key_customer": (b.customer.is_key_customer if b.customer else False),
-                        "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-                        "last_recharge_at": (
-                            last_recharge_map[b.customer_id].isoformat()
-                            if b.customer_id in last_recharge_map
-                            and last_recharge_map[b.customer_id]
-                            else None
-                        ),
-                        **_compute_burn_down(
-                            real_amount=float(b.real_amount) if b.real_amount else 0,
-                            bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
-                            settlement_type=b.customer.settlement_type if b.customer else None,
-                            stats=consumption_stats_map.get(b.customer_id),
-                        ),
-                    }
-                    for b in balances
-                ],
+                "list": rows,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
             },
         }
+    )
+
+
+# ==================== 余额导出 ====================
+
+
+@billing_bp.get("/balances/export")
+@auth_required
+@require_permission("billing:balance_export")
+async def export_balances(request: Request):
+    """导出余额列表为 Excel（按当前筛选条件导出全部匹配数据，上限 50000 条）"""
+    import io
+
+    import pandas as pd
+
+    db: AsyncSession = request.ctx.db_session
+
+    # 筛选参数（统一解析与校验）
+    try:
+        filters = _parse_balance_filters(request)
+    except ValueError as e:
+        return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 全量导出（上限 50000 条，不分页）：
+    # DB 查询（await）留在异步层，纯 CPU 的行组装移入线程，避免阻塞事件循环。
+    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
+        db,
+        filters,
+        sort_by="customer.id",
+        sort_order="asc",
+        limit=50000,
+    )
+
+    # 行组装（Decimal→float、燃尽计算）是纯 CPU 工作，5 万行规模下会阻塞事件循环，
+    # 与 DataFrame/Excel 生成一起移入线程。此处在线程中直接访问 ORM 实例属性
+    # （b.customer、b.customer.profile 等）的安全前提是：
+    #   1) _query_balance_rows_raw 已用 selectinload 三级预加载
+    #      （CustomerBalance.customer → Customer.profile → CustomerProfile.industry_type），
+    #      访问的属性均已 eager load，不会在另一线程触发懒加载；
+    #   2) 查询返回后到进入线程之间无 commit/expire，实例属性不会过期、不会触发刷新。
+    # 任一前提不成立时，应先在此处取出纯数据再入线程，而非直接传 ORM 实例。
+    rows = await asyncio.to_thread(
+        _assemble_balance_rows, balances, last_recharge_map, consumption_stats_map
+    )
+
+    if not rows:
+        return json(
+            {"code": 40002, "message": "没有找到符合条件的余额数据"},
+            status=400,
+        )
+
+    # 纯 CPU 的 DataFrame 组装 + Excel 生成移入线程，避免阻塞事件循环
+    def _build_excel(rows: list[dict]) -> bytes:
+        """在独立线程中完成 DataFrame 组装与 Excel 写入（列与 BalanceTable 对齐）"""
+        data = [
+            {
+                "客户ID": r["company_id"],
+                "客户名称": r["customer_name"],
+                "行业": r["industry_type"],
+                "账号类型": r["account_type"],
+                "结算方式": r["settlement_type"],
+                "余额（元）": r["total_amount"],
+                "实充余额（元）": r["real_amount"],
+                "赠送余额（元）": r["bonus_amount"],
+                "已消耗（元）": r["used_total"],
+                "最新充值时间": r["last_recharge_at"],
+                "预计可支撑天数": r["days_remaining"],
+                "日均消耗（元）": r["daily_avg_cost"],
+                "消耗天数": r["consumption_days"],
+            }
+            for r in rows
+        ]
+        df = pd.DataFrame(data)
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="余额列表")
+
+        return output.getvalue()
+
+    excel_bytes = await asyncio.to_thread(_build_excel, rows)
+
+    # 生成文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"balances_{timestamp}.xlsx"
+
+    # 截断标记：匹配总数超过导出上限时通过响应头告知前端
+    truncated = total > len(rows)
+
+    return raw(
+        excel_bytes,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Total-Count": str(total),
+            "X-Truncated": "true" if truncated else "false",
+        },
     )
 
 

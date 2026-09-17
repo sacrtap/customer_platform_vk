@@ -125,6 +125,107 @@ await cache_service.invalidate_billing_cache()
 
 ---
 
+## TTL 配置单一真相
+
+[来源: Bug fix 2026-09-17 — `_ttl_config` 存在 5 个零消费/谎值条目；`analytics.py` 9 处与 `billing/balances.py` 1 处硬编码 TTL 副本]
+
+### 1. 契约（唯一读取入口）
+
+`CacheService._ttl_config`（`backend/app/cache/base.py`）是 TTL 的**唯一真实来源**；
+唯一读取入口是 `ttl_for()`：
+
+```python
+def ttl_for(self, prefix: str) -> int:
+    """返回指定缓存前缀的 TTL（秒）；未配置时回退 default。"""
+    return self._ttl_config.get(prefix, self._ttl_config["default"])
+```
+
+`CacheService.set(prefix, data, *parts, ttl=None)` 的解析顺序：
+
+```python
+expire = ttl or self.ttl_for(prefix)   # 显式 ttl 优先；None 才读配置
+```
+
+### 2. 规则
+
+1. **新增缓存前缀前，先在 `_ttl_config` 登记**；写缓存时不传 `ttl=`，由 `ttl_for()` 取值。
+2. **禁止在调用点硬编码 TTL 副本**（如 `pipe.setex(key, 300, val)`）—— 那是「同一语义两个副本」，
+   改配置不会传播。**手工拼键的批量读写同样适用**。
+3. **配置条目必须是真值且有真实消费点**：某 key 在生产代码中从不被读取，或值与实际生效值不符，
+   即「谎值」。同类条目已于 2026-09-17 清除（`billing_pricing_rules`、`tag_stats`、`analytics`、
+   以及 `analytics_profile`(3600→300)、`analytics_prediction`(1800→300) 两个与实际不符的值）。
+4. **同一前缀不得承载两个 TTL 语义** —— 需要不同 TTL 时**拆前缀**
+   （如 `analytics_prediction`(300s) 与 `analytics_prediction_forecast`(1800s)）。
+5. 显式 `ttl=` 仅用于调用点确有独立语义的场景，且该前缀不应再在 `_ttl_config` 登记冲突值。
+
+### 3. 失效联动
+
+新增或拆分前缀后，必须确认失效模式覆盖它。既有模式为通配前缀：
+
+| 方法 | 失效模式 |
+|---|---|
+| `invalidate_customer_cache()` | `cache:customer_list:*`、`cache:customer_detail:{id}` |
+| `invalidate_tag_cache()` | `cache:tag_list:*`、`cache:tag_stats:*` |
+| `invalidate_analytics_cache(category)` | `cache:analytics_{category}_*`；category 为空时 `cache:analytics_*` + `cache:billing_*` |
+| `invalidate_billing_cache()` | `cache:billing_*`、`cache:analytics_*` |
+
+> **Gotcha**: 失效模式是**前缀通配**，因此拆前缀通常无需改失效代码；但若新前缀不以既有通配开头
+> （如不是 `cache:analytics_*`），则必须显式补失效调用，否则该缓存永不过期/永不失效。
+
+### 4. Tests Required
+
+- `tests/test_cache.py::TestTTLConfiguration` —— 断言 `set()` 对**已登记**前缀取配置值、
+  对未知前缀回退 `default`、显式 `ttl=` 覆盖配置
+- 断言点：`mock_redis.setex.call_args[0][1]`（TTL 实参）
+
+> 不要断言整个 `_ttl_config` 字典 —— 那是实现钉死型断言，配置合法的数值调整都会误报失败。
+
+### 5. Wrong vs Correct
+
+```python
+# WRONG —— 硬编码副本：改 _ttl_config 不生效，且同一前缀可长出第二个值
+await cache_service.set("analytics_profile", result, key, ttl=300)
+pipe.setex(key, 300, val)
+
+# CORRECT —— 单一来源
+await cache_service.set("analytics_profile", result, key)   # 取 ttl_for("analytics_profile")
+ttl = cache_service.ttl_for("billing_consumption")           # 手工拼键时显式取
+pipe.setex(key, ttl, val)
+```
+
+**相关**: `docs/performance/cache-strategy.md`（TTL 条目全表与「不在本表中的 TTL」）
+
+---
+
+## Redis Hash Key Encoding
+
+[来源: Bug fix 2026-09-16 — `SyncTaskService.get_progress` 在真实 Redis 路径下所有字段静默取默认值]
+
+`CacheService._get_redis()` 固定以 `decode_responses=True` 创建客户端（`backend/app/cache/base.py`）：
+
+```python
+redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+```
+
+因此 `hgetall()` 返回的 dict **键是 `str`、值也是 `str`**。读取时必须用 **str 键**：
+
+```python
+# WRONG — 键不匹配，静默返回 None → 所有字段取默认值（不抛异常，最难排查）
+data = await redis.hgetall(key)
+status = data.get(b"status", "")      # 永远拿不到真实值
+
+# CORRECT — str 键，与 decode_responses=True 一致
+status = data.get("status", "")
+
+# 需要兼容两种客户端配置时，显式回退
+def raw(name: str):
+    return data.get(name, data.get(name.encode()))
+```
+
+> **Warning**: 键不匹配**不会抛异常**，只会静默取默认值。若读取端为字段设了默认值（如 `""`、`0`），故障表现是「数据恒为空」而非报错 —— 这类问题只能靠回归测试（如 `tests/services/test_sync_task_service.py::TestGetProgress::test_get_progress_from_redis_str_keys`）守住。
+
+---
+
 ## AsyncSession Concurrency Constraint
 
 **CRITICAL**: `AsyncSession` does NOT support concurrent `execute()` calls on the same session instance.
@@ -166,6 +267,39 @@ stmt = stmt.where(Customer.id < 0)
 ```
 
 [来源: Bug fix 2026-09-12 — KPI `get_kpi_stats` `where(False)` caused 500 error]
+
+---
+
+## 关系属性序列化必须预加载
+
+[来源: Bug fix 2026-09-16 — `GET /billing/invoices/detail-logs` 在真实请求下返回 500]
+
+异步会话下访问**未加载**的 `relationship` 属性会触发隐式懒加载；懒加载需要同步 IO，
+在 `AsyncSession` 中直接抛 `MissingGreenlet` → 端点 500。
+
+`Invoice.customer = relationship("Customer")` **未**配置 `lazy="selectin"`（对比同一文件里
+`PricingRule.customer` 配了 `lazy="selectin"`），因此凡是在**序列化阶段**读 `inv.customer.name`
+的查询，都必须在查询处显式预加载：
+
+```python
+# WRONG — 序列化时读 inv.customer.name 触发懒加载 → MissingGreenlet → HTTP 500
+stmt = select(Invoice).where(Invoice.detail_file_status != "pending")
+...
+"customer_name": inv.customer.name if inv.customer else None,
+
+# CORRECT — 在同一个查询上显式预加载
+from sqlalchemy.orm import selectinload
+
+stmt = (
+    select(Invoice)
+    .options(selectinload(Invoice.customer))
+    .where(Invoice.detail_file_status != "pending")
+)
+```
+
+> **Warning**: 这类缺陷**只在真实请求路径下暴露**。若测试或调试时关系已被装入实例（或提前访问过），
+> 就不会触发懒加载，`MissingGreenlet` 被掩盖。审查口诀：序列化函数里出现
+> `obj.<relationship>.<field>`，同一查询就必须有对应的 `selectinload`。
 
 ---
 

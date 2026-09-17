@@ -1,9 +1,12 @@
 """发票管理路由 — 生成、审批、支付、导出"""
 
+import asyncio
+import logging
 import os
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from urllib.parse import quote
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -15,13 +18,42 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
 from ...config import settings
+from ...constants.error_codes import ErrorCodes
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
+from ...utils.excel_import import read_import_dataframe
+from ...utils.tiers import TierFormatError
 from ...utils.timezone import local_date_range_to_utc
 from . import billing_bp
+
+logger = logging.getLogger(__name__)
+
+
+def _content_disposition(filename: str) -> str:
+    """生成 Content-Disposition 响应头值，附带 RFC 5987 的 filename*。
+
+    中文文件名在部分 HTTP 客户端/浏览器下会乱码或下载失败；这里保留原始
+    ``filename`` 兜底，并追加百分号编码的 ``filename*=UTF-8''...``，让支持
+    RFC 5987 的客户端正确解码中文文件名。
+    """
+    return f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+def _write_cell_text_safe(cell, value):
+    """把值写入 xlsx 单元格，防御公式/CSV 注入（CWE-1236）。
+
+    openpyxl 会把以 ``=`` 开头的字符串当作公式存储（data_type=``f``），导入接口
+    允许 invoice_no 为任意自由文本，若含 ``=HYPERLINK(...)`` 等前缀，导出的 xlsx
+    在 Excel 中打开时会执行公式/外部链接。这里对危险前缀的字符串显式标记
+    ``data_type='s'``（以 inlineStr 存储为纯文本）：值本身保持不变（区别于加前导
+    单引号/空格会污染值），因此纯数字/普通单号不受影响，导出文件可无损回填导入。
+    """
+    cell.value = value
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        cell.data_type = "s"
 
 
 async def _trigger_detail_generation(request: Request, invoice_id: int):
@@ -167,11 +199,18 @@ async def get_invoice(request: Request, invoice_id: int):
     # 重新调用 calculate_items_from_rules 获取完整计费规则信息
     # 数据库 InvoiceItem 只存储基础字段（device_type/layer_type/quantity/unit_price），
     # pricing_type/package_type/tiers/over_limit 等需通过 PricingRule 关联获取
-    recalculated_items, _ = await invoice_service.calculate_items_from_rules(
-        customer_id=invoice.customer_id,
-        period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
-        period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
-    )
+    try:
+        recalculated_items, _ = await invoice_service.calculate_items_from_rules(
+            customer_id=invoice.customer_id,
+            period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
+            period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
+        )
+    except TierFormatError as e:
+        # 与 calculate-items 一致：阶梯配置非法时返回业务错误码而非 500
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+            status=400,
+        )
 
     # 格式化 items（与 calculate-items 路由一致的字段结构）
     formatted_items = [
@@ -310,12 +349,17 @@ async def calculate_invoice_items(request: Request):
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
     # 调用服务层计算
-    items, total_amount = await invoice_service.calculate_items_from_rules(
-        customer_id=data["customer_id"],
-        period_start=period_start,
-        period_end=period_end,
-    )
-
+    try:
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=data["customer_id"],
+            period_start=period_start,
+            period_end=period_end,
+        )
+    except TierFormatError as e:
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+            status=400,
+        )
     if not items:
         return json(
             {
@@ -555,11 +599,18 @@ async def generate_invoice(request: Request):
     # 区分"未提供 items"和"items 为空列表"
     if "items" not in data:
         # 未提供 items，自动根据计费规则 + 用量计算
-        items, _ = await invoice_service.calculate_items_from_rules(
-            customer_id=data["customer_id"],
-            period_start=period_start,
-            period_end=period_end,
-        )
+        try:
+            items, _ = await invoice_service.calculate_items_from_rules(
+                customer_id=data["customer_id"],
+                period_start=period_start,
+                period_end=period_end,
+            )
+        except TierFormatError as e:
+            # 与 calculate-items 一致：阶梯配置非法时返回业务错误码而非 500
+            return json(
+                {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
+                status=400,
+            )
         if not items:
             return json(
                 {
@@ -1144,7 +1195,7 @@ async def delete_invoice(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/export")
 @auth_required
-@require_permission("billing:export")
+@require_permission("billing:invoice_export")
 async def export_invoices(request: Request):
     """
     导出结算单为 Excel 文件
@@ -1255,7 +1306,7 @@ async def export_invoices(request: Request):
         "周期开始",
         "周期结束",
         "总金额",
-        "折扣金额",
+        "减免金额",
         "最终金额",
         "状态",
         "创建时间",
@@ -1303,7 +1354,10 @@ async def export_invoices(request: Request):
         ]
 
         for col_num, value in enumerate(row_data, 1):
-            cell = ws.cell(row=row_num, column=col_num, value=value)  # pyright: ignore[reportOptionalMemberAccess]
+            cell = ws.cell(row=row_num, column=col_num)  # pyright: ignore[reportOptionalMemberAccess]
+            # 防御公式注入：invoice_no / customer_name 等文本字段若以 = + - @ 开头，
+            # 会被 openpyxl 当作公式存储，导出文件在 Excel 打开时可能执行恶意公式。
+            _write_cell_text_safe(cell, value)
             cell.alignment = cell_alignment
             cell.border = thin_border
 
@@ -1335,11 +1389,362 @@ async def export_invoices(request: Request):
         output.read(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": _content_disposition(filename),
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0",
         },
+    )
+
+
+# ==================== 结算单导入 ====================
+
+
+@billing_bp.post("/invoices/import")
+@auth_required
+@require_permission("billing:invoice_import")
+async def import_invoices(request: Request):
+    """
+    Excel 批量导入外部/历史结算单
+
+    Form:
+    - file: Excel 文件 (.xlsx)
+
+    Excel 列要求:
+    - company_id (必填) - 客户编号
+    - period_start (必填) - 账期开始 YYYY-MM-DD
+    - period_end (必填) - 账期结束 YYYY-MM-DD
+    - total_amount (必填) - 结算金额（元，≥0）
+    - discount_amount (可选) - 减免金额（元，默认 0）
+    - invoice_no (可选) - 结算单号，缺省自动生成
+
+    导入的结算单统一为 draft（草稿）状态，不进入确认/付款流程。
+    """
+    import random
+    import string
+
+    import pandas as pd
+    from sqlalchemy import select
+
+    from ...models.billing import Invoice
+    from ...models.customers import Customer
+
+    files = request.files
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
+        return json({"code": ErrorCodes.BAD_REQUEST, "message": "请上传 Excel 文件"}, status=400)
+
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
+    if not excel_file.name.endswith(".xlsx"):
+        return json(
+            {"code": ErrorCodes.INVALID_FORMAT, "message": "请上传 .xlsx 格式的文件"}, status=400
+        )
+
+    # 服务端体积上限兜底：前端虽限 10MB，但可被绕过；.xlsx 是 zip 容器，
+    # 高压缩比/超大工作簿会在整体读入内存解析时造成内存耗尽（DoS）。在解析前
+    # 拦截，上限与前端 ImportModal 的 10MB 口径一致（settings.max_file_size）。
+    if len(excel_file.body) > settings.max_file_size:
+        return json(
+            {
+                "code": ErrorCodes.BAD_REQUEST,
+                "message": f"文件大小超过限制（最大 {settings.max_file_size // (1024 * 1024)}MB）",
+            },
+            status=400,
+        )
+
+    db: AsyncSession = request.ctx.db_session
+
+    try:
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。
+        # pd.read_excel 是 CPU+I/O 密集的同步调用，10MB xlsx 可阻塞事件循环数百毫秒至数秒，
+        # 与 packages/pricing/imports 三处导入端点保持一致的 to_thread 处理。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
+
+        # 必填列检查
+        required_columns = ["company_id", "period_start", "period_end", "total_amount"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return json(
+                {
+                    "code": ErrorCodes.INVALID_FILE,
+                    "message": f"Excel 缺少必填列：{', '.join(missing_columns)}",
+                },
+                status=400,
+            )
+
+        # 行数限制
+        if len(df) > 1000:
+            return json(
+                {"code": ErrorCodes.MISSING_PARAMETER, "message": "单次最多导入 1000 条记录"},
+                status=400,
+            )
+
+        # 预加载客户 company_id -> customer_id 映射（排除软删除客户：
+        # 列表 get_invoices 与导出 export_invoices 均通过 join 过滤了软删除客户，
+        # 导入若仍可命中会为其创建结算单，但这些结算单在列表/导出中不可见，形成
+        # 不可见的脏数据；与 pricing.py 导入侧的处理保持一致）
+        result = await db.execute(
+            select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
+        )
+        company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
+        # 范围收敛为「本日自动生成前缀」+「本次 Excel 显式指定的单号」：原实现
+        # select(Invoice.invoice_no) 会把该列全表加载，随表增长内存与耗时无限膨胀。
+        today_prefix = f"INV-{datetime.now().strftime('%Y%m%d')}-"
+        existing_invoice_nos = set(
+            (
+                await db.execute(
+                    select(Invoice.invoice_no).where(Invoice.invoice_no.like(f"{today_prefix}%"))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # 用户显式指定的单号需与全表判重，但只查本次出现的取值（行数上限 1000）
+        supplied_nos = {
+            str(v).strip()
+            for v in (df["invoice_no"].tolist() if "invoice_no" in df.columns else [])
+            if v is not None and not pd.isna(v) and str(v).strip()
+        }
+        if supplied_nos:
+            taken_result = await db.execute(
+                select(Invoice.invoice_no).where(Invoice.invoice_no.in_(supplied_nos))
+            )
+            existing_invoice_nos |= set(taken_result.scalars().all())
+
+        current_user = get_current_user(request)
+        operator_id = current_user.get("user_id") if current_user else 1
+
+        errors = []
+        success_count = 0
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # Excel 行号（含表头）
+
+            try:
+                # company_id
+                company_id = row.get("company_id")
+                if pd.isna(company_id) or company_id is None:
+                    errors.append(f"第 {row_num} 行：客户编号为空")
+                    continue
+                try:
+                    # pandas 会把带小数的数字单元格读成 float（如 100001.9），
+                    # int() 会静默截断为 100001，把结算单挂到错误客户名下；
+                    # 先判定是否为整数值，非整数一律按行级错误拒绝。
+                    if isinstance(company_id, float) and not company_id.is_integer():
+                        raise ValueError
+                    company_id = int(company_id)
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
+                    continue
+                if company_id not in company_to_customer:
+                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    continue
+
+                # 账期
+                period_start_raw = row.get("period_start")
+                period_end_raw = row.get("period_end")
+                try:
+                    # 先做可读的格式校验，再统一转 UTC 入库
+                    period_start_str = str(period_start_raw)[:10]
+                    period_end_str = str(period_end_raw)[:10]
+                    datetime.strptime(period_start_str, "%Y-%m-%d")
+                    datetime.strptime(period_end_str, "%Y-%m-%d")
+                except (ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：账期格式错误（应为 YYYY-MM-DD）")
+                    continue
+                if period_end_str < period_start_str:
+                    errors.append(f"第 {row_num} 行：账期结束不能早于开始")
+                    continue
+                # 与 calculate_invoice_items / generate_invoice 一致，账期须转 UTC 后入库
+                period_start, period_end = local_date_range_to_utc(period_start_str, period_end_str)
+
+                # 金额
+                total_amount_raw = row.get("total_amount")
+                if pd.isna(total_amount_raw) or total_amount_raw is None:
+                    errors.append(f"第 {row_num} 行：结算金额为空")
+                    continue
+                try:
+                    total_amount = Decimal(str(total_amount_raw))
+                    # NaN 会抛 InvalidOperation，Infinity 则会绕过 <0 比较，须显式拒绝非有限值
+                    if not total_amount.is_finite():
+                        errors.append(f"第 {row_num} 行：结算金额格式错误")
+                        continue
+                    if total_amount < 0:
+                        errors.append(f"第 {row_num} 行：结算金额不能为负数")
+                        continue
+                except (InvalidOperation, ValueError, TypeError):
+                    errors.append(f"第 {row_num} 行：结算金额格式错误")
+                    continue
+
+                discount_amount = Decimal("0")
+                discount_raw = row.get("discount_amount")
+                if discount_raw is not None and not pd.isna(discount_raw):
+                    try:
+                        discount_amount = Decimal(str(discount_raw))
+                        if not discount_amount.is_finite():
+                            errors.append(f"第 {row_num} 行：减免金额格式错误")
+                            continue
+                        if discount_amount < 0:
+                            errors.append(f"第 {row_num} 行：减免金额不能为负数")
+                            continue
+                    except (InvalidOperation, ValueError, TypeError):
+                        errors.append(f"第 {row_num} 行：减免金额格式错误")
+                        continue
+                if discount_amount > total_amount:
+                    errors.append(f"第 {row_num} 行：减免金额不能大于结算金额")
+                    continue
+
+                # invoice_no（可选，缺省自动生成）
+                invoice_no = None
+                invoice_no_raw = row.get("invoice_no")
+                if (
+                    invoice_no_raw is not None
+                    and not pd.isna(invoice_no_raw)
+                    and str(invoice_no_raw).strip()
+                ):
+                    invoice_no = str(invoice_no_raw).strip()
+                    if invoice_no in existing_invoice_nos:
+                        errors.append(f"第 {row_num} 行：结算单号 {invoice_no} 已存在")
+                        continue
+                else:
+                    customer_key = company_to_customer[company_id]
+                    while True:
+                        # 与 services/billing.py 的既有单号规则一致：4 位随机码取自
+                        # 大写字母+数字（36^4 命名空间）。原先仅用数字（10^4）会使同
+                        # 客户同日的碰撞概率高出 168 倍，且单日超 1 万条时会无限循环。
+                        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                        invoice_no = (
+                            f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_key}-{code}"
+                        )
+                        if invoice_no not in existing_invoice_nos:
+                            break
+
+                invoice = Invoice(
+                    invoice_no=invoice_no,
+                    customer_id=company_to_customer[company_id],
+                    period_start=period_start,
+                    period_end=period_end,
+                    total_amount=total_amount,
+                    discount_amount=discount_amount,
+                    status="draft",
+                    is_auto_generated=False,
+                    created_by=operator_id,
+                )
+                # SAVEPOINT 行级隔离：单行 flush 触发 DB 错误（唯一约束冲突、字段超长等）
+                # 时只回滚该行。原实现仅记录异常而不回滚，会话会进入 PendingRollback
+                # 状态，导致后续所有行的 flush 与最终 commit 全部失败 —— 整批（含已成功
+                # 的行）一并落空，行级错误隔离形同虚设。
+                async with db.begin_nested():
+                    db.add(invoice)
+                    await db.flush()
+                existing_invoice_nos.add(invoice_no)
+                success_count += 1
+            except Exception as e:  # 兜底，避免单行异常中断整个导入
+                logger.warning("结算单导入第 %d 行失败: %s", row_num, e)
+                errors.append(f"第 {row_num} 行：{str(e)}")
+
+        await db.commit()
+
+        # 导入成功后清除结算相关缓存
+        await cache_service.invalidate_billing_cache()
+
+        # 记录审计日志。审计写入失败不应影响导入结果：结算单已持久化，
+        # 若抛异常导致 500，客户端重试会产生重复导入，故将失败解耦处理。
+        from ...utils.audit_helpers import build_batch_audit_summary
+
+        summary = build_batch_audit_summary(
+            operation="invoice_import",
+            total_count=len(df),
+            success_count=success_count,
+            failed_count=len(errors),
+            details=errors[:10],
+        )
+        try:
+            await create_audit_entry(
+                db_session=db,
+                user_id=operator_id,
+                action="batch_create",
+                module="billing",
+                record_id=None,
+                record_type="invoice",
+                changes={"after": {"count": success_count}},
+                operation_type="batch",
+                extra_metadata=summary,
+                ip_address=request.headers.get(
+                    "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+                ),
+                auto_commit=True,
+            )
+        except Exception:
+            logger.exception("结算单导入审计日志写入失败")
+
+        return json(
+            {
+                "code": 0,
+                "message": "导入完成",
+                "data": {
+                    "success_count": success_count,
+                    "error_count": len(errors),
+                    "errors": errors[:10],
+                },
+            }
+        )
+    except Exception:
+        # 外层失败（如最终 commit 抛错）也需回滚，避免把中毒会话归还连接池
+        await db.rollback()
+        # 不把原始异常信息返回客户端，避免泄露 SQL/驱动层细节；完整堆栈记入服务端日志
+        logger.exception("结算单导入失败")
+        return json(
+            {"code": ErrorCodes.SERVICE_ERROR, "message": "导入失败，请稍后重试"}, status=500
+        )
+
+
+@billing_bp.get("/invoices/import-template")
+@auth_required
+async def download_invoice_import_template(request: Request):
+    """下载结算单导入 Excel 模板"""
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "结算单导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+
+    headers = [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ]
+    ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
+
+    notes = [
+        "必填：客户编号（整数）",
+        "必填：账期开始 YYYY-MM-DD",
+        "必填：账期结束 YYYY-MM-DD",
+        "必填：结算金额（元）",
+        "可选：减免金额（元）",
+        "可选：结算单号，缺省自动生成",
+    ]
+    ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
+
+    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
+        ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
+
+    # 不写入示例数据行：示例行会被当作真实数据导入（公司 100001 的 draft 结算单）。
+    # 表头行（第 1 行）与中文说明行（第 2 行）契约由模板下载测试断言，保持不变。
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return raw(
+        output.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": _content_disposition("结算单导入模板.xlsx")},
     )
 
 
@@ -1373,7 +1778,7 @@ async def download_invoice_detail(request: Request, invoice_id: int):
     return await response_file(
         file_path,
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": _content_disposition(filename),
             "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )
@@ -1408,6 +1813,7 @@ async def get_invoice_detail_logs(request: Request):
     """结算单明细文件生成日志列表"""
     db: AsyncSession = request.ctx.db_session
     from sqlalchemy import func, select
+    from sqlalchemy.orm import selectinload
 
     from ...models.billing import Invoice
 
@@ -1417,7 +1823,13 @@ async def get_invoice_detail_logs(request: Request):
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
-    stmt = select(Invoice).where(Invoice.detail_file_status != "pending")
+    # 预加载 customer：序列化时读取 inv.customer.name，而 Invoice.customer 未配置
+    # lazy="selectin"，异步会话下懒加载会抛 MissingGreenlet 导致 500。
+    stmt = (
+        select(Invoice)
+        .options(selectinload(Invoice.customer))
+        .where(Invoice.detail_file_status != "pending")
+    )
     count_stmt = (
         select(func.count()).select_from(Invoice).where(Invoice.detail_file_status != "pending")
     )

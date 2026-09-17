@@ -295,3 +295,62 @@ async def test_get_me_success(test_client, db_session):
             {"username": username},
         )
         db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_auth_middleware_exception_returns_json_500(monkeypatch):
+    """认证中间件内部异常时返回约定 JSON 500，而非 Sanic 默认 HTML 错误页
+
+    回归背景：中间件内曾误用 ``app.logger``（Sanic 无该属性），使兜底 except
+    自身抛 AttributeError —— 客户端收到 HTML 错误页，且真实异常信息彻底丢失。
+
+    这里用独立 app 注册真实 ``auth_middleware``，令黑名单服务在认证过程中抛异常，
+    直接验证异常分支的响应形态（不依赖 conftest 的 app 实例与其模块缓存策略）。
+    """
+    from uuid import uuid4
+
+    from sanic import Sanic
+    from sanic.response import json as sanic_json
+
+    import app.middleware.auth as auth_mod
+    from app.constants import ErrorCodes
+    from app.middleware.auth import auth_middleware
+    from app.services.auth import AuthService
+
+    app = Sanic(f"auth_mw_probe_{uuid4().hex[:8]}")
+
+    @app.middleware("request")
+    async def _provide_db_session(request):
+        request.ctx.db_session = None
+
+    auth_middleware(app)
+
+    @app.get("/probe")
+    async def _probe(request):
+        return sanic_json({"code": 0})
+
+    calls: list[str] = []
+
+    class _BoomBlacklistService:
+        """黑名单服务替身：任何调用都抛异常，触发认证中间件兜底分支"""
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def is_blacklisted(self, jti: str) -> bool:
+            calls.append(jti)
+            raise RuntimeError("simulated redis outage")
+
+    monkeypatch.setattr(auth_mod, "TokenBlacklistService", _BoomBlacklistService)
+
+    token = AuthService.create_access_token(1, "probe_user", [])
+
+    _request, response = await app.asgi_client.get(
+        "/probe", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert calls, "测试未能触发认证中间件的黑名单分支"
+    assert response.status == 500
+    body = response.json
+    assert body["code"] == ErrorCodes.INTERNAL_ERROR
+    assert "中间件错误" in body["message"]

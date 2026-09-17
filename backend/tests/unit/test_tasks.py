@@ -4,6 +4,8 @@
 """
 
 import logging
+import os
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -261,18 +263,78 @@ class TestInvoiceGeneratorTask:
 class TestFileCleanupTask:
     """测试文件清理任务"""
 
+    # 业务目录样例：结算明细 / 头像 / 通用上传，均不得被清理任务触及
+    BUSINESS_RELATIVE_PATHS = (
+        "invoices/2026/07/invoice_35.xlsx",
+        "avatars/1.png",
+        "2026/07/upload.xlsx",
+    )
+
+    @pytest.fixture
+    def storage_root(self, tmp_path, monkeypatch):
+        """把 FILE_STORAGE_PATH 指向临时目录，避免清理任务触碰真实 uploads"""
+        from app.config import settings
+
+        root = tmp_path / "uploads"
+        monkeypatch.setattr(settings, "file_storage_path", str(root))
+        return root
+
+    @staticmethod
+    def _make_expired(path, days=8):
+        """创建文件并把 mtime 设为 days 天前"""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x")
+        old = (datetime.now() - timedelta(days=days)).timestamp()
+        os.utime(path, (old, old))
+        return path
+
     @pytest.mark.asyncio
-    async def test_cleanup_temp_files(self):
-        """测试临时文件清理"""
-        mock_session = AsyncMock()
-        mock_session.commit = AsyncMock()
+    async def test_cleanup_temp_files(self, storage_root):
+        """temp/ 中的过期文件被删除，业务目录中的过期文件必须保留"""
+        expired = self._make_expired(storage_root / "temp" / "sub" / "expired.tmp")
+        fresh = storage_root / "temp" / "fresh.tmp"
+        fresh.parent.mkdir(parents=True, exist_ok=True)
+        fresh.write_bytes(b"x")  # 未过期
+        business_files = [
+            self._make_expired(storage_root / rel) for rel in self.BUSINESS_RELATIVE_PATHS
+        ]
+        # 业务目录下的空目录：同样不得被「空目录清理」删除
+        empty_business_dir = storage_root / "invoices" / "2026" / "08"
+        empty_business_dir.mkdir(parents=True)
 
-        try:
-            from app.tasks.file_cleanup import cleanup_temp_files
+        from app.tasks.file_cleanup import cleanup_temp_files
 
-            await cleanup_temp_files()
-        except ImportError:
-            pytest.skip("file_cleanup 模块不存在")
+        await cleanup_temp_files()
+
+        assert not expired.exists()  # temp/ 中的过期文件：删
+        assert fresh.exists()  # temp/ 中的未过期文件：留
+        assert empty_business_dir.exists(), "业务目录下的空目录被清理任务误删"
+        for path in business_files:
+            assert path.exists(), f"业务文件被清理任务误删：{path}"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_temp_files_rejects_symlinked_temp_dir(self, storage_root, tmp_path):
+        """temp/ 指向存储根之外时拒绝清理，避免误删外部文件"""
+        storage_root.mkdir()
+        outside = self._make_expired(tmp_path / "outside" / "expired.tmp")
+        (storage_root / "temp").symlink_to(outside.parent, target_is_directory=True)
+
+        from app.tasks.file_cleanup import cleanup_temp_files
+
+        await cleanup_temp_files()
+
+        assert outside.exists(), "越界软链接指向的外部文件被误删"
+
+    @pytest.mark.asyncio
+    async def test_cleanup_temp_files_without_temp_dir(self, storage_root):
+        """temp/ 不存在时不遍历存储根、不抛异常"""
+        business_file = self._make_expired(storage_root / self.BUSINESS_RELATIVE_PATHS[0])
+
+        from app.tasks.file_cleanup import cleanup_temp_files
+
+        await cleanup_temp_files()
+
+        assert business_file.exists()
 
 
 class TestWebhookCleanupTask:

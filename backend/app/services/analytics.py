@@ -22,6 +22,7 @@ from ..models.daily_consumption import DailyConsumption
 from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
+from ..utils.tiers import TierFormatError, normalize_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -2255,6 +2256,8 @@ class AnalyticsService:
 
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
+        # 历史基线窗口下限：第 31~120 天（= 前 90 天，排除最近 30 天）
+        one_twenty_days_ago = datetime.utcnow() - timedelta(days=120)
 
         # 1. 获取近30天实际用量
         usage_stmt = select(
@@ -2283,13 +2286,49 @@ class AnalyticsService:
         expected_usage = 0.0
         if pricing_result and pricing_result.tiers:
             # 从 tiers 中提取预期用量（如果有配置）
-            tiers = pricing_result.tiers
-            if isinstance(tiers, list) and len(tiers) > 0:
-                # 取最后一个 tier 的 threshold 作为预期用量参考
-                expected_usage = float(tiers[-1].get("threshold", 0))
+            # 历史脏数据可能无法归一化：该分支只影响预测展示，降级为「无阶梯配置」而非报错
+            try:
+                tiers = normalize_tiers(pricing_result.tiers) or []
+            except TierFormatError as e:
+                logger.warning("定价规则 tiers 形态非法，已忽略预期用量：%s", e)
+                tiers = []
+            if len(tiers) > 0:
+                # 取最后一个 tier 的 max 作为预期用量参考
+                last_tier = tiers[-1]
+                last_max = last_tier.get("max")
+                if last_max is not None:
+                    expected_usage = float(last_max)
+                else:
+                    # 末档无上界（max=null，规范阶梯形态）：退用其入口边界 min 作为预期用量，
+                    # 语义最接近旧实现读末档 threshold 的有限值，避免落入 usage_rate=100% 的回退
+                    expected_usage = float(last_tier.get("min", 0))
         if expected_usage == 0:
-            # 回退：用近30天的日均 * 30 作为预期
-            expected_usage = actual_usage if actual_usage > 0 else 0
+            # 无有效阈值参照：无阶梯配置，或单档无上界且首档 min=0（模板推荐的统一定价形态）。
+            # 此时改用「客户自身历史节奏」作预期——前 90 天的日均用量 × 30。
+            #
+            # 注意不要用「近 30 天日均 × 30」：actual_usage 本身就是近 30 天总量，那样算恰好等于
+            # actual_usage，达标率恒为 100%（旧实现即 `expected_usage = actual_usage`，用量维度
+            # 对平板定价客户完全失效，占健康度 50% 权重形同虚设）。
+            # 基线窗口刻意排除最近 30 天：用量上升时达标率封顶 100%，用量下滑时才会低于 100%。
+            baseline_stmt = select(
+                func.coalesce(func.sum(DailyConsumption.order_count), 0).label("total_quantity"),
+                func.min(DailyConsumption.consumption_date).label("earliest"),
+            ).where(
+                and_(
+                    DailyConsumption.customer_id == customer_id,
+                    DailyConsumption.consumption_date >= one_twenty_days_ago.date(),
+                    DailyConsumption.consumption_date < thirty_days_ago.date(),
+                )
+            )
+            baseline_result = (await self.db.execute(baseline_stmt)).first()
+            baseline_total = float(
+                baseline_result.total_quantity or 0  # pyright: ignore[reportOptionalMemberAccess]
+            )
+            earliest = baseline_result.earliest  # pyright: ignore[reportOptionalMemberAccess]
+            if baseline_total > 0 and earliest:
+                # 按窗口内实际覆盖天数折算日均，避免开户不足 90 天的客户被低估预期用量
+                covered_days = min(90, (thirty_days_ago.date() - earliest).days + 1)
+                expected_usage = baseline_total / covered_days * 30
 
         # 3. 获取当前余额
         balance_result = await self._get_current_balance(customer_id)

@@ -1,0 +1,1317 @@
+{
+  "summary": {
+    "projectName": "客户运营中台平台",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 26,
+    "overview": "验证链路已接线且真实执行，交付验收与会话重复判定仍是空档。",
+    "strengths": [
+      "验证行为是被观测到的执行而非仅配置：窗口内 218 次 pytest 调用、38 次发生在编辑之后的验证，且测试资产跟随业务代码同频变更。",
+      "pre-commit 钩子正确遵守了项目的 Python 环境约定：pytest-unit 与 vitest 以 pre-push 阶段运行，脚本显式使用后端虚拟环境解释器而非依赖 PATH。",
+      "指令与规则资产覆盖面宽：根 AGENTS.md 路由 Trellis 工作流与技能目录，.omp/AGENTS.md 按层引用架构、目录、命令、约定、文件、运行时、测试、agent、重构共 9 条规则。"
+    ],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 74,
+        "summary": "指令资产丰富且已接线，但五套配置目录只有两套可从入口发现。",
+        "findingRefs": [
+          "instruction-root-routing-gap",
+          "conditional-rule-index-gap"
+        ],
+        "level": "Wired",
+        "scoreReason": "指令资产丰富且被真实路由：根 AGENTS.md 指向 Trellis 的 workflow、spec、tasks 与技能目录，.omp/AGENTS.md 按层引用 9 条规则，另有 12 个项目 Skill。扣分点是路由不完整——仓库并存五套 agent 配置目录而入口只覆盖两套，承载事务、权限、覆盖率、Python 版本、并发安全与 pre-commit 环境六条硬规则的 .omp/ 在根指令文件中零提及，语义化失效指令也仍然存在。",
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "AGENTS.md"
+            },
+            {
+              "kind": "repository",
+              "id": ".omp/AGENTS.md"
+            }
+          ],
+          "episodeEvidence": [],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "承载硬规则的 .omp/ 未被根指令文件路由，另有 4 条条件规则不在任何索引内。",
+        "subdimensions": [
+          {
+            "id": "goal-understanding",
+            "label": "意图与验收",
+            "state": "Wired",
+            "summary": "验收边界由 .omp/RULES.md 的硬规则与 Trellis 任务 PRD 共同表达，并在每次会话注入。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".omp/RULES.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "覆盖率那一条的数值与 CI 实施不一致，验收边界本身不准确。"
+          },
+          {
+            "id": "relevant-context",
+            "label": "相关上下文",
+            "state": "Wired",
+            "summary": "根 AGENTS.md 路由 Trellis 工作流与技能目录，.omp/AGENTS.md 按层引用 9 条规则，另有 .catpaw/ 与 .codex/ 两套配置。",
+            "findingRefs": [
+              "instruction-root-routing-gap",
+              "conditional-rule-index-gap"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".omp/rules"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "五套 agent 配置目录只有两套可从入口发现，4 条条件规则不在任何索引内。"
+          },
+          {
+            "id": "scope-boundary",
+            "label": "范围边界",
+            "state": "Present",
+            "summary": "Trellis 任务目录与规则文件的 scope 字段共同界定可动范围。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".omp/rules/README.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "运行时是否无条件装载全部规则文件无法从仓库判定。"
+          }
+        ],
+        "state": "Wired",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "AGENTS.md"
+          },
+          {
+            "kind": "repository",
+            "id": ".omp/RULES.md"
+          }
+        ]
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 72,
+        "summary": "启动与验证入口齐全，仍有一条指令指向不存在的目录。",
+        "findingRefs": [
+          "skill-dangling-sync-path"
+        ],
+        "level": "Wired",
+        "scoreReason": "启动与操作路径有文档入口（README、根与后端 Makefile、.omp/rules 下的命令与运行时规则），验证入口分布在 6 条 CI 工作流与 pre-push 钩子上，权限模型以 @auth_required 与 require_permission 装饰器表达。扣分点是这些入口没有被作为受支持操作逐条绑定：指令中残留指向不存在目录的步骤，权限装饰器的一致覆盖也没有机械化检查可以验证。",
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": "Makefile"
+            },
+            {
+              "kind": "repository",
+              "id": "backend/Makefile"
+            }
+          ],
+          "episodeEvidence": [],
+          "deliveryEvidence": [],
+          "state": "wired-unobserved"
+        },
+        "blocker": "trellis-break-loop 的收尾步骤指向仓库中不存在的目录，权限装饰器覆盖也没有机械检查。",
+        "subdimensions": [
+          {
+            "id": "instruction-led-start",
+            "label": "可复现启动",
+            "state": "Wired",
+            "summary": "README、根与后端 Makefile、.omp/rules 下的命令与运行时规则构成启动链。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "README.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "wired-unobserved"
+            },
+            "blocker": "没有统一的 doctor 命令，环境问题需要逐个排查。"
+          },
+          {
+            "id": "supported-operation",
+            "label": "受支持操作",
+            "state": "Wired",
+            "summary": "6 条 CI 工作流覆盖 lint、类型检查、单元、集成与端到端，pre-push 阶段运行 pytest-unit 与 vitest。",
+            "findingRefs": [
+              "skill-dangling-sync-path"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".github/workflows"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "一条 skill 收尾步骤指向仓库中不存在的目录。"
+          },
+          {
+            "id": "permission-boundary",
+            "label": "权限边界",
+            "state": "Present",
+            "summary": "权限以 @auth_required 与 require_permission 装饰器表达，硬规则要求所有端点添加。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".omp/RULES.md"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "装饰器覆盖没有机械化检查，测试中只见绕过而非校验。"
+          }
+        ],
+        "state": "Wired",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": "Makefile"
+          },
+          {
+            "kind": "repository",
+            "id": ".pre-commit-config.yaml"
+          }
+        ]
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 80,
+        "summary": "验证被真实执行，覆盖率门禁的声明与实施数值不一致。",
+        "findingRefs": [
+          "coverage-gate-mismatch"
+        ],
+        "level": "Exercised",
+        "scoreReason": "验证链路是被执行的而非仅配置：窗口内观测到 218 次 pytest 调用、38 次编辑后验证、34 个发生过编辑的 episode，测试文件与业务代码同频变更。扣分点是门禁阈值不自洽——硬规则声明 50% 而唯一带阈值的 CI 作业执行 25%，且主 CI 作业完全不测量覆盖率，使验收边界在规则与实施之间分裂。",
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": ".pre-commit-config.yaml"
+            }
+          ],
+          "episodeEvidence": [
+            {
+              "kind": "task-episode",
+              "id": "E1"
+            }
+          ],
+          "deliveryEvidence": [],
+          "state": "exercised"
+        },
+        "blocker": "硬规则声明覆盖率下限 50% 而唯一带阈值的 CI 作业执行 25%，验收边界在规则与实施之间分裂。",
+        "subdimensions": [
+          {
+            "id": "relevant-check",
+            "label": "相关验证",
+            "state": "Exercised",
+            "summary": "窗口内观测到 218 次 pytest 调用与 38 次编辑后验证，测试资产跟随业务代码同频变更。",
+            "findingRefs": [
+              "coverage-gate-mismatch"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".github/workflows/pr-checks.yml"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "exercised"
+            },
+            "blocker": "唯一带覆盖率阈值的作业执行 25%，与硬规则声明的 50% 不一致。"
+          },
+          {
+            "id": "failure-repair",
+            "label": "故障诊断与修复",
+            "state": "Exercised",
+            "summary": "窗口内出现 125 次失败事件，编辑后验证行为被观测到，故障修复是本窗口的主要工作形态。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "exercised"
+            },
+            "blocker": "失败与修复的因果链未以可审计产物留痕。"
+          },
+          {
+            "id": "validate-again",
+            "label": "修复后复验",
+            "state": "Present",
+            "summary": "编辑后验证被观测到，但闭合的修复-复验 episode 为 0。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "没有可确认的修复后复验结果被保留。"
+          }
+        ],
+        "state": "Exercised",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": ".github/workflows/pr-checks.yml"
+          },
+          {
+            "kind": "session-core-facts",
+            "id": "E1"
+          }
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 58,
+        "summary": "交付机制已配置，窗口内没有任何验收证据。",
+        "findingRefs": [
+          "delivery-acceptance-unobserved"
+        ],
+        "level": "Present",
+        "scoreReason": "交付机制在配置层是存在的：6 条工作流覆盖单元、集成、端到端检查与部署，pre-push 钩子构成提交前闸门。但交付边界本身未被观测——窗口内闭合与恢复的 Task Episode 均为 0，交付验收证据列表为空，没有任何一次合并、部署、审批或恢复结果被记录，因此改动是否被真正接受无法判定。",
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": ".github/workflows/deploy.yml"
+            }
+          ],
+          "episodeEvidence": [],
+          "deliveryEvidence": [],
+          "state": "static-only"
+        },
+        "blocker": "窗口内闭合与恢复的 Task Episode 均为 0，交付验收证据列表为空。",
+        "subdimensions": [
+          {
+            "id": "acceptance-evidence",
+            "label": "交付验收",
+            "state": "Unobserved",
+            "summary": "交付机制已配置，但窗口内未采集到任何合并、部署、审批或恢复结果。",
+            "findingRefs": [
+              "delivery-acceptance-unobserved"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".github/workflows/pr-checks.yml"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "交付证据列表为空，闭合与恢复的 episode 均为 0。"
+          },
+          {
+            "id": "high-risk-approval",
+            "label": "高风险审批",
+            "state": "Present",
+            "summary": "pr-checks.yml 中的检查在合并前阻断，构成高风险变更的机械关口。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".github/workflows/pr-checks.yml"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "审批路径的拒绝行为未被观测。"
+          },
+          {
+            "id": "rollback-recovery",
+            "label": "回滚或恢复",
+            "state": "Present",
+            "summary": "部署与集成测试工作流提供了部署与恢复的载具。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".github/workflows/deploy.yml"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "static-only"
+            },
+            "blocker": "生产回滚演练与恢复结果均未被观测。"
+          }
+        ],
+        "state": "Present",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": ".github/workflows/deploy.yml"
+          }
+        ]
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 48,
+        "summary": "沉淀资产活跃，两条缺口在历次报告中重复出现且未闭合。",
+        "findingRefs": [
+          "skill-progressive-disclosure-recurring",
+          "session-candidate-emission-gap"
+        ],
+        "level": "Present",
+        "scoreReason": "沉淀机制活跃且真实：12 个项目 Skill 中包含故障复盘、规范写回与会话回溯三类能力，14 条规则文件中多条正文直接记录了具体事故来源，规范与规则目录持续被修改。扣分点是闭环未验证——条件规则没有进入规则索引、其触发与否无法审计，本窗口也没有可用于对比的改进结果，因此沉淀的准确性只能停在待复核状态。",
+        "evidenceBridge": {
+          "staticEvidence": [
+            {
+              "kind": "repository",
+              "id": ".agents/skills"
+            }
+          ],
+          "episodeEvidence": [],
+          "deliveryEvidence": [],
+          "state": "unobserved"
+        },
+        "blocker": "无干预台账与可比的后续窗口，且两条缺口已在历次报告中重复出现。",
+        "subdimensions": [
+          {
+            "id": "lifecycle-repeat-detection",
+            "label": "生命周期机会识别",
+            "state": "Exercised",
+            "summary": "已执行有界的重复机会识别：覆盖 93 条请求根与 46 个 episode，并核验了两条跨报告重复出现的缺口。",
+            "findingRefs": [
+              "skill-progressive-disclosure-recurring",
+              "session-candidate-emission-gap"
+            ],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": "docs/better-harness"
+                }
+              ],
+              "episodeEvidence": [
+                {
+                  "kind": "task-episode",
+                  "id": "E1"
+                }
+              ],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "候选发射为空、覆盖计数全 0，且 61% 的请求根是代理自派发提示。"
+          },
+          {
+            "id": "loop-engineering",
+            "label": "闭环工程化",
+            "state": "Unobserved",
+            "summary": "本窗口没有可用的重复机会契约，闭环工程没有运行；12 个项目 Skill 与会话内使用之间没有关联证据。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [
+                {
+                  "kind": "repository",
+                  "id": ".agents/skills"
+                }
+              ],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "机会识别虽已执行，但候选发射缺口使闭环无法选型。"
+          },
+          {
+            "id": "later-validation",
+            "label": "长期验证",
+            "state": "Unobserved",
+            "summary": "无干预台账也无后续窗口比较，纵向效果不可判定。",
+            "findingRefs": [],
+            "evidenceBridge": {
+              "staticEvidence": [],
+              "episodeEvidence": [],
+              "deliveryEvidence": [],
+              "state": "unobserved"
+            },
+            "blocker": "需要两个可比窗口与一次改进对比。"
+          }
+        ],
+        "state": "Present",
+        "scoreConfidence": "medium",
+        "scoreEvidenceRefs": [
+          {
+            "kind": "repository",
+            "id": ".agents/skills"
+          },
+          {
+            "kind": "repository",
+            "id": "docs/better-harness"
+          }
+        ]
+      }
+    ],
+    "assignmentSummaries": [
+      {
+        "findingId": "coverage-gate-mismatch",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "覆盖率门禁声明与实施收敛到唯一真值 25%",
+        "body": "修复把 .omp/RULES.md 的覆盖率规则从 ≥50% 收敛到 ≥25%，与唯一带阈值的 CI 作业一致，仓库内阈值已唯一。本地实测单元覆盖率 32% 高于 25%，既有验收边界未被破坏；反向把实施提高到 50% 会使全部 PR 立即失败，因此收敛方向以实测为据。带阈值作业位于 pull_request 触发的 pr-checks.yml，阻断合并；ci.yml 无阈值单元作业仅在合并后运行，不构成可绕过的门禁豁免，且超出本 finding 的 owner 范围。",
+        "outputs": [
+          {
+            "action": "updated",
+            "artifact": "Rule",
+            "name": "覆盖率硬规则声明收敛到 CI 门禁",
+            "scope": "Project",
+            "path": ".omp/RULES.md",
+            "summary": "测试覆盖率规则从 ≥50%（--cov-fail-under=50）改为 ≥25%（--cov-fail-under=25），与唯一带阈值的 CI 作业（pr-checks.yml:104）收敛一致"
+          }
+        ]
+      },
+      {
+        "findingId": "conditional-rule-index-gap",
+        "revision": 1,
+        "locale": "zh-CN",
+        "title": "规则索引覆盖全部规则文件并标注生效方式",
+        "body": "修复重写 .omp/rules/README.md：清单从 10 条补全到 13 条规则，每条标注生效方式，4 条条件规则给出应用条件（来自其 frontmatter 的 condition 与 scope）；顶部移除未经核验的「会话开始时自动加载全部规则」声明，改为按前置字段区分的两类生效方式。规则正文与目录结构未改动；条件触发机制本身以规则文件 frontmatter 为据，未在运行时验证。",
+        "outputs": [
+          {
+            "action": "updated",
+            "artifact": "Document",
+            "name": "项目规则索引补全",
+            "scope": "Project",
+            "path": ".omp/rules/README.md",
+            "summary": "规则清单从 10 条补全到 13 条，每条标注生效方式（始终生效/按条件触发），4 条条件规则说明应用条件；移除未经核验的无条件加载声明"
+          }
+        ]
+      }
+    ],
+    "evidenceMode": "session-rich",
+    "evidenceBoundary": {
+      "manifest": {
+        "schemaVersion": 2,
+        "sourceFingerprint": "982402d62edef0f8",
+        "adapterVersion": "pi-task-loop-source-v2",
+        "platform": "pi",
+        "selection": {
+          "strategy": "stratified",
+          "eligibleCount": 72,
+          "analyzedCount": 40,
+          "confidence": "Medium"
+        }
+      },
+      "episodeCoverage": {
+        "episodeCount": 46,
+        "editedEpisodeCount": 34,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0
+      },
+      "deliveryEvidenceLevels": [],
+      "sourceGaps": []
+    },
+    "learningCapture": {
+      "schemaVersion": 1,
+      "state": "N/A",
+      "summary": "暂不适用——需要两个可比的观察窗口和一次改进对比。",
+      "interventions": []
+    },
+    "aiAgentPractice": {
+      "inspectedSurfaces": [],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            "AGENTS.md"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project"
+          ],
+          "count": 12,
+          "paths": [
+            ".agents/skills/trellis-before-dev/SKILL.md",
+            ".agents/skills/trellis-brainstorm/SKILL.md",
+            ".agents/skills/trellis-break-loop/SKILL.md",
+            ".agents/skills/trellis-channel/SKILL.md",
+            ".agents/skills/trellis-check/SKILL.md",
+            ".agents/skills/trellis-continue/SKILL.md",
+            ".agents/skills/trellis-finish-work/SKILL.md",
+            ".agents/skills/trellis-meta/SKILL.md",
+            ".agents/skills/trellis-session-insight/SKILL.md",
+            ".agents/skills/trellis-spec-bootstrap/SKILL.md",
+            ".agents/skills/trellis-start/SKILL.md",
+            ".agents/skills/trellis-update-spec/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": [
+            "Project"
+          ],
+          "count": 6,
+          "paths": [
+            ".github/workflows/backend-integration.yml",
+            ".github/workflows/ci.yml",
+            ".github/workflows/deploy.yml",
+            ".github/workflows/e2e-full.yml",
+            ".github/workflows/opencode.yml",
+            ".github/workflows/pr-checks.yml"
+          ]
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ]
+    },
+    "atAGlance": {
+      "demonstratedAutonomyRadius": {
+        "level": "R1",
+        "status": "observed",
+        "confidence": "Medium",
+        "reason": "可以看到任务活动，但还没有足够的已闭环改动证据证明自主工作半径。"
+      },
+      "coverage": {
+        "episodeCount": 46,
+        "editedEpisodeCount": 34,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0,
+        "selection": {
+          "strategy": "stratified",
+          "eligibleCount": 72,
+          "analyzedCount": 40,
+          "confidence": "Medium"
+        }
+      },
+      "strongestLoop": {
+        "dimensionRef": "change-validation",
+        "state": "Exercised"
+      },
+      "largestLeak": {
+        "dimensionRef": "reliable-delivery",
+        "blocker": "窗口内没有任何交付验收证据：闭合与恢复的 Task Episode 均为 0，交付证据列表为空。"
+      },
+      "priorityMoves": [
+        {
+          "findingRef": "coverage-gate-mismatch",
+          "dimensionRef": "change-validation",
+          "move": "把 .omp/RULES.md 的覆盖率规则与 CI 实际门禁收敛到同一个阈值。",
+          "expectedUnlock": "验收边界在规则与实施之间不再分裂，agent 收到的覆盖率下限可被机械验证。"
+        },
+        {
+          "findingRef": "instruction-root-routing-gap",
+          "dimensionRef": "task-understanding",
+          "move": "在根指令文件的托管块之外补一行指向 .omp/ 与 .catpaw/ 的路由。",
+          "expectedUnlock": "五套 agent 配置目录都能从入口发现，硬规则不再取决于 provider 是否加载 .omp/。"
+        },
+        {
+          "findingRef": "delivery-acceptance-unobserved",
+          "dimensionRef": "reliable-delivery",
+          "move": "让会阻断合并的检查产出一个随运行保存的验收记录。",
+          "expectedUnlock": "至少一次改动的验收结论可在仓库内复核，交付边界不再只存在于会话里。"
+        }
+      ]
+    },
+    "semanticFacets": {
+      "schemaVersion": 1,
+      "status": "supplementary",
+      "entries": [
+        {
+          "id": "session-insight:source-coverage",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "source-coverage",
+            "Medium"
+          ],
+          "summary": "Analyzed 40 of 72 sessions; 1/1 enabled source roots exist. Treat conclusions as sampled and increase the limit or time scope before making broad claims.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:validation-behavior",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "validation-behavior",
+            "Medium"
+          ],
+          "summary": "Observed validation command category: pytest (218). Use observed validation as execution evidence, not just configured command availability.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-2-1",
+              "type": "tool.call",
+              "line": 658
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-2-2",
+              "type": "tool.call",
+              "line": 665
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-2-3",
+              "type": "tool.call",
+              "line": 693
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:post-edit-validation",
+          "kind": "rework-correction",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "post-edit-validation",
+            "Medium"
+          ],
+          "summary": "Observed 472 edit event(s) and later validation: pytest (38). Use this as evidence for validation-after-edit behavior, with the sample boundary still visible.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-3-1",
+              "type": "tool.result",
+              "line": 371
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-3-2",
+              "type": "tool.result",
+              "line": 397
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-3-3",
+              "type": "tool.result",
+              "line": 400
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:execution-friction",
+          "kind": "friction-taxonomy",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "execution-friction",
+            "Medium"
+          ],
+          "summary": "Observed friction category: failed-event (125). Open bounded sessions behind this category before turning it into a user-facing recommendation.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-4-1",
+              "type": "tool.result",
+              "line": 491
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-4-2",
+              "type": "tool.result",
+              "line": 538
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-4-3",
+              "type": "tool.result",
+              "line": 547
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:tool-mix",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "tool-mix",
+            "Medium"
+          ],
+          "summary": "Most observed tool: bash (2896). Use this as workflow evidence, then inspect bounded sessions before claiming user intent.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-5-1",
+              "type": "tool.call",
+              "line": 8
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-5-2",
+              "type": "tool.result",
+              "line": 9
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-5-3",
+              "type": "tool.call",
+              "line": 12
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-5-4",
+              "type": "tool.result",
+              "line": 13
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-5-5",
+              "type": "tool.call",
+              "line": 24
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:planning-workflow",
+          "kind": "goal-workflow",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "planning-workflow",
+            "Medium"
+          ],
+          "summary": "Observed pi spec-reference: spec-session-reference (2, workspace). Use this as workspace session evidence for Goal/Plan/Spec workflow behavior.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-6-1",
+              "type": "user",
+              "line": 1189
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-6-2",
+              "type": "user",
+              "line": 7
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:session-complexity",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "session-complexity",
+            "Medium"
+          ],
+          "summary": "Observed 3 active long session(s); longest active estimate: 16h 46m. Review task family, outcome, and friction before deciding whether this duration reflects a problem or any decomposition, tool, delegation, or model change is needed.",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-7-1",
+              "type": "metadata.title",
+              "line": 1
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:session-usage-efficiency",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "session-usage-efficiency",
+            "Medium"
+          ],
+          "summary": "本次分析覆盖 72 个会话，其中 5 个达到活跃长会话阈值，最长约 1006 分钟；另有 1 个长跨度主要来自暂停或恢复。 这些活动证据不代表模型偏好或质量；模型效果仍需结合相同任务类型的结果比较。",
+          "evidenceRefs": [
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-8-1",
+              "type": "metadata.title",
+              "line": 1
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-8-2",
+              "type": "model.response.completed",
+              "line": 8
+            },
+            {
+              "kind": "pi-session-jsonl",
+              "id": "session-insight-8-3",
+              "type": "model.response.completed",
+              "line": 12
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "id": "coverage-gate-mismatch",
+      "title": "硬规则声明的覆盖率门槛未被 CI 实施，实际阻断线只有声明值的一半",
+      "severity": "Medium",
+      "reason": "事实：.omp/RULES.md 作为始终附着的硬规则声明「CI 要求测试覆盖率 ≥50%（--cov-fail-under=50）」。逐一核验 .github/workflows/ 全部 6 个文件后，唯一带覆盖率阈值的是 pr-checks.yml 单元测试作业，参数为 --cov-fail-under=25；同一文件的集成测试作业与 backend-integration.yml 的集成测试只生成 term-missing 报告而不设阈值；ci.yml 的单元测试完全不测量覆盖率。推断：每次会话都被注入「下限 50%」这一验收边界，而真正能阻断合并的门槛是 25%，两者相差一倍；并且「≥50%」没有任何机械化检查可以验证或修复。归属：实测单元覆盖率 32% 低于 50%，提升实施门槛会立即破坏所有 PR，因此唯一安全收敛方向是把声明收敛到实施值 25%。不确定度：低——两侧都是静态配置且已打开核验；无法确定团队意图是把 CI 提到 50% 还是把规则下调到 25%，因此修复只要求对齐而不指定方向。",
+      "dimensionRefs": [
+        "change-validation"
+      ],
+      "subdimensionRefs": [
+        "relevant-check"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".omp"
+      },
+      "expectedArtifact": "Gate",
+      "expectedOutput": [
+        "让 .omp/RULES.md 声明的覆盖率门槛与 CI 实际执行的阈值收敛为同一个数值。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n让覆盖率规则与 CI 实际门禁收敛到唯一真值：在 .omp/RULES.md 声明的 50% 与 .github/workflows/pr-checks.yml 当前执行的 25% 之间选定一个，修改另一边，不要同时保留两个数。保留现有的 acceptance boundary，不要新增工作流。\n\n## Validation\n\n- 运行 grep -n \"cov-fail-under\" .github/workflows/*.yml，确认出现的阈值与 .omp/RULES.md 的文本一致\n- 确认带阈值的作业位于会阻断合并的工作流中\n- 确认没有其它工作流在不设阈值的情况下运行同一批测试而形成相反方向的豁免",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "rule-declaration",
+            "label": ".omp/RULES.md 的覆盖率硬规则",
+            "type": "Rule",
+            "line": 5
+          },
+          {
+            "kind": "ci-workflow",
+            "label": "pr-checks.yml 单元测试作业的覆盖率阈值",
+            "type": "Workflow",
+            "line": 104
+          },
+          {
+            "kind": "ci-workflow",
+            "label": "ci.yml 单元测试作业未测量覆盖率",
+            "type": "Workflow",
+            "line": 57
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      },
+      "kind": "missing-mechanism",
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "updated",
+          "artifact": "Rule",
+          "name": "覆盖率硬规则声明收敛到 CI 门禁",
+          "scope": "Project",
+          "path": ".omp/RULES.md",
+          "summary": "测试覆盖率规则从 ≥50%（--cov-fail-under=50）改为 ≥25%（--cov-fail-under=25），与唯一带阈值的 CI 作业（pr-checks.yml:104）收敛一致"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "覆盖率门禁声明与实施收敛到唯一真值 25%",
+        "body": "修复把 .omp/RULES.md 的覆盖率规则从 ≥50% 收敛到 ≥25%，与唯一带阈值的 CI 作业一致，仓库内阈值已唯一。本地实测单元覆盖率 32% 高于 25%，既有验收边界未被破坏；反向把实施提高到 50% 会使全部 PR 立即失败，因此收敛方向以实测为据。带阈值作业位于 pull_request 触发的 pr-checks.yml，阻断合并；ci.yml 无阈值单元作业仅在合并后运行，不构成可绕过的门禁豁免，且超出本 finding 的 owner 范围。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "coverage-gate-mismatch",
+        "status": "verified",
+        "summary": "声明与实施已收敛为唯一真值 25，finding 的三条验证均满足，修复成立且未破坏原验收边界。",
+        "reason": "finding 的 expectedOutput 只要求「.omp/RULES.md 声明的门槛与 CI 实际阈值收敛为同一个数值」，aiFixPrompt 给出的三条验证逐条成立：(1) grep 唯一命中 pr-checks.yml:104 的 --cov-fail-under=25，.omp/RULES.md:5 已同为 25，失配消除，仓库内阈值唯一真值成立；(2) 带阈值作业位于 pull_request→main 触发的 pr-checks.yml，是真正阻断合并的门禁；(3) ci.yml 的无阈值单元作业在 push→main 即合并后运行，不构成可绕过的反向豁免，且该文件超出本 finding 的 ownerRoute=.omp 范围。改动只落在 .omp/RULES.md 一行、未新增工作流，符合 owner 边界；实测 32% > 25% 说明既有验收边界被完整保留，而反向把实施提到 50% 会使全部 PR 立即失败——修复方向与 finding reason 明示的「唯一安全收敛方向」一致。按 agent-work-loop.md 的 finding-bound repair 条款，此处仅推进 Asset Health / Repair Progress，severity 与五维 Loop Effectiveness 分数保持不变；同窗口资产完整性基线 pi 为 reviewed、0 findings，无新增不一致。故判定 verified。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "fix-validation",
+            "id": "coverage-gate-mismatch:post-fix-threshold-unification-25"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "coverage-gate-mismatch:gate-enforcement-preserve-acceptance-32pct"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "coding-agent-practices/pi:reviewed-0findings"
+          }
+        ]
+      }
+    },
+    {
+      "id": "instruction-root-routing-gap",
+      "title": "根指令文件只路由五套 agent 配置中的两套，承载硬规则的 .omp/ 与 .catpaw/ 零提及",
+      "severity": "Medium",
+      "reason": "事实：仓库并存 .agents/、.catpaw/、.codex/、.omp/、.trellis/ 五套 agent 配置目录。核验根 AGENTS.md（2895 字节，仅 TRELLIS 与 CODEGRAPH 两段）后统计提及次数：trellis 7、agents 2、codex 1、omp 0、catpaw 0。承载项目硬规则的 .omp/AGENTS.md、.omp/RULES.md 与 .omp/rules/ 下 14 个规则文件因此不在根指令文件的路由内；反向也不通——.omp/AGENTS.md 全文仅 1 处 AGENTS.md 匹配且指向用户级全局文件，不引用根 AGENTS.md 或 .trellis/。.catpaw/rules/codebase-indexing.md 标记为始终生效，同样没有索引入口。推断：同一仓库在不同 agent 工具下会装载不同的规则集合，只加载 .omp/ 之外目录树的会话看不到事务、权限、覆盖率、Python 版本、并发安全与 pre-commit 环境这六条硬规则。资产清单只把根 AGENTS.md 计为唯一 Rules surface（count=1），使读者进一步低估真实的指令层数（实测至少 1 个根文件 + 1 份项目指南 + 1 份硬规则 + 14 个规则文件）。归属：根 AGENTS.md 中托管块之外的可保留区域，以及 .omp/rules/README.md 的索引。不确定度：中——本次运行的注入内容包含 .omp/AGENTS.md，说明当前 provider 会加载它；缺口影响的是依赖根指令文件导航的其它 provider，以及与目录实况不符的覆盖计数。",
+      "dimensionRefs": [
+        "task-understanding"
+      ],
+      "subdimensionRefs": [
+        "relevant-context"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "AGENTS.md"
+      },
+      "expectedArtifact": "Rule",
+      "expectedOutput": [
+        "根指令文件在托管块之外增加指向 .omp/ 硬规则入口与 .catpaw/ 规则的一行路由，使五套配置目录都可从入口发现。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 AGENTS.md 的 Trellis 托管块之外补充路由，指向承载项目硬规则的 .omp/AGENTS.md（及其引用的 .omp/RULES.md）与 .catpaw/ 下的规则文件，使五套 agent 配置目录都能从入口文件发现。不要改动托管块内部内容，不要重写 .omp/ 或 .catpaw/ 下的规则正文。\n\n## Validation\n\n- 运行 grep -c \"omp\\|catpaw\" AGENTS.md，确认两个目录名都出现在托管块之外\n- 确认新路由指向的路径在仓库中真实存在\n- 确认根 AGENTS.md 仍只描述路由，不复制 .omp/RULES.md 的规则正文",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "instruction-root",
+            "label": "AGENTS.md 仅含 TRELLIS 与 CODEGRAPH 两段",
+            "type": "Rule",
+            "line": 1
+          },
+          {
+            "kind": "instruction-hub",
+            "label": ".omp/AGENTS.md 的 9 条规则引用",
+            "type": "Rule"
+          },
+          {
+            "kind": "instruction-sibling",
+            "label": ".catpaw/rules/codebase-indexing.md 始终生效规则",
+            "type": "Rule",
+            "line": 1
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      },
+      "kind": "missing-mechanism"
+    },
+    {
+      "id": "skill-dangling-sync-path",
+      "title": "trellis-break-loop 的模板同步步骤指向仓库中不存在的目录",
+      "severity": "Low",
+      "reason": "事实：.agents/skills/trellis-break-loop/SKILL.md 的收尾小节要求「After updating .trellis/spec/, sync to src/templates/markdown/spec/」。核验仓库：src/templates/ 与 src/templates/markdown/spec/ 均不存在，仓库根下也没有 src/ 目录。推断：该步骤在被触发时无法完成预期的写回——要么在项目之外创建目录，要么静默跳过；两种情况下 .trellis/spec/ 的更新都不会同步到任何消费方，形成一条永远不生效的指令。归属：.agents/skills/trellis-break-loop/SKILL.md 的模板同步步骤。不确定度：低——路径两侧都已打开核验；不确定该目录是被迁移到别处还是该步骤本身已作废，因此修复只要求让指令与仓库实况一致或删除该步骤。",
+      "dimensionRefs": [
+        "controlled-execution"
+      ],
+      "subdimensionRefs": [
+        "supported-operation"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".agents/skills/trellis-break-loop/SKILL.md"
+      },
+      "expectedArtifact": "Skill",
+      "expectedOutput": [
+        "skill 的收尾步骤或指向仓库中真实存在的同步目标，或从流程中移除，不再留下指向空路径的动作。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n修正 .agents/skills/trellis-break-loop/SKILL.md 中指向 src/templates/markdown/spec/ 的模板同步步骤。若该目录在本仓库确实存在替代位置，改为真实路径；若确认该机制已不再使用，删除这一步并在同一小节说明规范更新的实际消费方。保留 skill 的其余流程不变。\n\n## Validation\n\n- 运行 ls 确认修复后步骤引用的路径真实存在，或该步骤已被移除\n- 确认 skill 中不再出现任何指向不存在目录的写回动作",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "skill-step",
+            "label": "trellis-break-loop 的模板同步步骤",
+            "type": "Skill",
+            "line": 184
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      },
+      "kind": "missing-mechanism"
+    },
+    {
+      "id": "delivery-acceptance-unobserved",
+      "kind": "outcome-gap",
+      "title": "30 天窗口内没有交付验收证据，闭合与恢复的 Task Episode 均为 0",
+      "severity": "Medium",
+      "reason": "事实：会话证据边界的交付证据列表为空，episode 覆盖统计中闭合数与恢复数均为 0，同时 46 个 episode 里有 34 个发生过编辑。项目侧交付机制是存在的——unit、integration、端到端与部署共 6 条工作流，加上 pre-push 阶段的 pytest-unit 与 vitest 钩子——但本窗口没有采集到任何一次合并、部署、审批或恢复结果。推断：交付边界靠什么判定、失败后由谁恢复，在现有证据里没有答案，使「改动是否被真正接受」只能停留在推测层。归属：交付验收证据不需要新增流程，最小落点是把 PR 检查结论或合并结果写进可复核的产物。不确定度：中——证据通道自述不打开外部检查与 PR 系统，因此这首先是证据缺口；但项目确实有 6 条工作流，无法排除机制正常而只是未被观测。",
+      "dimensionRefs": [
+        "reliable-delivery"
+      ],
+      "subdimensionRefs": [
+        "acceptance-evidence"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".github/workflows/pr-checks.yml"
+      },
+      "expectedArtifact": "Config",
+      "expectedOutput": [
+        "至少一次改动带有可复核的验收记录：检查结论、合并判定或恢复结果三者之一被写入仓库内可读的产物。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n为交付边界补一条最小可复核记录：让会阻断合并的检查在工作流里产出一个随运行保存的结果文件，或在仓库内已有的评审流程中记录本次改动的验收判定，使「已接受」不再只存在于会话里。不要新建工作流，不要改变现有检查的通过条件。\n\n## Validation\n\n- 触发一次受影响路径的检查，确认结果文件被产出且可被后续运行读取\n- 确认该记录能指出本次改动的验收结论与失败时的恢复入口",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "delivery-mechanism",
+            "label": "pr-checks.yml 提交与 PR 检查",
+            "type": "Workflow",
+            "line": 104
+          },
+          {
+            "kind": "delivery-mechanism",
+            "label": "ci.yml 主检查作业",
+            "type": "Workflow",
+            "line": 57
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "unobserved"
+      }
+    },
+    {
+      "id": "conditional-rule-index-gap",
+      "kind": "missing-mechanism",
+      "title": "从事故提炼的条件规则未进入规则索引，无法被检索或审计",
+      "severity": "Low",
+      "reason": "事实：.omp/rules/ 下有 14 个条目。.omp/AGENTS.md 以引用形式列出其中 9 个，另外 4 个带 condition 与 scope 前置字段的运行时条件规则未被任何指令文件引用：批量重复编辑、删除模型前的引用检查、Vue 编辑的完整路径、以及文件损坏时停止重写的退出协议。.omp/rules/README.md 自称项目规则索引，其清单只列出 10 条，漏掉其中 3 条条件规则。这些规则正文都记录了具体事故来源，例如逐文件手动编辑导致三次以上重复往返。推断：这类防护的可发现性完全依赖运行时条件正则命中，索引不完整使维护者与 agent 都无法审计覆盖范围，也无法确认某条防护会不会被注入。归属：.omp/rules/README.md 的索引清单，必要时区分始终生效规则与条件规则。不确定度：中——索引与目录的差异已逐一核验；运行时是否无条件装载全部规则文件无法从仓库判定，因此不断言这些规则当前已经失效。",
+      "dimensionRefs": [
+        "task-understanding"
+      ],
+      "subdimensionRefs": [
+        "relevant-context"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".omp/rules"
+      },
+      "expectedArtifact": "Document",
+      "expectedOutput": [
+        ".omp/rules/README.md 的清单与目录实况逐条对齐，并标明每条规则是始终生效还是按条件触发。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n补全 .omp/rules/README.md 的规则清单，使其覆盖 .omp/rules/ 下的全部规则文件，并对每条标注是始终生效还是按条件触发，同时说明条件规则在什么条件下被应用。不要修改任何规则文件正文，不要改变规则目录结构。\n\n## Validation\n\n- 运行 ls .omp/rules/ 并逐项对照 README 清单，确认没有遗漏条目\n- 确认清单中每条规则都标明了生效方式\n- 确认 README 不再声称会话开始时无条件加载全部规则，除非这一行为已被核验",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "rule-index",
+            "label": ".omp/rules/README.md 的规则清单",
+            "type": "Document",
+            "line": 1
+          },
+          {
+            "kind": "rule-file",
+            "label": "stop-file-rewrite-loop-on-corruption.md 等条件规则",
+            "type": "Rule",
+            "line": 1
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      },
+      "actualOutputRevision": 1,
+      "actualOutput": [
+        {
+          "action": "updated",
+          "artifact": "Document",
+          "name": "项目规则索引补全",
+          "scope": "Project",
+          "path": ".omp/rules/README.md",
+          "summary": "规则清单从 10 条补全到 13 条，每条标注生效方式（始终生效/按条件触发），4 条条件规则说明应用条件；移除未经核验的无条件加载声明"
+        }
+      ],
+      "assignmentSummary": {
+        "locale": "zh-CN",
+        "title": "规则索引覆盖全部规则文件并标注生效方式",
+        "body": "修复重写 .omp/rules/README.md：清单从 10 条补全到 13 条规则，每条标注生效方式，4 条条件规则给出应用条件（来自其 frontmatter 的 condition 与 scope）；顶部移除未经核验的「会话开始时自动加载全部规则」声明，改为按前置字段区分的两类生效方式。规则正文与目录结构未改动；条件触发机制本身以规则文件 frontmatter 为据，未在运行时验证。"
+      },
+      "postFixRepairReview": {
+        "modelId": "agent-work-loop-v4",
+        "findingId": "conditional-rule-index-gap",
+        "status": "verified",
+        "summary": "README.md 规则清单已与目录实况逐条对齐，13 条规则全部标注生效方式，4 条条件规则附带应用条件，无条件加载声明已移除",
+        "reason": "修复完全覆盖 finding 预期：.omp/rules/ 下 13 条规则（ls 结果 14 含 README.md 自身）在 README 清单中全部出现，其中 4 条条件规则（delete-model-check-references、batch-repetitive-file-edits、edit-vue-full-path、stop-file-rewrite-loop-on-corruption）标注「按条件触发」并给出人类可读的应用条件，9 条规则标注「始终生效」。顶部声明已从「会话开始时自动加载」改为两类生效方式的说明，符合 expectedOutput 要求。规则文件正文未改、目录结构未变，修复范围落在 .omp/rules/ 内的 finding owner 范围内。README 声称的条件触发机制虽无法从仓库运行时核验，但它是规则文件 frontmatter 中 condition+scope 字段的直接反映，无新引入的不准确声明。",
+        "confidence": "high",
+        "evidenceRefs": [
+          {
+            "kind": "fix-validation",
+            "id": "ls-.omp/rules"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "README-lists-13-rules"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "4-conditional-rules-annotated"
+          },
+          {
+            "kind": "fix-validation",
+            "id": "unconditional-load-claim-removed"
+          },
+          {
+            "kind": "asset-integrity",
+            "id": "rule-files-unchanged"
+          }
+        ]
+      }
+    },
+    {
+      "id": "skill-progressive-disclosure-recurring",
+      "kind": "missing-mechanism",
+      "title": "三个长 Skill 的渐进式披露问题连续三次审查被记录但未修复",
+      "severity": "Low",
+      "reason": "事实：trellis-update-spec（356 行）、trellis-brainstorm（200 行）、trellis-break-loop（188 行）都是线性长文件且不含本地引用或 references/ 子目录；同批的 trellis-session-insight 采用短主体加 references/ 的组织方式，是本仓库内已存在的正向范式。本问题在 docs/better-harness 下 2026-09-12-01 与 2026-09-13-01 两次审查报告中都被保留为 Low 项，后者还明确标注了上次报告同题未修复；本次独立复核确认它依然存在。推断：真正未闭合的不是这三个文件本身，而是已报告项没有进入可追踪状态——同一问题连续三次进入报告，既没有被修复，也没有被显式判定为不需要修复。归属：三个 Skill 的引用组织，以及让已报告项能被追踪到关闭的最小机制。不确定度：低——lint 提示、文件行数、目录结构与三份报告的文本都已逐一核验；没有测量运行时的上下文成本，因此不断言实际加载开销。",
+      "dimensionRefs": [
+        "learning-capture"
+      ],
+      "subdimensionRefs": [
+        "lifecycle-repeat-detection"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": ".agents/skills"
+      },
+      "expectedArtifact": "Skill",
+      "expectedOutput": [
+        "三个长 Skill 采用与仓库内已有范式一致的按需引用组织，或被明确记录为不需要修复并关闭该项。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n把 trellis-update-spec、trellis-brainstorm、trellis-break-loop 三个长 Skill 改为与仓库内 trellis-session-insight 一致的短主体加 references/ 组织：把可选加载的模板、框架与清单移入各自的 references/ 子文件，主体只保留触发条件、必做步骤与对子文件的引用。同一次改动中，把这三个文件在仓库已有的规范目录中登记为已处理项，使下一次审查能读到它已关闭。不要改动 Skill 的语义、触发条件或验证步骤。\n\n## Validation\n\n- 运行 ls .agents/skills/trellis-update-spec/ 等三个目录，确认 references/ 子目录与本文件真实存在\n- 确认三个 SKILL.md 主体只保留触发条件、必做步骤与子文件引用，且都能解析到实际文件\n- 确认登记记录可被下一次审查读取到该项已关闭",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "lint-advisory",
+            "label": "三个 Skill 为长文件且无本地引用",
+            "type": "Skill",
+            "line": 1
+          },
+          {
+            "kind": "positive-counterpart",
+            "label": "trellis-session-insight 的 references/ 组织",
+            "type": "Skill",
+            "line": 1
+          },
+          {
+            "kind": "prior-review",
+            "label": "docs/better-harness 下两次同题记录",
+            "type": "Document",
+            "line": 1
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "static-only"
+      }
+    },
+    {
+      "id": "session-candidate-emission-gap",
+      "kind": "evidence-gap",
+      "title": "会话候选发射连续两个窗口为空，重复工作与干净窗口都无法判定",
+      "severity": "Low",
+      "reason": "事实：本窗口的会话信封中 admission 层 emittedCandidates 为 0，emittedClasses 为空对象，而可分发类里已有 46 条 validation-repair、57 条 operation-control、41 条 read-only-work 等共 166 条候选；omitted.candidateBudget 吞掉 93 条，checkBudget 吞掉 367 条；observationCoverage 的九项计数全为 0；93 条请求根只有 5 条带 candidateRef。另核验到 93 条请求根中有 57 条是代理自派发的子任务提示格式，却未被 selfAnalysis 过滤。上一窗口的 docs/better-harness/2026-09-13-01 报告已记录过同类的候选截断问题并判定无法识别重复工作流。推断：两个窗口都无法区分稳定重复工作、干净窗口与维护漂移，因此任何基于会话的重复需求结论都会混淆代理内部派发与用户意图。归属：会话采集侧对请求根的来源分类与候选发射，而不是项目代码。不确定度：中——发射为空与覆盖为零都是信封内的观测值；但归因于采集端还是选择端无法从信封判定。",
+      "dimensionRefs": [
+        "learning-capture"
+      ],
+      "subdimensionRefs": [
+        "lifecycle-repeat-detection"
+      ],
+      "target": {
+        "kind": "repo-root",
+        "packageRoute": null,
+        "ownerRoute": "docs/better-harness"
+      },
+      "expectedArtifact": "Config",
+      "expectedOutput": [
+        "会话证据再次采集时 emittedClasses 非空、自派发的子任务提示被单独归类，并至少有一条带有关联检查与结果的候选。"
+      ],
+      "aiFixPrompt": "/better-harness fix this issue\n\n定位会话证据采集侧使候选发射为空的原因：确认 emittedClasses 为空的环节，并让请求根分类把代理自派发的子任务提示与用户请求分开标记，而不是当作 selfAnalysis 为零。修复后重跑一次采集，确认 emittedClasses 非空且自派发提示被单独归类。不要修改项目代码或测试。\n\n## Validation\n\n- 重跑会话事实采集，确认 emittedClasses 不再是空对象\n- 确认自派发的子任务提示数量被单独报告，且不再计入用户请求根\n- 确认至少一条候选带有与其关联的检查与结果字段",
+      "evidenceBridge": {
+        "staticEvidence": [
+          {
+            "kind": "admission-counter",
+            "label": "emittedCandidates 为 0 而 availableClasses 有 166 条",
+            "type": "Config"
+          },
+          {
+            "kind": "coverage-counter",
+            "label": "observationCoverage 九项全为 0",
+            "type": "Config"
+          },
+          {
+            "kind": "prior-review",
+            "label": "docs/better-harness 下同题记录",
+            "type": "Document",
+            "line": 1
+          }
+        ],
+        "episodeEvidence": [],
+        "deliveryEvidence": [],
+        "state": "unobserved"
+      }
+    }
+  ]
+}

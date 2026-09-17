@@ -587,7 +587,7 @@ async def get_industry_distribution(request: Request):
 
     result = {"code": 0, "message": "success", "data": distribution}
     if not force_refresh:
-        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
+        await cache_service.set("analytics_profile", result, cached_key)
     return json(result)
 
 
@@ -610,7 +610,7 @@ async def get_scale_stats(request: Request):
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
-        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
+        await cache_service.set("analytics_profile", result, cached_key)
     return json(result)
 
 
@@ -633,7 +633,7 @@ async def get_consume_level_stats(request: Request):
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
-        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
+        await cache_service.set("analytics_profile", result, cached_key)
     return json(result)
 
 
@@ -656,7 +656,7 @@ async def get_real_estate_stats(request: Request):
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
-        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
+        await cache_service.set("analytics_profile", result, cached_key)
     return json(result)
 
 
@@ -679,7 +679,7 @@ async def get_real_estate_industry_stats(request: Request):
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
-        await cache_service.set("analytics_profile", result, cached_key, ttl=300)
+        await cache_service.set("analytics_profile", result, cached_key)
     return json(result)
 
 
@@ -722,7 +722,7 @@ async def predict_monthly_payment(request: Request):
         "data": {"predictions": predictions, "summary": summary},
     }
     if not force_refresh:
-        await cache_service.set("analytics_prediction", result, cache_key, ttl=300)
+        await cache_service.set("analytics_prediction", result, cache_key)
     return json(result)
 
 
@@ -747,7 +747,7 @@ async def get_prediction_trend(request: Request):
 
     result = {"code": 0, "message": "success", "data": trend}
     if not force_refresh:
-        await cache_service.set("analytics_prediction", result, cache_key, ttl=300)
+        await cache_service.set("analytics_prediction", result, cache_key)
     return json(result)
 
 
@@ -778,7 +778,9 @@ async def forecast_consumption(request: Request):
     cid = keyword or customer_id or "all"
     cache_key = f"fc:{year}:{month}:{cid}:{device_type or 'all'}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
     cached = (
-        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+        await cache_service.get("analytics_prediction_forecast", cache_key)
+        if not force_refresh
+        else None
     )
     if cached is not None:
         return json(cached)
@@ -813,7 +815,7 @@ async def forecast_consumption(request: Request):
         "data": {"forecasts": forecasts, "summary": summary},
     }
     if not force_refresh:
-        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+        await cache_service.set("analytics_prediction_forecast", result, cache_key)
     return json(result)
 
 
@@ -832,7 +834,9 @@ async def get_consumption_forecast_trend(request: Request):
 
     cache_key = f"fctrend:{year}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
     cached = (
-        await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
+        await cache_service.get("analytics_prediction_forecast", cache_key)
+        if not force_refresh
+        else None
     )
     if cached is not None:
         return json(cached)
@@ -846,7 +850,7 @@ async def get_consumption_forecast_trend(request: Request):
 
     result = {"code": 0, "message": "success", "data": trend}
     if not force_refresh:
-        await cache_service.set("analytics_prediction", result, cache_key, ttl=1800)
+        await cache_service.set("analytics_prediction_forecast", result, cache_key)
     return json(result)
 
 

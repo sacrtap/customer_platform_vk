@@ -519,23 +519,26 @@ class SyncTaskService:
                     return val.decode("utf-8")
                 return str(val)
 
+            # 兼容 redis 客户端 decode_responses 的两种取值：
+            # decode_responses=True（项目默认）时 hgetall 返回 str 键，否则返回 bytes 键。
+            def raw(key: str):
+                return progress_data.get(key, progress_data.get(key.encode()))
+
             # 解码 Redis 数据
             # percentage 从 0-100 整数转换为 0-1 小数（Arco Design 期望格式）
-            percentage_int = int(decode_bytes(progress_data.get(b"percentage"), "0") or "0")
+            percentage_int = int(decode_bytes(raw("percentage"), "0") or "0")
             return {
                 "task_id": str(task_id),
-                "status": decode_bytes(progress_data.get(b"status")),
-                "sync_mode": decode_bytes(progress_data.get(b"sync_mode")),
-                "total_days": int(decode_bytes(progress_data.get(b"total_days"), "0") or "0"),
-                "completed_days": int(
-                    decode_bytes(progress_data.get(b"completed_days"), "0") or "0"
-                ),
-                "skipped_days": int(decode_bytes(progress_data.get(b"skipped_days"), "0") or "0"),
-                "current_date": decode_bytes(progress_data.get(b"current_date")) or None,
-                "success_count": int(decode_bytes(progress_data.get(b"success_count"), "0") or "0"),
-                "failed_count": int(decode_bytes(progress_data.get(b"failed_count"), "0") or "0"),
+                "status": decode_bytes(raw("status")),
+                "sync_mode": decode_bytes(raw("sync_mode")),
+                "total_days": int(decode_bytes(raw("total_days"), "0") or "0"),
+                "completed_days": int(decode_bytes(raw("completed_days"), "0") or "0"),
+                "skipped_days": int(decode_bytes(raw("skipped_days"), "0") or "0"),
+                "current_date": decode_bytes(raw("current_date")) or None,
+                "success_count": int(decode_bytes(raw("success_count"), "0") or "0"),
+                "failed_count": int(decode_bytes(raw("failed_count"), "0") or "0"),
                 "percentage": percentage_int / 100.0,  # 转换为 0-1 小数
-                "error_message": decode_bytes(progress_data.get(b"error_message")) or None,
+                "error_message": decode_bytes(raw("error_message")) or None,
             }
 
         # 回退到数据库

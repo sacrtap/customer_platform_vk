@@ -21,25 +21,32 @@ class CacheService:
 
     def __init__(self):
         self._redis = None
+        # 本表是「经 ttl_for() 统一读取」的 key 的 TTL 语义来源：值必须与线上实际生效
+        # 的 TTL 一致，否则配置沦为谎值。CacheService.set() 默认走 ttl_for(prefix)，
+        # 但仍有少数调用方显式传 ttl= 硬编码、绕过本表（已知例外，值为其实际生效 TTL）：
+        #   - routes/analytics.py 8 处：dashboard_trend / cross_dimension / tag_usage /
+        #     health_risk_trend / forecast_vs_actual / payment_top / monthly_compare /
+        #     priority_customers（均 300，等于 default）
+        #   - routes/customers.py 2 处：customer_usage_30d（300）、customer_kpi（60）
+        # 这些 key 未入本表，ttl_for() 会回退 default(300)。若将来迁移到 ttl_for()，
+        # customer_kpi 会 60→300（可观测行为变更），需单独评估，故暂保持硬编码。
         self._ttl_config = {
             "customer_list": 600,  # 10 分钟
             "customer_detail": 600,  # 10 分钟
             "tag_list": 3600,  # 1 小时
-            "tag_stats": 1800,  # 30 分钟
-            "analytics": 900,  # 15 分钟
             "analytics_dashboard_stats": 300,  # 5 分钟
             "analytics_dashboard_chart": 900,  # 15 分钟
             "analytics_health_stats": 600,  # 10 分钟
             "analytics_health_warning": 180,  # 3 分钟
             "analytics_health_inactive": 600,  # 10 分钟
-            "analytics_profile": 3600,  # 1 小时
+            "analytics_profile": 300,  # 5 分钟
             "analytics_invoice_status": 300,  # 5 分钟
             "analytics_consumption_trend": 900,  # 15 分钟
             "analytics_top_customers": 900,  # 15 分钟
             "analytics_device_distribution": 900,  # 15 分钟
             "analytics_payment_analysis": 600,  # 10 分钟
-            "analytics_prediction": 1800,  # 30 分钟
-            "billing_pricing_rules": 3600,  # 1 小时
+            "analytics_prediction": 300,  # 5 分钟（回款预测，读实时结算数据）
+            "analytics_prediction_forecast": 1800,  # 30 分钟（消费预测，基于单价矩阵）
             "billing_consumption": 300,  # 5 分钟（每客户每日消费聚合）
             "default": 300,  # 5 分钟
         }
@@ -74,6 +81,14 @@ class CacheService:
         """构建缓存键"""
         parts_str = ":".join(str(p) for p in parts)
         return f"cache:{prefix}:{parts_str}"
+
+    def ttl_for(self, prefix: str) -> int:
+        """返回指定缓存前缀的 TTL（秒）；未配置时回退 default。
+
+        这是 TTL 配置的唯一读取入口：CacheService 内部与需自行拼键批量读写的路由
+        都应经过它，避免同一语义出现硬编码副本。
+        """
+        return self._ttl_config.get(prefix, self._ttl_config["default"])
 
     async def get(self, prefix: str, *parts: Any) -> Optional[Any]:
         """
@@ -119,7 +134,7 @@ class CacheService:
         try:
             redis = await self._get_redis()
             key = self._build_key(prefix, *parts)
-            expire = ttl or self._ttl_config.get(prefix, self._ttl_config["default"])
+            expire = ttl or self.ttl_for(prefix)
             serialized = json.dumps(data, ensure_ascii=False, default=str)
             await redis.setex(key, expire, serialized)
             return True

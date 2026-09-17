@@ -3,6 +3,17 @@
     <!-- PageHeader -->
     <PageHeader eyebrow="Billing" title="计费规则" subtitle="管理客户定价、阶梯与包年计费规则">
       <template #actions>
+        <button v-if="can('billing:pricing_import')" class="btn" @click="importModalVisible = true">
+          导入规则
+        </button>
+        <button
+          v-if="can('billing:pricing_export')"
+          class="btn"
+          :disabled="exporting"
+          @click="handleExport"
+        >
+          {{ exporting ? '导出中...' : '导出' }}
+        </button>
         <button v-if="can('billing:edit')" class="btn primary" @click="showCreateModal">
           新建规则
         </button>
@@ -187,6 +198,16 @@
       :package-plan-options="packagePlanOptions"
       @saved="onModalSaved"
     />
+
+    <!-- 导入弹窗 -->
+    <ImportModal
+      v-model:visible="importModalVisible"
+      title="批量导入计费规则"
+      :import-api="billingApi.importPricingRules"
+      :template-api="billingApi.downloadPricingRuleTemplate"
+      template-file-name="计费规则导入模板.xlsx"
+      @success="fetchData"
+    />
   </div>
 </template>
 
@@ -199,8 +220,11 @@ import PageHeader from '@/components/PageHeader.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import PricingRuleModal from './components/PricingRuleModal.vue'
+import ImportModal from './components/ImportModal.vue'
 import Pagination from '@/components/ui/Pagination.vue'
 import { formatDate } from '@/utils/formatters'
+import { parseTiers } from '@/utils/tiers'
+import type { Tier } from '@/utils/tiers'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -213,7 +237,7 @@ interface PricingRule {
   layer_type?: string
   pricing_type: 'fixed' | 'tiered' | 'package'
   unit_price?: number
-  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
+  tiers?: Tier[] | null
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
@@ -251,6 +275,38 @@ const filters = reactive({
 
 const modalVisible = ref(false)
 const editData = ref<PricingRule | null>(null)
+
+// --- 导入 / 导出 ---
+const importModalVisible = ref(false)
+const exporting = ref(false)
+
+// 导出计费规则：按当前筛选条件导出全部匹配数据
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const res = await billingApi.exportPricingRules({
+      keyword: filters.keyword || undefined,
+      device_type: filters.device_type || undefined,
+      pricing_type: filters.pricing_type || undefined,
+    })
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `pricing_rules_${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    Message.success('导出成功')
+  } catch (err: unknown) {
+    Message.error((err as Error)?.message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 // --- 标签样式辅助 ---
 const getPricingTypeText = (type: string) => {
@@ -353,18 +409,12 @@ const onModalSaved = () => {
 }
 
 // 格式化阶梯配置的 tooltip 内容
-const formatTiersTooltip = (tiers: Record<string, unknown> | undefined): string => {
-  if (!tiers) return '未配置阶梯'
-  let ranges: Array<{ min: number; max: number | null; price: number }> = []
-  if (Array.isArray(tiers)) {
-    ranges = tiers as Array<{ min: number; max: number | null; price: number }>
-  } else if (typeof tiers === 'object' && tiers !== null && 'ranges' in tiers) {
-    ranges = (tiers as { ranges: Array<{ min: number; max: number | null; price: number }> }).ranges
-  }
-  if (!ranges || ranges.length === 0) return '未配置阶梯'
+const formatTiersTooltip = (tiers: unknown): string => {
+  const ranges = parseTiers(tiers)
+  if (ranges.length === 0) return '未配置阶梯'
   return ranges
     .map((r) => {
-      const maxStr = r.max === null || r.max === undefined ? '不限' : r.max
+      const maxStr = r.max == null ? '不限' : r.max
       return `${r.min}-${maxStr}: ¥${r.price}`
     })
     .join('\n')

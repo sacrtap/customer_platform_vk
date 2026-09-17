@@ -73,6 +73,7 @@ async def get_sync_logs(request):
         log_list = [
             {
                 "id": log.id,
+                "task_id": str(log.task_id) if log.task_id else None,
                 "task_name": log.task_name,
                 "status": log.status,
                 "total_count": log.total_count,
@@ -82,6 +83,10 @@ async def get_sync_logs(request):
                 "executed_at": log.executed_at,
                 "duration_seconds": log.duration_seconds,
                 "error_message": log.error_message,
+                "operator_id": log.operator_id,
+                "start_date": log.start_date.isoformat() if log.start_date else None,
+                "end_date": log.end_date.isoformat() if log.end_date else None,
+                "sync_mode": log.sync_mode,
                 "created_at": log.created_at.isoformat() if log.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
             }
             for log in logs

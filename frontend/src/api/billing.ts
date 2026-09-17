@@ -1,4 +1,30 @@
 import api from './index'
+import type { Tier } from '@/utils/tiers'
+
+/**
+ * 同步重载端点的超时（毫秒）。
+ *
+ * 导入/导出由后端在请求内同步完成：逐行 DB 写入（或上限 5 万行的查询 + openpyxl 生成），
+ * 大文件在 DB 负载高时会明显超过 axios 实例的全局 15s 超时。前端一旦中断，服务端仍会
+ * 继续执行并提交数据 —— 用户看到「失败」而数据已落库，重试即产生重复数据，故单独放宽。
+ */
+const LONG_RUNNING_REQUEST_TIMEOUT = 120000
+
+/**
+ * 上传文件进行导入（后端同步逐行写入，单独放宽超时避免前端先断）。
+ * 注意：不要手动设置 Content-Type，让浏览器/axios 自动生成含 boundary 的 multipart 头；
+ * 手写 `multipart/form-data`（无 boundary）反而会导致后端无法解析文件边界。
+ */
+function importFile(url: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post(url, formData, { timeout: LONG_RUNNING_REQUEST_TIMEOUT })
+}
+
+/** 下载导入模板（blob 响应）。 */
+function fetchImportTemplate(url: string) {
+  return api.get(url, { responseType: 'blob' })
+}
 
 // ==================== 余额管理 ====================
 
@@ -39,7 +65,7 @@ export interface BalanceStats {
   burning_soon_count: number
 }
 
-export function getBalances(params?: {
+export interface BalanceQueryParams {
   customer_id?: number
   keyword?: string
   account_type?: string
@@ -54,11 +80,16 @@ export function getBalances(params?: {
   settlement_type?: string
   balance_min?: number
   balance_max?: number
-  sort_by?: string
-  sort_order?: string
-  page?: number
-  page_size?: number
-}) {
+}
+
+export function getBalances(
+  params?: BalanceQueryParams & {
+    sort_by?: string
+    sort_order?: string
+    page?: number
+    page_size?: number
+  }
+) {
   return api.get('/billing/balances', { params })
 }
 
@@ -150,7 +181,7 @@ export interface PricingRule {
   unit_price?: number
   multi_floor_pricing_type?: 'unified' | 'incremental'
   additional_floor_price?: number
-  tiers?: Array<{ min: number; max: number | null; price: number }> | Record<string, unknown>
+  tiers?: Tier[] | null
   package_type?: string
   package_limits?: Record<string, unknown>
   effective_date?: string
@@ -488,7 +519,12 @@ export function exportInvoices(params?: {
   start_date?: string
   end_date?: string
 }) {
-  return api.get('/billing/invoices/export', { params, responseType: 'blob' })
+  // 同步 openpyxl 写盘，大导出会超过全局 15s 超时
+  return api.get('/billing/invoices/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 余额趋势 ====================
@@ -507,19 +543,11 @@ export function getBalanceTrend(customerId: number, months: number = 6) {
 // ==================== 余额导入 ====================
 
 export function importBalances(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return api.post('/billing/import', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  })
+  return importFile('/billing/import', file)
 }
 
 export function downloadBalanceImportTemplate() {
-  return api.get('/billing/import-template', {
-    responseType: 'blob',
-  })
+  return fetchImportTemplate('/billing/import-template')
 }
 
 // ==================== 包年套餐管理 ====================
@@ -565,4 +593,72 @@ export function updatePackagePlan(id: number, data: Partial<PackagePlan>) {
 
 export function deletePackagePlan(id: number) {
   return api.delete(`/billing/package-plans/${id}`)
+}
+
+// ==================== 余额导出 ====================
+
+export function exportBalances(params?: BalanceQueryParams) {
+  // 导出为同步生成（含近 30 天消费聚合 + openpyxl），大导出耗时可能超过全局 15s 超时，
+  // 单独放宽超时避免前端在服务端仍在处理时中断。
+  return api.get('/billing/balances/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
+}
+
+// ==================== 计费规则导入导出 ====================
+
+export function importPricingRules(file: File) {
+  return importFile('/billing/pricing-rules/import', file)
+}
+
+export function downloadPricingRuleTemplate() {
+  return fetchImportTemplate('/billing/pricing-rules/import-template')
+}
+
+export function exportPricingRules(params?: {
+  customer_id?: number
+  keyword?: string
+  device_type?: string
+  layer_type?: string
+  pricing_type?: string
+}) {
+  return api.get('/billing/pricing-rules/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
+}
+
+// ==================== 包年套餐导入导出 ====================
+
+export function importPackagePlans(file: File) {
+  return importFile('/billing/package-plans/import', file)
+}
+
+export function downloadPackagePlanTemplate() {
+  return fetchImportTemplate('/billing/package-plans/import-template')
+}
+
+export function exportPackagePlans(params?: {
+  keyword?: string
+  status?: string
+  is_unlimited?: string
+}) {
+  return api.get('/billing/package-plans/export', {
+    params,
+    responseType: 'blob',
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
+}
+
+// ==================== 结算单导入 ====================
+
+export function importInvoices(file: File) {
+  return importFile('/billing/invoices/import', file)
+}
+
+export function downloadInvoiceTemplate() {
+  return fetchImportTemplate('/billing/invoices/import-template')
 }

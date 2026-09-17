@@ -92,9 +92,9 @@ class TestCustomerRepository:
         repo = CustomerRepository(db_session)
 
         customer = Customer(
+            company_id=990001,
             name="Test Customer",
-            contact_person="Test Contact",
-            phone="1234567890",
+            account_type="正式账号",
             email="test@example.com",
         )
 

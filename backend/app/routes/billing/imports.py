@@ -1,5 +1,6 @@
 """余额导入路由 — 导入和模板下载"""
 
+import asyncio
 import io
 
 from openpyxl import Workbook
@@ -12,12 +13,13 @@ from ...middleware.auth import auth_required, get_current_user, require_permissi
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ...utils.excel_import import read_import_dataframe
 from . import billing_bp
 
 
 @billing_bp.post("/import")
 @auth_required
-@require_permission("billing:import")
+@require_permission("billing:balance_import")
 async def import_balance(request: Request):
     """
     Excel 批量充值导入
@@ -46,16 +48,9 @@ async def import_balance(request: Request):
         return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
     try:
-        # 读取 Excel 文件
-        df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl")
-
-        # 如果第 2 行是中文说明行（模板特征），跳过它
-        if (
-            len(df) > 0
-            and isinstance(df.iloc[0].get("company_id"), (int, float, str))
-            and str(df.iloc[0].get("company_id")) in ("必填", "可选")
-        ):
-            df = pd.read_excel(io.BytesIO(excel_file.body), engine="openpyxl", skiprows=[1])
+        # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。pd.read_excel 为 CPU+I/O
+        # 密集操作，10MB xlsx 解析可能阻塞事件循环数百毫秒到数秒，移到线程执行。
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
         # 必填列检查
         required_columns = ["company_id", "real_amount", "bonus_amount"]
@@ -251,8 +246,9 @@ async def download_balance_import_template(request: Request):
     for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
         ws.column_dimensions[col[0].column_letter].width = 25  # pyright: ignore[reportOptionalMemberAccess]
 
-    # 示例数据
-    ws.append([100001, 10000.00, 2000.00, "月初充值"])  # pyright: ignore[reportOptionalMemberAccess]
+    # 不写入示例数据行：read_import_dataframe 只丢弃第 2 行中文说明行，第 3 行示例数据
+    # 会被当作真实余额充值导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默
+    # 创建成一条充值记录（客户编号 100001 不存在时还会整行报错，干扰用户判断）。
 
     # 生成文件
     output = io.BytesIO()

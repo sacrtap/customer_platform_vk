@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.models.billing import PricingRule
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
+from app.utils.tiers import TierFormatError, normalize_tiers
 
 logger = logging.getLogger(__name__)
 
@@ -382,12 +383,32 @@ class CostCalcService:
 
     def _calc_tiered(self, quantity: int, pricing_rule: PricingRule) -> Decimal:
         """阶梯价格结算"""
-        tiers = pricing_rule.tiers or []
-        if not tiers:  # pyright: ignore[reportGeneralTypeIssues]
-            return Decimal(str(pricing_rule.unit_price or 0)) * quantity
+        try:
+            tiers = normalize_tiers(pricing_rule.tiers) or []
+        except TierFormatError as e:
+            # 历史脏数据无法归一化时降级为按 unit_price 结算，避免整批结算中断
+            logger.error(
+                "定价规则 tiers 形态非法（rule_id=%s, customer_id=%s），降级为按 unit_price 结算：%s",
+                pricing_rule.id,
+                pricing_rule.customer_id,
+                e,
+            )
+            tiers = []
+        if not tiers:
+            unit_price = pricing_rule.unit_price
+            if unit_price is None:
+                # 无法归一化 tiers 且无 unit_price 可降级：不能按 0 元结算。
+                # 阶梯计费规则静默变成「免费」比中断结算更难发现（只有 error 日志可追溯），
+                # 因此显式抛错，让调用方（sync_task_service 的按天 try/except、定时任务、
+                # 手动同步路由）把该天/该任务标记为失败，强制人工介入修正脏规则。
+                raise TierFormatError(
+                    f"定价规则 tiers 非法且无 unit_price 可降级（rule_id={pricing_rule.id}），"
+                    "拒绝按 0 元结算"
+                )
+            return Decimal(str(unit_price)) * quantity
 
-        # Sort tiers by min_quantity
-        sorted_tiers = sorted(tiers, key=lambda t: t.get("min_quantity", 0))  # pyright: ignore[reportCallIssue, reportArgumentType, reportAttributeAccessIssue]
+        # 按 min 升序排列
+        sorted_tiers = sorted(tiers, key=lambda t: t.get("min", 0))
 
         remaining = quantity
         total_cost = Decimal("0")
@@ -396,9 +417,12 @@ class CostCalcService:
             if remaining <= 0:
                 break
 
-            min_qty = tier.get("min_quantity", 0)
-            max_qty = tier.get("max_quantity", 999999)
-            tier_range = max_qty - min_qty
+            min_qty = tier.get("min", 0)
+            max_qty = tier.get("max")
+            if max_qty is not None:
+                tier_range = max_qty - min_qty + 1
+            else:
+                tier_range = remaining  # 无上限，使用剩余数量
             tier_quantity = min(remaining, tier_range)
             tier_price = Decimal(str(tier.get("price", pricing_rule.unit_price or 0)))
             total_cost += Decimal(tier_quantity) * tier_price

@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import String, cast, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.customers import Customer
@@ -37,7 +37,7 @@ class CustomerRepository(BaseRepository[Customer], CustomerRepositoryProtocol):
         stmt = self._base_query(include_deleted).where(
             or_(
                 Customer.name.ilike(f"%{keyword}%"),
-                Customer.company_id.cast(str).ilike(f"%{keyword}%"),  # pyright: ignore[reportArgumentType]
+                cast(Customer.company_id, String).ilike(f"%{keyword}%"),
             )
         )
         result = await self.db.execute(stmt)

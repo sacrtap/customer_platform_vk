@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/file-storage.md", "reason": "核验清理范围、路径显式化、状态一致性是否达标"}
+{"file": ".trellis/spec/backend/import-export.md", "reason": "核验模板契约未被破坏、行级错误文案风格一致"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "质量门禁(测试覆盖率/lint/类型检查)"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核验跨层语义一致性(AC7/AC8 的判据)"}

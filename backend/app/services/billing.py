@@ -36,6 +36,7 @@ from ..repository import (
     InvoiceRepositoryProtocol,
     PricingRepositoryProtocol,
 )
+from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
 
 logger = logging.getLogger(__name__)
 
@@ -542,6 +543,12 @@ class PricingService:
 
         包年结算（pricing_type='package'）时，device_type 和 layer_type 可为 None。
         """
+        # tiers 归一化 + 覆盖完整性校验：全链路唯一形态为数组（见 utils/tiers.py）。
+        # 非法形态/非法语义在此可控失败（TierFormatError 是 ValueError 子类，路由层转 40001），
+        # 避免脏数据落库后把失败推迟到结算计算。
+        if data.get("tiers") is not None:
+            data["tiers"] = validate_tiers_or_raise(data["tiers"])
+
         customer_id = data.get("customer_id")
         pricing_type = data["pricing_type"]
         device_type = data.get("device_type")  # 包年结算时可为 None
@@ -717,6 +724,10 @@ class PricingService:
 
         if not rule:
             return None
+
+        # tiers 归一化 + 覆盖完整性校验：与 create_pricing_rule 同一约束（唯一形态为数组）
+        if data.get("tiers") is not None:
+            data["tiers"] = validate_tiers_or_raise(data["tiers"])
 
         # 检查是否需要重叠校验
         overlap_fields = {
@@ -1255,8 +1266,9 @@ class InvoiceService:
 
             elif rule.pricing_type == "tiered":  # pyright: ignore[reportGeneralTypeIssues]
                 # 阶梯结算：按阶梯单价计算（使用 total_floor_count 作为用量）
-                tiers = rule.tiers or {}
-                subtotal = self._calculate_tiered_price(total_floor_count, tiers)  # pyright: ignore[reportArgumentType]
+                # normalize_tiers 是唯一的归一化入口，非法形态会抛 TierFormatError
+                tiers = normalize_tiers(rule.tiers) or []
+                subtotal = self._calculate_tiered_price(total_floor_count, tiers)
                 # 阶梯计价的 unit_price 显示为平均单价
                 avg_unit_price = (
                     subtotal / total_floor_count if total_floor_count > 0 else Decimal(0)
@@ -1277,27 +1289,24 @@ class InvoiceService:
 
         return items, total_amount
 
-    def _calculate_tiered_price(self, quantity: Decimal, tiers: Dict[str, Any]) -> Decimal:
+    def _calculate_tiered_price(self, quantity: Decimal, tiers: List[Dict[str, Any]]) -> Decimal:
         """
         计算阶梯价格
 
-        tiers 格式示例：
-        {
-            "ranges": [
-                {"min": 0, "max": 1000, "price": 10},
-                {"min": 1001, "max": 5000, "price": 8},
-                {"min": 5001, "max": null, "price": 5}
-            ]
-        }
+        tiers 是经 normalize_tiers 归一化后的数组，格式示例：
+        [
+            {"min": 0, "max": 1000, "price": 10},
+            {"min": 1001, "max": 5000, "price": 8},
+            {"min": 5001, "max": null, "price": 5}
+        ]
         """
-        ranges = tiers.get("ranges", [])
-        if not ranges:
+        if not tiers:
             return Decimal(0)
 
         remaining = quantity
         total = Decimal(0)
 
-        for tier in sorted(ranges, key=lambda x: x.get("min", 0)):
+        for tier in sorted(tiers, key=lambda x: x.get("min", 0)):
             if remaining <= 0:
                 break
 
