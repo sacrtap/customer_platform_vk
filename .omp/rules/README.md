@@ -1,26 +1,32 @@
 # 项目规则索引
 
-本目录包含客户运营中台项目的开发规则和约定。OMP 运行时会在会话开始时自动加载这些规则。
+本目录包含客户运营中台项目的开发规则和约定。规则分两类：
+
+- **始终生效**：无 `condition` 前置字段，由 `.omp/AGENTS.md` 以引用形式路由
+- **按条件触发**：带 `condition` 与 `scope` 前置字段，仅当条件命中时才应用（应用条件见各条说明）
 
 ## 规则文件列表
 
-### 核心架构
+### 核心架构（始终生效）
 - **architecture.md** - 系统架构设计原则和技术栈选择
 - **directories.md** - 目录结构约定和组织规范
 
-### 开发规范
+### 开发规范（始终生效）
 - **conventions.md** - 代码风格、命名约定和通用开发规范
 - **files.md** - 文件组织、命名和结构规范
 - **commands.md** - 常用命令和开发流程
 
-### 运行时与测试
+### 运行时与测试（始终生效）
 - **runtime.md** - 运行时环境配置和依赖管理
 - **testing.md** - 测试策略、覆盖率要求和测试规范
 
 ### 专项规则
-- **agents.md** - 自定义 agent 配置和使用场景
-- **refactoring.md** - 重构原则和技术债务管理
-- **delete-model-check-references.md** - 删除模型时的引用检查规则
+- **agents.md**（始终生效）- 自定义 agent 配置和使用场景
+- **refactoring.md**（始终生效）- 重构原则和技术债务管理
+- **delete-model-check-references.md**（按条件触发）- 删除模型或数据库表前的引用检查；当会话中出现「删除/移除/drop」模型、表、table 或 model 的表述，且对 Python 文件执行写入时应用
+- **batch-repetitive-file-edits.md**（按条件触发）- 同一模式跨多个文件批量修复时优先使用批量工具；当会话中出现「批量修复 N 个文件」「遍历/所有页面添加」「修复 N 个页面」等批量操作表述时应用
+- **edit-vue-full-path.md**（按条件触发）- edit 工具必须使用完整仓库相对路径；当编辑指令以 `[组件名.vue#` 形式的裸文件名哈希出现时应用
+- **stop-file-rewrite-loop-on-corruption.md**（按条件触发）- 检测到文件损坏或回滚信号时立即停止修改并提交已完成工作；当会话文本同时出现「git checkout HEAD / 文件已恢复 / 回滚 / rollback / 损坏」与「再次 / 重新 / retry / 继续」等重试表述时应用
 
 ## 规则应用原则
 
@@ -34,8 +40,9 @@
 1. 在 `.omp/rules/` 目录创建新的 `.md` 文件
 2. 使用清晰的命名（如 `security.md`, `performance.md`）
 3. 在文件头部说明规则目的、适用范围
-4. 更新此 README.md 的规则列表
-5. 提交代码审查
+4. 若为按条件触发的规则，在文件 frontmatter 中声明 `condition` 与 `scope`
+5. 更新此 README.md 的规则列表并标注生效方式
+6. 提交代码审查
 
 ## 注意事项
 
