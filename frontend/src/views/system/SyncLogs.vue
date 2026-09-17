@@ -22,6 +22,69 @@
       </div>
     </div>
 
+    <!-- 定时同步配置 -->
+    <div class="schedule-card">
+      <div class="schedule-header">
+        <h3>定时同步配置</h3>
+        <span class="schedule-desc">每日自动同步（订单同步 + 费用计算一体化），同步昨天数据</span>
+      </div>
+      <div class="schedule-body">
+        <div class="schedule-item">
+          <span class="schedule-label">启用定时同步</span>
+          <a-switch v-if="canEditSchedule" v-model="schedule.enabled" :disabled="savingSchedule" />
+          <a-tag v-else :color="schedule.enabled ? 'green' : 'gray'">
+            {{ schedule.enabled ? '已启用' : '已停用' }}
+          </a-tag>
+        </div>
+        <div class="schedule-item">
+          <span class="schedule-label">执行时间</span>
+          <a-time-picker
+            v-if="canEditSchedule"
+            v-model="schedule.sync_time"
+            format="HH:mm"
+            :disabled="savingSchedule"
+            style="width: 140px"
+          />
+          <span v-else class="schedule-value">{{ schedule.sync_time }}</span>
+        </div>
+        <div class="schedule-item">
+          <span class="schedule-label">同步模式</span>
+          <a-select
+            v-if="canEditSchedule"
+            v-model="schedule.sync_mode"
+            :disabled="savingSchedule"
+            style="width: 180px"
+          >
+            <a-option value="skip_existing">仅同步无数据</a-option>
+            <a-option value="force_overwrite">强制覆盖已有数据</a-option>
+          </a-select>
+          <span v-else class="schedule-value">
+            {{ schedule.sync_mode === 'skip_existing' ? '仅同步无数据' : '强制覆盖' }}
+          </span>
+        </div>
+        <div class="schedule-item schedule-next">
+          <span class="schedule-label">下次执行</span>
+          <span class="schedule-value">
+            {{
+              schedule.next_run_time
+                ? formatDate(schedule.next_run_time)
+                : schedule.enabled
+                  ? '已注册'
+                  : '未启用'
+            }}
+          </span>
+        </div>
+        <a-button
+          v-if="canEditSchedule"
+          type="primary"
+          :loading="savingSchedule"
+          @click="handleSaveSchedule"
+        >
+          保存配置
+        </a-button>
+      </div>
+    </div>
+
     <!-- 筛选区域 -->
     <div class="filter-section">
       <a-form layout="inline">
@@ -118,13 +181,21 @@
           {{ record.completed_at ? formatDate(record.completed_at) : '-' }}
         </template>
         <template #operator="{ record }">
-          {{ record.operator_name || '-' }}
+          <span v-if="record.operator_id == null">系统自动</span>
+          <span v-else>{{ record.operator_name || '-' }}</span>
         </template>
-        <template #error_message="{ record }">
-          <a-tooltip v-if="record.error_message" :content="record.error_message">
-            <a-tag color="red" style="cursor: pointer">查看错误</a-tag>
-          </a-tooltip>
-          <span v-else>-</span>
+        <template #execution_info="{ record }">
+          <a-tag v-if="record.status === 'pending' || record.status === 'running'" color="gray"
+            >-</a-tag
+          >
+          <a-tag
+            v-else
+            :color="getExecutionColor(record)"
+            style="cursor: pointer"
+            @click="openDetail(record)"
+          >
+            {{ getExecutionText(record) }}
+          </a-tag>
         </template>
         <template #actions="{ record }">
           <a-button
@@ -139,6 +210,9 @@
         </template>
       </a-table>
     </div>
+
+    <!-- 执行信息详情 -->
+    <SyncLogDetailDrawer v-model:visible="drawerVisible" :task="selectedTask" />
   </div>
 </template>
 
@@ -146,6 +220,8 @@
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { Message, Modal } from '@arco-design/web-vue'
+import { useUserStore } from '@/stores/user'
+import { getSyncSchedule, updateSyncSchedule, type SyncSchedule } from '@/api/syncSchedule'
 import {
   getSyncTaskList,
   getSyncTaskStats,
@@ -153,10 +229,15 @@ import {
   type SyncTask,
   type SyncTaskStats,
 } from '@/api/syncTasks'
+import SyncLogDetailDrawer from './components/SyncLogDetailDrawer.vue'
 
 interface Task extends SyncTask {
   operator_name?: string
 }
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
+const canEditSchedule = can('system:sync_schedule')
 
 const loading = ref(false)
 const tasks = ref<Task[]>([])
@@ -169,6 +250,21 @@ const stats = ref<SyncTaskStats>({
 const filters = reactive({
   status: '',
 })
+
+// 定时同步配置
+const schedule = reactive<SyncSchedule>({
+  task_name: 'daily_sync',
+  enabled: false,
+  sync_time: '01:00',
+  sync_mode: 'skip_existing',
+  next_run_time: null,
+  updated_at: null,
+})
+const savingSchedule = ref(false)
+
+// 执行信息详情 Drawer
+const drawerVisible = ref(false)
+const selectedTask = ref<Task | null>(null)
 
 const pagination = reactive({
   current: 1,
@@ -220,10 +316,9 @@ const columns = [
     width: 120,
   },
   {
-    title: '错误信息',
-    slotName: 'error_message',
-    ellipsis: true,
-    tooltip: true,
+    title: '执行信息',
+    slotName: 'execution_info',
+    width: 100,
   },
   {
     title: '操作',
@@ -270,6 +365,25 @@ const getProgressStatus = (status: string) => {
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '-'
   return dateStr.replace('T', ' ').substring(0, 19)
+}
+
+const getExecutionColor = (record: Task) => {
+  const status = record.execution_status
+  if (status === 'error') return 'red'
+  if (status === 'warning') return 'gold'
+  return 'green'
+}
+
+const getExecutionText = (record: Task) => {
+  const status = record.execution_status
+  if (status === 'error') return '错误'
+  if (status === 'warning') return '警告'
+  return '正常'
+}
+
+const openDetail = (record: Task) => {
+  selectedTask.value = record
+  drawerVisible.value = true
 }
 
 const fetchStats = async () => {
@@ -351,6 +465,43 @@ const handleCancel = async (task: Task) => {
   })
 }
 
+const fetchSchedule = async () => {
+  try {
+    const data = await getSyncSchedule()
+    schedule.task_name = data.task_name
+    schedule.enabled = data.enabled
+    schedule.sync_time = data.sync_time
+    schedule.sync_mode = data.sync_mode
+    schedule.next_run_time = data.next_run_time
+    schedule.updated_at = data.updated_at
+  } catch (error) {
+    console.error('获取定时同步配置失败:', error)
+  }
+}
+
+const handleSaveSchedule = async () => {
+  savingSchedule.value = true
+  try {
+    const data = await updateSyncSchedule({
+      enabled: schedule.enabled,
+      sync_time: schedule.sync_time,
+      sync_mode: schedule.sync_mode,
+    })
+    schedule.task_name = data.task_name
+    schedule.enabled = data.enabled
+    schedule.sync_time = data.sync_time
+    schedule.sync_mode = data.sync_mode
+    schedule.next_run_time = data.next_run_time
+    schedule.updated_at = data.updated_at
+    Message.success('定时同步配置已保存')
+  } catch (error) {
+    Message.error('保存定时同步配置失败')
+    console.error(error)
+  } finally {
+    savingSchedule.value = false
+  }
+}
+
 // 自动刷新执行中的任务
 let refreshTimer: number | null = null
 
@@ -376,6 +527,7 @@ const stopAutoRefresh = () => {
 onMounted(() => {
   fetchStats()
   fetchTasks()
+  fetchSchedule()
   startAutoRefresh()
 })
 
@@ -453,6 +605,61 @@ onUnmounted(() => {
   border: 1px solid var(--soft);
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
+}
+
+.schedule-card {
+  background: white;
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--soft);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+
+.schedule-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.schedule-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.schedule-desc {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.schedule-body {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.schedule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.schedule-value {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.schedule-next {
+  flex: 1;
 }
 
 .table-section {

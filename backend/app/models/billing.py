@@ -7,6 +7,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -245,6 +246,47 @@ class SyncTaskLog(BaseModel):
         String(20),
         nullable=True,
         comment="同步模式: skip_existing/force_overwrite",
+    )
+
+
+class SyncTaskLogDetail(BaseModel):
+    """同步任务执行明细表
+
+    记录同步任务执行过程中的预警/错误/成功明细（含客户维度字段），
+    用于同步日志页面查看执行信息并排查具体客户问题。
+    """
+
+    __tablename__ = "sync_task_log_details"
+
+    task_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("sync_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="任务ID",
+    )
+    sync_date = Column(Date, nullable=False, comment="明细所属同步日期")
+    level = Column(String(10), nullable=False, comment="级别: info/warning/error")
+    category = Column(
+        String(30),
+        nullable=False,
+        comment="类别: order_fetch/order_match/order_save/cost_calc/data_check/system",
+    )
+    message = Column(Text, nullable=False, comment="描述信息")
+
+    # 客户维度字段（用于排查具体问题）
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True, comment="内部客户ID")
+    customer_name = Column(String(200), nullable=True, comment="内部客户名称")
+    external_customer_id = Column(String(50), nullable=True, comment="外部客户ID(group_type)")
+    company_name = Column(String(200), nullable=True, comment="外部公司名")
+    order_code = Column(String(50), nullable=True, comment="订单号")
+
+    # 聚合记录数（成功按客户+日期聚合时 > 1）
+    record_count = Column(Integer, nullable=False, default=1, comment="聚合记录数")
+
+    __table_args__ = (
+        Index("idx_sync_detail_task_level", "task_id", "level"),
+        Index("idx_sync_detail_task_date", "task_id", "sync_date"),
     )
 
 

@@ -397,8 +397,8 @@ class TestExecuteTask:
             # 执行
             await service.execute_task(task_id)
 
-            # 验证
-            assert task.status == "partial"  # 有成功有失败 → partial
+            # 验证：1 天失败 + 2 天成功 → 部分成功（partial）
+            assert task.status == "partial"
             assert task.completed_days == 2
             assert task.failed_count == 1
 
@@ -616,3 +616,93 @@ class TestGetTask:
         # 执行 & 验证
         with pytest.raises(ValueError, match="任务不存在"):
             await service.get_task(task_id)
+
+
+class TestExecutionStatus:
+    """执行信息三态判定与历史回退逻辑"""
+
+    def test_error_takes_priority(self):
+        assert SyncTaskService._execution_status("completed", 1, 0) == "error"
+        assert SyncTaskService._execution_status("completed", 3, 2) == "error"
+
+    def test_warning_when_warning_count(self):
+        assert SyncTaskService._execution_status("completed", 0, 2) == "warning"
+
+    def test_normal_no_details_completed(self):
+        assert SyncTaskService._execution_status("completed", 0, 0) == "normal"
+
+    def test_fallback_failed_to_error(self):
+        # 历史任务（无明细）按状态回退
+        assert SyncTaskService._execution_status("failed", 0, 0) == "error"
+
+    def test_fallback_partial_to_warning(self):
+        assert SyncTaskService._execution_status("partial", 0, 0) == "warning"
+
+    def test_fallback_others_to_normal(self):
+        for status in ("cancelled", "pending", "running"):
+            assert SyncTaskService._execution_status(status, 0, 0) == "normal"
+
+
+class TestPersistDetails:
+    """执行明细落库"""
+
+    async def test_persist_details_success(self, service, mock_db):
+        from app.services.dto import SyncDetail
+
+        mock_db.execute = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        details = [
+            SyncDetail(
+                sync_date=date(2026, 9, 16),
+                level="info",
+                category="order_save",
+                message="成功同步 3 条订单",
+                customer_id=1,
+                customer_name="客户A",
+                record_count=3,
+            ),
+            SyncDetail(
+                sync_date=date(2026, 9, 16),
+                level="warning",
+                category="order_match",
+                message="订单未匹配到内部客户",
+                external_customer_id="10086",
+                company_name="XX公司",
+                order_code="NEST-20260916-001",
+            ),
+        ]
+
+        await service._persist_details("123e4567-e89b-12d3-a456-426614174000", details)
+
+        mock_db.execute.assert_called_once()
+        mock_db.commit.assert_called_once()
+
+    async def test_persist_details_empty_noop(self, service, mock_db):
+        mock_db.execute = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        await service._persist_details("123e4567-e89b-12d3-a456-426614174000", [])
+
+        mock_db.execute.assert_not_called()
+        mock_db.commit.assert_not_called()
+
+    async def test_persist_details_error_rollback(self, service, mock_db):
+        from app.services.dto import SyncDetail
+
+        mock_db.execute = AsyncMock(side_effect=Exception("db error"))
+        mock_db.commit = AsyncMock()
+        mock_db.rollback = AsyncMock()
+
+        details = [
+            SyncDetail(
+                sync_date=date(2026, 9, 16),
+                level="error",
+                category="system",
+                message="任务执行异常",
+            )
+        ]
+
+        await service._persist_details("123e4567-e89b-12d3-a456-426614174000", details)
+
+        mock_db.rollback.assert_called_once()

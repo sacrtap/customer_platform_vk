@@ -8,8 +8,10 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import select
 
 from app.models.billing import PricingRule
+from app.models.customers import Customer
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
+from app.services.dto import SyncDetail
 from app.utils.tiers import TierFormatError, normalize_tiers
 
 logger = logging.getLogger(__name__)
@@ -30,11 +32,15 @@ class CostCalcService:
         """
         self.db = db
 
-    async def calculate_daily_cost(self, consumption_date: datetime) -> dict:
+    async def calculate_daily_cost(
+        self, consumption_date: datetime, detail_collector: Optional[List[SyncDetail]] = None
+    ) -> dict:
         """计算指定日期的消耗费用
 
         Args:
             consumption_date: 消耗日期（UTC datetime）
+            detail_collector: 可选执行明细收集器（注入后记录计算过程明细，
+                默认 None 不记录，行为与旧版一致）
 
         Returns:
             {total_customers, calculated, no_rule}
@@ -71,19 +77,47 @@ class CostCalcService:
         for row in package_result.all():
             customer_ids.add(row[0])
 
+        # 预取客户名称映射（供明细记录使用，避免 N+1）
+        customer_names: Dict[int, str] = {}
+        if detail_collector is not None and customer_ids:
+            name_result = await self.db.execute(
+                select(Customer.id, Customer.name).where(Customer.id.in_(customer_ids))
+            )
+            customer_names = {row[0]: row[1] for row in name_result.all()}
+
+        def _emit(level: str, message: str, customer_id: Optional[int] = None) -> None:
+            if detail_collector is not None:
+                detail_collector.append(
+                    SyncDetail(
+                        sync_date=consumption_date.date(),
+                        level=level,
+                        category="cost_calc",
+                        message=message,
+                        customer_id=customer_id,
+                        customer_name=customer_names.get(customer_id) if customer_id else None,
+                    )
+                )
+
         total_customers = len(customer_ids)
         calculated_count = 0
         no_rule_count = 0
 
         # 3. 对每个客户计算费用
         for customer_id in customer_ids:
-            result = await self._calculate_customer_cost(
-                customer_id=customer_id, consumption_date=consumption_date
-            )
-            if result.get("has_rule"):
-                calculated_count += 1
-            else:
-                no_rule_count += 1
+            try:
+                result = await self._calculate_customer_cost(
+                    customer_id=customer_id, consumption_date=consumption_date
+                )
+                if result.get("has_rule"):
+                    calculated_count += 1
+                    _emit("info", "费用计算完成", customer_id)
+                else:
+                    no_rule_count += 1
+                    _emit("warning", "该日期无生效计费规则", customer_id)
+            except Exception as e:
+                # 记录错误明细后保持原行为（异常向上传播，由调用方标记该天失败）
+                _emit("error", f"费用计算异常: {type(e).__name__}: {e}", customer_id)
+                raise
 
         return {
             "total_customers": total_customers,

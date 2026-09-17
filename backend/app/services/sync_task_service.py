@@ -2,17 +2,18 @@
 
 import logging
 from datetime import date, datetime, timedelta, timezone
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.billing import SyncTaskLog
+from app.models.billing import SyncTaskLog, SyncTaskLogDetail
 from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
 from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
-from app.services.dto import SyncResult
+from app.services.dto import SyncDetail, SyncResult
 from app.services.order_sync import OrderSyncService
 from app.utils.timezone import local_date_to_utc_start
 
@@ -32,9 +33,16 @@ class SyncTaskService:
         start_date: date,
         end_date: date,
         sync_mode: str,
-        operator_id: int,
+        operator_id: Optional[int] = None,
     ) -> SyncTask:
-        """创建同步任务"""
+        """创建同步任务
+
+        Args:
+            start_date: 同步开始日期
+            end_date: 同步结束日期
+            sync_mode: 同步模式 skip_existing/force_overwrite
+            operator_id: 操作人ID；定时任务自动触发时为 None（页面显示「系统自动」）
+        """
         # 校验日期范围
         if end_date < start_date:
             raise ValueError("结束日期不能早于开始日期")
@@ -194,6 +202,10 @@ class SyncTaskService:
 
             start_time = datetime.now(timezone.utc)
 
+            # 执行明细收集器：同步链路各环节产生的 warning/error/info 明细，
+            # 任务结束（成功或异常）时一次性落库
+            details: List[SyncDetail] = []
+
             try:
                 # 生成日期列表
                 current_date = task.start_date
@@ -240,6 +252,14 @@ class SyncTaskService:
                                 logger.info(f"[{task_id}] {sync_date} 已有完整数据，跳过")
                                 task.skipped_days += 1  # pyright: ignore[reportAttributeAccessIssue]
                                 task.completed_days += 1  # pyright: ignore[reportAttributeAccessIssue]
+                                details.append(
+                                    SyncDetail(
+                                        sync_date=sync_date,
+                                        level="info",
+                                        category="data_check",
+                                        message=f"{sync_date} 已有完整数据，跳过同步",
+                                    )
+                                )
                                 await self.db.commit()
                                 await self._update_redis_progress(task)
                                 continue
@@ -260,7 +280,9 @@ class SyncTaskService:
                             order_service = OrderSyncService(
                                 self.db, external_engine=self.external_engine
                             )
-                            order_result = await order_service.sync_orders(sync_date_dt)
+                            order_result = await order_service.sync_orders(
+                                sync_date_dt, detail_collector=details
+                            )
                             logger.info(
                                 f"[{task_id}] {sync_date} 订单同步完成: "
                                 f"成功 {order_result.success}, 失败 {order_result.failed}, "
@@ -284,7 +306,9 @@ class SyncTaskService:
                         # 计算费用
                         logger.info(f"[{task_id}] {sync_date} 开始计算费用")
                         cost_service = CostCalcService(self.db)
-                        await cost_service.calculate_daily_cost(sync_date_dt)
+                        await cost_service.calculate_daily_cost(
+                            sync_date_dt, detail_collector=details
+                        )
                         logger.info(f"[{task_id}] {sync_date} 费用计算完成")
 
                         # 刷新 task 对象，因为 sync_orders 和 calculate_daily_cost 内部调用了 commit()
@@ -317,7 +341,7 @@ class SyncTaskService:
                     await self._update_redis_progress(task)
 
                 # 数据完整性校验：检查每个同步日期是否都有数据
-                await self._verify_data_completeness(task_id, dates)
+                await self._verify_data_completeness(task_id, dates, details)
 
                 # 任务完成 — 根据成功/失败比例确定最终状态
                 duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -359,6 +383,15 @@ class SyncTaskService:
                 logger.error(
                     f"[{task_id}] 任务执行过程中发生异常: {type(e).__name__}: {e}", exc_info=True
                 )
+                # 记录任务级错误明细（失败任务也可查明细）
+                details.append(
+                    SyncDetail(
+                        sync_date=task.start_date,  # pyright: ignore[reportGeneralTypeIssues]
+                        level="error",
+                        category="system",
+                        message=f"任务执行过程中发生异常: {type(e).__name__}: {e}",
+                    )
+                )
                 task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
                 task.error_message = str(e)  # pyright: ignore[reportAttributeAccessIssue]
                 task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
@@ -369,6 +402,8 @@ class SyncTaskService:
             finally:
                 logger.info(f"[{task_id}] 提交最终状态到数据库")
                 await self.db.commit()
+                # 任务结束（成功或异常）一次性写入执行明细
+                await self._persist_details(task.id, details)
                 await self._update_redis_progress(task)
                 # 清除消费分析缓存，确保前端能获取最新数据
                 try:
@@ -599,8 +634,25 @@ class SyncTaskService:
         result = await self.db.execute(query)
         tasks = result.scalars().all()
 
+        # 一次性聚合本页任务的明细级别计数（避免 N+1）
+        detail_counts: Dict[UUID, Dict[str, int]] = {}
+        if tasks:
+            count_result = await self.db.execute(
+                select(
+                    SyncTaskLogDetail.task_id,
+                    SyncTaskLogDetail.level,
+                    func.count(SyncTaskLogDetail.id),
+                )
+                .where(SyncTaskLogDetail.task_id.in_([t.id for t in tasks]))
+                .group_by(SyncTaskLogDetail.task_id, SyncTaskLogDetail.level)
+            )
+            for task_id, level, cnt in count_result.all():
+                detail_counts.setdefault(task_id, {"info": 0, "warning": 0, "error": 0})[level] = (
+                    cnt
+                )
+
         return {
-            "list": [self._task_to_dict(task) for task in tasks],
+            "list": [self._task_to_dict(task, detail_counts.get(task.id)) for task in tasks],
             "pagination": {
                 "total": total,
                 "page": page,
@@ -653,8 +705,28 @@ class SyncTaskService:
             },
         }
 
-    def _task_to_dict(self, task: SyncTask) -> dict:
+    @staticmethod
+    def _execution_status(status: str, error_count: int, warning_count: int) -> str:
+        """执行信息三态：错误 > 警告 > 正常
+
+        历史任务（无明细，counts 均为 0）按任务状态回退：
+        failed → error；partial → warning；其余 → normal。
+        """
+        if error_count > 0:
+            return "error"
+        if warning_count > 0:
+            return "warning"
+        if status == "failed":
+            return "error"
+        if status == "partial":
+            return "warning"
+        return "normal"
+
+    def _task_to_dict(self, task: SyncTask, detail_counts: Optional[Dict[str, int]] = None) -> dict:
         """将任务对象转换为字典"""
+        info_count = (detail_counts or {}).get("info", 0)
+        warning_count = (detail_counts or {}).get("warning", 0)
+        error_count = (detail_counts or {}).get("error", 0)
         return {
             "task_id": str(task.id),
             "start_date": task.start_date.isoformat(),
@@ -669,6 +741,10 @@ class SyncTaskService:
             "error_message": task.error_message,
             "operator_id": task.operator_id,
             "operator_name": task.operator.real_name if task.operator else None,
+            "execution_status": self._execution_status(task.status, error_count, warning_count),
+            "info_count": info_count,
+            "warning_count": warning_count,
+            "error_count": error_count,
             "created_at": task.created_at.isoformat() if task.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,  # pyright: ignore[reportGeneralTypeIssues]
         }
@@ -698,11 +774,16 @@ class SyncTaskService:
             progress_key, 3600
         )  # 1小时TTL  # pyright: ignore[reportOptionalMemberAccess]
 
-    async def _verify_data_completeness(self, task_id: UUID, dates: list) -> None:
+    async def _verify_data_completeness(
+        self,
+        task_id: UUID,
+        dates: list,
+        detail_collector: Optional[List[SyncDetail]] = None,
+    ) -> None:
         """同步任务完成后，验证每个日期是否都有订单数据
 
         检查 daily_orders 和 daily_consumptions 表，如果某天数据缺失
-        则记录 warning 日志，便于后续排查。
+        则记录 warning 日志（并写入执行明细），便于后续排查。
         """
         from sqlalchemy import func
 
@@ -733,10 +814,59 @@ class SyncTaskService:
                     f"[{task_id}] 数据完整性校验: {sync_date} 无订单数据，"
                     f"可能是外部数据源该天确实无订单，或同步异常"
                 )
+                if detail_collector is not None:
+                    detail_collector.append(
+                        SyncDetail(
+                            sync_date=sync_date,
+                            level="warning",
+                            category="data_check",
+                            message=f"数据完整性校验: {sync_date} 无订单数据，"
+                            f"可能是外部数据源该天确实无订单，或同步异常",
+                        )
+                    )
             if consumption_count == 0:
                 logger.warning(
                     f"[{task_id}] 数据完整性校验: {sync_date} 无消费记录，可能是费用计算异常"
                 )
+                if detail_collector is not None:
+                    detail_collector.append(
+                        SyncDetail(
+                            sync_date=sync_date,
+                            level="warning",
+                            category="data_check",
+                            message=f"数据完整性校验: {sync_date} 无消费记录，可能是费用计算异常",
+                        )
+                    )
+
+    async def _persist_details(self, task_id: UUID, details: List[SyncDetail]) -> None:
+        """批量写入任务执行明细（独立提交，失败不影响主流程）"""
+        if not details:
+            return
+        try:
+            from sqlalchemy import insert
+
+            rows = [
+                {
+                    "task_id": task_id,
+                    "sync_date": d.sync_date,
+                    "level": d.level,
+                    "category": d.category,
+                    "message": d.message,
+                    "customer_id": d.customer_id,
+                    "customer_name": d.customer_name,
+                    "external_customer_id": d.external_customer_id,
+                    "company_name": d.company_name,
+                    "order_code": d.order_code,
+                    "record_count": d.record_count,
+                }
+                for d in details
+            ]
+            await self.db.execute(insert(SyncTaskLogDetail), rows)
+            await self.db.commit()
+            logger.info(f"[{task_id}] 已写入 {len(rows)} 条执行明细")
+        except Exception as e:
+            logger.error(f"[{task_id}] 写入执行明细失败: {e}", exc_info=True)
+            await self.db.rollback()
 
     async def _check_data_completeness(self, sync_date: datetime) -> tuple[bool, bool]:
         """检查指定日期的订单数据和费用数据是否都已存在

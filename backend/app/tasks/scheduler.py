@@ -6,6 +6,7 @@ APScheduler 任务调度器
 """
 
 import logging
+from datetime import date, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -38,11 +39,9 @@ def init_scheduler(app):
         from ..cache.base import cache_service
         from ..services.sync_task_service import SyncTaskService
         from .balance_check import check_balance_warning
-        from .cost_calc import calc_daily_cost
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
         from .invoice_generator import generate_monthly_invoices
-        from .order_sync import sync_daily_orders
         from .webhook_cleanup import cleanup_webhook_signatures
 
         # 为每个任务添加监控装饰器
@@ -65,14 +64,6 @@ def init_scheduler(app):
         @monitored_task("cleanup_webhook_signatures", "Webhook 签名清理")
         async def _cleanup_webhook_signatures(session):
             return await cleanup_webhook_signatures(session)
-
-        @monitored_task("sync_daily_orders", "每日订单同步")
-        async def _sync_daily_orders(session, engine):
-            return await sync_daily_orders(session, engine)
-
-        @monitored_task("calc_daily_cost", "每日费用计算")
-        async def _calc_daily_cost(session):
-            return await calc_daily_cost(session)
 
         @monitored_task("check_stuck_sync_tasks", "卡住同步任务检测")
         async def _check_stuck_sync_tasks():
@@ -131,23 +122,32 @@ def init_scheduler(app):
             replace_existing=True,
         )
 
-        # 消耗分析增强：每日 01:00 同步订单
-        scheduler.add_job(
-            lambda: _sync_daily_orders(session_factory(), app.ctx.external_mysql_engine),  # pyright: ignore[reportOptionalCall]
-            trigger=CronTrigger(hour=1, minute=0),
-            id="sync_daily_orders",
-            name="每日订单同步",
-            replace_existing=True,
-        )
+        # 每日自动同步（原 01:00 订单同步 + 01:30 费用计算合并为单个任务）：
+        # 按 sync_schedule_configs 配置注册/不注册，支持页面动态调整
+        from sqlalchemy import select as sa_select
 
-        # 消耗分析增强：每日 01:30 计算费用
-        scheduler.add_job(
-            lambda: _calc_daily_cost(session_factory()),  # pyright: ignore[reportOptionalCall]
-            trigger=CronTrigger(hour=1, minute=30),
-            id="calc_daily_cost",
-            name="每日费用计算",
-            replace_existing=True,
-        )
+        from ..models.sync_schedule import SyncScheduleConfig
+
+        cfg = None
+        try:
+            async with session_factory() as cfg_session:  # pyright: ignore[reportOptionalCall]
+                cfg_result = await cfg_session.execute(
+                    sa_select(SyncScheduleConfig).where(
+                        SyncScheduleConfig.task_name == "daily_sync"
+                    )
+                )
+                cfg = cfg_result.scalar_one_or_none()
+        except Exception as e:
+            # 配置表未初始化（未迁移）时降级为不注册，不影响其他调度任务
+            logger.warning(f"读取定时同步配置失败，本次不注册每日自动同步: {e}")
+
+        if cfg and cfg.enabled:
+            logger.info(f"📅 注册每日自动同步任务: {cfg.sync_time} (模式 {cfg.sync_mode})")
+            register_sync_daily_auto(
+                session_factory, app.ctx.external_mysql_engine, True, cfg.sync_time
+            )
+        else:
+            logger.info("📅 每日自动同步任务未启用（可在同步日志页开启）")
 
         # 卡住任务检测：每小时检查一次运行超过 60 分钟的同步任务
         scheduler.add_job(
@@ -233,6 +233,80 @@ def init_scheduler(app):
         )
 
     return scheduler
+
+
+def register_sync_daily_auto(
+    session_factory, external_engine, enabled: bool, sync_time: str
+) -> None:
+    """按配置注册/注销「每日自动同步」job
+
+    与原 01:00 订单同步 + 01:30 费用计算不同，合并后的单个任务复用
+    SyncTaskService.create_task + execute_task 完整链路（订单→费用→数据校验→明细落库），
+    目标日期 = 昨天，操作人 = 系统自动（operator_id=NULL）。
+
+    - enabled=True: 以 CronTrigger(hour, minute) 注册 job（幂等 replace_existing）
+    - enabled=False: 移除已注册的 job（不存在则忽略）
+    """
+    job_id = "sync_daily_auto"
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+
+    if not enabled:
+        return
+
+    hour, minute = map(int, sync_time.split(":"))
+
+    @monitored_task("sync_daily_auto", "每日自动同步")
+    async def _run():
+        from sqlalchemy import select as sa_select
+
+        from ..models.sync_schedule import SyncScheduleConfig
+
+        async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+            # 二次校验配置（页面可能刚关闭）
+            cfg_result = await session.execute(
+                sa_select(SyncScheduleConfig).where(SyncScheduleConfig.task_name == "daily_sync")
+            )
+            cfg = cfg_result.scalar_one_or_none()
+            if cfg is None or not cfg.enabled:
+                logger.info("每日自动同步已停用，跳过本次执行")
+                return
+
+            # 目标日期 = 昨天（外部系统订单按日上传，当日数据不完整）
+            yesterday = date.today() - timedelta(days=1)
+
+            from ..cache.base import cache_service
+            from ..services.sync_task_service import SyncTaskService
+
+            redis_client = await cache_service._get_redis()
+            service = SyncTaskService(
+                db=session,
+                redis_client=redis_client,
+                external_engine=external_engine,
+            )
+            try:
+                task = await service.create_task(
+                    start_date=yesterday,
+                    end_date=yesterday,
+                    sync_mode=cfg.sync_mode,
+                    operator_id=None,  # 系统自动触发
+                )
+                await service.execute_task(task.id)
+            except Exception as e:
+                # 与手动任务同日冲突：跳过本次，不视为调度失败
+                if "已有相同周期的同步任务正在执行" in str(e):
+                    logger.warning(f"每日自动同步跳过（同日已有任务执行中）: {e}")
+                    return
+                raise
+
+    scheduler.add_job(
+        _run,
+        trigger=CronTrigger(hour=hour, minute=minute),
+        id=job_id,
+        name="每日自动同步",
+        replace_existing=True,
+    )
+    logger.info(f"📅 每日自动同步已注册: 每日 {sync_time}")
 
 
 def get_scheduler() -> AsyncIOScheduler:

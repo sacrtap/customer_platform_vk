@@ -20,9 +20,45 @@ export interface SyncTask {
   error_message: string | null
   start_date?: string
   end_date?: string
-  operator_id?: number
+  operator_id?: number | null
+  operator_name?: string
   created_at?: string
   completed_at?: string
+  /** 执行信息三态（由后端按明细级别计算，历史任务按 status 回退） */
+  execution_status?: 'normal' | 'warning' | 'error'
+  info_count?: number
+  warning_count?: number
+  error_count?: number
+}
+
+export interface SyncLogDetail {
+  id: number
+  sync_date: string
+  level: 'info' | 'warning' | 'error'
+  category: string
+  message: string
+  customer_id: number | null
+  customer_name: string | null
+  external_customer_id: string | null
+  company_name: string | null
+  order_code: string | null
+  record_count: number
+  created_at: string | null
+}
+
+export interface SyncLogDetailResponse {
+  summary: {
+    info_count: number
+    warning_count: number
+    error_count: number
+    total_count: number
+  }
+  list: SyncLogDetail[]
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+  }
 }
 
 export async function createSyncTask(params: CreateSyncTaskParams): Promise<SyncTask> {
@@ -74,5 +110,13 @@ export async function getSyncTaskList(params?: SyncTaskListParams): Promise<Sync
 
 export async function getSyncTaskStats(): Promise<SyncTaskStats> {
   const res = await request.get('/sync-tasks/stats')
+  return res.data
+}
+
+export async function getSyncTaskDetails(
+  taskId: string,
+  params?: { level?: string; page?: number; page_size?: number }
+): Promise<SyncLogDetailResponse> {
+  const res = await request.get(`/sync-tasks/${taskId}/details`, { params })
   return res.data
 }
