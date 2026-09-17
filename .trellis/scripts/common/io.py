@@ -142,10 +142,7 @@ def write_text_atomic(path: Path, text: str) -> bool:
             os.close(fd)
             raise
         with f:
-            # 统一保证文件以换行结尾：json.dumps 与 "\n".join(...) 都不产生尾换行，
-            # 而 pre-commit 的 end-of-file-fixer 会改写这类文件并使脚本的
-            # auto-commit 失败（task.py archive / add_session.py 均受影响）。
-            f.write(text if text.endswith("\n") else text + "\n")
+            f.write(text)
         os.replace(tmp, path)
         return True
     except OSError:
