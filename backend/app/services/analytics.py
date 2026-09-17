@@ -2544,3 +2544,178 @@ class AnalyticsService:
             "consumption_trend": consumption_trend,
             "payment_trend": list(reversed(payment_trend)),  # 按时间正序
         }
+
+    async def get_consumption_trend_daily(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[Dict[str, Any]]:
+        """获取仪表盘消耗趋势（基于每日消耗数据，按月聚合）
+
+        与 get_consumption_trend（Invoice 维度）不同，本方法基于 DailyConsumption，
+        反映真实消耗流水，供运营工作台「经营趋势」图表使用。
+        """
+        from ..models.daily_consumption import DailyConsumption
+
+        stmt = (
+            select(
+                extract("year", DailyConsumption.consumption_date).label("year"),
+                extract("month", DailyConsumption.consumption_date).label("month"),
+                func.sum(DailyConsumption.total_cost).label("total_amount"),
+            )
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= start_date,
+                    DailyConsumption.consumption_date <= end_date,
+                    DailyConsumption.deleted_at.is_(None),
+                )
+            )
+            .group_by(
+                extract("year", DailyConsumption.consumption_date),
+                extract("month", DailyConsumption.consumption_date),
+            )
+            .order_by(
+                extract("year", DailyConsumption.consumption_date),
+                extract("month", DailyConsumption.consumption_date),
+            )
+        )
+
+        result = (await self.db.execute(stmt)).all()
+        return [
+            {
+                "period": f"{int(row.year)}-{int(row.month):02d}",
+                "total_amount": float(row.total_amount or 0),
+            }
+            for row in result
+        ]
+
+    async def get_customer_count_trend(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[Dict[str, Any]]:
+        """获取仪表盘客户数趋势（按月统计当月有消耗的去重客户数）"""
+        from ..models.daily_consumption import DailyConsumption
+
+        stmt = (
+            select(
+                extract("year", DailyConsumption.consumption_date).label("year"),
+                extract("month", DailyConsumption.consumption_date).label("month"),
+                func.count(func.distinct(DailyConsumption.customer_id)).label("customer_count"),
+            )
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= start_date,
+                    DailyConsumption.consumption_date <= end_date,
+                    DailyConsumption.deleted_at.is_(None),
+                )
+            )
+            .group_by(
+                extract("year", DailyConsumption.consumption_date),
+                extract("month", DailyConsumption.consumption_date),
+            )
+            .order_by(
+                extract("year", DailyConsumption.consumption_date),
+                extract("month", DailyConsumption.consumption_date),
+            )
+        )
+
+        result = (await self.db.execute(stmt)).all()
+        return [
+            {
+                "period": f"{int(row.year)}-{int(row.month):02d}",
+                "customer_count": int(row.customer_count or 0),
+            }
+            for row in result
+        ]
+
+    async def get_risk_customers(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """获取风险客户列表（余额覆盖不足 + 流失风险）
+
+        余额风险：近 90 天有消耗记录，但余额缺失或不足 1000 元
+        流失风险：曾有消耗但最近 90 天无消耗
+        """
+        from datetime import timedelta
+
+        from ..models.daily_consumption import DailyConsumption
+
+        now = datetime.utcnow()
+        ninety_days_ago = now - timedelta(days=90)
+
+        # 近 90 天有消耗的客户
+        active_ids_stmt = (
+            select(DailyConsumption.customer_id.label("customer_id"))
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= ninety_days_ago,
+                    DailyConsumption.deleted_at.is_(None),
+                )
+            )
+            .distinct()
+            .subquery()
+        )
+
+        # 余额信息（LEFT JOIN 保留无余额记录客户）
+        stmt = (
+            select(
+                Customer.id,
+                Customer.name,
+                Customer.manager_id,
+                User.real_name.label("manager_name"),
+                CustomerBalance.real_amount,
+                CustomerBalance.bonus_amount,
+            )
+            .join(active_ids_stmt, Customer.id == active_ids_stmt.c.customer_id)
+            .outerjoin(User, Customer.manager_id == User.id)
+            .outerjoin(
+                CustomerBalance,
+                and_(
+                    CustomerBalance.customer_id == Customer.id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .where(Customer.deleted_at.is_(None))
+            .order_by(Customer.id)
+            .limit(limit * 3)  # 多取一些供筛选
+        )
+        result = (await self.db.execute(stmt)).all()
+
+        customers: List[Dict[str, Any]] = []
+        for row in result:
+            has_balance = row.real_amount is not None or row.bonus_amount is not None
+            remaining = float(row.real_amount or 0) + float(row.bonus_amount or 0)
+            if not has_balance:
+                risk_type, score = "余额缺失", 50
+            elif remaining < 1000:
+                risk_type, score = "余额不足", 30
+            else:
+                continue  # 余额充足，非风险
+            customers.append(
+                {
+                    "customer_id": row.id,
+                    "customer_name": row.name,
+                    "score": score,
+                    "risk_type": risk_type,
+                    "manager_name": row.manager_name or "未分配",
+                }
+            )
+            if len(customers) >= limit:
+                break
+
+        # 补充流失风险客户（曾有消耗但近 90 天无消耗）
+        if len(customers) < limit:
+            inactive = await self.get_inactive_customers(days=90)
+            existing_ids = {c["customer_id"] for c in customers}
+            for ic in inactive:
+                if ic["customer_id"] in existing_ids:
+                    continue
+                existing_ids.add(ic["customer_id"])
+                customers.append(
+                    {
+                        "customer_id": ic["customer_id"],
+                        "customer_name": ic["customer_name"],
+                        "score": 40,
+                        "risk_type": "流失风险",
+                        "manager_name": ic.get("manager_name", "未分配"),
+                    }
+                )
+                if len(customers) >= limit:
+                    break
+
+        return customers

@@ -1000,27 +1000,28 @@ async def get_dashboard_trend(request: Request):
     start_date = end_date - relativedelta(months=months)
 
     if metric == "consumption":
-        trend = await service.get_consumption_trend(start_date, end_date, None, None)
+        # 消耗趋势：基于每日消耗流水（DailyConsumption），反映真实消耗
+        trend = await service.get_consumption_trend_daily(start_date, end_date)
         dates = [item.get("period", "") for item in trend]
         values = [item.get("total_amount", 0) for item in trend]
     elif metric == "payment":
-        # 回款趋势：使用结算单数据
-        invoice_stats = await service.get_invoice_status_stats(start_date, end_date)
-        trend = invoice_stats.get("monthly_trend", [])  # pyright: ignore[reportAttributeAccessIssue]
-        dates = [item.get("month", "") for item in trend]
-        values = [item.get("paid_amount", 0) for item in trend]
-    elif metric == "customer_count":
-        # 客户数趋势
-        chart_data = await service.get_dashboard_chart_data(months)
-        trend = chart_data.get("customer_growth_trend", chart_data.get("consumption_trend", []))
+        # 回款趋势：使用月度回款分析（period/paid）
+        trend = await service.get_payment_trend(start_date, end_date, months=months)
         dates = [item.get("period", "") for item in trend]
-        values = [item.get("customer_count", item.get("total_amount", 0)) for item in trend]
+        values = [item.get("paid", 0) for item in trend]
+    elif metric == "customer_count":
+        # 客户数趋势：按月统计当月有消耗的去重客户数
+        trend = await service.get_customer_count_trend(start_date, end_date)
+        dates = [item.get("period", "") for item in trend]
+        values = [item.get("customer_count", 0) for item in trend]
     elif metric == "health":
-        # 健康度趋势
+        # 健康度趋势：当前无历史评分表，返回当月风险客户计数作为单点
         health_stats = await service.get_customer_health_stats()
-        trend = health_stats.get("monthly_trend", [])
-        dates = [item.get("month", "") for item in trend]
-        values = [item.get("avg_score", 0) for item in trend]
+        risk_count = int(health_stats.get("warning_customers", 0) or 0) + int(
+            health_stats.get("churn_risk_customers", 0) or 0
+        )
+        dates = [datetime.utcnow().strftime("%Y-%m")]
+        values = [risk_count]
     else:
         return json({"code": 400, "message": "Invalid metric parameter"}, status=400)
 
@@ -1356,9 +1357,8 @@ async def get_priority_customers(request: Request):
     # 获取余额预警客户
     warning_customers = await service.get_balance_warning_list(threshold=1000)
 
-    # 获取健康度统计中的风险客户
-    health_stats = await service.get_customer_health_stats()
-    risk_customers = health_stats.get("risk_customers", [])
+    # 获取健康度风险客户（余额覆盖不足 + 流失风险，真实可查）
+    risk_customers = await service.get_risk_customers(limit)
 
     # 合并去重并构建结果
     seen_ids = set()

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-09-18
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~315 | Active |
+| `journal-1.md` | ~339 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-09-18 | 运营工作台页面功能修复（3 个显示问题） | `38d43e1`, `7c4b03b`, `e82c325` | `feature/dashboard-visual-fixes` |
 | 18 | 2026-09-18 | 同步日志执行信息优化与定时同步配置化 | `23a0a1d`, `7fcbce5`, `ba889b8`, `f6df04f`, `afdabbb`, `1fcedd1`, `dccd38e`, `fc0c766` | `feature/sync-execution-info` |
 | 17 | 2026-09-17 | 测试基础设施遗留项修复（TD-1/2/4/5 + R6） | `b60d3cd`, `1d0d78c`, `0a5f5b0` | `feature/import-export-optimization` |
 | 16 | 2026-09-17 | 遗留项修复：清理任务误删业务凭证、tiers 契约冲突与文案统一 | `a619eda` | `feature/import-export-optimization` |

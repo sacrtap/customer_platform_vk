@@ -172,9 +172,10 @@ import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import {
   getDashboardStats,
-  getDashboardChartData,
+  getDashboardTrend,
   getPendingTasks,
   getPriorityCustomers,
+  type DashboardTrendMetric,
 } from '@/api/analytics'
 import { formatCurrencyWan, formatNumber } from '@/utils/formatters'
 import { useCachedRequest } from '@/composables/useCachedRequest'
@@ -195,11 +196,6 @@ const loadEcharts = async () => {
 const router = useRouter()
 
 const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000)
-const chartRequest = useCachedRequest(
-  'chart',
-  () => getDashboardChartData({ months: 12 }),
-  15 * 60 * 1000
-)
 const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000)
 
 const statsLoading = ref(false)
@@ -307,12 +303,20 @@ const loadStats = async (forceRefresh = false) => {
 const loadChartData = async (forceRefresh = false) => {
   chartLoading.value = true
   try {
-    const res = await chartRequest.execute(forceRefresh)
+    // tab → 后端 metric 映射
+    const metricMap: Record<string, DashboardTrendMetric> = {
+      consume: 'consumption',
+      payment: 'payment',
+      customers: 'customer_count',
+      health: 'health',
+    }
+    const metric = metricMap[activeTrendTab.value] || 'consumption'
+    const res = await getDashboardTrend({ metric, months: 12, force_refresh: forceRefresh })
     await nextTick()
-    await initChart(
-      (res as { data: { consumption_trend: Array<{ period: string; total_amount: number }> } }).data
-        .consumption_trend
-    )
+    await initChart({
+      dates: (res.data?.dates as string[]) || [],
+      values: (res.data?.values as number[]) || [],
+    })
   } catch (error) {
     console.error('加载图表数据失败:', error)
     Message.error('加载图表数据失败')
@@ -321,7 +325,7 @@ const loadChartData = async (forceRefresh = false) => {
   }
 }
 
-const initChart = async (data: Array<{ period: string; total_amount: number }>) => {
+const initChart = async (data: { dates: string[]; values: number[] }) => {
   if (!chartRef.value) return
 
   const echarts = await loadEcharts()
@@ -338,6 +342,8 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
     customers: '#0891B2',
     health: '#D97706',
   }
+
+  const isEmpty = data.dates.length === 0 || data.values.length === 0
 
   const option = {
     tooltip: {
@@ -356,7 +362,7 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: data.map((item) => item.period),
+      data: data.dates,
       axisLine: { lineStyle: { color: '#DBE3EF' } },
       axisLabel: { color: '#475569' },
     },
@@ -397,9 +403,24 @@ const initChart = async (data: Array<{ period: string; total_amount: number }>) 
             ],
           },
         },
-        data: data.map((item) => item.total_amount),
+        data: data.values,
       },
     ],
+    // 空数据时显示提示
+    graphic: isEmpty
+      ? [
+          {
+            type: 'text',
+            left: 'center',
+            top: 'middle',
+            style: {
+              text: '暂无数据',
+              fill: '#94A3B8',
+              fontSize: 14,
+            },
+          },
+        ]
+      : [],
   }
 
   chartInstance.setOption(option)
@@ -480,6 +501,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* hero 两卡片按 1.35fr/0.65fr 分配：允许轨道收缩，
+   避免 echarts canvas 固定宽度撑破 fr 比例（第二列被压缩） */
+.hero > * {
+  min-width: 0;
+}
+
 /* KPI 可点击下钻 */
 .kpi-clickable {
   cursor: pointer;

@@ -1,0 +1,5 @@
+{"file": "frontend/src/views/Home.vue", "reason": "运营工作台页面主组件，3 个问题均在此页"}
+{"file": "backend/app/routes/analytics.py", "reason": "dashboard/trend 与 priority-customers 路由修复"}
+{"file": "backend/app/services/analytics.py", "reason": "新增趋势与风险客户服务方法"}
+{"file": "frontend/src/api/analytics.ts", "reason": "新增 getDashboardTrend API"}
+{"file": "frontend/src/views/__tests__/Home.test.ts", "reason": "前端测试适配"}

@@ -509,3 +509,21 @@ export interface PriorityCustomer {
 export function getPriorityCustomers(limit = 20) {
   return api.get('/analytics/priority-customers', { params: { limit } })
 }
+
+// ==================== 首页仪表盘多指标趋势 ====================
+
+export type DashboardTrendMetric = 'consumption' | 'payment' | 'customer_count' | 'health'
+
+export interface DashboardTrendResponse {
+  dates: string[]
+  values: number[]
+  metric: DashboardTrendMetric
+}
+
+export function getDashboardTrend(params?: {
+  metric?: DashboardTrendMetric
+  months?: number
+  force_refresh?: boolean
+}) {
+  return api.get<DashboardTrendResponse>('/analytics/dashboard/trend', { params })
+}
