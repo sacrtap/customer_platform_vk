@@ -1391,6 +1391,109 @@ class TestCustomerHealthScoreService:
             assert result["score"] == 70.95
             assert result["health_level"] == "normal"
 
+    async def test_get_health_score_flat_pricing_uses_history_baseline(self, analytics_service):
+        """平板定价（单档无界且首档 min=0）改用历史基线，用量下滑必须被识别
+
+        该形态（模板推荐的统一定价写法 `[{"min":0,"max":null,"price":5}]`）没有任何阈值参照：
+        末档 `max` 为 null、入口 `min` 为 0。旧实现回退为 `expected_usage = actual_usage`，
+        达标率恒为 100%，占健康度 50% 权重的用量维度形同虚设。
+
+        现改为「前 90 天（第 31~120 天）日均 × 30」作预期 —— 即客户自身历史节奏：
+        用量上涨时封顶 100%，用量回落时低于 100%。
+        """
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            usage_row = MagicMock()
+            usage_row.total_quantity = Decimal("150")  # 近 30 天用量腰斩
+
+            pricing_row = MagicMock()
+            pricing_row.tiers = [{"min": 0, "max": None, "price": 5}]
+
+            baseline_row = MagicMock()
+            baseline_row.total_quantity = Decimal("900")  # 前 90 天合计 900
+            # 窗口起点 = 120 天前（2025-12-16）→ 覆盖满 90 天，日均 900/90 = 10 → 预期 10*30 = 300
+            baseline_row.earliest = date(2025, 12, 16)
+
+            balance_row = MagicMock()
+            balance_row.total_amount = Decimal("15000.00")
+            balance_row.real_amount = Decimal("12000.00")
+            balance_row.bonus_amount = Decimal("3000.00")
+
+            avg_consumption_row = MagicMock()
+            avg_consumption_row.avg_amount = Decimal("5000.00")
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row]),  # 实际用量
+                make_mock_execute_result([pricing_row]),  # 定价规则
+                make_mock_execute_result([baseline_row]),  # 历史基线
+                make_mock_execute_result([balance_row]),  # 当前余额
+                make_mock_execute_result([avg_consumption_row]),  # 月均消耗
+                make_mock_execute_result([], scalar_value=10),  # 总结算单数
+                make_mock_execute_result([], scalar_value=8),  # 按时付款数
+            ]
+
+            result = await service.get_customer_health_score(customer_id=1)
+
+            # 预期用量 = 900/90*30 = 300 → 150/300 = 50%（旧实现为 100.0%）
+            assert result["usage_rate"] == 50.0
+            assert result["balance_rate"] == 100.0
+            assert result["payment_rate"] == 80.0
+            # 50*0.5 + 100*0.3 + 80*0.2 = 25 + 30 + 16 = 71（旧实现为 86.0）
+            assert result["score"] == 71.0
+            assert result["health_level"] == "normal"
+
+    async def test_get_health_score_baseline_scales_by_covered_days(self, analytics_service):
+        """开户不足 90 天时按窗口内实际覆盖天数折算，避免预期用量被低估
+
+        基线窗口是固定的 90 天；若客户只有 30 天历史，直接用 900/90 会把日均算成实际的一半，
+        导致达标率虚高。此处按覆盖天数折算（900/30*30 = 900）。
+        """
+        service, mock_db = analytics_service
+
+        with patch("app.services.analytics.datetime") as mock_datetime:
+            mock_datetime.utcnow.return_value = datetime(2026, 4, 15, 12, 0, 0)
+            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+            usage_row = MagicMock()
+            usage_row.total_quantity = Decimal("450")
+
+            pricing_row = MagicMock()
+            pricing_row.tiers = [{"min": 0, "max": None, "price": 5}]
+
+            baseline_row = MagicMock()
+            baseline_row.total_quantity = Decimal("900")
+            # 窗口内只有 31 天数据：起点 = 60 天前（2026-02-14）
+            baseline_row.earliest = date(2026, 2, 14)
+
+            balance_row = MagicMock()
+            balance_row.total_amount = Decimal("15000.00")
+            balance_row.real_amount = Decimal("12000.00")
+            balance_row.bonus_amount = Decimal("3000.00")
+
+            avg_consumption_row = MagicMock()
+            avg_consumption_row.avg_amount = Decimal("5000.00")
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([usage_row]),
+                make_mock_execute_result([pricing_row]),
+                make_mock_execute_result([baseline_row]),
+                make_mock_execute_result([balance_row]),
+                make_mock_execute_result([avg_consumption_row]),
+                make_mock_execute_result([], scalar_value=10),
+                make_mock_execute_result([], scalar_value=8),
+            ]
+
+            result = await service.get_customer_health_score(customer_id=1)
+
+            # 覆盖 31 天（60-30+1）→ 日均 900/31 ≈ 29.03 → 预期 ≈ 870.97 → 450/870.97 ≈ 51.7%
+            # 若未按覆盖天数折算（900/90*30 = 300）则会是 100% 封顶，掩盖用量不足
+            assert result["usage_rate"] == 51.67
+            assert result["health_level"] == "normal"
+
     async def test_get_health_score_no_data(self, analytics_service):
         """测试无数据时返回默认值"""
         service, mock_db = analytics_service
@@ -1403,6 +1506,8 @@ class TestCustomerHealthScoreService:
             mock_db.execute.side_effect = [
                 make_mock_execute_result([MagicMock(total_quantity=None)]),
                 make_mock_execute_result([MagicMock(expected_quantity=None)]),
+                # 无有效阈值参照时新增的历史基线查询（无历史数据 → 预期用量仍为 0）
+                make_mock_execute_result([MagicMock(total_quantity=None, earliest=None)]),
                 make_mock_execute_result([MagicMock(total_amount=None)]),
                 make_mock_execute_result([MagicMock(avg_amount=None)]),
                 make_mock_execute_result([MagicMock(total_count=0)]),
