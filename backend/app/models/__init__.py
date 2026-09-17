@@ -23,6 +23,7 @@ from . import erp_system  # noqa: E402
 from . import daily_order  # noqa: E402
 from . import daily_consumption  # noqa: E402
 from . import sync_task  # noqa: E402
+from . import sync_schedule  # noqa: E402
 from . import token_blacklist  # noqa: E402
 from . import api_key  # noqa: E402
 from . import forecast_config  # noqa: E402
@@ -45,6 +46,7 @@ __all__ = [
     "daily_consumption",
     "daily_order",
     "sync_task",
+    "sync_schedule",
     "api_key",
     "forecast_config",
 ]

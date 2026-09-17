@@ -26,7 +26,9 @@ class SyncTask(Base, TimestampMixin):
     success_count = Column(Integer, default=0, comment="成功同步条数")
     failed_count = Column(Integer, default=0, comment="失败条数")
     error_message = Column(Text, nullable=True, comment="失败原因")
-    operator_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="操作人")
+    operator_id = Column(
+        Integer, ForeignKey("users.id"), nullable=True, comment="操作人（定时任务为NULL）"
+    )
     completed_at = Column(DateTime(timezone=True), nullable=True, comment="完成时间")
 
     # 关联
