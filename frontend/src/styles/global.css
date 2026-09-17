@@ -163,7 +163,11 @@ a {
 /* ---- Hero Section ---- */
 .hero {
   display: grid;
-  grid-template-columns: 1.35fr 0.65fr;
+  /* minmax(0, …) 不可省：fr 轨道的自动最小值是 min-content，左卡内 ECharts 画布把它的
+     min-content 撑到 800px（画布 762 + 内边距/边框），超过它 1.35fr 的份额（799.9px），
+     右轨道因此停在自身 min-content（约 250px）不再增长，整行尾部留下约 117px 空白
+     「异常与待办」既贴不到右边缘、内部快捷操作也被压到 46~74px（标签折 2~3 行）。 */
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
   gap: 18px;
   margin-bottom: 18px;
 }
