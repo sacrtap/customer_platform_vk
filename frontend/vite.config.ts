@@ -17,6 +17,12 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      // 上传文件（头像、凭证、明细等）相对路径 /uploads/** 由后端静态服务提供，
+      // 与生产 nginx 的 location /uploads/ 转发保持一致（见 deploy/docker/frontend-nginx.conf）
+      '/uploads': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
   test: {

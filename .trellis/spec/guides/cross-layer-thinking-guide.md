@@ -451,3 +451,55 @@ state correctly, but several commands still re-parsed event payload fields with
 local casts. The fix was to make the core event layer own `ThreadChannelEvent`
 and `isThreadEvent`, make `reduceChannelMetadata` the only channel metadata
 projection, and make `reduceThreads` the only thread replay reducer.
+
+---
+
+## Backend Relative Resource URLs Must Be Reachable From Every Frontend Entry
+
+后端返回**相对资源路径**（如 `avatar_url: "/uploads/avatars/1_xxx.jpg"`）时，
+该路径的「可达性」是 Backend ↔ Frontend 的隐式契约：任何把相对路径直接
+绑定到 `:src` / `href` 的消费端（dev server、生产 nginx、其他网关）都必须
+把它转发到后端静态服务，否则浏览器拿到的是前端自己的回退页。
+
+### Checklist: 后端新增/修改相对路径资源时
+
+- [ ] 后端挂载静态服务：`app.static("/uploads/", settings.file_storage_path, ...)`（main.py）
+- [ ] 认证中间件放行静态前缀（`request.path.startswith("/uploads/")`）
+- [ ] **开发环境**：`frontend/vite.config.ts` 的 `server.proxy` 增加
+      `'/uploads': { target: 'http://localhost:8000', changeOrigin: true }`
+      —— 只配 `/api` 是常见遗漏
+- [ ] **生产环境**：nginx 增加 `location /uploads/ { proxy_pass ...; }`
+      （`deploy/docker/frontend-nginx.conf`）
+- [ ] 任何其他前端入口（二级网关、预览站点）同样需要转发规则
+- [ ] 验证时**必须检查响应 Content-Type**，不能只看 HTTP 200：
+      SPA fallback 也会返回 200，但 `text/html` 会让 `<img>` 破图
+
+### Real-world example (2026-09-17)
+
+头像上传链路：后端 `upload_avatar` 返回相对路径
+`/uploads/avatars/{user_id}_{uuid}.jpg` 并写入 `users.avatar_url`；
+前端 `Profile.vue` 把 `formData.avatar_url` 直接绑到 `<img :src>`。
+
+**现象**：上传成功（Message 提示成功、DB 已更新），但个人信息页头像
+仍显示默认首字母 —— `<img>` 请求 `http://localhost:5173/uploads/...` 返回
+`200 text/html`（vite SPA fallback 的 index.html），破图。
+
+**根因**：`vite.config.ts` 的 proxy 只配了 `/api`，缺 `/uploads`；
+生产 nginx 有 `location /uploads/`（`deploy/docker/frontend-nginx.conf`），
+所以**生产正常、开发必现** —— 同一份代码两套入口行为不一致。
+
+**修复**：`vite.config.ts` proxy 增加 `'/uploads'` 转发（与 nginx 同构），
+vite 检测到配置变更自动重启后立即可用。
+
+**可复用的验证手法**：
+
+```bash
+# 对比 dev 代理与后端直连的 Content-Type（不要只看状态码）
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" http://localhost:5173/uploads/avatars/x.jpg
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" http://localhost:8000/uploads/avatars/x.jpg
+# 期望两侧一致：200 image/jpeg；修复前 dev 侧为 200 text/html
+```
+
+> **教训**：后端返回相对路径 ≠ 前端能用。路径的解析终点由**消费端入口**决定
+> （vite proxy / nginx location / 其他网关），改资源 URL 契约时必须逐入口核对
+> 转发规则，且验证断言 Content-Type 而非仅 HTTP 200。
