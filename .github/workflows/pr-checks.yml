@@ -438,6 +438,7 @@ jobs:
 
     steps:
       - name: Check all jobs passed
+        id: check
         run: |
           echo "========================================="
           echo "PR Quality Gate Results"
@@ -457,6 +458,7 @@ jobs:
              [ "${{ needs.migration-gate.result }}" != "success" ] || \
              [ "${{ needs.frontend-build.result }}" != "success" ]; then
             echo "❌ PR quality gate failed"
+            echo "result=failed" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -469,3 +471,46 @@ jobs:
           echo "   Unit tests (360) + Integration tests (~186) both run before merge"
 
           echo "✅ All PR quality checks passed"
+          echo "result=passed" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------
+      # 验收记录：把本次 PR 的质量门禁结论写入 STEP_SUMMARY 并上传，
+      # 使验收结论随运行落盘、仓库内可复核（对应可靠交付验收证据）。
+      # ------------------------------------------------------------
+      - name: Write acceptance record
+        id: acceptance
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          COMMIT_SHA: ${{ github.sha }}
+          GATE_RESULT: ${{ steps.check.outputs.result }}
+        run: |
+          RECORD_FILE="${RUNNER_TEMP:-/tmp}/pr-acceptance-summary.md"
+          {
+            echo "## PR 质量门禁验收记录"
+            echo ""
+            echo "- PR: ${PR_NUMBER} (${PR_TITLE})"
+            echo "- 提交: ${COMMIT_SHA}"
+            echo "- 结论: ${GATE_RESULT}"
+            echo "- 时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "| 检查 | 结果 |"
+            echo "|---|---|"
+            echo "| Quick Checks | ${{ needs.quick-checks.result }} |"
+            echo "| Backend Tests | ${{ needs.backend-tests.result }} |"
+            echo "| Backend Integration Tests | ${{ needs.backend-integration-tests.result }} |"
+            echo "| Migration Gate | ${{ needs.migration-gate.result }} |"
+            echo "| Frontend Build | ${{ needs.frontend-build.result }} |"
+            echo "| E2E Tests | ${{ needs.e2e-tests.result }} |"
+          } | tee "$RECORD_FILE" >> "$GITHUB_STEP_SUMMARY"
+          echo "record_file=$RECORD_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload acceptance record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-acceptance-record
+          path: ${{ steps.acceptance.outputs.record_file }}
+          retention-days: 30
+          if-no-files-found: warn
