@@ -712,6 +712,11 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+/* 表头字号与正文一致（全局 12px 覆盖为 14px，仅本页） */
+:deep(.arco-table-th) {
+  font-size: 14px !important;
+}
+
 @media (max-width: 1200px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
