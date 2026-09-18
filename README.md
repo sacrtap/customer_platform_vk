@@ -429,6 +429,21 @@ npm run test:e2e:report
 
 ⚠️ **注意**: 以下后端命令需在激活虚拟环境后执行
 
+### 工具脚本
+
+#### Better Harness Inspector（会话洞察）
+
+生成 [Better Harness](https://github.com/QoderAI/better-harness) Harness Inspector 页面，汇总当前仓库最近 15 天（含今天）的 Agent 会话证据（OMP/Codex 等全部支持宿主），并自动打开浏览器：
+
+```bash
+./scripts/better-harness-inspector.sh
+```
+
+**说明**：
+- 输出到 `docs/better-harness/better-harness-inspector/inspector.html`（目录自动创建；产物已被 `.gitignore` 排除，不入库）
+- 通过 pi adapter 读取 OMP 会话（`~/.omp/agent`），需要 `@qoder-ai/better-harness >= 0.7.0-alpha1`（含 OMP 支持；官方 npm `latest`=0.6.6 不含）。脚本优先使用本地 omp 插件包，缺失时自动回退 `npx` 拉取指定版本
+- 时间窗口：最近 15 天（含今天）；`--platform all` 扫描全部宿主，无会话数据的宿主显示 no-evidence 属正常
+
 ### 后端命令
 
 ```bash
