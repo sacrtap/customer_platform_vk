@@ -7,7 +7,7 @@
 # 说明：
 #   - --workspace 自动探测为当前仓库根目录，无需指定
 #   - --platform all 扫描全部支持宿主（pi/codex/claude/qwen 等），无数据的宿主显示 no-evidence 属正常
-#   - 输出到默认位置 .qoder/better-harness-runs/harness-inspector/inspector.html 并自动打开
+#   - 输出到 docs/better-harness/better-harness-inspector/inspector.html 并自动打开
 
 set -euo pipefail
 
@@ -20,6 +20,10 @@ fi
 # OMP agent 目录：优先尊重外部已设置的变量，否则默认 ~/.omp/agent
 # 注意：必须为绝对路径（shell 前缀赋值中 ~ 不展开，pi adapter 无法解析）
 export PI_CODING_AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
+
+# 输出目录与文件：docs/better-harness/better-harness-inspector/（目录不存在时 CLI 会自动创建）
+OUT_DIR="$ROOT_DIR/docs/better-harness/better-harness-inspector"
+OUT_FILE="$OUT_DIR/inspector.html"
 
 # 时间窗口：最近 15 天（含今天），即 since = 今天 - 14 天
 if date -v-1d +%Y-%m-%d >/dev/null 2>&1; then
@@ -37,6 +41,7 @@ echo "  workspace   : $ROOT_DIR"
 echo "  platform    : all"
 echo "  window      : $SINCE ~ $UNTIL (15 days)"
 echo "  agent dir   : $PI_CODING_AGENT_DIR"
+echo "  output      : $OUT_FILE"
 
 if [ -f "$BETTER_HARNESS_BIN" ]; then
   node "$BETTER_HARNESS_BIN" inspector \
@@ -46,6 +51,7 @@ if [ -f "$BETTER_HARNESS_BIN" ]; then
     --until "$UNTIL" \
     --max-sessions 300 \
     --commits 300 \
+    --out "$OUT_FILE" \
     --open
 else
   npx -y @qoder-ai/better-harness@0.7.0-alpha1 inspector \
@@ -55,5 +61,6 @@ else
     --until "$UNTIL" \
     --max-sessions 300 \
     --commits 300 \
+    --out "$OUT_FILE" \
     --open
 fi

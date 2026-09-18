@@ -162,3 +162,6 @@ docs/visual-diff/
 
 # Context-Mode Test
 banks/
+
+# better-harness inspector 运行产物（每次运行覆盖）
+docs/better-harness/better-harness-inspector/
