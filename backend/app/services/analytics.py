@@ -223,10 +223,14 @@ class AnalyticsService:
             DailyConsumption.consumption_date
         )
 
+        # 消耗日期：consumption_date 存 UTC datetime（本地日期的 UTC 起点），
+        # 转回 CST 本地日期（YYYY-MM-DD）返回，避免前端显示 ISO 串与日期偏移一天
+        from ..utils.timezone import utc_to_cst_date_str
+
         result = (await self.db.execute(stmt)).all()
         trend_data = [
             {
-                "date": row.date.isoformat(),
+                "date": utc_to_cst_date_str(row.date) if row.date else None,
                 "order_count": int(row.order_count) if row.order_count else 0,
                 "cost": float(row.cost) if row.cost else 0.0,
             }
