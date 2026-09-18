@@ -62,13 +62,13 @@ class TestGetSyncTaskDetails:
         count_result = MagicMock()
         count_result.scalar.return_value = 4
 
-        # 明细列表
+        # 明细列表（查询左连客户表，返回 (detail, is_settlement_enabled, account_type, company_id) 元组）
         list_result = MagicMock()
-        list_result.scalars.return_value.all.return_value = [
-            make_detail(1, "info", customer_id=1, customer_name="客户A"),
-            make_detail(2, "warning"),
-            make_detail(3, "error"),
-            make_detail(4, "info", customer_id=2, customer_name="客户B"),
+        list_result.all.return_value = [
+            (make_detail(1, "info", customer_id=1, customer_name="客户A"), True, "正式账号", 10086),
+            (make_detail(2, "warning"), False, "客户测试账号", 10087),
+            (make_detail(3, "error"), None, None, None),
+            (make_detail(4, "info", customer_id=2, customer_name="客户B"), True, "正式账号", 10088),
         ]
 
         mock_request.ctx.db_session.execute = AsyncMock(
@@ -95,6 +95,9 @@ class TestGetSyncTaskDetails:
         assert first["level"] == "info"
         assert first["customer_id"] == 1
         assert first["customer_name"] == "客户A"
+        assert first["is_settlement_enabled"] is True
+        assert first["account_type"] == "正式账号"
+        assert first["company_id"] == 10086
         # warning 明细含外部标识
         warning = data["list"][1]
         assert warning["external_customer_id"] == "10086"
@@ -115,7 +118,7 @@ class TestGetSyncTaskDetails:
         count_result.scalar.return_value = 1
 
         list_result = MagicMock()
-        list_result.scalars.return_value.all.return_value = [make_detail(2, "warning")]
+        list_result.all.return_value = [(make_detail(2, "warning"), False, "客户测试账号", 10087)]
 
         mock_request.ctx.db_session.execute = AsyncMock(
             side_effect=[summary_result, count_result, list_result]
@@ -141,7 +144,7 @@ class TestGetSyncTaskDetails:
         count_result.scalar.return_value = 0
 
         list_result = MagicMock()
-        list_result.scalars.return_value.all.return_value = []
+        list_result.all.return_value = []
 
         mock_request.ctx.db_session.execute = AsyncMock(
             side_effect=[summary_result, count_result, list_result]

@@ -295,6 +295,9 @@ async def get_sync_task_details(request: Request, task_id: UUID):
 
     Query Params:
         level: 级别筛选 (info/warning/error，可选)
+        type: 类型筛选 (order/cost，可选)
+        is_settled: 是否结算筛选 (all/true/false，可选)
+        keyword: 公司ID/名称搜索 (可选)
         page: 页码 (default: 1)
         page_size: 每页数量 (default: 20)
 
@@ -309,16 +312,20 @@ async def get_sync_task_details(request: Request, task_id: UUID):
         }
     """
     try:
-        from sqlalchemy import case, func, select
+        from sqlalchemy import case, func, or_, select
         from sqlalchemy import desc as sa_desc
 
         from app.models.billing import SyncTaskLogDetail
+        from app.models.customers import Customer
 
         session = request.ctx.db_session
 
         page = int(request.args.get("page", 1))
         page_size = int(request.args.get("page_size", 20))
         level = request.args.get("level")
+        detail_type = request.args.get("type")
+        is_settled = request.args.get("is_settled")
+        keyword = request.args.get("keyword")
 
         # 全量汇总（不受 level 过滤影响）
         summary_result = await session.execute(
@@ -335,20 +342,64 @@ async def get_sync_task_details(request: Request, task_id: UUID):
         error_count = srow[2] or 0
         total_count = srow[3] or 0
 
-        # 明细查询（level 过滤 + 分页）
-        query = select(SyncTaskLogDetail).where(SyncTaskLogDetail.task_id == task_id)
+        # 明细查询（多条件过滤 + 分页），左连客户表取结算/账号类型
+        query = (
+            select(
+                SyncTaskLogDetail,
+                Customer.is_settlement_enabled,
+                Customer.account_type,
+                Customer.company_id,
+            )
+            .outerjoin(Customer, SyncTaskLogDetail.customer_id == Customer.id)
+            .where(SyncTaskLogDetail.task_id == task_id)
+        )
         count_query = select(func.count(SyncTaskLogDetail.id)).where(
             SyncTaskLogDetail.task_id == task_id
         )
+
+        # 级别过滤
         if level:
             query = query.where(SyncTaskLogDetail.level == level)
             count_query = count_query.where(SyncTaskLogDetail.level == level)
 
+        # 类型过滤（category 归类）
+        if detail_type in ("order", "cost"):
+            categories = (
+                ("order_fetch", "order_match", "order_save")
+                if detail_type == "order"
+                else ("cost_calc", "data_check")
+            )
+            query = query.where(SyncTaskLogDetail.category.in_(categories))
+            count_query = count_query.where(SyncTaskLogDetail.category.in_(categories))
+
+        # 是否结算过滤（all/缺省不筛；true/false 需排除无客户记录）
+        if is_settled in ("true", "false"):
+            settled_cond = (
+                Customer.is_settlement_enabled.is_(True)
+                if is_settled == "true"
+                else Customer.is_settlement_enabled.is_(False)
+            )
+            query = query.where(settled_cond)
+            count_query = count_query.outerjoin(
+                Customer, SyncTaskLogDetail.customer_id == Customer.id
+            ).where(settled_cond)
+
+        # 公司ID/名称搜索
+        if keyword:
+            like = f"%{keyword}%"
+            keyword_cond = or_(
+                SyncTaskLogDetail.external_customer_id.ilike(like),
+                SyncTaskLogDetail.customer_name.ilike(like),
+                SyncTaskLogDetail.company_name.ilike(like),
+            )
+            query = query.where(keyword_cond)
+            count_query = count_query.where(keyword_cond)
+
         filtered_total = (await session.execute(count_query)).scalar() or 0
 
-        query = query.order_by(sa_desc(SyncTaskLogDetail.id))
+        query = query.order_by(sa_desc(SyncTaskLogDetail.sync_date), sa_desc(SyncTaskLogDetail.id))
         query = query.limit(page_size).offset((page - 1) * page_size)
-        details = (await session.execute(query)).scalars().all()
+        rows = (await session.execute(query)).all()
 
         return json(
             {
@@ -373,9 +424,12 @@ async def get_sync_task_details(request: Request, task_id: UUID):
                             "company_name": d.company_name,
                             "order_code": d.order_code,
                             "record_count": d.record_count,
+                            "is_settlement_enabled": is_settlement_enabled,
+                            "account_type": account_type,
+                            "company_id": company_id,
                             "created_at": d.created_at.isoformat() if d.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                         }
-                        for d in details
+                        for d, is_settlement_enabled, account_type, company_id in rows
                     ],
                     "pagination": {
                         "page": page,

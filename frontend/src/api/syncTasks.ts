@@ -43,6 +43,9 @@ export interface SyncLogDetail {
   company_name: string | null
   order_code: string | null
   record_count: number
+  is_settlement_enabled: boolean | null
+  account_type: string | null
+  company_id: number | null
   created_at: string | null
 }
 
@@ -115,7 +118,14 @@ export async function getSyncTaskStats(): Promise<SyncTaskStats> {
 
 export async function getSyncTaskDetails(
   taskId: string,
-  params?: { level?: string; page?: number; page_size?: number }
+  params?: {
+    level?: string
+    type?: string
+    is_settled?: string
+    keyword?: string
+    page?: number
+    page_size?: number
+  }
 ): Promise<SyncLogDetailResponse> {
   const res = await request.get(`/sync-tasks/${taskId}/details`, { params })
   return res.data
