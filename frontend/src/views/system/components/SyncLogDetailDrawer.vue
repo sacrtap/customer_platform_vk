@@ -103,7 +103,7 @@
         @page-size-change="handlePageSizeChange"
       >
         <template #sync_date="{ record }">
-          <span v-if="record._isDateGroupFirst">{{ record.sync_date }}</span>
+          <span>{{ record.sync_date }}</span>
         </template>
         <template #level="{ record }">
           <a-tag :color="levelColor(record.level)">{{ levelText(record.level) }}</a-tag>
@@ -200,7 +200,6 @@ const pagination = reactive({
 const shortTaskId = computed(() => (props.task ? props.task.task_id.substring(0, 8) : ''))
 
 interface DisplayDetail extends SyncLogDetail {
-  _isDateGroupFirst: boolean
   _isDateGroupLast: boolean
   _dateSubtotal: number
 }
@@ -220,7 +219,6 @@ const displayDetails = computed<DisplayDetail[]>(() => {
     seen.set(d.sync_date, idx + 1)
     return {
       ...d,
-      _isDateGroupFirst: idx === 0,
       _isDateGroupLast: idx === (counts.get(d.sync_date) ?? 1) - 1,
       _dateSubtotal: totals.get(d.sync_date) ?? d.record_count,
     }
