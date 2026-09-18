@@ -42,6 +42,7 @@
             v-if="canEditSchedule"
             v-model="schedule.sync_time"
             format="HH:mm"
+            value-format="HH:mm"
             :disabled="savingSchedule"
             style="width: 140px"
           />
@@ -64,15 +65,7 @@
         </div>
         <div class="schedule-item schedule-next">
           <span class="schedule-label">下次执行</span>
-          <span class="schedule-value">
-            {{
-              schedule.next_run_time
-                ? formatDate(schedule.next_run_time)
-                : schedule.enabled
-                  ? '已注册'
-                  : '未启用'
-            }}
-          </span>
+          <span class="schedule-value">{{ getNextRunText() }}</span>
         </div>
         <a-button
           v-if="canEditSchedule"
@@ -181,7 +174,9 @@
           {{ record.completed_at ? formatDate(record.completed_at) : '-' }}
         </template>
         <template #operator="{ record }">
-          <span v-if="record.operator_id == null">系统自动</span>
+          <span v-if="record.operator_id === null || record.operator_id === undefined"
+            >系统自动</span
+          >
           <span v-else>{{ record.operator_name || '-' }}</span>
         </template>
         <template #execution_info="{ record }">
@@ -367,17 +362,28 @@ const formatDate = (dateStr: string) => {
   return dateStr.replace('T', ' ').substring(0, 19)
 }
 
+const getNextRunText = () => {
+  if (schedule.next_run_time) return formatDate(schedule.next_run_time)
+  return schedule.enabled ? '已注册' : '未启用'
+}
+
 const getExecutionColor = (record: Task) => {
+  if (record.status === 'cancelled') return 'gray'
   const status = record.execution_status
   if (status === 'error') return 'red'
   if (status === 'warning') return 'gold'
+  // 兜底：历史任务无明细时 completed + failed_count>0 不应显示绿色"正常"
+  if (record.status === 'completed' && (record.failed_count ?? 0) > 0) return 'gold'
   return 'green'
 }
 
 const getExecutionText = (record: Task) => {
+  if (record.status === 'cancelled') return '已取消'
   const status = record.execution_status
   if (status === 'error') return '错误'
   if (status === 'warning') return '警告'
+  // 兜底：completed + failed_count>0 回退为"警告"
+  if (record.status === 'completed' && (record.failed_count ?? 0) > 0) return '警告'
   return '正常'
 }
 

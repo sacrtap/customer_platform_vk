@@ -35,11 +35,11 @@ export function parseTiers(raw: unknown): Tier[] {
   }
 
   return arr
-    .filter((t) => t.min != null && t.price != null)
     .map((t) => ({
-      min: t.min ?? 0,
+      // 缺字段回退默认值（与旧实现 Number(x)||0 语义一致），不丢弃条目
+      min: Number(t.min) || 0,
       max: t.max ?? null,
-      price: t.price ?? 0,
+      price: Number(t.price) || 0,
     }))
     .sort((a, b) => a.min - b.min)
 }

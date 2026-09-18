@@ -161,6 +161,13 @@ async def clear_customer_data(request: Request):
             text("DELETE FROM customer_profiles WHERE customer_id IN (SELECT id FROM customers)")
         )
 
+        # 11.5 同步执行明细（customer_id 外键引用 customers，需在客户主表删除前清理）
+        await db_session.execute(
+            text(
+                "DELETE FROM sync_task_log_details WHERE customer_id IN (SELECT id FROM customers)"
+            )
+        )
+
         # 12. 客户主表
         await db_session.execute(text("DELETE FROM customers"))
 

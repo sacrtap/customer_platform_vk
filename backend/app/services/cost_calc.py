@@ -13,6 +13,7 @@ from app.models.daily_consumption import DailyConsumption
 from app.models.daily_order import DailyOrder
 from app.services.dto import SyncDetail
 from app.utils.tiers import TierFormatError, normalize_tiers
+from app.utils.timezone import CST
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,9 @@ class CostCalcService:
             if detail_collector is not None:
                 detail_collector.append(
                     SyncDetail(
-                        sync_date=consumption_date.date(),
+                        # consumption_date 为 UTC datetime（本地日期的 UTC 起点），
+                        # 转回 CST 本地日期与任务级明细保持一致
+                        sync_date=consumption_date.astimezone(CST).date(),
                         level=level,
                         category="cost_calc",
                         message=message,

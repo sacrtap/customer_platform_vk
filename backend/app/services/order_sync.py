@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from app.models.customers import Customer
 from app.models.daily_order import DailyOrder
 from app.services.dto import SyncDetail, SyncResult
+from app.utils.timezone import CST
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class OrderSyncService:
             if detail_collector is not None:
                 detail_collector.append(
                     SyncDetail(
-                        sync_date=sync_date.date(),
+                        sync_date=sync_date.astimezone(CST).date(),
                         level="error",
                         category="order_fetch",
                         message=f"外部数据源拉取订单失败: {type(e).__name__}: {e}",
@@ -246,7 +247,9 @@ class OrderSyncService:
             if detail_collector is not None:
                 detail_collector.append(
                     SyncDetail(
-                        sync_date=sync_date.date(),
+                        # sync_date 为 UTC datetime（本地日期的 UTC 起点），
+                        # 须转回 CST 本地日期与任务级明细（task.start_date 本地 date）保持一致
+                        sync_date=sync_date.astimezone(CST).date(),
                         level=level,
                         category=category,
                         message=message,

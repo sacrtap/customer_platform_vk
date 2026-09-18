@@ -276,7 +276,7 @@ def register_sync_daily_auto(
             yesterday = date.today() - timedelta(days=1)
 
             from ..cache.base import cache_service
-            from ..services.sync_task_service import SyncTaskService
+            from ..services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
 
             redis_client = await cache_service._get_redis()
             service = SyncTaskService(
@@ -292,11 +292,11 @@ def register_sync_daily_auto(
                     operator_id=None,  # 系统自动触发
                 )
                 await service.execute_task(task.id)
-            except Exception as e:
+            except DuplicateSyncTaskError as e:
                 # 与手动任务同日冲突：跳过本次，不视为调度失败
-                if "已有相同周期的同步任务正在执行" in str(e):
-                    logger.warning(f"每日自动同步跳过（同日已有任务执行中）: {e}")
-                    return
+                logger.warning("每日自动同步跳过（同日已有任务执行中）: %s", e)
+                return
+            except Exception:
                 raise
 
     scheduler.add_job(

@@ -928,7 +928,9 @@ class AnalyticsService:
             for row in result
         ]
 
-    async def get_inactive_customers(self, days: int = 30) -> List[Dict[str, Any]]:
+    async def get_inactive_customers(
+        self, days: int = 30, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取长期未消耗客户列表
 
         基于 DailyConsumption 表查找：曾经有消耗记录但最近 N 天无消耗的客户。
@@ -981,6 +983,8 @@ class AnalyticsService:
             )
             .order_by(last_usage_subq.c.last_date.asc())
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
 
         now = datetime.utcnow().date()
         result = (await self.db.execute(stmt)).all()
@@ -2652,6 +2656,15 @@ class AnalyticsService:
         )
 
         # 余额信息（LEFT JOIN 保留无余额记录客户）
+        # 余额风险判定下沉 SQL：余额缺失（无余额记录）优先，其次余额不足（<1000 元）
+        remaining_expr = func.coalesce(CustomerBalance.real_amount, 0) + func.coalesce(
+            CustomerBalance.bonus_amount, 0
+        )
+        balance_missing = and_(
+            CustomerBalance.real_amount.is_(None),
+            CustomerBalance.bonus_amount.is_(None),
+        )
+        risk_score = case((balance_missing, 50), else_=30)
         stmt = (
             select(
                 Customer.id,
@@ -2660,6 +2673,7 @@ class AnalyticsService:
                 User.real_name.label("manager_name"),
                 CustomerBalance.real_amount,
                 CustomerBalance.bonus_amount,
+                risk_score.label("risk_score"),
             )
             .join(active_ids_stmt, Customer.id == active_ids_stmt.c.customer_id)
             .outerjoin(User, Customer.manager_id == User.id)
@@ -2670,9 +2684,14 @@ class AnalyticsService:
                     CustomerBalance.deleted_at.is_(None),
                 ),
             )
-            .where(Customer.deleted_at.is_(None))
-            .order_by(Customer.id)
-            .limit(limit * 3)  # 多取一些供筛选
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    or_(balance_missing, remaining_expr < 1000),
+                )
+            )
+            .order_by(risk_score.desc(), Customer.id)
+            .limit(limit)
         )
         result = (await self.db.execute(stmt)).all()
 
@@ -2685,7 +2704,7 @@ class AnalyticsService:
             elif remaining < 1000:
                 risk_type, score = "余额不足", 30
             else:
-                continue  # 余额充足，非风险
+                continue  # 余额充足（防御：SQL 已过滤）
             customers.append(
                 {
                     "customer_id": row.id,
@@ -2695,12 +2714,10 @@ class AnalyticsService:
                     "manager_name": row.manager_name or "未分配",
                 }
             )
-            if len(customers) >= limit:
-                break
 
         # 补充流失风险客户（曾有消耗但近 90 天无消耗）
         if len(customers) < limit:
-            inactive = await self.get_inactive_customers(days=90)
+            inactive = await self.get_inactive_customers(days=90, limit=limit - len(customers))
             existing_ids = {c["customer_id"] for c in customers}
             for ic in inactive:
                 if ic["customer_id"] in existing_ids:

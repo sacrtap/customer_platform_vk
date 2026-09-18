@@ -222,7 +222,7 @@ async def manual_sync_consumption(request: Request):
 
     from datetime import date, timedelta
 
-    from ..services.sync_task_service import SyncTaskService
+    from ..services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
 
     db_session = request.ctx.db_session
 
@@ -269,13 +269,18 @@ async def manual_sync_consumption(request: Request):
         async_session_maker = request.app.ctx.async_session_maker
 
         async def run_task():
-            async with async_session_maker() as new_session:
-                bg_service = SyncTaskService(
-                    db=new_session,
-                    redis_client=redis_client,
-                    external_engine=external_engine,
-                )
-                await bg_service.execute_task(task.id)  # pyright: ignore[reportArgumentType]
+            try:
+                async with async_session_maker() as new_session:
+                    bg_service = SyncTaskService(
+                        db=new_session,
+                        redis_client=redis_client,
+                        external_engine=external_engine,
+                    )
+                    await bg_service.execute_task(task.id)  # pyright: ignore[reportArgumentType]
+            except Exception as e:
+                # execute_task 内部 try/finally 之外的失败（session 创建/连接异常等）
+                # 会被 asyncio 默认处理器吞掉，调用方无感知；此处记录日志便于排查
+                logger.error("后台同步任务执行异常（task_id=%s）: %s", task.id, e, exc_info=True)
 
         request.app.add_task(run_task())
 
@@ -289,10 +294,10 @@ async def manual_sync_consumption(request: Request):
                 },
             }
         )
+    except DuplicateSyncTaskError as e:
+        return json({"code": 409, "message": str(e)}, status=409)
     except Exception as e:
-        if "已有相同周期的同步任务正在执行" in str(e):
-            return json({"code": 409, "message": str(e)}, status=409)
-        logger.error(f"创建同步任务失败: {e}")
+        logger.error("创建同步任务失败: %s", e)
         return json({"code": 500, "message": f"同步失败：{str(e)}"}, status=500)
     finally:
         # 释放锁

@@ -9,7 +9,7 @@ from sanic.response import json
 
 from app.cache.base import cache_service
 from app.middleware.auth import auth_required
-from app.services.sync_task_service import SyncTaskService
+from app.services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
 
 logger = logging.getLogger(__name__)
 
@@ -178,13 +178,13 @@ async def create_sync_task(request: Request):
 
     except ValueError as e:
         return json({"code": 400, "message": str(e)}, status=400)
+    except DuplicateSyncTaskError as e:
+        return json({"code": 409, "message": str(e)}, status=409)
     except Exception as e:
-        if "已有相同周期的同步任务正在执行" in str(e):
-            return json({"code": 409, "message": str(e)}, status=409)
         # Redis 连接异常给出友好提示
         err_str = str(e)
         if "connecting to" in err_str and "6379" in err_str:
-            logger.error(f"创建同步任务失败（Redis 不可用）: {e}")
+            logger.error("创建同步任务失败（Redis 不可用）: %s", e)
             return json(
                 {
                     "code": 503,
@@ -192,7 +192,7 @@ async def create_sync_task(request: Request):
                 },
                 status=503,
             )
-        logger.error(f"创建同步任务失败: {e}")
+        logger.error("创建同步任务失败: %s", e)
         return json({"code": 500, "message": f"创建任务失败: {err_str}"}, status=500)
 
 

@@ -262,7 +262,6 @@ class SyncTaskLogDetail(BaseModel):
         UUID(as_uuid=True),
         ForeignKey("sync_tasks.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
         comment="任务ID",
     )
     sync_date = Column(Date, nullable=False, comment="明细所属同步日期")

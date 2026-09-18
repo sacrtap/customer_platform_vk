@@ -1457,7 +1457,18 @@ async def import_invoices(request: Request):
         # 读取 Excel 文件（自动丢弃模板第 2 行的中文说明行）。
         # pd.read_excel 是 CPU+I/O 密集的同步调用，10MB xlsx 可阻塞事件循环数百毫秒至数秒，
         # 与 packages/pricing/imports 三处导入端点保持一致的 to_thread 处理。
-        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
+        try:
+            df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
+        except Exception as e:
+            # 客户端可控输入：损坏/伪 xlsx（BadZipFile 等）应返回可读的 400，而非 500
+            logger.warning("结算单导入文件解析失败: %s", e)
+            return json(
+                {
+                    "code": ErrorCodes.INVALID_FILE,
+                    "message": "文件无法解析，请确认是有效的 .xlsx 文件（未加密、未损坏）",
+                },
+                status=400,
+            )
 
         # 必填列检查
         required_columns = ["company_id", "period_start", "period_end", "total_amount"]
@@ -1468,6 +1479,13 @@ async def import_invoices(request: Request):
                     "code": ErrorCodes.INVALID_FILE,
                     "message": f"Excel 缺少必填列：{', '.join(missing_columns)}",
                 },
+                status=400,
+            )
+
+        # 空文件检查：仅有表头（无数据行）时直接拒绝，避免虚假的导入成功反馈
+        if df.empty:
+            return json(
+                {"code": ErrorCodes.INVALID_FILE, "message": "文件中没有可导入的数据"},
                 status=400,
             )
 

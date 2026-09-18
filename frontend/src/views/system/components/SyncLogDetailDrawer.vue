@@ -18,7 +18,9 @@
           <span>周期：{{ task.start_date }} ~ {{ task.end_date }}</span>
           <span>模式：{{ task.sync_mode === 'skip_existing' ? '仅同步无数据' : '强制覆盖' }}</span>
           <span v-if="task.operator_name">操作人：{{ task.operator_name }}</span>
-          <span v-else-if="task.operator_id == null">操作人：系统自动</span>
+          <span v-else-if="task.operator_id === null || task.operator_id === undefined"
+            >操作人：系统自动</span
+          >
         </div>
 
         <!-- 统计概览 -->
@@ -81,7 +83,6 @@
             {{ record.customer_id
             }}<span v-if="record.customer_name"> · {{ record.customer_name }}</span>
           </span>
-          <span v-else-if="record.external_customer_id || record.company_name">-</span>
           <span v-else>-</span>
         </template>
         <template #external="{ record }">
@@ -102,8 +103,13 @@
         </template>
       </a-table>
 
-      <div v-if="!loading && summary.total_count === 0" class="empty-tip">
-        该任务无执行明细记录（历史任务）
+      <div v-if="loadError && !loading" class="empty-tip error">加载执行明细失败，请稍后重试</div>
+      <div v-else-if="!loading && summary.total_count === 0" class="empty-tip">
+        <template v-if="task.error_message">
+          <div class="empty-title">该任务无执行明细记录（历史任务）</div>
+          <div class="empty-error">任务错误信息：{{ task.error_message }}</div>
+        </template>
+        <template v-else>该任务无执行明细记录（历史任务）</template>
       </div>
     </template>
   </a-drawer>
@@ -123,13 +129,14 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const loadError = ref(false)
 const details = ref<SyncLogDetail[]>([])
 const filterLevel = ref('')
 
 const summary = reactive({
-  info_count: 0,
-  warning_count: 0,
-  error_count: 0,
+  info_count: null as number | null,
+  warning_count: null as number | null,
+  error_count: null as number | null,
   total_count: 0,
 })
 
@@ -206,6 +213,7 @@ const getStatusText = (status: string) => {
 const fetchDetails = async () => {
   if (!props.task) return
   loading.value = true
+  loadError.value = false
   try {
     const data = await getSyncTaskDetails(props.task.task_id, {
       level: filterLevel.value || undefined,
@@ -220,6 +228,7 @@ const fetchDetails = async () => {
     pagination.total = data.pagination.total
   } catch (error) {
     console.error('获取执行明细失败:', error)
+    loadError.value = true
   } finally {
     loading.value = false
   }
@@ -246,8 +255,8 @@ const handleClose = () => {
 }
 
 watch(
-  () => props.visible,
-  (visible) => {
+  () => [props.visible, props.task?.task_id],
+  ([visible]) => {
     if (visible && props.task) {
       filterLevel.value = ''
       pagination.current = 1

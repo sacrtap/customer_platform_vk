@@ -298,8 +298,11 @@ const handleExport = async () => {
     link.download = `pricing_rules_${new Date().toISOString().slice(0, 10)}.xlsx`
     document.body.appendChild(link)
     link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    // 延迟回收：Safari/Firefox 可能在下载启动前撤销 object URL 导致下载失败
+    setTimeout(() => {
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    }, 1000)
     Message.success('导出成功')
   } catch (err: unknown) {
     Message.error((err as Error)?.message || '导出失败')
@@ -414,7 +417,7 @@ const formatTiersTooltip = (tiers: unknown): string => {
   if (ranges.length === 0) return '未配置阶梯'
   return ranges
     .map((r) => {
-      const maxStr = r.max == null ? '不限' : r.max
+      const maxStr = r.max === null ? '不限' : r.max
       return `${r.min}-${maxStr}: ¥${r.price}`
     })
     .join('\n')

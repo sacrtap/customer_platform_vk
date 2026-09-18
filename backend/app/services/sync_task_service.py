@@ -20,6 +20,10 @@ from app.utils.timezone import local_date_to_utc_start
 logger = logging.getLogger(__name__)
 
 
+class DuplicateSyncTaskError(Exception):
+    """相同周期的同步任务正在执行（活跃任务检测或 Redis 锁竞争）"""
+
+
 class SyncTaskService:
     """同步任务服务"""
 
@@ -113,7 +117,7 @@ class SyncTaskService:
 
             if truly_active:
                 # 确实有活跃任务在运行，拒绝创建
-                raise Exception("已有相同周期的同步任务正在执行")
+                raise DuplicateSyncTaskError("已有相同周期的同步任务正在执行")
 
         # 没有活跃任务，清理可能存在的过期锁
         await self.redis_client.delete(lock_key)  # pyright: ignore[reportOptionalMemberAccess]
@@ -127,7 +131,7 @@ class SyncTaskService:
         )
         if not lock_acquired:
             # 极端情况：并发竞争，锁刚被其他请求获取
-            raise Exception("已有相同周期的同步任务正在执行")
+            raise DuplicateSyncTaskError("已有相同周期的同步任务正在执行")
 
         try:
             # 创建任务记录

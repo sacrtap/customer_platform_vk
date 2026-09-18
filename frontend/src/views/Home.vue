@@ -344,6 +344,10 @@ const initChart = async (data: { dates: string[]; values: number[] }) => {
   }
 
   const isEmpty = data.dates.length === 0 || data.values.length === 0
+  // 计数型指标（客户数/健康风险数）不适用货币格式化
+  const isMoneyMetric = activeTrendTab.value === 'consume' || activeTrendTab.value === 'payment'
+  const formatAxisValue = (value: number) =>
+    isMoneyMetric ? `¥${(value / 10000).toFixed(0)}万` : String(Math.round(value))
 
   const option = {
     tooltip: {
@@ -351,6 +355,8 @@ const initChart = async (data: { dates: string[]; values: number[] }) => {
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#DBE3EF',
       textStyle: { color: '#0F172A' },
+      valueFormatter: (value: number) =>
+        isMoneyMetric ? `¥${value.toLocaleString()}` : String(value),
     },
     grid: {
       left: '3%',
@@ -373,7 +379,7 @@ const initChart = async (data: { dates: string[]; values: number[] }) => {
       splitLine: { lineStyle: { color: '#EDF2F7' } },
       axisLabel: {
         color: '#475569',
-        formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
+        formatter: formatAxisValue,
       },
     },
     series: [

@@ -74,7 +74,7 @@ async def get_sync_schedule(request: Request):
         config = await _get_or_create_config(db_session)
         return json({"code": 0, "message": "success", "data": _config_dict(config)})
     except Exception as e:
-        logger.error(f"获取定时同步配置失败: {e}")
+        logger.error("获取定时同步配置失败: %s", e)
         return json({"code": 500, "message": f"获取失败: {str(e)}"}, status=500)
 
 
@@ -85,7 +85,9 @@ async def update_sync_schedule(request: Request):
     """更新定时同步配置（部分更新，PUT 后立即动态调整调度）"""
     try:
         db_session = request.ctx.db_session
-        data = request.json or {}
+        data = request.json
+        if not isinstance(data, dict):
+            return json({"code": 400, "message": "请求体必须是 JSON 对象"}, status=400)
 
         config = await _get_or_create_config(db_session)
 
@@ -116,7 +118,7 @@ async def update_sync_schedule(request: Request):
         try:
             _reschedule_job(request, enabled, sync_time)
         except Exception as e:
-            logger.error(f"动态调整定时任务失败: {e}")
+            logger.error("动态调整定时任务失败: %s", e)
             # 配置已保存，调度调整失败不影响响应（下次启动会按配置注册）
             return json(
                 {
@@ -128,5 +130,5 @@ async def update_sync_schedule(request: Request):
 
         return json({"code": 0, "message": "配置已更新", "data": _config_dict(config)})
     except Exception as e:
-        logger.error(f"更新定时同步配置失败: {e}")
+        logger.error("更新定时同步配置失败: %s", e)
         return json({"code": 500, "message": f"更新失败: {str(e)}"}, status=500)
