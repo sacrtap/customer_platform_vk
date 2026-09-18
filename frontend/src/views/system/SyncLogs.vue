@@ -138,7 +138,9 @@
         <template #task_id="{ record }">
           {{ record.task_id.substring(0, 8) }}
         </template>
-        <template #period="{ record }"> {{ record.start_date }} ~ {{ record.end_date }} </template>
+        <template #period="{ record }">
+          <span class="period-cell">{{ record.start_date }} ~ {{ record.end_date }}</span>
+        </template>
         <template #sync_mode="{ record }">
           {{ record.sync_mode === 'skip_existing' ? '仅同步无数据' : '强制覆盖' }}
         </template>
@@ -273,41 +275,26 @@ const columns = [
   {
     title: '任务 ID',
     slotName: 'task_id',
-    width: 100,
+    width: 90,
   },
   {
     title: '同步周期',
     slotName: 'period',
-    width: 200,
+    width: 190,
   },
   {
     title: '同步模式',
     slotName: 'sync_mode',
-    width: 120,
+    width: 100,
   },
   {
     title: '状态',
     slotName: 'status',
-    width: 100,
+    width: 80,
   },
   {
     title: '进度',
     slotName: 'progress',
-    width: 180,
-  },
-  {
-    title: '创建时间',
-    slotName: 'created_at',
-    width: 180,
-  },
-  {
-    title: '完成时间',
-    slotName: 'completed_at',
-    width: 180,
-  },
-  {
-    title: '操作人',
-    slotName: 'operator',
     width: 120,
   },
   {
@@ -316,9 +303,24 @@ const columns = [
     width: 100,
   },
   {
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 150,
+  },
+  {
+    title: '完成时间',
+    slotName: 'completed_at',
+    width: 150,
+  },
+  {
+    title: '操作人',
+    slotName: 'operator',
+    width: 100,
+  },
+  {
     title: '操作',
     slotName: 'actions',
-    width: 120,
+    width: 100,
     fixed: 'right',
   },
 ]
@@ -703,6 +705,10 @@ onUnmounted(() => {
 .progress-text {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.period-cell {
   white-space: nowrap;
 }
 
