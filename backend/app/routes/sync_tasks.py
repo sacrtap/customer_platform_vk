@@ -312,7 +312,7 @@ async def get_sync_task_details(request: Request, task_id: UUID):
         }
     """
     try:
-        from sqlalchemy import case, func, or_, select
+        from sqlalchemy import String, case, func, or_, select
         from sqlalchemy import desc as sa_desc
 
         from app.models.billing import SyncTaskLogDetail
@@ -353,8 +353,10 @@ async def get_sync_task_details(request: Request, task_id: UUID):
             .outerjoin(Customer, SyncTaskLogDetail.customer_id == Customer.id)
             .where(SyncTaskLogDetail.task_id == task_id)
         )
-        count_query = select(func.count(SyncTaskLogDetail.id)).where(
-            SyncTaskLogDetail.task_id == task_id
+        count_query = (
+            select(func.count(SyncTaskLogDetail.id))
+            .outerjoin(Customer, SyncTaskLogDetail.customer_id == Customer.id)
+            .where(SyncTaskLogDetail.task_id == task_id)
         )
 
         # 级别过滤
@@ -380,14 +382,13 @@ async def get_sync_task_details(request: Request, task_id: UUID):
                 else Customer.is_settlement_enabled.is_(False)
             )
             query = query.where(settled_cond)
-            count_query = count_query.outerjoin(
-                Customer, SyncTaskLogDetail.customer_id == Customer.id
-            ).where(settled_cond)
+            count_query = count_query.where(settled_cond)
 
         # 公司ID/名称搜索
         if keyword:
             like = f"%{keyword}%"
             keyword_cond = or_(
+                func.cast(Customer.company_id, String).ilike(like),
                 SyncTaskLogDetail.external_customer_id.ilike(like),
                 SyncTaskLogDetail.customer_name.ilike(like),
                 SyncTaskLogDetail.company_name.ilike(like),
