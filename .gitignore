@@ -124,6 +124,9 @@ dmypy.json
 # omo
 .omo/
 
+# qoder（工具运行产物）
+.qoder/
+
 # Temporary
 *.tmp
 *.temp
