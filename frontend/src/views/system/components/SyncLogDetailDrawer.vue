@@ -154,9 +154,7 @@
           <span v-else>-</span>
         </template>
         <template #record_count="{ record }">
-          <span v-if="record._isDateGroupLast" class="subtotal">
-            当日小计 {{ record._dateSubtotal }}
-          </span>
+          <span v-if="record._isDateGroupLast" class="subtotal">{{ record._dateSubtotal }}</span>
           <span v-else-if="record.record_count > 1">{{ record.record_count }}</span>
           <span v-else>-</span>
         </template>
