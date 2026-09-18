@@ -59,6 +59,19 @@
               <a-option value="false">否</a-option>
             </a-select>
           </a-form-item>
+          <a-form-item label="账号类型">
+            <a-select
+              v-model="filterAccountType"
+              style="width: 130px"
+              allow-clear
+              @change="handleFilterChange"
+            >
+              <a-option value="">全部</a-option>
+              <a-option v-for="opt in ACCOUNT_TYPE_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </a-option>
+            </a-select>
+          </a-form-item>
           <a-form-item label="公司ID/名称">
             <a-input
               v-model="filterKeyword"
@@ -164,6 +177,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { getSyncTaskDetails, type SyncLogDetail, type SyncTask } from '@/api/syncTasks'
+import { ACCOUNT_TYPE_OPTIONS } from '@/constants/customerOptions'
 
 const props = defineProps<{
   visible: boolean
@@ -181,6 +195,7 @@ const filterLevel = ref('')
 const filterType = ref('')
 const filterIsSettled = ref('true')
 const filterKeyword = ref('')
+const filterAccountType = ref('')
 
 const summary = reactive({
   info_count: null as number | null,
@@ -296,6 +311,7 @@ const fetchDetails = async () => {
       type: filterType.value || undefined,
       is_settled: filterIsSettled.value || undefined,
       keyword: filterKeyword.value || undefined,
+      account_type: filterAccountType.value || undefined,
       page: pagination.current,
       page_size: pagination.pageSize,
     })
@@ -322,6 +338,7 @@ const handleResetFilters = () => {
   filterType.value = ''
   filterIsSettled.value = 'true'
   filterKeyword.value = ''
+  filterAccountType.value = ''
   pagination.current = 1
   fetchDetails()
 }
@@ -349,6 +366,7 @@ watch(
       filterType.value = ''
       filterIsSettled.value = 'true'
       filterKeyword.value = ''
+      filterAccountType.value = ''
       pagination.current = 1
       fetchDetails()
     }

@@ -123,6 +123,7 @@ export async function getSyncTaskDetails(
     type?: string
     is_settled?: string
     keyword?: string
+    account_type?: string
     page?: number
     page_size?: number
   }

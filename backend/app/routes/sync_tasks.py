@@ -298,6 +298,7 @@ async def get_sync_task_details(request: Request, task_id: UUID):
         type: 类型筛选 (order/cost，可选)
         is_settled: 是否结算筛选 (all/true/false，可选)
         keyword: 公司ID/名称搜索 (可选)
+        account_type: 账号类型筛选 (可选，如 正式账号/客户测试账号)
         page: 页码 (default: 1)
         page_size: 每页数量 (default: 20)
 
@@ -326,6 +327,7 @@ async def get_sync_task_details(request: Request, task_id: UUID):
         detail_type = request.args.get("type")
         is_settled = request.args.get("is_settled")
         keyword = request.args.get("keyword")
+        account_type = request.args.get("account_type")
 
         # 全量汇总（不受 level 过滤影响）
         summary_result = await session.execute(
@@ -395,6 +397,11 @@ async def get_sync_task_details(request: Request, task_id: UUID):
             )
             query = query.where(keyword_cond)
             count_query = count_query.where(keyword_cond)
+
+        # 账号类型过滤
+        if account_type:
+            query = query.where(Customer.account_type == account_type)
+            count_query = count_query.where(Customer.account_type == account_type)
 
         filtered_total = (await session.execute(count_query)).scalar() or 0
 
