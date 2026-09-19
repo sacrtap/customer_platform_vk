@@ -461,3 +461,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: 修复PR #26 CI E2E失败：seed.py循环变量遮蔽导致admin权限不足
+<!-- trellis-session: v=2 fp=a686c8f547e0dc29 -->
+
+**Date**: 2026-09-19
+**Task**: 修复PR #26 CI E2E失败：seed.py循环变量遮蔽导致admin权限不足
+**Branch**: `feat/sync-task-log-page`
+
+### Summary
+
+PR #26（feat/sync-task-log-page）的 CI E2E Tests job 失败根因定位：backend/scripts/seed.py 中步骤2.6/2.7 的 for role in all_roles: 循环变量遮蔽了步骤2定义的「超级管理员」role 变量（Python 无块级作用域），循环结束后 role 指向 all_roles 最后一个角色（销售经理），步骤3 admin.roles.append(role) 将 admin 错误绑定到销售经理角色（8权限，缺 customers:create），导致 CI 全新库上 POST /api/v1/customers 403 权限不足。修复：超级管理员角色改用独立变量 super_admin_role，迁移/清理循环改用 iter_role。全新库 ci_repro 完整模拟 CI 流程验证：修复前 admin 仅销售经理（8权限），修复后正确绑定超级管理员（49权限）。单元测试 test_sync_task_details + test_test_data_consistency 通过。CI 重跑后 7/7 job 全绿（含 E2E Tests 与 PR Quality Gate）。经验沉淀至 .trellis/spec/backend/quality-guidelines.md（陷阱：脚本中循环变量遮蔽外层主对象变量）并 learn 记录。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1d91e59` | fix(seed): 修复超级管理员角色被循环变量遮蔽导致admin权限不足 |
+| `c1236c3` | docs(spec): 沉淀seed.py循环变量遮蔽导致admin权限不足的排查经验 |
+
+### Status
+
+[OK] **Completed**
