@@ -97,7 +97,7 @@ class TestSyncTaskE2E:
         在第二次调用时抛出「已有相同周期的同步任务正在执行」异常，
         验证路由层正确返回 409。
         """
-        from app.services.sync_task_service import SyncTaskService
+        from app.services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
 
         start_date = (date.today() - timedelta(days=2)).isoformat()
         end_date = date.today().isoformat()
@@ -130,7 +130,7 @@ class TestSyncTaskE2E:
             with patch.object(
                 SyncTaskService,
                 "create_task",
-                new=AsyncMock(side_effect=Exception("已有相同周期的同步任务正在执行")),
+                new=AsyncMock(side_effect=DuplicateSyncTaskError("已有相同周期的同步任务正在执行")),
             ):
                 _request, response2 = await test_client.post(
                     "/api/v1/sync-tasks",

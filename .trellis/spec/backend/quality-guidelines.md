@@ -191,6 +191,43 @@ sync_tasks_routes.cache_service = original_routes_cache
 
 > 本次修复依据：integration 与 e2e 两层曾各自强制设置**不同**的 `WEBHOOK_SECRET`（与已修的 `JWT_SECRET` 401 同型，`settings.webhook_secret` 由 `os.getenv("WEBHOOK_SECRET")` 读取），已于 2026-09-17 收敛为仅 `tests/conftest.py` 一处 `setdefault`。
 
+### 陷阱：脚本中循环变量遮蔽外层「主对象」变量
+
+[来源: Bug fix 2026-09-18 — CI E2E 客户管理测试 403，本地却正常]
+
+**症状**：全新数据库（CI）上 `POST /api/v1/customers` 返回 `403 权限不足`，但本地（历史库）正常。`scripts/seed.py` 日志显示「已分配角色: 超级管理员」，数据库里 admin 却只有「销售经理」角色（8 权限，缺 `customers:create`）。
+
+**根因**：Python **无块级作用域**，`for` 循环变量在循环结束后仍存活并覆盖同名外层变量：
+
+```python
+# seed.py 步骤 2：role = 「超级管理员」
+role = session.execute(select(Role).where(Role.name == SUPER_ADMIN_ROLE_NAME)).scalar_one_or_none()
+...
+# 步骤 2.6/2.7：同名循环变量覆盖 role
+for legacy_code, new_codes in LEGACY_TO_NEW_PERMISSIONS.items():
+    for role in all_roles:          # ← 覆盖外层 role！
+        ...
+# 循环结束后 role 指向 all_roles 最后一个角色（按 id 排序 =「销售经理」）
+# 步骤 3：
+admin.roles.append(role)            # ← 把 admin 绑到「销售经理」而非「超级管理员」
+```
+
+**掩盖因素**：日志 `print(f"✅ 已分配角色: {SUPER_ADMIN_ROLE_NAME}")` 打印的是**常量**，与实际 append 的变量无关 → 输出永远「正确」，掩盖了绑定错误。
+
+**修复**：主对象与遍历变量用**不同名字**：
+
+```python
+super_admin_role = session.execute(...).scalar_one_or_none()
+...
+for iter_role in all_roles:         # 遍历用独立名，不遮蔽 super_admin_role
+...
+admin.roles.append(super_admin_role)
+```
+
+**排查手法**：怀疑「seed 成功但权限缺失」时，不要在本地历史库验证（历史数据可能恰好正确），应建**全新库**完整模拟 CI 流程（`alembic upgrade head` + `python scripts/seed.py --reset`），再查 `user_roles` 绑定：`SELECT u.username, r.name FROM users u JOIN user_roles ur ON u.id=ur.user_id JOIN roles r ON ur.role_id=r.id WHERE u.username='admin';`。
+
+**预防**：脚本/长函数中，先声明的「主对象」变量与后续遍历变量**禁止同名**；断言「分配成功」的日志/断言应打印**实际变量内容**而非常量。
+
 ---
 
 ## Forbidden Patterns

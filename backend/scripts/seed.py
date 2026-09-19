@@ -217,16 +217,18 @@ def seed(reset: bool = False):
         session.flush()
 
         # ---- 2. 创建超级管理员角色并关联所有权限 ----
+        # 注意：使用独立变量名 super_admin_role，避免被下方步骤 2.6/2.7 的
+        # `for role in all_roles:` 循环变量意外覆盖（Python 无块级作用域）。
         print("\n📋 步骤 2/3: 创建超级管理员角色...")
         result = session.execute(select(Role).where(Role.name == SUPER_ADMIN_ROLE_NAME))
-        role = result.scalar_one_or_none()
-        if role is None:
-            role = Role(
+        super_admin_role = result.scalar_one_or_none()
+        if super_admin_role is None:
+            super_admin_role = Role(
                 name=SUPER_ADMIN_ROLE_NAME,
                 description="拥有系统所有权限，可管理账号和角色配置",
                 is_system=True,
             )
-            session.add(role)
+            session.add(super_admin_role)
             session.flush()
             print(f"  ✅ 创建角色: {SUPER_ADMIN_ROLE_NAME}")
         else:
@@ -234,8 +236,8 @@ def seed(reset: bool = False):
 
         # 关联所有权限
         for perm in permissions.values():
-            if perm not in role.permissions:
-                role.permissions.append(perm)
+            if perm not in super_admin_role.permissions:
+                super_admin_role.permissions.append(perm)
         print(f"  ✅ 已关联 {len(permissions)} 个权限")
         session.flush()
 
@@ -287,8 +289,8 @@ def seed(reset: bool = False):
         migrated_count = 0
         all_roles = session.execute(select(Role)).scalars().all()
         for legacy_code, new_codes in LEGACY_TO_NEW_PERMISSIONS.items():
-            for role in all_roles:
-                role_codes = {p.code for p in role.permissions}
+            for iter_role in all_roles:
+                role_codes = {p.code for p in iter_role.permissions}
                 if legacy_code not in role_codes:
                     continue
                 for new_code in new_codes:
@@ -300,8 +302,8 @@ def seed(reset: bool = False):
                         raise ValueError(
                             f"迁移映射引用了未定义的权限码: {new_code}（旧码 {legacy_code}）"
                         )
-                    if new_perm not in role.permissions:
-                        role.permissions.append(new_perm)
+                    if new_perm not in iter_role.permissions:
+                        iter_role.permissions.append(new_perm)
                         migrated_count += 1
         if migrated_count:
             session.flush()
@@ -317,9 +319,9 @@ def seed(reset: bool = False):
             ).scalar_one_or_none()
             if legacy_perm is None:
                 continue
-            for role in all_roles:
-                if legacy_perm in role.permissions:
-                    role.permissions.remove(legacy_perm)
+            for iter_role in all_roles:
+                if legacy_perm in iter_role.permissions:
+                    iter_role.permissions.remove(legacy_perm)
             session.delete(legacy_perm)
             removed_count += 1
         if removed_count:
@@ -344,14 +346,14 @@ def seed(reset: bool = False):
             )
             session.add(admin)
             session.flush()
-            admin.roles.append(role)
+            admin.roles.append(super_admin_role)
             print("  ✅ 创建 admin 用户 (admin/admin123)")
             print(f"  ✅ 已分配角色: {SUPER_ADMIN_ROLE_NAME}")
         else:
             print("  ⏭️  admin 用户已存在")
             # 确保 admin 有超级管理员角色
-            if role not in admin.roles:
-                admin.roles.append(role)
+            if super_admin_role not in admin.roles:
+                admin.roles.append(super_admin_role)
                 print(f"  ✅ 已为 admin 补充角色: {SUPER_ADMIN_ROLE_NAME}")
             else:
                 print(f"  ⏭️  admin 已有角色: {SUPER_ADMIN_ROLE_NAME}")
