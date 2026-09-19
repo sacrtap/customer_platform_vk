@@ -14,11 +14,19 @@ RUN npm ci
 COPY frontend/ ./
 RUN ./node_modules/.bin/vite build
 
+# 构建 VitePress 开放平台文档站（独立工程）
+WORKDIR /build/openapi-docs
+COPY openapi-docs/package*.json ./
+RUN npm ci
+COPY openapi-docs/ ./
+RUN npm run docs:build
+
 # 阶段 2: 生产镜像
 FROM nginx:alpine
 
-# 复制构建产物
+# 复制构建产物（SPA + 开放平台文档站）
 COPY --from=builder /build/dist /usr/share/nginx/html
+COPY --from=builder /build/openapi-docs/docs/.vitepress/dist /usr/share/nginx/html/openapi
 
 # 复制 Nginx 配置
 COPY deploy/docker/frontend-nginx.conf /etc/nginx/conf.d/default.conf

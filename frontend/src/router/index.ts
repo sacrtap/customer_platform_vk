@@ -3,12 +3,6 @@ import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
-    path: '/openapi',
-    name: 'OpenApiGuide',
-    component: () => import('@/views/OpenApiGuide.vue'),
-    meta: { public: true },
-  },
-  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),

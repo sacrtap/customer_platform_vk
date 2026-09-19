@@ -80,6 +80,9 @@ frontend/tests/e2e/playwright-report/
 frontend/tests/e2e/test-results/
 .playwright-mcp/
 
+# VitePress 开放平台文档站（缓存/构建产物不入库）
+openapi-docs/docs/.vitepress/cache/
+
 # Backend
 backend/uploads/
 backend/static/files/
