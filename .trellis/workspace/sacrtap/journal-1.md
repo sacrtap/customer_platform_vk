@@ -484,3 +484,25 @@ PR #26（feat/sync-task-log-page）的 CI E2E Tests job 失败根因定位：bac
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: 合并 PR #26：同步任务日志页面功能优化落地 main
+<!-- trellis-session: v=2 fp=03a9f76fa34fbc7d -->
+
+**Date**: 2026-09-19
+**Task**: 合并 PR #26：同步任务日志页面功能优化落地 main
+**Branch**: `main`
+
+### Summary
+
+PR #26（feat/sync-task-log-page → main，同步任务日志页面功能优化：筛选/搜索/字段展示/小计/布局）已合并，merge commit bb9ff15。合并前 CI 7/7 job 全绿（含 E2E Tests 与 PR Quality Gate）；合并方式为 merge commit，与仓库惯例一致。此前轮次已修复该 PR 的 CI E2E 失败（根因：backend/scripts/seed.py 步骤2.6/2.7 的 for role in all_roles: 循环变量遮蔽步骤2的超级管理员 role 变量，导致 admin 被错误绑定销售经理角色、缺 customers:create 权限，CI 全新库上 POST /api/v1/customers 403；修复为 super_admin_role/iter_role 独立变量，commit 1d91e59；经验沉淀 spec c1236c3 与 learn）。本地已切回 main 并同步远端。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bb9ff15` | Merge pull request #26 from sacrtap/feat/sync-task-log-page |
+
+### Status
+
+[OK] **Completed**

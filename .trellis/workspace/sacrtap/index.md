@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
+- **Total Sessions**: 21
 - **Last Active**: 2026-09-19
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~486 | Active |
+| `journal-1.md` | ~508 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-09-19 | 合并 PR #26：同步任务日志页面功能优化落地 main | `bb9ff15` | `main` |
 | 20 | 2026-09-19 | 修复PR #26 CI E2E失败：seed.py循环变量遮蔽导致admin权限不足 | `1d91e59`, `c1236c3` | `feat/sync-task-log-page` |
 | 19 | 2026-09-18 | 运营工作台页面功能修复（3 个显示问题） | `38d43e1`, `7c4b03b`, `e82c325` | `feature/dashboard-visual-fixes` |
 | 18 | 2026-09-18 | 同步日志执行信息优化与定时同步配置化 | `23a0a1d`, `7fcbce5`, `ba889b8`, `f6df04f`, `afdabbb`, `1fcedd1`, `dccd38e`, `fc0c766` | `feature/sync-execution-info` |
