@@ -334,6 +334,36 @@ if (is_disabled := filters.get("is_disabled")) is not None:
 >
 > 对比：`is_key_customer` / `is_real_estate` 后端既有实现是 `== value` 比较，NULL 行恒不匹配（SQL 三值逻辑），这是既有行为，未改。新增布尔筛选时先查字段默认值与迁移历史，再决定哪一侧兼容 NULL。
 
+**Python 侧实体判断同样用恒等**：读取已加载实体判断「是否结算」用 `customer.is_settlement_enabled is False`
+（None=结算中，不排除）；`not customer.is_settlement_enabled` 会把 None 也排除，语义错误。
+
+---
+
+## select(实体) 结果必须用 `.scalars()` 取实体，`.first()` 恒 KeyError
+
+[来源: Bug fix 2026-09-20 — `get_customer_health_score` 对正常客户恒 500 `KeyError: 'tiers'`（既有 bug，旧代码同错，行号差 22 = 插入行数）]
+
+SQLAlchemy 2.0 中 `select(SomeEntity)` 的 `.execute()` 结果 `.first()` 返回的是 `Row`，
+该 Row 的键是**实体名**（如 `['PricingRule']`），**不是**展开的列名。
+因此 `row.tiers` 访问恒抛 `KeyError: 'tiers'`（经 `Row.__getattr__` 包装为 AttributeError）。
+
+```python
+# WRONG — select(实体) 后 .first() 取 Row，row.tiers 恒 KeyError → 500
+pricing_result = (await self.db.execute(pricing_stmt)).first()
+if pricing_result and pricing_result.tiers:   # AttributeError: tiers
+
+# CORRECT — .scalars().first() 取实体实例，属性访问安全
+pricing_result = (await self.db.execute(pricing_stmt)).scalars().first()
+if pricing_result and pricing_result.tiers:
+```
+
+> **Warning**: 这类缺陷**在 mock 单测下被掩盖**——`MagicMock().first()` 返回任意对象，
+> 属性访问不会报错；只有真实查询路径（`.first()` 返回真实 `Row`）才暴露，
+> 且只在「有实体记录命中」时触发（无记录返回 None 直接短路）。
+> 审查口诀：`select(Model)` 的 execute 结果需要访问列/属性时，**必须** `.scalars().first()`
+> （实体查询）或 `select(Model.col1, Model.col2)` 显式选列（列查询）。
+> 聚合查询（`select(func.sum(...).label("x"))`）的 Row 键是 label 名，`.first()` 后 `row.x` 是安全的。
+
 ---
 
 ## Forbidden Patterns
