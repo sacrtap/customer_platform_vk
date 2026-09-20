@@ -59,6 +59,7 @@
 | **ECharts** | 5.4.3 | 数据可视化 |
 | **TypeScript** | 5.3.3 | 类型系统 |
 | **Vite** | 7.3.3 | 构建工具 |
+| **VitePress** | 1.6+ | 开放平台开发者文档站（独立工程 `openapi-docs/`） |
 
 ### 部署 (Deploy)
 
@@ -101,6 +102,11 @@ customer_platform_vk/
 │   │   └── router/       # 路由配置
 │   └── tests/
 │       └── e2e/          # Playwright 端到端测试
+├── openapi-docs/          # 开放平台开发者文档站（VitePress 独立工程）
+│   ├── .vitepress/        # VitePress 配置（base=/openapi/）
+│   └── docs/
+│       ├── guides/        # 指南：快速开始 / 认证 / 错误码
+│       └── api-reference/ # API 参考：接口索引 + 各接口文档
 ├── deploy/               # 部署配置
 │   ├── docker/           # Docker 镜像配置
 │   ├── scripts/          # 部署脚本
@@ -361,8 +367,58 @@ docker-compose -f docker-compose.yml logs -f app
 |------|------|------|
 | **应用 API** | http://localhost:8000 | 后端 API 服务 |
 | **健康检查** | http://localhost:8000/health | 健康状态 |
+| **开放平台文档站** | http://localhost:8082/openapi/ | VitePress 开发者文档（与主应用同容器托管） |
 | **PostgreSQL** | localhost:5432 | 数据库 |
 | **Redis** | localhost:6379 | 缓存 |
+
+---
+
+## 🌐 开放平台文档站
+
+开放平台面向外部 ERP 等渠道方提供标准 RESTful API（当前接口：`GET /api/v1/erp/balances`），所有接口通过 **API-Key** 认证（`Authorization: Bearer {api_key}`）。开发者文档由独立的 **VitePress** 工程（`openapi-docs/`）承载，部署于 `/openapi/` 路径，与主应用同容器托管。
+
+### 访问地址
+
+| 环境 | 地址 | 说明 |
+|------|------|------|
+| **本地开发** | http://localhost:5173/openapi/ | `npm run docs:dev` 热更新预览 |
+| **构建产物预览** | http://localhost:4173/openapi/ | `npm run docs:preview` 验证产物 |
+| **容器部署** | http://localhost:8082/openapi/ | 与主应用同 nginx 托管 |
+
+> 无尾斜杠访问 `/openapi` 时，nginx 自动 301 重定向至 `/openapi/`。
+
+### 本地开发与构建
+
+```bash
+cd openapi-docs
+
+# 安装依赖（仅 vitepress）
+npm install
+
+# 本地开发（热更新）
+npm run docs:dev
+# 访问 http://localhost:5173/openapi/
+
+# 生产构建（产物输出至 docs/.vitepress/dist，base=/openapi/）
+npm run docs:build
+
+# 预览构建产物
+npm run docs:preview
+# 访问 http://localhost:4173/openapi/
+```
+
+### 部署说明
+
+- 构建已集成至 `deploy/docker/frontend.Containerfile`：构建阶段同时执行 `vite build`（主应用）与 `npm run docs:build`（文档站），产物分别复制到 `/usr/share/nginx/html` 与 `/usr/share/nginx/html/openapi`。
+- nginx 配置 `deploy/docker/frontend-nginx.conf` 已包含 `location /openapi/`（静态托管 + cleanUrls `$uri.html` 探试 + 无尾斜杠 301）。
+- 发布流程与主应用一致（`deploy/scripts/deploy.sh`），无需额外步骤。
+
+### 文档维护
+
+文档与代码同仓库同 PR，随 API 变更同步演进：
+
+- **接口变更**：更新 `openapi-docs/docs/api-reference/*.md` → `npm run docs:dev` 本地预览 → 提交 → CI 构建镜像自动包含新文档。
+- **新增接口**：在 `api-reference/` 新建页面（模板：描述 / 端点 / 参数表 / 请求与响应示例 / 错误码）+ 更新 `api-reference/index.md` 索引 + 更新 `changelog.md`。
 
 ---
 
@@ -488,6 +544,26 @@ npm run lint
 npm run format
 ```
 
+### 开放平台文档站命令（openapi-docs/）
+
+```bash
+cd openapi-docs
+
+# 安装依赖
+npm install
+
+# 本地预览（热更新，VitePress 开发服务器）
+npm run docs:dev
+# 访问 http://localhost:5173/openapi/
+
+# 生产构建（产物输出至 docs/.vitepress/dist，base=/openapi/）
+npm run docs:build
+
+# 预览构建产物（验证 /openapi/ 路径资源引用）
+npm run docs:preview
+# 访问 http://localhost:4173/openapi/
+```
+
 ### 部署命令
 
 ```bash
@@ -585,6 +661,7 @@ REDIS_URL=redis://localhost:6379/0
 | 文档            | 路径                                                          |
 | --------------- | ------------------------------------------------------------- |
 | **文档导航**        | `docs/README.md` (完整索引)                                     |
+| **开放平台文档站**  | `openapi-docs/` (VitePress 开发者文档，构建与访问见下文)           |
 | **Agent 开发指南**  | `docs/guides/agents-guide.md` (完整命令/env/git/工作流)         |
 | **系统设计**        | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
 | **部署指南**        | `deploy/README.md`                                              |
