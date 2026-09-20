@@ -145,3 +145,114 @@ class TestGetUnitPrices:
         from app.config import get_settings
 
         assert prices == dict(get_settings().consumption_forecast_unit_prices)
+
+
+class TestGetCustomerHealthScore:
+    """客户健康度评分排除规则测试"""
+
+    @pytest.fixture
+    def service(self):
+        db = AsyncMock()
+        return AnalyticsService(db=db)
+
+    @staticmethod
+    def _mock_customer(db, **attrs):
+        """mock 首次 execute 返回客户查询结果"""
+        customer = SimpleNamespace(**attrs)
+        result = MagicMock()
+        result.scalars.return_value.first.return_value = customer
+        db.execute.return_value = result
+        return customer
+
+    @pytest.mark.asyncio
+    async def test_excluded_when_not_settlement_enabled(self, service):
+        """不结算客户（is_settlement_enabled=False）返回 score=None、not_applicable"""
+        db = service.db
+        self._mock_customer(db, id=1, is_settlement_enabled=False, account_type="正式账号")
+
+        result = await service.get_customer_health_score(1)
+
+        assert result["score"] is None
+        assert result["health_level"] == "not_applicable"
+        # 排除后不再执行评分计算查询
+        assert db.execute.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_excluded_when_test_account(self, service):
+        """客户测试账号返回 score=None、not_applicable"""
+        db = service.db
+        self._mock_customer(db, id=2, is_settlement_enabled=True, account_type="客户测试账号")
+
+        result = await service.get_customer_health_score(2)
+
+        assert result["score"] is None
+        assert result["health_level"] == "not_applicable"
+        assert db.execute.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_excluded_when_internal_account(self, service):
+        """内部账号返回 score=None、not_applicable"""
+        db = service.db
+        self._mock_customer(db, id=3, is_settlement_enabled=True, account_type="内部账号")
+
+        result = await service.get_customer_health_score(3)
+
+        assert result["score"] is None
+        assert result["health_level"] == "not_applicable"
+        assert db.execute.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_normal_customer_still_scored(self, service):
+        """正常客户（结算且为正式账号）不触发排除，评分照常计算"""
+        db = service.db
+        # 客户查询结果：结算且正式账号 → 不触发排除
+        customer_result = MagicMock()
+        customer_result.scalars.return_value.first.return_value = SimpleNamespace(
+            id=4, is_settlement_enabled=True, account_type="正式账号"
+        )
+        # 后续评分查询：usage/pricing/baseline/balance/avg/payment 均 mock 为 0 或 None
+        usage = MagicMock()
+        usage.first.return_value = SimpleNamespace(total_quantity=0)
+        pricing = MagicMock()
+        # 服务层以 .scalars().first() 消费定价规则结果；None → 无阶梯配置 → 走历史基线
+        pricing.scalars.return_value.first.return_value = None
+        baseline = MagicMock()
+        baseline.first.return_value = SimpleNamespace(total_quantity=0, earliest=None)
+        balance = MagicMock()
+        balance.first.return_value = SimpleNamespace(
+            total_amount=100.0, real_amount=100.0, bonus_amount=0.0
+        )
+        avg = MagicMock()
+        avg.first.return_value = SimpleNamespace(avg_amount=0)
+        payment = MagicMock()
+        payment.scalar.return_value = 0
+
+        db.execute.side_effect = [
+            customer_result,
+            usage,
+            pricing,
+            baseline,
+            balance,
+            avg,
+            payment,
+            payment,
+        ]
+
+        result = await service.get_customer_health_score(4)
+
+        assert result["score"] is not None
+        assert result["health_level"] != "not_applicable"
+
+    @pytest.mark.asyncio
+    async def test_customer_not_found_raises(self, service):
+        """客户不存在（含已删除）时抛 ValueError，不与「不参与评估」语义混淆"""
+        db = service.db
+        result = MagicMock()
+        result.scalars.return_value.first.return_value = None
+        db.execute.return_value = result
+
+        with pytest.raises(ValueError, match="客户不存在或已删除"):
+            await service.get_customer_health_score(999)
+
+        # 查询客户即返回，不再执行任何评分查询
+        assert db.execute.call_count == 1

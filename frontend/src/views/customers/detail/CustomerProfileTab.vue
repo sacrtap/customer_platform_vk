@@ -71,7 +71,12 @@
           <a-spin size="large" />
         </div>
         <div v-else class="chart-content">
-          <HealthGauge v-if="healthScore" :score="healthScore.score" :level="healthScore.level" />
+          <HealthGauge
+            v-if="healthScore && healthScore.score !== null"
+            :score="healthScore.score"
+            :level="healthScore.health_level || ''"
+          />
+          <div v-else-if="healthScore" class="health-not-applicable">不参与评估</div>
         </div>
       </div>
 
@@ -305,6 +310,14 @@ const consumeLevelDisplay = computed(() => {
   justify-content: center;
   min-height: 240px;
   width: 100%;
+}
+
+/* 不参与评估提示（排除客户：不结算/客户测试账号/内部账号） */
+.health-not-applicable {
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.6;
 }
 
 /* 响应式布局 */
