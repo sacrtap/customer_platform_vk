@@ -30,6 +30,8 @@ export function useCustomerList() {
     consume_level: '',
     is_key_customer: null as boolean | null,
     is_real_estate: null as boolean | null,
+    is_settlement_enabled: null as boolean | null,
+    is_disabled: null as boolean | null,
     settlement_type: '',
     incomplete_profile: false,
     mine: false,
@@ -106,6 +108,9 @@ export function useCustomerList() {
     if (filters.consume_level) params.consume_level = filters.consume_level
     if (filters.is_key_customer !== null) params.is_key_customer = filters.is_key_customer
     if (filters.is_real_estate !== null) params.is_real_estate = filters.is_real_estate
+    if (filters.is_settlement_enabled !== null)
+      params.is_settlement_enabled = filters.is_settlement_enabled
+    if (filters.is_disabled !== null) params.is_disabled = filters.is_disabled
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (filters.erp_system) params.erp_system = filters.erp_system
     if (filters.cooperation_status) params.cooperation_status = filters.cooperation_status

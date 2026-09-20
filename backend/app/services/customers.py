@@ -301,6 +301,31 @@ class CustomerService:
         if (is_real_estate := filters.get("is_real_estate")) is not None:
             conditions.append(Customer.is_real_estate == is_real_estate)
 
+        # 是否结算筛选：is_disabled 不存在历史 NULL，is_settlement_enabled 存在历史 NULL
+        # 该字段 nullable=True 且模型默认 True，NULL 视为结算中，筛选"是"需兼容 NULL
+        if (is_settlement_enabled := filters.get("is_settlement_enabled")) is not None:
+            if is_settlement_enabled:
+                conditions.append(
+                    or_(
+                        Customer.is_settlement_enabled.is_(True),
+                        Customer.is_settlement_enabled.is_(None),
+                    )
+                )
+            else:
+                conditions.append(Customer.is_settlement_enabled.is_(False))
+
+        # 是否停用筛选：is_disabled 字段存在历史 NULL 值，False 需兼容 NULL（视为未停用）
+        if (is_disabled := filters.get("is_disabled")) is not None:
+            if is_disabled:
+                conditions.append(Customer.is_disabled.is_(True))
+            else:
+                conditions.append(
+                    or_(
+                        Customer.is_disabled.is_(False),
+                        Customer.is_disabled.is_(None),
+                    )
+                )
+
         # 待完善画像：缺少规模等级或消费等级的客户
         if filters.get("incomplete_profile"):
             if not joined_profile:

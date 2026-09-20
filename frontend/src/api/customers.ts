@@ -29,6 +29,8 @@ export function getCustomers(params?: {
   settlement_type?: string
   is_key_customer?: boolean | string
   is_real_estate?: boolean | string
+  is_settlement_enabled?: boolean | string
+  is_disabled?: boolean | string
   incomplete_profile?: string
   mine?: string
   sort_by?: string

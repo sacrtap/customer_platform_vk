@@ -774,3 +774,96 @@ class TestCustomerService_IsKeyCustomerFilter:
         assert len(customers) == 1
         assert customers[0].is_key_customer is False
         assert customers[0].name == "普通客户"
+
+
+class TestCustomerService_BooleanFilters:
+    """布尔筛选项（是否结算/是否停用）条件构造测试"""
+
+    @staticmethod
+    def _capture_count_stmt(mock_db_session) -> str:
+        """捕获 get_all_customers 首条 COUNT 查询并编译为 SQL 字符串"""
+        from sqlalchemy.dialects import postgresql
+
+        assert mock_db_session.execute.call_count >= 1, "未执行任何查询"
+        count_stmt = mock_db_session.execute.call_args_list[0][0][0]
+        return str(
+            count_stmt.compile(
+                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": False}
+            )
+        )
+
+    @pytest.mark.asyncio
+    async def test_filter_is_settlement_enabled_true(self, mock_db_session):
+        """筛选 is_settlement_enabled=True：NULL 视为结算中，条件含 IS NULL 兼容"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        service = CustomerService(db_session=mock_db_session)
+        await service.get_all_customers(
+            page=1, page_size=20, filters={"is_settlement_enabled": True}
+        )
+
+        sql = self._capture_count_stmt(mock_db_session)
+        assert "is_settlement_enabled IS true" in sql
+        assert "is_settlement_enabled IS NULL" in sql
+
+    @pytest.mark.asyncio
+    async def test_filter_is_settlement_enabled_false(self, mock_db_session):
+        """筛选 is_settlement_enabled=False：条件为 IS false，不含 NULL 兼容"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        service = CustomerService(db_session=mock_db_session)
+        await service.get_all_customers(
+            page=1, page_size=20, filters={"is_settlement_enabled": False}
+        )
+
+        sql = self._capture_count_stmt(mock_db_session)
+        assert "is_settlement_enabled IS false" in sql
+        assert "is_settlement_enabled IS NULL" not in sql
+
+    @pytest.mark.asyncio
+    async def test_filter_is_disabled_true(self, mock_db_session):
+        """筛选 is_disabled=True：条件为 IS true"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        service = CustomerService(db_session=mock_db_session)
+        await service.get_all_customers(page=1, page_size=20, filters={"is_disabled": True})
+
+        sql = self._capture_count_stmt(mock_db_session)
+        assert "is_disabled IS true" in sql
+        assert "is_disabled IS NULL" not in sql
+
+    @pytest.mark.asyncio
+    async def test_filter_is_disabled_false(self, mock_db_session):
+        """筛选 is_disabled=False：NULL 视为未停用，条件含 IS NULL 兼容"""
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        service = CustomerService(db_session=mock_db_session)
+        await service.get_all_customers(page=1, page_size=20, filters={"is_disabled": False})
+
+        sql = self._capture_count_stmt(mock_db_session)
+        assert "is_disabled IS false" in sql
+        assert "is_disabled IS NULL" in sql
