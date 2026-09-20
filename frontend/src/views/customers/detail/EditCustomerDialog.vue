@@ -10,7 +10,7 @@
     @cancel="handleCancel"
     @close="handleCancel"
   >
-    <a-spin :loading="fetchLoading">
+    <a-spin :loading="fetchLoading" class="edit-dialog-spin">
       <div v-show="!fetchLoading">
         <a-form
           ref="editFormRef"
@@ -482,6 +482,17 @@ const handleCancel = () => {
 </script>
 
 <style scoped>
+/* 编辑弹窗加载态：a-spin 撑满 modal body 内容区（height:100% 对齐 body content-box，
+   避免 +padding 后 min-height 溢出导致 icon top:50% 偏移）；
+   Arco 默认 .arco-spin-loading .arco-spin-mask-icon 用 top:50%/left:50%+translate 居中，
+   容器有完整宽高即水平垂直居中 */
+.edit-dialog-spin.arco-spin-loading {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
 .section-title {
   font-weight: 700;
   font-size: 14px;
