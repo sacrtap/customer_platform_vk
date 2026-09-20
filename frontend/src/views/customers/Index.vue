@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCustomerList } from '@/composables/useCustomerList'
 import type { Customer, Tag } from '@/types'
@@ -225,6 +225,8 @@ const {
 
 // KPI 联动筛选
 const activeKpi = ref<'all' | 'key' | 'incomplete' | 'mine'>('all')
+// KPI 联动写入标志：applyKpiFilter 内部先清后设 is_key_customer，避免 watch 误判为用户手动修改
+let applyingKpi = false
 const kpiData = reactive({
   total: '—',
   newThisMonth: 0,
@@ -271,6 +273,8 @@ const kpiBadgeText = computed(() => {
 })
 
 const applyKpiFilter = (kpi: 'all' | 'key' | 'incomplete' | 'mine') => {
+  // 标记 KPI 联动写入中，避免 watch(filters.is_key_customer) 误清除刚激活的徽标
+  applyingKpi = true
   activeKpi.value = kpi
   // 先清除所有 KPI 联动的筛选
   filters.is_key_customer = null
@@ -284,6 +288,7 @@ const applyKpiFilter = (kpi: 'all' | 'key' | 'incomplete' | 'mine') => {
   } else if (kpi === 'mine') {
     filters.mine = true
   }
+  applyingKpi = false
   handleSearch()
 }
 
@@ -294,6 +299,19 @@ const clearKpiFilter = () => {
   filters.mine = false
   handleSearch()
 }
+
+// 用户通过「是否重点客户」下拉手动改筛选时，若与 KPI「重点客户」徽标联动冲突，清除徽标状态
+// （保留用户手动选择的值，避免双向控制互相覆盖造成脏状态）
+watch(
+  () => filters.is_key_customer,
+  (val) => {
+    // KPI 联动自身写入时跳过，仅响应用户在「是否重点客户」下拉的手动修改
+    if (applyingKpi) return
+    if (activeKpi.value === 'key' && val !== true) {
+      activeKpi.value = 'all'
+    }
+  }
+)
 
 // 预览抽屉
 const previewDrawerVisible = ref(false)

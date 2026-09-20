@@ -72,7 +72,7 @@
         </div>
         <div v-else class="chart-content">
           <HealthGauge
-            v-if="healthScore && healthScore.score !== null"
+            v-if="healthScore && healthScore.score != null"
             :score="healthScore.score"
             :level="healthScore.health_level || ''"
           />
