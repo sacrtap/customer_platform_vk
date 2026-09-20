@@ -110,3 +110,9 @@ export const IS_REAL_ESTATE_OPTIONS = [
   { label: '是', value: true },
   { label: '否', value: false },
 ] as const
+
+/** 布尔筛选项（是/否，供 FilterDropdown 使用，值为 string） */
+export const BOOLEAN_FILTER_OPTIONS = [
+  { label: '是', value: 'true' },
+  { label: '否', value: 'false' },
+] as const

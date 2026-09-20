@@ -94,6 +94,16 @@ async def list_customers(request: Request):
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
 
+    # 是否结算
+    is_settlement_enabled = request.args.get("is_settlement_enabled")
+    if is_settlement_enabled is not None:
+        filters["is_settlement_enabled"] = is_settlement_enabled.lower() == "true"
+
+    # 是否停用
+    is_disabled = request.args.get("is_disabled")
+    if is_disabled is not None:
+        filters["is_disabled"] = is_disabled.lower() == "true"
+
     # 待完善画像：筛选缺少规模等级或消费等级的客户
     incomplete = request.args.get("incomplete_profile")
     if incomplete is not None and incomplete.lower() == "true":
@@ -1034,6 +1044,8 @@ async def export_customers(request: Request):
     - settlement_type: 结算方式
     - is_key_customer: 是否重点客户
     - is_real_estate: 是否房产客户
+    - is_settlement_enabled: 是否结算
+    - is_disabled: 是否停用
     - incomplete_profile: 待完善画像
     - mine: 我的客户
     """
@@ -1062,6 +1074,16 @@ async def export_customers(request: Request):
     is_real_estate = request.args.get("is_real_estate")
     if is_real_estate is not None:
         filters["is_real_estate"] = is_real_estate.lower() == "true"
+
+    # 是否结算
+    is_settlement_enabled = request.args.get("is_settlement_enabled")
+    if is_settlement_enabled is not None:
+        filters["is_settlement_enabled"] = is_settlement_enabled.lower() == "true"
+
+    # 是否停用
+    is_disabled = request.args.get("is_disabled")
+    if is_disabled is not None:
+        filters["is_disabled"] = is_disabled.lower() == "true"
 
     # 待完善画像
     incomplete = request.args.get("incomplete_profile")

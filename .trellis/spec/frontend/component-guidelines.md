@@ -133,3 +133,82 @@ watch(
 
 > **验证陷阱**：`watch(() => form.customer_id)` **在值未变化时不触发**（例如重新选中同一个客户）。
 > 因此「重选同一客户」不能用来验证刷新逻辑 —— 必须做真实变更（改周期、换客户）。
+
+---
+
+## 布尔筛选项：FilterDropdown 的 string ↔ boolean 桥接
+
+[来源: 2026-09-20 — 客户列表新增 是否结算/是否重点客户/是否房产客户/是否停用 四个布尔筛选]
+
+`FilterDropdown.vue` 的 `modelValue` 类型是 `string | string[]`，options 的 value 也是 string
+（「全部」用空串 `''` 表示）。**布尔字段不能直接 `v-model`**，需在 `CustomerFilters.vue` 内做
+string ↔ boolean | null 转换，遵循现有 `managerValue` computed 模式：
+
+```vue
+<FilterDropdown v-model="settlementEnabledValue" label="是否结算"
+  :options="BOOLEAN_FILTER_OPTIONS" @apply="handleSearch" />
+```
+
+```ts
+// BOOLEAN_FILTER_OPTIONS 定义在 constants/customerOptions.ts
+// [{ label: '是', value: 'true' }, { label: '否', value: 'false' }]
+
+const settlementEnabledValue = computed({
+  get: () => (filters.value.is_settlement_enabled === null ? '' : String(filters.value.is_settlement_enabled)),
+  set: (val: string) => { filters.value.is_settlement_enabled = val === '' ? null : val === 'true' },
+})
+// keyCustomerValue / realEstateValue / disabledValue 同理
+```
+
+**约定**：
+- filters 模型字段类型 `boolean | null`，`null` = 全部（不筛选）。
+- 新增布尔筛选项 = 4 处同步：`Filters` 接口 + `createDefaultFilters` 默认值 +
+  `buildParams` 传参（`if (x !== null) params.x = x`）+ `CustomerFilters.vue` 下拉与 computed。
+- 共享选项常量 `BOOLEAN_FILTER_OPTIONS`（是/否，string value）放 `constants/customerOptions.ts`，
+  不要在各页面重复定义。
+
+> **Warning**: FilterDropdown 的「全部」选中时 emit `''`，必须映射回 `null`（不是 `false`），
+> 否则「全部」会变成筛选「否」。
+
+---
+
+## a-spin 加载态居中：根元素撑满 + AND 组合选择器
+
+[来源: 2026-09-20 — `EditCustomerDialog.vue` loading 图标偏上/偏左修复]
+
+**现象**：`<a-spin :loading="fetchLoading">` 包裹暂不显示的表单（内容 `v-show` 隐藏）时，
+loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
+
+**根因**：Arco 的 `.arco-spin-loading .arco-spin-mask-icon` 已经用
+`top:50%; left:50%; transform:translate(-50%,-50%)` 定位图标；但容器（modal body）塌陷
+（内容隐藏 → 高度/宽度为 0），50% 参照就是 0，图标偏到一角。
+
+**修复**（关键两点）：
+
+```vue
+<a-spin :loading="fetchLoading" class="edit-dialog-spin">
+```
+
+```css
+/* 根元素在 loading 时自身带 .arco-spin-loading class（Arco 加在根节点上） */
+.edit-dialog-spin.arco-spin-loading {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+```
+
+1. **要用 AND 组合选择器 `.edit-dialog-spin.arco-spin-loading`，不是 `:deep(.arco-spin)`**：
+   `<a-spin>` 渲染的根元素 **自身**就是 `.arco-spin`（class 合并到同一节点），
+   `:deep(.arco-spin)` 后代选择器匹配不到自己 → 样式不生效。
+   同样不能选 `.edit-dialog-spin :deep(.arco-spin)`（它要求 `.arco-spin` 是后代）。
+2. **用 `height:100%` 对齐 modal body 的 content-box，不要用 `min-height` 硬编码**：
+   body `height:600px` + padding 24px 上下 → content 552px；`height:100%` 精确填满内容区，
+   mask-icon `top:50%` 即为可视区正中。用 `min-height:600px` 会因 padding 叠加溢出，
+   图标仍偏下（dy≈24px）。
+
+> **验证陷阱**：本地 API 很快，加载态一闪而过，浏览器截图往往来不及 —— 用 XHR/fetch
+> 拦截延迟响应制造加载窗口再量 `getBoundingClientRect()` 与 body/内容区中心对比；
+> 断言 `dy<2px` 且图标中心 ≈ 内容区中心。模态容器 padding 左右可能不对称
+> （`paddingRight` 被 body-style 覆盖过），水平对比应参照内容区中心而非 border-box 中心。

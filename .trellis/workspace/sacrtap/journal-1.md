@@ -528,3 +528,49 @@ PR #26（feat/sync-task-log-page → main，同步任务日志页面功能优化
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: 健康度评估排除规则优化
+<!-- trellis-session: v=2 fp=28029e9f851259fb -->
+
+**Date**: 2026-09-20
+**Task**: 健康度评估排除规则优化
+**Branch**: `customer-module-optimization`
+
+### Summary
+
+健康度评分排除三类客户（不结算/客户测试账号/内部账号）：后端 get_customer_health_score 命中排除返回 score=null+not_applicable，客户不存在兜底 ValueError；顺带修复既有 bug（select(PricingRule) Row 键为实体名致 pricing_result.tiers 恒 KeyError → .scalars().first()）。前端 CustomerProfileTab 对 score==null 展示「不参与评估」，CustomerHealthScore 类型允许 null。单测 11/11、集成 26/26、ruff、vue-tsc 通过；API+浏览器实测三场景正确；AC5 分析页接口正常。spec 沉淀 select(实体) 必须 .scalars() 与 Python 布尔恒等判断。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `694abd5` | feat(analytics): 健康度评分排除不结算、客户测试账号、内部账号 |
+| `92ec9d1` | docs(spec): 沉淀 select(实体) 必须 .scalars() 与 Python 侧布尔恒等判断 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 24: 编辑弹窗 loading 居中修复
+<!-- trellis-session: v=2 fp=0058691b695e8a9e -->
+
+**Date**: 2026-09-20
+**Task**: 编辑弹窗 loading 居中修复
+**Branch**: `customer-module-optimization`
+
+### Summary
+
+EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元素 loading 时容器塌陷（表单 v-show 隐藏致宽高为 0），Arco mask-icon 的 top:50%/left:50% 参照为 0 → 图标偏上偏左。修复：加 edit-dialog-spin class，AND 组合选择器 .edit-dialog-spin.arco-spin-loading 设置 display:block; width:100%; height:100%（height:100% 对齐 modal body content-box 552px，避免 min-height 叠加 padding 溢出）；加载完成 class 移除样式失效无残留。前端 vue-tsc、浏览器三断点（720px/90vw/95vw）实测 dy=0 垂直居中、图标中心=内容区中心水平居中、无布局抖动。trellis-check 审查通过。spec 沉淀 a-spin 加载态居中陷阱（AND 组合选择器 vs :deep 后代、height:100% vs min-height、XHR 拦截验证法）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fabf9a9` | fix(customers): 编辑弹窗加载态 loading 图标居中 |
+| `706c830` | docs(spec): 沉淀 a-spin 加载态居中陷阱与验证方法 |
+
+### Status
+
+[OK] **Completed**

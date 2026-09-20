@@ -56,6 +56,30 @@
     <transition name="expand">
       <div v-if="showMore" class="filters-row more-row">
         <FilterDropdown
+          v-model="settlementEnabledValue"
+          label="是否结算"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="keyCustomerValue"
+          label="是否重点客户"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="realEstateValue"
+          label="是否房产客户"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="disabledValue"
+          label="是否停用"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
           v-model="filters.erp_system"
           label="ERP系统"
           :options="erpSystemOptions"
@@ -95,6 +119,7 @@ import {
   SCALE_LEVEL_OPTIONS,
   CONSUME_LEVEL_OPTIONS,
   SETTLEMENT_TYPE_OPTIONS,
+  BOOLEAN_FILTER_OPTIONS,
 } from '@/constants/customerOptions'
 import CustomerSearchInput from './CustomerSearchInput.vue'
 
@@ -106,6 +131,8 @@ interface Filters {
   consume_level: string
   is_key_customer: boolean | null
   is_real_estate: boolean | null
+  is_settlement_enabled: boolean | null
+  is_disabled: boolean | null
   settlement_type: string
   incomplete_profile: boolean
   mine: boolean
@@ -216,6 +243,36 @@ const salesValue = computed({
   },
   set: (val: string) => {
     advancedFilters.value.sales_manager_id = val ? Number(val) : null
+  },
+})
+
+// 布尔筛选项 string ↔ boolean | null 桥接
+const keyCustomerValue = computed({
+  get: () => (filters.value.is_key_customer === null ? '' : String(filters.value.is_key_customer)),
+  set: (val: string) => {
+    filters.value.is_key_customer = val === '' ? null : val === 'true'
+  },
+})
+
+const realEstateValue = computed({
+  get: () => (filters.value.is_real_estate === null ? '' : String(filters.value.is_real_estate)),
+  set: (val: string) => {
+    filters.value.is_real_estate = val === '' ? null : val === 'true'
+  },
+})
+
+const settlementEnabledValue = computed({
+  get: () =>
+    filters.value.is_settlement_enabled === null ? '' : String(filters.value.is_settlement_enabled),
+  set: (val: string) => {
+    filters.value.is_settlement_enabled = val === '' ? null : val === 'true'
+  },
+})
+
+const disabledValue = computed({
+  get: () => (filters.value.is_disabled === null ? '' : String(filters.value.is_disabled)),
+  set: (val: string) => {
+    filters.value.is_disabled = val === '' ? null : val === 'true'
   },
 })
 

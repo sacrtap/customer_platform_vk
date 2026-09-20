@@ -2251,16 +2251,41 @@ class AnalyticsService:
 
         健康度 = 用量达标率 × 50% + 余额充足率 × 30% + 回款及时率 × 20%
 
+        排除规则：不结算（is_settlement_enabled=False）、客户测试账号、内部账号
+        不参与评估，返回 score=None、health_level="not_applicable"，前端展示「不参与评估」。
+
         Returns:
             {
-                "score": float,           # 健康度总分 (0-100)
-                "usage_rate": float,      # 用量达标率 (0-100)
-                "balance_rate": float,    # 余额充足率 (0-100)
-                "payment_rate": float,    # 回款及时率 (0-100)
-                "health_level": str,      # healthy/normal/unhealthy
+                "score": float | None,    # 健康度总分 (0-100)；排除客户为 None
+                "usage_rate": float | None,
+                "balance_rate": float | None,
+                "payment_rate": float | None,
+                "health_level": str,      # healthy/normal/unhealthy/not_applicable
             }
         """
         from datetime import timedelta
+
+        # 0. 查询客户信息；命中排除条件（不结算/客户测试账号/内部账号）直接返回，跳过评分计算
+        customer_stmt = select(Customer).where(
+            Customer.id == customer_id,
+            Customer.deleted_at.is_(None),
+        )
+        customer_result = await self.db.execute(customer_stmt)
+        customer = customer_result.scalars().first()
+        if customer is None:
+            # 路由层已有存在性校验（404）；服务层兜底，避免与「不参与评估」语义混淆
+            raise ValueError(f"客户不存在或已删除: customer_id={customer_id}")
+        if customer.is_settlement_enabled is False or customer.account_type in (
+            "客户测试账号",
+            "内部账号",
+        ):
+            return {
+                "score": None,
+                "usage_rate": None,
+                "balance_rate": None,
+                "payment_rate": None,
+                "health_level": "not_applicable",
+            }
 
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
@@ -2290,7 +2315,7 @@ class AnalyticsService:
                 ),
             )
         )
-        pricing_result = (await self.db.execute(pricing_stmt)).first()
+        pricing_result = (await self.db.execute(pricing_stmt)).scalars().first()
         expected_usage = 0.0
         if pricing_result and pricing_result.tiers:
             # 从 tiers 中提取预期用量（如果有配置）

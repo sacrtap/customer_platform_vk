@@ -481,10 +481,10 @@ export function getPendingTasks() {
 export interface CustomerHealthScore {
   customer_id: number
   customer_name: string
-  score: number
-  health_score: number
-  health_level: string
-  level: string
+  score: number | null
+  health_score: number | null
+  health_level: string | null
+  level: string | null
   risk_factors: string[]
   suggestions: string[]
 }

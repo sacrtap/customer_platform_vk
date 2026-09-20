@@ -78,6 +78,52 @@ class TestCustomerService_CreateCustomer:
 - Test functions: `test_<action>_<condition>` (e.g., `test_create_customer_success`)
 - Every async test has `@pytest.mark.asyncio`
 
+### 陷阱：mock 返回值式断言无法防御筛选条件写错
+
+[来源: 2026-09-20 — 客户列表新增布尔筛选]
+
+Mock 查询返回后断言「返回的客户符合筛选条件」是**无效防御**：mock 不会执行真实 SQL，
+筛选条件写错（字段名、NULL 兼容方向）测试照样通过。既有 `is_key_customer` 用例即此形态。
+
+对筛选条件，应捕获**实际传给 `execute` 的语句并编译为 SQL**，断言条件片段：
+
+```python
+class TestCustomerService_BooleanFilters:
+    @staticmethod
+    def _capture_count_stmt(mock_db_session) -> str:
+        """捕获 get_all_customers 首条 COUNT 查询并编译为 SQL 字符串"""
+        from sqlalchemy.dialects import postgresql
+
+        assert mock_db_session.execute.call_count >= 1, "未执行任何查询"
+        count_stmt = mock_db_session.execute.call_args_list[0][0][0]
+        return str(count_stmt.compile(dialect=postgresql.dialect()))
+
+    @pytest.mark.asyncio
+    async def test_filter_is_settlement_enabled_false(self, mock_db_session):
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+        mock_db_session.__class__ = AsyncSession
+
+        service = CustomerService(db_session=mock_db_session)
+        await service.get_all_customers(
+            page=1, page_size=20, filters={"is_settlement_enabled": False}
+        )
+
+        sql = self._capture_count_stmt(mock_db_session)
+        assert "is_settlement_enabled IS false" in sql
+        assert "is_settlement_enabled IS NULL" not in sql  # 「否」不含 NULL 兼容
+```
+
+**断言要点**：
+- 断言**精确片段**（`is_settlement_enabled IS false`），不要断言裸 `"IS NULL"` ——
+  `deleted_at IS NULL` 恒存在，裸断言必然误伤。
+- `call_args_list[0]` 是 COUNT 查询（先执行），`[-1]` 是数据查询；条件断言用 COUNT 即可。
+- 布尔列 `.is_(True/False)` 编译为 `IS true/false`，`== value` 编译为 `= %(param)s`（字面量绑定）。
+
 ---
 
 ## Integration Test Pattern
