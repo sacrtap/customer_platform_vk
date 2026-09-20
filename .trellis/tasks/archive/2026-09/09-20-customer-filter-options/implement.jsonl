@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "客户筛选涉及 Customer 表字段查询约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端筛选实现质量标准"}
