@@ -303,6 +303,39 @@ stmt = (
 
 ---
 
+## 可空布尔筛选的 NULL 语义（是否结算/是否停用）
+
+[来源: 2026-09-20 — 客户筛选新增 `is_settlement_enabled` / `is_disabled`]
+
+客户表两个可空布尔字段，NULL 语义**必须按「模型默认值」补齐**，且两个字段处理**不对称**：
+
+| 字段 | 模型默认 | NULL 含义 | 筛选「是」 | 筛选「否」 |
+|---|---|---|---|---|
+| `is_settlement_enabled` | `True` | 结算中 | `or_(is_(True), is_(None))` | `is_(False)` |
+| `is_disabled` | `False` | 未停用 | `is_(True)` | `or_(is_(False), is_(None))` |
+
+```python
+# 是否结算：NULL = 结算中 → 筛「是」兼容 NULL，筛「否」严格 false
+if (is_settlement_enabled := filters.get("is_settlement_enabled")) is not None:
+    if is_settlement_enabled:
+        conditions.append(or_(Customer.is_settlement_enabled.is_(True), Customer.is_settlement_enabled.is_(None)))
+    else:
+        conditions.append(Customer.is_settlement_enabled.is_(False))
+
+# 是否停用：NULL = 未停用 → 筛「否」兼容 NULL，筛「是」严格 true
+if (is_disabled := filters.get("is_disabled")) is not None:
+    if is_disabled:
+        conditions.append(Customer.is_disabled.is_(True))
+    else:
+        conditions.append(or_(Customer.is_disabled.is_(False), Customer.is_disabled.is_(None)))
+```
+
+> **Warning**: 迁移里这两个字段都是 `nullable=True` 且无 server_default（见 `05c6bedcf166_initial_schema.py`），历史行可能为 NULL。若不做 NULL 兼容，筛选结果会漏掉历史数据。
+>
+> 对比：`is_key_customer` / `is_real_estate` 后端既有实现是 `== value` 比较，NULL 行恒不匹配（SQL 三值逻辑），这是既有行为，未改。新增布尔筛选时先查字段默认值与迁移历史，再决定哪一侧兼容 NULL。
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)

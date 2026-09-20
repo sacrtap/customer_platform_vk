@@ -133,3 +133,39 @@ watch(
 
 > **验证陷阱**：`watch(() => form.customer_id)` **在值未变化时不触发**（例如重新选中同一个客户）。
 > 因此「重选同一客户」不能用来验证刷新逻辑 —— 必须做真实变更（改周期、换客户）。
+
+---
+
+## 布尔筛选项：FilterDropdown 的 string ↔ boolean 桥接
+
+[来源: 2026-09-20 — 客户列表新增 是否结算/是否重点客户/是否房产客户/是否停用 四个布尔筛选]
+
+`FilterDropdown.vue` 的 `modelValue` 类型是 `string | string[]`，options 的 value 也是 string
+（「全部」用空串 `''` 表示）。**布尔字段不能直接 `v-model`**，需在 `CustomerFilters.vue` 内做
+string ↔ boolean | null 转换，遵循现有 `managerValue` computed 模式：
+
+```vue
+<FilterDropdown v-model="settlementEnabledValue" label="是否结算"
+  :options="BOOLEAN_FILTER_OPTIONS" @apply="handleSearch" />
+```
+
+```ts
+// BOOLEAN_FILTER_OPTIONS 定义在 constants/customerOptions.ts
+// [{ label: '是', value: 'true' }, { label: '否', value: 'false' }]
+
+const settlementEnabledValue = computed({
+  get: () => (filters.value.is_settlement_enabled === null ? '' : String(filters.value.is_settlement_enabled)),
+  set: (val: string) => { filters.value.is_settlement_enabled = val === '' ? null : val === 'true' },
+})
+// keyCustomerValue / realEstateValue / disabledValue 同理
+```
+
+**约定**：
+- filters 模型字段类型 `boolean | null`，`null` = 全部（不筛选）。
+- 新增布尔筛选项 = 4 处同步：`Filters` 接口 + `createDefaultFilters` 默认值 +
+  `buildParams` 传参（`if (x !== null) params.x = x`）+ `CustomerFilters.vue` 下拉与 computed。
+- 共享选项常量 `BOOLEAN_FILTER_OPTIONS`（是/否，string value）放 `constants/customerOptions.ts`，
+  不要在各页面重复定义。
+
+> **Warning**: FilterDropdown 的「全部」选中时 emit `''`，必须映射回 `null`（不是 `false`），
+> 否则「全部」会变成筛选「否」。
