@@ -506,3 +506,25 @@ PR #26（feat/sync-task-log-page → main，同步任务日志页面功能优化
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: 开放平台 VitePress 文档站搭建与 PR #27 合并
+<!-- trellis-session: v=2 fp=b126cd4f203869ca -->
+
+**Date**: 2026-09-20
+**Task**: 开放平台 VitePress 文档站搭建与 PR #27 合并
+**Branch**: `api-docs`
+
+### Summary
+
+基于 VitePress 搭建开放平台文档站（openapi-docs/），替换前端 SPA 手写 OpenApiGuide.vue；认证围绕 API-Key 管理；nginx 集成 /openapi/ 静态托管；修复 PR checks 集成测试超时（paths-filter + timeout 60）与 acceptance record 上传（if: always()）；沉淀 spec 经验指南
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0b22c51` | Merge pull request #27 from sacrtap/api-docs |
+
+### Status
+
+[OK] **Completed**

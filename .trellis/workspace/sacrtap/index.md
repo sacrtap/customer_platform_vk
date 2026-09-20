@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 21
-- **Last Active**: 2026-09-19
+- **Total Sessions**: 22
+- **Last Active**: 2026-09-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~508 | Active |
+| `journal-1.md` | ~530 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 22 | 2026-09-20 | 开放平台 VitePress 文档站搭建与 PR #27 合并 | `0b22c51` | `api-docs` |
 | 21 | 2026-09-19 | 合并 PR #26：同步任务日志页面功能优化落地 main | `bb9ff15` | `main` |
 | 20 | 2026-09-19 | 修复PR #26 CI E2E失败：seed.py循环变量遮蔽导致admin权限不足 | `1d91e59`, `c1236c3` | `feat/sync-task-log-page` |
 | 19 | 2026-09-18 | 运营工作台页面功能修复（3 个显示问题） | `38d43e1`, `7c4b03b`, `e82c325` | `feature/dashboard-visual-fixes` |
