@@ -169,3 +169,46 @@ const settlementEnabledValue = computed({
 
 > **Warning**: FilterDropdown 的「全部」选中时 emit `''`，必须映射回 `null`（不是 `false`），
 > 否则「全部」会变成筛选「否」。
+
+---
+
+## a-spin 加载态居中：根元素撑满 + AND 组合选择器
+
+[来源: 2026-09-20 — `EditCustomerDialog.vue` loading 图标偏上/偏左修复]
+
+**现象**：`<a-spin :loading="fetchLoading">` 包裹暂不显示的表单（内容 `v-show` 隐藏）时，
+loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
+
+**根因**：Arco 的 `.arco-spin-loading .arco-spin-mask-icon` 已经用
+`top:50%; left:50%; transform:translate(-50%,-50%)` 定位图标；但容器（modal body）塌陷
+（内容隐藏 → 高度/宽度为 0），50% 参照就是 0，图标偏到一角。
+
+**修复**（关键两点）：
+
+```vue
+<a-spin :loading="fetchLoading" class="edit-dialog-spin">
+```
+
+```css
+/* 根元素在 loading 时自身带 .arco-spin-loading class（Arco 加在根节点上） */
+.edit-dialog-spin.arco-spin-loading {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+```
+
+1. **要用 AND 组合选择器 `.edit-dialog-spin.arco-spin-loading`，不是 `:deep(.arco-spin)`**：
+   `<a-spin>` 渲染的根元素 **自身**就是 `.arco-spin`（class 合并到同一节点），
+   `:deep(.arco-spin)` 后代选择器匹配不到自己 → 样式不生效。
+   同样不能选 `.edit-dialog-spin :deep(.arco-spin)`（它要求 `.arco-spin` 是后代）。
+2. **用 `height:100%` 对齐 modal body 的 content-box，不要用 `min-height` 硬编码**：
+   body `height:600px` + padding 24px 上下 → content 552px；`height:100%` 精确填满内容区，
+   mask-icon `top:50%` 即为可视区正中。用 `min-height:600px` 会因 padding 叠加溢出，
+   图标仍偏下（dy≈24px）。
+
+> **验证陷阱**：本地 API 很快，加载态一闪而过，浏览器截图往往来不及 —— 用 XHR/fetch
+> 拦截延迟响应制造加载窗口再量 `getBoundingClientRect()` 与 body/内容区中心对比；
+> 断言 `dy<2px` 且图标中心 ≈ 内容区中心。模态容器 padding 左右可能不对称
+> （`paddingRight` 被 body-style 覆盖过），水平对比应参照内容区中心而非 border-box 中心。
