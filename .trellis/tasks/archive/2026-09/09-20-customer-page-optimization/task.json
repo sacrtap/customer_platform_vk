@@ -1,0 +1,30 @@
+{
+  "id": "customer-page-optimization",
+  "name": "customer-page-optimization",
+  "title": "客户管理页面功能优化",
+  "description": "客户管理页面 6 项功能优化：筛选项（是否结算/重点客户/房产客户/是否停用）、编辑弹窗 loading 居中、健康度评估排除规则",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "sacrtap",
+  "assignee": "sacrtap",
+  "createdAt": "2026-09-20",
+  "completedAt": "2026-09-20",
+  "branch": "customer-module-optimization",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-20-customer-filter-options",
+    "09-20-edit-dialog-loading",
+    "09-20-health-score-exclusion"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
