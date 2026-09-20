@@ -384,7 +384,6 @@ docker-compose -f docker-compose.yml logs -f app
 | **本地开发** | http://localhost:5173/openapi/ | `npm run docs:dev` 热更新预览 |
 | **构建产物预览** | http://localhost:4173/openapi/ | `npm run docs:preview` 验证产物 |
 | **容器部署** | http://localhost:8082/openapi/ | 与主应用同 nginx 托管 |
-| **staging** | https://customer-staging.jiazoushi.com/openapi/ | 生产文档站（部署后生效） |
 
 > 无尾斜杠访问 `/openapi` 时，nginx 自动 301 重定向至 `/openapi/`。
 
