@@ -63,9 +63,5 @@ export default defineConfig({
       pattern: 'https://github.com/sacrtap/customer_platform_vk/edit/main/openapi-docs/docs/:path',
       text: '在 GitHub 上编辑此页',
     },
-    lastUpdated: {
-      text: '最后更新于',
-    },
   },
-  lastUpdated: true,
 })
