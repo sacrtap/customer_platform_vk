@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "健康度排除查询涉及 Customer 表"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端实现质量"}
