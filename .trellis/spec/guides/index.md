@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [VitePress 文档站 + CI 路径过滤](./vitepress-docs-ci-guide.md) | VitePress 独立文档站工程约定（config 位置/base/nginx 配合）与重型 CI 测试 paths-filter 模式 | 新增 VitePress 文档站、修改 nginx 静态托管、调整 PR checks |
 
 ---
 
