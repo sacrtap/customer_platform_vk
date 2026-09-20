@@ -528,3 +528,26 @@ PR #26（feat/sync-task-log-page → main，同步任务日志页面功能优化
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: 健康度评估排除规则优化
+<!-- trellis-session: v=2 fp=28029e9f851259fb -->
+
+**Date**: 2026-09-20
+**Task**: 健康度评估排除规则优化
+**Branch**: `customer-module-optimization`
+
+### Summary
+
+健康度评分排除三类客户（不结算/客户测试账号/内部账号）：后端 get_customer_health_score 命中排除返回 score=null+not_applicable，客户不存在兜底 ValueError；顺带修复既有 bug（select(PricingRule) Row 键为实体名致 pricing_result.tiers 恒 KeyError → .scalars().first()）。前端 CustomerProfileTab 对 score==null 展示「不参与评估」，CustomerHealthScore 类型允许 null。单测 11/11、集成 26/26、ruff、vue-tsc 通过；API+浏览器实测三场景正确；AC5 分析页接口正常。spec 沉淀 select(实体) 必须 .scalars() 与 Python 布尔恒等判断。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `694abd5` | feat(analytics): 健康度评分排除不结算、客户测试账号、内部账号 |
+| `92ec9d1` | docs(spec): 沉淀 select(实体) 必须 .scalars() 与 Python 侧布尔恒等判断 |
+
+### Status
+
+[OK] **Completed**
