@@ -139,6 +139,10 @@ jobs:
           # 单元测试只生成覆盖率数据，不单独判定门槛；
           # 覆盖率门禁在集成 job 以「单元+集成合并（全量口径）」统一判定（--cov-fail-under=50）
           pytest tests/unit/ -n auto --cov=app --cov-report=term-missing --junitxml=junit.xml
+          # pytest-xdist 下各 worker 分别写 .coverage.<host>.<pid> 而非 .coverage，
+          # 需合并为 .coverage 供集成 job 下载后以 --cov-append 做「单元+集成合并」
+          # 的全量口径判定（否则上传步骤找不到文件而失败）
+          coverage combine
 
       - name: Upload JUnit test results
         if: always()
