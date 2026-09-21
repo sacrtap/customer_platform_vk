@@ -260,7 +260,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted, watch } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 import { batchUpdateCustomers, getIndustryTypes } from '@/api/customers'
@@ -301,11 +301,15 @@ const isVisible = computed({
 
 const cooperationStatuses = ref<CooperationStatus[]>([])
 
-// 行业类型 / ERP 系统字典：优先使用父级传入，未传时自行加载兜底
+// 行业类型 / ERP 系统字典：优先使用父级传入（非空时），空数组/未传时自行加载兜底
 const innerIndustryTypes = ref<IndustryType[]>([])
-const industryTypes = computed(() => props.industryTypes || innerIndustryTypes.value)
+const industryTypes = computed(() =>
+  props.industryTypes && props.industryTypes.length ? props.industryTypes : innerIndustryTypes.value
+)
 const innerErpSystems = ref<ErpSystem[]>([])
-const erpSystems = computed(() => props.erpSystems || innerErpSystems.value)
+const erpSystems = computed(() =>
+  props.erpSystems && props.erpSystems.length ? props.erpSystems : innerErpSystems.value
+)
 
 onMounted(async () => {
   try {
@@ -314,7 +318,7 @@ onMounted(async () => {
   } catch {
     // ignore
   }
-  if (!props.industryTypes) {
+  if (!props.industryTypes?.length) {
     try {
       const res = await getIndustryTypes()
       innerIndustryTypes.value = res.data?.data || res.data || []
@@ -322,7 +326,7 @@ onMounted(async () => {
       // ignore
     }
   }
-  if (!props.erpSystems) {
+  if (!props.erpSystems?.length) {
     try {
       const res = await getErpSystemsList()
       innerErpSystems.value = res.data?.data || res.data || []
@@ -404,10 +408,14 @@ const previewRows = computed(() => {
   for (const [key, selected] of Object.entries(batchFieldsSelected)) {
     if (selected) {
       const value = (batchForm as Record<string, unknown>)[key]
-      if (value === null || value === '') continue
-      let displayValue = String(value)
-      if (typeof value === 'boolean') {
+      let displayValue: string
+      if (value === null || value === undefined || value === '') {
+        // 空值 = 批量清空该字段，预览中显性展示，避免用户无感知提交清空
+        displayValue = '清空'
+      } else if (typeof value === 'boolean') {
         displayValue = value ? '是' : '否'
+      } else {
+        displayValue = String(value)
       }
       rows.push({ fieldName: fieldNames[key] || key, newValue: displayValue })
     }
@@ -476,7 +484,10 @@ const confirmBatchSubmit = () => {
   const fields: Record<string, unknown> = {}
   for (const [key, selected] of Object.entries(batchFieldsSelected)) {
     if (selected) {
-      fields[key] = (batchForm as Record<string, unknown>)[key]
+      const value = (batchForm as Record<string, unknown>)[key]
+      // allow-clear 清除后 Arco 置值为 '' 或 undefined，JSON 序列化会丢弃 undefined 键而 '' 会误导后端校验（如 industry_type_id='' 查询不到行业）。
+      // 统一归一为 null 使清空语义（industry_type_id=null 删行业 / erp_system=null 清空）能可靠到达后端
+      fields[key] = value === undefined || value === '' ? null : value
     }
   }
   submitBatchUpdate(fields)
@@ -504,6 +515,14 @@ const resetForm = () => {
     ;(batchFieldsSelected as Record<string, boolean>)[k] = false
   })
 }
+
+// 弹框每次打开时重置表单，避免上一批客户的勾选与值残留到下一批
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) resetForm()
+  }
+)
 
 defineExpose({ resetForm })
 </script>
