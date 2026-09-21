@@ -5,6 +5,7 @@ import io
 import json as _json
 import logging
 from datetime import datetime
+from typing import Any
 
 from sanic.request import Request
 from sanic.response import json, raw
@@ -391,6 +392,10 @@ async def import_pricing_rules(request: Request):
         errors = []
         success_count = 0
         for idx, row in df.iterrows():
+            # pandas-stubs 将 Series.get 的返回值推断为 Dtype，导致 pd.isna(...)
+            # 误报 reportCallIssue/reportArgumentType；运行时是真实单元格值。
+            # 标注 Any 消除误报，不改变语义。
+            row: Any = row
             row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
                 # 校验 company_id

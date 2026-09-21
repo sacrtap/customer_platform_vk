@@ -448,22 +448,28 @@ class InvoiceExcelService:
         final_amount = total_amount - discount_amount
         period_str = f"{utc_to_cst_date_str(period_start)} - {utc_to_cst_date_str(period_end)}"
         ws1.cell(row=3, column=1, value=period_str)
-        ws1.cell(row=3, column=2, value=model_count)
-        ws1.cell(row=3, column=3, value=model_count)
-        ws1.cell(row=3, column=4, value=float(total_amount))
-        ws1.cell(row=3, column=5, value=float(discount_amount))
-        ws1.cell(row=3, column=6, value=float(final_amount))
+        # types-openpyxl 的 cell(value: str | None) 签名过严：openpyxl 运行时接受
+        # int/float/Decimal，导出数值列必然触发 reportArgumentType，逐处豁免。
+        ws1.cell(row=3, column=2, value=model_count)  # pyright: ignore[reportArgumentType]
+        ws1.cell(row=3, column=3, value=model_count)  # pyright: ignore[reportArgumentType]
+        ws1.cell(row=3, column=4, value=float(total_amount))  # pyright: ignore[reportArgumentType]
+        ws1.cell(row=3, column=5, value=float(discount_amount))  # pyright: ignore[reportArgumentType]
+        ws1.cell(row=3, column=6, value=float(final_amount))  # pyright: ignore[reportArgumentType]
         # 期初余额 / 当月充值 / 结算后余额
         if balance_info:
-            ws1.cell(row=3, column=7, value=float(balance_info.get("opening_balance", 0)))
-            ws1.cell(row=3, column=8, value=float(balance_info.get("monthly_recharge", 0)))
-            ws1.cell(
+            ws1.cell(  # pyright: ignore[reportArgumentType]
+                row=3, column=7, value=float(balance_info.get("opening_balance", 0))
+            )
+            ws1.cell(  # pyright: ignore[reportArgumentType]
+                row=3, column=8, value=float(balance_info.get("monthly_recharge", 0))
+            )
+            ws1.cell(  # pyright: ignore[reportArgumentType]
                 row=3, column=9, value=float(balance_info.get("closing_balance", final_amount))
             )
         else:
             ws1.cell(row=3, column=7, value="")
             ws1.cell(row=3, column=8, value="")
-            ws1.cell(row=3, column=9, value=float(final_amount))
+            ws1.cell(row=3, column=9, value=float(final_amount))  # pyright: ignore[reportArgumentType]
         ws1.cell(row=3, column=10, value="")
 
         # 列宽

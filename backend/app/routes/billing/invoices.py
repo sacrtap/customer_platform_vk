@@ -6,6 +6,7 @@ import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+from typing import Any
 from urllib.parse import quote
 
 from openpyxl import Workbook
@@ -1539,6 +1540,10 @@ async def import_invoices(request: Request):
         errors = []
         success_count = 0
         for idx, row in df.iterrows():
+            # pandas-stubs 将 Series.get 的返回值推断为 Dtype，导致 pd.isna(...)
+            # 误报 reportCallIssue/reportArgumentType；运行时是真实单元格值。
+            # 标注 Any 消除误报，不改变语义。
+            row: Any = row
             row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
                 # company_id
