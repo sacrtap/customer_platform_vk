@@ -1,0 +1,3 @@
+{"file": "frontend/src/views/customers/components/CustomerBatchEditModal.vue", "reason": "批量编辑弹框主改动文件"}
+{"file": "frontend/src/views/customers/Index.vue", "reason": "批量编辑弹框接线源"}
+{"file": "backend/app/services/customers.py", "reason": "后端批量更新白名单现状(不改)"}
