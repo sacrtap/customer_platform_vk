@@ -1,0 +1,2 @@
+{"file": "backend/tests/unit/test_batch_update.py", "reason": "后端批量更新回归测试"}
+{"file": "frontend/src/api/customers.ts", "reason": "批量更新API调用契约"}

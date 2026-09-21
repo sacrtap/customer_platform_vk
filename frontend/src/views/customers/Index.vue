@@ -118,6 +118,8 @@
       :visible="batchEditDialogVisible"
       :selected-customer-ids="selectedCustomerIds"
       :managers="managers"
+      :industry-types="industryTypes"
+      :erp-systems="erpSystems"
       @submitted="handleSearch"
       @update:visible="batchEditDialogVisible = $event"
     />

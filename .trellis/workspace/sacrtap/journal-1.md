@@ -574,3 +574,72 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+## Session 25: 批量编辑弹框新增行业与 ERP 编辑项
+<!-- trellis-session: v=2 -->
+
+**Date**: 2026-09-21
+**Task**: 09-21-batch-edit-industry（客户列表批量编辑增加行业与ERP编辑项）
+**Branch**: `customer-batch-edit-optimization`
+
+### Summary
+
+客户列表批量编辑弹框新增「行业类型」「ERP 系统」两个编辑项（checkbox + select，allow-clear 清空置 null）。后端 batch_update_customers 白名单早已支持 industry_type_id/erp_system，纯前端改动 2 文件：
+- CustomerBatchEditModal.vue：props 新增 industryTypes/erpSystems（Index.vue useCustomerList 已加载字典，组件内兜底自载）；batchForm/batchFieldsSelected/fieldNames/resetForm 同步扩展；template 新增 2 个编辑项
+- Index.vue：传入 :industry-types / :erp-systems
+
+决策：仅纳入行业 + ERP；首次回款时间/接入时间/备注/名称/公司ID/邮箱不纳入（日期批量覆盖场景少、备注误覆盖风险、唯一字段不宜批量）。
+
+验证：vue-tsc 通过、eslint 通过、后端 test_batch_update.py 8 passed；浏览器实测端到端——勾选 3 客户→批量编辑→勾选行业/ERP→选「房产经纪」+「自研」→预览显示 2 字段→提交成功「共修改 3 个客户」→DB 核验 3 客户 industry_type_id=2（房产经纪）/erp_system=self，审计日志 batch_update 完整记录。
+
+补充：本机 /usr/local/bin/node(npm) llhttp 动态库损坏，vite 需用 nvm node 启动；hub start 需直接启动 node_modules/.bin/vite，经 npm wrapper 会失败。
+
+### Status
+
+[OK] **Completed**
+
+## Session 26: 批量编辑行业/ERP 功能 code review 与修复
+<!-- trellis-session: v=2 -->
+
+**Date**: 2026-09-21
+**Task**: 09-21-batch-edit-industry（ocr 审查与修复）
+
+### Summary
+
+对 commit c258d8a（批量编辑弹框新增行业/ERP 编辑项）执行 open-code-review v1.12.7 审查（bifrost/deepseek-v4-pro，4m47s，3 次 429 重试），产出 1 高 2 中，全部属实并修复：
+1. [high] 勾选无值提交 → 批量清空 + allow-clear 清除值 JSON 丢失：previewRows 空值显性显示「清空」+ confirmBatchSubmit 将 undefined/'' 归一为 null
+2. [medium] 字典兜底 `if (!props.xxx)` 对空数组恒 false：改 `?.length`，computed 非空才用 props
+3. [medium] resetForm 无调用方：新增 watch visible → resetForm
+
+实测额外发现：Arco allow-clear 清除后值为 `''` 而非 undefined，初版归一仅处理 undefined，拦截到 `{"industry_type_id":""}` 错误 payload；扩展为 `value === undefined || value === ''` 后 payload 正确为 null，后端成功清空。
+
+验证：vue-tsc/eslint 通过、端到端浏览器实测 4 场景全部通过（含清空链路 DB 核验 + 审计）。报告保存 docs/code-review/2026-09-21-batch-edit-industry-review.md。
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 27: 批量编辑弹框新增行业与ERP编辑项（含 code review 修复）
+<!-- trellis-session: v=2 fp=81758757c188821e -->
+
+**Date**: 2026-09-21
+**Task**: 批量编辑弹框新增行业与ERP编辑项（含 code review 修复）
+**Branch**: `customer-batch-edit-optimization`
+
+### Summary
+
+客户列表批量编辑弹框新增行业类型(industry_type_id, CustomerProfile)与ERP系统(erp_system)编辑项, 后端白名单已支持零改动。open-code-review 审出 1 高 2 中全部修复: 空值提交归一 null+预览显性清空、字典兜底 ?.length、watch visible 重置表单。vue-tsc/eslint/pre-commit/后端回归 8 passed, 浏览器端到端 4 场景通过, 报告保存 docs/code-review/。PR #29 已创建。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c258d8a` | feat(customers): 批量编辑弹框新增行业类型与ERP系统编辑项 |
+| `30c86f7` | chore(trellis): 批量编辑新增行业与ERP编辑项任务文档 |
+| `0b6cf4d` | fix(customers): 修复批量编辑空值提交与表单残留问题 |
+| `f1b5579` | docs(code-review): 批量编辑行业与ERP功能审查报告 |
+
+### Status
+
+[OK] **Completed**
