@@ -29,6 +29,8 @@ Thumbs.db
 playwright-report/
 test-results/
 playwright/.cache/
+# Playwright 登录态（含 JWT，禁止入库）
+tests/e2e/.auth/
 
 # Logs
 npm-debug.log*
