@@ -82,11 +82,10 @@ async def import_balance(request: Request):
         valid_rows = []
 
         for idx, row in df.iterrows():
-            row_num = idx + 2  # Excel 行号（含表头）  # pyright: ignore[reportOperatorIssue]
-
+            row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             # 校验 company_id
             company_id = row.get("company_id")
-            if pd.isna(company_id) or company_id is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+            if bool(pd.isna(company_id)) or company_id is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 errors.append(f"第 {row_num} 行：客户编号为空")
                 continue
             try:
@@ -103,7 +102,7 @@ async def import_balance(request: Request):
 
             # 校验 real_amount
             real_amount = row.get("real_amount")
-            if pd.isna(real_amount) or real_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+            if bool(pd.isna(real_amount)) or real_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 real_amount = 0
             else:
                 try:
@@ -117,7 +116,7 @@ async def import_balance(request: Request):
 
             # 校验 bonus_amount
             bonus_amount = row.get("bonus_amount")
-            if pd.isna(bonus_amount) or bonus_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+            if bool(pd.isna(bonus_amount)) or bonus_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 bonus_amount = 0
             else:
                 try:
@@ -136,7 +135,7 @@ async def import_balance(request: Request):
 
             # 备注
             remark = row.get("remark")
-            if pd.isna(remark) or remark is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+            if bool(pd.isna(remark)) or remark is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 remark = None
             else:
                 remark = str(remark)[:200]  # 截断到 200 字符
@@ -177,6 +176,8 @@ async def import_balance(request: Request):
         # 清除缓存
         await cache_service.invalidate_analytics_cache("health")
         await cache_service.invalidate_analytics_cache("dashboard")
+        # 批量充值会改变客户余额，而客户列表含 balance/usage 字段，需一并失效列表缓存
+        await cache_service.invalidate_customer_cache()
 
         # 记录审计日志
         summary = build_batch_audit_summary(
@@ -223,11 +224,13 @@ async def import_balance(request: Request):
 @auth_required
 async def download_balance_import_template(request: Request):
     """下载余额导入 Excel 模板"""
+    from openpyxl.utils import get_column_letter
     from sanic.response import raw
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "余额导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "余额导入模板"
 
     # 表头
     headers = ["company_id", "real_amount", "bonus_amount", "remark"]
@@ -243,8 +246,8 @@ async def download_balance_import_template(request: Request):
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 设置列宽
-    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
-        ws.column_dimensions[col[0].column_letter].width = 25  # pyright: ignore[reportOptionalMemberAccess]
+    for col_num in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
 
     # 不写入示例数据行：read_import_dataframe 只丢弃第 2 行中文说明行，第 3 行示例数据
     # 会被当作真实余额充值导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默

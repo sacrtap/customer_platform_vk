@@ -386,8 +386,8 @@ class InvoiceExcelService:
         discount_amount: Decimal,
         unit_price: Optional[Decimal],
         order_details: List[Dict[str, Any]],
-        balance_info: Dict[str, Any] = None,
-        invoice_items: List[Dict[str, Any]] = None,
+        balance_info: Optional[Dict[str, Any]] = None,
+        invoice_items: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """生成 Excel 并保存到文件
 
@@ -411,6 +411,7 @@ class InvoiceExcelService:
         # Sheet 1: 合计（10 列 A-J，与模板对齐）
         # ============================================================
         ws1 = wb.active
+        assert ws1 is not None  # 新建 Workbook 必有活动工作表
         ws1.title = "合计"
 
         # 标题行
@@ -486,8 +487,8 @@ class InvoiceExcelService:
             nest_id = order.get("nest_id", "")
             project_link = f"https://beyond.3dnest.cn/house/?m={nest_id}" if nest_id else ""
             status_val = order.get("order_status")
-            status_str = ORDER_STATUS_MAP.get(
-                status_val, str(status_val) if status_val is not None else ""
+            status_str = (
+                ORDER_STATUS_MAP.get(status_val, str(status_val)) if status_val is not None else ""
             )
 
             row_data = [
@@ -571,7 +572,7 @@ class InvoiceExcelService:
             # 数据行
             for row_idx, item in enumerate(invoice_items, 2):
                 # 设备类型映射
-                dt = item.get("device_type", "")
+                dt = item.get("device_type") or ""
                 dt_str = {"X": "X", "N": "N", "L": "L"}.get(dt, dt or "包年")
 
                 # 楼层映射
@@ -582,7 +583,7 @@ class InvoiceExcelService:
                 unit_p = float(item.get("unit_price", 0))
                 subtotal = quantity * unit_p
 
-                mfp_type = item.get("multi_floor_pricing_type")
+                mfp_type = item.get("multi_floor_pricing_type") or ""
                 mfp_str = {"incremental": "递增", "unified": "统一"}.get(mfp_type, mfp_type or "-")
 
                 afp = item.get("additional_floor_price")

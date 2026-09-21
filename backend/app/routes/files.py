@@ -549,7 +549,8 @@ async def delete_file(request: Request, file_id: int):
         return json({"code": 0, "message": "success", "data": {"deleted_id": file_id}})
 
     except Exception as e:
-        # 回滚事务
-        await db_session.rollback()
+        # 回滚事务（防御：会话可能尚未注入）
+        if hasattr(request.ctx, "db_session"):
+            await request.ctx.db_session.rollback()
         logger.error(f"❌ 文件删除失败：ID={file_id}, 错误={str(e)}")
         return json({"code": 500, "message": f"删除失败：{str(e)}", "data": None}, status=500)

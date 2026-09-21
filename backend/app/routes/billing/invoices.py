@@ -728,9 +728,11 @@ async def apply_discount(request: Request, invoice_id: int):
 
     # 返回更新后的 invoice 数据
     invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+    if invoice_after is None:
+        return json({"code": ErrorCodes.NOT_FOUND, "message": "结算单不存在"}, status=404)
 
     # 如果明细文件已生成，重新生成以更新合计 sheet 中的减免相关数值
-    if invoice_after and invoice_after.detail_file_status == "completed":  # pyright: ignore[reportOptionalMemberAccess]
+    if invoice_after.detail_file_status == "completed":
         try:
             await _trigger_detail_generation(request, invoice_id)
         except Exception:
@@ -741,17 +743,17 @@ async def apply_discount(request: Request, invoice_id: int):
             "code": 0,
             "message": message,
             "data": {
-                "id": invoice_after.id,  # pyright: ignore[reportOptionalMemberAccess]
+                "id": invoice_after.id,
                 "discount_amount": float(invoice_after.discount_amount)
                 if invoice_after.discount_amount
-                else 0,  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType, reportGeneralTypeIssues]
-                "discount_reason": invoice_after.discount_reason,  # pyright: ignore[reportOptionalMemberAccess]
-                "discount_attachment": invoice_after.discount_attachment,  # pyright: ignore[reportOptionalMemberAccess]
-                "discount_applied_at": invoice_after.discount_applied_at,  # pyright: ignore[reportOptionalMemberAccess]
+                else 0,
+                "discount_reason": invoice_after.discount_reason,
+                "discount_attachment": invoice_after.discount_attachment,
+                "discount_applied_at": invoice_after.discount_applied_at,
                 "final_amount": float(
                     invoice_after.total_amount - (invoice_after.discount_amount or 0)
-                ),  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType]
-                "status": invoice_after.status,  # pyright: ignore[reportOptionalMemberAccess]
+                ),
+                "status": invoice_after.status,
             },
         }
     )
@@ -1285,7 +1287,8 @@ async def export_invoices(request: Request):
     # 创建 Excel 工作簿
     wb = Workbook()
     ws = wb.active
-    ws.title = "结算单导出"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "结算单导出"
 
     # 定义样式
     header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -1522,7 +1525,7 @@ async def import_invoices(request: Request):
         supplied_nos = {
             str(v).strip()
             for v in (df["invoice_no"].tolist() if "invoice_no" in df.columns else [])
-            if v is not None and not pd.isna(v) and str(v).strip()
+            if v is not None and not bool(pd.isna(v)) and str(v).strip()
         }
         if supplied_nos:
             taken_result = await db.execute(
@@ -1536,12 +1539,11 @@ async def import_invoices(request: Request):
         errors = []
         success_count = 0
         for idx, row in df.iterrows():
-            row_num = idx + 2  # Excel 行号（含表头）
-
+            row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
                 # company_id
                 company_id = row.get("company_id")
-                if pd.isna(company_id) or company_id is None:
+                if bool(pd.isna(company_id)) or company_id is None:
                     errors.append(f"第 {row_num} 行：客户编号为空")
                     continue
                 try:
@@ -1578,7 +1580,7 @@ async def import_invoices(request: Request):
 
                 # 金额
                 total_amount_raw = row.get("total_amount")
-                if pd.isna(total_amount_raw) or total_amount_raw is None:
+                if bool(pd.isna(total_amount_raw)) or total_amount_raw is None:
                     errors.append(f"第 {row_num} 行：结算金额为空")
                     continue
                 try:
@@ -1596,7 +1598,7 @@ async def import_invoices(request: Request):
 
                 discount_amount = Decimal("0")
                 discount_raw = row.get("discount_amount")
-                if discount_raw is not None and not pd.isna(discount_raw):
+                if discount_raw is not None and not bool(pd.isna(discount_raw)):
                     try:
                         discount_amount = Decimal(str(discount_raw))
                         if not discount_amount.is_finite():
@@ -1617,7 +1619,7 @@ async def import_invoices(request: Request):
                 invoice_no_raw = row.get("invoice_no")
                 if (
                     invoice_no_raw is not None
-                    and not pd.isna(invoice_no_raw)
+                    and not bool(pd.isna(invoice_no_raw))
                     and str(invoice_no_raw).strip()
                 ):
                     invoice_no = str(invoice_no_raw).strip()
@@ -1724,10 +1726,12 @@ async def download_invoice_import_template(request: Request):
     import io
 
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "结算单导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "结算单导入模板"
 
     headers = [
         "company_id",
@@ -1749,8 +1753,8 @@ async def download_invoice_import_template(request: Request):
     ]
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
-    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
-        ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
+    for col_num in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 24
 
     # 不写入示例数据行：示例行会被当作真实数据导入（公司 100001 的 draft 结算单）。
     # 表头行（第 1 行）与中文说明行（第 2 行）契约由模板下载测试断言，保持不变。

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..cache.base import cache_service
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer, CustomerProfile
+from ..models.industry_type import IndustryType
 from ..repository import CustomerRepositoryProtocol
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 
@@ -248,8 +249,6 @@ class CustomerService:
 
         # 行业筛选（使用 profile.industry_type_id，JOIN IndustryType 表匹配名称）
         if industry := filters.get("industry"):
-            from ..models.industry_type import IndustryType
-
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             stmt = stmt.outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
             joined_profile = True
@@ -458,8 +457,6 @@ class CustomerService:
         # 行业筛选
         industry_join_needed = False
         if industry := filters.get("industry"):
-            from ..models.industry_type import IndustryType
-
             industry_list = [i.strip() for i in industry.split(",") if i.strip()]
             industry_join_needed = True
             if len(industry_list) == 1:
@@ -541,12 +538,16 @@ class CustomerService:
             mine_stmt = mine_stmt.where(Customer.id < 0)
 
         # 顺序执行所有计数查询（AsyncSession 不支持并发 execute）
+        # 注：self.db 可为 AsyncSession 或 Session（同步/异步双栈），须按分支 cast，
+        # 类型检查才能正确区分 await 与否。
         if self._is_async:
+            assert isinstance(self.db, AsyncSession)  # 异步模式下由调用方注入 AsyncSession
             total = (await self.db.execute(total_stmt)).scalar()
             key_customers = (await self.db.execute(key_stmt)).scalar()
             incomplete_profile = (await self.db.execute(incomplete_stmt)).scalar()
             my_customers = (await self.db.execute(mine_stmt)).scalar()
         else:
+            assert isinstance(self.db, Session)  # 同步模式下由调用方注入 Session
             total = self.db.execute(total_stmt).scalar()
             key_customers = self.db.execute(key_stmt).scalar()
             incomplete_profile = self.db.execute(incomplete_stmt).scalar()
@@ -783,8 +784,6 @@ class CustomerService:
 
                 # industry_type_id 存在性校验
                 if "industry_type_id" in fields and fields["industry_type_id"] is not None:
-                    from ..models.industry_type import IndustryType
-
                     ind_result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                         select(IndustryType).where(IndustryType.id == fields["industry_type_id"])
                     )
@@ -945,11 +944,8 @@ class CustomerService:
 
         # 处理 industry 字段：将行业类型名称转换为 industry_type_id
         industry_name = data.get("industry")
+        industry_type = None
         if industry_name is not None:
-            from sqlalchemy import select
-
-            from ..models.industry_type import IndustryType
-
             result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
                 select(IndustryType).where(IndustryType.name == industry_name)
             )

@@ -3,10 +3,10 @@
 import asyncio
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import aiomysql
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.customers import Customer
@@ -226,7 +226,7 @@ class OrderSyncService:
             )
         )
         await self.db.commit()
-        logger.info(f"已清空 {sync_date} 的 {result.rowcount} 条订单记录")
+        logger.info(f"已清空 {sync_date} 的 {cast(CursorResult[Any], result).rowcount} 条订单记录")
 
     async def _match_and_save(
         self,
