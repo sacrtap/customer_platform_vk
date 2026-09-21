@@ -108,6 +108,16 @@ _bmad-output/
 skills-lock.json
 design-artifacts/
 
+# Trellis 生成的平台文件（skills/agents/commands/extensions）由 trellis init/update
+# 写入并随升级重写，不纳入版本控制；变更可追溯性由 .trellis/.template-hashes.json
+# 提供。项目自订的 .omp/rules/、.omp/AGENTS.md、.omp/RULES.md、.omp/extensions/rtk.ts
+# 仍受版本控制（.agents/skills 由上面的 .agents/ 规则覆盖）。
+.omp/skills/
+.omp/agents/
+.omp/commands/
+.omp/extensions/trellis/
+.codex/
+
 # Cache
 .cache/
 *.cache
