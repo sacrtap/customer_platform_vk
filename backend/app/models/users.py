@@ -1,7 +1,9 @@
 """用户与权限模型"""
 
+from datetime import datetime
+
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -33,15 +35,15 @@ class User(BaseModel):
 
     __tablename__ = "users"
 
-    username = Column(String(50), unique=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    email = Column(String(100))
-    real_name = Column(String(50))
-    is_active = Column(Boolean, default=True)
-    is_system = Column(Boolean, default=False)
-    phone = Column(String(20))
-    avatar_url = Column(String(500))
-    last_login_at = Column(DateTime)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(100))
+    real_name: Mapped[str | None] = mapped_column(String(50))
+    is_active: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    is_system: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    phone: Mapped[str | None] = mapped_column(String(20))
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # 关联
     roles = relationship("Role", secondary=user_roles, back_populates="users")
@@ -56,9 +58,9 @@ class Role(BaseModel):
 
     __tablename__ = "roles"
 
-    name = Column(String(50), unique=True, nullable=False)
-    description = Column(String(200))
-    is_system = Column(Boolean, default=False)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(200))
+    is_system: Mapped[bool | None] = mapped_column(Boolean, default=False)
 
     # 关联
     users = relationship("User", secondary=user_roles, back_populates="roles")
@@ -73,10 +75,10 @@ class Permission(BaseModel):
 
     __tablename__ = "permissions"
 
-    code = Column(String(100), unique=True, nullable=False)
-    name = Column(String(100), nullable=False)
-    description = Column(String(200))
-    module = Column(String(50), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(200))
+    module: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # 关联
     roles = relationship("Role", secondary=role_permissions, back_populates="permissions")

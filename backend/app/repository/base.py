@@ -1,9 +1,9 @@
 """基础 Repository 实现"""
 
 from datetime import datetime
-from typing import Any, Generic, List, Optional, Sequence, Type, TypeVar
+from typing import Any, Generic, List, Optional, Sequence, Type, TypeVar, cast
 
-from sqlalchemy import func, select, update
+from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.base import BaseModel
@@ -86,4 +86,4 @@ class BaseRepository(Generic[T]):
         )
         result = await self.db.execute(stmt)
         await self.db.flush()
-        return result.rowcount > 0
+        return cast(CursorResult[Any], result).rowcount > 0

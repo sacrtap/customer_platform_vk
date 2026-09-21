@@ -1,8 +1,10 @@
 """客户信息与画像模型"""
 
+from datetime import date
+from decimal import Decimal
+
 from sqlalchemy import (
     Boolean,
-    Column,
     Date,
     ForeignKey,
     Index,
@@ -11,7 +13,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -21,31 +23,39 @@ class Customer(BaseModel):
 
     __tablename__ = "customers"
 
-    company_id = Column(Integer, unique=True, nullable=False, index=True)
-    name = Column(String(200), nullable=False, index=True)
-    account_type = Column(String(50), index=True)
-    price_policy = Column(String(50))  # 客户级计费策略: pricing(定价)/tiered(阶梯)/yearly(包年)
+    company_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    account_type: Mapped[str | None] = mapped_column(String(50), index=True)
+    price_policy: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # 客户级计费策略: pricing(定价)/tiered(阶梯)/yearly(包年)
     # 注意: 此字段与 PricingRule.pricing_type (fixed/tier/package) 命名不同、值域不同
     # price_policy 描述客户整体计费策略偏好，pricing_type 描述具体计费规则的类型
-    manager_id = Column(Integer, ForeignKey("users.id"), index=True)
-    settlement_cycle = Column(String(20))  # monthly/quarterly/yearly
-    settlement_type = Column(String(20), index=True)  # prepaid/postpaid
-    is_key_customer = Column(Boolean, default=False, index=True)
-    is_real_estate = Column(Boolean, nullable=True, default=None)
-    email = Column(String(100), index=True)
+    manager_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    settlement_cycle: Mapped[str | None] = mapped_column(String(20))  # monthly/quarterly/yearly
+    settlement_type: Mapped[str | None] = mapped_column(String(20), index=True)  # prepaid/postpaid
+    is_key_customer: Mapped[bool | None] = mapped_column(Boolean, default=False, index=True)
+    is_real_estate: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    email: Mapped[str | None] = mapped_column(String(100), index=True)
 
     # === 新增字段（方案A） ===
-    erp_system = Column(String(100), nullable=True)  # 所属 ERP 系统
-    first_payment_date = Column(Date, nullable=True)  # 首次回款时间
-    onboarding_date = Column(Date, nullable=True)  # 客户接入时间
-    sales_manager_id = Column(
+    erp_system: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 所属 ERP 系统
+    first_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # 首次回款时间
+    onboarding_date: Mapped[date | None] = mapped_column(Date, nullable=True)  # 客户接入时间
+    sales_manager_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True, index=True
     )  # 销售负责人
-    cooperation_status = Column(String(50), nullable=True, index=True, default="active")
+    cooperation_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True, default="active"
+    )
     # 合作状态：active/suspended/terminated/noused
-    is_settlement_enabled = Column(Boolean, nullable=True, default=True)  # 是否启用结算
-    is_disabled = Column(Boolean, nullable=True, default=False, index=True)  # 是否停用
-    notes = Column(Text, nullable=True)  # 备注
+    is_settlement_enabled: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True
+    )  # 是否启用结算
+    is_disabled: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=False, index=True
+    )  # 是否停用
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # 备注
 
     __table_args__ = (
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
@@ -68,23 +78,33 @@ class CustomerProfile(BaseModel):
 
     __tablename__ = "customer_profiles"
 
-    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True)
-    scale_level = Column(
+    customer_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="CASCADE"), unique=True
+    )
+    scale_level: Mapped[str | None] = mapped_column(
         String(50)
     )  # 客户规模等级: S/A/B/C/D/E (5000人/2000人/1000人/500人/100人/<100人)
-    consume_level = Column(
+    consume_level: Mapped[str | None] = mapped_column(
         String(50)
     )  # 客户消费等级: C1/C2/C3/C4/C5/C6 (100万/50万/25万/12万/6万/6万以下)
-    industry_type_id = Column(
+    industry_type_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("industry_types.id", ondelete="SET NULL"), nullable=True
     )
-    description = Column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
 
     # === 新增字段（方案A） ===
-    monthly_avg_shots = Column(Integer, nullable=True)  # 月均拍摄量（实际）
-    monthly_avg_shots_estimated = Column(Integer, nullable=True)  # 月均拍摄量（测算）
-    estimated_annual_spend = Column(Numeric(12, 2), nullable=True)  # 预估年消费
-    actual_annual_spend_2025 = Column(Numeric(12, 2), nullable=True)  # 2025年实际消费
+    monthly_avg_shots: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 月均拍摄量（实际）
+    monthly_avg_shots_estimated: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 月均拍摄量（测算）
+    estimated_annual_spend: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )  # 预估年消费
+    actual_annual_spend_2025: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), nullable=True
+    )  # 2025年实际消费
 
     # 关联
     customer = relationship("Customer", back_populates="profile")

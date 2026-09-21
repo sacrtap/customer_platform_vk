@@ -1,7 +1,7 @@
 """标签管理模型"""
 
-from sqlalchemy import Column, ForeignKey, Index, Integer, String, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -11,10 +11,10 @@ class Tag(BaseModel):
 
     __tablename__ = "tags"
 
-    name = Column(String(50), nullable=False, index=True)
-    type = Column(String(50), nullable=False, index=True)  # customer/profile
-    category = Column(String(50), index=True)
-    created_by = Column(Integer, ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # customer/profile
+    category: Mapped[str | None] = mapped_column(String(50), index=True)
+    created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
 
     __table_args__ = (
         UniqueConstraint("name", "type", name="uq_tags_name_type"),
@@ -33,8 +33,12 @@ class CustomerTag(BaseModel):
 
     __tablename__ = "customer_tags"
 
-    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True)
-    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
+    customer_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    )
 
     # 关联
     customer = relationship("Customer", back_populates="tags")
@@ -46,12 +50,14 @@ class ProfileTag(BaseModel):
 
     __tablename__ = "profile_tags"
 
-    profile_id = Column(
+    profile_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("customer_profiles.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
+    tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    )
 
     # 关联
     profile = relationship("CustomerProfile", back_populates="tags")

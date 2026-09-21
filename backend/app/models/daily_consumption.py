@@ -1,8 +1,10 @@
 """每日消费数据模型"""
 
+from datetime import datetime
+from decimal import Decimal
+
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     ForeignKey,
     Index,
@@ -11,7 +13,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import BaseModel
 
@@ -21,17 +23,25 @@ class DailyConsumption(BaseModel):
 
     __tablename__ = "daily_consumptions"
 
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, comment="客户 ID")
-    consumption_date = Column(DateTime(timezone=True), nullable=False, comment="消费日期")
-    device_type = Column(String(50), nullable=False, comment="设备类型")
-    layer_type = Column(String(50), nullable=False, comment="图层类型")
-    order_count = Column(Integer, default=0, comment="订单数量")
-    total_floor_count = Column(Integer, default=0, comment="总楼层数")
-    total_cost = Column(Numeric(12, 2), default=0, comment="总消费金额")
-    pricing_rule_id = Column(
+    customer_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("customers.id"), nullable=False, comment="客户 ID"
+    )
+    consumption_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, comment="消费日期"
+    )
+    device_type: Mapped[str] = mapped_column(String(50), nullable=False, comment="设备类型")
+    layer_type: Mapped[str] = mapped_column(String(50), nullable=False, comment="图层类型")
+    order_count: Mapped[int | None] = mapped_column(Integer, default=0, comment="订单数量")
+    total_floor_count: Mapped[int | None] = mapped_column(Integer, default=0, comment="总楼层数")
+    total_cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2), default=0, comment="总消费金额"
+    )
+    pricing_rule_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("pricing_rules.id"), nullable=True, comment="定价规则 ID"
     )
-    has_pricing_rule = Column(Boolean, default=False, comment="是否有定价规则")
+    has_pricing_rule: Mapped[bool | None] = mapped_column(
+        Boolean, default=False, comment="是否有定价规则"
+    )
 
     # 关系
     customer = relationship("Customer", back_populates="daily_consumptions")

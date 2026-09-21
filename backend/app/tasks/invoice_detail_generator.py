@@ -81,6 +81,10 @@ async def generate_invoice_detail(
         group_type = customer.company_id
 
         # 6. 生成 Excel
+        if invoice.customer_id is None:
+            # DB schema 允许 NULL（历史遗留），但生成明细文件必须有关联客户
+            logger.error(f"结算单 {invoice_id} 缺少客户 ID，无法生成明细文件")
+            return
         excel_service = InvoiceExcelService(db=session, external_engine=external_engine)
         file_path = await excel_service.generate_detail_file(
             invoice_id=invoice_id,
@@ -92,7 +96,7 @@ async def generate_invoice_detail(
             discount_amount=invoice.discount_amount or Decimal(0),
             unit_price=unit_price,
             group_type=group_type,
-            invoice_status=invoice.status,
+            invoice_status=invoice.status or "draft",
             invoice_items=invoice_items,
         )
 
