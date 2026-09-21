@@ -1,17 +1,21 @@
 """Billing Service 单元测试 - 余额扣款与定价规则"""
 
+import logging
+import time
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app.models.billing import (
     CustomerBalance,
+    Invoice,
     PricingRule,
     RechargeRecord,
 )
-from app.services.billing import BalanceService, PricingService
+from app.services.billing import BalanceService, InvoiceService, PricingService
 from app.utils.timezone import (
     local_date_range_to_utc,
     local_date_to_utc_end,
@@ -30,6 +34,9 @@ def mock_db_session():
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    # 默认无残留事务（调用方已自行提交的常规路径）；
+    # consume 对残留事务的收敛行为由 TestBalanceService_ConsumeFailureRecovery 锁定
+    session.in_transaction = MagicMock(return_value=False)
     return session
 
 
@@ -465,6 +472,223 @@ class TestBalanceService_Consume:
         assert balance.real_amount == Decimal("1000.00")
         assert balance.used_bonus == Decimal("300.00")
         assert balance.used_real == Decimal("0.00")
+
+
+class TestBalanceService_ConsumeFailureRecovery:
+    """消费扣款失败恢复路径测试
+
+    consume 使用 AsyncRetrying 包装死锁恢复：最多 3 次尝试、仅对 OperationalError
+    重试、每次尝试在独立的 db.begin() 事务边界内重放写入、重试耗尽后按原契约抛出。
+    以下用例为该恢复路径提供测试锚点。
+    """
+
+    @staticmethod
+    def _tx_context() -> AsyncMock:
+        """构造一次独立事务的 begin() 上下文"""
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=None)
+        ctx.__aexit__ = AsyncMock(return_value=None)
+        return ctx
+
+    @staticmethod
+    def _operational_error(statement: str = "SELECT ... FOR UPDATE") -> OperationalError:
+        """构造死锁类 OperationalError（statement, params, orig）"""
+        return OperationalError(statement, {}, Exception("deadlock detected"))
+
+    @pytest.mark.asyncio
+    async def test_consume_retry_exhausted_raises_with_fresh_transaction_per_attempt(
+        self, balance_service, mock_db_session, caplog
+    ):
+        """重试耗尽：OperationalError 持续触发直至放弃
+
+        每次尝试都必须开启新的 begin() 事务边界；全部失败后抛出 OperationalError
+        （而非返回失败元组），不留任何提交与消费记录，并记录诊断上下文。
+        """
+        mock_db_session.execute = AsyncMock(side_effect=self._operational_error())
+        mock_db_session.begin = MagicMock(side_effect=[self._tx_context() for _ in range(3)])
+
+        started = time.monotonic()
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(OperationalError):
+                await balance_service.consume(
+                    customer_id=100,
+                    amount=Decimal("300.00"),
+                    invoice_id=1,
+                )
+        elapsed = time.monotonic() - started
+
+        # 重试有限：stop_after_attempt(3) → 3 次尝试后放弃，不会无限重试
+        assert mock_db_session.execute.await_count == 3
+        # 事务边界：每次重试都开启独立事务，不存在跨尝试复用的事务上下文
+        assert mock_db_session.begin.call_count == 3
+        # 并发安全语义：重试期间的每次读取都必须带行级锁，
+        # 否则重试仍可能基于过期余额扣款（丢失更新）
+        for call in mock_db_session.execute.await_args_list:
+            assert "FOR UPDATE" in str(call.args[0])
+        # 退避重试而非忙等：尝试之间存在真实等待（wait_exponential 下限 0.1s）
+        assert elapsed >= 0.1
+        # 不变量：失败路径不产生任何部分提交
+        mock_db_session.commit.assert_not_called()
+        # 不变量：放弃时不留下消费记录（所有写入随事务作废）
+        mock_db_session.add.assert_not_called()
+        # 错误契约：抛出原异常而非返回失败元组，并留下诊断上下文
+        assert any("重试耗尽" in record.getMessage() for record in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_consume_recovers_after_transient_error_without_double_deduction(
+        self, balance_service, mock_db_session
+    ):
+        """瞬时死锁恢复：首次尝试失败后在新事务边界内重试成功
+
+        首次 SELECT FOR UPDATE 抛错时尚未进入写入阶段，重试重新读取余额并完成扣款；
+        断言余额只被扣减一次，失败尝试不得留下写入痕迹。
+        """
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("500.00"),
+            total_amount=Decimal("1500.00"),
+        )
+        ok_result = MagicMock()
+        ok_result.scalar_one_or_none.return_value = balance
+
+        mock_db_session.execute = AsyncMock(side_effect=[self._operational_error(), ok_result])
+        mock_db_session.begin = MagicMock(side_effect=[self._tx_context() for _ in range(2)])
+
+        success, message = await balance_service.consume(customer_id=100, amount=Decimal("300.00"))
+
+        assert success is True
+        assert message == "扣款成功"
+        # 幂等：失败尝试未进入写入阶段，恢复后余额只被扣减一次
+        assert balance.bonus_amount == Decimal("200.00")  # 500 - 300
+        assert balance.real_amount == Decimal("1000.00")  # 未动
+        assert balance.used_total == Decimal("300.00")
+        assert mock_db_session.add.call_count == 1
+        # 最终一致：恢复后恰好提交一次事务
+        assert mock_db_session.commit.await_count == 1
+        # 事务边界：2 次尝试 = 2 个独立事务，重试不复用已失败的事务
+        assert mock_db_session.begin.call_count == 2
+        assert mock_db_session.execute.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_consume_commit_failure_replays_write_in_fresh_transaction(
+        self, balance_service, mock_db_session
+    ):
+        """部分写入路径：提交阶段失败后在新事务边界重放写入
+
+        SELECT 与内存改写已完成、commit 抛 OperationalError 时整个事务作废；
+        重试须在新的 begin() 边界内重新读取余额（此处模拟已回滚的初始值）并重建
+        消费记录，不得把作废事务中的余额对象当作最终结果。
+        """
+        initial = Decimal("1000.00")
+        initial_bonus = Decimal("500.00")
+        rolled_back = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=initial,
+            bonus_amount=initial_bonus,
+            total_amount=Decimal("1500.00"),
+        )
+        # 第二次 SELECT 读到的是首次尝试已回滚后的数据
+        reread = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=initial,
+            bonus_amount=initial_bonus,
+            total_amount=Decimal("1500.00"),
+        )
+        first_result, second_result = MagicMock(), MagicMock()
+        first_result.scalar_one_or_none.return_value = rolled_back
+        second_result.scalar_one_or_none.return_value = reread
+
+        mock_db_session.execute = AsyncMock(side_effect=[first_result, second_result])
+        mock_db_session.commit = AsyncMock(side_effect=[self._operational_error("COMMIT"), None])
+        mock_db_session.begin = MagicMock(side_effect=[self._tx_context() for _ in range(2)])
+
+        success, message = await balance_service.consume(customer_id=100, amount=Decimal("300.00"))
+
+        assert success is True
+        assert message == "扣款成功"
+        # 不泄漏：最终结果来自重试事务重新读取的余额，而非作废事务中的对象
+        assert reread.bonus_amount == Decimal("200.00")
+        assert reread.real_amount == initial
+        assert reread.used_total == Decimal("300.00")
+        assert rolled_back is not reread
+        # 每次尝试各重建一条消费记录：首次随事务作废，重试成功的那条才是最终结果
+        assert mock_db_session.add.call_count == 2
+        # 最终一致：首次提交失败、重试成功
+        assert mock_db_session.commit.await_count == 2
+        # 事务边界：首次提交失败后重试开启独立事务
+        assert mock_db_session.begin.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_consume_settles_pending_transaction_before_opening_its_own(
+        self, balance_service, mock_db_session
+    ):
+        """残留事务收敛：调用方遗留的 autobegin 事务不再触发 InvalidRequestError
+
+        调用方（如 complete_invoice）常先执行 SELECT 而留下 autobegin 事务，此时
+        db.begin() 会抛 InvalidRequestError —— 它不属于 OperationalError，既不会被
+        重试也不会被降级，会直接穿透成 500。consume 必须先收敛该事务再开自己的事务。
+        """
+        order: list[str] = []
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("0.00"),
+            total_amount=Decimal("1000.00"),
+        )
+        ok_result = MagicMock()
+        ok_result.scalar_one_or_none.return_value = balance
+
+        def _begin():
+            order.append("begin")
+            return self._tx_context()
+
+        mock_db_session.in_transaction = MagicMock(return_value=True)
+        mock_db_session.execute = AsyncMock(return_value=ok_result)
+        mock_db_session.commit = AsyncMock(side_effect=lambda *_: order.append("commit"))
+        mock_db_session.begin = MagicMock(side_effect=_begin)
+
+        success, message = await balance_service.consume(customer_id=100, amount=Decimal("300.00"))
+
+        assert success is True
+        assert message == "扣款成功"
+        # 先收敛残留事务、再开启重试事务，最后提交扣款
+        assert order == ["commit", "begin", "commit"]
+
+    @pytest.mark.asyncio
+    async def test_consume_opens_transaction_directly_when_nothing_pending(
+        self, balance_service, mock_db_session
+    ):
+        """无残留事务时不产生多余的收敛提交（调用方已自行 commit 的常规路径）"""
+        order: list[str] = []
+        balance = CustomerBalance(
+            id=1,
+            customer_id=100,
+            real_amount=Decimal("1000.00"),
+            bonus_amount=Decimal("0.00"),
+            total_amount=Decimal("1000.00"),
+        )
+        ok_result = MagicMock()
+        ok_result.scalar_one_or_none.return_value = balance
+
+        def _begin():
+            order.append("begin")
+            return self._tx_context()
+
+        mock_db_session.in_transaction = MagicMock(return_value=False)
+        mock_db_session.execute = AsyncMock(return_value=ok_result)
+        mock_db_session.commit = AsyncMock(side_effect=lambda *_: order.append("commit"))
+        mock_db_session.begin = MagicMock(side_effect=_begin)
+
+        success, _ = await balance_service.consume(customer_id=100, amount=Decimal("300.00"))
+
+        assert success is True
+        # 直接开启事务，不再有额外提交
+        assert order == ["begin", "commit"]
 
 
 # ==================== Test BalanceService - Get Balance ====================
@@ -1370,3 +1594,94 @@ class TestInvoiceService_CalculateItemsIncremental:
 
         assert result is not None
         assert result.total_amount == Decimal("17")  # 使用 subtotal 而非 quantity × unit_price
+
+
+# ==================== Test InvoiceService - Deduction Failure Downgrade ====================
+
+
+class TestInvoiceService_DeductionFailureDowngrade:
+    """扣款失败降级测试
+
+    consume 在死锁重试耗尽时抛 OperationalError（其 docstring 与 reraise=True 定义的
+    契约）。调用点必须把它降级为 Tuple[bool, str] 业务错误码——否则数据库异常会穿透
+    业务方法变成 500，而这些方法声明的返回类型是错误码元组。
+    """
+
+    @pytest.fixture
+    def invoice_service(self, mock_db_session):
+        """创建 InvoiceService 实例"""
+        from app.repository import InvoiceRepository, PricingRepository
+        from app.services.billing import InvoiceService
+
+        mock_invoice_repo = MagicMock(spec=InvoiceRepository)
+        mock_invoice_repo.db = mock_db_session
+        mock_pricing_repo = MagicMock(spec=PricingRepository)
+        mock_pricing_repo.db = mock_db_session
+        return InvoiceService(invoice_repo=mock_invoice_repo, pricing_repo=mock_pricing_repo)
+
+    @staticmethod
+    def _invoice(status: str) -> Invoice:
+        return Invoice(
+            id=1,
+            customer_id=100,
+            status=status,
+            total_amount=Decimal("1000.00"),
+            discount_amount=Decimal("0.00"),
+        )
+
+    @staticmethod
+    def _exhausted_retry() -> OperationalError:
+        """构造重试耗尽时 consume 抛出的异常"""
+        return OperationalError("SELECT ... FOR UPDATE", {}, Exception("deadlock detected"))
+
+    @pytest.mark.asyncio
+    async def test_confirm_invoice_downgrades_and_keeps_customer_confirmed(
+        self, invoice_service, mock_db_session
+    ):
+        """客户确认自动扣款：重试耗尽时返回业务错误码，状态停在 customer_confirmed 可重试"""
+        invoice = self._invoice("pending_customer")
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(BalanceService, "consume", AsyncMock(side_effect=self._exhausted_retry())),
+        ):
+            success, message = await invoice_service.confirm_invoice(invoice_id=1, user_id=7)
+
+        assert success is False
+        assert message == "客户确认成功，但扣款失败：数据库繁忙，请稍后重试"
+        # 未被推进为 completed，retry_deduction 仍可执行
+        assert invoice.status == "customer_confirmed"
+
+    @pytest.mark.asyncio
+    async def test_retry_deduction_downgrades_without_duplicated_prefix(
+        self, invoice_service, mock_db_session
+    ):
+        """手动重试扣款：降级消息经前缀剥离后不出现重复的「扣款失败：」"""
+        invoice = self._invoice("customer_confirmed")
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(BalanceService, "consume", AsyncMock(side_effect=self._exhausted_retry())),
+        ):
+            success, message = await invoice_service.retry_deduction(invoice_id=1, user_id=7)
+
+        assert success is False
+        assert message == "扣款失败：数据库繁忙，请稍后重试"
+        assert invoice.status == "customer_confirmed"
+
+    @pytest.mark.asyncio
+    async def test_complete_invoice_downgrades_and_keeps_paid(
+        self, invoice_service, mock_db_session
+    ):
+        """完成结算：重试耗尽时返回业务错误码，状态停在 paid 可再次完成"""
+        invoice = self._invoice("paid")
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(BalanceService, "consume", AsyncMock(side_effect=self._exhausted_retry())),
+        ):
+            success, message = await invoice_service.complete_invoice(invoice_id=1, user_id=7)
+
+        assert success is False
+        assert message == "扣款失败：数据库繁忙，请稍后重试"
+        assert invoice.status == "paid"  # 未被推进为 completed
