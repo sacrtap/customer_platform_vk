@@ -168,3 +168,6 @@ banks/
 
 # better-harness inspector 运行产物（每次运行覆盖）
 docs/better-harness/
+
+# better-harness 与 omp 运行时产物（不纳入版本控制）
+.pi/
