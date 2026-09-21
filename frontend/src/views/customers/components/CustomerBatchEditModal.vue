@@ -202,6 +202,36 @@
             }}</a-option>
           </a-select>
         </div>
+
+        <!-- 14. 行业类型 -->
+        <div class="batch-field-item">
+          <a-checkbox v-model="batchFieldsSelected.industry_type_id">行业类型</a-checkbox>
+          <a-select
+            v-model="batchForm.industry_type_id"
+            :disabled="!batchFieldsSelected.industry_type_id"
+            placeholder="选择行业类型"
+            allow-clear
+          >
+            <a-option v-for="type in industryTypes" :key="type.id" :value="type.id">{{
+              type.name
+            }}</a-option>
+          </a-select>
+        </div>
+
+        <!-- 15. ERP 系统 -->
+        <div class="batch-field-item">
+          <a-checkbox v-model="batchFieldsSelected.erp_system">ERP 系统</a-checkbox>
+          <a-select
+            v-model="batchForm.erp_system"
+            :disabled="!batchFieldsSelected.erp_system"
+            placeholder="选择 ERP 系统"
+            allow-clear
+          >
+            <a-option v-for="sys in erpSystems" :key="sys.value" :value="sys.value">{{
+              sys.name
+            }}</a-option>
+          </a-select>
+        </div>
       </div>
     </a-form>
 
@@ -233,8 +263,9 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
-import { batchUpdateCustomers } from '@/api/customers'
+import { batchUpdateCustomers, getIndustryTypes } from '@/api/customers'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
+import { getErpSystemsList } from '@/api/erpSystems'
 import {
   ACCOUNT_TYPE_OPTIONS,
   SCALE_LEVEL_OPTIONS,
@@ -243,7 +274,7 @@ import {
   SETTLEMENT_CYCLE_OPTIONS,
   PRICE_POLICY_OPTIONS,
 } from '@/constants/customerOptions'
-import type { CooperationStatus } from '@/types'
+import type { CooperationStatus, ErpSystem, IndustryType } from '@/types'
 
 interface BatchFailedItem {
   customer_id: number
@@ -254,6 +285,8 @@ const props = defineProps<{
   visible: boolean
   selectedCustomerIds: number[]
   managers: Array<Record<string, unknown>>
+  industryTypes?: IndustryType[]
+  erpSystems?: ErpSystem[]
 }>()
 
 const emit = defineEmits<{
@@ -268,12 +301,34 @@ const isVisible = computed({
 
 const cooperationStatuses = ref<CooperationStatus[]>([])
 
+// 行业类型 / ERP 系统字典：优先使用父级传入，未传时自行加载兜底
+const innerIndustryTypes = ref<IndustryType[]>([])
+const industryTypes = computed(() => props.industryTypes || innerIndustryTypes.value)
+const innerErpSystems = ref<ErpSystem[]>([])
+const erpSystems = computed(() => props.erpSystems || innerErpSystems.value)
+
 onMounted(async () => {
   try {
     const res = await getCooperationStatusesList()
     cooperationStatuses.value = res.data?.data || res.data || []
   } catch {
     // ignore
+  }
+  if (!props.industryTypes) {
+    try {
+      const res = await getIndustryTypes()
+      innerIndustryTypes.value = res.data?.data || res.data || []
+    } catch {
+      // ignore
+    }
+  }
+  if (!props.erpSystems) {
+    try {
+      const res = await getErpSystemsList()
+      innerErpSystems.value = res.data?.data || res.data || []
+    } catch {
+      // ignore
+    }
   }
 })
 
@@ -293,6 +348,8 @@ const batchForm = reactive({
   price_policy: '',
   scale_level: null as string | null,
   consume_level: null as string | null,
+  industry_type_id: null as number | null,
+  erp_system: '',
 })
 
 const batchFieldsSelected = reactive({
@@ -309,6 +366,8 @@ const batchFieldsSelected = reactive({
   price_policy: false,
   scale_level: false,
   consume_level: false,
+  industry_type_id: false,
+  erp_system: false,
 })
 
 const fieldNames: Record<string, string> = {
@@ -325,6 +384,8 @@ const fieldNames: Record<string, string> = {
   price_policy: '计费策略',
   scale_level: '规模等级',
   consume_level: '消费等级',
+  industry_type_id: '行业类型',
+  erp_system: 'ERP 系统',
 }
 
 const selectedFields = computed(() => {
@@ -436,6 +497,8 @@ const resetForm = () => {
   batchForm.price_policy = ''
   batchForm.scale_level = null
   batchForm.consume_level = null
+  batchForm.industry_type_id = null
+  batchForm.erp_system = ''
 
   Object.keys(batchFieldsSelected).forEach((k) => {
     ;(batchFieldsSelected as Record<string, boolean>)[k] = false
