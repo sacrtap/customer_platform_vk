@@ -2,7 +2,11 @@
 # 多阶段构建：Node.js 构建 + Nginx 生产
 
 # 阶段 1: 构建前端
-FROM node:22-alpine AS builder
+# builder 阶段产物（vite dist + vitepress dist）均为架构无关的静态文件，
+# 固定用 BUILDPLATFORM 原生执行 npm ci / vite build：
+# 避免在 QEMU 模拟的 arm64 下运行 npm 原生二进制（esbuild 等）触发
+# "qemu: uncaught target signal 4 (Illegal instruction)" 偶发崩溃并挂起构建。
+FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 
 WORKDIR /build
 

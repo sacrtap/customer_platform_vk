@@ -34,6 +34,9 @@ jobs:
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    # 上限 30 分钟：历史上曾出现 QEMU 模拟崩溃导致步骤挂起到默认 6 小时超时，
+    # 显式限制使构建失败快速暴露而非长时间占用 runner
+    timeout-minutes: 30
     if: ${{ github.event_name == 'workflow_dispatch' }}
 
     outputs:
