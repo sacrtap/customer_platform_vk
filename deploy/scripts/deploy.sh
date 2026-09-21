@@ -6,7 +6,6 @@ set -e
 echo "🚀 开始部署客户运营中台..."
 
 # 配置变量
-PROJECT_NAME="customer_platform"
 COMPOSE_FILE="deploy/docker-compose.yml"
 VERSION=${1:-latest}
 
@@ -153,7 +152,8 @@ pre_deploy_check() {
     # 1. 检查磁盘空间（至少需要 2GB 可用空间）
     log_info "检查磁盘空间..."
     # 检查根目录磁盘空间（兼容 Docker 和 Podman）
-    local available_space=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' | grep -oE '[0-9]+')
+    local available_space
+    available_space=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' | grep -oE '[0-9]+') || true
     if [ -z "$available_space" ]; then
         log_warn "无法检测磁盘空间，跳过检查"
     elif [ "$available_space" -lt 2 ]; then
@@ -167,7 +167,8 @@ pre_deploy_check() {
     log_info "检查部署进程..."
     local current_pid=$$
     # 使用 [d]eploy.sh 避免 grep 匹配自身，排除 bash -s（SSH heredoc 进程）
-    local deploy_pids=$(ps aux | grep "[d]eploy.sh" | grep -v "bash -s" | awk '{print $2}' | grep -v "^${current_pid}$" || true)
+    local deploy_pids
+    deploy_pids=$(ps aux | grep "[d]eploy.sh" | grep -v "bash -s" | awk '{print $2}' | grep -v "^${current_pid}$") || true
     if [ -n "$deploy_pids" ]; then
         log_warn "发现其他部署进程：$deploy_pids"
         log_info "尝试清理残留进程..."

@@ -99,10 +99,12 @@ jobs:
     steps:
       - name: Create summary
         run: |
-          echo "## ❌ Backend Integration 测试失败" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "请查看 [完整报告](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 测试说明" >> $GITHUB_STEP_SUMMARY
-          echo "- **Backend Integration**: ~186 用例，覆盖 API 集成测试" >> $GITHUB_STEP_SUMMARY
-          echo "- PR CI 中单元测试与集成测试均自动运行（见 pr-checks.yml）；此工作流用于按需手动触发完整套件" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## ❌ Backend Integration 测试失败"
+            echo ""
+            echo "请查看 [完整报告](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo ""
+            echo "### 测试说明"
+            echo "- **Backend Integration**: ~186 用例，覆盖 API 集成测试"
+            echo "- PR CI 中单元测试与集成测试均自动运行（见 pr-checks.yml）；此工作流用于按需手动触发完整套件"
+          } >> "$GITHUB_STEP_SUMMARY"

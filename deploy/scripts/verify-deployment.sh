@@ -51,7 +51,8 @@ check_containers() {
     echo "  1. 检查容器状态"
     echo "========================================"
 
-    local containers=$($COMPOSE_CMD -f $COMPOSE_FILE ps --format json 2>/dev/null)
+    local containers
+    containers=$($COMPOSE_CMD -f $COMPOSE_FILE ps --format json 2>/dev/null) || true
 
     if [ -z "$containers" ]; then
         log_fail "未找到运行的容器"
@@ -96,8 +97,9 @@ check_health_endpoint() {
 
     local response
     response=$(curl -s -w "\n%{http_code}" http://localhost:8000/health 2>/dev/null)
-    local http_code=$(echo "$response" | tail -n1)
-    local body=$(echo "$response" | head -n-1)
+    local http_code body
+    http_code=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | head -n-1)
 
     if [ "$http_code" = "200" ]; then
         log_pass "健康端点响应正常 (HTTP 200)"
@@ -142,7 +144,8 @@ check_database() {
         fi
 
         # 检查表是否存在
-        local table_count=$(psql -h localhost -U user -d customer_platform -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null | tr -d ' ')
+        local table_count
+        table_count=$(psql -h localhost -U user -d customer_platform -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null | tr -d ' ') || true
 
         if [ "$table_count" -gt 10 ]; then
             log_pass "数据库表数量正常 ($table_count 张表)"
@@ -187,7 +190,8 @@ check_api_endpoints() {
     echo "========================================"
 
     # 检查根路径
-    local response=$(curl -s http://localhost:8000/ 2>/dev/null)
+    local response
+    response=$(curl -s http://localhost:8000/ 2>/dev/null) || true
     if echo "$response" | grep -q "客户运营中台"; then
         log_pass "根路径响应正常"
         PASS_COUNT=$((PASS_COUNT + 1))
@@ -197,9 +201,10 @@ check_api_endpoints() {
     fi
 
     # 检查 CORS
-    local cors=$(curl -s -I -X OPTIONS http://localhost:8000/ \
+    local cors
+    cors=$(curl -s -I -X OPTIONS http://localhost:8000/ \
         -H "Origin: http://localhost:5173" \
-        -H "Access-Control-Request-Method: GET" 2>/dev/null)
+        -H "Access-Control-Request-Method: GET" 2>/dev/null) || true
     if echo "$cors" | grep -qi "Access-Control-Allow"; then
         log_pass "CORS 配置正常"
         PASS_COUNT=$((PASS_COUNT + 1))
@@ -217,7 +222,8 @@ check_logs() {
     echo "========================================"
 
     # 检查应用日志是否有错误
-    local error_count=$($COMPOSE_CMD -f $COMPOSE_FILE logs app 2>&1 | grep -ci "error" || echo "0")
+    local error_count
+    error_count=$($COMPOSE_CMD -f $COMPOSE_FILE logs app 2>&1 | grep -ci "error" || echo "0")
 
     if [ "$error_count" -gt 0 ]; then
         log_warn "应用日志中发现 $error_count 个错误"
@@ -228,7 +234,8 @@ check_logs() {
     fi
 
     # 检查数据库日志
-    local db_errors=$($COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | grep -ci "error" || echo "0")
+    local db_errors
+    db_errors=$($COMPOSE_CMD -f $COMPOSE_FILE logs db 2>&1 | grep -ci "error" || echo "0")
 
     if [ "$db_errors" -gt 0 ]; then
         log_warn "数据库日志中发现 $db_errors 个错误"
@@ -307,6 +314,14 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# 详细模式：输出运行时配置，便于排查验证环境问题
+if [ "$VERBOSE" = true ]; then
+    echo "详细模式已启用"
+    echo "  COMPOSE_CMD:  ${COMPOSE_CMD}"
+    echo "  COMPOSE_FILE: ${COMPOSE_FILE}"
+    echo "  QUICK_CHECK:  ${QUICK_CHECK}"
+fi
 
 # 主流程
 echo ""

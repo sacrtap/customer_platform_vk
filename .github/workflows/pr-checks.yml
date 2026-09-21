@@ -3,7 +3,8 @@ name: PR Checks
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    # ready_for_review: draft 转 ready 时重新校验，避免沿用 draft 阶段的门禁结论
+    types: [opened, synchronize, reopened, ready_for_review]
 
 env:
   PYTHON_VERSION: "3.12"
@@ -15,11 +16,38 @@ concurrency:
 
 jobs:
   # ============================================================
+  # 变更路径检测 - 纯文档 PR 跳过重活（与 ci.yml 的 paths 过滤策略对齐）
+  # ============================================================
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read   # dorny/paths-filter 需要读取 PR 变更文件列表
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  # ============================================================
   # 快速检查 - 代码格式 + Lint (无数据库依赖)
   # ============================================================
   quick-checks:
     name: Quick Checks (Lint + Format)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -76,6 +104,8 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
     timeout-minutes: 5
 
     steps:
@@ -94,6 +124,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Type check (pyright)
+        run: |
+          cd backend
+          pyright
+
       - name: Run unit tests
         env:
           JWT_SECRET: test-secret-key-for-ci
@@ -101,7 +136,9 @@ jobs:
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
         run: |
           cd backend
-          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing --cov-fail-under=25 --junitxml=junit.xml
+          # 单元测试只生成覆盖率数据，不单独判定门槛；
+          # 覆盖率门禁在集成 job 以「单元+集成合并（全量口径）」统一判定（--cov-fail-under=50）
+          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing --junitxml=junit.xml
 
       - name: Upload JUnit test results
         if: always()
@@ -111,6 +148,14 @@ jobs:
           path: backend/junit.xml
           retention-days: 3
 
+      - name: Upload unit coverage data (merged with integration in integration job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-backend-coverage
+          path: backend/.coverage
+          retention-days: 1
+          if-no-files-found: error
+
   # ============================================================
   # 后端集成测试 (真实 Postgres + Redis, 迁移 + 全链路)
   # 覆盖 billing 等核心链的数据库事务路径: 行级锁/重试/迁移升级/失败恢复
@@ -118,7 +163,9 @@ jobs:
   backend-integration-tests:
     name: Backend Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -195,6 +242,16 @@ jobs:
           cd backend
           python scripts/seed.py --reset
 
+      - name: Download unit coverage data
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-backend-coverage
+          path: backend
+
+      # 覆盖率门禁（全量口径）：单元 + 集成 coverage 合并后判定 ≥50%。
+      # 当前门禁 50%（阶梯目标 55%→60% 见 docs/technical_debt/debt.md）。
+      # 纯前端/文档 PR 通过上方 paths-filter 跳过本 job，不强制后端门禁。
       - name: Run integration tests
         if: steps.changes.outputs.backend == 'true'
         env:
@@ -209,7 +266,7 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-report=term-missing --junitxml=junit.xml
+          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always() && steps.changes.outputs.backend == 'true'
@@ -225,6 +282,9 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -261,6 +321,8 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
     timeout-minutes: 20
 
     services:
@@ -392,12 +454,46 @@ jobs:
           retention-days: 3
 
   # ============================================================
+  # Shell / Workflow 静态检查（阻塞）
+  # ============================================================
+  # actionlint 校验 GitHub Actions 语义（未定义 needs、表达式风险、
+  #   ${{ }} 注入），并对其中的 run: 块调用 shellcheck；
+  # shellcheck 校验仓库内 .sh 脚本。
+  # 2026-09-21：存量 47 处告警（actionlint 30 / shellcheck 17，集中在 deploy 路径）
+  #   已全部清理，观察期结束，纳入阻塞判定。
+  static-checks:
+    name: Shell & Workflow Static Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          mapfile -t scripts < <(find . -name '*.sh' \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.venv/*' \
+            -not -path '*/.git/*')
+          echo "扫描 ${#scripts[@]} 个 shell 脚本"
+          shellcheck -S warning "${scripts[@]}"
+
+  # ============================================================
   # 迁移变更门禁: Alembic 迁移必须有对应测试才能合并
   # 检测 backend/alembic/versions/ 变更, 若变更则要求测试文件存在
   # ============================================================
   migration-gate:
     name: Migration Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -454,8 +550,9 @@ jobs:
   pr-quality-gate:
     name: PR Quality Gate
     runs-on: ubuntu-latest
-    needs: [quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, e2e-tests]
+    needs: [changes, quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, static-checks, e2e-tests]
     if: always()
+    timeout-minutes: 5
 
     steps:
       - name: Check all jobs passed
@@ -464,28 +561,51 @@ jobs:
           echo "========================================="
           echo "PR Quality Gate Results"
           echo "========================================="
+          echo "Detect Changed Paths: ${{ needs.changes.result }}"
           echo "Quick Checks:    ${{ needs.quick-checks.result }}"
           echo "Backend Tests:   ${{ needs.backend-tests.result }}"
           echo "Backend Integration Tests: ${{ needs.backend-integration-tests.result }}"
           echo "Migration Gate:  ${{ needs.migration-gate.result }}"
           echo "Frontend Build:  ${{ needs.frontend-build.result }}"
           echo "E2E Tests:       ${{ needs.e2e-tests.result }}"
+          echo "Static Checks:   ${{ needs.static-checks.result }}"
           echo "========================================="
 
-          # E2E 测试当前为非阻塞（已知失败用例，待 TD-012 修复后改为阻塞）
-          if [ "${{ needs.quick-checks.result }}" != "success" ] || \
-             [ "${{ needs.backend-tests.result }}" != "success" ] || \
-             [ "${{ needs.backend-integration-tests.result }}" != "success" ] || \
-             [ "${{ needs.migration-gate.result }}" != "success" ] || \
-             [ "${{ needs.frontend-build.result }}" != "success" ]; then
-            echo "❌ PR quality gate failed"
-            echo "result=failed" >> "$GITHUB_OUTPUT"
-            exit 1
+          # 判定规则（2026-09-21）：
+          #   - changes 必须 success（该 job 总是运行，不应被跳过）；
+          #   - 其余 job 允许 skipped —— 表示对应路径未变更、任务不适用（如纯文档 PR）；
+          #   - 其它任何状态（failure / cancelled / …）一律阻断合并。
+          # E2E smoke 与 static-checks 自 2026-09-21 起为阻塞项（TD-012 / TD-021 均已解决）。
+          FAILED=0
+          check() {
+            case "$1" in
+              success) ;;
+              skipped) echo "   ⏭  $2: skipped（对应路径未变更，不适用）" ;;
+              *) echo "   ❌ $2: $1"; FAILED=1 ;;
+            esac
+          }
+
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "   ❌ Detect Changed Paths: ${{ needs.changes.result }}"
+            FAILED=1
           fi
 
-          if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
-            echo "⚠️  E2E smoke tests have failures (non-blocking, tracked in TD-012)"
-            echo "   Full E2E suite runs nightly — see e2e-nightly.yml"
+          check "${{ needs.quick-checks.result }}" "Quick Checks"
+          check "${{ needs.backend-tests.result }}" "Backend Tests"
+          check "${{ needs.backend-integration-tests.result }}" "Backend Integration Tests"
+          check "${{ needs.migration-gate.result }}" "Migration Gate"
+          check "${{ needs.frontend-build.result }}" "Frontend Build"
+          check "${{ needs.static-checks.result }}" "Static Checks"
+          check "${{ needs.e2e-tests.result }}" "E2E Tests (smoke)"
+
+          if [ "$FAILED" = "1" ]; then
+            echo "❌ PR quality gate failed"
+            echo "   本地复现参考："
+            echo "     - Static Checks: actionlint && shellcheck -S warning <脚本路径>"
+            echo "     - E2E smoke:     cd frontend && npx playwright test --project=chromium --grep=\"@smoke\""
+            echo "     - 全量 E2E（手动触发）: e2e-full.yml"
+            echo "result=failed" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
           echo "ℹ️  Backend integration tests run in PR checks with real Postgres + Redis"
@@ -519,12 +639,14 @@ jobs:
             echo ""
             echo "| 检查 | 结果 |"
             echo "|---|---|"
+            echo "| Detect Changed Paths | ${{ needs.changes.result }} |"
             echo "| Quick Checks | ${{ needs.quick-checks.result }} |"
             echo "| Backend Tests | ${{ needs.backend-tests.result }} |"
             echo "| Backend Integration Tests | ${{ needs.backend-integration-tests.result }} |"
             echo "| Migration Gate | ${{ needs.migration-gate.result }} |"
             echo "| Frontend Build | ${{ needs.frontend-build.result }} |"
             echo "| E2E Tests | ${{ needs.e2e-tests.result }} |"
+            echo "| Static Checks | ${{ needs.static-checks.result }} |"
           } | tee "$RECORD_FILE" >> "$GITHUB_STEP_SUMMARY"
           echo "record_file=$RECORD_FILE" >> "$GITHUB_OUTPUT"
 
