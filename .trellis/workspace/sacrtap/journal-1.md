@@ -597,3 +597,24 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+## Session 26: 批量编辑行业/ERP 功能 code review 与修复
+<!-- trellis-session: v=2 -->
+
+**Date**: 2026-09-21
+**Task**: 09-21-batch-edit-industry（ocr 审查与修复）
+
+### Summary
+
+对 commit c258d8a（批量编辑弹框新增行业/ERP 编辑项）执行 open-code-review v1.12.7 审查（bifrost/deepseek-v4-pro，4m47s，3 次 429 重试），产出 1 高 2 中，全部属实并修复：
+1. [high] 勾选无值提交 → 批量清空 + allow-clear 清除值 JSON 丢失：previewRows 空值显性显示「清空」+ confirmBatchSubmit 将 undefined/'' 归一为 null
+2. [medium] 字典兜底 `if (!props.xxx)` 对空数组恒 false：改 `?.length`，computed 非空才用 props
+3. [medium] resetForm 无调用方：新增 watch visible → resetForm
+
+实测额外发现：Arco allow-clear 清除后值为 `''` 而非 undefined，初版归一仅处理 undefined，拦截到 `{"industry_type_id":""}` 错误 payload；扩展为 `value === undefined || value === ''` 后 payload 正确为 null，后端成功清空。
+
+验证：vue-tsc/eslint 通过、端到端浏览器实测 4 场景全部通过（含清空链路 DB 核验 + 审计）。报告保存 docs/code-review/2026-09-21-batch-edit-industry-review.md。
+
+### Status
+
+[OK] **Completed**
