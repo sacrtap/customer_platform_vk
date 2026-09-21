@@ -618,3 +618,28 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 27: 批量编辑弹框新增行业与ERP编辑项（含 code review 修复）
+<!-- trellis-session: v=2 fp=81758757c188821e -->
+
+**Date**: 2026-09-21
+**Task**: 批量编辑弹框新增行业与ERP编辑项（含 code review 修复）
+**Branch**: `customer-batch-edit-optimization`
+
+### Summary
+
+客户列表批量编辑弹框新增行业类型(industry_type_id, CustomerProfile)与ERP系统(erp_system)编辑项, 后端白名单已支持零改动。open-code-review 审出 1 高 2 中全部修复: 空值提交归一 null+预览显性清空、字典兜底 ?.length、watch visible 重置表单。vue-tsc/eslint/pre-commit/后端回归 8 passed, 浏览器端到端 4 场景通过, 报告保存 docs/code-review/。PR #29 已创建。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c258d8a` | feat(customers): 批量编辑弹框新增行业类型与ERP系统编辑项 |
+| `30c86f7` | chore(trellis): 批量编辑新增行业与ERP编辑项任务文档 |
+| `0b6cf4d` | fix(customers): 修复批量编辑空值提交与表单残留问题 |
+| `f1b5579` | docs(code-review): 批量编辑行业与ERP功能审查报告 |
+
+### Status
+
+[OK] **Completed**
