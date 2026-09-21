@@ -27,7 +27,7 @@
 
 ### 覆盖率要求
 
-- **CI 门禁**: 测试覆盖率 ≥50%（`--cov-fail-under=50`）
+- **CI 门禁**: 测试覆盖率 ≥50%（**全量口径**：单元 job 产 coverage 数据、集成 job 以 `--cov-append` 合并后判定，`--cov-fail-under=50`，见 `.github/workflows/pr-checks.yml`；未来阶梯 55%→60% 见 `docs/technical_debt/debt.md`）
 - **TDD 策略**: 按模块细化（见下表）
 
 | 模块 | TDD 策略 |

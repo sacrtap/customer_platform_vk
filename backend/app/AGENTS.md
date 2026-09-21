@@ -35,7 +35,7 @@
 修改 billing 相关文件后，按 **[`docs/code-review/billing-affected-checks.md`](../../docs/code-review/billing-affected-checks.md)** 的映射表运行最小检查——该表是 billing 变更 → 受影响检查的唯一权威路由：
 
 - `services/billing.py`（余额/扣款/充值）→ `pytest tests/unit/test_billing_service.py`
-- `services/billing.py`（`InvoiceService` 结算计算）→ `pytest tests/integration/test_billing_api.py::TestInvoiceFlow`
+- `services/billing.py`（`InvoiceService` 结算计算）→ `pytest tests/integration/test_billing_api.py::test_invoice_workflow_full`
 - `routes/billing/*` → `pytest tests/integration/test_billing_api.py`
 - `models/billing.py` / `alembic/versions/*.py` → 迁移 upgrade/downgrade 独立测试（真实 Postgres）
 - 门禁：`.github/workflows/pr-checks.yml` 的 `backend-integration-tests` job 会自动运行可自动化部分；`migration-gate` job 强制迁移变更必须带测试。

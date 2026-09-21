@@ -27,7 +27,7 @@ test-all:
 test-last-failed:
 	source .venv/bin/activate && pytest tests/ --lf -v --tb=short
 
-# 覆盖率：运行测试并生成覆盖率报告（CI 使用）
+# 覆盖率：运行测试并生成覆盖率报告（门禁与 CI 一致：全量口径 ≥50%，unit+integration 合并）
 test-cov:
 	source .venv/bin/activate && pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
 

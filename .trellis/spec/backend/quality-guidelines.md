@@ -289,6 +289,8 @@ admin.roles.append(super_admin_role)
 
 ## CI Requirements
 
-- Test coverage ≥ 50% (enforced in CI)
+- Test coverage ≥ 50% (enforced in CI: merged unit + integration coverage, see `.github/workflows/pr-checks.yml`)
+- Type check: `cd backend && pyright` 必须 0 error（配置 `backend/pyrightconfig.json`，范围 `app/`；在 `ci.yml` 与 `pr-checks.yml` 的 backend job 执行，基线已归零）
+- ORM 模型字段必须用 SQLAlchemy 2.0 typed 声明（见 `database-guidelines.md` 的 Model Pattern）
 - Pre-commit hooks: ruff (lint), formatting check
 - Run tests: `cd backend && python -m pytest tests/ -v`

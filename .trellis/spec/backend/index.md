@@ -45,7 +45,8 @@ Before submitting code:
 3. **Every new route has `@auth_required`** (or is in the skip-paths list)
 4. **Error responses use `ErrorCodes` constants** — no hardcoded numbers
 5. **Cache invalidated after mutations** — `cache_service.invalidate_*()`
-6. **Test coverage ≥ 50%** for new code
+6. **Test coverage ≥ 50%** for new code (CI gate: merged unit + integration coverage, see pr-checks.yml)
+7. **Type check passes**: `cd backend && pyright` → 0 error（配置 `backend/pyrightconfig.json`；模型字段须用 `Mapped[...] = mapped_column(...)`）
 
 ---
 

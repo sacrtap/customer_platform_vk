@@ -38,13 +38,41 @@ service = CustomerService(db_session)
 
 ## Model Pattern
 
-[来源: 项目源码 — `backend/app/models/base.py`, `backend/app/models/customers.py`]
+[来源: 项目源码 — `backend/app/models/base.py`, `backend/app/models/customers.py`；2026-09-21 全量迁移至 SQLAlchemy 2.0 typed 声明]
 
 Models inherit from `BaseModel` (defined in `models/base.py`) which provides `id`, `created_at`, `updated_at`, and `deleted_at` (soft delete).
 
 - **Soft delete**: queries filter `deleted_at.is_(None)` — never use raw `DELETE` in production code
 - **Timestamps**: `created_at` / `updated_at` auto-managed by SQLAlchemy
 - **Relationships**: Use `relationship()` with `selectinload` for eager loading when needed
+
+### 字段必须使用 2.0 typed 声明（`Mapped[...] = mapped_column(...)`）
+
+[来源: 2026-09-21 类型治理 — 16 个模型文件的 `Column(...)` 全量迁移，pyright 门禁基线 0 error]
+
+`x = Column(...)` 会让 pyright 把**实例属性**推断为 `Column[T]`（而非 `T`），在全库引发大量类型错误。
+所有 ORM 字段必须写成 `x: Mapped[T] = mapped_column(...)`：
+
+```python
+# WRONG — pyright 推断 customer.name 的类型是 Column[str]
+name = Column(String(100), nullable=False)
+
+# CORRECT — pyright 推断为 str
+name: Mapped[str] = mapped_column(String(100), nullable=False)
+```
+
+**注解可选性必须与列 nullable 一致**（SQLAlchemy 在映射配置期校验，不一致直接报 `InvalidRequestError`）：
+
+| 列定义 | 注解 |
+|---|---|
+| `nullable=False` 或 `primary_key=True` | `Mapped[T]` |
+| `nullable=True` 或**未写 nullable**（默认可空） | `Mapped[T \| None]` |
+| JSON/JSONB 列 | `Mapped[Any]` |
+
+- **仅写 `default=` 不构成非空**：`Column(Integer, default=0)` 默认可空 → `Mapped[int | None]`，业务代码需 `or 0` 防护
+- **`relationship` 保持原样**（不加 `Mapped[...]` 注解）
+- **core `Table()` 关联表仍用 `Column(...)`**（非 ORM 实例属性，不受影响）
+- 本地校验：`cd backend && pyright`（配置 `backend/pyrightconfig.json`，范围 `app/`）
 
 ---
 

@@ -72,7 +72,7 @@
 
 ### 测试覆盖率
 - HTML 覆盖率报告：运行 `make test-cov` 后在 `backend/htmlcov/index.html` 查看
-- CI 覆盖率门槛：≥50%（当前 46%+）
+- CI 覆盖率门禁：≥50%（全量口径：单元+集成 coverage 合并判定，以 `.github/workflows/pr-checks.yml` 为准）
 
 ### E2E 测试
 - [前端 E2E 测试指南](../frontend/tests/e2e/README.md) - Playwright E2E 测试指南 (57 个客户管理测试)
