@@ -168,7 +168,9 @@ jobs:
     # 同 run 内其它 job 的上传，时序竞争会导致 Artifact not found）
     needs: [changes, backend-tests]
     if: needs.changes.outputs.backend == 'true'
-    timeout-minutes: 20
+    # CI runner 上 Postgres/Redis 均为容器，单个集成测试约 8s（本地约 1s），
+    # 全量 integration 实测需 30min+，20min 上限会误杀
+    timeout-minutes: 45
 
     services:
       postgres:
