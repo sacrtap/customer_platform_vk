@@ -331,12 +331,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Create parallel test databases
+        env:
+          PGPASSWORD: test_password
+        run: |
+          # 为 pytest-xdist 并行创建独立数据库（避免 TRUNCATE 死锁）
+          # 创建 4 个数据库（gw0-gw3），支持最多 4 个并行 worker
+          for i in 0 1 2 3; do
+            psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db_gw$i;" || true
+          done
       - name: Run database migrations
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
         run: |
           cd backend
           python -m alembic upgrade head
+          # 为每个并行 worker 数据库运行迁移
+          for i in 0 1 2 3; do
+            DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_db_gw$i" \
+              python -m alembic upgrade head
+          done
 
       - name: Seed test data
         env:
@@ -361,7 +375,7 @@ jobs:
         run: |
           cd backend
           pytest tests/unit/ -n auto --cov=app --cov-report=term-missing
-          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+          pytest tests/integration/ -n auto --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always()

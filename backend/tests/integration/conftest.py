@@ -59,7 +59,15 @@ from app.models.base import BaseModel  # noqa: E402
 _TEST_DB_USER = os.environ.get("POSTGRES_USER", "postgres")
 _TEST_DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
 _TEST_DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
-_TEST_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
+_BASE_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
+
+# 并行化支持：pytest-xdist 会设置 PYTEST_XDIST_WORKER（如 "gw0", "gw1"）
+# 每个 worker 使用独立的数据库，避免 TRUNCATE 死锁
+_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "")
+if _WORKER_ID:
+    _TEST_DB_NAME = f"{_BASE_DB_NAME}_{_WORKER_ID}"
+else:
+    _TEST_DB_NAME = _BASE_DB_NAME
 
 TEST_DATABASE_SYNC_URL = (
     f"postgresql://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"

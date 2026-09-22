@@ -1023,8 +1023,9 @@ async def test_import_invoices_duplicate_invoice_no(
             """
             INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
                                   total_amount, discount_amount, status, is_auto_generated,
-                                  created_at, updated_at)
-            VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE, NOW(), NOW())
+                                  detail_file_status, created_at, updated_at)
+            VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                    'pending', NOW(), NOW())
             """
         ),
         {"no": dup_no, "cid": import_customer["id"]},
