@@ -239,9 +239,14 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          PGPASSWORD: test_password
         run: |
           cd backend
           python -m alembic upgrade head
+          # smoke 用 -n 1（单 worker=gw0），需为其建 worker 库
+          psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db_gw0;" || true
+          DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_db_gw0" \
+            python -m alembic upgrade head
 
       - name: Seed test data
         if: steps.changes.outputs.backend == 'true'
