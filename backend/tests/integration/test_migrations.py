@@ -26,6 +26,8 @@ ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 # 连接参数优先用 MIGRATION_TEST_DB_* 覆盖；默认回退到 CI 的 POSTGRES_* 变量
 # （本地无 POSTGRES_* 时用 postgres/空密码，兼容 Postgres.app 本地开发）
 TEST_DB_NAME = "customer_platform_migration_test"
+# 注意：迁移测试不用 PYTEST_XDIST_WORKER 隔离——模块级 settings 缓存与 alembic
+# 命令在并行下会相互污染。由 CI 单独串行步骤执行（见 pr-checks.yml）。
 TEST_DB_USER = os.environ.get("MIGRATION_TEST_DB_USER", os.environ.get("POSTGRES_USER", "postgres"))
 TEST_DB_PASSWORD = os.environ.get(
     "MIGRATION_TEST_DB_PASSWORD", os.environ.get("POSTGRES_PASSWORD", "")

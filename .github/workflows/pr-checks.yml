@@ -344,6 +344,7 @@ jobs:
           # 创建 4 个数据库（gw0-gw3），支持最多 4 个并行 worker
           for i in 0 1 2 3; do
             psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db_gw$i;" || true
+            psql -h localhost -U test_user -d test_db -c "CREATE DATABASE customer_platform_migration_test_gw$i;" || true
           done
       - name: Run database migrations
         env:
@@ -380,7 +381,13 @@ jobs:
         run: |
           cd backend
           pytest tests/unit/ -n auto --cov=app --cov-report=term-missing
-          pytest tests/integration/ -n auto --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+          # 迁移测试单独串行跑（模块级 settings 缓存与 alembic 命令并行下相互污染）
+          pytest tests/integration/test_migrations.py -n 1 --timeout=120 \
+            --cov=app --cov-append --cov-report=term-missing --junitxml=junit-migrations.xml
+          # 其余集成测试并行跑（--deselect 排除已串行跑的迁移测试）
+          pytest tests/integration/ --ignore=tests/integration/test_migrations.py \
+            -n auto --timeout=120 --cov=app --cov-append --cov-report=term-missing \
+            --cov-fail-under=50 --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always()
