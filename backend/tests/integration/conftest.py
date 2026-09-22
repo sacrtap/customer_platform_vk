@@ -170,15 +170,17 @@ def test_user(sync_test_engine):
     session = SessionLocal()
 
     try:
-        # 检查是否已经初始化（通过检查 admin 用户是否存在）
+        # 检查是否已初始化：admin 用户存在、密码匹配且未禁用才跳过重建。
+        # 仅检查存在性会在「admin 残留但密码/完整性不符」的脏状态下返回硬编码
+        # password，导致后续 auth_token 登录 401（全量偶发失败根因）。
         result = session.execute(
-            text("SELECT COUNT(*) FROM users WHERE username = :username"),
+            text("SELECT password_hash, is_active FROM users WHERE username = :username"),
             {"username": username},
         )
-        count = result.scalar()
+        row = result.fetchone()
 
-        if count > 0:
-            # 已初始化，直接返回
+        if row is not None and bcrypt.checkpw(password.encode(), row[0].encode()) and row[1]:
+            # 已完整初始化，直接返回
             return {
                 "username": username,
                 "password": password,
