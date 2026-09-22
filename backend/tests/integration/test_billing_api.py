@@ -152,6 +152,7 @@ async def test_customer_with_balance(db_session, test_customer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_get_balances_list(test_client, auth_token, test_customer_with_balance):
     """测试获取余额列表 API"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -441,6 +442,7 @@ async def test_get_balances_filter_combined(test_client, auth_token, db_session)
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_get_customer_balance_exists(test_client, auth_token, test_customer_with_balance):
     """测试获取客户余额 - 余额存在"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -479,6 +481,7 @@ async def test_get_customer_balance_not_exists(test_client, auth_token, test_cus
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_balance_stats_this_month_amount_includes_bonus(
     test_client, auth_token, test_customer
 ):
@@ -614,6 +617,7 @@ async def test_balance_stats_low_balance_count(test_client, auth_token, test_cus
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_recharge_success(test_client, auth_token, test_customer):
     """测试充值 API - 成功"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -874,6 +878,7 @@ async def test_get_invoices_invalid_sort_order_fallback(test_client, auth_token)
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_generate_invoice_success(test_client, auth_token, test_customer):
     """测试生成结算单 API - 成功"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -932,6 +937,7 @@ async def test_generate_invoice_empty_items(test_client, auth_token, test_custom
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_invoice_workflow_full(test_client, auth_token, test_customer_with_balance):
     """测试结算单完整工作流：生成 -> 提交 -> 确认（自动扣款 -> 完成）
 
@@ -1101,6 +1107,7 @@ async def test_pay_invoice_invalid_state(test_client, auth_token, test_customer)
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_complete_invoice_insufficient_balance(
     test_client, auth_token, test_customer_with_balance
 ):
@@ -1306,6 +1313,7 @@ async def test_delete_invoice(test_client, auth_token, test_customer):
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_cancel_invoice_success(test_client, auth_token, test_customer):
     """测试取消结算单 API - 成功"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -1628,6 +1636,7 @@ async def test_invalid_token(test_client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token, db_session):
     """测试冲突检查 API — 有冲突"""
     # 先创建一个客户（使用子查询获取 manager_id）
@@ -1716,6 +1725,7 @@ async def test_check_pricing_rule_conflict_has_conflict(test_client, auth_token,
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, db_session):
     """测试冲突检查 API — 无冲突"""
     # 先创建一个客户（使用子查询获取 manager_id）

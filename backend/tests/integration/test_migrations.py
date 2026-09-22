@@ -168,6 +168,7 @@ def _business_auto_price(base_fee: Decimal, limit_count: int) -> Decimal:
     return (base_fee / Decimal(limit_count)).quantize(Decimal("0.01"))
 
 
+@pytest.mark.smoke
 class TestOverLimitUnitPriceNullSemantics:
     """迁移 s8t9u0v1w2x3 upgrade/downgrade 数据语义测试"""
 

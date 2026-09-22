@@ -5,6 +5,10 @@ on:
     branches: [main]
     # ready_for_review: draft 转 ready 时重新校验，避免沿用 draft 阶段的门禁结论
     types: [opened, synchronize, reopened, ready_for_review]
+  # 全量 integration + 覆盖率 50% 门禁（PR 只跑 smoke 子集，见 backend-integration-full）
+  schedule:
+    - cron: '0 18 * * *'   # UTC 18:00 = 北京时间次日 02:00
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.12"
@@ -136,9 +140,9 @@ jobs:
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
         run: |
           cd backend
-          # 单元测试只生成覆盖率数据，不单独判定门槛；
-          # 覆盖率门禁在集成 job 以「单元+集成合并（全量口径）」统一判定（--cov-fail-under=50）
-          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing --junitxml=junit.xml
+          # PR 门禁在单元层判定覆盖率 ≥34%（当前实际 34.67%），防止单测覆盖退化；
+          # 「单元+集成合并（全量口径）≥50%」由 nightly/manual 的 backend-integration-full 判定
+          pytest tests/unit/ -n auto --cov=app --cov-fail-under=34 --cov-report=term-missing --junitxml=junit.xml
 
       - name: Upload JUnit test results
         if: always()
@@ -247,17 +251,10 @@ jobs:
           cd backend
           python scripts/seed.py --reset
 
-      - name: Download unit coverage data
-        if: steps.changes.outputs.backend == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: pr-backend-coverage
-          path: backend
-
-      # 覆盖率门禁（全量口径）：单元 + 集成 coverage 合并后判定 ≥50%。
-      # 当前门禁 50%（阶梯目标 55%→60% 见 docs/technical_debt/debt.md）。
-      # 纯前端/文档 PR 通过上方 paths-filter 跳过本 job，不强制后端门禁。
-      - name: Run integration tests
+      # PR 门禁只跑 smoke 子集（核心业务链），控制在 5 分钟内；
+      # 全量 integration + 覆盖率 50%（单元+集成合并口径）由 nightly/manual 的
+      # backend-integration-full job 执行，不在此重复。
+      - name: Run integration tests (smoke)
         if: steps.changes.outputs.backend == 'true'
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
@@ -271,13 +268,106 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+          pytest tests/integration/ -m smoke -n 1 --timeout=120 --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always() && steps.changes.outputs.backend == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pr-backend-integration-junit
+          path: backend/junit.xml
+          retention-days: 14
+
+  # ============================================================
+  # 全量集成测试（nightly schedule + workflow_dispatch）
+  # PR 门禁只跑 smoke 子集；本 job 跑全量 integration 并判定
+  # 「单元 + 集成合并」覆盖率 ≥50%（全量口径门禁所在地）。
+  # ============================================================
+  backend-integration-full:
+    name: Backend Integration Tests (Full)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python -m alembic upgrade head
+
+      - name: Seed test data
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python scripts/seed.py --reset
+
+      # 覆盖率门禁（全量口径）：先跑单元测试生成 .coverage，再跑全量集成测试
+      # --cov-append 合并，最终 --cov-fail-under=50 判定「单元 + 集成」合并覆盖率。
+      - name: Run unit + full integration tests with coverage
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-for-ci
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+          POSTGRES_HOST: localhost
+        run: |
+          cd backend
+          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing
+          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-append --cov-report=term-missing --cov-fail-under=50 --junitxml=junit.xml
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-backend-integration-junit
           path: backend/junit.xml
           retention-days: 14
 
@@ -556,7 +646,8 @@ jobs:
     name: PR Quality Gate
     runs-on: ubuntu-latest
     needs: [changes, quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, static-checks, e2e-tests]
-    if: always()
+    # 仅 PR 触发时判定；schedule/workflow_dispatch 下全量集成由 backend-integration-full 独立判定
+    if: always() && github.event_name == 'pull_request'
     timeout-minutes: 5
 
     steps:
@@ -613,8 +704,8 @@ jobs:
             exit 1
           fi
 
-          echo "ℹ️  Backend integration tests run in PR checks with real Postgres + Redis"
-          echo "   Unit tests (360) + Integration tests (~186) both run before merge"
+          echo "ℹ️  PR 门禁：backend integration 只跑 smoke 子集（核心业务链，控制在 5 分钟内）"
+          echo "   全量 integration + 覆盖率 50% 门禁由 nightly/manual 的 backend-integration-full 执行"
 
           echo "✅ All PR quality checks passed"
           echo "result=passed" >> "$GITHUB_OUTPUT"
