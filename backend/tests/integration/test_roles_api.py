@@ -12,18 +12,6 @@
 import pytest
 from sqlalchemy import text
 
-
-@pytest.fixture
-async def auth_token(test_client, test_user):
-    """获取认证 Token"""
-    login_request, login_response = await test_client.post(
-        "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": test_user["password"]},
-    )
-    assert login_response.status == 200
-    return login_response.json["data"]["access_token"]
-
-
 # ==================== TC-API-ROLE-005: 获取角色列表 API ====================
 
 

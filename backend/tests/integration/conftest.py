@@ -409,3 +409,39 @@ async def test_client(app, mock_cache):
     创建 Sanic ASGI 测试客户端
     """
     yield app.asgi_client
+
+
+@pytest.fixture(scope="session")
+def auth_token(test_user, sync_test_engine):
+    """session 级认证 token：直接签发 JWT，避免每测试重复登录（bcrypt 开销）。
+
+    仅适用于「登录 admin 获取 token」的测试（约 9 个文件）；analytics 等
+    需要自签特殊 token 的文件保留自己的 auth_token。
+    """
+    from app.services.auth import AuthService
+
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
+    session = SessionLocal()
+    try:
+        result = session.execute(
+            text(
+                """
+                SELECT u.id, r.name
+                FROM users u
+                JOIN user_roles ur ON ur.user_id = u.id
+                JOIN roles r ON r.id = ur.role_id
+                WHERE u.username = :username
+                """
+            ),
+            {"username": test_user["username"]},
+        )
+        rows = result.fetchall()
+        if not rows:
+            raise RuntimeError(f"auth_token: 用户 {test_user['username']} 无角色关联")
+        user_id = rows[0][0]
+        roles = [row[1] for row in rows]
+        return AuthService.create_access_token(
+            user_id=user_id, username=test_user["username"], roles=roles
+        )
+    finally:
+        session.close()
