@@ -297,33 +297,21 @@ def db_session(sync_test_engine, test_user):
     try:
         yield session
     finally:
-        # 测试后清理业务数据（保留 auth 数据）
-        # 按外键依赖顺序：先删叶子表，再删父表
-        # 注意：此清理方式不支持 pytest-xdist 并行执行（会删除其他 worker 的数据）
-        # workflow 中使用 -n 1 单 worker 执行以避免竞态
+        # 测试后清理业务数据（保留 auth 数据）。
+        # TRUNCATE ... CASCADE 一次性截断所有业务表，比逐表 DELETE 快得多
+        # （在 CI 的 Docker PostgreSQL 上，22 次 DELETE 的磁盘 I/O 是主要耗时来源）。
+        # 注意：此清理方式不支持 pytest-xdist 并行执行（会截断其他 worker 的数据），
+        # workflow 中使用 -n 1 单 worker 执行以避免竞态。
         try:
-            session.execute(text("DELETE FROM profile_tags"))
-            session.execute(text("DELETE FROM customer_tags"))
-            session.execute(text("DELETE FROM tags"))
-            session.execute(text("DELETE FROM invoice_items"))
-            session.execute(text("DELETE FROM invoices"))
-            session.execute(text("DELETE FROM customer_balances"))
-            session.execute(text("DELETE FROM recharge_records"))
-            session.execute(text("DELETE FROM customer_profiles"))
-            session.execute(text("DELETE FROM consumption_records"))
-            session.execute(text("DELETE FROM daily_consumptions"))
-            session.execute(text("DELETE FROM daily_orders"))
-            session.execute(text("DELETE FROM files"))
-            session.execute(text("DELETE FROM audit_logs"))
-            session.execute(text("DELETE FROM sync_task_logs"))
-            session.execute(text("DELETE FROM sync_tasks"))
-            session.execute(text("DELETE FROM pricing_rules"))
-            session.execute(text("DELETE FROM package_plans"))
-            session.execute(text("DELETE FROM webhook_signatures"))
-            session.execute(text("DELETE FROM token_blacklist"))
-            session.execute(text("DELETE FROM industry_types"))
-            session.execute(text("DELETE FROM cooperation_statuses"))
-            session.execute(text("DELETE FROM customers"))
+            session.execute(
+                text(
+                    "TRUNCATE profile_tags, customer_tags, tags, invoice_items, invoices, "
+                    "customer_balances, recharge_records, customer_profiles, consumption_records, "
+                    "daily_consumptions, daily_orders, files, audit_logs, sync_task_logs, "
+                    "sync_tasks, pricing_rules, package_plans, webhook_signatures, "
+                    "token_blacklist, industry_types, cooperation_statuses, customers CASCADE"
+                )
+            )
             session.commit()
         except Exception:
             session.rollback()
