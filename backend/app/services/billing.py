@@ -3,7 +3,7 @@
 import logging
 import random
 import string
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,7 +15,7 @@ from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential,
+    wait_exponential_jitter,
 )
 
 from ..models.billing import (
@@ -39,6 +39,10 @@ from ..repository import (
 from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
 
 logger = logging.getLogger(__name__)
+
+# 死锁重试耗尽后的对外提示：调用方将 OperationalError 降级为该业务错误码，
+# 避免数据库异常穿透成 500，同时让前端能提示用户稍后重试
+_DB_BUSY_MESSAGE = "数据库繁忙，请稍后重试"
 
 
 class BalanceService:
@@ -234,14 +238,21 @@ class BalanceService:
         Raises:
             OperationalError: 数据库操作错误（重试后仍失败则抛出）
         """
+        # consume 以独立事务执行（内部 db.begin()）。调用方可能残留 autobegin 事务
+        # （例如 get_invoice_by_id 的 SELECT），此时 db.begin() 会抛 InvalidRequestError
+        # ——它不属于 OperationalError，既不会被重试也不会被降级，会直接穿透成 500。
+        # 在此显式收敛，使事务边界不再依赖调用方是否记得先 commit。
+        if self.db.in_transaction():
+            await self.db.commit()
+
         # 死锁重试配置
         # - 3 次尝试：平衡死锁恢复与用户体验
-        # - 0.1s 最小等待：快速恢复瞬时锁
-        # - 1.0s 最大等待：防止过度延迟
+        # - 0.1s 起步退避 + 抖动：多个事务同时重试时错开，避免同步撞锁（重试风暴）
+        # - 1.0s 上限：防止过度延迟
         try:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(3),
-                wait=wait_exponential(multiplier=1, min=0.1, max=1.0),
+                wait=wait_exponential_jitter(initial=0.1, max=1.0),
                 retry=retry_if_exception_type(OperationalError),
                 reraise=True,
             ):
@@ -325,8 +336,9 @@ class BalanceService:
             )
             raise
 
-        # 不应到达此处（reraise=True 会抛出最后一次异常）
-        return False, "扣款失败：数据库操作超时"
+        # 不可达：reraise=True 保证重试耗尽时抛出原异常，
+        # 此处仅为收窄返回类型，不再伪装成业务错误码（原实现误导调用方以为会返回 False）
+        raise AssertionError("consume 抵达不可达分支（AsyncRetrying 必然 return 或抛出）")
 
     async def get_recharge_records(
         self,
@@ -436,7 +448,7 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:
+                    if new_expiry is not None and new_expiry >= rule.effective_date:
                         raise ValueError("该客户已存在包年结算规则，有效期存在重叠")
                 else:
                     if effective_date <= rule_expiry:
@@ -520,7 +532,7 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     raise ValueError("该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠")
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
+                    if new_expiry is not None and new_expiry >= rule.effective_date:
                         raise ValueError(
                             "该客户已存在相同设备类型和楼层类型的定价规则，有效期存在重叠"
                         )
@@ -913,7 +925,7 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     conflicting.append(rule)
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:
+                    if new_expiry is not None and new_expiry >= rule.effective_date:
                         conflicting.append(rule)
                 else:
                     if effective_date <= rule_expiry:
@@ -966,7 +978,7 @@ class PricingService:
                 if rule_expiry is None and new_expiry is None:
                     conflicting.append(rule)
                 elif rule_expiry is None:
-                    if new_expiry >= rule.effective_date:  # pyright: ignore[reportGeneralTypeIssues]
+                    if new_expiry is not None and new_expiry >= rule.effective_date:
                         conflicting.append(rule)
                 else:
                     if effective_date <= rule_expiry:  # pyright: ignore[reportGeneralTypeIssues]
@@ -1010,7 +1022,7 @@ class InvoiceService:
 
     async def calculate_items_from_rules(
         self,
-        customer_id: int,
+        customer_id: int | None,
         period_start: datetime,
         period_end: datetime,
     ) -> Tuple[List[Dict[str, Any]], Decimal]:
@@ -1330,8 +1342,8 @@ class InvoiceService:
     async def generate_invoice(
         self,
         customer_id: int,
-        period_start: datetime,
-        period_end: datetime,
+        period_start: date | datetime,
+        period_end: date | datetime,
         items: List[Dict[str, Any]],
         created_by: int,
         is_auto_generated: bool = False,
@@ -1620,6 +1632,7 @@ class InvoiceService:
         invoice.status = "customer_confirmed"  # pyright: ignore[reportAttributeAccessIssue]
         invoice.customer_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
         invoice.customer_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        # 先落库「客户已确认」再尝试扣款：扣款失败时该状态保留，可由 retry_deduction 重试
         await self.db.commit()
 
         # 自动执行扣款
@@ -1654,16 +1667,20 @@ class InvoiceService:
         customer_confirmed → completed（扣款成功）
         失败时保持 customer_confirmed
         """
-        # 提交当前事务，避免与 consume 内部的 db.begin() 冲突
-        await self.db.commit()
-
+        # 事务边界由 consume 自行收敛（见其实现），此处无需预先提交
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
         balance_service = BalanceService(BalanceRepository(self.db))
-        success, message = await balance_service.consume(
-            customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
-            amount=final_amount,  # pyright: ignore[reportArgumentType]
-            invoice_id=invoice.id,  # pyright: ignore[reportArgumentType]
-        )
+        try:
+            success, message = await balance_service.consume(
+                customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+                amount=final_amount,  # pyright: ignore[reportArgumentType]
+                invoice_id=invoice.id,  # pyright: ignore[reportArgumentType]
+            )
+        except OperationalError:
+            # 重试耗尽：consume 已记录诊断日志。此处降级为业务错误码，保持本方法的
+            # Tuple[bool, str] 契约（不让数据库异常穿透成 500）；发票状态仍为
+            # customer_confirmed，可由 retry_deduction 再次尝试
+            return False, f"客户确认成功，但扣款失败：{_DB_BUSY_MESSAGE}"
 
         if not success:
             # 扣款失败，保持 customer_confirmed 状态
@@ -1713,18 +1730,19 @@ class InvoiceService:
         if invoice.status != "paid":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能完成：{invoice.status}"
 
-        # 提交当前事务（get_invoice_by_id 的 autobegin 事务），
-        # 避免与 consume 内部的 db.begin() 冲突
-        await self.db.commit()
-
-        # 执行扣款
+        # 执行扣款（事务边界由 consume 自行收敛，无需预先提交）
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
         balance_service = BalanceService(BalanceRepository(self.db))
-        success, message = await balance_service.consume(
-            customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
-            amount=final_amount,  # pyright: ignore[reportArgumentType]
-            invoice_id=invoice_id,
-        )
+        try:
+            success, message = await balance_service.consume(
+                customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+                amount=final_amount,  # pyright: ignore[reportArgumentType]
+                invoice_id=invoice_id,
+            )
+        except OperationalError:
+            # 重试耗尽：consume 已记录诊断日志。降级为业务错误码，发票状态保持 paid，
+            # 可再次调用 complete_invoice 重试
+            return False, f"扣款失败：{_DB_BUSY_MESSAGE}"
 
         if not success:
             return False, message

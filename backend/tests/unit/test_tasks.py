@@ -366,3 +366,71 @@ class TestWebhookCleanupTask:
 # ============================================================================
 # 测试边缘情况
 # ============================================================================
+
+
+class TestSchedulerRegistration:
+    """调度器任务注册契约
+
+    注册给 APScheduler 的每个任务必须是「无参协程函数」。APScheduler 能直接
+    await 协程函数；若实现用 lambda 包裹并在注册处调用 session_factory()，协程
+    对象会被创建后立即丢弃（RuntimeWarning: coroutine ... was never awaited），
+    任务静默不执行。本测试锁定该契约，防止回归。
+    """
+
+    @pytest.mark.asyncio
+    async def test_init_scheduler_registers_only_coroutine_functions(self):
+        """init_scheduler 注册的任务全部是无参协程函数"""
+
+        import inspect
+        from inspect import signature
+
+        from app.tasks.scheduler import init_scheduler
+
+        # 构造最小 app：before_server_start 注册回调 + ctx.async_session_maker
+        app = MagicMock()
+        # session_factory() 必须同步返回一个 async 上下文管理器
+        # （代码使用 `async with session_factory() as session`）；
+        # 且 execute/scalar_one_or_none 需返回同步结构，否则 AsyncMock 会
+        # 把所有方法都变成协程导致 cfg.enabled 报错。
+        fake_session = AsyncMock()
+        # `async with fake_session as s` 的 s 必须是同一个（已配置 execute 的）对象
+        fake_session.__aenter__.return_value = fake_session
+        fake_cfg_result = MagicMock()
+        fake_cfg_result.scalar_one_or_none.return_value = MagicMock(enabled=False)
+        fake_session.execute.return_value = fake_cfg_result
+        app.ctx.async_session_maker = MagicMock(return_value=fake_session)
+        before_start_cb = {}
+
+        def _register_cb(fn):
+            before_start_cb["start"] = fn
+            return fn
+
+        app.before_server_start.side_effect = _register_cb
+
+        # patch 掉全局调度器，避免真正启动 APScheduler / 触碰 Redis / DB
+        with patch("app.tasks.scheduler.scheduler", MagicMock()) as mock_scheduler:
+            mock_scheduler.get_jobs.return_value = []
+
+            init_scheduler(app)
+
+            assert "start" in before_start_cb, "init_scheduler 未注册 before_server_start 回调"
+            await before_start_cb["start"](app, None)
+
+            # 校验所有 add_job 的任务为无参协程函数
+            calls = mock_scheduler.add_job.call_args_list
+            assert calls, "调度器未注册任何任务"
+            for call in calls:
+                job_func = call.args[0] if call.args else None
+                assert job_func is not None, f"任务注册缺少函数: {call}"
+                assert inspect.iscoroutinefunction(job_func), (
+                    f"任务 {getattr(job_func, '__name__', '?')} 不是协程函数"
+                    "（若为 lambda 包裹的协程调用，会因从未 await 而静默不执行）"
+                )
+                sig = signature(job_func)
+                required = [
+                    p.name for p in sig.parameters.values() if p.default is inspect.Parameter.empty
+                ]
+                assert not required, (
+                    f"任务 {getattr(job_func, '__name__', '?')} 应为无参协程"
+                    f"（session 应在函数内获取），实际参数: {required}"
+                )

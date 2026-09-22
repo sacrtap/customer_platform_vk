@@ -63,7 +63,7 @@ def create_app(
     # 创建会话工厂
     if is_async:
         async_session_maker = async_sessionmaker(  # pyright: ignore[reportCallIssue]
-            engine,
+            engine,  # pyright: ignore[reportArgumentType]  # SQLAlchemy stub：AsyncEngine|Engine 联合绑定
             class_=AsyncSession,
             expire_on_commit=False,  # pyright: ignore[reportArgumentType]
         )
@@ -79,11 +79,13 @@ def create_app(
     correlation_middleware(app)
 
     # 数据库会话中间件
+    # 注意：会话工厂的创建与使用分处两个 `if is_async` 分支，二者由同一常量支配；
+    # pyright 无法跨 if 追踪条件相关性，故使用处带 reportPossiblyUnboundVariable 抑制。
     if is_async:
 
         @app.middleware("request")
         async def db_session_middleware(request):
-            request.ctx.db_session = async_session_maker()
+            request.ctx.db_session = async_session_maker()  # pyright: ignore[reportPossiblyUnboundVariable]
 
         @app.middleware("response")
         async def close_db_session(request, response):
@@ -94,7 +96,7 @@ def create_app(
 
         @app.middleware("request")
         def db_session_middleware(request):
-            request.ctx.db_session = sync_session_maker()
+            request.ctx.db_session = sync_session_maker()  # pyright: ignore[reportPossiblyUnboundVariable]
 
         @app.middleware("response")
         def close_db_session(request, response):
@@ -220,7 +222,7 @@ def create_app(
                 from app.services.sync_task_service import SyncTaskService
 
                 redis_client = await cache_service._get_redis()
-                async with async_session_maker() as session:
+                async with async_session_maker() as session:  # pyright: ignore[reportPossiblyUnboundVariable]
                     service = SyncTaskService(db=session, redis_client=redis_client)
                     recovered = await service.recover_stuck_tasks()
                     if recovered > 0:

@@ -45,25 +45,32 @@ def init_scheduler(app):
         from .webhook_cleanup import cleanup_webhook_signatures
 
         # 为每个任务添加监控装饰器
+        # 任务一律声明为「无参协程 + 函数内取 session」：APScheduler 能直接调度协程
+        # 函数；若改成 lambda 包裹并在注册处调用 session_factory()，协程对象会被创建
+        # 后立即丢弃（RuntimeWarning: coroutine ... was never awaited），任务静默不执行。
         @monitored_task("generate_monthly_invoices", "月度结算单自动生成")
-        async def _generate_monthly_invoices(session):
-            return await generate_monthly_invoices(session)
+        async def _generate_monthly_invoices():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await generate_monthly_invoices(session)
 
         @monitored_task("check_balance_warning", "余额预警检查")
-        async def _check_balance_warning(session):
-            return await check_balance_warning(session)
+        async def _check_balance_warning():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await check_balance_warning(session)
 
         @monitored_task("send_overdue_emails", "逾期提醒邮件")
-        async def _send_overdue_emails(session):
-            return await send_overdue_emails(session)
+        async def _send_overdue_emails():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await send_overdue_emails(session)
 
         @monitored_task("cleanup_temp_files", "临时文件清理")
         async def _cleanup_temp_files():
             return await cleanup_temp_files()
 
         @monitored_task("cleanup_webhook_signatures", "Webhook 签名清理")
-        async def _cleanup_webhook_signatures(session):
-            return await cleanup_webhook_signatures(session)
+        async def _cleanup_webhook_signatures():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await cleanup_webhook_signatures(session)
 
         @monitored_task("check_stuck_sync_tasks", "卡住同步任务检测")
         async def _check_stuck_sync_tasks():
@@ -79,7 +86,7 @@ def init_scheduler(app):
 
         # P6-3: 每月 1 日 02:00 自动生成结算单
         scheduler.add_job(
-            lambda: _generate_monthly_invoices(session_factory()),  # pyright: ignore[reportOptionalCall]
+            _generate_monthly_invoices,
             trigger=CronTrigger(day=1, hour=2, minute=0),
             id="generate_monthly_invoices",
             name="月度结算单自动生成",
@@ -88,7 +95,7 @@ def init_scheduler(app):
 
         # P6-4: 每小时检查余额预警
         scheduler.add_job(
-            lambda: _check_balance_warning(session_factory()),  # pyright: ignore[reportOptionalCall]
+            _check_balance_warning,
             trigger=IntervalTrigger(hours=1),
             id="check_balance_warning",
             name="余额预警检查",
@@ -97,7 +104,7 @@ def init_scheduler(app):
 
         # P6-7: 每日 09:00 发送逾期提醒邮件
         scheduler.add_job(
-            lambda: _send_overdue_emails(session_factory()),  # pyright: ignore[reportOptionalCall]
+            _send_overdue_emails,
             trigger=CronTrigger(hour=9, minute=0),
             id="send_overdue_emails",
             name="逾期提醒邮件",
@@ -115,7 +122,7 @@ def init_scheduler(app):
 
         # P6-8: 每日 04:00 清理 Webhook 签名（5 天前）
         scheduler.add_job(
-            lambda: _cleanup_webhook_signatures(session_factory()),  # pyright: ignore[reportOptionalCall]
+            _cleanup_webhook_signatures,
             trigger=CronTrigger(hour=4, minute=0),
             id="cleanup_webhook_signatures",
             name="Webhook 签名清理",

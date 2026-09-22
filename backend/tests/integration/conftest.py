@@ -59,7 +59,15 @@ from app.models.base import BaseModel  # noqa: E402
 _TEST_DB_USER = os.environ.get("POSTGRES_USER", "postgres")
 _TEST_DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
 _TEST_DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
-_TEST_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
+_BASE_DB_NAME = os.environ.get("POSTGRES_DB", "customer_platform_test")
+
+# 并行化支持：pytest-xdist 会设置 PYTEST_XDIST_WORKER（如 "gw0", "gw1"）
+# 每个 worker 使用独立的数据库，避免 TRUNCATE 死锁
+_WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "")
+if _WORKER_ID:
+    _TEST_DB_NAME = f"{_BASE_DB_NAME}_{_WORKER_ID}"
+else:
+    _TEST_DB_NAME = _BASE_DB_NAME
 
 TEST_DATABASE_SYNC_URL = (
     f"postgresql://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
@@ -170,15 +178,17 @@ def test_user(sync_test_engine):
     session = SessionLocal()
 
     try:
-        # 检查是否已经初始化（通过检查 admin 用户是否存在）
+        # 检查是否已初始化：admin 用户存在、密码匹配且未禁用才跳过重建。
+        # 仅检查存在性会在「admin 残留但密码/完整性不符」的脏状态下返回硬编码
+        # password，导致后续 auth_token 登录 401（全量偶发失败根因）。
         result = session.execute(
-            text("SELECT COUNT(*) FROM users WHERE username = :username"),
+            text("SELECT password_hash, is_active FROM users WHERE username = :username"),
             {"username": username},
         )
-        count = result.scalar()
+        row = result.fetchone()
 
-        if count > 0:
-            # 已初始化，直接返回
+        if row is not None and bcrypt.checkpw(password.encode(), row[0].encode()) and row[1]:
+            # 已完整初始化，直接返回
             return {
                 "username": username,
                 "password": password,
@@ -295,33 +305,21 @@ def db_session(sync_test_engine, test_user):
     try:
         yield session
     finally:
-        # 测试后清理业务数据（保留 auth 数据）
-        # 按外键依赖顺序：先删叶子表，再删父表
-        # 注意：此清理方式不支持 pytest-xdist 并行执行（会删除其他 worker 的数据）
-        # workflow 中使用 -n 1 单 worker 执行以避免竞态
+        # 测试后清理业务数据（保留 auth 数据）。
+        # TRUNCATE ... CASCADE 一次性截断所有业务表，比逐表 DELETE 快得多
+        # （在 CI 的 Docker PostgreSQL 上，22 次 DELETE 的磁盘 I/O 是主要耗时来源）。
+        # 注意：此清理方式不支持 pytest-xdist 并行执行（会截断其他 worker 的数据），
+        # workflow 中使用 -n 1 单 worker 执行以避免竞态。
         try:
-            session.execute(text("DELETE FROM profile_tags"))
-            session.execute(text("DELETE FROM customer_tags"))
-            session.execute(text("DELETE FROM tags"))
-            session.execute(text("DELETE FROM invoice_items"))
-            session.execute(text("DELETE FROM invoices"))
-            session.execute(text("DELETE FROM customer_balances"))
-            session.execute(text("DELETE FROM recharge_records"))
-            session.execute(text("DELETE FROM customer_profiles"))
-            session.execute(text("DELETE FROM consumption_records"))
-            session.execute(text("DELETE FROM daily_consumptions"))
-            session.execute(text("DELETE FROM daily_orders"))
-            session.execute(text("DELETE FROM files"))
-            session.execute(text("DELETE FROM audit_logs"))
-            session.execute(text("DELETE FROM sync_task_logs"))
-            session.execute(text("DELETE FROM sync_tasks"))
-            session.execute(text("DELETE FROM pricing_rules"))
-            session.execute(text("DELETE FROM package_plans"))
-            session.execute(text("DELETE FROM webhook_signatures"))
-            session.execute(text("DELETE FROM token_blacklist"))
-            session.execute(text("DELETE FROM industry_types"))
-            session.execute(text("DELETE FROM cooperation_statuses"))
-            session.execute(text("DELETE FROM customers"))
+            session.execute(
+                text(
+                    "TRUNCATE profile_tags, customer_tags, tags, invoice_items, invoices, "
+                    "customer_balances, recharge_records, customer_profiles, consumption_records, "
+                    "daily_consumptions, daily_orders, files, audit_logs, sync_task_logs, "
+                    "sync_tasks, pricing_rules, package_plans, webhook_signatures, "
+                    "token_blacklist, industry_types, cooperation_statuses, customers CASCADE"
+                )
+            )
             session.commit()
         except Exception:
             session.rollback()
@@ -407,3 +405,39 @@ async def test_client(app, mock_cache):
     创建 Sanic ASGI 测试客户端
     """
     yield app.asgi_client
+
+
+@pytest.fixture(scope="session")
+def auth_token(test_user, sync_test_engine):
+    """session 级认证 token：直接签发 JWT，避免每测试重复登录（bcrypt 开销）。
+
+    仅适用于「登录 admin 获取 token」的测试（约 9 个文件）；analytics 等
+    需要自签特殊 token 的文件保留自己的 auth_token。
+    """
+    from app.services.auth import AuthService
+
+    SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
+    session = SessionLocal()
+    try:
+        result = session.execute(
+            text(
+                """
+                SELECT u.id, r.name
+                FROM users u
+                JOIN user_roles ur ON ur.user_id = u.id
+                JOIN roles r ON r.id = ur.role_id
+                WHERE u.username = :username
+                """
+            ),
+            {"username": test_user["username"]},
+        )
+        rows = result.fetchall()
+        if not rows:
+            raise RuntimeError(f"auth_token: 用户 {test_user['username']} 无角色关联")
+        user_id = rows[0][0]
+        roles = [row[1] for row in rows]
+        return AuthService.create_access_token(
+            user_id=user_id, username=test_user["username"], roles=roles
+        )
+    finally:
+        session.close()

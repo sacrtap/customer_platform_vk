@@ -13,18 +13,6 @@ Files API 集成测试
 import pytest
 
 
-@pytest.fixture
-async def auth_token(test_client, test_user):
-    """使用 test_user fixture 获取认证 Token"""
-    _, login_response = await test_client.post(
-        "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": test_user["password"]},
-    )
-    assert login_response.status == 200
-    token = login_response.json["data"]["access_token"]
-    yield token
-
-
 @pytest.mark.asyncio
 async def test_upload_file_missing_file(test_client, auth_token):
     """测试上传文件 - 未提供文件"""

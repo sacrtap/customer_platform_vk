@@ -235,8 +235,10 @@ async def list_customers(request: Request):
         },
     }
 
-    # 写入缓存
-    await cache_service.set("customer_list", result, cache_key)
+    # 写入缓存（仅缓存非空结果：空列表多为瞬态——数据迁移/清理/权限调整窗口，
+    # 一旦缓存会在 TTL 内持续返回"假空"，前端与 E2E 都会读到错误的空列表）
+    if total > 0:
+        await cache_service.set("customer_list", result, cache_key)
 
     return json(result)
 
@@ -922,11 +924,13 @@ async def import_customers(request: Request):
 async def download_import_template(request: Request):
     """下载 Excel 导入模板"""
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     # 创建 Excel 工作簿
     wb = Workbook()
     ws = wb.active
-    ws.title = "客户导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "客户导入模板"
 
     # 设置表头（纯英文列名，与 pd.read_excel 解析的列名一致）
     # 第二行添加中文说明作为提示
@@ -984,8 +988,8 @@ async def download_import_template(request: Request):
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 设置列宽
-    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
-        ws.column_dimensions[col[0].column_letter].width = 25  # pyright: ignore[reportOptionalMemberAccess]
+    for col_num in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 25
 
     # 添加示例数据
     example_data = [
@@ -1167,8 +1171,7 @@ async def export_customers(request: Request):
 
     # 生成 Excel 文件
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:  # pyright: ignore[reportArgumentType]
-        df.to_excel(writer, index=False, sheet_name="客户列表")
+    df.to_excel(output, index=False, sheet_name="客户列表", engine="openpyxl")  # pyright: ignore[reportArgumentType]  # pandas-stubs 的 WriteExcelBuffer 未含 BytesIO（运行时支持）
 
     output.seek(0)
 

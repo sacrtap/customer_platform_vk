@@ -518,8 +518,8 @@ async def _query_balance_rows_raw(
     result = await db.execute(stmt)
     balances = result.scalars().all()
 
-    # 批量获取最新充值时间
-    customer_ids = [b.customer_id for b in balances]
+    # 批量获取最新充值时间（customer_id 可空，过滤后避免 IN (NULL)）
+    customer_ids = [b.customer_id for b in balances if b.customer_id is not None]
     last_recharge_map = {}
     if customer_ids:
         recharge_result = await db.execute(
@@ -538,7 +538,7 @@ async def _query_balance_rows_raw(
     # 批量查询消费统计（L1 缓存）
     consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
 
-    return balances, total, last_recharge_map, consumption_stats_map
+    return list(balances), total or 0, last_recharge_map, consumption_stats_map
 
 
 def _assemble_balance_rows(
@@ -727,8 +727,7 @@ async def export_balances(request: Request):
         df = pd.DataFrame(data)
 
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="余额列表")
+        df.to_excel(output, index=False, sheet_name="余额列表", engine="openpyxl")  # pyright: ignore[reportArgumentType]  # pandas-stubs 的 WriteExcelBuffer 未含 BytesIO（运行时支持）
 
         return output.getvalue()
 
@@ -1199,7 +1198,7 @@ async def recharge(request: Request):
                 "customer_id": record.customer_id,
                 "real_amount": float(record.real_amount),  # pyright: ignore[reportArgumentType]
                 "bonus_amount": float(record.bonus_amount),  # pyright: ignore[reportArgumentType]
-                "total_amount": float(record.real_amount + record.bonus_amount),  # pyright: ignore[reportArgumentType]
+                "total_amount": float((record.real_amount or 0) + (record.bonus_amount or 0)),
                 # 充值后的完整余额信息（用于前端局部更新）
                 "balance": {
                     "total_amount": (
@@ -1279,7 +1278,7 @@ async def get_recharge_records(request: Request):
                         "customer_name": customer_name_map.get(r.customer_id, ""),
                         "real_amount": float(r.real_amount),  # pyright: ignore[reportArgumentType]
                         "bonus_amount": float(r.bonus_amount),  # pyright: ignore[reportArgumentType]
-                        "total_amount": float(r.real_amount + r.bonus_amount),  # pyright: ignore[reportArgumentType]
+                        "total_amount": float((r.real_amount or 0) + (r.bonus_amount or 0)),
                         "operator_id": r.operator_id,
                         "payment_proof": r.payment_proof,
                         "remark": r.remark,

@@ -15,7 +15,7 @@
 """
 
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional
+from typing import Optional, overload
 
 CST = timezone(timedelta(hours=8))  # 中国标准时间 UTC+8
 UTC = timezone.utc
@@ -86,6 +86,14 @@ def local_yesterday_utc_start() -> datetime:
     """昨天（本地日期）对应的 UTC 开始时刻。"""
     yesterday = date.today() - timedelta(days=1)
     return local_date_to_utc_start(yesterday.isoformat())
+
+
+@overload
+def utc_to_cst_date_str(dt: datetime) -> str: ...
+
+
+@overload
+def utc_to_cst_date_str(dt: None) -> None: ...
 
 
 def utc_to_cst_date_str(dt: Optional[datetime]) -> Optional[str]:

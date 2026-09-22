@@ -1,6 +1,10 @@
 """预测消费单价配置模型"""
 
-from sqlalchemy import Column, DateTime, Numeric, String, func
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import DateTime, Numeric, String, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 from . import Base
 
@@ -14,15 +18,19 @@ class ForecastUnitPrice(Base):
 
     __tablename__ = "forecast_unit_prices"
 
-    device_type = Column(String(10), primary_key=True, comment="设备类型（L/N/X）")
-    unit_price = Column(Numeric(10, 2), nullable=False, comment="单价（元/套）")
-    created_at = Column(
+    device_type: Mapped[str] = mapped_column(
+        String(10), primary_key=True, comment="设备类型（L/N/X）"
+    )
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), nullable=False, comment="单价（元/套）"
+    )
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
         nullable=False,
         comment="创建时间",
     )
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=func.now(),
         onupdate=func.now(),

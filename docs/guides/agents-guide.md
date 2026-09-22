@@ -24,7 +24,7 @@ cd backend
 make test           # 运行所有测试（无覆盖率，快速反馈）
 make test-fast      # 仅运行单元测试（最快 ~5-10s）
 make test-parallel  # 并行运行所有测试（推荐 ~10-20s，需要 pytest-xdist）
-make test-cov       # 运行测试 + 覆盖率报告（CI 使用，要求 ≥50%）
+make test-cov       # 运行测试 + 覆盖率报告（与 CI 门禁一致：全量口径，要求 ≥50%）
 make test-unit      # 单元测试 + 覆盖率
 make test-integration # 集成测试 + 覆盖率
 make test-changed   # 增量测试（仅运行受影响测试 ~2-5s，需要 pytest-testmon）

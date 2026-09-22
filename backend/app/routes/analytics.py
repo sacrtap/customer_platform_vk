@@ -1233,8 +1233,7 @@ async def export_health_report(request: Request):
         else pd.DataFrame(columns=["客户名称", "健康度", "状态", "风险因素"])
     )
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:  # pyright: ignore[reportArgumentType]
-        df.to_excel(writer, index=False, sheet_name="健康度预警")
+    df.to_excel(output, index=False, sheet_name="健康度预警", engine="openpyxl")  # pyright: ignore[reportArgumentType]  # pandas-stubs 的 WriteExcelBuffer 未含 BytesIO（运行时支持）
 
     output.seek(0)
     from datetime import datetime as dt

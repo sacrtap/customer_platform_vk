@@ -3,6 +3,7 @@
 import logging
 from calendar import monthrange
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, case, extract, func, or_, select
@@ -112,8 +113,8 @@ class AnalyticsService:
 
     async def get_consumption_trend(
         self,
-        start_date: datetime,
-        end_date: datetime,
+        start_date: date | datetime,
+        end_date: date | datetime,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
@@ -1968,9 +1969,11 @@ class AnalyticsService:
             stmt = select(ForecastUnitPrice).where(ForecastUnitPrice.device_type == device_type)
             existing = (await self.db.execute(stmt)).scalar_one_or_none()
             if existing:
-                existing.unit_price = unit_price
+                existing.unit_price = Decimal(str(unit_price))
             else:
-                self.db.add(ForecastUnitPrice(device_type=device_type, unit_price=unit_price))
+                self.db.add(
+                    ForecastUnitPrice(device_type=device_type, unit_price=Decimal(str(unit_price)))
+                )
 
     async def get_prediction_trend(self, year: int) -> List[Dict[str, Any]]:
         """获取全年 12 个月预测 vs 实际回款趋势
@@ -2465,7 +2468,7 @@ class AnalyticsService:
                 func.count(Customer.id).label("total_customers"),
                 func.count(
                     case(
-                        (Customer.is_key_customer, Customer.id),
+                        (Customer.is_key_customer, Customer.id),  # pyright: ignore[reportArgumentType]  # SQLAlchemy stub：case() 的 whens 元组
                     )
                 ).label("key_customers"),
                 func.sum(CustomerBalance.total_amount).label("total_balance"),

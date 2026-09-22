@@ -5,6 +5,7 @@ import io
 import logging
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from sanic.request import Request
 from sanic.response import json, raw
@@ -567,12 +568,15 @@ async def import_package_plans(request: Request):
         errors = []
         success_count = 0
         for idx, row in df.iterrows():
-            row_num = idx + 2  # Excel 行号（含表头）
-
+            # pandas-stubs 将 Series.get 的返回值推断为 Dtype，导致 pd.isna(...)
+            # 误报 reportCallIssue/reportArgumentType；运行时是真实单元格值。
+            # 标注 Any 消除误报，不改变语义。
+            row: Any = row
+            row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
                 # 名称
                 name_raw = row.get("name")
-                if pd.isna(name_raw) or name_raw is None or str(name_raw).strip() == "":
+                if bool(pd.isna(name_raw)) or name_raw is None or str(name_raw).strip() == "":
                     errors.append(f"第 {row_num} 行：套餐名称不能为空")
                     continue
                 name = str(name_raw).strip()
@@ -580,7 +584,7 @@ async def import_package_plans(request: Request):
                 # 类型标识
                 package_type_raw = row.get("package_type")
                 if (
-                    pd.isna(package_type_raw)
+                    bool(pd.isna(package_type_raw))
                     or package_type_raw is None
                     or str(package_type_raw).strip() == ""
                 ):
@@ -593,7 +597,7 @@ async def import_package_plans(request: Request):
 
                 # 基础费用
                 base_fee_raw = row.get("base_fee")
-                if pd.isna(base_fee_raw) or base_fee_raw is None:
+                if bool(pd.isna(base_fee_raw)) or base_fee_raw is None:
                     errors.append(f"第 {row_num} 行：套餐基础费用不能为空")
                     continue
                 try:
@@ -608,7 +612,7 @@ async def import_package_plans(request: Request):
                 # 是否不限量
                 is_unlimited_raw = row.get("is_unlimited")
                 is_unlimited = False
-                if is_unlimited_raw is not None and not pd.isna(is_unlimited_raw):
+                if is_unlimited_raw is not None and not bool(pd.isna(is_unlimited_raw)):
                     text = str(is_unlimited_raw).strip().lower()
                     if text in ("是", "true", "1", "yes"):
                         is_unlimited = True
@@ -622,7 +626,7 @@ async def import_package_plans(request: Request):
                 limit_count = None
                 if not is_unlimited:
                     limit_count_raw = row.get("limit_count")
-                    if pd.isna(limit_count_raw) or limit_count_raw is None:
+                    if bool(pd.isna(limit_count_raw)) or limit_count_raw is None:
                         errors.append(f"第 {row_num} 行：限量套餐必须填写具体数量")
                         continue
                     try:
@@ -642,7 +646,7 @@ async def import_package_plans(request: Request):
                 # 超额单价
                 over_limit_unit_price = None
                 over_limit_raw = row.get("over_limit_unit_price")
-                if over_limit_raw is not None and not pd.isna(over_limit_raw):
+                if over_limit_raw is not None and not bool(pd.isna(over_limit_raw)):
                     try:
                         over_limit_unit_price = Decimal(str(over_limit_raw))
                         if over_limit_unit_price < 0:
@@ -654,15 +658,21 @@ async def import_package_plans(request: Request):
 
                 # 可选字段
                 device_type_raw = row.get("device_type")
-                device_type = str(device_type_raw).strip() if not pd.isna(device_type_raw) else None
+                device_type = (
+                    str(device_type_raw).strip() if not bool(pd.isna(device_type_raw)) else None
+                )
                 layer_type_raw = row.get("layer_type")
-                layer_type = str(layer_type_raw).strip() if not pd.isna(layer_type_raw) else None
+                layer_type = (
+                    str(layer_type_raw).strip() if not bool(pd.isna(layer_type_raw)) else None
+                )
                 description_raw = row.get("description")
-                description = str(description_raw).strip() if not pd.isna(description_raw) else None
+                description = (
+                    str(description_raw).strip() if not bool(pd.isna(description_raw)) else None
+                )
                 status_raw = row.get("status")
                 status = (
                     str(status_raw).strip().lower()
-                    if status_raw is not None and not pd.isna(status_raw)
+                    if status_raw is not None and not bool(pd.isna(status_raw))
                     else "active"
                 )
                 if status not in ("active", "inactive"):
@@ -752,10 +762,12 @@ async def import_package_plans(request: Request):
 async def download_package_plan_import_template(request: Request):
     """下载包年套餐导入 Excel 模板"""
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "包年套餐导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "包年套餐导入模板"
 
     headers = [
         "name",
@@ -785,8 +797,8 @@ async def download_package_plan_import_template(request: Request):
     ]
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
-    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
-        ws.column_dimensions[col[0].column_letter].width = 24  # pyright: ignore[reportOptionalMemberAccess]
+    for col_num in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 24
 
     # 不写入示例数据行：read_import_dataframe 只丢弃第 2 行中文说明行，第 3 行示例数据
     # 会被当作真实套餐导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默创建
@@ -849,8 +861,7 @@ async def export_package_plans(request: Request):
     df = pd.DataFrame(data)
 
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="包年套餐")
+    df.to_excel(output, index=False, sheet_name="包年套餐", engine="openpyxl")  # pyright: ignore[reportArgumentType]  # pandas-stubs 的 WriteExcelBuffer 未含 BytesIO（运行时支持）
 
     output.seek(0)
 

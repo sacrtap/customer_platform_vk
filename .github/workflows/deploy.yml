@@ -27,6 +27,12 @@ env:
   NODE_VERSION: "22"
   DEPLOY_DIR: "~/Documents/github/customer_platform_vk"
 
+concurrency:
+  # 同一环境的部署串行排队，避免并发触发造成两次部署交叠；
+  # 部署不应被中断，故 cancel-in-progress: false（后到的排队等待而非取消前一个）
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   # ============================================================
   # 构建并推送镜像
@@ -50,9 +56,9 @@ jobs:
         id: tag
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up Docker Buildx
@@ -144,8 +150,9 @@ jobs:
           chmod 600 ~/.ssh/staging_key
 
           # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
+          # 单引号刻意保留：${DEPLOY_DIR}/${IMAGE_TAG} 需在远端展开而非本地
+          # shellcheck disable=SC2016,SC2089
           DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
-          export DEPLOY_SCRIPT
 
           # 通过 Cloudflare Tunnel 远程执行部署
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
@@ -160,7 +167,7 @@ jobs:
                 -o ConnectTimeout=30 \
                 -o ServerAliveInterval=60 \
                 -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-                ${SSH_USER}@${SSH_HOST} \
+                "${SSH_USER}@${SSH_HOST}" \
                 IMAGE_TAG="${IMAGE_TAG}" \
                 GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
                 DB_USER="${DB_USER}" \
@@ -231,8 +238,9 @@ jobs:
           chmod 600 ~/.ssh/production_key
 
           # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
+          # 单引号刻意保留：${DEPLOY_DIR}/${IMAGE_TAG} 需在远端展开而非本地
+          # shellcheck disable=SC2016,SC2089
           DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
-          export DEPLOY_SCRIPT
 
           # 通过 Cloudflare Tunnel 远程执行部署
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
@@ -247,7 +255,7 @@ jobs:
                 -o ConnectTimeout=30 \
                 -o ServerAliveInterval=60 \
                 -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
-                ${SSH_USER}@${SSH_HOST} \
+                "${SSH_USER}@${SSH_HOST}" \
                 IMAGE_TAG="${IMAGE_TAG}" \
                 GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
                 DB_USER="${DB_USER}" \

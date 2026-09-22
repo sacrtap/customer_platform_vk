@@ -14,8 +14,9 @@
 
 | 变更文件 / 变更面 | 最小受影响检查 | 覆盖的行为与风险 |
 |---|---|---|
-| `backend/app/services/billing.py`（余额扣款/充值/重算） | `pytest tests/unit/test_billing_service.py`（行级锁、先赠后实、余额不足、十进制精度） | 并发扣款 `SELECT FOR UPDATE`、tenacity 重试耗尽、`batch_import` 部分失败回滚 |
-| `backend/app/services/billing.py`（`InvoiceService` 结算计算） | `pytest tests/integration/test_billing_api.py::TestInvoiceFlow`（结算单生成/提交/确认/付款/完成全链路） | 套餐内用量上限、`over_limit_unit_price` NULL=自动计算语义、结算金额正确性 |
+| `backend/app/services/billing.py`（余额扣款/充值/重算） | `pytest tests/unit/test_billing_service.py`（先赠后实、余额不足、十进制精度） | 先赠后实与赠金耗尽转实充、余额不足欠费模式、充值重算、Decimal 精度（`SELECT FOR UPDATE` 并发锁与 tenacity 重试为 `consume()` 代码实现，暂无自动化测试） |
+| `backend/app/routes/billing/imports.py`（余额批量导入） | `pytest tests/integration/test_billing_import_export_api.py`（余额导入部分失败隔离） | `batch_import_recharge` 部分失败回滚：错误行报错不影响其他行落库、成功/失败计数一致 |
+| `backend/app/services/billing.py`（`InvoiceService` 结算计算） | `pytest tests/integration/test_billing_api.py::test_invoice_workflow_full`（结算单生成/提交/确认/付款/完成全链路） | 套餐内用量上限、`over_limit_unit_price` NULL=自动计算语义、结算金额正确性 |
 | `backend/app/routes/billing/balances.py`（余额路由） | `pytest tests/integration/test_billing_api.py`（余额列表/筛选/充值 API） | 余额惰性补建唯一索引安全、分页/筛选参数、`@auth_required`/`@require_permission` |
 | `backend/app/routes/billing/packages.py`（套餐路由） | `pytest tests/integration/test_billing_api.py::test_*pricing*` + `pytest tests/unit/test_billing_service.py` | 套餐删除前关联计费规则检查、`over_limit_unit_price` NULL 语义 |
 | `backend/app/models/billing.py`（模型变更） | 新增/更新 Alembic 迁移测试 + `pytest tests/integration/test_billing_api.py` | 字段变更与迁移一致、invoice 状态流转字段 |

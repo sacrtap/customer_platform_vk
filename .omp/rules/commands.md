@@ -61,7 +61,7 @@ make test-fast          # pytest tests/unit/ -v
 # 并行测试
 make test-parallel      # pytest-xdist 并行单元 + 串行集成
 
-# 覆盖率测试（CI 使用，要求 ≥50%）
+# 覆盖率测试（与 CI 门禁一致：全量口径，要求 ≥50%）
 make test-cov           # pytest --cov=app --cov-fail-under=50
 
 # 直接运行 pytest

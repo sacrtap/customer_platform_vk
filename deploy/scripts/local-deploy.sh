@@ -46,8 +46,8 @@ check_brew() {
 # 检查 PostgreSQL
 check_postgres() {
     if command -v psql &> /dev/null; then
-        local version=$(psql --version | grep -oE '[0-9]+(\.[0-9]+)?' | head -1)
-        local major_version=$(psql --version | grep -oE '[0-9]+' | head -1)
+        local version
+        version=$(psql --version | grep -oE '[0-9]+(\.[0-9]+)?' | head -1) || true
         success "PostgreSQL 已安装 (版本：$version)"
 
         # 检查是否是 Postgres.app
@@ -97,7 +97,7 @@ start_postgres() {
 
     # 等待服务启动
     info "等待数据库就绪..."
-    for i in {1..10}; do
+    for _ in {1..10}; do
         if pg_isready &>/dev/null; then
             success "PostgreSQL 服务已就绪"
             return 0
@@ -211,7 +211,8 @@ main() {
     # 检查/安装 PostgreSQL
     if check_postgres; then
         # PostgreSQL 已安装，检查版本
-        local version=$(psql --version | grep -oE '[0-9]+' | head -1)
+        local version
+        version=$(psql --version | grep -oE '[0-9]+' | head -1) || true
         if [ "$version" != "${POSTGRES_VERSION}" ]; then
             warning "当前版本为 $version，推荐版本为 ${POSTGRES_VERSION}"
             read -p "是否继续？(y/N): " -n 1 -r

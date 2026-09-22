@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 
 @pytest.mark.asyncio
+@pytest.mark.smoke
 async def test_login_success(test_client, db_session):
     """测试登录 API - 成功场景"""
     username = "login_test_user"

@@ -4,17 +4,6 @@ import pytest
 
 
 @pytest.fixture
-async def auth_token(test_client, test_user):
-    """获取认证 Token"""
-    _login_request, login_response = await test_client.post(
-        "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": test_user["password"]},
-    )
-    assert login_response.status == 200
-    return login_response.json["data"]["access_token"]
-
-
-@pytest.fixture
 async def auth_headers(auth_token):
     """获取认证请求头"""
     return {"Authorization": f"Bearer {auth_token}"}

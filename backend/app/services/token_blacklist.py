@@ -1,8 +1,9 @@
 """Token 黑名单服务"""
 
 from datetime import datetime
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.token_blacklist import TokenBlacklist
@@ -59,4 +60,4 @@ class TokenBlacklistService:
         query = delete(TokenBlacklist).where(TokenBlacklist.expires_at < now)
         result = await self.session.execute(query)
         await self.session.commit()
-        return result.rowcount or 0
+        return cast(CursorResult[Any], result).rowcount or 0

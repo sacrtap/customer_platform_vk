@@ -121,10 +121,11 @@ customer_platform_vk/
 ### 前置要求
 
 - **Python**: 3.12 (⚠️ 不支持 3.13+)
-- **Node.js**: 18+
+- **Node.js**: 22 (见 `frontend/.nvmrc`，与 CI `NODE_VERSION` 一致)
 - **PostgreSQL**: 18 (本地开发)
 - **Redis**: 7+ (本地开发，后端必需)
 - **Docker/Podman**: 生产部署必需
+- **提交前检查工具**: `pre-commit`（钩子框架）及 `actionlint` + `shellcheck`（静态检查 GitHub Actions 与 shell 脚本，`brew install actionlint shellcheck`；`actionlint` 会对其检查的 workflow `run:` 块调用 `shellcheck`；CI 已将其作为阻塞检查，见 [TD-021](docs/technical_debt/debt.md)）
 
 #### 启动本地服务
 
@@ -799,7 +800,7 @@ npx playwright test test_customer_crud.spec.ts --headed
 
 - **当前版本**: v1.0.0
 - **开发状态**: Phase 0-7 完成
-- **测试覆盖率**: CI 门槛 ≥50% (核心模块 60%+)
+- **测试覆盖率**: CI 门禁 ≥50%（全量口径：单元+集成合并，见 pr-checks.yml；核心模块 60%+ 为质量目标）
 - **后端测试**: 654 项（unit 447 + integration 207）
 - **前端 E2E 测试**: 34 个 spec 文件
 - **最后更新**: 2026-09-16

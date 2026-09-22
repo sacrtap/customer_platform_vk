@@ -3,7 +3,12 @@ name: PR Checks
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    # ready_for_review: draft 转 ready 时重新校验，避免沿用 draft 阶段的门禁结论
+    types: [opened, synchronize, reopened, ready_for_review]
+  # 全量 integration + 覆盖率 50% 门禁（PR 只跑 smoke 子集，见 backend-integration-full）
+  schedule:
+    - cron: '0 18 * * *'   # UTC 18:00 = 北京时间次日 02:00
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.12"
@@ -15,11 +20,38 @@ concurrency:
 
 jobs:
   # ============================================================
+  # 变更路径检测 - 纯文档 PR 跳过重活（与 ci.yml 的 paths 过滤策略对齐）
+  # ============================================================
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read   # dorny/paths-filter 需要读取 PR 变更文件列表
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  # ============================================================
   # 快速检查 - 代码格式 + Lint (无数据库依赖)
   # ============================================================
   quick-checks:
     name: Quick Checks (Lint + Format)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -76,6 +108,8 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true'
     timeout-minutes: 5
 
     steps:
@@ -94,6 +128,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
+      - name: Type check (pyright)
+        run: |
+          cd backend
+          pyright
+
       - name: Run unit tests
         env:
           JWT_SECRET: test-secret-key-for-ci
@@ -101,7 +140,9 @@ jobs:
           JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
         run: |
           cd backend
-          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing --cov-fail-under=25 --junitxml=junit.xml
+          # PR 门禁在单元层判定覆盖率 ≥34%（当前实际 34.67%），防止单测覆盖退化；
+          # 「单元+集成合并（全量口径）≥50%」由 nightly/manual 的 backend-integration-full 判定
+          pytest tests/unit/ -n auto --cov=app --cov-fail-under=34 --cov-report=term-missing --junitxml=junit.xml
 
       - name: Upload JUnit test results
         if: always()
@@ -111,6 +152,15 @@ jobs:
           path: backend/junit.xml
           retention-days: 3
 
+      - name: Upload unit coverage data (merged with integration in integration job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-backend-coverage
+          path: backend/.coverage
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
   # ============================================================
   # 后端集成测试 (真实 Postgres + Redis, 迁移 + 全链路)
   # 覆盖 billing 等核心链的数据库事务路径: 行级锁/重试/迁移升级/失败恢复
@@ -118,7 +168,13 @@ jobs:
   backend-integration-tests:
     name: Backend Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 依赖 backend-tests：确保其已上传 pr-backend-coverage（download-artifact 不等待
+    # 同 run 内其它 job 的上传，时序竞争会导致 Artifact not found）
+    needs: [changes, backend-tests]
+    if: needs.changes.outputs.backend == 'true'
+    # CI runner 上 Postgres/Redis 均为容器，单个集成测试约 8s（本地约 1s），
+    # 全量 integration 实测需 30min+，20min 上限会误杀
+    timeout-minutes: 45
 
     services:
       postgres:
@@ -183,9 +239,14 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          PGPASSWORD: test_password
         run: |
           cd backend
           python -m alembic upgrade head
+          # smoke 用 -n 1（单 worker=gw0），需为其建 worker 库
+          psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db_gw0;" || true
+          DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_db_gw0" \
+            python -m alembic upgrade head
 
       - name: Seed test data
         if: steps.changes.outputs.backend == 'true'
@@ -195,7 +256,10 @@ jobs:
           cd backend
           python scripts/seed.py --reset
 
-      - name: Run integration tests
+      # PR 门禁只跑 smoke 子集（核心业务链），控制在 5 分钟内；
+      # 全量 integration + 覆盖率 50%（单元+集成合并口径）由 nightly/manual 的
+      # backend-integration-full job 执行，不在此重复。
+      - name: Run integration tests (smoke)
         if: steps.changes.outputs.backend == 'true'
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
@@ -209,7 +273,7 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
-          pytest tests/integration/ -n 1 --timeout=120 --cov=app --cov-report=term-missing --junitxml=junit.xml
+          pytest tests/integration/ -m smoke -n 1 --timeout=120 --junitxml=junit.xml
 
       - name: Upload integration test results
         if: always() && steps.changes.outputs.backend == 'true'
@@ -220,11 +284,128 @@ jobs:
           retention-days: 14
 
   # ============================================================
+  # 全量集成测试（nightly schedule + workflow_dispatch）
+  # PR 门禁只跑 smoke 子集；本 job 跑全量 integration 并判定
+  # 「单元 + 集成合并」覆盖率 ≥50%（全量口径门禁所在地）。
+  # ============================================================
+  backend-integration-full:
+    name: Backend Integration Tests (Full)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Create parallel test databases
+        env:
+          PGPASSWORD: test_password
+        run: |
+          # 为 pytest-xdist 并行创建独立数据库（避免 TRUNCATE 死锁）
+          # 创建 4 个数据库（gw0-gw3），支持最多 4 个并行 worker
+          for i in 0 1 2 3; do
+            psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db_gw$i;" || true
+            psql -h localhost -U test_user -d test_db -c "CREATE DATABASE customer_platform_migration_test_gw$i;" || true
+          done
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python -m alembic upgrade head
+          # 为每个并行 worker 数据库运行迁移
+          for i in 0 1 2 3; do
+            DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_db_gw$i" \
+              python -m alembic upgrade head
+          done
+
+      - name: Seed test data
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python scripts/seed.py --reset
+
+      # 覆盖率门禁（全量口径）：先跑单元测试生成 .coverage，再跑全量集成测试
+      # --cov-append 合并，最终 --cov-fail-under=50 判定「单元 + 集成」合并覆盖率。
+      - name: Run unit + full integration tests with coverage
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: test-secret-key-for-ci
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 30
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+          POSTGRES_HOST: localhost
+        run: |
+          cd backend
+          pytest tests/unit/ -n auto --cov=app --cov-report=term-missing
+          # 迁移测试单独串行跑（模块级 settings 缓存与 alembic 命令并行下相互污染）
+          pytest tests/integration/test_migrations.py -n 1 --timeout=120 \
+            --cov=app --cov-append --cov-report=term-missing --junitxml=junit-migrations.xml
+          # 其余集成测试并行跑（--deselect 排除已串行跑的迁移测试）
+          pytest tests/integration/ --ignore=tests/integration/test_migrations.py \
+            -n auto --timeout=120 --cov=app --cov-append --cov-report=term-missing \
+            --cov-fail-under=50 --junitxml=junit.xml
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-backend-integration-junit
+          path: backend/junit.xml
+          retention-days: 14
+
+  # ============================================================
   # 前端构建
   # ============================================================
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -261,6 +442,8 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
     timeout-minutes: 20
 
     services:
@@ -392,12 +575,46 @@ jobs:
           retention-days: 3
 
   # ============================================================
+  # Shell / Workflow 静态检查（阻塞）
+  # ============================================================
+  # actionlint 校验 GitHub Actions 语义（未定义 needs、表达式风险、
+  #   ${{ }} 注入），并对其中的 run: 块调用 shellcheck；
+  # shellcheck 校验仓库内 .sh 脚本。
+  # 2026-09-21：存量 47 处告警（actionlint 30 / shellcheck 17，集中在 deploy 路径）
+  #   已全部清理，观察期结束，纳入阻塞判定。
+  static-checks:
+    name: Shell & Workflow Static Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          mapfile -t scripts < <(find . -name '*.sh' \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.venv/*' \
+            -not -path '*/.git/*')
+          echo "扫描 ${#scripts[@]} 个 shell 脚本"
+          shellcheck -S warning "${scripts[@]}"
+
+  # ============================================================
   # 迁移变更门禁: Alembic 迁移必须有对应测试才能合并
   # 检测 backend/alembic/versions/ 变更, 若变更则要求测试文件存在
   # ============================================================
   migration-gate:
     name: Migration Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -454,8 +671,10 @@ jobs:
   pr-quality-gate:
     name: PR Quality Gate
     runs-on: ubuntu-latest
-    needs: [quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, e2e-tests]
-    if: always()
+    needs: [changes, quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, static-checks, e2e-tests]
+    # 仅 PR 触发时判定；schedule/workflow_dispatch 下全量集成由 backend-integration-full 独立判定
+    if: always() && github.event_name == 'pull_request'
+    timeout-minutes: 5
 
     steps:
       - name: Check all jobs passed
@@ -464,32 +683,55 @@ jobs:
           echo "========================================="
           echo "PR Quality Gate Results"
           echo "========================================="
+          echo "Detect Changed Paths: ${{ needs.changes.result }}"
           echo "Quick Checks:    ${{ needs.quick-checks.result }}"
           echo "Backend Tests:   ${{ needs.backend-tests.result }}"
           echo "Backend Integration Tests: ${{ needs.backend-integration-tests.result }}"
           echo "Migration Gate:  ${{ needs.migration-gate.result }}"
           echo "Frontend Build:  ${{ needs.frontend-build.result }}"
           echo "E2E Tests:       ${{ needs.e2e-tests.result }}"
+          echo "Static Checks:   ${{ needs.static-checks.result }}"
           echo "========================================="
 
-          # E2E 测试当前为非阻塞（已知失败用例，待 TD-012 修复后改为阻塞）
-          if [ "${{ needs.quick-checks.result }}" != "success" ] || \
-             [ "${{ needs.backend-tests.result }}" != "success" ] || \
-             [ "${{ needs.backend-integration-tests.result }}" != "success" ] || \
-             [ "${{ needs.migration-gate.result }}" != "success" ] || \
-             [ "${{ needs.frontend-build.result }}" != "success" ]; then
+          # 判定规则（2026-09-21）：
+          #   - changes 必须 success（该 job 总是运行，不应被跳过）；
+          #   - 其余 job 允许 skipped —— 表示对应路径未变更、任务不适用（如纯文档 PR）；
+          #   - 其它任何状态（failure / cancelled / …）一律阻断合并。
+          # E2E smoke 与 static-checks 自 2026-09-21 起为阻塞项（TD-012 / TD-021 均已解决）。
+          FAILED=0
+          check() {
+            case "$1" in
+              success) ;;
+              skipped) echo "   ⏭  $2: skipped（对应路径未变更，不适用）" ;;
+              *) echo "   ❌ $2: $1"; FAILED=1 ;;
+            esac
+          }
+
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "   ❌ Detect Changed Paths: ${{ needs.changes.result }}"
+            FAILED=1
+          fi
+
+          check "${{ needs.quick-checks.result }}" "Quick Checks"
+          check "${{ needs.backend-tests.result }}" "Backend Tests"
+          check "${{ needs.backend-integration-tests.result }}" "Backend Integration Tests"
+          check "${{ needs.migration-gate.result }}" "Migration Gate"
+          check "${{ needs.frontend-build.result }}" "Frontend Build"
+          check "${{ needs.static-checks.result }}" "Static Checks"
+          check "${{ needs.e2e-tests.result }}" "E2E Tests (smoke)"
+
+          if [ "$FAILED" = "1" ]; then
             echo "❌ PR quality gate failed"
+            echo "   本地复现参考："
+            echo "     - Static Checks: actionlint && shellcheck -S warning <脚本路径>"
+            echo "     - E2E smoke:     cd frontend && npx playwright test --project=chromium --grep=\"@smoke\""
+            echo "     - 全量 E2E（手动触发）: e2e-full.yml"
             echo "result=failed" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
-            echo "⚠️  E2E smoke tests have failures (non-blocking, tracked in TD-012)"
-            echo "   Full E2E suite runs nightly — see e2e-nightly.yml"
-          fi
-
-          echo "ℹ️  Backend integration tests run in PR checks with real Postgres + Redis"
-          echo "   Unit tests (360) + Integration tests (~186) both run before merge"
+          echo "ℹ️  PR 门禁：backend integration 只跑 smoke 子集（核心业务链，控制在 5 分钟内）"
+          echo "   全量 integration + 覆盖率 50% 门禁由 nightly/manual 的 backend-integration-full 执行"
 
           echo "✅ All PR quality checks passed"
           echo "result=passed" >> "$GITHUB_OUTPUT"
@@ -519,12 +761,14 @@ jobs:
             echo ""
             echo "| 检查 | 结果 |"
             echo "|---|---|"
+            echo "| Detect Changed Paths | ${{ needs.changes.result }} |"
             echo "| Quick Checks | ${{ needs.quick-checks.result }} |"
             echo "| Backend Tests | ${{ needs.backend-tests.result }} |"
             echo "| Backend Integration Tests | ${{ needs.backend-integration-tests.result }} |"
             echo "| Migration Gate | ${{ needs.migration-gate.result }} |"
             echo "| Frontend Build | ${{ needs.frontend-build.result }} |"
             echo "| E2E Tests | ${{ needs.e2e-tests.result }} |"
+            echo "| Static Checks | ${{ needs.static-checks.result }} |"
           } | tee "$RECORD_FILE" >> "$GITHUB_STEP_SUMMARY"
           echo "record_file=$RECORD_FILE" >> "$GITHUB_OUTPUT"
 

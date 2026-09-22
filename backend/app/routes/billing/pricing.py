@@ -5,6 +5,7 @@ import io
 import json as _json
 import logging
 from datetime import datetime
+from typing import Any
 
 from sanic.request import Request
 from sanic.response import json, raw
@@ -391,12 +392,15 @@ async def import_pricing_rules(request: Request):
         errors = []
         success_count = 0
         for idx, row in df.iterrows():
-            row_num = idx + 2  # Excel 行号（含表头）
-
+            # pandas-stubs 将 Series.get 的返回值推断为 Dtype，导致 pd.isna(...)
+            # 误报 reportCallIssue/reportArgumentType；运行时是真实单元格值。
+            # 标注 Any 消除误报，不改变语义。
+            row: Any = row
+            row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
                 # 校验 company_id
                 company_id = row.get("company_id")
-                if pd.isna(company_id) or company_id is None:
+                if bool(pd.isna(company_id)) or company_id is None:
                     errors.append(f"第 {row_num} 行：客户编号为空")
                     continue
                 try:
@@ -420,7 +424,7 @@ async def import_pricing_rules(request: Request):
 
                 # 校验 effective_date
                 effective_date_raw = row.get("effective_date")
-                if pd.isna(effective_date_raw) or effective_date_raw is None:
+                if bool(pd.isna(effective_date_raw)) or effective_date_raw is None:
                     errors.append(f"第 {row_num} 行：生效日期为空")
                     continue
                 try:
@@ -431,21 +435,30 @@ async def import_pricing_rules(request: Request):
 
                 # 可选字段
                 device_type_raw = row.get("device_type")
-                device_type = str(device_type_raw).strip() if not pd.isna(device_type_raw) else None
+                device_type = (
+                    str(device_type_raw).strip() if not bool(pd.isna(device_type_raw)) else None
+                )
                 layer_type_raw = row.get("layer_type")
-                layer_type = str(layer_type_raw).strip() if not pd.isna(layer_type_raw) else None
+                layer_type = (
+                    str(layer_type_raw).strip() if not bool(pd.isna(layer_type_raw)) else None
+                )
                 unit_price_raw = row.get("unit_price")
-                unit_price = float(unit_price_raw) if not pd.isna(unit_price_raw) else None
+                unit_price = (
+                    float(unit_price_raw)
+                    if unit_price_raw is not None and not bool(pd.isna(unit_price_raw))
+                    else None
+                )
                 additional_floor_price_raw = row.get("additional_floor_price")
                 additional_floor_price = (
                     float(additional_floor_price_raw)
-                    if not pd.isna(additional_floor_price_raw)
+                    if additional_floor_price_raw is not None
+                    and not bool(pd.isna(additional_floor_price_raw))
                     else None
                 )
                 multi_floor_pricing_type_raw = row.get("multi_floor_pricing_type")
                 multi_floor_pricing_type = (
                     str(multi_floor_pricing_type_raw).strip()
-                    if not pd.isna(multi_floor_pricing_type_raw)
+                    if not bool(pd.isna(multi_floor_pricing_type_raw))
                     else None
                 )
                 # 多楼层计费方式：只允许 unified/incremental（与模型字段/UI 下拉/模板说明一致）。
@@ -459,13 +472,13 @@ async def import_pricing_rules(request: Request):
                     continue
                 package_type_raw = row.get("package_type")
                 package_type = (
-                    str(package_type_raw).strip() if not pd.isna(package_type_raw) else None
+                    str(package_type_raw).strip() if not bool(pd.isna(package_type_raw)) else None
                 )
 
                 # tiers JSON 解析（归一化与校验由 parse_tiers_or_raise 统一处理）
                 tiers = None
                 tiers_raw = row.get("tiers")
-                if tiers_raw is not None and not pd.isna(tiers_raw):
+                if tiers_raw is not None and not bool(pd.isna(tiers_raw)):
                     try:
                         parsed = _json.loads(tiers_raw) if isinstance(tiers_raw, str) else tiers_raw
                         tiers = parse_tiers_or_raise(parsed, row_num=row_num)
@@ -481,7 +494,7 @@ async def import_pricing_rules(request: Request):
                 # expiry_date
                 expiry_date = None
                 expiry_date_raw = row.get("expiry_date")
-                if expiry_date_raw is not None and not pd.isna(expiry_date_raw):
+                if expiry_date_raw is not None and not bool(pd.isna(expiry_date_raw)):
                     try:
                         expiry_date = local_date_to_utc_end(str(expiry_date_raw)[:10])
                     except (ValueError, TypeError):
@@ -613,10 +626,12 @@ async def import_pricing_rules(request: Request):
 async def download_pricing_rule_import_template(request: Request):
     """下载计费规则导入 Excel 模板"""
     from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "计费规则导入模板"  # pyright: ignore[reportOptionalMemberAccess]
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "计费规则导入模板"
 
     headers = [
         "company_id",
@@ -648,8 +663,8 @@ async def download_pricing_rule_import_template(request: Request):
     ]
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]
 
-    for col in ws.columns:  # pyright: ignore[reportOptionalMemberAccess]
-        ws.column_dimensions[col[0].column_letter].width = 26  # pyright: ignore[reportOptionalMemberAccess]
+    for col_num in range(1, len(headers) + 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = 26
 
     # 不再追加示例数据行：read_import_dataframe 只丢弃第 2 行（说明行），第 3 行会被当作
     # 真实数据导入。用户下载模板后通常直接在示例行下方续写，示例行会被静默创建成一条
@@ -710,8 +725,7 @@ def _build_pricing_rules_excel(rules: list) -> bytes:
     df = pd.DataFrame(data)
 
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="计费规则")
+    df.to_excel(output, index=False, sheet_name="计费规则", engine="openpyxl")  # pyright: ignore[reportArgumentType]  # pandas-stubs 的 WriteExcelBuffer 未含 BytesIO（运行时支持）
 
     return output.getvalue()
 

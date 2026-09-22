@@ -136,5 +136,5 @@
 1. Final Wave（F1-F4）并行审查 → 全部 APPROVE
 2. pre-commit 完整检查 → `pre-commit run --all-files`
 3. verification-before-completion → 运行 pytest/ruff/playwright
-4. CI 覆盖率确认 → `make test-cov` 确认 ≥50%
+4. CI 覆盖率确认 → `make test-cov` 确认 ≥50%（全量口径：单元+集成合并，与 `.github/workflows/pr-checks.yml` 门禁一致）
 5. finishing-a-development-branch → 合并选项

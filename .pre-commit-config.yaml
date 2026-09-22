@@ -4,7 +4,8 @@
 # 优化说明 (2026-08-25):
 #   - 移除 pre-commit-check.sh（与独立 hook 重复：ruff/eslint/vue-tsc 已覆盖）
 #   - npm run build / Playwright E2E 已在 CI/CD (ci.yml + pr-checks.yml) 中执行
-#   - Pyright 移至 CI/CD（cold start 17s，本地推频繁时成本过高）
+#   - Pyright 已在 CI/CD 执行（ci.yml + pr-checks.yml 的 backend job：`cd backend && pyright`；
+#     配置见 backend/pyrightconfig.json，基线 0 error）。本地 cold start 约 17s，故不在 pre-commit 启用
 #   - ESLint + Prettier 改为只检查变更文件（pass_filenames: true）
 #   - Prettier 改为 --check 模式（不自动修改，避免二次提交）
 #   - 新增 pytest-unit 和 vitest 作为 pre-push 独立 hook
@@ -22,6 +23,28 @@ repos:
       - id: detect-private-key
       - id: check-added-large-files
         args: ["--maxkb=1000"]
+
+  # ==================== GitHub Actions workflow 静态检查 ====================
+  # actionlint 校验 Actions 语义（未定义 needs/表达式/${{ }} 注入），并对其中的 run: 块调用 shellcheck
+  # 使用系统已安装版本（brew install actionlint）
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint-system
+        name: actionlint (workflows)
+        files: ^\.github/workflows/
+
+  # ==================== Shell 脚本静态检查 ====================
+  # 只检查本次变更的 .sh 文件（增量门禁）；存量 deploy 脚本告警见 CI static-checks job
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: ShellCheck
+        entry: shellcheck
+        language: system
+        types: [shell]
+        args: [-S, warning]
+        pass_filenames: true
 
   # ==================== Python backend - Ruff (lint + format) ====================
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -42,10 +65,10 @@ repos:
     hooks:
       - id: eslint
         name: ESLint (frontend)
-        # pre-commit 传递 frontend/src/xxx 路径，cd frontend 后需去掉前缀
+        # pre-commit 传递 frontend/src|tests/xxx 路径，cd frontend 后需去掉前缀
         entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done && npx eslint --ext .vue,.js,.ts,.tsx "${files[@]}"' --
         language: system
-        files: ^frontend/src/
+        files: ^frontend/(src|tests)/
         types_or: [javascript, ts, vue]
         pass_filenames: true
 
@@ -55,10 +78,10 @@ repos:
       - id: prettier
         name: Prettier format check (frontend)
         # --check 模式：不修改文件，格式不符则报错
-        # pre-commit 传递 frontend/src/xxx 路径，cd frontend 后需去掉前缀
+        # pre-commit 传递 frontend/src|tests/xxx 路径，cd frontend 后需去掉前缀
         entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done && npx prettier --check "${files[@]}"' --
         language: system
-        files: ^frontend/src/
+        files: ^frontend/(src|tests)/
         types_or: [javascript, ts, vue, css]
         pass_filenames: true
 

@@ -138,7 +138,11 @@ test.describe('客户批量编辑', () => {
   test('2. 不选择客户时批量编辑按钮隐藏', async ({ page }) => {
     // 确保没有勾选任何行
     // 全选 checkbox 应该是未勾选状态（重构后使用原生 checkbox）
-    const allCheckbox = page.locator('.table-section thead input[type="checkbox"], table.table thead input[type="checkbox"]').first()
+    const allCheckbox = page
+      .locator(
+        '.table-section thead input[type="checkbox"], table.table thead input[type="checkbox"]'
+      )
+      .first()
     const isChecked = await allCheckbox.isChecked().catch(() => false)
     if (isChecked) {
       await allCheckbox.click()

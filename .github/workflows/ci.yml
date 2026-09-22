@@ -21,13 +21,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# ============================================================
+# 说明（2026-09-21）：
+#   lint / 类型检查 / 单元测试 / 集成测试 / E2E smoke 均由 PR 门禁
+#   （pr-checks.yml）在合并前执行。本 workflow 只做 main 上的
+#   「可构建 + 可启动」回归守护，避免与 PR 门禁重复消耗 CI 时间
+#   （原 backend-test / frontend-check 与 PR 门禁的检查项完全重叠）。
+# ============================================================
 jobs:
   # ============================================================
-  # Backend CI - 快速检查（lint + 单元测试）
+  # 后端：依赖可安装 + 应用可导入（捕获 main 上不可启动的回归）
   # ============================================================
-  backend-test:
-    name: Backend Quick Check
+  backend-smoke:
+    name: Backend Smoke (main)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -45,23 +53,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Run linting and formatting check (ruff)
+      - name: Import app（验证依赖与配置可加载）
         run: |
           cd backend
-          ruff check app/ tests/
-          ruff format app/ tests/ --check
-
-      - name: Run unit tests only (fast)
-        run: |
-          cd backend
-          pytest tests/unit/ -v --tb=short
+          python -c "from app.main import app; print('✅ app 可导入，路由数:', len(app.router.routes))"
 
   # ============================================================
-  # Frontend CI - 快速检查（lint + type check + build）
+  # 前端：可构建
   # ============================================================
-  frontend-check:
-    name: Frontend Quick Check
+  frontend-build:
+    name: Frontend Build (main)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -79,44 +82,29 @@ jobs:
           cd frontend
           npm ci
 
-      - name: Run linting
-        run: |
-          cd frontend
-          npm run lint
-
-      - name: Type check
-        run: |
-          cd frontend
-          npx vue-tsc --noEmit
-
-      - name: Run unit tests
-        run: |
-          cd frontend
-          npx vitest run --reporter=verbose
-
       - name: Build
         run: |
           cd frontend
           npm run build
 
   # ============================================================
-  # Code Quality Summary
+  # main 回归守护汇总
   # ============================================================
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [backend-test, frontend-check]
+    needs: [backend-smoke, frontend-build]
     if: always()
 
     steps:
       - name: Check all jobs passed
         run: |
-          echo "Backend Quick Check: ${{ needs.backend-test.result }}"
-          echo "Frontend Quick Check: ${{ needs.frontend-check.result }}"
+          echo "Backend Smoke:  ${{ needs.backend-smoke.result }}"
+          echo "Frontend Build: ${{ needs.frontend-build.result }}"
 
-          if [ "${{ needs.backend-test.result }}" != "success" ] || [ "${{ needs.frontend-check.result }}" != "success" ]; then
+          if [ "${{ needs.backend-smoke.result }}" != "success" ] || [ "${{ needs.frontend-build.result }}" != "success" ]; then
             echo "❌ Quality gate failed"
             exit 1
           fi
 
-          echo "✅ All quick checks passed"
+          echo "✅ main 回归守护通过（lint / 类型检查 / 单测 / E2E 由 PR 门禁覆盖）"
