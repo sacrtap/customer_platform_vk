@@ -398,6 +398,33 @@ jobs:
           retention-days: 14
 
   # ============================================================
+  # Nightly 全量失败告警
+  # backend-integration-full 无人值守，失败时需在 run 页面直接可见根因
+  # ============================================================
+  nightly-alert:
+    name: Nightly Alert
+    runs-on: ubuntu-latest
+    needs: [backend-integration-full]
+    if: failure() && github.event_name == 'schedule'
+    timeout-minutes: 5
+    steps:
+      - name: Write failure summary
+        run: |
+          {
+            echo "## ❌ Nightly 全量集成测试失败"
+            echo ""
+            echo "- **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- **触发**: schedule（每日 UTC 18:00 / 北京次日 02:00）"
+            echo ""
+            echo "### 排查入口"
+            echo "1. 下载 artifact \`full-backend-integration-junit\` 查看失败用例"
+            echo "2. 本地复现：\`cd backend && pytest tests/integration/ -q\`"
+            echo "3. 迁移测试需单独串行：\`pytest tests/integration/test_migrations.py -n 1\`"
+            echo "4. 覆盖率门禁未达 50% 时，查看 term-missing 报告的缺口文件"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Nightly 全量集成测试失败，详见 Step Summary"
+
+  # ============================================================
   # 前端构建
   # ============================================================
   frontend-build:
