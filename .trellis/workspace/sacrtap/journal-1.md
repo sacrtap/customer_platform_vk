@@ -643,3 +643,26 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 28: 余额管理页按结算类型拆分与筛选优化 + ocr 代码审查修复
+<!-- trellis-session: v=2 fp=4b97a919e3591f91 -->
+
+**Date**: 2026-09-23
+**Task**: 余额管理页按结算类型拆分与筛选优化 + ocr 代码审查修复
+**Branch**: `main`
+
+### Summary
+
+余额管理页两轮优化：①KPI 按结算类型拆分（预付费/后付费+应收款，未设置结算类型归预付费，口径统计与列表共用 settlement_group），移除零余额卡片，余额不足/即将耗尽仅统计预付费，balance-stats 响应字段重构；②筛选区对齐客户管理页（首行+更多折叠：是否结算/是否重点/是否房产/标签，后端新增 is_settlement_enabled），默认行业改全部修复默认空视图，客户ID 列对齐取值，操作列 sticky、零余额中性、负余额欠费标签，移除未实现批量操作，更新单测/集成测试/视觉基线。open-code-review 审查 3 项问题（经理下拉 real_name、余额不足 KPI 联动口径、加载行 colspan）全部修复并实测，报告存 docs/code-review。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `af2b15f` | feat(billing): 余额管理页按结算类型拆分与筛选优化 |
+| `6f90af7` | docs(code-review): 余额管理页优化代码审查报告 |
+
+### Status
+
+[OK] **Completed**
