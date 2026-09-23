@@ -20,6 +20,24 @@ from . import billing_bp
 
 logger = logging.getLogger(__name__)
 
+# 结算类型分组取值（列表筛选 settlement_group 与 balance-stats 卡片共用）
+SETTLEMENT_GROUPS = ("prepaid", "postpaid")
+
+
+def _settlement_group_condition(group: str):
+    """构建结算类型分组过滤条件
+
+    未设置结算类型（NULL）的客户按业务默认归入预付费，因此
+    「预付费」= 非后付费，与 balance-stats 卡片的统计口径一致。
+    """
+    from sqlalchemy import func
+
+    from ...models.customers import Customer
+
+    if group == "postpaid":
+        return Customer.settlement_type == "postpaid"
+    return func.coalesce(Customer.settlement_type, "prepaid") != "postpaid"
+
 
 async def _batch_query_consumption_stats(
     db: AsyncSession, customer_ids: list[int]
@@ -189,9 +207,23 @@ def _parse_balance_filters(request: Request) -> dict:
     else:
         is_real_estate = None
 
+    is_settlement_enabled = request.args.get("is_settlement_enabled")
+    if is_settlement_enabled is not None and is_settlement_enabled.strip() != "":
+        if is_settlement_enabled.lower() not in ("true", "false"):
+            raise ValueError("is_settlement_enabled 参数必须为 'true' 或 'false'")
+        is_settlement_enabled = is_settlement_enabled.lower() == "true"
+    else:
+        is_settlement_enabled = None
+
     settlement_type = request.args.get("settlement_type")
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
+
+    settlement_group = request.args.get("settlement_group")
+    if settlement_group is not None and settlement_group.strip() == "":
+        settlement_group = None
+    if settlement_group is not None and settlement_group not in SETTLEMENT_GROUPS:
+        raise ValueError("settlement_group 参数必须为 'prepaid' 或 'postpaid'")
 
     balance_min = (
         float(request.args.get("balance_min")) if request.args.get("balance_min") else None
@@ -212,7 +244,9 @@ def _parse_balance_filters(request: Request) -> dict:
         "tag_ids": tag_ids,
         "is_key_customer": is_key_customer,
         "is_real_estate": is_real_estate,
+        "is_settlement_enabled": is_settlement_enabled,
         "settlement_type": settlement_type,
+        "settlement_group": settlement_group,
         "balance_min": balance_min,
         "balance_max": balance_max,
     }
@@ -258,7 +292,9 @@ async def _query_balance_rows_raw(
     tag_ids = filters["tag_ids"]
     is_key_customer = filters["is_key_customer"]
     is_real_estate = filters["is_real_estate"]
+    is_settlement_enabled = filters["is_settlement_enabled"]
     settlement_type = filters["settlement_type"]
+    settlement_group = filters["settlement_group"]
     balance_min = filters["balance_min"]
     balance_max = filters["balance_max"]
 
@@ -306,8 +342,13 @@ async def _query_balance_rows_raw(
     if is_real_estate is not None:
         base_stmt = base_stmt.where(Customer.is_real_estate == is_real_estate)
 
+    if is_settlement_enabled is not None:
+        base_stmt = base_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
+
     if settlement_type:
         base_stmt = base_stmt.where(Customer.settlement_type == settlement_type)
+    if settlement_group:
+        base_stmt = base_stmt.where(_settlement_group_condition(settlement_group))
 
     # 余额范围过滤
     if balance_min is not None:
@@ -380,8 +421,13 @@ async def _query_balance_rows_raw(
     if is_real_estate is not None:
         count_stmt = count_stmt.where(Customer.is_real_estate == is_real_estate)
 
+    if is_settlement_enabled is not None:
+        count_stmt = count_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
+
     if settlement_type:
         count_stmt = count_stmt.where(Customer.settlement_type == settlement_type)
+    if settlement_group:
+        count_stmt = count_stmt.where(_settlement_group_condition(settlement_group))
     if balance_min is not None:
         count_stmt = count_stmt.where(CustomerBalance.total_amount >= balance_min)
     if balance_max is not None:
@@ -758,6 +804,9 @@ async def get_balance_stats(request: Request):
     """获取余额统计概览（用于 KPI 卡片）
 
     支持与列表页一致的筛选参数，确保 KPI 统计数字与列表筛选结果保持一致。
+
+    总余额按结算类型拆分为预付费/后付费两张卡片：未设置结算类型的客户归入预付费，
+    「后付费」客户余额为负表示已消耗未回款，其相反数即应收款（postpaid_receivable）。
     """
     db: AsyncSession = request.ctx.db_session
 
@@ -797,6 +846,17 @@ async def get_balance_stats(request: Request):
     else:
         is_real_estate = None
 
+    is_settlement_enabled = request.args.get("is_settlement_enabled")
+    if is_settlement_enabled is not None and is_settlement_enabled.strip() != "":
+        if is_settlement_enabled.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_settlement_enabled 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
+        is_settlement_enabled = is_settlement_enabled.lower() == "true"
+    else:
+        is_settlement_enabled = None
+
     settlement_type = request.args.get("settlement_type")
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
@@ -817,6 +877,8 @@ async def get_balance_stats(request: Request):
         customer_filters.append(Customer.is_key_customer == is_key_customer)
     if is_real_estate is not None:
         customer_filters.append(Customer.is_real_estate == is_real_estate)
+    if is_settlement_enabled is not None:
+        customer_filters.append(Customer.is_settlement_enabled == is_settlement_enabled)
     if settlement_type:
         customer_filters.append(Customer.settlement_type == settlement_type)
 
@@ -883,13 +945,28 @@ async def get_balance_stats(request: Request):
             ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
         return stmt
 
-    # --- 总余额 ---
-    total_balance_stmt = select(func.coalesce(func.sum(CustomerBalance.total_amount), 0)).join(
-        Customer, CustomerBalance.customer_id == Customer.id
-    )
-    total_balance_stmt = add_industry_joins(total_balance_stmt)
-    total_balance_stmt = apply_balance_filters(total_balance_stmt, need_industry_join=True)
-    total_balance = (await db.execute(total_balance_stmt)).scalar() or 0
+    # --- 总余额（按结算类型拆分）---
+    # 「预付费」= 非后付费（含未设置结算类型的客户），「后付费」= settlement_type == 'postpaid'，
+    # 与列表筛选 settlement_group 共用同一口径，保证卡片数字与列表条数一致。
+    async def _balance_totals(group: str) -> tuple[float, int]:
+        stmt = (
+            select(
+                func.coalesce(func.sum(CustomerBalance.total_amount), 0),
+                func.count(CustomerBalance.id),
+            )
+            .join(Customer, CustomerBalance.customer_id == Customer.id)
+            .where(_settlement_group_condition(group))
+        )
+        stmt = add_industry_joins(stmt)
+        stmt = apply_balance_filters(stmt, need_industry_join=True)
+        total, count = (await db.execute(stmt)).one()
+        return float(total or 0), int(count or 0)
+
+    total_balance_prepaid, prepaid_customers = await _balance_totals("prepaid")
+    total_balance_postpaid, postpaid_customers = await _balance_totals("postpaid")
+    # 后付费客户余额为负表示已消耗未回款，应收款（净）= 余额合计的相反数；
+    # 若为负值则说明后付费客户预存多于欠款（预收）。
+    postpaid_receivable = -total_balance_postpaid
 
     # --- 本月充值 ---
     now = datetime.now()
@@ -917,30 +994,22 @@ async def get_balance_stats(request: Request):
     this_month_real_amount = float(this_month_result.real_amount_sum or 0)
     this_month_bonus_amount = float(this_month_result.bonus_amount_sum or 0)
 
-    # --- 余额不足客户数（含欠费/负余额客户）---
+    # --- 余额不足客户数（含欠费/负余额客户，仅统计预付费）---
+    # 后付费客户余额为负属于应收款而非「余额不足」，故与「即将耗尽」一致排除后付费。
     LOW_BALANCE_THRESHOLD = 10000
     low_balance_stmt = (
         select(func.count(CustomerBalance.id))
         .join(Customer, CustomerBalance.customer_id == Customer.id)
         .where(
             CustomerBalance.total_amount < LOW_BALANCE_THRESHOLD,
+            _settlement_group_condition("prepaid"),
         )
     )
     low_balance_stmt = add_industry_joins(low_balance_stmt)
     low_balance_stmt = apply_balance_filters(low_balance_stmt, need_industry_join=True)
     low_balance_count = (await db.execute(low_balance_stmt)).scalar() or 0
 
-    # --- 零余额客户数 ---
-    zero_balance_stmt = (
-        select(func.count(CustomerBalance.id))
-        .join(Customer, CustomerBalance.customer_id == Customer.id)
-        .where(CustomerBalance.total_amount == 0)
-    )
-    zero_balance_stmt = add_industry_joins(zero_balance_stmt)
-    zero_balance_stmt = apply_balance_filters(zero_balance_stmt, need_industry_join=True)
-    zero_balance_count = (await db.execute(zero_balance_stmt)).scalar() or 0
-
-    # --- 即将耗尽客户数（days_remaining ≤ 7）---
+    # --- 即将耗尽客户数（days_remaining ≤ 7，仅预付费）---
     from datetime import date, timedelta
 
     from ...models.daily_consumption import DailyConsumption
@@ -974,7 +1043,8 @@ async def get_balance_stats(request: Request):
         .where(
             CustomerBalance.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
-            Customer.settlement_type != "postpaid",
+            # 未设置结算类型归入预付费，故用分组条件而非 != 'postpaid'（NULL 会被 SQL 过滤掉）
+            _settlement_group_condition("prepaid"),
             func.coalesce(consumption_cte.c.total_cost_30d, 0) > 0,
             burning_soon_days_expr <= 7,
         )
@@ -990,27 +1060,21 @@ async def get_balance_stats(request: Request):
         burning_soon_stmt = burning_soon_stmt.where(Customer.id.in_(tag_subq))
     burning_soon_count = (await db.execute(burning_soon_stmt)).scalar() or 0
 
-    # --- 客户总数 ---
-    total_customers_stmt = select(func.count(CustomerBalance.id)).join(
-        Customer, CustomerBalance.customer_id == Customer.id
-    )
-    total_customers_stmt = add_industry_joins(total_customers_stmt)
-    total_customers_stmt = apply_balance_filters(total_customers_stmt, need_industry_join=True)
-    total_customers = (await db.execute(total_customers_stmt)).scalar() or 0
-
     return json(
         {
             "code": 0,
             "message": "success",
             "data": {
-                "total_balance": float(total_balance),
-                "total_customers": total_customers,
+                "total_balance_prepaid": total_balance_prepaid,
+                "prepaid_customers": prepaid_customers,
+                "total_balance_postpaid": total_balance_postpaid,
+                "postpaid_customers": postpaid_customers,
+                "postpaid_receivable": postpaid_receivable,
                 "this_month_count": this_month_count,
                 "this_month_amount": this_month_amount,
                 "this_month_real_amount": this_month_real_amount,
                 "this_month_bonus_amount": this_month_bonus_amount,
                 "low_balance_count": low_balance_count,
-                "zero_balance_count": zero_balance_count,
                 "burning_soon_count": burning_soon_count,
             },
         }

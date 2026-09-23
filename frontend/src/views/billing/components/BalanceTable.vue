@@ -4,14 +4,6 @@
       <table class="table">
         <thead>
           <tr>
-            <th style="width: 40px">
-              <input
-                type="checkbox"
-                :checked="allChecked"
-                :indeterminate.prop="someChecked"
-                @change="toggleSelectAll"
-              />
-            </th>
             <th
               v-for="col in columns"
               :key="col.key"
@@ -21,7 +13,7 @@
               <span>{{ col.title }}</span>
               <span v-if="col.sortable" class="th-sort-indicator"></span>
             </th>
-            <th>操作</th>
+            <th class="th-actions">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -33,17 +25,8 @@
               'row-warn': isBurningWarn(record),
             }"
           >
-            <td @click.stop>
-              <input
-                type="checkbox"
-                :checked="selectedIds.includes(record.customer_id)"
-                @change="
-                  emit('select', ($event.target as HTMLInputElement).checked, record.customer_id)
-                "
-              />
-            </td>
             <td>
-              <span class="cust-id">{{ record.company_id || record.customer_id }}</span>
+              <span class="cust-id">{{ record.company_id }}</span>
             </td>
             <td>
               <div class="customer">
@@ -54,9 +37,12 @@
             <td>{{ record.industry_type || '-' }}</td>
             <td>
               <div class="balance-info">
-                <b :class="{ danger: isLowBalance(record) }"
-                  >¥{{ formatAmount(record.total_amount) }}</b
-                >
+                <div class="balance-amount">
+                  <b :class="{ danger: isNegativeBalance(record) }"
+                    >¥{{ formatAmount(record.total_amount) }}</b
+                  >
+                  <span v-if="isNegativeBalance(record)" class="tag red">欠费</span>
+                </div>
                 <div class="balance-detail">
                   <span class="real">实：{{ formatAmount(record.real_amount) }}</span>
                   <span class="bonus">赠：{{ formatAmount(record.bonus_amount) }}</span>
@@ -84,8 +70,11 @@
                 </div>
               </div>
             </td>
-            <td>{{ record.last_recharge_at ? formatDate(record.last_recharge_at) : '-' }}</td>
-            <td style="white-space: nowrap" @click.stop>
+            <td>
+              <span v-if="record.last_recharge_at">{{ formatDate(record.last_recharge_at) }}</span>
+              <span v-else class="never-recharge">从未充值</span>
+            </td>
+            <td class="td-actions" @click.stop>
               <button
                 v-if="can('billing:recharge')"
                 class="btn"
@@ -107,15 +96,15 @@
                 style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
                 @click="emit('recalculate', record)"
               >
-                更新
+                重算
               </button>
             </td>
           </tr>
           <tr v-if="balances.length === 0 && !loading">
-            <td :colspan="columns.length + 2" class="empty-state">暂无余额数据</td>
+            <td :colspan="columns.length + 1" class="empty-state">暂无余额数据</td>
           </tr>
           <tr v-if="loading">
-            <td :colspan="columns.length + 2" class="loading-state">加载中...</td>
+            <td :colspan="columns.length + 1" class="loading-state">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -134,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { formatDate } from '@/utils/formatters'
 import Pagination from '@/components/ui/Pagination.vue'
 import type { Balance } from '@/api/billing'
@@ -151,15 +140,12 @@ interface Props {
     showJumper?: boolean
     pageSizeOptions?: number[]
   }
-  selectedIds: number[]
   can: (permission: string) => boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
-  (e: 'select', checked: boolean, id: number): void
-  (e: 'selectAll', checked: boolean): void
   (e: 'pageChange', page: number): void
   (e: 'pageSizeChange', pageSize: number): void
   (e: 'sortChange', dataIndex: string, direction: string): void
@@ -220,22 +206,6 @@ const toggleSort = (key: string) => {
   emit('sortChange', backendField, sortDir.value)
 }
 
-// --- 选择 ---
-const allChecked = computed(() => {
-  return (
-    props.balances.length > 0 &&
-    props.balances.every((b) => props.selectedIds.includes(b.customer_id))
-  )
-})
-
-const someChecked = computed(() => {
-  return !allChecked.value && props.balances.some((b) => props.selectedIds.includes(b.customer_id))
-})
-
-const toggleSelectAll = (e: Event) => {
-  emit('selectAll', (e.target as HTMLInputElement).checked)
-}
-
 // --- 分页 ---
 const onPageChange = (page: number) => {
   emit('pageChange', page)
@@ -246,7 +216,6 @@ const onPageSizeChange = (size: number) => {
 }
 
 // --- 辅助方法 ---
-const LOW_BALANCE_THRESHOLD = 10000
 const BURN_MAX_DAYS = 60
 
 const getInitials = (name?: string) => {
@@ -264,12 +233,10 @@ const formatAmount = (num: number | null | undefined): string => {
   return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const isLowBalance = (record: Balance): boolean => {
-  // 余额 ≤ 0（欠费）或低于阈值时显示红色
-  return (
-    record.total_amount <= 0 ||
-    (record.total_amount > 0 && record.total_amount < LOW_BALANCE_THRESHOLD)
-  )
+// 负余额 = 欠费（后付费客户未回款或预付费客户透支），红色高亮并加「欠费」标签；
+// 零余额客户数量大（多为未消耗客户），标红只会淹没真正的风险行，故保持中性。
+const isNegativeBalance = (record: Balance): boolean => {
+  return record.total_amount < 0
 }
 
 // ===== 余额燃尽：油表进度条（满 = 安全，空 = 紧急）=====
@@ -380,7 +347,7 @@ const getBurnTooltip = (record: Balance): string => {
 }
 .table th,
 .table td {
-  padding: 10px 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid #edf2f7;
   text-align: left;
   white-space: nowrap;
@@ -393,6 +360,31 @@ const getBurnTooltip = (record: Balance): string => {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+/* 操作列固定在右侧：表格宽度超出容器时按钮不会被裁出视口。
+   sticky 单元格必须不透明，否则滚动内容会透出；行高亮用叠加背景还原底色。 */
+.table th.th-actions,
+.table td.td-actions {
+  position: sticky;
+  right: 0;
+  white-space: nowrap;
+  box-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.15);
+}
+.table th.th-actions {
+  z-index: 3;
+}
+.table td.td-actions {
+  z-index: 1;
+  background: #fff;
+}
+.table tbody tr:hover td.td-actions {
+  background: #f8fbff;
+}
+.table tbody tr.row-warning td.td-actions {
+  background: linear-gradient(rgba(220, 38, 38, 0.04), rgba(220, 38, 38, 0.04)), #fff;
+}
+.table tbody tr.row-warn td.td-actions {
+  background: linear-gradient(rgba(245, 158, 11, 0.04), rgba(245, 158, 11, 0.04)), #fff;
 }
 .table tbody tr {
   transition: background 0.15s;
@@ -494,6 +486,11 @@ const getBurnTooltip = (record: Balance): string => {
 .balance-info {
   display: flex;
   flex-direction: column;
+}
+.balance-amount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .balance-info b {
   font-weight: 700;
@@ -658,6 +655,11 @@ const getBurnTooltip = (record: Balance): string => {
   padding: 40px 20px;
   color: var(--muted);
   font-size: 14px;
+}
+
+/* 从未充值 */
+.never-recharge {
+  color: var(--muted);
 }
 
 /* 分页 */

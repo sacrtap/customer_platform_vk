@@ -1,5 +1,5 @@
 <template>
-  <div class="kpi-card" :class="{ active }" @click="$emit('click')">
+  <div class="kpi-card" :class="{ active }" :title="hint || undefined" @click="$emit('click')">
     <div class="kpi-label">{{ label }}</div>
     <div class="kpi-value">{{ value }}</div>
     <div v-if="trend" class="kpi-trend" :class="trendType">{{ trend }}</div>
@@ -14,11 +14,14 @@ withDefaults(
     trend?: string
     trendType?: 'up' | 'down' | 'warn' | 'neutral'
     active?: boolean
+    /** 鼠标悬停提示：口径说明与精确数值 */
+    hint?: string
   }>(),
   {
     trendType: 'neutral',
     active: false,
     trend: '',
+    hint: '',
   }
 )
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useBalance } from '../useBalance'
+import { useBalance, BALANCE_RANGE_OPTIONS } from '../useBalance'
 
 // Mock API modules
 const mockGetBalances = vi.fn()
@@ -47,14 +47,17 @@ describe('useBalance - 排序逻辑', () => {
     })
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 0,
-        total_customers: 0,
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 0,
         this_month_amount: 0,
         this_month_real_amount: 0,
         this_month_bonus_amount: 0,
         low_balance_count: 0,
-        zero_balance_count: 0,
+        burning_soon_count: 0,
       },
     })
   })
@@ -185,14 +188,16 @@ describe('useBalance - 排序逻辑', () => {
 })
 
 describe('useBalance - 余额范围选项边界', () => {
-  it('BALANCE_RANGE_OPTIONS 各档位边界不重叠', async () => {
-    const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
-    // zero: 0 ~ 0
-    const zero = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'zero')!
-    expect(zero.min).toBe(0)
-    expect(zero.max).toBe(0)
+  it('BALANCE_RANGE_OPTIONS 各档位边界符合口径', () => {
+    // 零余额档已移除（零余额客户不再单独成档）
+    expect(BALANCE_RANGE_OPTIONS.find((o) => o.value === 'zero')).toBeUndefined()
 
-    // low: null ~ 9999.99（含负余额和零余额，不含 10000）
+    // debt: null ~ -0.01（仅负余额）
+    const debt = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'debt')!
+    expect(debt.min).toBeNull()
+    expect(debt.max).toBe(-0.01)
+
+    // low: null ~ 9999.99（含欠费与零余额，与 KPI「余额不足」口径一致）
     const low = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'low')!
     expect(low.min).toBeNull()
     expect(low.max).toBe(9999.99)
@@ -213,22 +218,19 @@ describe('useBalance - 余额范围选项边界', () => {
     expect(top.max).toBeNull()
   })
 
-  it('low 的 max 小于 mid 的 min（无重叠）', async () => {
-    const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
+  it('low 的 max 小于 mid 的 min（无重叠）', () => {
     const low = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'low')!
     const mid = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'mid')!
     expect(low.max!).toBeLessThan(mid.min!)
   })
 
-  it('mid 的 max 小于 high 的 min（无重叠）', async () => {
-    const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
+  it('mid 的 max 小于 high 的 min（无重叠）', () => {
     const mid = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'mid')!
     const high = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'high')!
     expect(mid.max!).toBeLessThan(high.min!)
   })
 
-  it('high 的 max 小于 top 的 min（无重叠）', async () => {
-    const { BALANCE_RANGE_OPTIONS } = await import('../useBalance')
+  it('high 的 max 小于 top 的 min（无重叠）', () => {
     const high = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'high')!
     const top = BALANCE_RANGE_OPTIONS.find((o) => o.value === 'top')!
     expect(high.max!).toBeLessThan(top.min!)
@@ -243,14 +245,17 @@ describe('useBalance - KPI 统计计算', () => {
     })
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 0,
-        total_customers: 0,
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 0,
         this_month_amount: 0,
         this_month_real_amount: 0,
         this_month_bonus_amount: 0,
         low_balance_count: 0,
-        zero_balance_count: 0,
+        burning_soon_count: 0,
       },
     })
   })
@@ -259,14 +264,17 @@ describe('useBalance - KPI 统计计算', () => {
     // 模拟后端返回本月充值 5 笔，金额 50000（实充 45000 + 赠送 5000）
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 1000000,
-        total_customers: 50,
+        total_balance_prepaid: 1000000,
+        prepaid_customers: 50,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 5,
         this_month_amount: 50000,
         this_month_real_amount: 45000,
         this_month_bonus_amount: 5000,
         low_balance_count: 10,
-        zero_balance_count: 3,
+        burning_soon_count: 2,
       },
     })
 
@@ -280,44 +288,53 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.this_month_bonus_amount).toBe(5000)
   })
 
-  it('loadStats 使用 getBalanceStats 获取 total_balance', async () => {
+  it('loadStats 使用 getBalanceStats 获取预付费总余额与客户数', async () => {
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 999999.99,
-        total_customers: 42,
+        total_balance_prepaid: 999999.99,
+        prepaid_customers: 42,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 3,
         this_month_amount: 15000,
         this_month_real_amount: 12000,
         this_month_bonus_amount: 3000,
         low_balance_count: 5,
-        zero_balance_count: 2,
+        burning_soon_count: 1,
       },
     })
 
     const { stats, loadStats } = useBalance()
     await loadStats()
 
-    expect(stats.total_balance).toBe(999999.99)
+    expect(stats.total_balance_prepaid).toBe(999999.99)
+    expect(stats.prepaid_customers).toBe(42)
   })
 
-  it('loadStats 使用 getBalanceStats 获取 total_customers', async () => {
+  it('loadStats 使用 getBalanceStats 获取后付费余额合计与应收款', async () => {
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 0,
-        total_customers: 42,
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: -3000,
+        postpaid_customers: 2,
+        postpaid_receivable: 3000,
         this_month_count: 0,
         this_month_amount: 0,
         this_month_real_amount: 0,
         this_month_bonus_amount: 0,
         low_balance_count: 0,
-        zero_balance_count: 0,
+        burning_soon_count: 0,
       },
     })
 
     const { stats, loadStats } = useBalance()
     await loadStats()
 
-    expect(stats.total_customers).toBe(42)
+    expect(stats.total_balance_postpaid).toBe(-3000)
+    expect(stats.postpaid_customers).toBe(2)
+    expect(stats.postpaid_receivable).toBe(3000)
     expect(mockGetBalanceStats).toHaveBeenCalledTimes(1)
     expect(mockGetBalances).not.toHaveBeenCalled()
   })
@@ -325,14 +342,17 @@ describe('useBalance - KPI 统计计算', () => {
   it('loadStats 使用 getBalanceStats 获取 low_balance_count', async () => {
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 0,
-        total_customers: 0,
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 0,
         this_month_amount: 0,
         this_month_real_amount: 0,
         this_month_bonus_amount: 0,
         low_balance_count: 8,
-        zero_balance_count: 0,
+        burning_soon_count: 0,
       },
     })
 
@@ -342,24 +362,27 @@ describe('useBalance - KPI 统计计算', () => {
     expect(stats.low_balance_count).toBe(8)
   })
 
-  it('loadStats 使用 getBalanceStats 获取 zero_balance_count', async () => {
+  it('loadStats 使用 getBalanceStats 获取 burning_soon_count', async () => {
     mockGetBalanceStats.mockResolvedValue({
       data: {
-        total_balance: 0,
-        total_customers: 0,
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
         this_month_count: 0,
         this_month_amount: 0,
         this_month_real_amount: 0,
         this_month_bonus_amount: 0,
         low_balance_count: 0,
-        zero_balance_count: 3,
+        burning_soon_count: 3,
       },
     })
 
     const { stats, loadStats } = useBalance()
     await loadStats()
 
-    expect(stats.zero_balance_count).toBe(3)
+    expect(stats.burning_soon_count).toBe(3)
   })
 
   it('loadStats 不再调用 getBalances', async () => {
@@ -400,7 +423,127 @@ describe('useBalance - KPI 统计计算', () => {
     await loadStats()
 
     // 不应抛出异常，stats 保持默认值
-    expect(stats.total_balance).toBe(0)
+    expect(stats.total_balance_prepaid).toBe(0)
     expect(stats.this_month_count).toBe(0)
+  })
+})
+
+describe('useBalance - 结算类型分组筛选', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetBalances.mockResolvedValue({ data: { list: [], total: 0 } })
+    mockGetBalanceStats.mockResolvedValue({
+      data: {
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
+        this_month_count: 0,
+        this_month_amount: 0,
+        this_month_real_amount: 0,
+        this_month_bonus_amount: 0,
+        low_balance_count: 0,
+        burning_soon_count: 0,
+      },
+    })
+  })
+
+  it('settlement_group 传入余额列表查询', async () => {
+    const { loadBalances, filters } = useBalance()
+    filters.settlement_group = 'postpaid'
+
+    await loadBalances()
+
+    const callArgs = mockGetBalances.mock.calls[0][0] as Record<string, unknown>
+    expect(callArgs.settlement_group).toBe('postpaid')
+  })
+
+  it('统计请求不携带 settlement_group，且始终按默认筛选口径统计', async () => {
+    const { loadStats, filters } = useBalance()
+    filters.settlement_group = 'postpaid'
+
+    await loadStats()
+
+    // 两张卡片各自统计，统计接口不接受分组参数；
+    // 默认筛选与客户管理页一致：仅限定正式账号，行业为全部（不传 industry）
+    expect(mockGetBalanceStats).toHaveBeenCalledWith({
+      account_type: '正式账号',
+    })
+  })
+
+  it('handleReset 清空结算类型分组', async () => {
+    const { handleReset, filters } = useBalance()
+    filters.settlement_group = 'prepaid'
+
+    handleReset()
+
+    expect(filters.settlement_group).toBe('')
+  })
+})
+
+describe('useBalance - 默认筛选与客户管理页对齐', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetBalances.mockResolvedValue({ data: { list: [], total: 0 } })
+    mockGetBalanceStats.mockResolvedValue({
+      data: {
+        total_balance_prepaid: 0,
+        prepaid_customers: 0,
+        total_balance_postpaid: 0,
+        postpaid_customers: 0,
+        postpaid_receivable: 0,
+        this_month_count: 0,
+        this_month_amount: 0,
+        this_month_real_amount: 0,
+        this_month_bonus_amount: 0,
+        low_balance_count: 0,
+        burning_soon_count: 0,
+      },
+    })
+  })
+
+  it('默认行业为全部（空数组），避免默认视图被行业筛选清空', () => {
+    const { filters } = useBalance()
+    expect(filters.industry).toEqual([])
+    expect(filters.account_type).toBe('正式账号')
+  })
+
+  it('默认行业为空时不发送 industry 参数', async () => {
+    const { loadBalances } = useBalance()
+
+    await loadBalances()
+
+    const callArgs = mockGetBalances.mock.calls[0][0] as Record<string, unknown>
+    expect(callArgs.industry).toBeUndefined()
+    expect(callArgs.account_type).toBe('正式账号')
+  })
+
+  it('is_settlement_enabled 传入列表与统计请求', async () => {
+    const { loadBalances, loadStats, filters } = useBalance()
+    filters.is_settlement_enabled = true
+
+    await loadBalances()
+    expect(
+      (mockGetBalances.mock.calls[0][0] as Record<string, unknown>).is_settlement_enabled
+    ).toBe(true)
+
+    await loadStats()
+    expect(
+      (mockGetBalanceStats.mock.calls[0][0] as Record<string, unknown>).is_settlement_enabled
+    ).toBe(true)
+  })
+
+  it('handleReset 恢复默认筛选（行业全部、是否结算清空）', () => {
+    const { handleReset, filters } = useBalance()
+    filters.industry = ['房产经纪']
+    filters.account_type = '内部账号'
+    filters.is_settlement_enabled = false
+
+    handleReset()
+
+    expect(filters.industry).toEqual([])
+    expect(filters.account_type).toBe('正式账号')
+    expect(filters.is_settlement_enabled).toBeNull()
   })
 })

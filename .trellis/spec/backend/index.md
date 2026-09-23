@@ -14,6 +14,7 @@ Before writing backend code, read and follow:
 - [ ] [Database Guidelines](./database-guidelines.md) — `request.ctx.db_session`, soft delete, cache invalidation
 - [ ] [Quality Guidelines](./quality-guidelines.md) — testing (unit/integration), forbidden patterns
 - [ ] [Analytics Forecast](./analytics-forecast.md) — 预测消费接口/算法/数据字段契约
+- [ ] [Billing Balance Stats](./billing-balance-stats.md) — 余额统计响应字段、结算类型分组（未设置结算类型 = 预付费）口径与列表 `settlement_group` 契约
 - [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单
 - [ ] [File Storage](./file-storage.md) — `FILE_STORAGE_PATH` 解析规则、相对路径语义、DB 状态与磁盘实体一致性
 

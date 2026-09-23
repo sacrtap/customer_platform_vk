@@ -369,6 +369,226 @@ async def test_get_balances_filter_settlement_type_postpaid(test_client, auth_to
 
 
 @pytest.mark.asyncio
+async def test_get_balances_filter_settlement_group_prepaid_includes_unset(
+    test_client, auth_token, db_session
+):
+    """测试余额列表筛选 — settlement_group=prepaid 包含未设置结算类型的客户"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_prepaid = _unique_customer_id(95000)
+    cid_unset = _unique_customer_id(96000)
+    cid_postpaid = _unique_customer_id(97000)
+
+    for cid, st in [(cid_prepaid, "prepaid"), (cid_unset, None), (cid_postpaid, "postpaid")]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', :type, NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"测试客户_{cid}", "type": st},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?settlement_group=prepaid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_prepaid in customer_ids
+    # 未设置结算类型的客户按业务默认归入预付费
+    assert cid_unset in customer_ids
+    assert cid_postpaid not in customer_ids
+    assert data["data"]["total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_settlement_group_postpaid(test_client, auth_token, db_session):
+    """测试余额列表筛选 — settlement_group=postpaid 仅返回后付费客户"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_prepaid = _unique_customer_id(95000)
+    cid_unset = _unique_customer_id(96000)
+    cid_postpaid = _unique_customer_id(97000)
+
+    for cid, st in [(cid_prepaid, "prepaid"), (cid_unset, None), (cid_postpaid, "postpaid")]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', :type, NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"测试客户_{cid}", "type": st},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?settlement_group=postpaid",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_postpaid in customer_ids
+    assert cid_prepaid not in customer_ids
+    assert cid_unset not in customer_ids
+    assert data["data"]["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_settlement_group_invalid(test_client, auth_token):
+    """测试余额列表筛选 — settlement_group 非法取值返回 400"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?settlement_group=unknown",
+        headers=headers,
+    )
+
+    assert response.status == 400
+    assert "settlement_group" in response.json["message"]
+
+
+@pytest.mark.asyncio
+async def test_balance_stats_burning_soon_includes_unset_settlement(
+    test_client, auth_token, db_session
+):
+    """测试「即将耗尽」统计：未设置结算类型的客户归入预付费，同样参与预警"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    # 余额 50 / 近 30 天消费 100 → 预计可支撑 3.5 天（≤7），应命中预警
+    for st in (None, "postpaid"):
+        cid = _unique_customer_id(98000)
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', :type, NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"燃尽测试_{cid}", "type": st},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 50.0, 50.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO daily_consumptions
+                (customer_id, consumption_date, device_type, layer_type,
+                 total_cost, created_at, updated_at)
+            VALUES (:cid, NOW() - INTERVAL '10 days', 'PC', 'L1', 100.0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    # 仅未设置结算类型的客户（归预付费）计入，后付费客户不计入
+    assert data["burning_soon_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_balances_filter_settlement_enabled(test_client, auth_token, db_session):
+    """测试余额列表/统计筛选 — is_settlement_enabled 是否结算"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_on = _unique_customer_id(94000)
+    cid_off = _unique_customer_id(94500)
+
+    for cid, enabled in [(cid_on, True), (cid_off, False)]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type, is_settlement_enabled,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', :enabled,
+                    NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"结算筛选_{cid}", "enabled": enabled},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid},
+        )
+    db_session.commit()
+
+    # 列表只返回开启结算的客户
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?is_settlement_enabled=true",
+        headers=headers,
+    )
+    assert response.status == 200
+    data = response.json
+    customer_ids = [item["customer_id"] for item in data["data"]["list"]]
+    assert cid_on in customer_ids
+    assert cid_off not in customer_ids
+    assert data["data"]["total"] == 1
+
+    # 统计跟随筛选：仅开启结算的客户计入预付费总余额
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats?is_settlement_enabled=true",
+        headers=headers,
+    )
+    assert response.status == 200
+    stats_data = response.json["data"]
+    assert stats_data["prepaid_customers"] == 1
+    assert stats_data["total_balance_prepaid"] == 100.00
+
+    # 非法取值返回 400
+    request, response = await test_client.get(
+        "/api/v1/billing/balances?is_settlement_enabled=yes",
+        headers=headers,
+    )
+    assert response.status == 400
+    assert "is_settlement_enabled" in response.json["message"]
+
+
+@pytest.mark.asyncio
 async def test_get_balances_filter_combined(test_client, auth_token, db_session):
     """测试余额列表筛选 — 组合筛选 is_real_estate + settlement_type"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -549,7 +769,7 @@ async def test_balance_stats_this_month_amount_multiple_recharges(
 
 @pytest.mark.asyncio
 async def test_balance_stats_total_balance(test_client, auth_token, test_customer):
-    """测试 balance-stats 总余额计算"""
+    """测试 balance-stats 预付费总余额计算"""
     headers = {"Authorization": f"Bearer {auth_token}"}
     customer_id = test_customer["id"]
 
@@ -572,8 +792,64 @@ async def test_balance_stats_total_balance(test_client, auth_token, test_custome
     assert response.status == 200
     data = response.json
     assert data["code"] == 0
-    # total_balance 应包含 real + bonus
-    assert data["data"]["total_balance"] == 12000.00
+    # 测试客户为预付费，total_balance_prepaid 应包含 real + bonus
+    assert data["data"]["total_balance_prepaid"] == 12000.00
+    assert data["data"]["prepaid_customers"] == 1
+    # 无后付费客户
+    assert data["data"]["total_balance_postpaid"] == 0.0
+    assert data["data"]["postpaid_customers"] == 0
+    assert data["data"]["postpaid_receivable"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_balance_stats_splits_prepaid_and_postpaid(test_client, auth_token, db_session):
+    """测试 balance-stats 按结算类型拆分：未设置结算类型归入预付费，后付费余额为负即应收款"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    # (结算类型, 余额)：预付费 5000、未设置 7000、后付费欠款 -3000
+    configs: list[tuple[str | None, float]] = [
+        ("prepaid", 5000.0),
+        (None, 7000.0),
+        ("postpaid", -3000.0),
+    ]
+    for st, amount in configs:
+        cid = _unique_customer_id(97000)
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', :type, NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"分组统计_{cid}", "type": st},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, :amount, :amount, 0, 0, 0, 0, NOW(), NOW())
+            """),
+            {"cid": cid, "amount": amount},
+        )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/billing/balance-stats",
+        headers=headers,
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    # 预付费卡片 = 预付费 + 未设置（NULL）
+    assert data["total_balance_prepaid"] == 12000.00
+    assert data["prepaid_customers"] == 2
+    # 后付费卡片 = 欠款负数，应收款为其相反数
+    assert data["total_balance_postpaid"] == -3000.00
+    assert data["postpaid_customers"] == 1
+    assert data["postpaid_receivable"] == 3000.00
+    # 余额不足（<10000）仅统计预付费：5000 与 7000 命中，后付费欠款不计入
+    assert data["low_balance_count"] == 2
 
 
 @pytest.mark.asyncio
