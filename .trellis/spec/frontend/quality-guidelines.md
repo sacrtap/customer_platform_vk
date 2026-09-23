@@ -118,6 +118,32 @@ try {
 
 ---
 
+## Visual Regression Baselines
+
+> [来源: `frontend/tests/e2e/test_visual_regression.spec.ts`]
+
+基线截图只校验**布局与结构**，不校验数据。数据驱动区域必须显式遮罩，否则基线会随造数波动而失败。
+
+**What**: 通用遮罩 `getDynamicMaskSelectors()` 只覆盖 `.arco-table tbody`、`canvas` 等；若页面用原生 `<table>`（如余额管理 `.table-wrap`）、或数值来自接口（KPI 卡片），需在用例内追加遮罩。
+
+**Why**: e2e-full 工作流并行跑全部用例，其它用例通过 API 造数会改变余额页的行数、KPI 数值与分页条数；未遮罩时同一份基线在不同运行间必然不一致。
+
+**Example**（余额管理 A06）：
+
+```typescript
+mask: [
+  ...getDynamicMaskSelectors(page),
+  page.locator('.table-wrap tbody'),
+  page.locator('.pagination'),
+  page.locator('.kpi-value'),
+  page.locator('.kpi-trend'),
+]
+```
+
+**Related**: 遮罩内仍会比对卡片数量、标签文案、筛选器与表头，因此「新增/删除卡片、布局错位」这类回归依旧会被检出。更新基线须在**种子数据环境**（`scripts/seed.py --reset`）下执行 `npx playwright test test_visual_regression.spec.ts -g "A06" --update-snapshots`，不要用本地脏数据环境。
+
+---
+
 ## Dev Commands
 
 ```bash

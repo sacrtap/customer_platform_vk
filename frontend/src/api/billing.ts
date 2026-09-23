@@ -53,15 +53,23 @@ export interface Balance {
 }
 
 export interface BalanceStats {
-  total_balance: number
-  total_customers: number
+  /** 预付费客户（含未设置结算类型）余额合计 */
+  total_balance_prepaid: number
+  /** 预付费客户数（含未设置结算类型） */
+  prepaid_customers: number
+  /** 后付费客户余额合计（负值 = 已消耗未回款） */
+  total_balance_postpaid: number
+  /** 后付费客户数 */
+  postpaid_customers: number
+  /** 应收款（净）= 后付费客户欠款合计 */
+  postpaid_receivable: number
   this_month_count: number
   this_month_amount: number
   this_month_real_amount: number
   this_month_bonus_amount: number
+  /** 余额 < 1 万的预付费客户数 */
   low_balance_count: number
-  zero_balance_count: number
-  /** days_remaining ≤ 7 的客户数 */
+  /** days_remaining ≤ 7 的预付费客户数 */
   burning_soon_count: number
 }
 
@@ -77,7 +85,10 @@ export interface BalanceQueryParams {
   tag_ids?: string
   is_key_customer?: string
   is_real_estate?: string
+  is_settlement_enabled?: string
   settlement_type?: string
+  /** 结算类型分组：prepaid = 非后付费（含未设置），postpaid = 后付费 */
+  settlement_group?: 'prepaid' | 'postpaid'
   balance_min?: number
   balance_max?: number
 }
@@ -101,6 +112,7 @@ export function getBalanceStats(params?: {
   sales_manager_id?: number
   is_key_customer?: boolean
   is_real_estate?: boolean
+  is_settlement_enabled?: boolean
   settlement_type?: string
   tag_ids?: string
 }) {

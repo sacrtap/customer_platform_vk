@@ -4,7 +4,7 @@
     <PageHeader
       eyebrow="Billing"
       title="余额管理"
-      subtitle="客户余额总览、充值操作与充值记录追溯，低余额预警与批量充值支持。"
+      subtitle="预付费与后付费余额总览、充值操作与充值记录追溯，低余额与即将耗尽预警。"
     >
       <template #actions>
         <button class="btn" :disabled="loading" @click="handleDataRefresh">
@@ -32,17 +32,28 @@
     <!-- KPI 卡片 -->
     <div class="grid-5">
       <KpiCard
-        label="总余额"
-        :value="formatBalanceAmount(stats.total_balance)"
-        :trend="`共 ${stats.total_customers} 个客户`"
-        trend-type="up"
-        :active="activeKpi === 'all'"
-        @click="applyKpiFilter('all')"
+        label="总余额（预付费）"
+        :value="formatMoney(stats.total_balance_prepaid)"
+        :hint="`预付费客户（含未设置结算类型）余额合计：${formatExactMoney(stats.total_balance_prepaid)}`"
+        :trend="`${stats.prepaid_customers} 个预付费客户`"
+        trend-type="neutral"
+        :active="activeKpi === 'prepaid'"
+        @click="applyKpiFilter('prepaid')"
+      />
+      <KpiCard
+        label="总余额（后付费）"
+        :value="formatMoney(stats.postpaid_receivable)"
+        :hint="`应收款（净）= 后付费客户欠款合计：${formatExactMoney(stats.postpaid_receivable)}；后付费余额合计 ${formatExactMoney(stats.total_balance_postpaid)}`"
+        :trend="`应收款 · ${stats.postpaid_customers} 个后付费客户`"
+        trend-type="neutral"
+        :active="activeKpi === 'postpaid'"
+        @click="applyKpiFilter('postpaid')"
       />
       <KpiCard
         label="本月充值"
-        :value="`¥${formatNumber(stats.this_month_amount)}`"
-        :trend="`${stats.this_month_count} 笔（实：¥${formatNumber(stats.this_month_real_amount)}，赠：¥${formatNumber(stats.this_month_bonus_amount)}）`"
+        :value="formatMoney(stats.this_month_amount)"
+        :hint="`本月充值合计：${formatExactMoney(stats.this_month_amount)}（实充 ${formatExactMoney(stats.this_month_real_amount)} + 赠送 ${formatExactMoney(stats.this_month_bonus_amount)}）`"
+        :trend="`${stats.this_month_count} 笔（实 ${formatMoney(stats.this_month_real_amount)} + 赠 ${formatMoney(stats.this_month_bonus_amount)}）`"
         trend-type="neutral"
         :active="activeKpi === 'thisMonth'"
         @click="applyKpiFilter('thisMonth')"
@@ -50,26 +61,20 @@
       <KpiCard
         label="即将耗尽"
         :value="stats.burning_soon_count"
-        trend="需立即充值"
-        trend-type="warn"
+        :hint="'按近 30 天日均消耗预计 7 天内耗尽的预付费客户数'"
+        :trend="burningTrend.text"
+        :trend-type="burningTrend.type"
         :active="activeKpi === 'burning'"
         @click="applyKpiFilter('burning')"
       />
       <KpiCard
         label="余额不足"
         :value="stats.low_balance_count"
-        trend="需跟进"
-        trend-type="warn"
+        :hint="'余额低于 ¥10,000 的预付费客户数（含欠费）'"
+        :trend="lowBalanceTrend.text"
+        :trend-type="lowBalanceTrend.type"
         :active="activeKpi === 'low'"
         @click="applyKpiFilter('low')"
-      />
-      <KpiCard
-        label="零余额客户"
-        :value="stats.zero_balance_count"
-        trend="已耗尽"
-        trend-type="down"
-        :active="activeKpi === 'zero'"
-        @click="applyKpiFilter('zero')"
       />
     </div>
 
@@ -83,17 +88,10 @@
         :tag-options="tagOptions"
         :managers="managers"
         :active-kpi-badge="kpiBadgeText"
-        @search="handleSearch"
-        @reset="handleReset"
+        :empty="balances.length === 0 && !loading"
+        @search="handleFilterSearch"
+        @reset="handleFilterReset"
         @clear-kpi="clearKpiFilter"
-      />
-
-      <!-- 批量操作工具栏 -->
-      <BalanceBatchToolbar
-        v-if="hasSelected"
-        :selected-count="selectedIds.length"
-        @batch-action="handleBatchAction"
-        @clear="clearSelection"
       />
 
       <!-- 表格 -->
@@ -101,10 +99,7 @@
         :balances="balances"
         :loading="loading"
         :pagination="pagination"
-        :selected-ids="selectedIds"
         :can="can"
-        @select="handleSelect"
-        @select-all="handleSelectAll"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
         @sort-change="handleSortChange"
@@ -143,7 +138,6 @@ import { formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/PageHeader.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
 import BalanceFilters from './components/BalanceFilters.vue'
-import BalanceBatchToolbar from './components/BalanceBatchToolbar.vue'
 import BalanceTable from './components/BalanceTable.vue'
 import RechargeModal from './components/RechargeModal.vue'
 import RechargeRecordModal from './components/RechargeRecordModal.vue'
@@ -163,8 +157,6 @@ const {
   tagOptions,
   managers,
   stats,
-  selectedIds,
-  hasSelected,
   loadBalances,
   loadStats,
   buildExportParams,
@@ -174,9 +166,6 @@ const {
   handleSortChange,
   handleSearch,
   handleReset,
-  handleSelect,
-  handleSelectAll,
-  clearSelection,
   loadIndustries,
   loadTags,
   loadManagers,
@@ -189,30 +178,50 @@ const currentCustomerId = ref<number>()
 const currentCustomerName = ref<string>()
 const currentRecordCustomerId = ref<number>()
 
-// KPI 联动筛选
-const activeKpi = ref<'all' | 'low' | 'zero' | 'thisMonth' | 'burning'>('all')
+// KPI 联动筛选（'all' = 无 KPI 筛选）
+type KpiKey = 'all' | 'prepaid' | 'postpaid' | 'low' | 'thisMonth' | 'burning'
+
+const activeKpi = ref<KpiKey>('all')
 
 const kpiBadgeText = computed(() => {
   if (activeKpi.value === 'all') return ''
   const labels: Record<string, string> = {
+    prepaid: '总余额（预付费）',
+    postpaid: '总余额（后付费）',
     low: '余额不足',
-    zero: '零余额客户',
     thisMonth: '本月充值',
     burning: '即将耗尽',
   }
   return labels[activeKpi.value] || ''
 })
 
-const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth' | 'burning') => {
+const burningTrend = computed<{ text: string; type: 'warn' | 'neutral' }>(() =>
+  stats.burning_soon_count > 0
+    ? { text: '需立即充值', type: 'warn' }
+    : { text: '暂无预警', type: 'neutral' }
+)
+
+const lowBalanceTrend = computed<{ text: string; type: 'warn' | 'neutral' }>(() =>
+  stats.low_balance_count > 0 ? { text: '需跟进', type: 'warn' } : { text: '暂无', type: 'neutral' }
+)
+
+const applyKpiFilter = (kpi: KpiKey) => {
   activeKpi.value = kpi
   // 先清除所有 KPI 联动的筛选
   filters.balance_range = ''
   filters.recharge_date = []
+  filters.settlement_group = ''
 
-  if (kpi === 'low') {
+  if (kpi === 'prepaid' || kpi === 'postpaid') {
+    // 结算类型分组口径（prepaid 含未设置结算类型的客户），与统计卡片一致
+    filters.settlement_group = kpi
+    filters.settlement_type = ''
+  } else if (kpi === 'low') {
+    // 后端「余额不足」口径仅统计预付费（后付费欠款属于应收款），
+    // 列表需同步限定 settlement_group=prepaid，保证卡片数字与列表条数一致
     filters.balance_range = 'low'
-  } else if (kpi === 'zero') {
-    filters.balance_range = 'zero'
+    filters.settlement_group = 'prepaid'
+    filters.settlement_type = ''
   } else if (kpi === 'thisMonth') {
     // 设置充值日期为本月
     const now = new Date()
@@ -231,23 +240,41 @@ const applyKpiFilter = (kpi: 'all' | 'low' | 'zero' | 'thisMonth' | 'burning') =
   handleSearch()
 }
 
+// 手动调整筛选条件后清除 KPI 徽章，避免徽章与列表口径不一致
+const handleFilterSearch = () => {
+  activeKpi.value = 'all'
+  filters.settlement_group = ''
+  handleSearch()
+}
+
+const handleFilterReset = () => {
+  activeKpi.value = 'all'
+  handleReset()
+}
+
 const clearKpiFilter = () => {
   activeKpi.value = 'all'
   filters.balance_range = ''
   filters.recharge_date = []
+  filters.settlement_group = ''
   // handleSearch 内部已调用 loadStats()，无需重复调用
   handleSearch()
 }
 
-// KPI 卡片格式化
-const formatBalanceAmount = (amount: number): string => {
-  if (amount >= 100000000) return `¥${(amount / 100000000).toFixed(1)}亿`
-  if (amount >= 10000) return `¥${(amount / 10000).toFixed(1)}万`
-  return `¥${amount.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`
+// KPI 卡片金额格式化：≥1 万用「万/亿」缩写，精确金额见卡片 tooltip
+const formatMoney = (amount: number): string => {
+  const sign = amount < 0 ? '-' : ''
+  const abs = Math.abs(amount)
+  if (abs >= 100000000) return `${sign}¥${(abs / 100000000).toFixed(1)}亿`
+  if (abs >= 10000) return `${sign}¥${(abs / 10000).toFixed(1)}万`
+  return `${sign}¥${abs.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
 }
 
-const formatNumber = (num: number): string => {
-  return num.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+const formatExactMoney = (amount: number): string => {
+  return `¥${amount.toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
 }
 
 const openRechargeModal = (record?: Balance) => {
@@ -293,18 +320,6 @@ const handleRecalculate = async (record: Balance) => {
     loadStats()
   } catch (error: unknown) {
     Message.error((error as Error).message || '重算失败')
-  }
-}
-
-const handleBatchAction = (action: string) => {
-  if (action === 'recharge') {
-    if (selectedIds.value.length === 0) {
-      Message.warning('请先选择客户')
-      return
-    }
-    Message.info(`已选择 ${selectedIds.value.length} 个客户，批量充值功能开发中`)
-  } else if (action === 'export') {
-    Message.info('批量导出功能开发中')
   }
 }
 

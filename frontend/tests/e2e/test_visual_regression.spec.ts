@@ -130,7 +130,16 @@ test.describe('视觉回归测试', () => {
     await page.waitForTimeout(500)
     await expect(page).toHaveScreenshot('balance.png', {
       ...SCREENSHOT_OPTIONS,
-      mask: getDynamicMaskSelectors(page),
+      // 余额页全部内容都由数据驱动：KPI 数值、表格行、分页条数会随并行用例造数而变化。
+      // 通用遮罩只覆盖 .arco-table，而本页表格是原生 <table>，故在此显式遮罩动态区域，
+      // 让基线只校验布局与卡片结构（新增/删除卡片、错位等仍会被检出）。
+      mask: [
+        ...getDynamicMaskSelectors(page),
+        page.locator('.table-wrap tbody'),
+        page.locator('.pagination'),
+        page.locator('.kpi-value'),
+        page.locator('.kpi-trend'),
+      ],
     })
   })
 

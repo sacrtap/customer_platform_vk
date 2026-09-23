@@ -1,7 +1,7 @@
 <template>
   <div class="filters-container">
-    <!-- 筛选行: 搜索框 + FilterDropdowns + 筛选按钮 -->
-    <div class="filters">
+    <!-- 第一行：基础筛选 + 按钮组（与客户管理页布局一致） -->
+    <div class="filters-row">
       <CustomerSearchInput v-model="filters.keyword" @search="handleSearch" />
 
       <FilterDropdown
@@ -30,21 +30,59 @@
         @apply="handleSearch"
       />
       <FilterDropdown
-        v-model="keyCustomerValue"
-        label="重点客户"
-        :options="boolOptions"
+        v-model="managerValue"
+        label="运营经理"
+        :options="managerOptions"
         @apply="handleSearch"
       />
       <FilterDropdown
-        v-model="realEstateValue"
-        label="房产客户"
-        :options="boolOptions"
+        v-model="salesValue"
+        label="销售经理"
+        :options="salesOptions"
         @apply="handleSearch"
       />
 
-      <button type="button" class="btn primary" @click="handleSearch">筛选</button>
-      <button type="button" class="btn" @click="handleReset">重置</button>
+      <!-- 按钮组固定在首行右侧 -->
+      <div class="filters-actions">
+        <button type="button" class="btn-more" @click="toggleMore">
+          {{ showMore ? '收起' : '更多' }}
+          <span class="more-arrow" :class="{ rotated: showMore }">▾</span>
+        </button>
+        <button v-if="empty" type="button" class="btn" @click="handleReset">清除筛选条件</button>
+        <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+      </div>
     </div>
+
+    <!-- 第二行：更多筛选（折行显示，左对齐） -->
+    <transition name="expand">
+      <div v-if="showMore" class="filters-row more-row">
+        <FilterDropdown
+          v-model="settlementEnabledValue"
+          label="是否结算"
+          :options="boolOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="keyCustomerValue"
+          label="是否重点客户"
+          :options="boolOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="realEstateValue"
+          label="是否房产客户"
+          :options="boolOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="tagValue"
+          label="标签"
+          :options="tagOptions"
+          multiple
+          @apply="handleSearch"
+        />
+      </div>
+    </transition>
 
     <!-- KPI 筛选徽章 -->
     <div v-if="activeKpiBadge" class="kpi-badge-row">
@@ -57,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import type { IndustryType } from '@/types'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
@@ -70,7 +108,10 @@ interface Filters {
   account_type: string
   is_key_customer: boolean | null
   is_real_estate: boolean | null
+  is_settlement_enabled: boolean | null
   settlement_type: string
+  /** KPI 卡片联动：prepaid = 非后付费（含未设置），postpaid = 后付费 */
+  settlement_group: '' | 'prepaid' | 'postpaid'
   balance_range: string
 }
 
@@ -81,13 +122,15 @@ interface AdvancedFilters {
 }
 
 const filters = defineModel<Filters>('filters', { required: true })
-defineModel<AdvancedFilters>('advancedFilters', { required: true })
+const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', { required: true })
 
 const props = defineProps<{
   industryTypes: IndustryType[]
   tagOptions: Array<Record<string, unknown>>
   managers: Array<Record<string, unknown>>
   activeKpiBadge?: string
+  /** 列表为空时显示「清除筛选条件」（当前筛选无结果） */
+  empty?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -95,6 +138,12 @@ const emit = defineEmits<{
   reset: []
   'clear-kpi': []
 }>()
+
+// 更多筛选展开状态
+const showMore = ref(false)
+const toggleMore = () => {
+  showMore.value = !showMore.value
+}
 
 // 筛选选项
 const accountTypeOptions = [
@@ -122,6 +171,18 @@ const industryOptions = computed(() =>
   props.industryTypes.map((it) => ({ label: it.name, value: it.name }))
 )
 
+const managerOptions = computed(() =>
+  props.managers.map((m) => ({ label: String(m.real_name ?? m.id), value: String(m.id) }))
+)
+
+const salesOptions = computed(() =>
+  props.managers.map((m) => ({ label: String(m.real_name ?? m.id), value: String(m.id) }))
+)
+
+const tagOptions = computed(() =>
+  props.tagOptions.map((t) => ({ label: String(t.name ?? ''), value: String(t.id) }))
+)
+
 // 行业多选转换
 const industryValue = computed({
   get: () => {
@@ -131,35 +192,57 @@ const industryValue = computed({
     return (v as string).split(',')
   },
   set: (val: string[]) => {
-    filters.value.industry = val as unknown as string[]
+    filters.value.industry = val
+  },
+})
+
+// 运营经理 (number | null -> string)
+const managerValue = computed({
+  get: () => (advancedFilters.value.manager_id ? String(advancedFilters.value.manager_id) : ''),
+  set: (val: string) => {
+    advancedFilters.value.manager_id = val ? Number(val) : null
+  },
+})
+
+// 销售经理 (number | null -> string)
+const salesValue = computed({
+  get: () =>
+    advancedFilters.value.sales_manager_id ? String(advancedFilters.value.sales_manager_id) : '',
+  set: (val: string) => {
+    advancedFilters.value.sales_manager_id = val ? Number(val) : null
+  },
+})
+
+// 标签多选 (number[] -> string[])
+const tagValue = computed({
+  get: () => advancedFilters.value.tag_ids.map(String),
+  set: (val: string[]) => {
+    advancedFilters.value.tag_ids = val.map(Number)
+  },
+})
+
+// 是否结算 (boolean | null -> string)
+const settlementEnabledValue = computed({
+  get: () =>
+    filters.value.is_settlement_enabled === null ? '' : String(filters.value.is_settlement_enabled),
+  set: (val: string) => {
+    filters.value.is_settlement_enabled = val === '' ? null : val === 'true'
   },
 })
 
 // 重点客户 (boolean | null -> string)
 const keyCustomerValue = computed({
-  get: () => {
-    if (filters.value.is_key_customer === true) return 'true'
-    if (filters.value.is_key_customer === false) return 'false'
-    return ''
-  },
+  get: () => (filters.value.is_key_customer === null ? '' : String(filters.value.is_key_customer)),
   set: (val: string) => {
-    if (val === 'true') filters.value.is_key_customer = true
-    else if (val === 'false') filters.value.is_key_customer = false
-    else filters.value.is_key_customer = null
+    filters.value.is_key_customer = val === '' ? null : val === 'true'
   },
 })
 
 // 房产客户 (boolean | null -> string)
 const realEstateValue = computed({
-  get: () => {
-    if (filters.value.is_real_estate === true) return 'true'
-    if (filters.value.is_real_estate === false) return 'false'
-    return ''
-  },
+  get: () => (filters.value.is_real_estate === null ? '' : String(filters.value.is_real_estate)),
   set: (val: string) => {
-    if (val === 'true') filters.value.is_real_estate = true
-    else if (val === 'false') filters.value.is_real_estate = false
-    else filters.value.is_real_estate = null
+    filters.value.is_real_estate = val === '' ? null : val === 'true'
   },
 })
 
@@ -172,11 +255,26 @@ const handleReset = () => emit('reset')
   margin-bottom: 12px;
 }
 
-.filters {
+.filters-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.more-row {
+  padding-top: 8px;
+  border-top: 1px dashed var(--soft, #e2e8f0);
+  margin-top: 8px;
+}
+
+/* 按钮组固定在首行右侧（与客户管理页一致） */
+.filters-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -191,6 +289,7 @@ const handleReset = () => emit('reset')
     background 0.2s,
     border-color 0.2s,
     color 0.2s;
+  white-space: nowrap;
 }
 .btn:hover {
   border-color: #93c5fd;
@@ -203,6 +302,56 @@ const handleReset = () => emit('reset')
 }
 .btn.primary:hover {
   background: #1e40af;
+}
+
+.btn-more {
+  padding: 9px 12px;
+  border: 1px solid var(--soft, #e2e8f0);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink, #1e293b);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+  white-space: nowrap;
+}
+.btn-more:hover {
+  background: var(--bg, #f8fafc);
+  border-color: var(--primary, #3b82f6);
+  color: var(--primary, #3b82f6);
+}
+
+.more-arrow {
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+.more-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* 展开/收起动画 */
+.expand-enter-active,
+.expand-leave-active {
+  transition: all 0.25s ease;
+  overflow: hidden;
+}
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top-color: transparent;
+}
+.expand-enter-to,
+.expand-leave-from {
+  opacity: 1;
+  max-height: 60px;
 }
 
 /* KPI 筛选徽章 */
@@ -235,9 +384,13 @@ const handleReset = () => emit('reset')
 }
 
 @media (max-width: 1100px) {
-  .filters {
+  .filters-row {
     flex-direction: column;
     align-items: stretch;
+  }
+  .filters-actions {
+    margin-left: 0;
+    justify-content: flex-end;
   }
 }
 </style>

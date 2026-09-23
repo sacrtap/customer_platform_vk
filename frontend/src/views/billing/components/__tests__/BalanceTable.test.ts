@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import BalanceTable from '@/views/billing/components/BalanceTable.vue'
 import type { Balance } from '@/api/billing'
 
@@ -56,6 +56,40 @@ const mockBalances: Balance[] = [
     consumption_days: 0,
     days_remaining: null,
   },
+  {
+    id: 4,
+    customer_id: 104,
+    company_id: 1004,
+    customer_name: '客户D',
+    industry_type: '房产经纪',
+    total_amount: -1500,
+    real_amount: -1500,
+    bonus_amount: 0,
+    used_total: 1500,
+    used_real: 1500,
+    used_bonus: 0,
+    last_recharge_at: undefined,
+    daily_avg_cost: null,
+    consumption_days: 0,
+    days_remaining: null,
+  },
+  {
+    id: 5,
+    customer_id: 105,
+    company_id: undefined,
+    customer_name: '客户E',
+    industry_type: '房产经纪',
+    total_amount: 0,
+    real_amount: 0,
+    bonus_amount: 0,
+    used_total: 0,
+    used_real: 0,
+    used_bonus: 0,
+    last_recharge_at: undefined,
+    daily_avg_cost: null,
+    consumption_days: 0,
+    days_remaining: null,
+  },
 ]
 
 const defaultProps = {
@@ -66,7 +100,6 @@ const defaultProps = {
     pageSize: 20,
     total: 3,
   },
-  selectedIds: [] as number[],
   can: (_p: string) => true,
 }
 
@@ -197,5 +230,48 @@ describe('BalanceTable - 排序', () => {
       expect(lastEvent[0]).toBe(col.key)
       expect(lastEvent[1]).toBe('asc')
     }
+  })
+})
+
+describe('BalanceTable - 余额展示', () => {
+  const rowOf = (wrapper: VueWrapper, index: number) => wrapper.findAll('tbody tr')[index]
+
+  it('客户ID 列只展示 company_id，与客户管理页取值一致（不回退 customer_id）', () => {
+    const wrapper = mount(BalanceTable, { props: defaultProps })
+
+    // company_id 有值的行显示 company_id
+    expect(rowOf(wrapper, 0).find('.cust-id').text()).toBe('1001')
+    // company_id 为空的行显示空（而非回退显示 customer_id 105）
+    expect(rowOf(wrapper, 4).find('.cust-id').text()).toBe('')
+  })
+
+  it('负余额标记为欠费，零余额保持中性', () => {
+    const wrapper = mount(BalanceTable, { props: defaultProps })
+
+    // 第 4 行余额 -1500（欠费）
+    const debtRow = rowOf(wrapper, 3)
+    expect(debtRow.find('.balance-amount b').classes()).toContain('danger')
+    expect(debtRow.find('.tag.red').text()).toBe('欠费')
+
+    // 第 3 行余额为 0，不标红也不加欠费标签
+    const zeroRow = rowOf(wrapper, 2)
+    expect(zeroRow.find('.balance-amount b').classes()).not.toContain('danger')
+    expect(zeroRow.find('.tag.red').exists()).toBe(false)
+  })
+
+  it('未充值的客户显示「从未充值」', () => {
+    const wrapper = mount(BalanceTable, { props: defaultProps })
+
+    expect(rowOf(wrapper, 2).find('.never-recharge').text()).toBe('从未充值')
+    expect(rowOf(wrapper, 0).find('.never-recharge').exists()).toBe(false)
+  })
+
+  it('操作列按钮为充值/记录/重算', () => {
+    const wrapper = mount(BalanceTable, { props: defaultProps })
+    const labels = rowOf(wrapper, 0)
+      .findAll('.td-actions button')
+      .map((b) => b.text())
+
+    expect(labels).toEqual(['充值', '记录', '重算'])
   })
 })
