@@ -19,6 +19,8 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import text
 
+from app.utils.timezone import local_date_to_utc_start
+
 
 def _unique_customer_id(base: int = 90000) -> int:
     """生成唯一的测试客户 ID，避免并行测试冲突"""
@@ -1874,6 +1876,87 @@ async def test_update_pricing_rule_rejects_non_zero_first_tier_min(
     assert stored is not None
     assert stored[0]["min"] == 0
     assert stored[0]["max"] == 100
+
+
+@pytest.mark.asyncio
+async def test_pricing_rule_list_dates_round_trip_to_edit(
+    test_client, auth_token, db_session, pricing_rule_customer
+):
+    """计费规则编辑回填契约：列表输出的日期必须能原样回灌编辑接口
+
+    DB 里 effective_date 存的是 UTC 时刻（CST 当日 00:00 -> UTC 前一日 16:00）。
+    列表若用 isoformat() 输出，前端编辑弹窗会把 "2026-03-31T16:00:00+00:00" 回填进
+    日期选择器并原样提交，而 check-conflict / PUT 用 date.fromisoformat() 解析（只接受
+    "YYYY-MM-DD"），于是改任何字段（如单价）都报「参数格式错误」。列表必须按 CST
+    日期串输出，保证「列表 → 编辑提交」往返闭合。
+    """
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    _request, created = await test_client.post(
+        "/api/v1/billing/pricing-rules",
+        json={
+            "customer_id": pricing_rule_customer,
+            "device_type": "X",
+            "layer_type": "single",
+            "pricing_type": "fixed",
+            "unit_price": 10.0,
+            "effective_date": "2026-04-01",
+            "expiry_date": "2026-12-31",
+        },
+        headers=headers,
+    )
+    assert created.status == 201, created.json
+    rule_id = created.json["data"]["id"]
+
+    _request, listed = await test_client.get(
+        "/api/v1/billing/pricing-rules",
+        params={"customer_id": pricing_rule_customer},
+        headers=headers,
+    )
+    assert listed.status == 200
+    rule = next(r for r in listed.json["data"]["list"] if r["id"] == rule_id)
+    assert rule["effective_date"] == "2026-04-01"
+    assert rule["expiry_date"] == "2026-12-31"
+
+    # 前端编辑流程：先冲突检查，再提交（单价 10 -> 12.5），日期一律原样回填
+    _request, conflict = await test_client.get(
+        "/api/v1/billing/pricing-rules/check-conflict",
+        params={
+            "customer_id": pricing_rule_customer,
+            "pricing_type": rule["pricing_type"],
+            "device_type": rule["device_type"],
+            "layer_type": rule["layer_type"],
+            "effective_date": rule["effective_date"],
+            "expiry_date": rule["expiry_date"],
+            "exclude_id": rule_id,
+        },
+        headers=headers,
+    )
+    assert conflict.status == 200, conflict.json
+    assert conflict.json["data"]["has_conflict"] is False
+
+    _request, updated = await test_client.put(
+        f"/api/v1/billing/pricing-rules/{rule_id}",
+        json={
+            "customer_id": pricing_rule_customer,
+            "device_type": rule["device_type"],
+            "layer_type": rule["layer_type"],
+            "pricing_type": rule["pricing_type"],
+            "unit_price": 12.5,
+            "effective_date": rule["effective_date"],
+            "expiry_date": rule["expiry_date"],
+        },
+        headers=headers,
+    )
+    assert updated.status == 200, updated.json
+
+    # 有效期往返闭合：仍是 CST 2026-04-01（UTC 2026-03-31T16:00）
+    stored = db_session.execute(
+        text("SELECT unit_price, effective_date FROM pricing_rules WHERE id = :id"),
+        {"id": rule_id},
+    ).fetchone()
+    assert float(stored[0]) == 12.5
+    assert stored[1] == local_date_to_utc_start("2026-04-01")
 
 
 @pytest.mark.asyncio
