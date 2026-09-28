@@ -84,10 +84,13 @@ async def get_pricing_rules(request: Request):
                         "tiers": r.tiers,
                         "package_type": r.package_type,
                         "package_limits": r.package_limits,
-                        "effective_date": (
-                            r.effective_date.isoformat() if r.effective_date else None  # pyright: ignore[reportGeneralTypeIssues]
-                        ),
-                        "expiry_date": r.expiry_date.isoformat() if r.expiry_date else None,  # pyright: ignore[reportGeneralTypeIssues]
+                        # 必须按 CST 日期输出：DB 存的是 UTC 时刻（CST 当日 00:00 -> UTC 前一日 16:00），
+                        # isoformat() 会返回 "2026-03-31T16:00:00+00:00"。前端编辑弹窗以该值回填
+                        # a-date-picker 并原样提交，而 check-conflict / PUT 用 date.fromisoformat()
+                        # 解析（只接受 "YYYY-MM-DD"），回填值会被判为「参数格式错误」，
+                        # 编辑任何字段都无法保存（与 _build_pricing_rules_excel 同一约定）。
+                        "effective_date": utc_to_cst_date_str(r.effective_date),
+                        "expiry_date": utc_to_cst_date_str(r.expiry_date),
                     }
                     for r in rules
                 ],

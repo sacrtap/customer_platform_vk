@@ -666,3 +666,42 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: 计费规则编辑「参数格式错误」修复（UTC 存储 ↔ CST 日期串契约）
+<!-- trellis-session: v=2 fp=13a0e1f27c04b0aa -->
+
+**Date**: 2026-09-28
+**Task**: 计费规则页面点击条目进入编辑页，修改「单价」后确定，提示「参数格式错误」
+**Branch**: `main`
+
+### Summary
+
+根因是**跨层日期契约断裂**：`GET /billing/pricing-rules` 列表端点用
+`effective_date.isoformat()` 输出 UTC ISO 时刻（如 `"2026-03-31T16:00:00+00:00"`），
+编辑弹窗把该值回填进 `a-date-picker` 并原样提交；`check-conflict` / PUT 用
+`date.fromisoformat()` 解析（只接受 `"YYYY-MM-DD"`）→ 冲突检查报 400
+「参数格式错误」，绕过冲突检查直接 PUT 则 500。创建正常（日期由用户新选，格式天然正确）。
+
+修复：列表端点改用 `utc_to_cst_date_str` 输出 CST 日期串（与导出路径
+`_build_pricing_rules_excel` 早已采用的约定一致），新增回归测试
+`test_pricing_rule_list_dates_round_trip_to_edit` 覆盖「创建 → 列表回填 →
+冲突检查 → PUT → DB 往返闭合」全链路；教训沉淀到
+`.trellis/spec/guides/cross-layer-thinking-guide.md`（Time Field Cross-Layer Contract 小节）。
+
+### Verification
+
+- 修复前 API 层复现：列表返回 ISO 时刻 → check-conflict 400 `参数格式错误`、PUT 500（临时复现测试，已删）
+- 修复后：pricing 相关集成测试 19 passed（含新增回归测试）；ruff lint + format 通过
+- 浏览器实测（dev server + 真实 DB）：编辑弹窗日期选择器正确显示 `2026-01-01`，
+  修改单价 11.50 → PUT body 含 `unit_price: 11.5`、`effective_date: "2026-01-01"` → 落库 11.50 → 已回滚测试数据；全程无「参数格式错误」
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| （待提交） | fix(billing): 计费规则列表日期按 CST 输出，修复编辑回填「参数格式错误」 |
+
+### Status
+
+[OK] **Completed**

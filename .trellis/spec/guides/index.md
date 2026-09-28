@@ -39,6 +39,7 @@ These guides help you **ask the right questions before coding**.
 - [ ] UI / command code starts casting raw payload fields directly
 - [ ] **You are renaming a user-facing term (「折扣」→「减免」) — grep BOTH frontend and backend templates/exports**
 - [ ] **You are parsing a structure that another layer also parses — check both parsers' tolerance**
+- [ ] **You are returning a datetime field that a form will prefill & resubmit — read-out must round-trip into the write-in (UTC 存储 → CST 日期串，见「Time Field Cross-Layer Contract」)**
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
 

@@ -503,3 +503,50 @@ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" http://localhost:8000/u
 > **教训**：后端返回相对路径 ≠ 前端能用。路径的解析终点由**消费端入口**决定
 > （vite proxy / nginx location / 其他网关），改资源 URL 契约时必须逐入口核对
 > 转发规则，且验证断言 Content-Type 而非仅 HTTP 200。
+
+---
+
+## Time Field Cross-Layer Contract（UTC 存储 ↔ CST 日期串）
+
+计费/日期型表单字段的跨层契约：**DB 存 UTC 时刻**（`DateTime(timezone=True)`，
+CST 当日 00:00 写入后是 UTC 前一日 16:00），**API 读出口给表单回填必须是 CST
+日期串 `"YYYY-MM-DD"`**，**写入口只接受纯日期串**（`local_date_to_utc_start` /
+`local_date_to_utc_end` 内部用 `date.fromisoformat`，遇 ISO 时刻即抛错）。
+
+同一字段的读出口与写入口格式不一致时，编辑弹窗会把列表返回值原样回填进
+日期选择器并原样提交——**改任何其他字段保存都会失败**（先冲突检查、再写库，
+两处都解析日期）。
+
+### Checklist: 新增/修改「日期型表单字段」时
+
+- [ ] 读出口（列表/详情序列化）必须 `utc_to_cst_date_str(...)`，禁止 `isoformat()`
+      —— `"2026-03-31T16:00:00+00:00"` 会让前端日期选择器拿到无效值
+- [ ] 写入口（create/update/check-conflict）解析格式必须与读出口**闭合**：
+      把 GET 返回值原样回传 PUT 必须成功，且往返后 DB 值不变（CST 日期不偏移）
+- [ ] 若字段会被「列表 → 编辑弹窗回填 → 提交」，把回填值纳入保存链路一并验证；
+      日期格式错误会伪装成「参数格式错误」/ 500，与业务校验无关
+- [ ] 同一文件内多个读出口（列表、冲突响应、Excel 导出）格式保持一致
+      （`_build_pricing_rules_excel` 已按 CST 输出，见其注释）
+- [ ] 验证手法：集成测试走「创建 → GET 列表 → 原样回填 → check-conflict → PUT」，
+      断言列表返回 `"YYYY-MM-DD"`、PUT 200、DB 中仍是原 CST 时刻
+
+### Real-world example (2026-09-28)
+
+计费规则编辑：点击任意条目 → 修改「单价」→ 确定 → 提示**「参数格式错误」**。
+
+**现象**：任何字段的编辑都无法保存；创建正常（创建时日期由用户从选择器新选，
+格式天然正确）。
+
+**根因**：`GET /billing/pricing-rules` 列表用 `effective_date.isoformat()` 输出
+UTC ISO 时刻（如 `"2026-03-31T16:00:00+00:00"`）；编辑弹窗 `a-date-picker`
+回填该值并原样提交 → `check-conflict` 的 `date.fromisoformat()` 拒绝 → 400
+「参数格式错误」；绕过冲突检查直接 PUT 同样 500（`local_date_to_utc_start`
+在 try 外抛 ValueError）。导出路径 `_build_pricing_rules_excel` 早已用
+`utc_to_cst_date_str` 并注释了同一原因，列表端点漏了。
+
+**修复**：列表端点改用 `utc_to_cst_date_str`（与导出同一约定），回归测试
+`test_pricing_rule_list_dates_round_trip_to_edit` 覆盖「列表回填 → 提交」全链路。
+
+> **教训**：跨层日期契约要在**读出口**守：写入口只认 `"YYYY-MM-DD"`，那么凡是要
+> 回填表单的读出口就必须吐 `"YYYY-MM-DD"`。别用「浏览器时区恰好转对」来掩盖
+> —— 同一 ISO 串在不同时区/不同选择器下表现不一致，且回灌写入口必炸。
