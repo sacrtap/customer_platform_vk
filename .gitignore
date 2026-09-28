@@ -181,3 +181,6 @@ docs/better-harness/
 
 # better-harness 与 omp 运行时产物（不纳入版本控制）
 .pi/
+
+# AI 代码审查报告（本地积累，不入库）
+docs/code-review/

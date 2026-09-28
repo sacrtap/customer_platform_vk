@@ -669,7 +669,6 @@ REDIS_URL=redis://localhost:6379/0
 | **Podman 部署**     | `deploy/PODMAN_MACOS.md`                                        |
 | **数据库迁移**      | `docs/guides/database-migration-guide.md`                       |
 | **CodeGraph**      | 代码知识图谱 (`.codegraph/codegraph.db`)                        |
-| **代码审查报告**    | `docs/code-review/` (审查报告目录)                              |
 | **技术债务**        | `docs/technical_debt/`                                          |
 
 ---
