@@ -705,3 +705,26 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 30: 修复客户导入大量报错 + 导入导出字段对称扩散排查
+<!-- trellis-session: v=2 fp=d3b4156f8e72a5cd -->
+
+**Date**: 2026-09-29
+**Task**: 修复客户导入大量报错 + 导入导出字段对称扩散排查
+**Branch**: `fix/customer-import-bug`
+
+### Summary
+
+客户管理页导入客户功能修复：根因=行业表被污染（项目_编辑_编辑_编辑_编辑）导致 1242 行行业名失配 + 导入模板缺 auto_initiate_settlement 列（22 vs 23）+ 服务层静默丢 scale_level/auto_initiate_settlement + settlement_type 中文不转英文 + convert_settlement_type_to_storage 方向写反 + 前端 @saved/@imported 事件名不匹配。修复后 dry-run 1363 行→1238 成功（121 去重+4 bding 报错，0 行业错误）。扩散排查四端点：余额/结算单为操作型导入（模板==解析），pricing/package 为实体型（导出⊇模板可回灌），补 package 回灌契约测试；convert_*_to_storage 三态契约（中文→英文/英文透传/未知→None）修复 price_policy/settlement_cycle 透传缺陷 + 52 个方向性单测；行业主数据补引用保护（被客户引用禁止删除）与改名/删除审计留痕。验证 225 测试全绿。spec 沉淀：import-export.md 四端点对称核验表 + cross-layer 操作型/实体型回灌判定。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9e64732` | fix(customers): 修复导入客户大量报错与导入字段缺失 |
+| `20e2e7d` | fix(billing): 扩散排查导入端点字段对称与枚举转换方向 |
+
+### Status
+
+[OK] **Completed**
