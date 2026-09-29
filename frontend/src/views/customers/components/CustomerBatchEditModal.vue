@@ -130,7 +130,22 @@
           </a-switch>
         </div>
 
-        <!-- 9. 停用 -->
+        <!-- 9. 自动发起结算 -->
+        <div class="batch-field-item">
+          <a-checkbox v-model="batchFieldsSelected.auto_initiate_settlement"
+            >自动发起结算</a-checkbox
+          >
+          <a-switch
+            v-model="batchForm.auto_initiate_settlement"
+            :disabled="!batchFieldsSelected.auto_initiate_settlement"
+            type="round"
+          >
+            <template #checked>自动</template>
+            <template #unchecked>手动</template>
+          </a-switch>
+        </div>
+
+        <!-- 10. 停用 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.is_disabled">停用</a-checkbox>
           <a-switch
@@ -143,7 +158,7 @@
           </a-switch>
         </div>
 
-        <!-- 10. 账号类型 -->
+        <!-- 11. 账号类型 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.account_type">账号类型</a-checkbox>
           <a-select
@@ -158,7 +173,7 @@
           </a-select>
         </div>
 
-        <!-- 11. 计费策略 -->
+        <!-- 12. 计费策略 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.price_policy">计费策略</a-checkbox>
           <a-select
@@ -173,7 +188,7 @@
           </a-select>
         </div>
 
-        <!-- 12. 规模等级 -->
+        <!-- 13. 规模等级 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.scale_level">规模等级</a-checkbox>
           <a-select
@@ -188,7 +203,7 @@
           </a-select>
         </div>
 
-        <!-- 13. 消费等级 -->
+        <!-- 14. 消费等级 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.consume_level">消费等级</a-checkbox>
           <a-select
@@ -203,7 +218,7 @@
           </a-select>
         </div>
 
-        <!-- 14. 行业类型 -->
+        <!-- 15. 行业类型 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.industry_type_id">行业类型</a-checkbox>
           <a-select
@@ -218,7 +233,7 @@
           </a-select>
         </div>
 
-        <!-- 15. ERP 系统 -->
+        <!-- 16. ERP 系统 -->
         <div class="batch-field-item">
           <a-checkbox v-model="batchFieldsSelected.erp_system">ERP 系统</a-checkbox>
           <a-select
@@ -347,6 +362,7 @@ const batchForm = reactive({
   settlement_type: '',
   settlement_cycle: '',
   is_settlement_enabled: false,
+  auto_initiate_settlement: false,
   is_disabled: false,
   account_type: '',
   price_policy: '',
@@ -365,6 +381,7 @@ const batchFieldsSelected = reactive({
   settlement_type: false,
   settlement_cycle: false,
   is_settlement_enabled: false,
+  auto_initiate_settlement: false,
   is_disabled: false,
   account_type: false,
   price_policy: false,
@@ -383,6 +400,7 @@ const fieldNames: Record<string, string> = {
   settlement_type: '结算方式',
   settlement_cycle: '结算周期',
   is_settlement_enabled: '是否启用结算',
+  auto_initiate_settlement: '自动发起结算',
   is_disabled: '停用',
   account_type: '账号类型',
   price_policy: '计费策略',
@@ -503,6 +521,7 @@ const resetForm = () => {
   batchForm.settlement_type = ''
   batchForm.settlement_cycle = ''
   batchForm.is_settlement_enabled = false
+  batchForm.auto_initiate_settlement = false
   batchForm.is_disabled = false
   batchForm.account_type = ''
   batchForm.price_policy = ''

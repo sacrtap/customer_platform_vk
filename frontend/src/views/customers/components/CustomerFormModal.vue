@@ -107,6 +107,14 @@
             <a-switch v-model="customerForm.is_key_customer" />
           </a-form-item>
         </a-col>
+        <a-col :span="12">
+          <a-form-item field="auto_initiate_settlement" label="自动发起结算">
+            <a-select v-model="customerForm.auto_initiate_settlement" placeholder="请选择">
+              <a-option :value="true">是</a-option>
+              <a-option :value="false">否</a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
       </a-row>
 
       <a-form-item field="manager_id" label="运营经理">
@@ -156,6 +164,7 @@ interface CustomerForm {
   settlement_cycle: string | null | undefined
   is_key_customer: boolean
   is_real_estate: boolean | null
+  auto_initiate_settlement: boolean
   manager_id: number | null
   sales_manager_id: number | null
 }
@@ -192,6 +201,7 @@ const customerForm = reactive<CustomerForm>({
   settlement_cycle: undefined,
   is_key_customer: false,
   is_real_estate: null,
+  auto_initiate_settlement: true,
   manager_id: null,
   sales_manager_id: null,
 })
@@ -219,6 +229,7 @@ const initFormForCreate = () => {
   customerForm.settlement_cycle = undefined
   customerForm.is_key_customer = false
   customerForm.is_real_estate = null
+  customerForm.auto_initiate_settlement = true
   customerForm.manager_id = null
   customerForm.sales_manager_id = null
 }
@@ -233,6 +244,7 @@ const initFormForEdit = (record: Customer) => {
   customerForm.settlement_cycle = record.settlement_cycle
   customerForm.is_key_customer = record.is_key_customer
   customerForm.is_real_estate = record.is_real_estate ?? null
+  customerForm.auto_initiate_settlement = record.auto_initiate_settlement ?? true
   customerForm.manager_id = record.manager_id || null
   customerForm.sales_manager_id = record.sales_manager_id || null
 }
@@ -273,6 +285,7 @@ const handleCustomerSubmit = async () => {
       settlement_cycle: customerForm.settlement_cycle || undefined,
       is_key_customer: customerForm.is_key_customer,
       is_real_estate: customerForm.is_real_estate ?? undefined,
+      auto_initiate_settlement: customerForm.auto_initiate_settlement,
       manager_id: customerForm.manager_id || undefined,
       sales_manager_id: customerForm.sales_manager_id || undefined,
     }

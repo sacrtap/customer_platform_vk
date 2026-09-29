@@ -312,6 +312,18 @@ class CustomerService:
             else:
                 conditions.append(Customer.is_settlement_enabled.is_(False))
 
+        # 自动发起结算筛选：默认值为「是」，历史 NULL 视为是，筛「是」兼容 NULL
+        if (auto_initiate := filters.get("auto_initiate_settlement")) is not None:
+            if auto_initiate:
+                conditions.append(
+                    or_(
+                        Customer.auto_initiate_settlement.is_(True),
+                        Customer.auto_initiate_settlement.is_(None),
+                    )
+                )
+            else:
+                conditions.append(Customer.auto_initiate_settlement.is_(False))
+
         # 是否停用筛选：is_disabled 字段存在历史 NULL 值，False 需兼容 NULL（视为未停用）
         if (is_disabled := filters.get("is_disabled")) is not None:
             if is_disabled:
@@ -623,6 +635,7 @@ class CustomerService:
             onboarding_date=data.get("onboarding_date"),
             cooperation_status=data.get("cooperation_status", "active"),
             is_settlement_enabled=data.get("is_settlement_enabled", True),
+            auto_initiate_settlement=data.get("auto_initiate_settlement", True),
             is_disabled=data.get("is_disabled", False),
             notes=data.get("notes"),
         )
@@ -694,6 +707,7 @@ class CustomerService:
             "sales_manager_id",
             "cooperation_status",
             "is_settlement_enabled",
+            "auto_initiate_settlement",
             "is_disabled",
             "notes",
         ]
@@ -779,6 +793,7 @@ class CustomerService:
             "sales_manager_id",
             "cooperation_status",
             "is_settlement_enabled",
+            "auto_initiate_settlement",
             "is_disabled",
             "notes",
             "industry_type_id",

@@ -62,6 +62,12 @@
           @apply="handleSearch"
         />
         <FilterDropdown
+          v-model="autoInitiateValue"
+          label="自动发起结算"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
           v-model="keyCustomerValue"
           label="是否重点客户"
           :options="BOOLEAN_FILTER_OPTIONS"
@@ -132,6 +138,7 @@ interface Filters {
   is_key_customer: boolean | null
   is_real_estate: boolean | null
   is_settlement_enabled: boolean | null
+  auto_initiate_settlement: boolean | null
   is_disabled: boolean | null
   settlement_type: string
   incomplete_profile: boolean
@@ -266,6 +273,16 @@ const settlementEnabledValue = computed({
     filters.value.is_settlement_enabled === null ? '' : String(filters.value.is_settlement_enabled),
   set: (val: string) => {
     filters.value.is_settlement_enabled = val === '' ? null : val === 'true'
+  },
+})
+
+const autoInitiateValue = computed({
+  get: () =>
+    filters.value.auto_initiate_settlement === null
+      ? ''
+      : String(filters.value.auto_initiate_settlement),
+  set: (val: string) => {
+    filters.value.auto_initiate_settlement = val === '' ? null : val === 'true'
   },
 })
 
