@@ -256,10 +256,58 @@ jobs:
           cd backend
           python scripts/seed.py --reset
 
+      # ------------------------------------------------------------------
+      # affected 补充测试（依赖图推导本次变更相关的 integration 测试）
+      # 原则：基础设施故障（CLI 安装/索引/计算失败）降级只跑 smoke，不阻断；
+      #       affected 测试执行失败与 smoke 同等阻断（真实回归信号）。
+      # 命令链细节（实测）：
+      #   - `codegraph affected` 会原样透传非代码文件（如 .md），必须前缀过滤；
+      #   - `--filter` 是覆盖式而非追加，容易漏 .test.ts/.spec.ts 之一，故不用；
+      #   - conftest.py 会被依赖图命中，pytest 直接传参无意义，需排除。
+      # ------------------------------------------------------------------
+      - name: Set up Node.js (for codegraph CLI)
+        if: steps.changes.outputs.backend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install codegraph CLI
+        if: steps.changes.outputs.backend == 'true'
+        continue-on-error: true
+        run: |
+          npm install -g @colbymchenry/codegraph
+          codegraph --version
+
+      - name: Build codegraph index
+        if: steps.changes.outputs.backend == 'true'
+        continue-on-error: true
+        run: |
+          codegraph init
+          codegraph status | head -10
+
+      - name: Compute affected integration tests
+        id: affected
+        if: steps.changes.outputs.backend == 'true'
+        shell: bash
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha || github.event.before }}"
+          git diff --name-only "${BASE_SHA}...HEAD" | \
+            codegraph affected --stdin --quiet 2>/dev/null | \
+            grep '^backend/tests/integration/' | \
+            grep -v '/conftest\.py$' > affected_tests.txt || true
+          if [ -s affected_tests.txt ]; then
+            echo "✅ affected 补充 $(wc -l < affected_tests.txt) 个文件:"
+            cat affected_tests.txt
+            echo "has_affected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ℹ️ 无 affected 命中，仅跑 smoke 子集"
+            echo "has_affected=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # PR 门禁只跑 smoke 子集（核心业务链），控制在 5 分钟内；
       # 全量 integration + 覆盖率 50%（单元+集成合并口径）由 nightly/manual 的
       # backend-integration-full job 执行，不在此重复。
-      - name: Run integration tests (smoke)
+      - name: Run integration tests (smoke + affected)
         if: steps.changes.outputs.backend == 'true'
         env:
           DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
@@ -273,14 +321,24 @@ jobs:
           POSTGRES_HOST: localhost
         run: |
           cd backend
+          # 1) smoke 保底子集（现状，控制 5 分钟内）
           pytest tests/integration/ -m smoke -n 1 --timeout=120 --junitxml=junit.xml
+          # 2) affected 补充（依赖图推导的相关文件，失败即阻断 PR）
+          if [ -s affected_tests.txt ]; then
+            # affected 输出为仓库根相对路径（backend/...），cd backend 后需去前缀，
+            # 保证 pytest 加载 backend/pytest.ini（markers 等配置）
+            mapfile -t affected_files < <(sed 's|^backend/||' affected_tests.txt)
+            pytest "${affected_files[@]}" -n 1 --timeout=120 --junitxml=junit-affected.xml
+          else
+            echo "ℹ️ 无 affected 补充测试，跳过"
+          fi
 
       - name: Upload integration test results
         if: always() && steps.changes.outputs.backend == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pr-backend-integration-junit
-          path: backend/junit.xml
+          path: backend/junit*.xml
           retention-days: 14
 
   # ============================================================
