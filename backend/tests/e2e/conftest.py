@@ -68,6 +68,17 @@ def sync_test_engine():
     """创建同步测试数据库引擎（用于建表和创建测试用户）"""
     engine = create_engine(TEST_DATABASE_SYNC_URL, echo=False)
     BaseModel.metadata.create_all(engine)
+    # create_all 不修改已存在的表：手动补齐新增列（与 integration/conftest 一致）
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "customers" in inspector.get_table_names():
+        columns = [col["name"] for col in inspector.get_columns("customers")]
+        if "auto_initiate_settlement" not in columns:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE customers ADD COLUMN auto_initiate_settlement BOOLEAN")
+                )
     yield engine
     engine.dispose()
 

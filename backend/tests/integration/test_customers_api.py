@@ -325,6 +325,122 @@ async def test_update_customer_success(test_client, auth_headers, customer_data,
 
 
 @pytest.mark.asyncio
+async def test_create_customer_auto_initiate_settlement_default(
+    test_client, auth_headers, db_session
+):
+    """测试创建客户 - 自动发起结算默认「是」"""
+    from sqlalchemy import text
+
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    new_customer = {
+        "company_id": 1000101,
+        "name": "默认自动结算公司",
+        "account_type": "正式账号",
+        "settlement_type": "prepaid",
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers",
+        headers=auth_headers,
+        json=new_customer,
+    )
+
+    assert response.status == 201
+    assert response.json["code"] == 0
+
+    result = db_session.execute(
+        text("SELECT auto_initiate_settlement FROM customers WHERE company_id = :company_id"),
+        {"company_id": 1000101},
+    )
+    row = result.fetchone()
+    assert row is not None
+    assert row[0] is True, f"默认自动发起结算应为是，实际为 {row[0]}"
+
+    db_session.execute(text("DELETE FROM customers WHERE company_id = 1000101"))
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_customer_auto_initiate_settlement_explicit(
+    test_client, auth_headers, db_session
+):
+    """测试创建客户 - 显式指定自动发起结算为否"""
+    from sqlalchemy import text
+
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    new_customer = {
+        "company_id": 1000102,
+        "name": "手动结算公司",
+        "account_type": "正式账号",
+        "settlement_type": "prepaid",
+        "auto_initiate_settlement": False,
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers",
+        headers=auth_headers,
+        json=new_customer,
+    )
+
+    assert response.status == 201
+    assert response.json["code"] == 0
+
+    result = db_session.execute(
+        text("SELECT auto_initiate_settlement FROM customers WHERE company_id = :company_id"),
+        {"company_id": 1000102},
+    )
+    row = result.fetchone()
+    assert row is not None
+    assert row[0] is False
+
+    db_session.execute(text("DELETE FROM customers WHERE company_id = 1000102"))
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_update_customer_auto_initiate_settlement(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试更新客户 - 修改自动发起结算字段"""
+    from sqlalchemy import text
+
+    customer_id = customer_data["customer_id"]
+
+    update_data = {
+        "auto_initiate_settlement": False,
+    }
+
+    request, response = await test_client.put(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+        json=update_data,
+    )
+
+    assert response.status == 200
+    assert response.json["code"] == 0
+
+    result = db_session.execute(
+        text("SELECT auto_initiate_settlement FROM customers WHERE id = :id"),
+        {"id": customer_id},
+    )
+    row = result.fetchone()
+    assert row is not None
+    assert row[0] is False
+
+    # 详情接口应返回该字段
+    request, response = await test_client.get(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+    assert response.status == 200
+    assert response.json["data"]["auto_initiate_settlement"] is False
+
+
+@pytest.mark.asyncio
 async def test_update_customer_not_found(test_client, auth_headers):
     """测试更新客户 - 客户不存在"""
     update_data = {"name": "不存在的客户"}
@@ -1531,6 +1647,140 @@ async def test_list_customers_filter_is_real_estate_false(test_client, auth_head
     )
     for item in data["data"]["list"]:
         assert item["is_real_estate"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_customers_filter_auto_initiate_settlement_true(
+    test_client, auth_headers, db_session
+):
+    """测试 auto_initiate_settlement=true 筛选：NULL 视为是，应包含 true 与 NULL 客户"""
+    from sqlalchemy import text
+
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    customers = [
+        {
+            "company_id": 2301,
+            "name": "自动结算公司 A",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "auto_initiate_settlement": True,
+            "email": "auto_a@example.com",
+        },
+        {
+            "company_id": 2302,
+            "name": "自动结算公司 B",
+            "account_type": "正式账号",
+            "settlement_type": "postpaid",
+            "auto_initiate_settlement": True,
+            "email": "auto_b@example.com",
+        },
+        {
+            "company_id": 2303,
+            "name": "手动结算公司",
+            "account_type": "试用账号",
+            "settlement_type": "prepaid",
+            "auto_initiate_settlement": False,
+            "email": "manual@example.com",
+        },
+        {
+            "company_id": 2304,
+            "name": "历史未设置公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "auto_initiate_settlement": None,
+            "email": "null_auto@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, auto_initiate_settlement, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :auto_initiate_settlement, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/customers?auto_initiate_settlement=true&force_refresh=true",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+    # 「是」兼容 NULL（默认值是），命中 true×2 + NULL×1
+    ids = {item["company_id"] for item in data["data"]["list"]}
+    assert ids == {2301, 2302, 2304}, f"Expected true+NULL customers, got {ids}"
+
+
+@pytest.mark.asyncio
+async def test_list_customers_filter_auto_initiate_settlement_false(
+    test_client, auth_headers, db_session
+):
+    """测试 auto_initiate_settlement=false 筛选：严格 false，不含 NULL"""
+    from sqlalchemy import text
+
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.commit()
+
+    customers = [
+        {
+            "company_id": 2311,
+            "name": "自动结算公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "auto_initiate_settlement": True,
+            "email": "auto@example.com",
+        },
+        {
+            "company_id": 2312,
+            "name": "手动结算公司",
+            "account_type": "试用账号",
+            "settlement_type": "postpaid",
+            "auto_initiate_settlement": False,
+            "email": "manual@example.com",
+        },
+        {
+            "company_id": 2313,
+            "name": "历史未设置公司",
+            "account_type": "正式账号",
+            "settlement_type": "prepaid",
+            "auto_initiate_settlement": None,
+            "email": "null_auto@example.com",
+        },
+    ]
+
+    for cust in customers:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (company_id, name, account_type,
+                settlement_type, auto_initiate_settlement, email, created_at)
+            VALUES (:company_id, :name, :account_type,
+                :settlement_type, :auto_initiate_settlement, :email, NOW())
+            """),
+            cust,
+        )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/customers?auto_initiate_settlement=false&force_refresh=true",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+
+    # 「否」严格 false，仅命中 1 条，NULL 不兼容
+    ids = {item["company_id"] for item in data["data"]["list"]}
+    assert ids == {2312}, f"Expected only manual-settlement customer, got {ids}"
 
 
 @pytest.mark.asyncio

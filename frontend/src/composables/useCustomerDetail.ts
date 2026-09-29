@@ -32,6 +32,7 @@ export interface EditForm {
   sales_manager_id?: number
   cooperation_status?: string
   is_settlement_enabled: boolean
+  auto_initiate_settlement: boolean
   is_disabled: boolean
   notes?: string
   is_real_estate: boolean | null
@@ -93,6 +94,7 @@ export function useCustomerDetail() {
     sales_manager_id: undefined,
     cooperation_status: undefined,
     is_settlement_enabled: true,
+    auto_initiate_settlement: true,
     is_disabled: false,
     notes: undefined,
     is_real_estate: null,
@@ -267,6 +269,7 @@ export function useCustomerDetail() {
       sales_manager_id: customer.value?.sales_manager_id || undefined,
       cooperation_status: customer.value?.cooperation_status || undefined,
       is_settlement_enabled: customer.value?.is_settlement_enabled ?? true,
+      auto_initiate_settlement: customer.value?.auto_initiate_settlement ?? true,
       is_disabled: customer.value?.is_disabled ?? false,
       notes: customer.value?.notes || undefined,
       is_real_estate: (customer.value?.is_real_estate as boolean | null) ?? null,

@@ -122,6 +122,9 @@
               <a-form-item field="is_settlement_enabled" label="启用结算">
                 <a-switch v-model="editForm.is_settlement_enabled" />
               </a-form-item>
+              <a-form-item field="auto_initiate_settlement" label="自动发起结算">
+                <a-switch v-model="editForm.auto_initiate_settlement" />
+              </a-form-item>
               <a-form-item field="consume_level" label="消费等级">
                 <a-select v-model="editForm.consume_level" placeholder="请选择" allow-clear>
                   <a-option value="C1">C1</a-option>
@@ -279,6 +282,7 @@ interface EditForm {
   sales_manager_id?: number
   cooperation_status?: string
   is_settlement_enabled: boolean
+  auto_initiate_settlement: boolean
   is_disabled: boolean
   notes?: string
   is_real_estate: boolean | null
@@ -303,6 +307,7 @@ const createDefaultForm = (): EditForm => ({
   sales_manager_id: undefined,
   cooperation_status: undefined,
   is_settlement_enabled: true,
+  auto_initiate_settlement: true,
   is_disabled: false,
   notes: undefined,
   is_real_estate: null,
@@ -406,6 +411,7 @@ const fetchAndInitForm = async () => {
       sales_manager_id: c.sales_manager_id || undefined,
       cooperation_status: c.cooperation_status || undefined,
       is_settlement_enabled: c.is_settlement_enabled ?? true,
+      auto_initiate_settlement: c.auto_initiate_settlement ?? true,
       is_disabled: c.is_disabled ?? false,
       notes: c.notes || undefined,
       is_real_estate: c.is_real_estate ?? null,
@@ -456,6 +462,7 @@ const handleSubmit = async () => {
       onboarding_date: form.onboarding_date || undefined,
       cooperation_status: form.cooperation_status || undefined,
       is_settlement_enabled: form.is_settlement_enabled,
+      auto_initiate_settlement: form.auto_initiate_settlement,
       is_disabled: form.is_disabled,
       notes: form.notes || undefined,
       is_real_estate: form.is_real_estate,

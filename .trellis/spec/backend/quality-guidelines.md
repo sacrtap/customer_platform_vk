@@ -294,3 +294,26 @@ admin.roles.append(super_admin_role)
 - ORM 模型字段必须用 SQLAlchemy 2.0 typed 声明（见 `database-guidelines.md` 的 Model Pattern）
 - Pre-commit hooks: ruff (lint), formatting check
 - Run tests: `cd backend && python -m pytest tests/ -v`
+
+### Affected tests（codegraph 依赖图补充）
+
+[来源: 2026-09-29 — PR 门禁 integration 引入 `codegraph affected` 补充]
+
+`backend-integration-tests` job 在 smoke 子集之外，用依赖图推导本次变更相关的 integration 测试并**追加执行**（失败与 smoke 同等阻断）。
+
+- 命令链（必须遵守，实测关键点）：
+  ```bash
+  BASE_SHA="${{ github.event.pull_request.base.sha || github.event.before }}"
+  git diff --name-only "${BASE_SHA}...HEAD" | \
+    codegraph affected --stdin --quiet 2>/dev/null | \
+    grep '^backend/tests/integration/' | \
+    grep -v '/conftest\.py$' > affected_tests.txt
+  ```
+- `codegraph affected` 会**原样透传**非代码文件（如 `.md`），必须前缀过滤到 `backend/tests/integration/`。
+- 不启用 `--filter`：它是**覆盖式**而非追加，容易漏掉前端 `.test.ts` / `.spec.ts` 之一；auto-detect 已正确识别本仓库两种后缀。
+- `conftest.py` 会被依赖图命中（如模型改动），pytest 直接传参无意义，必须排除。
+- affected 输出为仓库根相对路径（`backend/...`）；运行前 `sed 's|^backend/||'` 去前缀，保证 backend 目录下 pytest 加载 `backend/pytest.ini`（markers）。
+- 基础设施故障（CLI 安装 / `codegraph init` 索引 / 计算失败）**降级不阻断**——只跑 smoke；测试执行失败才是真实回归信号。
+- affected 是**补充**不是替换：smoke 子集、nightly 全量（`backend-integration-full` + 合并覆盖率 50%）兜底保持不变；动态依赖漏边由夜间全量兜底。
+- 前端 vitest 全量已足够快，不加 affected；unit 层用 affected 会拉低覆盖率导致 `--cov-fail-under=34` 误杀，也不加。
+- 分层串行约束不变：受影响列表同时含 e2e/integration 时不得并行执行（共库伪失败约定，见 Testing Architecture）。

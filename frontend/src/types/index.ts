@@ -112,6 +112,7 @@ export interface Customer {
   sales_manager_id: number | null
   cooperation_status: string | null
   is_settlement_enabled: boolean | null
+  auto_initiate_settlement: boolean | null
   is_disabled: boolean | null
   notes: string | null
   is_real_estate: boolean | null

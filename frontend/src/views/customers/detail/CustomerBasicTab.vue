@@ -89,6 +89,14 @@
       </span>
     </div>
     <div class="info-item">
+      <span class="label">自动发起结算</span>
+      <span class="value">
+        <a-tag :color="(customer.auto_initiate_settlement ?? true) ? 'green' : 'gray'">
+          {{ (customer.auto_initiate_settlement ?? true) ? '是' : '否' }}
+        </a-tag>
+      </span>
+    </div>
+    <div class="info-item">
       <span class="label">是否停用</span>
       <span class="value">
         <a-tag :color="customer.is_disabled ? 'red' : 'gray'">

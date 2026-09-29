@@ -96,6 +96,15 @@
             <a-switch v-model="form.is_key_customer" />
           </a-form-item>
         </a-col>
+        <!-- 自动发起结算 -->
+        <a-col :span="12">
+          <a-form-item field="auto_initiate_settlement" label="自动发起结算">
+            <a-select v-model="form.auto_initiate_settlement" placeholder="请选择">
+              <a-option :value="true">是</a-option>
+              <a-option :value="false">否</a-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
         <!-- 运营经理 -->
         <a-col :span="12">
           <a-form-item field="manager_id" label="运营经理">
@@ -208,6 +217,7 @@ interface CreateForm {
   is_real_estate: boolean | null
   settlement_cycle: string
   is_key_customer: boolean
+  auto_initiate_settlement: boolean
   manager_id: number | undefined
   sales_manager_id: number | undefined
   cooperation_status: string
@@ -225,6 +235,7 @@ const createDefaultForm = (): CreateForm => ({
   is_real_estate: null,
   settlement_cycle: '',
   is_key_customer: false,
+  auto_initiate_settlement: true,
   manager_id: undefined,
   sales_manager_id: undefined,
   cooperation_status: '',
@@ -279,6 +290,7 @@ const handleConfirm = async () => {
     if (form.is_real_estate !== null) payload.is_real_estate = form.is_real_estate
     if (form.settlement_cycle) payload.settlement_cycle = form.settlement_cycle
     payload.is_key_customer = form.is_key_customer
+    payload.auto_initiate_settlement = form.auto_initiate_settlement
     if (form.manager_id) payload.manager_id = form.manager_id
     if (form.sales_manager_id) payload.sales_manager_id = form.sales_manager_id
     if (form.cooperation_status) payload.cooperation_status = form.cooperation_status

@@ -142,6 +142,10 @@ def sync_test_engine():
             columns = [col["name"] for col in inspector.get_columns("customers")]
             if "is_real_estate" not in columns:
                 conn.execute(text("ALTER TABLE customers ADD COLUMN is_real_estate BOOLEAN"))
+            if "auto_initiate_settlement" not in columns:
+                conn.execute(
+                    text("ALTER TABLE customers ADD COLUMN auto_initiate_settlement BOOLEAN")
+                )
 
     yield engine
 
