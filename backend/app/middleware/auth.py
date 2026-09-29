@@ -171,6 +171,40 @@ def get_current_user(request: Request) -> dict | None:
     return getattr(request.ctx, "user", None)
 
 
+async def customer_scope_user_id(request: Request) -> int | None:
+    """返回当前用户强制过滤客户数据的 user_id；若可查看全部则返回 None
+
+    数据可见性机制：
+    - 用户拥有 ``customers:view_all`` 权限（含超级管理员）→ 返回 None，可查看全部客户，
+      不受「运营经理/销售经理」可见性约束；
+    - 否则返回当前用户的 user_id，调用方必须在客户相关查询中强制追加
+      ``Customer.manager_id == uid OR Customer.sales_manager_id == uid`` 条件，
+      只允许看到自己负责的客户。
+
+    该过滤是服务端强制的：由各 route/service 在此辅助函数返回值的基础上追加过滤条件，
+    不依赖前端传参（前端仅透传，防止通过伪造参数越权查看）。
+    """
+    user = get_current_user(request)
+    if not user:
+        return None
+    user_id = user["user_id"]
+
+    # Lazy import to support test mocking
+    from ..cache.permissions import permission_cache
+
+    user_permissions = await permission_cache.get_permissions(user_id)
+    if user_permissions is None:
+        db_session: AsyncSession = request.ctx.db_session
+        user_permissions = await get_user_permissions(db_session, user_id)
+        await permission_cache.set_permissions(user_id, user_permissions)  # pyright: ignore[reportArgumentType]
+
+    # 拥有「查看全部客户」权限（或超级管理员默认全权限）→ 不限制
+    if "customers:view_all" in user_permissions:  # pyright: ignore[reportOperatorIssue]
+        return None
+
+    return user_id
+
+
 def require_permission(permission_code: str):
     """权限校验装饰器
 

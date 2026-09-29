@@ -480,6 +480,14 @@ class CustomerService:
             ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
         if base_where is not None:
             total_stmt = total_stmt.where(base_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+        if mine_user_id:
+            total_stmt = total_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 2. 重点客户数
         key_stmt = select(func.count(Customer.id)).where(
@@ -492,6 +500,14 @@ class CustomerService:
             ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
         if base_where is not None:
             key_stmt = key_stmt.where(base_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+        if mine_user_id:
+            key_stmt = key_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 3. 待完善画像数
         incomplete_stmt = select(func.count(Customer.id)).where(
@@ -515,6 +531,14 @@ class CustomerService:
             incomplete_stmt = incomplete_stmt.where(and_(base_where, incomplete_where))
         else:
             incomplete_stmt = incomplete_stmt.where(incomplete_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+        if mine_user_id:
+            incomplete_stmt = incomplete_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 4. 我的客户数
         mine_stmt = select(func.count(Customer.id)).where(

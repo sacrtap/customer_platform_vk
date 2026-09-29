@@ -9,7 +9,7 @@ from sanic.request import Request
 from sanic.response import json
 
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required, require_permission
+from ..middleware.auth import auth_required, customer_scope_user_id, require_permission
 from ..services.analytics import AnalyticsService
 from ..utils.timezone import (
     local_date_range_to_utc,
@@ -58,7 +58,10 @@ async def get_consumption_trend(request: Request):
         start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户，
+    # 同时将 scope 并入缓存 key，防止不同可见性用户复用彼此缓存。
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_consumption_trend", cache_key)
         if not force_refresh
@@ -84,6 +87,7 @@ async def get_consumption_trend(request: Request):
             consume_level=consume_level,
             manager_id=int(manager_id) if manager_id else None,
             sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+            mine_user_id=scope_user_id,
         )
     else:
         trend = await service.get_consumption_trend(
@@ -124,7 +128,9 @@ async def get_top_customers(request: Request):
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
 
-    cache_key = f"{start_date}:{end_date}:{limit}:{metric}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{start_date}:{end_date}:{limit}:{metric}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_top_customers", cache_key) if not force_refresh else None
     )
@@ -146,6 +152,7 @@ async def get_top_customers(request: Request):
         consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": top_customers}
@@ -178,7 +185,9 @@ async def get_device_distribution(request: Request):
         start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = customer_id or "all"
-    cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_device_distribution", cache_key)
         if not force_refresh
@@ -204,6 +213,7 @@ async def get_device_distribution(request: Request):
         consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": distribution}
@@ -333,7 +343,9 @@ async def get_payment_analysis(request: Request):
         start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_payment_analysis", cache_key)
         if not force_refresh
@@ -356,6 +368,7 @@ async def get_payment_analysis(request: Request):
         consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": analysis}
@@ -381,7 +394,9 @@ async def get_payment_trend(request: Request):
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{months}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{months}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_payment_trend", cache_key) if not force_refresh else None
     )
@@ -408,6 +423,7 @@ async def get_payment_trend(request: Request):
         consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": trend}
@@ -440,7 +456,9 @@ async def get_invoice_status(request: Request):
         start_date, end_date = local_date_range_to_utc(start_date_str, end_date_str)
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_invoice_status", cache_key)
         if not force_refresh
@@ -463,6 +481,7 @@ async def get_invoice_status(request: Request):
         consume_level=consume_level,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": stats}
@@ -475,17 +494,22 @@ async def get_invoice_status(request: Request):
 async def get_health_stats(request: Request):
     """获取健康度统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
-    cached = await cache_service.get("analytics_health_stats") if not force_refresh else None
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"scope:{scope_user_id or 'all'}"
+    cached = (
+        await cache_service.get("analytics_health_stats", cache_key) if not force_refresh else None
+    )
     if cached is not None:
         return json(cached)
 
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_customer_health_stats()
+    stats = await service.get_customer_health_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_health_stats", result)
+    await cache_service.set("analytics_health_stats", result, cache_key)
     return json(result)
 
 
@@ -495,8 +519,10 @@ async def get_warning_list(request: Request):
     """获取余额预警客户列表"""
     threshold = float(request.args.get("threshold", 1000))
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
 
-    cache_key = f"{threshold}"
+    cache_key = f"{threshold}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_health_warning", cache_key)
         if not force_refresh
@@ -508,7 +534,7 @@ async def get_warning_list(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    warning_list = await service.get_balance_warning_list(threshold)
+    warning_list = await service.get_balance_warning_list(threshold, mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": warning_list}
     await cache_service.set("analytics_health_warning", result, cache_key)
@@ -521,8 +547,10 @@ async def get_inactive_list(request: Request):
     """获取长期未消耗客户列表"""
     days = int(request.args.get("days", 30))
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
 
-    cache_key = f"{days}"
+    cache_key = f"{days}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_health_inactive", cache_key)
         if not force_refresh
@@ -534,7 +562,7 @@ async def get_inactive_list(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    inactive_list = await service.get_inactive_customers(days)
+    inactive_list = await service.get_inactive_customers(days, mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": inactive_list}
     await cache_service.set("analytics_health_inactive", result, cache_key)
@@ -553,16 +581,24 @@ async def get_customer_health_score(request: Request, customer_id: int):
 
     # 验证客户是否存在
     customer_check = await db_session.execute(
-        sa_select(Customer.id).where(
+        sa_select(Customer).where(
             Customer.id == customer_id,
             Customer.deleted_at.is_(None),
         )
     )
-    if customer_check.scalar() is None:
+    customer = customer_check.scalar_one_or_none()
+    if customer is None:
         return json(
             {"code": 404, "message": "Customer not found", "data": None},
             status=404,
         )
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户的健康评分
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": 403, "message": "无权访问该客户", "data": None}, status=403)
 
     service = AnalyticsService(db_session)
     score = await service.get_customer_health_score(customer_id)
@@ -577,7 +613,9 @@ async def get_industry_distribution(request: Request):
     """获取行业分布"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     hour_bucket = int(time.time() // 3600)
-    cached_key = f"industry:{hour_bucket}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cached_key = f"industry:{hour_bucket}:scope:{scope_user_id or 'all'}"
 
     cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
@@ -586,7 +624,7 @@ async def get_industry_distribution(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    distribution = await service.get_industry_distribution()
+    distribution = await service.get_industry_distribution(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": distribution}
     if not force_refresh:
@@ -600,7 +638,9 @@ async def get_scale_stats(request: Request):
     """获取客户规模等级统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     hour_bucket = int(time.time() // 3600)
-    cached_key = f"scale:{hour_bucket}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached_key = f"scale:{hour_bucket}:scope:{scope_user_id or 'all'}"
 
     cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
@@ -609,7 +649,7 @@ async def get_scale_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_scale_level_stats()
+    stats = await service.get_scale_level_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
@@ -623,7 +663,9 @@ async def get_consume_level_stats(request: Request):
     """获取客户消费等级统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     hour_bucket = int(time.time() // 3600)
-    cached_key = f"consume_level:{hour_bucket}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached_key = f"consume_level:{hour_bucket}:scope:{scope_user_id or 'all'}"
 
     cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
@@ -632,7 +674,7 @@ async def get_consume_level_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_consume_level_stats()
+    stats = await service.get_consume_level_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
@@ -646,7 +688,9 @@ async def get_real_estate_stats(request: Request):
     """获取房产客户统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     hour_bucket = int(time.time() // 3600)
-    cached_key = f"real_estate:{hour_bucket}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached_key = f"real_estate:{hour_bucket}:scope:{scope_user_id or 'all'}"
 
     cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
@@ -655,7 +699,7 @@ async def get_real_estate_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_real_estate_stats()
+    stats = await service.get_real_estate_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
@@ -669,7 +713,9 @@ async def get_real_estate_industry_stats(request: Request):
     """获取房产客户行业子分类统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     hour_bucket = int(time.time() // 3600)
-    cached_key = f"real_estate_industry:{hour_bucket}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached_key = f"real_estate_industry:{hour_bucket}:scope:{scope_user_id or 'all'}"
 
     cached = await cache_service.get("analytics_profile", cached_key) if not force_refresh else None
     if cached is not None:
@@ -678,7 +724,7 @@ async def get_real_estate_industry_stats(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_real_estate_industry_stats()
+    stats = await service.get_real_estate_industry_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
     if not force_refresh:
@@ -702,7 +748,9 @@ async def predict_monthly_payment(request: Request):
     keyword = request.args.get("keyword")
 
     cid = keyword or customer_id or "all"
-    cache_key = f"{year}:{month}:{cid}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{year}:{month}:{cid}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
     )
@@ -713,10 +761,10 @@ async def predict_monthly_payment(request: Request):
     service = AnalyticsService(db_session)
 
     predictions = await service.predict_monthly_payment(
-        year, month, int(customer_id) if customer_id else None, keyword
+        year, month, int(customer_id) if customer_id else None, keyword, mine_user_id=scope_user_id
     )
     summary = await service.get_prediction_summary(
-        year, month, int(customer_id) if customer_id else None, keyword
+        year, month, int(customer_id) if customer_id else None, keyword, mine_user_id=scope_user_id
     )
 
     result = {
@@ -735,8 +783,10 @@ async def get_prediction_trend(request: Request):
     """获取全年 12 个月预测 vs 实际回款趋势"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     year = int(request.args.get("year", datetime.utcnow().year))
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
 
-    cache_key = f"trend:{year}"
+    cache_key = f"trend:{year}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_prediction", cache_key) if not force_refresh else None
     )
@@ -746,7 +796,7 @@ async def get_prediction_trend(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    trend = await service.get_prediction_trend(year)
+    trend = await service.get_prediction_trend(year, mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": trend}
     if not force_refresh:
@@ -779,7 +829,9 @@ async def forecast_consumption(request: Request):
         pass  # 透传给 service
 
     cid = keyword or customer_id or "all"
-    cache_key = f"fc:{year}:{month}:{cid}:{device_type or 'all'}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"fc:{year}:{month}:{cid}:{device_type or 'all'}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_prediction_forecast", cache_key)
         if not force_refresh
@@ -800,6 +852,7 @@ async def forecast_consumption(request: Request):
         apply_to=apply_to,
         forecast_months=forecast_months,
         forecast_until=forecast_until,
+        mine_user_id=scope_user_id,
     )
     summary = await service.get_forecast_summary(
         year,
@@ -810,6 +863,7 @@ async def forecast_consumption(request: Request):
         apply_to=apply_to,
         forecast_months=forecast_months,
         forecast_until=forecast_until,
+        mine_user_id=scope_user_id,
     )
 
     result = {
@@ -835,7 +889,9 @@ async def get_consumption_forecast_trend(request: Request):
     if forecast_months:
         forecast_months = int(forecast_months)
 
-    cache_key = f"fctrend:{year}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"fctrend:{year}:{apply_to}:{forecast_months or 0}:{forecast_until or ''}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_prediction_forecast", cache_key)
         if not force_refresh
@@ -848,7 +904,11 @@ async def get_consumption_forecast_trend(request: Request):
     service = AnalyticsService(db_session)
 
     trend = await service.get_forecast_trend(
-        year, apply_to=apply_to, forecast_months=forecast_months, forecast_until=forecast_until
+        year,
+        apply_to=apply_to,
+        forecast_months=forecast_months,
+        forecast_until=forecast_until,
+        mine_user_id=scope_user_id,
     )
 
     result = {"code": 0, "message": "success", "data": trend}
@@ -942,17 +1002,20 @@ async def update_price_config(request: Request):
 @auth_required
 async def get_dashboard_stats(request: Request):
     """获取仪表盘统计数据"""
-    cached = await cache_service.get("analytics_dashboard_stats")
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"stats:scope:{scope_user_id or 'all'}"
+    cached = await cache_service.get("analytics_dashboard_stats", cache_key)
     if cached is not None:
         return json(cached)
 
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    stats = await service.get_dashboard_stats()
+    stats = await service.get_dashboard_stats(mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": stats}
-    await cache_service.set("analytics_dashboard_stats", result)
+    await cache_service.set("analytics_dashboard_stats", result, cache_key)
     return json(result)
 
 
@@ -962,7 +1025,9 @@ async def get_dashboard_chart_data(request: Request):
     """获取仪表盘图表数据"""
     months = int(request.args.get("months", 6))
 
-    cache_key = f"{months}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{months}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_dashboard_chart", cache_key)
     if cached is not None:
         return json(cached)
@@ -970,7 +1035,7 @@ async def get_dashboard_chart_data(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    chart_data = await service.get_dashboard_chart_data(months)
+    chart_data = await service.get_dashboard_chart_data(months, mine_user_id=scope_user_id)
 
     result = {"code": 0, "message": "success", "data": chart_data}
     await cache_service.set("analytics_dashboard_chart", result, cache_key)
@@ -991,7 +1056,9 @@ async def get_dashboard_trend(request: Request):
     if months > 24:
         months = 24
 
-    cache_key = f"{metric}:{months}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"{metric}:{months}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_dashboard_trend", cache_key)
     if cached is not None:
         return json(cached)
@@ -1006,22 +1073,28 @@ async def get_dashboard_trend(request: Request):
 
     if metric == "consumption":
         # 消耗趋势：基于每日消耗流水（DailyConsumption），反映真实消耗
-        trend = await service.get_consumption_trend_daily(start_date, end_date)
+        trend = await service.get_consumption_trend_daily(
+            start_date, end_date, mine_user_id=scope_user_id
+        )
         dates = [item.get("period", "") for item in trend]
         values = [item.get("total_amount", 0) for item in trend]
     elif metric == "payment":
         # 回款趋势：使用月度回款分析（period/paid）
-        trend = await service.get_payment_trend(start_date, end_date, months=months)
+        trend = await service.get_payment_trend(
+            start_date, end_date, months=months, mine_user_id=scope_user_id
+        )
         dates = [item.get("period", "") for item in trend]
         values = [item.get("paid", 0) for item in trend]
     elif metric == "customer_count":
         # 客户数趋势：按月统计当月有消耗的去重客户数
-        trend = await service.get_customer_count_trend(start_date, end_date)
+        trend = await service.get_customer_count_trend(
+            start_date, end_date, mine_user_id=scope_user_id
+        )
         dates = [item.get("period", "") for item in trend]
         values = [item.get("customer_count", 0) for item in trend]
     elif metric == "health":
         # 健康度趋势：当前无历史评分表，返回当月风险客户计数作为单点
-        health_stats = await service.get_customer_health_stats()
+        health_stats = await service.get_customer_health_stats(mine_user_id=scope_user_id)
         risk_count = int(health_stats.get("warning_customers", 0) or 0) + int(
             health_stats.get("churn_risk_customers", 0) or 0
         )
@@ -1050,6 +1123,26 @@ async def get_balance_trend(request: Request, customer_id: int):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ..models.customers import Customer
+
+        cust = (
+            await db_session.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json({"code": 403, "message": "无权访问该客户", "data": None}, status=403)
+
     trend = await service.get_balance_trend(customer_id=customer_id, months=months)
 
     return json({"code": 0, "message": "success", "data": trend})
@@ -1075,6 +1168,26 @@ async def get_daily_usage(request: Request):
         return json({"code": 400, "message": "缺少 customer_id 参数"}, status=400)
 
     db_session = request.ctx.db_session
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户的用量
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select as sa_select
+
+        from ..models.customers import Customer
+
+        cust = (
+            await db_session.execute(
+                sa_select(Customer).where(
+                    Customer.id == int(customer_id),
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json({"code": 403, "message": "无权访问该客户", "data": None}, status=403)
 
     end_date = local_date_to_utc_end(end_date_str) if end_date_str else local_today_utc_start()
     start_date = (
@@ -1129,7 +1242,13 @@ async def get_daily_usage(request: Request):
 async def get_cross_dimension(request: Request):
     """获取行业×规模交叉维度热力图数据"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
-    cached = await cache_service.get("analytics_cross_dimension") if not force_refresh else None
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached = (
+        await cache_service.get("analytics_cross_dimension", f"scope:{scope_user_id or 'all'}")
+        if not force_refresh
+        else None
+    )
     if cached is not None:
         return json(cached)
 
@@ -1137,8 +1256,8 @@ async def get_cross_dimension(request: Request):
     service = AnalyticsService(db_session)
 
     # 获取行业分布和规模分布，构建交叉矩阵
-    industry_dist = await service.get_industry_distribution()
-    scale_dist = await service.get_scale_level_stats()
+    industry_dist = await service.get_industry_distribution(mine_user_id=scope_user_id)
+    scale_dist = await service.get_scale_level_stats(mine_user_id=scope_user_id)
 
     result = {
         "code": 0,
@@ -1149,7 +1268,9 @@ async def get_cross_dimension(request: Request):
             "matrix": [],  # 交叉矩阵数据
         },
     }
-    await cache_service.set("analytics_cross_dimension", result, ttl=300)
+    await cache_service.set(
+        "analytics_cross_dimension", result, f"scope:{scope_user_id or 'all'}", ttl=300
+    )
     return json(result)
 
 
@@ -1158,7 +1279,13 @@ async def get_cross_dimension(request: Request):
 async def get_tag_usage(request: Request):
     """获取标签使用排行（Top 10）"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
-    cached = await cache_service.get("analytics_tag_usage") if not force_refresh else None
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cached = (
+        await cache_service.get("analytics_tag_usage", f"scope:{scope_user_id or 'all'}")
+        if not force_refresh
+        else None
+    )
     if cached is not None:
         return json(cached)
 
@@ -1167,12 +1294,14 @@ async def get_tag_usage(request: Request):
 
     # 获取标签使用统计
     try:
-        tag_stats = await service.get_tag_usage_stats()  # pyright: ignore[reportAttributeAccessIssue]
+        tag_stats = await service.get_tag_usage_stats(mine_user_id=scope_user_id)  # pyright: ignore[reportAttributeAccessIssue]
     except AttributeError:
         tag_stats = []
 
     result = {"code": 0, "message": "success", "data": tag_stats}
-    await cache_service.set("analytics_tag_usage", result, ttl=300)
+    await cache_service.set(
+        "analytics_tag_usage", result, f"scope:{scope_user_id or 'all'}", ttl=300
+    )
     return json(result)
 
 
@@ -1184,7 +1313,9 @@ async def get_health_risk_trend(request: Request):
     if days > 180:
         days = 180
 
-    cache_key = f"risk_trend:{days}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"risk_trend:{days}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_health_risk_trend", cache_key)
     if cached is not None:
         return json(cached)
@@ -1193,7 +1324,7 @@ async def get_health_risk_trend(request: Request):
     service = AnalyticsService(db_session)
 
     # 获取健康度统计，提取趋势数据
-    health_stats = await service.get_customer_health_stats()
+    health_stats = await service.get_customer_health_stats(mine_user_id=scope_user_id)
     trend = health_stats.get("risk_trend", [])
 
     result = {"code": 0, "message": "success", "data": {"trend": trend, "days": days}}
@@ -1213,7 +1344,9 @@ async def export_health_report(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    health_stats = await service.get_customer_health_stats()
+    # 数据可见性（服务端强制）：无 customers:view_all 时导出仅限当前用户负责客户
+    scope_user_id = await customer_scope_user_id(request)
+    health_stats = await service.get_customer_health_stats(mine_user_id=scope_user_id)
     customers = health_stats.get("customers", [])
 
     data = []
@@ -1255,7 +1388,9 @@ async def export_health_report(request: Request):
 async def get_forecast_vs_actual(request: Request):
     """获取预测 vs 实际回款对比"""
     year = int(request.args.get("year", datetime.utcnow().year))
-    cache_key = f"forecast_vs_actual:{year}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"forecast_vs_actual:{year}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_forecast_vs_actual", cache_key)
     if cached is not None:
         return json(cached)
@@ -1263,7 +1398,9 @@ async def get_forecast_vs_actual(request: Request):
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    predictions = await service.predict_monthly_payment(year, None, None, None)
+    predictions = await service.predict_monthly_payment(
+        year, None, None, None, mine_user_id=scope_user_id
+    )
 
     result = {"code": 0, "message": "success", "data": predictions}
     await cache_service.set("analytics_forecast_vs_actual", result, cache_key, ttl=300)
@@ -1278,7 +1415,9 @@ async def get_payment_top_customers(request: Request):
     if limit > 50:
         limit = 50
 
-    cache_key = f"top_customers:{limit}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"top_customers:{limit}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_payment_top", cache_key)
     if cached is not None:
         return json(cached)
@@ -1287,7 +1426,9 @@ async def get_payment_top_customers(request: Request):
     service = AnalyticsService(db_session)
 
     try:
-        top_customers = await service.get_payment_top_customers(limit=limit)  # pyright: ignore[reportAttributeAccessIssue]
+        top_customers = await service.get_payment_top_customers(  # pyright: ignore[reportAttributeAccessIssue]
+            limit=limit, mine_user_id=scope_user_id
+        )
     except AttributeError:
         top_customers = []
 
@@ -1303,7 +1444,9 @@ async def get_monthly_compare(request: Request):
     year = int(request.args.get("year", datetime.utcnow().year))
     month = int(request.args.get("month", datetime.utcnow().month))
 
-    cache_key = f"monthly_compare:{year}:{month}"
+    # 数据可见性（服务端强制）
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"monthly_compare:{year}:{month}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_monthly_compare", cache_key)
     if cached is not None:
         return json(cached)
@@ -1312,13 +1455,19 @@ async def get_monthly_compare(request: Request):
     service = AnalyticsService(db_session)
 
     # 获取本月预测
-    current = await service.predict_monthly_payment(year, month, None, None)
+    current = await service.predict_monthly_payment(
+        year, month, None, None, mine_user_id=scope_user_id
+    )
     # 获取上月预测
     prev_month = month - 1 if month > 1 else 12
     prev_year = year if month > 1 else year - 1
-    previous = await service.predict_monthly_payment(prev_year, prev_month, None, None)
+    previous = await service.predict_monthly_payment(
+        prev_year, prev_month, None, None, mine_user_id=scope_user_id
+    )
     # 获取去年同期
-    last_year = await service.predict_monthly_payment(year - 1, month, None, None)
+    last_year = await service.predict_monthly_payment(
+        year - 1, month, None, None, mine_user_id=scope_user_id
+    )
 
     result = {
         "code": 0,
@@ -1350,7 +1499,9 @@ async def get_priority_customers(request: Request):
     if limit > 50:
         limit = 50
 
-    cache_key = f"priority:{limit}"
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    cache_key = f"priority:{limit}:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_priority_customers", cache_key)
     if cached is not None:
         return json(cached)
@@ -1359,10 +1510,12 @@ async def get_priority_customers(request: Request):
     service = AnalyticsService(db_session)
 
     # 获取余额预警客户
-    warning_customers = await service.get_balance_warning_list(threshold=1000)
+    warning_customers = await service.get_balance_warning_list(
+        threshold=1000, mine_user_id=scope_user_id
+    )
 
     # 获取健康度风险客户（余额覆盖不足 + 流失风险，真实可查）
-    risk_customers = await service.get_risk_customers(limit)
+    risk_customers = await service.get_risk_customers(limit, mine_user_id=scope_user_id)
 
     # 合并去重并构建结果
     seen_ids = set()

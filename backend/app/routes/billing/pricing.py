@@ -9,11 +9,16 @@ from typing import Any
 
 from sanic.request import Request
 from sanic.response import json, raw
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
-from ...middleware.auth import auth_required, get_current_user, require_permission
+from ...middleware.auth import (
+    auth_required,
+    customer_scope_user_id,
+    get_current_user,
+    require_permission,
+)
 from ...repository import PricingRepository
 from ...services.billing import PricingService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
@@ -50,6 +55,9 @@ async def get_pricing_rules(request: Request):
     layer_type = request.args.get("layer_type")
     pricing_type = request.args.get("pricing_type")
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的定价规则
+    scope_user_id = await customer_scope_user_id(request)
+
     rules, total = await pricing_service.get_pricing_rules(
         customer_id=customer_id,
         keyword=keyword,
@@ -58,6 +66,7 @@ async def get_pricing_rules(request: Request):
         pricing_type=pricing_type,
         page=page,
         page_size=page_size,
+        mine_user_id=scope_user_id,
     )
 
     return json(
@@ -123,6 +132,29 @@ async def create_pricing_rule(request: Request):
     data = request.json
     user = get_current_user(request)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户创建规则
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == data.get("customer_id"),
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
+
     pricing_service = PricingService(PricingRepository(db))
     data["created_by"] = user["user_id"] if user else 1
 
@@ -173,6 +205,34 @@ async def update_pricing_rule(request: Request, rule_id: int):
 
     pricing_service = PricingService(PricingRepository(db))
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可更新自己负责客户的规则
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.billing import PricingRule
+        from ...models.customers import Customer
+
+        rule_row = (
+            await db.execute(select(PricingRule.customer_id).where(PricingRule.id == rule_id))
+        ).scalar_one_or_none()
+        if rule_row is not None:
+            cust = (
+                await db.execute(
+                    select(Customer).where(
+                        Customer.id == rule_row,
+                        Customer.deleted_at.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+            if cust is None or not (
+                cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+            ):
+                return json(
+                    {"code": 40301, "message": "无权访问该客户", "data": None},
+                    status=403,
+                )
+
     # 日期转换：前端本地日期 → UTC datetime
     if "effective_date" in data and isinstance(data["effective_date"], str):
         data["effective_date"] = local_date_to_utc_start(data["effective_date"])
@@ -211,6 +271,34 @@ async def delete_pricing_rule(request: Request, rule_id: int):
     """删除定价规则"""
     db: AsyncSession = request.ctx.db_session
     pricing_service = PricingService(PricingRepository(db))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可删除自己负责客户的规则
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.billing import PricingRule
+        from ...models.customers import Customer
+
+        rule_row = (
+            await db.execute(select(PricingRule.customer_id).where(PricingRule.id == rule_id))
+        ).scalar_one_or_none()
+        if rule_row is not None:
+            cust = (
+                await db.execute(
+                    select(Customer).where(
+                        Customer.id == rule_row,
+                        Customer.deleted_at.is_(None),
+                    )
+                )
+            ).scalar_one_or_none()
+            if cust is None or not (
+                cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+            ):
+                return json(
+                    {"code": 40301, "message": "无权访问该客户", "data": None},
+                    status=403,
+                )
 
     success = await pricing_service.delete_pricing_rule(rule_id)
 
@@ -271,6 +359,29 @@ async def check_pricing_rule_conflict(request: Request):
             },
             status=400,
         )
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可对自己负责的客户检查冲突
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
 
     pricing_service = PricingService(PricingRepository(db))
 
@@ -372,9 +483,19 @@ async def import_pricing_rules(request: Request):
 
         # 预加载所有客户 company_id -> customer_id 映射（排除软删除客户：
         # 软删除客户已不可在页面选择，导入若仍可命中会为其创建规则，导出后也无法回灌）
-        result = await db_session.execute(
-            select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅可导入自己负责客户的规则
+        scope_user_id = await customer_scope_user_id(request)
+        customer_stmt = select(Customer.id, Customer.company_id).where(
+            Customer.deleted_at.is_(None)
         )
+        if scope_user_id is not None:
+            customer_stmt = customer_stmt.where(
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                )
+            )
+        result = await db_session.execute(customer_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
         # 预加载有效的包年套餐类型（仅 active 且未软删除，与 create_pricing_rule 查询条件一致）
@@ -753,6 +874,9 @@ async def export_pricing_rules(request: Request):
     layer_type = request.args.get("layer_type")
     pricing_type = request.args.get("pricing_type")
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时导出同样限当前用户负责客户
+    scope_user_id = await customer_scope_user_id(request)
+
     rules, _total = await pricing_service.get_pricing_rules(
         customer_id=customer_id,
         keyword=keyword,
@@ -761,6 +885,7 @@ async def export_pricing_rules(request: Request):
         pricing_type=pricing_type,
         page=1,
         page_size=50000,
+        mine_user_id=scope_user_id,
     )
 
     if not rules:

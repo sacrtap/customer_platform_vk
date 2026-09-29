@@ -443,3 +443,129 @@ async def test_upload_avatar_success(test_client, test_user):
     data = response.json
     assert data["code"] == 0
     assert data["data"]["avatar_url"].startswith("/uploads/avatars/")
+
+
+@pytest.mark.asyncio
+async def test_user_options_unauthenticated(test_client):
+    """测试获取用户选项列表 - 未认证应返回 401"""
+    _, response = await test_client.get("/api/v1/users/options")
+    assert response.status == 401
+
+
+@pytest.mark.asyncio
+async def test_user_options_returns_managers(test_client, db_session, test_user):
+    """测试获取用户选项列表 - 返回 id/username/real_name 基础字段"""
+    username = "options_test"
+    password = "test123456"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    db_session.execute(
+        text("DELETE FROM users WHERE username = :username"),
+        {"username": username},
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, real_name, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :real_name, :is_active, NOW())
+        """),
+        {
+            "username": username,
+            "password_hash": password_hash,
+            "email": "options_test@example.com",
+            "real_name": "选项测试员",
+            "is_active": True,
+        },
+    )
+    db_session.commit()
+
+    try:
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": test_user["username"], "password": test_user["password"]},
+        )
+        assert login_response.status == 200
+        token = login_response.json["data"]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        _, response = await test_client.get("/api/v1/users/options", headers=headers)
+
+        assert response.status == 200
+        data = response.json
+        assert data["code"] == 0
+        assert data["data"]["total"] >= 1
+        # 返回的选项中应能找到刚创建的用户，且含 real_name/username
+        created_user = next((u for u in data["data"]["list"] if u["username"] == username), None)
+        assert created_user is not None
+        assert created_user["real_name"] == "选项测试员"
+        assert created_user["username"] == username
+        # 选项接口不暴露邮箱等敏感字段
+        assert "email" not in created_user
+    finally:
+        db_session.execute(
+            text("DELETE FROM users WHERE username = :username"),
+            {"username": username},
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_user_options_no_users_view_permission(test_client, db_session, test_user):
+    """测试无 users:view 权限的角色也能访问 /users/options
+
+    回归验证：运营/销售经理等非 admin 角色缺少 users:view 时，
+    客户管理页的经理下拉/姓名展示仍正常（根因：GET /users 需要 users:view，
+    导致非 admin 拿不到经理列表，前端回退显示 #id）。
+    """
+    username = "no_users_view"
+    password = "test123456"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    db_session.execute(text("DELETE FROM users WHERE username = :username"), {"username": username})
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username,
+            "password_hash": password_hash,
+            "email": "no_users_view@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.commit()
+
+    try:
+        _, login_resp = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert login_resp.status == 200
+        token = login_resp.json["data"]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Patch permission cache：模拟该角色无任何权限（默认 mock 会给所有用户完整权限）
+        from unittest.mock import AsyncMock
+
+        from app.cache import permissions as perm_module
+
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(return_value=set())
+        try:
+            # 无 users:view 时访问完整用户列表应被拒绝（权限校验仍有效）
+            _, forbidden_resp = await test_client.get("/api/v1/users", headers=headers)
+            assert forbidden_resp.status == 403
+
+            # 但 /users/options 应可访问（仅需登录）
+            _, response = await test_client.get("/api/v1/users/options", headers=headers)
+            assert response.status == 200
+            data = response.json
+            assert data["code"] == 0
+            assert data["data"]["total"] >= 1
+        finally:
+            perm_module.permission_cache.get_permissions = original_get
+    finally:
+        db_session.execute(
+            text("DELETE FROM users WHERE username = :username"), {"username": username}
+        )
+        db_session.commit()

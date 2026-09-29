@@ -223,4 +223,30 @@ async def assign_permissions(request: Request, role_id: int):
     if not success:
         return json({"code": 40401, "message": "角色不存在"}, status=404)
 
+    # 失效该角色下所有用户的权限缓存，使权限变更立即生效
+    # （权限缓存 TTL=600s，不失效则已登录用户最长 10 分钟才看到新权限）
+    try:
+        from sqlalchemy import select
+
+        from ..cache.permissions import permission_cache
+        from ..models.users import User, user_roles
+
+        user_ids = (
+            (
+                await db_session.execute(
+                    select(User.id)
+                    .join(user_roles, user_roles.c.user_id == User.id)
+                    .where(user_roles.c.role_id == role_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for uid in user_ids:
+            await permission_cache.invalidate(uid)
+    except Exception as e:  # 缓存失效失败不应阻塞主流程
+        import logging
+
+        logging.getLogger(__name__).warning(f"失效角色权限缓存失败 role_id={role_id}: {e}")
+
     return json({"code": 0, "message": "权限分配成功"})

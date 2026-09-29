@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -345,12 +345,26 @@ class BalanceService:
         customer_id: Optional[int] = None,
         page: int = 1,
         page_size: int = 20,
+        mine_user_id: Optional[int] = None,
     ) -> Tuple[List[RechargeRecord], int]:
-        """获取充值记录列表"""
+        """获取充值记录列表
+
+        mine_user_id: 数据可见性约束（服务端强制）。非 None 时仅返回该用户
+        （作为运营经理或销售经理）负责客户的充值记录。
+        """
+        from ..models.customers import Customer
+
         stmt = select(RechargeRecord).where(RechargeRecord.deleted_at.is_(None))
 
         if customer_id:
             stmt = stmt.where(RechargeRecord.customer_id == customer_id)
+        if mine_user_id is not None:
+            stmt = stmt.join(Customer, Customer.id == RechargeRecord.customer_id).where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 总数
         count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -385,8 +399,13 @@ class PricingService:
         pricing_type: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
+        mine_user_id: Optional[int] = None,
     ) -> Tuple[List[PricingRule], int]:
-        """获取定价规则列表（支持分页）"""
+        """获取定价规则列表（支持分页）
+
+        mine_user_id: 数据可见性约束（服务端强制）。非 None 时仅返回该用户
+        （作为运营经理或销售经理）负责客户的定价规则。
+        """
         from ..models.customers import Customer
 
         base_stmt = (
@@ -405,6 +424,13 @@ class PricingService:
             base_stmt = base_stmt.where(PricingRule.layer_type == layer_type)
         if pricing_type:
             base_stmt = base_stmt.where(PricingRule.pricing_type == pricing_type)
+        if mine_user_id:
+            base_stmt = base_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 总数
         count_stmt = select(func.count()).select_from(base_stmt.subquery())
@@ -1416,8 +1442,13 @@ class InvoiceService:
         page_size: int = 20,
         sort_by: str = "",
         sort_order: str = "desc",
+        mine_user_id: Optional[int] = None,
     ) -> Tuple[List[Invoice], int]:
-        """获取结算单列表（支持服务端排序）"""
+        """获取结算单列表（支持服务端排序）
+
+        mine_user_id: 数据可见性约束（服务端强制）。非 None 时仅返回该用户
+        （作为运营经理或销售经理）负责客户的结算单。
+        """
         stmt = (
             select(Invoice)
             .options(selectinload(Invoice.items), selectinload(Invoice.customer))
@@ -1435,6 +1466,13 @@ class InvoiceService:
             stmt = stmt.where(Invoice.period_start >= period_start)
         if period_end:
             stmt = stmt.where(Invoice.period_end <= period_end)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 总数
         count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -1793,6 +1831,7 @@ class InvoiceService:
         scale_levels: Optional[List[str]] = None,
         consume_levels: Optional[List[str]] = None,
         is_real_estate: Optional[bool] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """按条件查询匹配的客户列表（用于批量生成结算单预览）
 
@@ -1802,6 +1841,7 @@ class InvoiceService:
             scale_levels: 规模等级列表（S/A/B/C/D/E）
             consume_levels: 消费等级列表（C1-C6）
             is_real_estate: 是否房产客户
+            mine_user_id: 数据可见性约束（服务端强制），非空时仅返回该用户负责的客户
 
         Returns:
             客户列表 [{ id, name, company_id, manager_id, sales_manager_id }]
@@ -1815,6 +1855,14 @@ class InvoiceService:
             Customer.manager_id,
             Customer.sales_manager_id,
         ).where(Customer.deleted_at.is_(None), Customer.is_disabled.is_(False))
+
+        if mine_user_id is not None:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 通过 PricingRule 关联筛选计费类型
         if pricing_type:
@@ -1866,11 +1914,15 @@ class InvoiceService:
         period_start: Optional[datetime] = None,
         period_end: Optional[datetime] = None,
         created_by: int = 1,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """批量生成结算单
 
         为每个匹配的客户独立生成一张结算单（状态 draft）。
         跳过无用量数据/无计费规则/未指定经理的客户。
+
+        Args:
+            mine_user_id: 数据可见性约束（服务端强制），非空时仅生成该用户负责客户的结算单
 
         Returns:
             {
@@ -1885,6 +1937,7 @@ class InvoiceService:
             scale_levels=scale_levels,
             consume_levels=consume_levels,
             is_real_estate=is_real_estate,
+            mine_user_id=mine_user_id,
         )
 
         generated: List[Dict[str, Any]] = []

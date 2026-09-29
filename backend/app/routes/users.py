@@ -75,6 +75,43 @@ async def list_users(request: Request):
     )
 
 
+@users_bp.get("/options")
+@auth_required
+async def list_user_options(request: Request):
+    """获取用户下拉选项（id/username/real_name）
+
+    提供给客户管理、分析、余额等业务的运营经理/销售经理下拉及姓名展示使用。
+    仅需登录即可访问，不要求 users:view 权限——因为「查看客户经理姓名/下拉」
+    是各业务模块的基础能力，不应受用户管理权限约束；否则非 admin 角色会因
+    无 users:view 而无法显示经理姓名（曾出现选项为空、列表显示 #id 的问题）。
+    返回结构与 GET /users 兼容（{list, total}），便于前端复用现有取列表逻辑。
+    """
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+    users, total = await service.get_all_users(page=1, page_size=2000)
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "list": [
+                    {
+                        "id": user.id,
+                        "username": user.username,
+                        "real_name": user.real_name,
+                        "is_active": user.is_active,
+                    }
+                    for user in users
+                ],
+                "total": total,
+                "page": 1,
+                "page_size": 2000,
+            },
+        }
+    )
+
+
 @users_bp.get("/<user_id:int>")
 @auth_required
 @require_permission("users:view")
