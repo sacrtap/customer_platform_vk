@@ -15,12 +15,18 @@ from openpyxl.utils import get_column_letter
 from sanic.request import Request
 from sanic.response import file as response_file
 from sanic.response import json, raw
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
 from ...config import settings
 from ...constants.error_codes import ErrorCodes
-from ...middleware.auth import auth_required, get_current_user, require_permission
+from ...middleware.auth import (
+    auth_required,
+    customer_scope_user_id,
+    get_current_user,
+    require_permission,
+)
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
@@ -41,6 +47,23 @@ def _content_disposition(filename: str) -> str:
     RFC 5987 的客户端正确解码中文文件名。
     """
     return f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+async def _ensure_invoice_scope(request: Request, invoice: Any) -> Any | None:
+    """数据可见性（服务端强制）：无 customers:view_all 时，非本人负责客户的结算单拒绝访问。
+
+    返回 403 响应对象时调用方应直接返回；返回 None 表示通过。
+    """
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        invoice.customer
+        and (
+            invoice.customer.manager_id == scope_user_id
+            or invoice.customer.sales_manager_id == scope_user_id
+        )
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该结算单"}, status=403)
+    return None
 
 
 def _write_cell_text_safe(cell, value):
@@ -94,6 +117,9 @@ async def get_invoices(request: Request):
     if sort_order not in ("asc", "desc"):
         sort_order = "desc"
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的结算单
+    scope_user_id = await customer_scope_user_id(request)
+
     invoices, total = await invoice_service.get_invoices(
         customer_id=customer_id,
         keyword=keyword,
@@ -102,6 +128,7 @@ async def get_invoices(request: Request):
         page_size=page_size,
         sort_by=sort_by,
         sort_order=sort_order,
+        mine_user_id=scope_user_id,
     )
 
     return json(
@@ -152,6 +179,17 @@ async def get_invoice(request: Request, invoice_id: int):
 
     if not invoice:
         return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户的结算单
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        invoice.customer
+        and (
+            invoice.customer.manager_id == scope_user_id
+            or invoice.customer.sales_manager_id == scope_user_id
+        )
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该结算单"}, status=403)
 
     # 批量查询操作人姓名
     from sqlalchemy import select as sa_select
@@ -344,7 +382,37 @@ async def calculate_invoice_items(request: Request):
     db: AsyncSession = request.ctx.db_session
     data = request.json
 
+    # 参数校验：customer_id 必填（先于权限校验，缺参返回 400 而非 KeyError→500 / 误报 403）
+    if not data.get("customer_id"):
+        return json(
+            {"code": ErrorCodes.MISSING_PARAMETER, "message": "客户 ID 不能为空"},
+            status=400,
+        )
+
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户计算
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select as sa_select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                sa_select(Customer).where(
+                    Customer.id == data["customer_id"],
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"},
+                status=403,
+            )
 
     # 日期转换：前端本地日期 → UTC datetime 范围
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
@@ -447,12 +515,16 @@ async def preview_batch_invoices(request: Request):
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅预览当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+
     customers = await invoice_service.get_customers_for_batch(
         pricing_type=data.get("pricing_type"),
         industry_type_ids=data.get("industry_type_ids"),
         scale_levels=data.get("scale_levels"),
         consume_levels=data.get("consume_levels"),
         is_real_estate=data.get("is_real_estate"),
+        mine_user_id=scope_user_id,
     )
 
     # 标记是否已指定经理
@@ -511,6 +583,9 @@ async def generate_invoices_batch(request: Request):
     data = request.json
     user = get_current_user(request)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为当前用户负责的客户批量生成
+    scope_user_id = await customer_scope_user_id(request)
+
     # 日期转换：前端本地日期 → UTC datetime 范围
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
@@ -525,6 +600,7 @@ async def generate_invoices_batch(request: Request):
         period_start=period_start,
         period_end=period_end,
         created_by=user["user_id"] if user else 1,
+        mine_user_id=scope_user_id,
     )
 
     # 批量生成后清除缓存
@@ -592,7 +668,37 @@ async def generate_invoice(request: Request):
     data = request.json
     user = get_current_user(request)
 
+    # 参数校验：customer_id 必填（先于权限校验，缺参返回 400 而非 KeyError→500 / 误报 403）
+    if not data.get("customer_id"):
+        return json(
+            {"code": ErrorCodes.MISSING_PARAMETER, "message": "客户 ID 不能为空"},
+            status=400,
+        )
+
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户生成结算单
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select as sa_select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                sa_select(Customer).where(
+                    Customer.id == data["customer_id"],
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"},
+                status=403,
+            )
 
     # 日期转换：前端本地日期 → UTC datetime 范围
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
@@ -683,6 +789,14 @@ async def apply_discount(request: Request, invoice_id: int):
 
     # 获取修改前的值（用于审计日志）
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     old_discount = (
         float(invoice_before.discount_amount)
         if invoice_before and invoice_before.discount_amount
@@ -778,6 +892,14 @@ async def submit_invoice(request: Request, invoice_id: int):
     user = get_current_user(request)
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    invoice_scope = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_scope:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+    denied = await _ensure_invoice_scope(request, invoice_scope)
+    if denied is not None:
+        return denied
+
     # 如果传入了减免信息，先应用减免
     if "discount_amount" in data and data["discount_amount"]:
         discount_success, discount_msg = await invoice_service.apply_discount(
@@ -856,6 +978,14 @@ async def confirm_invoice(request: Request, invoice_id: int):
 
     # 获取确认前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.confirm_invoice(
@@ -904,6 +1034,14 @@ async def confirm_ops(request: Request, invoice_id: int):
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.confirm_ops(
@@ -948,6 +1086,14 @@ async def confirm_sales(request: Request, invoice_id: int):
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.confirm_sales(
@@ -992,6 +1138,14 @@ async def retry_deduction(request: Request, invoice_id: int):
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.retry_deduction(
@@ -1038,6 +1192,14 @@ async def pay_invoice(request: Request, invoice_id: int):
 
     # 获取付款前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.pay_invoice(
@@ -1090,6 +1252,14 @@ async def complete_invoice(request: Request, invoice_id: int):
 
     # 获取完成前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.complete_invoice(
@@ -1139,6 +1309,14 @@ async def cancel_invoice_route(request: Request, invoice_id: int):
 
     # 获取取消前状态
     invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
     status_before = invoice_before.status if invoice_before else None
 
     success, message = await invoice_service.cancel_invoice(
@@ -1184,6 +1362,14 @@ async def delete_invoice(request: Request, invoice_id: int):
     """删除结算单"""
     db: AsyncSession = request.ctx.db_session
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可删除自己负责客户的结算单
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+    denied = await _ensure_invoice_scope(request, invoice)
+    if denied is not None:
+        return denied
 
     success = await invoice_service.delete_invoice(invoice_id)
 
@@ -1274,6 +1460,16 @@ async def export_invoices(request: Request):
                 {"code": 40001, "message": "结束日期格式错误，应为 YYYY-MM-DD"},
                 status=400,
             )
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时导出仅限当前用户负责客户的结算单
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        base_stmt = base_stmt.where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
 
     # 执行查询
     result = await db.execute(base_stmt.order_by(Invoice.created_at.desc()))
@@ -1504,10 +1700,25 @@ async def import_invoices(request: Request):
         # 列表 get_invoices 与导出 export_invoices 均通过 join 过滤了软删除客户，
         # 导入若仍可命中会为其创建结算单，但这些结算单在列表/导出中不可见，形成
         # 不可见的脏数据；与 pricing.py 导入侧的处理保持一致）
-        result = await db.execute(
-            select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
-        )
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅可导入自己负责客户的结算单
+        scope_user_id = await customer_scope_user_id(request)
+        company_stmt = select(Customer.id, Customer.company_id).where(Customer.deleted_at.is_(None))
+        if scope_user_id is not None:
+            company_stmt = company_stmt.where(
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                )
+            )
+        result = await db.execute(company_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 全量映射：区分「客户不存在」与「无权操作该客户」（无 view_all 时）
+        all_company_stmt = select(Customer.id, Customer.company_id).where(
+            Customer.deleted_at.is_(None)
+        )
+        all_result = await db.execute(all_company_stmt)
+        all_company_ids = {row[1] for row in all_result.all()}
 
         # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
         # 范围收敛为「本日自动生成前缀」+「本次 Excel 显式指定的单号」：原实现
@@ -1562,7 +1773,12 @@ async def import_invoices(request: Request):
                     errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
                     continue
                 if company_id not in company_to_customer:
-                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    if company_id in all_company_ids:
+                        errors.append(
+                            f"第 {row_num} 行：无权操作客户编号 {company_id}，仅可为自己负责的客户导入结算单"
+                        )
+                    else:
+                        errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
                     continue
 
                 # 账期
@@ -1790,6 +2006,17 @@ async def download_invoice_detail(request: Request, invoice_id: int):
     if not invoice:
         return json({"code": 40401, "message": "结算单不存在"}, status=404)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可下载自己负责客户的结算单明细
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        invoice.customer
+        and (
+            invoice.customer.manager_id == scope_user_id
+            or invoice.customer.sales_manager_id == scope_user_id
+        )
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该结算单"}, status=403)
+
     if invoice.detail_file_status != "completed" or not invoice.detail_file_path:  # pyright: ignore[reportGeneralTypeIssues]
         return json({"code": 40001, "message": "明细文件尚未生成完成"}, status=400)
 
@@ -1822,6 +2049,11 @@ async def regenerate_invoice_detail(request: Request, invoice_id: int):
     invoice = await invoice_service.get_invoice_by_id(invoice_id)
     if not invoice:
         return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice)
+    if denied is not None:
+        return denied
 
     # 重置状态为 pending
     invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
@@ -1860,6 +2092,24 @@ async def get_invoice_detail_logs(request: Request):
     count_stmt = (
         select(func.count()).select_from(Invoice).where(Invoice.detail_file_status != "pending")
     )
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的日志
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from ...models.customers import Customer
+
+        stmt = stmt.join(Customer, Customer.id == Invoice.customer_id).where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
+        count_stmt = count_stmt.join(Customer, Customer.id == Invoice.customer_id).where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
 
     if status_filter:
         stmt = stmt.where(Invoice.detail_file_status == status_filter)
@@ -1940,11 +2190,21 @@ async def get_invoice_file_status(request: Request):
     if not ids:
         return json({"code": 0, "message": "success", "data": {"list": []}})
 
-    result = await db.execute(
-        sa_select(Invoice.id, Invoice.detail_file_status, Invoice.detail_file_path).where(
-            Invoice.id.in_(ids), Invoice.deleted_at.is_(None)
-        )
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查询自己负责客户的结算单状态
+    scope_user_id = await customer_scope_user_id(request)
+    stmt = sa_select(Invoice.id, Invoice.detail_file_status, Invoice.detail_file_path).where(
+        Invoice.id.in_(ids), Invoice.deleted_at.is_(None)
     )
+    if scope_user_id is not None:
+        from ...models.customers import Customer
+
+        stmt = stmt.join(Customer, Customer.id == Invoice.customer_id).where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
+    result = await db.execute(stmt)
     rows = result.all()
 
     return json(

@@ -8,10 +8,16 @@ from decimal import Decimal
 
 from sanic.request import Request
 from sanic.response import json, raw
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
-from ...middleware.auth import auth_required, get_current_user, require_permission
+from ...middleware.auth import (
+    auth_required,
+    customer_scope_user_id,
+    get_current_user,
+    require_permission,
+)
 from ...models.industry_type import IndustryType
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
@@ -336,6 +342,14 @@ async def _query_balance_rows_raw(
         base_stmt = base_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:
         base_stmt = base_stmt.where(Customer.sales_manager_id == sales_manager_id)
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    if filters.get("mine_user_id"):
+        base_stmt = base_stmt.where(
+            or_(
+                Customer.manager_id == filters["mine_user_id"],
+                Customer.sales_manager_id == filters["mine_user_id"],
+            )
+        )
     if is_key_customer is not None:
         base_stmt = base_stmt.where(Customer.is_key_customer == is_key_customer)
 
@@ -415,6 +429,13 @@ async def _query_balance_rows_raw(
         count_stmt = count_stmt.where(Customer.manager_id == manager_id)
     if sales_manager_id:
         count_stmt = count_stmt.where(Customer.sales_manager_id == sales_manager_id)
+    if filters.get("mine_user_id"):
+        count_stmt = count_stmt.where(
+            or_(
+                Customer.manager_id == filters["mine_user_id"],
+                Customer.sales_manager_id == filters["mine_user_id"],
+            )
+        )
     if is_key_customer is not None:
         count_stmt = count_stmt.where(Customer.is_key_customer == is_key_customer)
 
@@ -672,6 +693,11 @@ async def get_balances(request: Request):
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        filters["mine_user_id"] = scope_user_id
+
     # 排序参数
     sort_by = request.args.get("sort_by", "customer.id")
     sort_order = request.args.get("sort_order", "asc")
@@ -720,6 +746,11 @@ async def export_balances(request: Request):
         filters = _parse_balance_filters(request)
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时导出仅限当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        filters["mine_user_id"] = scope_user_id
 
     # 全量导出（上限 50000 条，不分页）：
     # DB 查询（await）留在异步层，纯 CPU 的行组装移入线程，避免阻塞事件循环。
@@ -873,6 +904,15 @@ async def get_balance_stats(request: Request):
         customer_filters.append(Customer.manager_id == manager_id)
     if sales_manager_id:
         customer_filters.append(Customer.sales_manager_id == sales_manager_id)
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        customer_filters.append(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
     if is_key_customer is not None:
         customer_filters.append(Customer.is_key_customer == is_key_customer)
     if is_real_estate is not None:
@@ -1089,6 +1129,29 @@ async def get_customer_balance(request: Request, customer_id: int):
     db: AsyncSession = request.ctx.db_session
     balance_service = BalanceService(BalanceRepository(db))
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户的余额
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
+
     balance = await balance_service.get_balance_by_customer_id(customer_id)
 
     if not balance:
@@ -1134,6 +1197,29 @@ async def recalculate_balance(request: Request, customer_id: int):
     """
     db: AsyncSession = request.ctx.db_session
     balance_service = BalanceService(BalanceRepository(db))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可重算自己负责客户的余额
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
 
     balance = await balance_service.recalculate_balance(customer_id)
 
@@ -1200,6 +1286,29 @@ async def recharge(request: Request):
             {"code": 40001, "message": "请填写实充金额或赠送金额"},
             status=400,
         )
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户充值
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
 
     balance_service = BalanceService(BalanceRepository(db))
 
@@ -1312,10 +1421,14 @@ async def get_recharge_records(request: Request):
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的充值记录
+    scope_user_id = await customer_scope_user_id(request)
+
     records, total = await balance_service.get_recharge_records(
         customer_id=customer_id,
         page=page,
         page_size=page_size,
+        mine_user_id=scope_user_id,
     )
     # 批量查询客户名称
     from sqlalchemy import select
@@ -1373,6 +1486,18 @@ async def get_consumption_records(request: Request):
     page_size = int(request.args.get("page_size", 20))
 
     stmt = select(ConsumptionRecord).where(ConsumptionRecord.deleted_at.is_(None))
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的消费记录
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from ...models.customers import Customer
+
+        stmt = stmt.join(Customer, Customer.id == ConsumptionRecord.customer_id).where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
 
     if customer_id:
         stmt = stmt.where(ConsumptionRecord.customer_id == customer_id)
@@ -1449,6 +1574,29 @@ async def get_customer_balance_trend(request: Request, customer_id: int):
     months = int(request.args.get("months", 6))
     if months > 12:
         months = 12
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户的趋势
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        from sqlalchemy import select
+
+        from ...models.customers import Customer
+
+        cust = (
+            await db.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json(
+                {"code": 40301, "message": "无权访问该客户", "data": None},
+                status=403,
+            )
 
     service = AnalyticsService(db)
     trend = await service.get_balance_trend(customer_id=customer_id, months=months)

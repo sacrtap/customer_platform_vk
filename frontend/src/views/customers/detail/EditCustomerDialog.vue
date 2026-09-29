@@ -508,10 +508,12 @@ const handleCancel = () => {
   line-height: 22px;
 }
 
-/* P0: Grid 三列等高布局，替代 a-row/a-col 避免列间高度不齐 */
+/* P0: Grid 三列等高布局，替代 a-row/a-col 避免列间高度不齐
+   minmax(0,1fr) 强制三列等宽：默认 1fr 是 minmax(auto,1fr)，
+   某列内容较宽时会撑开该列破坏等宽布局 */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
   align-items: start;
 }
@@ -545,7 +547,7 @@ const handleCancel = () => {
 
 @media (min-width: 768px) and (max-width: 1023px) {
   .form-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

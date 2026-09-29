@@ -802,3 +802,129 @@ class TestCustomerHealthScoreApi:
             "/api/v1/analytics/health/customers/1/score",
         )
         assert response.status in [401, 403]
+
+
+# ============================================================
+# 数据可见性测试（customers:view_all 权限）
+# 服务端强制：无 customers:view_all 的用户，分析统计仅覆盖自己负责的客户
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_analytics_health_stats_mine_scope_only(test_client, db_session, mock_cache):
+    """无 customers:view_all 的用户调用 health/stats 仅统计自己负责的客户
+
+    场景：受限用户 A 拥有 analytics:view 但无 customers:view_all；
+    创建客户 1（manager_id=A）、客户 2（manager_id=其他用户 B）。
+    断言：health/stats 的 total_customers 仅包含客户 1（=1），不包含客户 2。
+    """
+    import os
+    from unittest.mock import AsyncMock
+
+    from app.cache import permissions as perm_module
+
+    # 创建受限用户 A 与用户 B
+    username_a = "analytics_scope_a"
+    username_b = "analytics_scope_b"
+    password = "test123456"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    db_session.execute(
+        text("DELETE FROM users WHERE username IN (:a, :b)"),
+        {"a": username_a, "b": username_b},
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_a,
+            "password_hash": password_hash,
+            "email": "ascopea@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_b,
+            "password_hash": password_hash,
+            "email": "ascopeb@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.commit()
+
+    uid_a = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_a},
+    ).scalar_one()
+    uid_b = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_b},
+    ).scalar_one()
+
+    # 创建两个客户：客户 1 归 A，客户 2 归 B
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, is_disabled, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, false, :email, :manager_id, NOW())
+        """),
+        {"company_id": 9101, "name": "分析A客户", "email": "aa@example.com", "manager_id": uid_a},
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, is_disabled, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, false, :email, :manager_id, NOW())
+        """),
+        {"company_id": 9102, "name": "分析B客户", "email": "ab@example.com", "manager_id": uid_b},
+    )
+    db_session.commit()
+
+    try:
+        # 为受限用户 A 直接签发 JWT（与 auth_token fixture 相同方式）
+        jwt_secret = os.environ.get("JWT_SECRET", "test-secret")
+        jwt_algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
+        now = datetime.now(timezone.utc)
+        payload = {
+            "user_id": uid_a,
+            "username": username_a,
+            "roles": ["运营经理"],
+            "exp": now.timestamp() + 86400,
+            "iat": now.timestamp(),
+            "type": "access",
+        }
+        token = jwt.encode(payload, jwt_secret, algorithm=jwt_algorithm)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # patch 权限缓存：A 仅有 analytics:view（无 customers:view_all）
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(return_value={"analytics:view"})
+
+        try:
+            request, response = await test_client.get(
+                "/api/v1/analytics/health/stats",
+                headers=headers,
+            )
+            assert response.status == 200
+            data = response.json
+            assert data["code"] == 0
+            assert data["data"]["total_customers"] == 1, (
+                f"受限用户应只统计自己负责的客户，实际 total_customers={data['data']['total_customers']}"
+            )
+        finally:
+            perm_module.permission_cache.get_permissions = original_get
+    finally:
+        db_session.execute(text("TRUNCATE customers CASCADE"))
+        db_session.execute(
+            text("DELETE FROM users WHERE username IN (:a, :b)"),
+            {"a": username_a, "b": username_b},
+        )
+        db_session.commit()

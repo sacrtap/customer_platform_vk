@@ -9,7 +9,12 @@ from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
-from ...middleware.auth import auth_required, get_current_user, require_permission
+from ...middleware.auth import (
+    auth_required,
+    customer_scope_user_id,
+    get_current_user,
+    require_permission,
+)
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
@@ -73,9 +78,27 @@ async def import_balance(request: Request):
 
         db_session: AsyncSession = request.ctx.db_session
 
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户充值导入
+        scope_user_id = await customer_scope_user_id(request)
+
         # 预加载所有客户 company_id -> customer_id 映射
-        result = await db_session.execute(select(Customer.id, Customer.company_id))
+        company_stmt = select(Customer.id, Customer.company_id)
+        if scope_user_id is not None:
+            from sqlalchemy import or_
+
+            company_stmt = company_stmt.where(
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                )
+            )
+        result = await db_session.execute(company_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 全量映射：区分「客户不存在」与「无权操作该客户」（无 view_all 时）
+        all_company_stmt = select(Customer.id, Customer.company_id)
+        all_result = await db_session.execute(all_company_stmt)
+        all_company_ids = {row[1] for row in all_result.all()}
 
         # 逐行校验
         errors = []
@@ -95,7 +118,12 @@ async def import_balance(request: Request):
                 continue
 
             if company_id not in company_to_customer:
-                errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                if company_id in all_company_ids:
+                    errors.append(
+                        f"第 {row_num} 行：无权操作客户编号 {company_id}，仅可为自己负责的客户充值"
+                    )
+                else:
+                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
                 continue
 
             customer_id = company_to_customer[company_id]

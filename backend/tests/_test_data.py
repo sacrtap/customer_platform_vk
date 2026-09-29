@@ -19,6 +19,7 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("customers:delete", "删除客户", "customers"),
     ("customers:export", "导出客户", "customers"),
     ("customers:import", "导入客户", "customers"),
+    ("customers:view_all", "查看全部客户", "customers"),
     ("billing:view", "查看结算", "billing"),
     ("billing:edit", "编辑结算", "billing"),
     ("billing:recharge", "充值操作", "billing"),

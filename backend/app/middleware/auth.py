@@ -5,6 +5,7 @@ from datetime import datetime
 from functools import wraps
 
 from sanic import Sanic
+from sanic.exceptions import SanicException
 from sanic.request import Request
 from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -169,6 +170,44 @@ async def _authenticate_api_key(request: Request, app: Sanic):
 def get_current_user(request: Request) -> dict | None:
     """获取当前登录用户"""
     return getattr(request.ctx, "user", None)
+
+
+async def customer_scope_user_id(request: Request) -> int | None:
+    """返回当前用户强制过滤客户数据的 user_id；若可查看全部则返回 None
+
+    数据可见性机制：
+    - 用户拥有 ``customers:view_all`` 权限（含超级管理员）→ 返回 None，可查看全部客户，
+      不受「运营经理/销售经理」可见性约束；
+    - 否则返回当前用户的 user_id，调用方必须在客户相关查询中强制追加
+      ``Customer.manager_id == uid OR Customer.sales_manager_id == uid`` 条件，
+      只允许看到自己负责的客户。
+
+    该过滤是服务端强制的：由各 route/service 在此辅助函数返回值的基础上追加过滤条件，
+    不依赖前端传参（前端仅透传，防止通过伪造参数越权查看）。
+    """
+    user = get_current_user(request)
+    if not user:
+        # fail-closed：未认证/无用户上下文时拒绝放行，而非返回 None 静默放开全量可见性。
+        # 当前所有调用点均位于 auth_required/require_permission 保护之下（不可达），
+        # 此处防御未来将该辅助函数复用到未受认证保护的 route 时的越权风险。
+        # 不要与「有 view_all → None」复用同一返回语义。
+        raise SanicException("未认证，无法确定客户可见范围", status_code=401)
+    user_id = user["user_id"]
+
+    # Lazy import to support test mocking
+    from ..cache.permissions import permission_cache
+
+    user_permissions = await permission_cache.get_permissions(user_id)
+    if user_permissions is None:
+        db_session: AsyncSession = request.ctx.db_session
+        user_permissions = await get_user_permissions(db_session, user_id)
+        await permission_cache.set_permissions(user_id, user_permissions)  # pyright: ignore[reportArgumentType]
+
+    # 拥有「查看全部客户」权限（或超级管理员默认全权限）→ 不限制
+    if "customers:view_all" in user_permissions:  # pyright: ignore[reportOperatorIssue]
+        return None
+
+    return user_id
 
 
 def require_permission(permission_code: str):

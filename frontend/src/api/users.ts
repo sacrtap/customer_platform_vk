@@ -118,10 +118,14 @@ export function resetPassword(id: number, newPassword: string) {
 
 /**
  * 获取运营经理列表（所有活跃用户）
+ * 使用轻量 /users/options 接口，仅需登录即可访问，
+ * 避免非 admin 角色因缺 users:view 权限而拿不到经理列表（显示 #id 的问题）。
  * @returns API 响应
  */
 export function getManagers(params?: { page?: number; page_size?: number }) {
-  return api.get('/users', { params: { ...params, page_size: params?.page_size || 100 } })
+  // 不传 page_size：/users/options 默认一次拉取全部经理（page_size=2000）
+  // 后端已读请求参数并带上限保护；此处若透传 page_size=100 反而拿不全经理下拉
+  return api.get('/users/options', { params })
 }
 
 /** 个人信息数据类型 */

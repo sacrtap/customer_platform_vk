@@ -1810,3 +1810,498 @@ async def test_update_customer_erp_system(test_client, auth_headers, db_session)
     # 清理
     db_session.execute(text("TRUNCATE customers CASCADE"))
     db_session.commit()
+
+
+# ============================================================
+# 数据可见性测试（customers:view_all 权限）
+# 服务端强制：无 customers:view_all 的用户仅能看到自己负责的客户
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_list_customers_mine_scope_only(test_client, db_session):
+    """无 customers:view_all 的用户仅能看到自己负责（运营经理/销售经理）的客户
+
+    场景：受限用户 A 拥有 customers:view 但无 customers:view_all；
+    客户 1 的 manager_id=A，客户 2 的 manager_id=其他用户 B。
+    断言：列表只包含客户 1；访问客户 2 详情返回 403；访问客户 1 详情成功。
+    """
+    from app.cache import permissions as perm_module
+
+    # 创建受限用户 A
+    username_a = "scope_user_a"
+    password = "test123456"
+    db_session.execute(
+        text("DELETE FROM users WHERE username = :username"),
+        {"username": username_a},
+    )
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_a,
+            "password_hash": password_hash,
+            "email": "scopea@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.commit()
+    uid_a = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_a},
+    ).scalar_one()
+
+    # 创建另一用户 B（作为「其他经理」）
+    username_b = "scope_user_b"
+    db_session.execute(
+        text("DELETE FROM users WHERE username = :username"),
+        {"username": username_b},
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_b,
+            "password_hash": password_hash,
+            "email": "scopeb@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.commit()
+    uid_b = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_b},
+    ).scalar_one()
+
+    # 创建两个客户：客户 1 归 A，客户 2 归 B
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, :email, :manager_id, NOW())
+        """),
+        {
+            "company_id": 9001,
+            "name": "A负责的客户",
+            "email": "a@example.com",
+            "manager_id": uid_a,
+        },
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, :email, :manager_id, NOW())
+        """),
+        {
+            "company_id": 9002,
+            "name": "B负责的客户",
+            "email": "b@example.com",
+            "manager_id": uid_b,
+        },
+    )
+    db_session.commit()
+    cust_a_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 9001")
+    ).scalar_one()
+    cust_b_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 9002")
+    ).scalar_one()
+
+    try:
+        # 登录受限用户 A
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username_a, "password": password},
+        )
+        assert login_response.status == 200
+        token = login_response.json["data"]["access_token"]
+
+        # patch 权限缓存：A 仅有 customers:view（无 customers:view_all）
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(return_value={"customers:view"})
+
+        try:
+            # 列表：应只包含 A 负责的客户
+            request, response = await test_client.get(
+                "/api/v1/customers",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status == 200
+            ids = [item["id"] for item in response.json["data"]["list"]]
+            assert cust_a_id in ids
+            assert cust_b_id not in ids
+
+            # 详情：A 不能查看 B 负责的客户 → 403
+            request, response = await test_client.get(
+                f"/api/v1/customers/{cust_b_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status == 403
+
+            # 详情：A 可查看自己负责的客户 → 200
+            request, response = await test_client.get(
+                f"/api/v1/customers/{cust_a_id}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert response.status == 200
+        finally:
+            perm_module.permission_cache.get_permissions = original_get
+    finally:
+        db_session.execute(text("TRUNCATE customers CASCADE"))
+        db_session.execute(
+            text("DELETE FROM users WHERE username IN (:a, :b)"),
+            {"a": username_a, "b": username_b},
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_role_view_all_permission_assignment_flow(test_client, db_session, auth_token):
+    """端到端：给角色配置 customers:view_all 前后，用户可见客户范围变化
+
+    场景：
+    - 创建角色 R（仅 customers:view，无 customers:view_all），创建用户 U 关联角色 R
+    - 客户 1 的 manager_id=U，客户 2 的 manager_id=另一用户 B
+    - patch 权限缓存为 None（强制走数据库 get_user_permissions 真实链路）
+    - 阶段 1：U 调用 /customers 仅见客户 1（无 view_all → 服务端强制 mine）
+    - 阶段 2：admin 调用 POST /roles/{R}/permissions 给角色 R 分配 customers:view_all
+    - 阶段 3：U 再次调用 /customers 可见客户 1+2（view_all → 全部）
+    """
+    from unittest.mock import AsyncMock
+
+    from app.cache import permissions as perm_module
+
+    # 创建用户 U 与用户 B
+    username_u = "role_view_all_user"
+    username_b = "role_view_all_other"
+    password = "test123456"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    db_session.execute(
+        text("DELETE FROM users WHERE username IN (:u, :b)"),
+        {"u": username_u, "b": username_b},
+    )
+    db_session.execute(
+        text("DELETE FROM roles WHERE name = :r"),
+        {"r": "view_all_测试角色"},
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_u,
+            "password_hash": password_hash,
+            "email": "rvu@example.com",
+            "is_active": True,
+        },
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, email, is_active, created_at)
+        VALUES (:username, :password_hash, :email, :is_active, NOW())
+        """),
+        {
+            "username": username_b,
+            "password_hash": password_hash,
+            "email": "rvb@example.com",
+            "is_active": True,
+        },
+    )
+    # 创建角色 R（仅 customers:view）
+    db_session.execute(
+        text("""
+        INSERT INTO roles (name, description, created_at)
+        VALUES (:name, :description, NOW())
+        """),
+        {"name": "view_all_测试角色", "description": "端到端测试角色"},
+    )
+    db_session.commit()
+
+    uid_u = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_u},
+    ).scalar_one()
+    uid_b = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"),
+        {"username": username_b},
+    ).scalar_one()
+    role_id = db_session.execute(
+        text("SELECT id FROM roles WHERE name = :name"),
+        {"name": "view_all_测试角色"},
+    ).scalar_one()
+
+    # 关联角色 R 与用户 U；给角色 R 授 customers:view
+    db_session.execute(
+        text("INSERT INTO user_roles (user_id, role_id) VALUES (:uid, :rid)"),
+        {"uid": uid_u, "rid": role_id},
+    )
+    perm_view = db_session.execute(
+        text("SELECT id FROM permissions WHERE code = :code"),
+        {"code": "customers:view"},
+    ).scalar_one()
+    db_session.execute(
+        text("INSERT INTO role_permissions (role_id, permission_id) VALUES (:rid, :pid)"),
+        {"rid": role_id, "pid": perm_view},
+    )
+    # 创建两个客户
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, is_disabled, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, false, :email, :manager_id, NOW())
+        """),
+        {
+            "company_id": 9201,
+            "name": "配置前A客户",
+            "email": "cfg_a@example.com",
+            "manager_id": uid_u,
+        },
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, is_disabled, email, manager_id, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', false, false, :email, :manager_id, NOW())
+        """),
+        {
+            "company_id": 9202,
+            "name": "配置后他人客户",
+            "email": "cfg_b@example.com",
+            "manager_id": uid_b,
+        },
+    )
+    db_session.commit()
+
+    # 查询客户 ID
+    cust_u_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 9201")
+    ).scalar_one()
+    cust_b_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 9202")
+    ).scalar_one()
+
+    # 权限缓存强制 None：走真实数据库 get_user_permissions 链路
+    original_get = perm_module.permission_cache.get_permissions
+    perm_module.permission_cache.get_permissions = AsyncMock(return_value=None)
+
+    try:
+        # U 登录
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username_u, "password": password},
+        )
+        assert login_response.status == 200
+        token_u = login_response.json["data"]["access_token"]
+        headers_u = {"Authorization": f"Bearer {token_u}"}
+        headers_admin = {"Authorization": f"Bearer {auth_token}"}
+
+        # 阶段 1：无 view_all → 仅见客户 1
+        request, response = await test_client.get("/api/v1/customers", headers=headers_u)
+        assert response.status == 200
+        ids = [item["id"] for item in response.json["data"]["list"]]
+        assert cust_u_id in ids
+        assert cust_b_id not in ids, "无 view_all 时不应看到他人负责的客户"
+
+        # 阶段 2：admin 给角色 R 分配 customers:view_all
+        perm_view_all = db_session.execute(
+            text("SELECT id FROM permissions WHERE code = :code"),
+            {"code": "customers:view_all"},
+        ).scalar_one()
+        request, response = await test_client.post(
+            f"/api/v1/roles/{role_id}/permissions",
+            json={"permission_ids": [perm_view, perm_view_all]},
+            headers=headers_admin,
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+
+        # 阶段 3：重新查询（权限缓存已失效为 None，走数据库）→ 可见全部
+        request, response = await test_client.get("/api/v1/customers", headers=headers_u)
+        assert response.status == 200
+        ids = [item["id"] for item in response.json["data"]["list"]]
+        assert cust_u_id in ids
+        assert cust_b_id in ids, "配置 customers:view_all 后应能看到全部客户"
+    finally:
+        perm_module.permission_cache.get_permissions = original_get
+        db_session.execute(text("TRUNCATE customers CASCADE"))
+        db_session.execute(
+            text("DELETE FROM users WHERE username IN (:u, :b)"),
+            {"u": username_u, "b": username_b},
+        )
+        db_session.execute(text("DELETE FROM roles WHERE name = :r"), {"r": "view_all_测试角色"})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_kpi_stats_mine_scope_only(test_client, db_session, auth_token):
+    """无 customers:view_all 的用户，客户总数/重点客户/待完善画像仅统计自己负责的客户
+
+    场景：受限用户 A（无 customers:view_all），客户 1 归 A（重点客户、无画像=待完善），
+    客户 2 归 B（重点客户、有完整画像）。
+    断言：A 视角 KPI = {total:1, key_customers:1, incomplete_profile:1}；
+    admin（含 view_all）视角 = {total:2, key_customers:2, incomplete_profile:1}。
+    """
+    from app.cache import permissions as perm_module
+
+    # 创建受限用户 A 与用户 B
+    username_a = "kpi_scope_user_a"
+    username_b = "kpi_scope_user_b"
+    password = "test123456"
+    for uname in (username_a, username_b):
+        db_session.execute(text("DELETE FROM users WHERE username = :u"), {"u": uname})
+        db_session.execute(
+            text("""
+            INSERT INTO users (username, password_hash, email, is_active, created_at)
+            VALUES (:username, :password_hash, :email, :is_active, NOW())
+            """),
+            {
+                "username": uname,
+                "password_hash": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+                "email": f"{uname}@example.com",
+                "is_active": True,
+            },
+        )
+    db_session.commit()
+    uid_a = db_session.execute(
+        text("SELECT id FROM users WHERE username = :u"), {"u": username_a}
+    ).scalar_one()
+    uid_b = db_session.execute(
+        text("SELECT id FROM users WHERE username = :u"), {"u": username_b}
+    ).scalar_one()
+
+    # 两个客户：客户 1 归 A（重点、无画像），客户 2 归 B（重点、画像完善）
+    db_session.execute(text("TRUNCATE customers CASCADE"))
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, email, manager_id, is_disabled, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', true, :email, :manager_id, false, NOW())
+        """),
+        {
+            "company_id": 9101,
+            "name": "KPI客户1归A",
+            "email": "kpi1@example.com",
+            "manager_id": uid_a,
+        },
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_type,
+            is_key_customer, email, manager_id, is_disabled, created_at)
+        VALUES (:company_id, :name, '正式账号', 'prepaid', true, :email, :manager_id, false, NOW())
+        """),
+        {
+            "company_id": 9102,
+            "name": "KPI客户2归B",
+            "email": "kpi2@example.com",
+            "manager_id": uid_b,
+        },
+    )
+    db_session.commit()
+    cust2_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = 9102")
+    ).scalar_one()
+
+    # 客户 2 的画像完善（客户 1 无画像 → 待完善）
+    db_session.execute(
+        text("""
+        INSERT INTO customer_profiles (customer_id, scale_level, consume_level)
+        VALUES (:customer_id, '大型', 'C1')
+        """),
+        {"customer_id": cust2_id},
+    )
+    db_session.commit()
+
+    try:
+        # 登录受限用户 A
+        login_request, login_response = await test_client.post(
+            "/api/v1/auth/login",
+            json={"username": username_a, "password": password},
+        )
+        assert login_response.status == 200
+        token_a = login_response.json["data"]["access_token"]
+
+        # patch 权限缓存：A 仅有 customers:view（无 customers:view_all）
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(return_value={"customers:view"})
+
+        try:
+            # A 视角：KPI 仅统计自己负责的客户 1
+            request, response = await test_client.get(
+                "/api/v1/customers/kpi-stats?force_refresh=true",
+                headers={"Authorization": f"Bearer {token_a}"},
+            )
+            assert response.status == 200
+            data_a = response.json["data"]
+            assert data_a["total"] == 1, f"A 客户总数应=1，实际={data_a['total']}"
+            assert data_a["key_customers"] == 1, f"A 重点客户应=1，实际={data_a['key_customers']}"
+            assert data_a["incomplete_profile"] == 1, (
+                f"A 待完善画像应=1，实际={data_a['incomplete_profile']}"
+            )
+            assert data_a["my_customers"] == 1
+
+            # 受限用户 + mine=true：三个卡片与 my_customers 均按归属统计
+            request, response = await test_client.get(
+                "/api/v1/customers/kpi-stats?force_refresh=true&mine=true",
+                headers={"Authorization": f"Bearer {token_a}"},
+            )
+            assert response.status == 200
+            data_a_mine = response.json["data"]
+            assert data_a_mine["total"] == 1, (
+                f"A+mine=true 客户总数应=1，实际={data_a_mine['total']}"
+            )
+            assert data_a_mine["my_customers"] == 1
+        finally:
+            perm_module.permission_cache.get_permissions = original_get
+
+        # admin（含 view_all）视角：全量统计（权限缓存已恢复，不受 patch 影响）
+        request, response = await test_client.get(
+            "/api/v1/customers/kpi-stats?force_refresh=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status == 200
+        data_admin = response.json["data"]
+        assert data_admin["total"] == 2, f"admin 客户总数应=2，实际={data_admin['total']}"
+        assert data_admin["key_customers"] == 2, (
+            f"admin 重点客户应=2，实际={data_admin['key_customers']}"
+        )
+        assert data_admin["incomplete_profile"] == 1, (
+            f"admin 待完善画像应=1，实际={data_admin['incomplete_profile']}"
+        )
+
+        # 回归：前端始终传 mine=true，admin（有 view_all）的全量卡片必须不受影响
+        # （此前 mine=true 会把 total/key/incomplete 误过滤为 admin 名下客户数）
+        request, response = await test_client.get(
+            "/api/v1/customers/kpi-stats?force_refresh=true&mine=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status == 200
+        data_admin_mine = response.json["data"]
+        assert data_admin_mine["total"] == 2, (
+            f"admin+mine=true 客户总数应=2，实际={data_admin_mine['total']}"
+        )
+        assert data_admin_mine["key_customers"] == 2, (
+            f"admin+mine=true 重点客户应=2，实际={data_admin_mine['key_customers']}"
+        )
+        assert data_admin_mine["incomplete_profile"] == 1, (
+            f"admin+mine=true 待完善画像应=1，实际={data_admin_mine['incomplete_profile']}"
+        )
+        # my_customers 卡片语义保留：mine=true 时统计 admin 名下客户（无 → 0）
+        assert data_admin_mine["my_customers"] == 0
+    finally:
+        db_session.execute(text("TRUNCATE customers CASCADE"))
+        db_session.execute(
+            text("DELETE FROM users WHERE username IN (:a, :b)"),
+            {"a": username_a, "b": username_b},
+        )
+        db_session.commit()

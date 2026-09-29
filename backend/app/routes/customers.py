@@ -12,11 +12,17 @@ import pandas as pd
 from sanic import Blueprint
 from sanic.request import Request
 from sanic.response import json, raw
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
-from ..middleware.auth import auth_required, get_current_user, require_permission
+from ..constants import ErrorCodes
+from ..middleware.auth import (
+    auth_required,
+    customer_scope_user_id,
+    get_current_user,
+    require_permission,
+)
 from ..models.customers import Customer, CustomerProfile
 from ..services.customers import (
     CustomerService,
@@ -110,11 +116,17 @@ async def list_customers(request: Request):
         filters["incomplete_profile"] = True
 
     # 我的客户：筛选运营经理或销售经理为当前用户的客户
+    # 数据可见性（服务端强制）：无 customers:view_all 时始终只返回用户负责的客户。
+    # 用户显式传 mine=true 时同样生效（仅返回自己的客户）。有 view_all 权限则不受限。
     mine = request.args.get("mine")
+    scope_user_id = await customer_scope_user_id(request)
     if mine is not None and mine.lower() == "true":
         current_user = get_current_user(request)
         if current_user and current_user.get("user_id"):
             filters["mine_user_id"] = current_user["user_id"]
+    # 服务端强制：无「查看全部客户」权限 → 无条件只返回当前用户负责的客户
+    if scope_user_id is not None:
+        filters["mine_user_id"] = scope_user_id
 
     # 移除 None 值
     filters = {k: v for k, v in filters.items() if v is not None}
@@ -262,15 +274,25 @@ async def get_kpi_stats(request: Request):
     filters = {k: v for k, v in filters.items() if v is not None}
 
     # 我的客户需要当前用户 ID
+    # 数据可见性（服务端强制）：无 customers:view_all 时 KPI 仅统计当前用户负责的客户，
+    # 顶部卡片数字与列表可见范围保持一致。
+    # mine=true 是前端「我的客户」卡片的显式请求（计入 my_customers）；三个全量卡片
+    # （total/key_customers/incomplete_profile）的可见性由 scope_user_id 单独强制，
+    # 避免 admin（有 view_all）传了 mine=true 后全量卡片被误过滤。
     mine = request.args.get("mine")
     mine_user_id = None
     if mine and mine.lower() == "true":
         current_user = get_current_user(request)
         if current_user and current_user.get("user_id"):
             mine_user_id = current_user["user_id"]
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        mine_user_id = scope_user_id
 
     # 检查缓存
-    cache_input = str(sorted({**filters, "mine": mine_user_id}.items()))
+    cache_input = str(
+        sorted({**filters, "mine": mine_user_id, "visibility": scope_user_id}.items())
+    )
     cache_key = f"kpi_{hashlib.md5(cache_input.encode(), usedforsecurity=False).hexdigest()[:8]}"
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     if not force_refresh:
@@ -282,7 +304,9 @@ async def get_kpi_stats(request: Request):
     service = CustomerService(db_session)
 
     try:
-        stats = await service.get_kpi_stats(filters=filters, mine_user_id=mine_user_id)
+        stats = await service.get_kpi_stats(
+            filters=filters, mine_user_id=mine_user_id, visibility_user_id=scope_user_id
+        )
     except Exception as e:
         return json({"code": 50000, "message": str(e)}, status=500)
 
@@ -311,6 +335,16 @@ async def get_kpi_stats(request: Request):
             Customer.account_type == filters["account_type"]
         )
 
+    # 可见性约束：无 customers:view_all 时本月新增仅统计当前用户负责的客户
+    # （用 scope_user_id 而非 mine_user_id：admin 传 mine=true 时仍显示全量）
+    if scope_user_id:
+        new_this_month_stmt = new_this_month_stmt.where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
+
     new_this_month = (await db_session.execute(new_this_month_stmt)).scalar() or 0
 
     result = {
@@ -336,10 +370,15 @@ async def get_kpi_stats(request: Request):
 @require_permission("customers:view")
 async def get_customer(request: Request, customer_id: int):
     """获取客户详情（包含画像和余额）"""
-    # 尝试从缓存获取
-    cached = await cache_service.get("customer_detail", customer_id)
-    if cached is not None:
-        return json(cached)
+    # 数据可见性（服务端强制）：无 customers:view_all 时，仅允许查看自己负责的客户。
+    scope_user_id = await customer_scope_user_id(request)
+
+    # 尝试从缓存获取（仅权限不受限时可安全复用缓存；
+    # 受限于经理可见性时，详情缓存不含归属维度，须走实时查询并做归属校验）
+    if scope_user_id is None:
+        cached = await cache_service.get("customer_detail", customer_id)
+        if cached is not None:
+            return json(cached)
 
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
@@ -348,6 +387,12 @@ async def get_customer(request: Request, customer_id: int):
 
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
+
+    # 归属校验：无「查看全部客户」权限且非本人负责 → 拒绝访问（不暴露客户存在性）
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     data = {
         "id": customer.id,
@@ -474,8 +519,6 @@ async def create_customer(request: Request):
     # industry_type_id 存在性验证
     industry_type_id = data.get("industry_type_id")
     if industry_type_id is not None:
-        from sqlalchemy import select
-
         from ..models.industry_type import IndustryType
 
         db_session: AsyncSession = request.ctx.db_session
@@ -536,6 +579,23 @@ async def update_customer(request: Request, customer_id: int):
     """
     data = request.json
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可更新自己负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        db_session: AsyncSession = request.ctx.db_session
+        cust = (
+            await db_session.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
+
     # 邮箱格式验证
     email = data.get("email")
     if email:
@@ -546,8 +606,6 @@ async def update_customer(request: Request, customer_id: int):
     # industry_type_id 存在性验证
     industry_type_id = data.get("industry_type_id")
     if industry_type_id is not None:
-        from sqlalchemy import select
-
         from ..models.industry_type import IndustryType
 
         db_session: AsyncSession = request.ctx.db_session
@@ -619,6 +677,46 @@ async def batch_update_customers(request: Request):
     service = CustomerService(db_session)
     current_user = get_current_user(request) or {}
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可批量更新自己负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        # 仅「存在但不归属当前用户」的客户判定为越权；已删除/软删除/
+        # 不存在的 id 不属于越权——服务层 batch_update_customers 会对
+        # 不存在的 id 逐条记入 failed_list（「客户不存在」）并继续处理其余客户。
+        scoped_ids = set(
+            (
+                await db_session.execute(
+                    select(Customer.id).where(
+                        Customer.id.in_(customer_ids),
+                        Customer.deleted_at.is_(None),
+                        or_(
+                            Customer.manager_id == scope_user_id,
+                            Customer.sales_manager_id == scope_user_id,
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        existing_ids = set(
+            (
+                await db_session.execute(
+                    select(Customer.id).where(
+                        Customer.id.in_(customer_ids),
+                        Customer.deleted_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if existing_ids - scoped_ids:
+            return json(
+                {"code": ErrorCodes.FORBIDDEN, "message": "无权访问所选客户中的部分客户"},
+                status=403,
+            )
+
     try:
         result = await service.batch_update_customers(
             customer_ids=customer_ids,
@@ -653,6 +751,22 @@ async def delete_customer(request: Request, customer_id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = CustomerService(db_session)
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可删除自己负责的客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        cust = (
+            await db_session.execute(
+                select(Customer).where(
+                    Customer.id == customer_id,
+                    Customer.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if cust is None or not (
+            cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
+        ):
+            return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
+
     success = await service.delete_customer(customer_id)
 
     if not success:
@@ -676,6 +790,13 @@ async def get_profile(request: Request, customer_id: int):
     customer = await service.get_customer_by_id(customer_id)
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责的客户画像
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     profile = await service.get_customer_profile(customer_id)
 
@@ -734,6 +855,13 @@ async def update_profile(request: Request, customer_id: int):
     customer = await service.get_customer_by_id(customer_id)
     if not customer:
         return json({"code": 40401, "message": "客户不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可更新自己负责客户的画像
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     profile = await service.create_or_update_profile(customer_id, request.json)
 
@@ -823,7 +951,6 @@ async def import_customers(request: Request):
             record["_row_num"] = int(idx) + 2  # Excel 行号（含表头）
 
         # 处理 industry 列：将行业类型名称转换为 industry_type_id
-        from sqlalchemy import select
 
         from ..models.industry_type import IndustryType
 
@@ -1101,6 +1228,12 @@ async def export_customers(request: Request):
         if current_user and current_user.get("user_id"):
             filters["mine_user_id"] = current_user["user_id"]
 
+    # 数据可见性（服务端强制）：无 customers:view_all 时导出同样受限，
+    # 只导出当前用户负责的客户，防止通过导出绕过可见性约束。
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None:
+        filters["mine_user_id"] = scope_user_id
+
     filters = {k: v for k, v in filters.items() if v is not None}
 
     db_session: AsyncSession = request.ctx.db_session
@@ -1195,13 +1328,18 @@ async def export_customers(request: Request):
 async def get_customer_summary(request: Request, customer_id: int):
     """获取客户 360 预览摘要数据"""
 
-    from ..models.customers import Customer
-
     db: AsyncSession = request.ctx.db_session
 
     customer = await db.get(Customer, customer_id)
     if not customer:
         return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     service = CustomerService(db)
     # 使用现有服务获取客户健康度等数据
@@ -1239,9 +1377,6 @@ async def get_customer_summary(request: Request, customer_id: int):
 @auth_required
 async def get_related_customers(request: Request, customer_id: int):
     """获取关联客户推荐（同行业同规模）"""
-    from sqlalchemy import select
-
-    from ..models.customers import Customer
 
     db: AsyncSession = request.ctx.db_session
 
@@ -1249,15 +1384,29 @@ async def get_related_customers(request: Request, customer_id: int):
     if not customer:
         return json({"code": 404, "message": "Customer not found"}, status=404)
 
-    result = await db.execute(
-        select(Customer)
-        .where(
-            Customer.id != customer_id,
-            Customer.industry_type == customer.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
-            Customer.scale_level == customer.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
+
+    related_filters = [
+        Customer.id != customer_id,
+        Customer.industry_type == customer.industry_type,  # pyright: ignore[reportAttributeAccessIssue]
+        Customer.scale_level == customer.scale_level,  # pyright: ignore[reportAttributeAccessIssue]
+    ]
+    # 数据可见性（服务端强制）：无 customers:view_all 时推荐列表仅限自己负责的客户。
+    # 过滤并入 SQL WHERE 后再 limit，避免「先截断后过滤」导致欠返回
+    # （同行业/同规模前 4 条候选若均非当前用户负责则结果为空）。
+    if scope_user_id is not None:
+        related_filters.append(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
         )
-        .limit(4)
-    )
+    result = await db.execute(select(Customer).where(*related_filters).limit(4))
 
     related = []
     for c in result.scalars():
@@ -1279,13 +1428,18 @@ async def get_related_customers(request: Request, customer_id: int):
 async def get_balance_forecast(request: Request, customer_id: int):
     """余额耗尽预测"""
 
-    from ..models.customers import Customer
-
     db: AsyncSession = request.ctx.db_session
 
     customer = await db.get(Customer, customer_id)
     if not customer:
         return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可查看自己负责客户
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     # 简单预测：如果有余额和消耗数据，计算预计天数
     balance = getattr(customer, "balance", 0) or 0
@@ -1316,13 +1470,19 @@ async def get_balance_forecast(request: Request, customer_id: int):
 @auth_required
 async def create_follow_up(request: Request, customer_id: int):
     """创建客户跟进记录"""
-    from ..models.customers import Customer
 
     db: AsyncSession = request.ctx.db_session
 
     customer = await db.get(Customer, customer_id)
     if not customer:
         return json({"code": 404, "message": "Customer not found"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户创建跟进记录
+    scope_user_id = await customer_scope_user_id(request)
+    if scope_user_id is not None and not (
+        customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+    ):
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     data = request.json or {}
     follow_up_type = data.get("type", "general")

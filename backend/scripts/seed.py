@@ -51,6 +51,7 @@ ALL_PERMISSIONS = [
     ("customers:delete", "删除客户", "删除客户记录", "customers"),
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
+    ("customers:view_all", "查看全部客户", "不受经理可见性约束，查看全部客户", "customers"),
     # ============================================================
     # 结算管理 (16)
     # ============================================================

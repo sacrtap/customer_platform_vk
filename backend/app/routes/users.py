@@ -75,6 +75,64 @@ async def list_users(request: Request):
     )
 
 
+@users_bp.get("/options")
+@auth_required
+async def list_user_options(request: Request):
+    """获取用户下拉选项（id/username/real_name）
+
+    提供给客户管理、分析、余额等业务的运营经理/销售经理下拉及姓名展示使用。
+    仅需登录即可访问，不要求 users:view 权限——因为「查看客户经理姓名/下拉」
+    是各业务模块的基础能力，不应受用户管理权限约束；否则非 admin 角色会因
+    无 users:view 而无法显示经理姓名（曾出现选项为空、列表显示 #id 的问题）。
+    返回结构与 GET /users 兼容（{list, total}），便于前端复用现有取列表逻辑。
+
+    仅返回启用（is_active=True）用户，避免向普通业务用户暴露停用账号。
+    支持 page/page_size 参数（page_size 上限 5000）；未显式传参时默认
+    一次拉取全部（page_size=2000），total 与返回 list 长度一致，避免
+    调用方误以为做了分页而实际拿到截断数据。
+    """
+    # 读取分页参数（上限保护，防止误传超大值拖垮查询）
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        page_size = min(int(request.args.get("page_size", 2000)), 5000)
+        page_size = max(page_size, 1)
+    except (ValueError, TypeError):
+        page_size = 2000
+
+    explicit_page_size = "page_size" in request.args
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+    users, total = await service.get_all_users(page=page, page_size=page_size, active_only=True)
+    # 下拉场景（未显式传 page_size）：total 与返回 list 一致，避免误导
+    if not explicit_page_size:
+        total = len(users)
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "list": [
+                    {
+                        "id": user.id,
+                        "username": user.username,
+                        "real_name": user.real_name,
+                        "is_active": user.is_active,
+                    }
+                    for user in users
+                ],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            },
+        }
+    )
+
+
 @users_bp.get("/<user_id:int>")
 @auth_required
 @require_permission("users:view")

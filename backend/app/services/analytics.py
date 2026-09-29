@@ -41,11 +41,16 @@ class AnalyticsService:
         start_date: datetime,
         end_date: datetime,
         customer_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[int, Dict[str, Any]]:
         """计算限量套餐客户的超量费用估算
 
         查询指定时间段内所有限量套餐客户的累计订单数，
         与 limit_count 对比计算超量费用。
+
+        mine_user_id: 数据可见性约束（服务端强制）。透传后仅统计当前用户
+        负责（manager_id/sales_manager_id）的客户的超量费用，防止无
+        customers:view_all 用户间接算入其他负责人的超量费用。
 
         Returns:
             {customer_id: {"over_limit_cost": float, "total_order_count": int, "limit_count": int}}
@@ -61,6 +66,14 @@ class AnalyticsService:
         )
         if customer_id:
             rule_stmt = rule_stmt.where(PricingRule.customer_id == customer_id)
+        if mine_user_id:
+            # 可见性约束：仅统计当前用户负责的客户的套餐规则
+            rule_stmt = rule_stmt.join(Customer, Customer.id == PricingRule.customer_id).where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         rule_result = await self.db.execute(rule_stmt)
         rules = rule_result.scalars().all()
@@ -117,8 +130,12 @@ class AnalyticsService:
         end_date: date | datetime,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取消耗趋势（月度）"""
+        """获取消耗趋势（月度）
+
+        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
+        """
         # 按月份聚合消耗金额
         stmt = (
             select(
@@ -141,6 +158,13 @@ class AnalyticsService:
             stmt = stmt.where(Invoice.customer_id == customer_id)
         if keyword:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if mine_user_id is not None:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         stmt = stmt.group_by(
             extract("year", Invoice.period_start),
@@ -174,8 +198,12 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取消耗趋势（支持订单数量和结算费用切换，支持多维度筛选）"""
+        """获取消耗趋势（支持订单数量和结算费用切换，支持多维度筛选）
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         from ..models.daily_consumption import DailyConsumption
 
         # 按日期聚合
@@ -205,6 +233,13 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         # 需要关联 CustomerProfile 的筛选条件
         if industry or scale_level or consume_level:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
@@ -241,7 +276,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到最后一天的费用中
         if trend_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date, customer_id=customer_id
+                start_date, end_date, customer_id=customer_id, mine_user_id=mine_user_id
             )
             if over_limit_estimates:
                 total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
@@ -264,8 +299,12 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取设备类型分布（支持订单数量和结算费用切换，支持多维度筛选）"""
+        """获取设备类型分布（支持订单数量和结算费用切换，支持多维度筛选）
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         from ..models.daily_consumption import DailyConsumption
 
         stmt = (
@@ -294,6 +333,13 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         # 需要关联 CustomerProfile 的筛选条件
         if industry or scale_level or consume_level:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
@@ -335,7 +381,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到 "package" 设备类型上
         if dist_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date, customer_id=customer_id
+                start_date, end_date, customer_id=customer_id, mine_user_id=mine_user_id
             )
             if over_limit_estimates:
                 total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
@@ -416,8 +462,12 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """获取 Top 客户排行（支持多维度筛选）"""
+        """获取 Top 客户排行（支持多维度筛选）
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         from ..models.daily_consumption import DailyConsumption
 
         stmt = (
@@ -446,6 +496,13 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         # 需要关联 CustomerProfile 的筛选条件
         if industry or scale_level or consume_level:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
@@ -486,7 +543,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到每个客户的总费用中
         if customers_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date
+                start_date, end_date, mine_user_id=mine_user_id
             )
             for c in customers_data:
                 est = over_limit_estimates.get(c["customer_id"])
@@ -577,8 +634,13 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ):
-        """对已 JOIN Customer 的查询追加多维度筛选条件，返回新 stmt"""
+        """对已 JOIN Customer 的查询追加多维度筛选条件，返回新 stmt
+
+        mine_user_id: 数据可见性约束（服务端强制）。非 None 时仅返回该用户
+        （作为运营经理或销售经理）负责客户的数据。
+        """
         if customer_id:
             stmt = stmt.where(Invoice.customer_id == customer_id)
         if keyword:
@@ -593,6 +655,13 @@ class AnalyticsService:
             stmt = stmt.where(Customer.manager_id == manager_id)
         if sales_manager_id:
             stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         if industry:
             industry_names = [n.strip() for n in industry.split(",") if n.strip()]
             if industry_names:
@@ -614,6 +683,7 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """获取回款分析数据
 
@@ -622,6 +692,8 @@ class AnalyticsService:
         已回款：状态为 paid/completed 的结算单 (total_amount - discount_amount) 之和
         回款率：已回款 / 应收净额 × 100
         待回款：应收净额 - 已回款
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         # 排除草稿和已取消的结算单（草稿尚未发出，不计入应收）
         active_status_filter = and_(
@@ -638,6 +710,7 @@ class AnalyticsService:
             consume_level=consume_level,
             manager_id=manager_id,
             sales_manager_id=sales_manager_id,
+            mine_user_id=mine_user_id,
         )
 
         # 应收金额（非草稿、非取消）
@@ -702,10 +775,13 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """获取结算单状态统计
 
         返回字段包含 name（状态标识）、count（数量）、percentage（占比）、total_amount（金额）
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         filter_kwargs = dict(
             customer_id=customer_id,
@@ -716,6 +792,7 @@ class AnalyticsService:
             consume_level=consume_level,
             manager_id=manager_id,
             sales_manager_id=sales_manager_id,
+            mine_user_id=mine_user_id,
         )
 
         stmt = (
@@ -762,10 +839,12 @@ class AnalyticsService:
         consume_level: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """获取月度回款趋势数据
 
         按月聚合应收和已回款金额，用于图表展示。
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from dateutil.relativedelta import relativedelta
 
@@ -802,6 +881,7 @@ class AnalyticsService:
                 consume_level=consume_level,
                 manager_id=manager_id,
                 sales_manager_id=sales_manager_id,
+                mine_user_id=mine_user_id,
             )
             trend.append(
                 {
@@ -817,16 +897,25 @@ class AnalyticsService:
 
     # ========== 健康度分析 ==========
 
-    async def get_customer_health_stats(self) -> Dict[str, Any]:
+    async def get_customer_health_stats(self, mine_user_id: Optional[int] = None) -> Dict[str, Any]:
         """获取客户健康度统计
 
         活跃客户：最近 90 天有 DailyConsumption 记录的客户
         余额预警：余额 < 1000 的客户
         流失风险：曾有过消耗但最近 90 天无消耗的客户
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from datetime import timedelta
 
         ninety_days_ago = datetime.utcnow() - timedelta(days=90)
+
+        # 可见性过滤条件（无 view_all 时仅统计当前用户负责的客户）
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
 
         # 查询 1: 总客户数 + 活跃客户数（通过 DailyConsumption 关联）
         # 拆分为独立查询避免与 CustomerBalance 的笛卡尔积
@@ -840,21 +929,32 @@ class AnalyticsService:
                 )
             )
         )
+        if scope_conds:
+            active_stmt = active_stmt.where(*scope_conds)
         active_count = (await self.db.execute(active_stmt)).scalar() or 0
 
         # 查询 2: 总客户数
         total_stmt = select(func.count(Customer.id)).where(
             and_(Customer.deleted_at.is_(None), Customer.is_disabled.is_(False))
         )
+        if scope_conds:
+            total_stmt = total_stmt.where(*scope_conds)
         total_count = (await self.db.execute(total_stmt)).scalar() or 0
 
         # 查询 3: 余额预警数（独立查询避免笛卡尔积）
-        warning_stmt = select(func.count(CustomerBalance.customer_id)).where(
-            and_(
-                CustomerBalance.total_amount < 1000,
-                CustomerBalance.deleted_at.is_(None),
+        warning_stmt = (
+            select(func.count(CustomerBalance.customer_id))
+            .join(Customer, CustomerBalance.customer_id == Customer.id)
+            .where(
+                and_(
+                    CustomerBalance.total_amount < 1000,
+                    CustomerBalance.deleted_at.is_(None),
+                    Customer.deleted_at.is_(None),
+                )
             )
         )
+        if scope_conds:
+            warning_stmt = warning_stmt.where(*scope_conds)
         warning_count = (await self.db.execute(warning_stmt)).scalar() or 0
 
         # 查询 4: 流失风险客户（曾有过消耗但最近 90 天无消耗）
@@ -885,6 +985,8 @@ class AnalyticsService:
                 )
             )
         )
+        if scope_conds:
+            churn_stmt = churn_stmt.where(*scope_conds)
         churn_count = (await self.db.execute(churn_stmt)).scalar() or 0
 
         return {
@@ -896,8 +998,13 @@ class AnalyticsService:
             "active_rate": round(active_count / total_count * 100, 2) if total_count > 0 else 0,
         }
 
-    async def get_balance_warning_list(self, threshold: float = 1000) -> List[Dict[str, Any]]:
-        """获取余额预警客户列表"""
+    async def get_balance_warning_list(
+        self, threshold: float = 1000, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """获取余额预警客户列表
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         stmt = (
             select(
                 Customer.id,
@@ -918,6 +1025,13 @@ class AnalyticsService:
             )
             .order_by(CustomerBalance.total_amount.asc())
         )
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         result = (await self.db.execute(stmt)).all()
         return [
@@ -934,12 +1048,17 @@ class AnalyticsService:
         ]
 
     async def get_inactive_customers(
-        self, days: int = 30, limit: Optional[int] = None
+        self,
+        days: int = 30,
+        limit: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """获取长期未消耗客户列表
 
         基于 DailyConsumption 表查找：曾经有消耗记录但最近 N 天无消耗的客户。
         返回 days 字段表示距离上次消耗的天数。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from datetime import timedelta
 
@@ -988,6 +1107,13 @@ class AnalyticsService:
             )
             .order_by(last_usage_subq.c.last_date.asc())
         )
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         if limit is not None:
             stmt = stmt.limit(limit)
 
@@ -1016,12 +1142,21 @@ class AnalyticsService:
 
     # ========== 画像分析 ==========
 
-    async def get_industry_distribution(self) -> List[Dict[str, Any]]:
+    async def get_industry_distribution(
+        self, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取行业分布
 
         以 Customer 为主表 LEFT JOIN CustomerProfile + IndustryType，
         确保所有未删除客户都被统计（无画像的客户归入"未分类"）。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         stmt = (
             select(
                 IndustryType.name,
@@ -1051,6 +1186,8 @@ class AnalyticsService:
             .group_by(IndustryType.name)
             .order_by(func.count(Customer.id).desc())
         )
+        if scope_conds:
+            stmt = stmt.where(*scope_conds)
 
         result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)  # pyright: ignore[reportArgumentType, reportCallIssue]
@@ -1064,14 +1201,23 @@ class AnalyticsService:
             for row in result
         ]
 
-    async def get_scale_level_stats(self) -> List[Dict[str, Any]]:
+    async def get_scale_level_stats(
+        self, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取客户规模等级统计
 
         以 Customer 为主表 LEFT JOIN CustomerProfile，确保所有未删除客户都被统计。
         将非标准值（NULL 或不在 S/A/B/C/D/E 中的旧值）归类为"未分类"，
         并按 S→A→B→C→D→E→未分类 的固定顺序返回。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         valid_levels = ["S", "A", "B", "C", "D", "E"]
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         normalized_level = case(
             (CustomerProfile.scale_level.in_(valid_levels), CustomerProfile.scale_level),
             else_="未分类",
@@ -1098,6 +1244,8 @@ class AnalyticsService:
             )
             .group_by(normalized_level)
         )
+        if scope_conds:
+            stmt = stmt.where(*scope_conds)
 
         result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)  # pyright: ignore[reportArgumentType, reportCallIssue]
@@ -1117,11 +1265,20 @@ class AnalyticsService:
             > 0  # 隐藏 count=0 的分类  # pyright: ignore[reportOperatorIssue]
         ]
 
-    async def get_consume_level_stats(self) -> List[Dict[str, Any]]:
+    async def get_consume_level_stats(
+        self, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取客户消费等级统计
 
         以 Customer 为主表 LEFT JOIN CustomerProfile，确保所有未删除客户都被统计。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         stmt = (
             select(
                 CustomerProfile.consume_level,
@@ -1144,6 +1301,8 @@ class AnalyticsService:
             .group_by(CustomerProfile.consume_level)
             .order_by(func.count(Customer.id).desc())
         )
+        if scope_conds:
+            stmt = stmt.where(*scope_conds)
 
         result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)  # pyright: ignore[reportArgumentType, reportCallIssue]
@@ -1157,18 +1316,27 @@ class AnalyticsService:
             for row in result
         ]
 
-    async def get_real_estate_stats(self) -> Dict[str, Any]:
+    async def get_real_estate_stats(self, mine_user_id: Optional[int] = None) -> Dict[str, Any]:
         """获取房产客户统计
 
         is_real_estate 是 Customer 表字段，无需 JOIN CustomerProfile。
         同时返回有画像的客户数，供前端计算"画像覆盖率"。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         total_stmt = select(func.count(Customer.id)).where(
             and_(
                 Customer.deleted_at.is_(None),
                 Customer.is_disabled.is_(False),
             )
         )
+        if scope_conds:
+            total_stmt = total_stmt.where(*scope_conds)
         total = (await self.db.execute(total_stmt)).scalar() or 0
 
         # 房产客户数：直接查 Customer 表，不 JOIN Profile
@@ -1179,6 +1347,8 @@ class AnalyticsService:
                 Customer.is_real_estate.is_(True),
             ),
         )
+        if scope_conds:
+            real_estate_stmt = real_estate_stmt.where(*scope_conds)
         real_estate = (await self.db.execute(real_estate_stmt)).scalar() or 0
 
         # 有画像的客户数（用于画像覆盖率）
@@ -1193,6 +1363,8 @@ class AnalyticsService:
                 )
             )
         )
+        if scope_conds:
+            profile_stmt = profile_stmt.where(*scope_conds)
         profile_count = (await self.db.execute(profile_stmt)).scalar() or 0
 
         return {
@@ -1204,12 +1376,21 @@ class AnalyticsService:
             "profile_coverage_rate": round(profile_count / total * 100, 2) if total > 0 else 0,
         }
 
-    async def get_real_estate_industry_stats(self) -> List[Dict[str, Any]]:
+    async def get_real_estate_industry_stats(
+        self, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取房产客户行业子分类统计
 
         以 Customer 为主表 LEFT JOIN CustomerProfile + IndustryType，
         确保所有房产客户都被统计（无画像的归入"未分类"）。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         stmt = (
             select(
                 IndustryType.name,
@@ -1240,6 +1421,8 @@ class AnalyticsService:
             .group_by(IndustryType.name)
             .order_by(func.count(Customer.id).desc())
         )
+        if scope_conds:
+            stmt = stmt.where(*scope_conds)
 
         result = (await self.db.execute(stmt)).all()
         total = sum(row.count for row in result)  # pyright: ignore[reportArgumentType, reportCallIssue]
@@ -1261,6 +1444,7 @@ class AnalyticsService:
         month: Optional[int] = None,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """预测月度回款
 
@@ -1339,6 +1523,14 @@ class AnalyticsService:
             )
         )
 
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+
         if customer_id:
             stmt = stmt.where(Customer.id == customer_id)
         if keyword:
@@ -1375,14 +1567,19 @@ class AnalyticsService:
         month: Optional[int] = None,
         customer_id: Optional[int] = None,
         keyword: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """获取预测回款汇总统计
 
         返回预测总额、已确认回款（已支付结算单）、待确认回款、完成率等。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from calendar import monthrange
 
-        predictions = await self.predict_monthly_payment(year, month, customer_id, keyword)
+        predictions = await self.predict_monthly_payment(
+            year, month, customer_id, keyword, mine_user_id=mine_user_id
+        )
 
         total_predicted = sum(p["predicted_amount"] for p in predictions)
         predicted_customers = len({p["customer_id"] for p in predictions})
@@ -1415,6 +1612,13 @@ class AnalyticsService:
             confirmed_stmt = confirmed_stmt.where(Invoice.customer_id == customer_id)
         if keyword:
             confirmed_stmt = confirmed_stmt.where(Customer.name.ilike(f"%{keyword}%"))
+        if mine_user_id:
+            confirmed_stmt = confirmed_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         confirmed_amount = float((await self.db.execute(confirmed_stmt)).scalar() or 0)
 
@@ -1443,11 +1647,14 @@ class AnalyticsService:
         apply_to: str = "all",
         forecast_months: Optional[int] = None,
         forecast_until: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """预测消费（MVP 版）
 
         基于历史用量（order_count）和单价矩阵估算未来月份消费。
         渐进式算法：数据不足时用最近月份保持，数据积累后自动升级。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
 
         Args:
             year: 目标年份
@@ -1543,6 +1750,13 @@ class AnalyticsService:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
         if device_type:
             stmt = stmt.where(usage_subq.c.device_type == device_type)
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         result = (await self.db.execute(stmt)).all()
 
@@ -1619,8 +1833,12 @@ class AnalyticsService:
         apply_to: str = "all",
         forecast_months: Optional[int] = None,
         forecast_until: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """获取消费预测汇总统计"""
+        """获取消费预测汇总统计
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         from calendar import monthrange
 
         forecasts = await self.forecast_consumption(
@@ -1632,6 +1850,7 @@ class AnalyticsService:
             apply_to=apply_to,
             forecast_months=forecast_months,
             forecast_until=forecast_until,
+            mine_user_id=mine_user_id,
         )
 
         # 活跃客户的总预测
@@ -1654,10 +1873,22 @@ class AnalyticsService:
             actual_start = dt(year, 1, 1, 0, 0, 0, tzinfo=CST).astimezone(UTC)
             actual_end = now.date()
 
-        actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
-            DailyConsumption.consumption_date >= actual_start,
-            DailyConsumption.consumption_date <= actual_end,
+        actual_stmt = (
+            select(func.coalesce(func.sum(DailyConsumption.total_cost), 0))
+            .join(Customer, DailyConsumption.customer_id == Customer.id)
+            .where(
+                DailyConsumption.consumption_date >= actual_start,
+                DailyConsumption.consumption_date <= actual_end,
+                Customer.deleted_at.is_(None),
+            )
         )
+        if mine_user_id:
+            actual_stmt = actual_stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         actual_this_month = float((await self.db.execute(actual_stmt)).scalar() or 0)
 
         # 环比变化（上月 vs 本月实际）
@@ -1666,15 +1897,27 @@ class AnalyticsService:
         last_month = now.date().replace(day=1) - relativedelta(days=1)
         mom_change = 0.0
         if actual_this_month > 0:
-            last_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
-                DailyConsumption.consumption_date >= date(last_month.year, last_month.month, 1),
-                DailyConsumption.consumption_date
-                <= date(
-                    last_month.year,
-                    last_month.month,
-                    monthrange(last_month.year, last_month.month)[1],
-                ),
+            last_stmt = (
+                select(func.coalesce(func.sum(DailyConsumption.total_cost), 0))
+                .join(Customer, DailyConsumption.customer_id == Customer.id)
+                .where(
+                    DailyConsumption.consumption_date >= date(last_month.year, last_month.month, 1),
+                    DailyConsumption.consumption_date
+                    <= date(
+                        last_month.year,
+                        last_month.month,
+                        monthrange(last_month.year, last_month.month)[1],
+                    ),
+                    Customer.deleted_at.is_(None),
+                )
             )
+            if mine_user_id:
+                last_stmt = last_stmt.where(
+                    or_(
+                        Customer.manager_id == mine_user_id,
+                        Customer.sales_manager_id == mine_user_id,
+                    )
+                )
             last_actual = float((await self.db.execute(last_stmt)).scalar() or 0)
             if last_actual > 0:
                 mom_change = round((actual_this_month / last_actual - 1) * 100, 2)
@@ -1697,6 +1940,7 @@ class AnalyticsService:
         apply_to: str = "all",
         forecast_months: Optional[int] = None,
         forecast_until: Optional[str] = None,
+        mine_user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """获取预测 vs 实际消费趋势
 
@@ -1705,6 +1949,7 @@ class AnalyticsService:
             apply_to: 'all' 返回全年 / 'future_only' 从当前月开始
             forecast_months: 预测月份数（从起始月开始）
             forecast_until: 截止月份 YYYY-MM
+            mine_user_id: 数据可见性约束（服务端强制）
 
         每月返回预测金额（用量×单价）和实际消费（已发生实盘）。
         """
@@ -1742,7 +1987,7 @@ class AnalyticsService:
             return []
 
         # 一次性计算未来月份的预测值（口径与 forecast_consumption 一致）
-        future_forecast = await self._estimate_future_consumption()
+        future_forecast = await self._estimate_future_consumption(mine_user_id=mine_user_id)
 
         trend = []
         for m in range(start_month, end_month + 1):
@@ -1755,10 +2000,22 @@ class AnalyticsService:
             month_end = dt(year, m, last_day_m, 23, 59, 59, tzinfo=CST).astimezone(UTC)
 
             # 实际消费
-            actual_stmt = select(func.coalesce(func.sum(DailyConsumption.total_cost), 0)).where(
-                DailyConsumption.consumption_date >= month_start,
-                DailyConsumption.consumption_date <= month_end,
+            actual_stmt = (
+                select(func.coalesce(func.sum(DailyConsumption.total_cost), 0))
+                .join(Customer, DailyConsumption.customer_id == Customer.id)
+                .where(
+                    DailyConsumption.consumption_date >= month_start,
+                    DailyConsumption.consumption_date <= month_end,
+                    Customer.deleted_at.is_(None),
+                )
             )
+            if mine_user_id:
+                actual_stmt = actual_stmt.where(
+                    or_(
+                        Customer.manager_id == mine_user_id,
+                        Customer.sales_manager_id == mine_user_id,
+                    )
+                )
             actual = float((await self.db.execute(actual_stmt)).scalar() or 0)
 
             # 判断是否已发生：只有有实际数据才标记为实盘
@@ -1936,11 +2193,14 @@ class AnalyticsService:
             return "medium"
         return "low"
 
-    async def _estimate_future_consumption(self) -> float:
-        """估算未来月份的总消费（活跃客户预测口径，与 summary 一致）"""
+    async def _estimate_future_consumption(self, mine_user_id: Optional[int] = None) -> float:
+        """估算未来月份的总消费（活跃客户预测口径，与 summary 一致）
+
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
         # 复用 forecast_consumption 计算活跃客户的预测总额
         now = datetime.utcnow()
-        forecasts = await self.forecast_consumption(year=now.year)
+        forecasts = await self.forecast_consumption(year=now.year, mine_user_id=mine_user_id)
         active_forecasts = [f for f in forecasts if f["is_active"]]
         return sum(f["forecast_amount"] for f in active_forecasts)
 
@@ -1975,13 +2235,22 @@ class AnalyticsService:
                     ForecastUnitPrice(device_type=device_type, unit_price=Decimal(str(unit_price)))
                 )
 
-    async def get_prediction_trend(self, year: int) -> List[Dict[str, Any]]:
+    async def get_prediction_trend(
+        self, year: int, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取全年 12 个月预测 vs 实际回款趋势
 
         每月返回预测金额（消耗总额）和实际回款（已支付结算单净额）。
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from calendar import monthrange
 
+        scope_conds = (
+            [or_(Customer.manager_id == mine_user_id, Customer.sales_manager_id == mine_user_id)]
+            if mine_user_id
+            else []
+        )
         trend = []
         for m in range(1, 13):
             from datetime import datetime as dt
@@ -1993,24 +2262,36 @@ class AnalyticsService:
             month_end = dt(year, m, last_day_m, 23, 59, 59, tzinfo=CST).astimezone(UTC)
 
             # 预测金额 = 当月消耗总额
-            predicted_stmt = select(
-                func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("predicted")
-            ).where(
-                DailyConsumption.consumption_date >= month_start,
-                DailyConsumption.consumption_date <= month_end,
+            predicted_stmt = (
+                select(func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("predicted"))
+                .join(Customer, DailyConsumption.customer_id == Customer.id)
+                .where(
+                    DailyConsumption.consumption_date >= month_start,
+                    DailyConsumption.consumption_date <= month_end,
+                    Customer.deleted_at.is_(None),
+                )
             )
+            if scope_conds:
+                predicted_stmt = predicted_stmt.where(*scope_conds)
             predicted = float((await self.db.execute(predicted_stmt)).scalar() or 0)
 
             # 实际回款 = 当月已支付/已完成结算单净额
-            actual_stmt = select(
-                func.coalesce(func.sum(Invoice.total_amount - Invoice.discount_amount), 0).label(
-                    "actual"
+            actual_stmt = (
+                select(
+                    func.coalesce(
+                        func.sum(Invoice.total_amount - Invoice.discount_amount), 0
+                    ).label("actual")
                 )
-            ).where(
-                Invoice.period_start >= month_start,
-                Invoice.period_end <= month_end,
-                Invoice.status.in_(["paid", "completed"]),
+                .join(Customer, Invoice.customer_id == Customer.id)
+                .where(
+                    Invoice.period_start >= month_start,
+                    Invoice.period_end <= month_end,
+                    Invoice.status.in_(["paid", "completed"]),
+                    Customer.deleted_at.is_(None),
+                )
             )
+            if scope_conds:
+                actual_stmt = actual_stmt.where(*scope_conds)
             actual = float((await self.db.execute(actual_stmt)).scalar() or 0)
 
             trend.append(
@@ -2456,11 +2737,24 @@ class AnalyticsService:
 
     # ========== 首页仪表盘 ==========
 
-    async def get_dashboard_stats(self) -> Dict[str, Any]:
-        """获取仪表盘统计数据（修复笛卡尔积：拆分为 2 个独立查询）"""
+    async def get_dashboard_stats(self, mine_user_id: Optional[int] = None) -> Dict[str, Any]:
+        """获取仪表盘统计数据（修复笛卡尔积：拆分为 2 个独立查询）
+
+        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
+        """
         today = datetime.utcnow()
         current_month_start = date(today.year, today.month, 1)
         current_month_end = date(today.year, today.month, monthrange(today.year, today.month)[1])
+
+        # 数据可见性约束条件
+        scope_conds = []
+        if mine_user_id is not None:
+            scope_conds.append(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         # 查询 1: 客户统计 + 余额（仅 JOIN 1:1 关系的 CustomerBalance，避免笛卡尔积）
         balance_stmt = (
@@ -2485,6 +2779,8 @@ class AnalyticsService:
             )
             .where(Customer.deleted_at.is_(None))
         )
+        if scope_conds:
+            balance_stmt = balance_stmt.where(and_(*scope_conds))
         balance_result = (await self.db.execute(balance_stmt)).first()
 
         # 查询 2: 结算单统计（独立查询，不与 CustomerBalance JOIN）
@@ -2521,6 +2817,8 @@ class AnalyticsService:
             .outerjoin(Invoice, Customer.id == Invoice.customer_id)
             .where(Customer.deleted_at.is_(None))
         )
+        if scope_conds:
+            invoice_stmt = invoice_stmt.where(and_(*scope_conds))
         invoice_result = (await self.db.execute(invoice_stmt)).first()
 
         return {
@@ -2534,8 +2832,13 @@ class AnalyticsService:
             "month_consumption": float(invoice_result.month_consumption or 0),  # pyright: ignore[reportOptionalMemberAccess]
         }
 
-    async def get_dashboard_chart_data(self, months: int = 6) -> Dict[str, Any]:
-        """获取仪表盘图表数据"""
+    async def get_dashboard_chart_data(
+        self, months: int = 6, mine_user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """获取仪表盘图表数据
+
+        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
+        """
         from dateutil.relativedelta import relativedelta
 
         today = datetime.utcnow()
@@ -2543,7 +2846,9 @@ class AnalyticsService:
         start_date = end_date - relativedelta(months=months)
 
         # 消耗趋势
-        consumption_trend = await self.get_consumption_trend(start_date, end_date)
+        consumption_trend = await self.get_consumption_trend(
+            start_date, end_date, mine_user_id=mine_user_id
+        )
 
         # 回款趋势
         payment_trend = []
@@ -2566,7 +2871,9 @@ class AnalyticsService:
                 tzinfo=CST,
             ).astimezone(UTC)
 
-            payment_data = await self.get_payment_analysis(month_start, month_end)
+            payment_data = await self.get_payment_analysis(
+                month_start, month_end, mine_user_id=mine_user_id
+            )
             payment_trend.append(
                 {
                     "period": f"{month_date.year}-{month_date.month:02d}",
@@ -2582,36 +2889,41 @@ class AnalyticsService:
         }
 
     async def get_consumption_trend_daily(
-        self, start_date: datetime, end_date: datetime
+        self, start_date: datetime, end_date: datetime, mine_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """获取仪表盘消耗趋势（基于每日消耗数据，按月聚合）
 
         与 get_consumption_trend（Invoice 维度）不同，本方法基于 DailyConsumption，
         反映真实消耗流水，供运营工作台「经营趋势」图表使用。
+
+        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
         """
         from ..models.daily_consumption import DailyConsumption
 
-        stmt = (
-            select(
-                extract("year", DailyConsumption.consumption_date).label("year"),
-                extract("month", DailyConsumption.consumption_date).label("month"),
-                func.sum(DailyConsumption.total_cost).label("total_amount"),
+        stmt = select(
+            extract("year", DailyConsumption.consumption_date).label("year"),
+            extract("month", DailyConsumption.consumption_date).label("month"),
+            func.sum(DailyConsumption.total_cost).label("total_amount"),
+        ).where(
+            and_(
+                DailyConsumption.consumption_date >= start_date,
+                DailyConsumption.consumption_date <= end_date,
+                DailyConsumption.deleted_at.is_(None),
             )
-            .where(
-                and_(
-                    DailyConsumption.consumption_date >= start_date,
-                    DailyConsumption.consumption_date <= end_date,
-                    DailyConsumption.deleted_at.is_(None),
+        )
+        if mine_user_id is not None:
+            stmt = stmt.join(Customer, Customer.id == DailyConsumption.customer_id).where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
                 )
             )
-            .group_by(
-                extract("year", DailyConsumption.consumption_date),
-                extract("month", DailyConsumption.consumption_date),
-            )
-            .order_by(
-                extract("year", DailyConsumption.consumption_date),
-                extract("month", DailyConsumption.consumption_date),
-            )
+        stmt = stmt.group_by(
+            extract("year", DailyConsumption.consumption_date),
+            extract("month", DailyConsumption.consumption_date),
+        ).order_by(
+            extract("year", DailyConsumption.consumption_date),
+            extract("month", DailyConsumption.consumption_date),
         )
 
         result = (await self.db.execute(stmt)).all()
@@ -2624,32 +2936,38 @@ class AnalyticsService:
         ]
 
     async def get_customer_count_trend(
-        self, start_date: datetime, end_date: datetime
+        self, start_date: datetime, end_date: datetime, mine_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """获取仪表盘客户数趋势（按月统计当月有消耗的去重客户数）"""
+        """获取仪表盘客户数趋势（按月统计当月有消耗的去重客户数）
+
+        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
+        """
         from ..models.daily_consumption import DailyConsumption
 
-        stmt = (
-            select(
-                extract("year", DailyConsumption.consumption_date).label("year"),
-                extract("month", DailyConsumption.consumption_date).label("month"),
-                func.count(func.distinct(DailyConsumption.customer_id)).label("customer_count"),
+        stmt = select(
+            extract("year", DailyConsumption.consumption_date).label("year"),
+            extract("month", DailyConsumption.consumption_date).label("month"),
+            func.count(func.distinct(DailyConsumption.customer_id)).label("customer_count"),
+        ).where(
+            and_(
+                DailyConsumption.consumption_date >= start_date,
+                DailyConsumption.consumption_date <= end_date,
+                DailyConsumption.deleted_at.is_(None),
             )
-            .where(
-                and_(
-                    DailyConsumption.consumption_date >= start_date,
-                    DailyConsumption.consumption_date <= end_date,
-                    DailyConsumption.deleted_at.is_(None),
+        )
+        if mine_user_id is not None:
+            stmt = stmt.join(Customer, Customer.id == DailyConsumption.customer_id).where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
                 )
             )
-            .group_by(
-                extract("year", DailyConsumption.consumption_date),
-                extract("month", DailyConsumption.consumption_date),
-            )
-            .order_by(
-                extract("year", DailyConsumption.consumption_date),
-                extract("month", DailyConsumption.consumption_date),
-            )
+        stmt = stmt.group_by(
+            extract("year", DailyConsumption.consumption_date),
+            extract("month", DailyConsumption.consumption_date),
+        ).order_by(
+            extract("year", DailyConsumption.consumption_date),
+            extract("month", DailyConsumption.consumption_date),
         )
 
         result = (await self.db.execute(stmt)).all()
@@ -2661,11 +2979,15 @@ class AnalyticsService:
             for row in result
         ]
 
-    async def get_risk_customers(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_risk_customers(
+        self, limit: int = 20, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """获取风险客户列表（余额覆盖不足 + 流失风险）
 
         余额风险：近 90 天有消耗记录，但余额缺失或不足 1000 元
         流失风险：曾有消耗但最近 90 天无消耗
+
+        mine_user_id: 数据可见性约束（服务端强制）。
         """
         from datetime import timedelta
 
@@ -2725,6 +3047,13 @@ class AnalyticsService:
             .order_by(risk_score.desc(), Customer.id)
             .limit(limit)
         )
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
         result = (await self.db.execute(stmt)).all()
 
         customers: List[Dict[str, Any]] = []
@@ -2749,7 +3078,9 @@ class AnalyticsService:
 
         # 补充流失风险客户（曾有消耗但近 90 天无消耗）
         if len(customers) < limit:
-            inactive = await self.get_inactive_customers(days=90, limit=limit - len(customers))
+            inactive = await self.get_inactive_customers(
+                days=90, limit=limit - len(customers), mine_user_id=mine_user_id
+            )
             existing_ids = {c["customer_id"] for c in customers}
             for ic in inactive:
                 if ic["customer_id"] in existing_ids:

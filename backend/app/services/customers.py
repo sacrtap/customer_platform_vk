@@ -434,13 +434,19 @@ class CustomerService:
         self,
         filters: Optional[dict] = None,
         mine_user_id: Optional[int] = None,
+        visibility_user_id: Optional[int] = None,
     ) -> dict:
         """
         聚合统计 KPI 数据（单次查询返回全部计数）
 
         Args:
             filters: 基础筛选条件（与 get_all_customers 相同的 filters 字典）
-            mine_user_id: 当前用户 ID（用于「我的客户」计数）
+            mine_user_id: 当前用户 ID（「我的客户」卡片计数；由前端 mine=true
+                显式请求，或受限用户被 route 强制传入）
+            visibility_user_id: 服务端强制可见性 user_id（无 customers:view_all
+                时为当前用户 ID，否则为 None）。**只约束 total/key_customers/
+                incomplete_profile 三个全量卡片**——即使前端对 admin 传了
+                mine=true，三个卡片也必须显示全量，与列表可见范围一致。
 
         Returns:
             dict: { total, key_customers, incomplete_profile, my_customers }
@@ -480,6 +486,16 @@ class CustomerService:
             ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
         if base_where is not None:
             total_stmt = total_stmt.where(base_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时三个全量卡片仅统计
+        # 当前用户负责的客户（visibility_user_id 由 route 传入 scope_user_id；
+        # 有 view_all 时为 None → 统计全量，不受前端 mine=true 影响）
+        if visibility_user_id:
+            total_stmt = total_stmt.where(
+                or_(
+                    Customer.manager_id == visibility_user_id,
+                    Customer.sales_manager_id == visibility_user_id,
+                )
+            )
 
         # 2. 重点客户数
         key_stmt = select(func.count(Customer.id)).where(
@@ -492,6 +508,14 @@ class CustomerService:
             ).outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
         if base_where is not None:
             key_stmt = key_stmt.where(base_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+        if visibility_user_id:
+            key_stmt = key_stmt.where(
+                or_(
+                    Customer.manager_id == visibility_user_id,
+                    Customer.sales_manager_id == visibility_user_id,
+                )
+            )
 
         # 3. 待完善画像数
         incomplete_stmt = select(func.count(Customer.id)).where(
@@ -515,6 +539,14 @@ class CustomerService:
             incomplete_stmt = incomplete_stmt.where(and_(base_where, incomplete_where))
         else:
             incomplete_stmt = incomplete_stmt.where(incomplete_where)
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户
+        if visibility_user_id:
+            incomplete_stmt = incomplete_stmt.where(
+                or_(
+                    Customer.manager_id == visibility_user_id,
+                    Customer.sales_manager_id == visibility_user_id,
+                )
+            )
 
         # 4. 我的客户数
         mine_stmt = select(func.count(Customer.id)).where(
