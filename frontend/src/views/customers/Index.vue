@@ -109,7 +109,7 @@
     <!-- 导入对话框 -->
     <CustomerImportModal
       :visible="importModalVisible"
-      @saved="handleSearch"
+      @imported="handleSearch"
       @update:visible="importModalVisible = $event"
     />
 

@@ -92,6 +92,32 @@ GET  /api/v1/billing/invoices/import-template
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
+### 客户导入/导出字段对称（23 列，禁止单侧增删）
+
+`customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
+（2026-09-29 起强制；此前模板缺 `auto_initiate_settlement` 导致导出回灌时该列与
+`scale_level` 静默丢失）：
+
+```
+company_id, name, account_type, industry, price_policy, settlement_type, settlement_cycle,
+is_key_customer, email, erp_system, first_payment_date, onboarding_date, cooperation_status,
+is_settlement_enabled, auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
+monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
+```
+
+导入侧转换规则（`CustomerService.batch_create_customers`，不得静默丢列）：
+
+| 字段 | 规则 |
+|---|---|
+| `industry` | 名称 → `industry_type_id`；不存在 → 行级错误 |
+| `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
+| `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
+| `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
+| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
+| `cooperation_status` | 白名单 `active/suspended/terminated/noused` + 中文映射；未知值 → 行级错误（不静默置空） |
+| `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
+| `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
+
 ### 结算单导入受控字段
 
 仅暴露 `company_id` / `period_start` / `period_end` / `total_amount` / `discount_amount` / `invoice_no`（可选）：

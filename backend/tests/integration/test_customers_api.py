@@ -611,7 +611,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     assert ws.title == "客户导入模板"
 
-    # 验证第 1 行：表头字段（22 个字段）
+    # 验证第 1 行：表头字段（23 个字段）
     headers = [cell.value for cell in ws[1]]
     expected_headers = [
         "company_id",
@@ -628,6 +628,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "onboarding_date",
         "cooperation_status",
         "is_settlement_enabled",
+        "auto_initiate_settlement",
         "is_disabled",
         "notes",
         "scale_level",
@@ -657,13 +658,13 @@ async def test_download_import_template_field_structure(test_client, auth_header
     # 验证新增字段
     assert example[10] == "2024-01-15"  # first_payment_date
     assert example[12] == "active"  # cooperation_status
-    assert example[16] == "C"  # scale_level
-    assert example[17] == "C2"  # consume_level
+    assert example[17] == "C"  # scale_level
+    assert example[18] == "C2"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 22 个字段"""
+    """测试下载导入模板 - 验证表头数量为 23 个字段"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -677,7 +678,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 22, f"期望 22 个表头，实际 {header_count} 个"
+    assert header_count == 23, f"期望 23 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -1284,6 +1285,214 @@ async def test_import_customers_unknown_industry_reports_error(
         text("DELETE FROM customers WHERE company_id >= 1000050 AND company_id < 1000060")
     )
     db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_full_fields_persist(test_client, auth_headers, db_session):
+    """测试导入 - 导出文件所列字段须完整落库
+
+    回归防护 —— 导入模板与导出同构（23 列），以下字段此前在批量导入链路
+    被静默丢弃或错误存储：
+    - auto_initiate_settlement（模板缺列 + 服务不处理）→ 应转布尔入库
+    - scale_level（profile_fields 缺该键）→ 应写 customer_profiles.scale_level
+    - settlement_type 中文值「预付费/后付费」→ 应转英文 prepaid/postpaid 存储
+    - cooperation_status 未知值（如 bding）→ 应回传行级错误而非静默置空
+    """
+    from openpyxl import Workbook
+
+    # 行业名须已存在（与其它导入用例一致）
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "company_id",
+            "name",
+            "account_type",
+            "industry",
+            "price_policy",
+            "settlement_type",
+            "settlement_cycle",
+            "is_key_customer",
+            "email",
+            "erp_system",
+            "first_payment_date",
+            "onboarding_date",
+            "cooperation_status",
+            "is_settlement_enabled",
+            "auto_initiate_settlement",
+            "is_disabled",
+            "notes",
+            "scale_level",
+            "consume_level",
+            "monthly_avg_shots",
+            "monthly_avg_shots_estimated",
+            "estimated_annual_spend",
+            "actual_annual_spend_2025",
+        ]
+    )
+    # 两条正常行：中文结算方式 + auto_initiate_settlement/scale_level 落库
+    ws.append(
+        [
+            1000060,
+            "字段全量客户 A",
+            "正式账号",
+            "房产经纪",
+            "定价",
+            "预付费",
+            "月结",
+            "是",
+            "full_a@example.com",
+            "易遨",
+            "2024-01-15",
+            "2024-02-01",
+            "active",
+            "是",
+            "是",
+            "否",
+            "备注A",
+            "S",
+            "C1",
+            500,
+            450,
+            50000.00,
+            45000.00,
+        ]
+    )
+    ws.append(
+        [
+            1000061,
+            "字段全量客户 B",
+            "正式账号",
+            "房产经纪",
+            None,
+            "后付费",
+            None,
+            "否",
+            None,
+            None,
+            None,
+            None,
+            "noused",
+            "否",
+            "否",
+            "是",
+            None,
+            "A",
+            "C2",
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
+    # 一条未知合作状态行：应行级报错
+    ws.append(
+        [
+            1000062,
+            "脏状态客户",
+            "正式账号",
+            "房产经纪",
+            None,
+            "预付费",
+            None,
+            "否",
+            None,
+            None,
+            None,
+            None,
+            "bding",
+            "是",
+            "是",
+            "否",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_full_fields.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 1, data["data"]
+    assert any("bding" in e for e in data["data"]["errors"]), data["data"]
+
+    try:
+        # 中文结算方式已转英文存储值
+        st_rows = db_session.execute(
+            text(
+                "SELECT company_id, settlement_type FROM customers "
+                "WHERE company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        st_map = {cid: st for cid, st in st_rows}
+        assert st_map[1000060] == "prepaid", st_map
+        assert st_map[1000061] == "postpaid", st_map
+
+        # auto_initiate_settlement 转布尔入库
+        auto_rows = db_session.execute(
+            text(
+                "SELECT company_id, auto_initiate_settlement FROM customers "
+                "WHERE company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        auto_map = {cid: v for cid, v in auto_rows}
+        assert auto_map[1000060] is True, auto_map
+        assert auto_map[1000061] is False, auto_map
+
+        # scale_level 写入 customer_profiles
+        sl_rows = db_session.execute(
+            text(
+                "SELECT c.company_id, p.scale_level FROM customer_profiles p "
+                "JOIN customers c ON c.id = p.customer_id "
+                "WHERE c.company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        sl_map = {cid: sl for cid, sl in sl_rows}
+        assert sl_map[1000060] == "S", sl_map
+        assert sl_map[1000061] == "A", sl_map
+
+        # 脏状态行未入库
+        bad_count = db_session.execute(
+            text("SELECT COUNT(*) FROM customers WHERE company_id = 1000062")
+        ).scalar()
+        assert bad_count == 0
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id >= 1000060 AND company_id < 1000070")
+        )
+        db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
+        db_session.commit()
 
 
 @pytest.mark.asyncio

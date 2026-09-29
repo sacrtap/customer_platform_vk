@@ -114,12 +114,18 @@ def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
 
 
 def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
-    """将前端/导入的中文值转换为数据库存储的英文标识符"""
+    """将前端/导入的中文值转换为数据库存储的英文标识符
+
+    中文「预付费/后付费」→ 英文 `prepaid/postpaid`；已是英文存储值则原样返回；
+    未知值返回 None（由调用方报行级错误兜底）。
+    """
     if not value:
         return None
     if value in SETTLEMENT_TYPE_MAP:
+        return SETTLEMENT_TYPE_MAP[value]
+    if value in SETTLEMENT_TYPE_REVERSE_MAP:
         return value
-    return SETTLEMENT_TYPE_REVERSE_MAP.get(value)
+    return None
 
 
 # 计费模式转换
@@ -1093,9 +1099,11 @@ class CustomerService:
                     # 新增字段
                     "cooperation_status",
                     "is_settlement_enabled",
+                    "auto_initiate_settlement",
                     "is_disabled",
                     "first_payment_date",
                     "onboarding_date",
+                    "scale_level",
                     "consume_level",
                     "monthly_avg_shots",
                     "monthly_avg_shots_estimated",
@@ -1171,7 +1179,14 @@ class CustomerService:
                             "终止": "terminated",
                             "近一年未使用": "noused",
                         }
-                        data["cooperation_status"] = status_map.get(cooperation_status)
+                        mapped = status_map.get(cooperation_status)
+                        if mapped is None:
+                            errors.append(
+                                f"行{row_num}: 无效的合作状态: {cooperation_status} "
+                                "(可选值：active/合作中, suspended/暂停, terminated/终止, noused/近一年未使用)"
+                            )
+                            continue
+                        data["cooperation_status"] = mapped
 
                 # 转换日期字段（DATE 列需要 date 对象，字符串会在 flush 时报错）
                 data["first_payment_date"] = parse_date_to_object(data.get("first_payment_date"))
@@ -1182,9 +1197,25 @@ class CustomerService:
                 if settlement_cycle:
                     data["settlement_cycle"] = convert_settlement_cycle_to_storage(settlement_cycle)
 
-                # 结算方式统一设为 prepaid
-                if data.get("settlement_type") is None:
+                # 转换结算方式：导出/模板填中文「预付费/后付费」，须转英文存储值
+                settlement_type = data.get("settlement_type")
+                if settlement_type is None:
                     data["settlement_type"] = "prepaid"
+                else:
+                    storage_settlement_type = convert_settlement_type_to_storage(
+                        str(settlement_type).strip()
+                    )
+                    if storage_settlement_type is None:
+                        errors.append(
+                            f"行{row_num}: 无效的结算方式: {settlement_type} (可选值：预付费/后付费)"
+                        )
+                        continue
+                    data["settlement_type"] = storage_settlement_type
+
+                # 转换 auto_initiate_settlement（导出/模板为「是/否」或 true/false）
+                data["auto_initiate_settlement"] = convert_bool_field(
+                    data.get("auto_initiate_settlement")
+                )
 
                 # 数值字段清洗（月均拍摄量等）
                 for num_field in [
@@ -1223,6 +1254,7 @@ class CustomerService:
                 profile_data = None
                 profile_fields = {
                     "industry_type_id": data.get("industry_type_id"),
+                    "scale_level": data.get("scale_level"),
                     "consume_level": data.get("consume_level"),
                     "monthly_avg_shots": data.get("monthly_avg_shots"),
                     "monthly_avg_shots_estimated": data.get("monthly_avg_shots_estimated"),
@@ -1248,6 +1280,7 @@ class CustomerService:
                     onboarding_date=data.get("onboarding_date"),
                     cooperation_status=data.get("cooperation_status"),
                     is_settlement_enabled=data.get("is_settlement_enabled"),
+                    auto_initiate_settlement=data.get("auto_initiate_settlement"),
                     is_disabled=data.get("is_disabled"),
                     notes=data.get("notes"),
                 )
@@ -1284,6 +1317,7 @@ class CustomerService:
                         profile = CustomerProfile(
                             customer_id=customer_id,
                             industry_type_id=pd.get("industry_type_id"),
+                            scale_level=pd.get("scale_level"),
                             consume_level=pd.get("consume_level"),
                             monthly_avg_shots=pd.get("monthly_avg_shots"),
                             monthly_avg_shots_estimated=pd.get("monthly_avg_shots_estimated"),
