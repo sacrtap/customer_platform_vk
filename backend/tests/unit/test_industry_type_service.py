@@ -155,15 +155,31 @@ class TestIndustryTypeService_SoftDelete:
 
     @pytest.mark.asyncio
     async def test_soft_deletes_industry_type(self, service, mock_db_session):
-        """成功软删除行业类型"""
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = IndustryType(id=1, name="项目", sort_order=1)
-        mock_db_session.execute.return_value = mock_result
+        """成功软删除行业类型（未被客户画像引用时）"""
+        mock_get = MagicMock()
+        mock_get.scalar_one_or_none.return_value = IndustryType(id=1, name="项目", sort_order=1)
+        mock_ref = MagicMock()
+        mock_ref.scalar.return_value = 0  # 引用计数：未被客户画像引用
+        mock_db_session.execute.side_effect = [mock_get, mock_ref]
 
         result = await service.soft_delete(1)
 
         assert result is True
         mock_db_session.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_when_referenced_by_customers(self, service, mock_db_session):
+        """被客户画像引用的行业禁止删除（引用保护，硬规则）"""
+        mock_get = MagicMock()
+        mock_get.scalar_one_or_none.return_value = IndustryType(id=1, name="项目", sort_order=1)
+        mock_ref = MagicMock()
+        mock_ref.scalar.return_value = 5  # 5 个客户引用
+        mock_db_session.execute.side_effect = [mock_get, mock_ref]
+
+        with pytest.raises(ValueError, match="正被 5 个客户使用，不能删除"):
+            await service.soft_delete(1)
+
+        mock_db_session.commit.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_returns_false_for_not_found(self, service, mock_db_session):
