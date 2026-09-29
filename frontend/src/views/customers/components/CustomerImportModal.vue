@@ -5,8 +5,8 @@
     title="导入客户"
     :confirm-loading="importLoading"
     width="560px"
-    @before-ok="handleImportSubmit"
-    @cancel="isVisible = false"
+    :hide-cancel="false"
+    @cancel="resetState"
   >
     <div class="import-modal-content">
       <a-alert type="info" style="margin-bottom: 20px">
@@ -113,6 +113,23 @@
         </div>
       </div>
 
+      <!-- 预检查结果区 -->
+      <div v-if="previewResult" class="preview-result">
+        <div class="preview-summary">
+          <span class="preview-ok">可入库：{{ previewResult.success_count }} 条</span>
+          <span class="preview-error">错误：{{ previewResult.error_count }} 条</span>
+        </div>
+        <div v-if="previewResult.errors.length" class="preview-errors">
+          <div class="preview-errors-title">错误明细（含行号）：</div>
+          <ul class="preview-errors-list">
+            <li v-for="(err, idx) in previewResult.errors" :key="idx">{{ err }}</li>
+          </ul>
+          <div v-if="previewResult.error_count > previewResult.errors.length" class="preview-more">
+            ... 还有 {{ previewResult.error_count - previewResult.errors.length }} 条错误未显示
+          </div>
+        </div>
+      </div>
+
       <div class="import-tips">
         <div class="tips-title">
           <svg
@@ -139,6 +156,21 @@
         </ul>
       </div>
     </div>
+
+    <template #footer>
+      <a-button @click="resetState">取消</a-button>
+      <a-button :loading="previewLoading" :disabled="!importFile" @click="handlePreview">
+        {{ previewResult ? '重新预检查' : '预检查' }}
+      </a-button>
+      <a-button
+        type="primary"
+        :loading="importLoading"
+        :disabled="!previewResult"
+        @click="handleImportSubmit"
+      >
+        确认导入
+      </a-button>
+    </template>
   </a-modal>
 </template>
 
@@ -164,8 +196,19 @@ const isVisible = computed({
 })
 
 const importLoading = ref(false)
+const previewLoading = ref(false)
 const importFile = ref<File | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const previewResult = ref<ImportResult | null>(null)
+
+const resetState = () => {
+  previewResult.value = null
+  importFile.value = null
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+  isVisible.value = false
+}
 
 const triggerFileInput = () => {
   fileInputRef.value?.click()
@@ -201,10 +244,12 @@ const validateAndSetFile = (file: File) => {
   }
 
   importFile.value = file
+  previewResult.value = null // 更换文件后需重新预检查
 }
 
 const removeFile = () => {
   importFile.value = null
+  previewResult.value = null
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
@@ -236,10 +281,42 @@ const downloadTemplate = async () => {
   }
 }
 
+// 第一步：预检查（dry_run=true，不落库），返回可入库条数与错误明细（含行号）
+const handlePreview = async () => {
+  if (!importFile.value) {
+    Message.error('请选择要导入的文件')
+    return
+  }
+
+  previewLoading.value = true
+  try {
+    const res = await importCustomers(importFile.value, true)
+    const data = (res as { data: ImportResult }).data
+    previewResult.value = data
+    if (data.error_count === 0) {
+      Message.success(`预检查通过：可入库 ${data.success_count} 条`)
+    } else {
+      Message.warning({
+        content: `预检查完成：可入库 ${data.success_count} 条，错误 ${data.error_count} 条`,
+        duration: 5000,
+      })
+    }
+  } catch (error: unknown) {
+    handleError(error, '预检查失败')
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+// 第二步：确认后真正入库
 const handleImportSubmit = async () => {
   if (!importFile.value) {
     Message.error('请选择要导入的文件')
-    return false
+    return
+  }
+  if (!previewResult.value) {
+    Message.error('请先执行预检查')
+    return
   }
 
   importLoading.value = true
@@ -263,7 +340,7 @@ const handleImportSubmit = async () => {
       Message.success(`导入成功，共导入 ${success_count} 条客户数据`)
     }
     emit('imported')
-    emit('update:visible', false)
+    resetState()
     return true
   } catch (error: unknown) {
     handleError(error, '导入失败')
@@ -394,5 +471,58 @@ const handleImportSubmit = async () => {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+/* 预检查结果区 */
+.preview-result {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.preview-summary {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-ok {
+  color: var(--green, #10b981);
+}
+
+.preview-error {
+  color: var(--red, #dc2626);
+}
+
+.preview-errors {
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.preview-errors-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.preview-errors-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: #b91c1c;
+  line-height: 1.6;
+}
+
+.preview-more {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
 }
 </style>

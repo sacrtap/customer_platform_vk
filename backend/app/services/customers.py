@@ -1071,12 +1071,18 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self,
+        customers_data: list[dict],
+        dry_run: bool = False,
+    ) -> tuple[int, list[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
         Args:
             customers_data: 客户数据列表
+            dry_run: True 时仅执行完整行级校验（含行业/枚举/经理姓名映射等），
+                不落库、不写审计；success_count 表示「通过校验、将入库的行数」。
 
         Returns:
             (success_count, errors)
@@ -1128,6 +1134,9 @@ class CustomerService:
                     "monthly_avg_shots_estimated",
                     "estimated_annual_spend",
                     "actual_annual_spend_2025",
+                    # 经理映射（路由已完成中文姓名 → user_id；这里统一 NaN/#N/A 清洗）
+                    "manager_id",
+                    "sales_manager_id",
                 ]
                 for field in optional_fields:
                     val = data.get(field)
@@ -1298,6 +1307,7 @@ class CustomerService:
                     account_type=data.get("account_type"),
                     price_policy=storage_value,
                     manager_id=data.get("manager_id"),
+                    sales_manager_id=data.get("sales_manager_id"),
                     settlement_cycle=data.get("settlement_cycle"),
                     settlement_type=data.get("settlement_type"),
                     is_key_customer=data.get("is_key_customer", False),
@@ -1312,24 +1322,26 @@ class CustomerService:
                     is_disabled=data.get("is_disabled"),
                     notes=data.get("notes"),
                 )
-                self.db.add(customer)
-                new_customers.append(customer)
-                # 暂存 profile 数据（等待 flush 后设置 customer_id）
-                if profile_data:
-                    pending_profiles.append(
-                        {
-                            "data": profile_data,
-                            "company_id": company_id,
-                        }
-                    )
+                # dry_run 仅做校验，不构造 ORM 对象、不落库
+                if not dry_run:
+                    self.db.add(customer)
+                    new_customers.append(customer)
+                    # 暂存 profile 数据（等待 flush 后设置 customer_id）
+                    if profile_data:
+                        pending_profiles.append(
+                            {
+                                "data": profile_data,
+                                "company_id": company_id,
+                            }
+                        )
                 existing_company_ids.add(company_id)  # 防止同批次重复
 
                 success_count += 1
             except Exception as e:
                 errors.append(f"行{row_num}: {str(e)}")
 
-        # 批量创建余额记录和 profile
-        if success_count > 0:
+        # 批量创建余额记录和 profile（dry_run 跳过）
+        if not dry_run and success_count > 0:
             # flush 后 customer.id 可用
             await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
@@ -1354,7 +1366,9 @@ class CustomerService:
                         )
                         self.db.add(profile)
 
-        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        # dry_run 不提交
+        if not dry_run:
+            await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
         return success_count, errors
 
 

@@ -911,6 +911,8 @@ async def import_customers(request: Request):
 
     Form:
     - file: Excel 文件 (.xlsx)
+    - dry_run: 可选，true/1/yes/on 时仅预检查（完整行级校验、不落库），
+      返回可入库条数 + 错误列表（含行号），供前端二次确认
 
     Excel 列要求:
     - company_id (integer, required)
@@ -922,6 +924,8 @@ async def import_customers(request: Request):
     - settlement_type (可选)
     - is_key_customer (可选，true/false)
     - email (可选)
+    - manager (可选，运营经理中文姓名/用户名，入库转 user_id)
+    - sales_manager (可选，销售经理中文姓名/用户名，入库转 user_id)
     """
     files = request.files
     if "file" not in files:  # pyright: ignore[reportOperatorIssue]
@@ -983,6 +987,70 @@ async def import_customers(request: Request):
                 del row["industry"]
             valid_rows.append(row)
 
+        # 处理运营经理/销售经理列：中文姓名 → 用户 ID（与 users/options 一致，
+        # 仅匹配启用用户；姓名展示为 real_name，username 兜底）。找不到的行级报错，
+        # 不阻导入整体。
+        from ..models.users import User
+
+        manager_result = await db_session.execute(
+            select(User.id, User.real_name, User.username).where(User.is_active.is_(True))
+        )
+        manager_by_real_name: dict[str, int] = {}
+        manager_by_username: dict[str, int] = {}
+        for uid, real_name, username in manager_result.all():
+            if real_name:
+                manager_by_real_name[real_name] = uid
+            if username:
+                manager_by_username[username] = uid
+
+        manager_errors: list[str] = []
+
+        def _resolve_manager_id(
+            row: dict, column: str, label: str
+        ) -> tuple[int | None, str | None]:
+            """按中文姓名/用户名解析经理 user_id。
+
+            返回 (user_id, error)：解析失败时 user_id=None 且 error 为行级错误文案；
+            列未填/空值 → (None, None)。
+            """
+            value = row.get(column)
+            # pandas 空单元格为 NaN
+            if isinstance(value, float) and math.isnan(value):
+                return None, None
+            if value is None:
+                return None, None
+            if not isinstance(value, str):
+                value = str(value)
+            value = value.strip()
+            if not value:
+                return None, None
+            user_id = manager_by_real_name.get(value) or manager_by_username.get(value)
+            if user_id is None:
+                return None, (f"行{row['_row_num']}: {label} '{value}' 不存在或已停用")
+            return user_id, None
+
+        # 经理姓名校验失败的行整行剔除（与行业映射错误同语义：填了但无法解析
+        # 则不入库，而非静默留空——用户以为自己设了经理，实际数据不完整）。
+        filtered_rows: list[dict] = []
+        for row in valid_rows:
+            manager_id, manager_err = _resolve_manager_id(row, "manager", "运营经理")
+            sales_manager_id, sales_err = _resolve_manager_id(row, "sales_manager", "销售经理")
+            if manager_err or sales_err:
+                if manager_err:
+                    manager_errors.append(manager_err)
+                if sales_err:
+                    manager_errors.append(sales_err)
+                continue
+            if manager_id is not None:
+                row["manager_id"] = manager_id
+            if sales_manager_id is not None:
+                row["sales_manager_id"] = sales_manager_id
+            # 原始中文列不再传给服务层（避免未知列被忽略/污染）
+            row.pop("manager", None)
+            row.pop("sales_manager", None)
+            filtered_rows.append(row)
+        valid_rows = filtered_rows
+
         # 处理 is_key_customer 列
         for row in customers_data:
             if "is_key_customer" in row:
@@ -1000,10 +1068,29 @@ async def import_customers(request: Request):
         db_session: AsyncSession = request.ctx.db_session
         service = CustomerService(db_session)
 
-        success_count, service_errors = await service.batch_create_customers(valid_rows)
+        # 预检查（dry_run=true）：完整行级校验但不落库，返回可入库条数与全部错误（含行号）；
+        # 前端据此展示「将入库 N 条 / 错误 M 条」并二次确认后才真正入库。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
+        success_count, service_errors = await service.batch_create_customers(
+            valid_rows, dry_run=dry_run
+        )
         # 行业映射阶段的行级错误必须保留：原实现直接赋值覆盖 errors，
         # 使「行业类型不存在」等校验结果被静默丢弃，用户误以为全部导入成功。
-        errors = industry_errors + service_errors
+        errors = industry_errors + manager_errors + service_errors
+
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": success_count,
+                        "error_count": len(errors),
+                        "errors": errors[:50],  # 预检阶段展示更多错误便于确认
+                    },
+                }
+            )
 
         # 清除客户列表缓存
         await cache_service.invalidate_customer_cache()
@@ -1072,6 +1159,8 @@ async def download_import_template(request: Request):
     headers = [
         "company_id",
         "name",
+        "manager",
+        "sales_manager",
         "account_type",
         "industry",
         "price_policy",
@@ -1100,6 +1189,8 @@ async def download_import_template(request: Request):
     notes = [
         "必填：唯一整数",
         "必填：客户名称",
+        "可选：运营经理中文姓名或用户名",
+        "可选：销售经理中文姓名或用户名",
         "可选：正式账号/客户测试账号/内部账号",
         "可选：行业类型",
         "可选：定价/阶梯/包年",
@@ -1132,6 +1223,8 @@ async def download_import_template(request: Request):
     example_data = [
         100001,
         "示例公司",
+        "张三",
+        "李四",
         "正式账号",
         "房产经纪",
         "定价",
@@ -1262,14 +1355,33 @@ async def export_customers(request: Request):
     # 如果实际匹配数超过导出上限，在导出文件中记录
     _export_limit = 50000
 
+    # 批量解析运营/销售经理 user_id → 中文姓名（real_name 优先，username 兜底，
+    # 与导入侧 manager/sales_manager 列解析方向互逆，保证导出文件可回灌）
+    from ..models.users import User
+
+    manager_ids = {c.manager_id for c in customers if c.manager_id is not None} | {
+        c.sales_manager_id for c in customers if c.sales_manager_id is not None
+    }
+    manager_name_map: dict[int, str] = {}
+    if manager_ids:
+        users_result = await db_session.execute(
+            select(User.id, User.real_name, User.username).where(User.id.in_(manager_ids))
+        )
+        for uid, real_name, username in users_result.all():
+            manager_name_map[uid] = real_name or username or str(uid)
+
     # 转换为 DataFrame
     data = []
     for c in customers:
         data.append(
             {
-                # === 基础字段（9个） ===
+                # === 基础字段（11个） ===
                 "company_id": c.company_id,
                 "name": c.name,
+                "manager": manager_name_map.get(c.manager_id) if c.manager_id else None,  # pyright: ignore[reportArgumentType]
+                "sales_manager": manager_name_map.get(c.sales_manager_id)
+                if c.sales_manager_id
+                else None,  # pyright: ignore[reportArgumentType]
                 "account_type": c.account_type,
                 "industry": (
                     c.profile.industry_type.name

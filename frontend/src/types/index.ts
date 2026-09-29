@@ -253,4 +253,5 @@ export interface ImportResult {
   success_count: number
   error_count: number
   errors: string[]
+  dry_run?: boolean
 }

@@ -92,16 +92,17 @@ GET  /api/v1/billing/invoices/import-template
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
-### 客户导入/导出字段对称（23 列，禁止单侧增删）
+### 客户导入/导出字段对称（25 列，禁止单侧增删）
 
 `customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
 （2026-09-29 起强制；此前模板缺 `auto_initiate_settlement` 导致导出回灌时该列与
-`scale_level` 静默丢失）：
+`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25）：
 
 ```
-company_id, name, account_type, industry, price_policy, settlement_type, settlement_cycle,
-is_key_customer, email, erp_system, first_payment_date, onboarding_date, cooperation_status,
-is_settlement_enabled, auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
+company_id, name, manager, sales_manager, account_type, industry, price_policy,
+settlement_type, settlement_cycle, is_key_customer, email, erp_system,
+first_payment_date, onboarding_date, cooperation_status, is_settlement_enabled,
+auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
 monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
 ```
 
@@ -109,7 +110,9 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 
 | 字段 | 规则 |
 |---|---|
-| `industry` | 名称 → `industry_type_id`；不存在 → 行级错误 |
+| `industry` | 名称 → `industry_type_id`；不存在 → 行级错误；**解析失败整行剔除** |
+| `manager` | **运营经理中文姓名/用户名 → `manager_id`**（`real_name` 优先、`username` 兜底；仅匹配启用用户）；不存在或已停用 → 行级错误「运营经理 'x' 不存在或已停用」，**整行剔除**（与 industry 同语义：填了但无法解析则不入库，而非静默留空） |
+| `sales_manager` | 销售经理中文姓名/用户名 → `sales_manager_id`，规则同 `manager` |
 | `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
 | `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
 | `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
@@ -117,6 +120,28 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 | `cooperation_status` | 白名单 `active/suspended/terminated/noused` + 中文映射；未知值 → 行级错误（不静默置空） |
 | `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
 | `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
+
+导出侧（`GET /customers/export`）：`manager` / `sales_manager` 列输出 user 的
+`real_name`（空则 `username`）——与导入侧解析**互逆**，导出文件可直接回灌导入。
+批量映射 user_id → 姓名（一次性查询 `User.id.in_(manager_ids)`，避免 N+1）。
+
+### 客户导入预检查（dry_run，二次确认契约）
+
+`POST /customers/import?dry_run=true`：**完整行级校验但不落库**（含行业/枚举/经理
+姓名/重复 company_id 等全部规则），返回：
+
+```json
+{ "code": 0, "message": "预检查完成",
+  "data": { "dry_run": true, "success_count": 5, "error_count": 2, "errors": ["行3: ...", ...] } }
+```
+
+- `success_count` = 通过全部校验、将入库的行数；`errors` 含真实 Excel 行号
+- 不写库、不写审计、不动缓存；重复提交同文件（不带 dry_run）才真正入库
+- dry_run 返回 `errors[:50]`（足够确认）；真实导入仍 `errors[:10]`
+- 前端流程：上传文件 → **预检查** → 展示「可入库 N 条 / 错误 M 条 + 行号明细」→
+  **确认导入** 才落库（`CustomerImportModal` 两步按钮）；更换文件后须重新预检查
+- 服务层 `batch_create_customers(customers_data, dry_run=True)` 同一校验路径复用，
+  保证预检结果与实际入库一致（不出现「预检通过但落库失败」偏差）
 
 ### 结算单导入受控字段
 
@@ -162,6 +187,24 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
   导入失败的直接根因之一）
 - 客户导入侧行业映射查询（`customers.py:966 select(IndustryType)`）不过滤软删除——若需
   严格禁止回罐已删行业，改为 `where(deleted_at.is_(None))` 并配套错误提示
+
+### 行业类型 ID 管理规则（2026-09-29 起）
+
+- **新增可指定 id**（body `id` 可选，正整数；缺省自增）。指定 id 已占用——**含软删记录**——
+  返回 409「行业类型 ID n 已存在」（主键唯一约束对软删记录仍生效）
+- **同名软删记录自动恢复**：新增时若存在软删除的同名记录，**恢复原记录**（undelete，保留
+  原 id 与 sort_order 更新），而非新建。必要原因：`name` UNIQUE 索引被软删记录占位，
+  若只查 `deleted_at IS NULL` 会漏掉占用 → INSERT 撞数据库唯一约束 → 500（实测无法新增
+  「项目」：id=1 软删但仍占用 name 唯一索引，849 个客户画像引用其 id）。恢复即让客户
+  引用重新生效，列表行业列不悬空
+- **编辑可修改 id**（body `id` 可选作新主键）：目标 id 被其他记录占用（含软删）→ 409；
+  **被 customer_profiles 引用的行业禁止修改 id** → 409「正被 N 个客户使用，不能修改 ID」
+  （改 id 会使外键引用悬空，与删除引用保护同理）
+- **显式 id 必须同步序列**：指定 id 高于当前自增序列时，执行
+  `SELECT setval(pg_get_serial_sequence('industry_types','id'), max_id)`，否则后续自增
+  撞主键（`_sync_id_sequence`）
+- 审计：update 记录 `changes.before.id`（旧 id）与 `changes.after.id`（新 id），
+  `record_id` 用新 id；改名/删除审计留痕规则不变
 
 ---
 
