@@ -367,6 +367,22 @@ if (is_disabled := filters.get("is_disabled")) is not None:
 
 ---
 
+## 可空布尔筛选的 NULL 语义（自动发起结算）
+
+[来源: 2026-09-29 — 客户新增 `auto_initiate_settlement`（默认是）]
+
+| 字段 | 模型默认 | NULL 含义 | 筛选「是」 | 筛选「否」 |
+|---|---|---|---|---|
+| `auto_initiate_settlement` | `True` | 自动发起 | `or_(is_(True), is_(None))` | `is_(False)` |
+
+与 `is_settlement_enabled` 同侧兼容（默认 True 的字段筛「是」兼容 NULL，筛「否」严格 false）；
+新增这类「默认是」布尔字段时直接复制该模式，不要在 SQL 里用 `== value`（NULL 行恒不匹配）。
+
+前端表单回填同样用 `?? true` 补齐（`EditCustomerDialog` / `useCustomerDetail` 的
+`is_settlement_enabled ?? true` 同款），展示层 NULL 视为「是」（`CustomerBasicTab`）。
+
+---
+
 ## select(实体) 结果必须用 `.scalars()` 取实体，`.first()` 恒 KeyError
 
 [来源: Bug fix 2026-09-20 — `get_customer_health_score` 对正常客户恒 500 `KeyError: 'tiers'`（既有 bug，旧代码同错，行号差 22 = 插入行数）]
