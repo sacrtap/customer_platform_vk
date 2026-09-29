@@ -728,3 +728,26 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 31: 行业类型 ID 管理修复 + 客户导入导出运营/销售经理字段与预检查
+<!-- trellis-session: v=2 fp=efb57d99c123dfae -->
+
+**Date**: 2026-09-29
+**Task**: 行业类型 ID 管理修复 + 客户导入导出运营/销售经理字段与预检查
+**Branch**: `fix/customer-import-bug`
+
+### Summary
+
+行业类型修复（dd2822c）：①无法新增同名行业「项目」——根因 name 唯一索引被软删记录占用、get_by_name 只查未删除导致 INSERT 撞唯一约束 500；修复 create 查同名含软删、仅剩软删同名时恢复原记录（保留 id 与 849 客户引用）。②新增/编辑允许设定或修改 ID——body 可选 id（正整数）；占用（含软删）→409；被客户画像引用的行业禁改 id（外键悬空保护）；显式 id 越过自增序列时 setval 同步；审计记录 before.id/after.id。前端表单加「ID（可选）」输入框。客户导入导出优化（a7df598）：①模板/导入/导出三处对称 23→25 列，新增 manager/sales_manager（运营/销售经理）；导入中文姓名→user_id（real_name 优先、username 兜底，仅匹配启用用户），不存在/停用→行级错误并整行剔除（与 industry 同语义）；导出 user_id→中文姓名批量映射，与导入互逆可回灌；补 batch_create_customers 遗漏的 sales_manager_id 落库。②导入预检查二次确认：POST /customers/import?dry_run=true 完整行级校验不落库，返回可入库数+错误含行号（errors[:50]）；服务层 batch_create_customers(dry_run=True) 复用同一校验路径；前端 CustomerImportModal 两步流程（上传→预检查→确认导入），更换文件须重新预检。验证：全量 171 测试绿 + ruff/eslint/prettier/vue-tsc 通过；spec 沉淀 import-export.md（25 列契约+dry_run 契约+经理映射规则）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dd2822c` | fix(industry-types): 修复无法新增同名软删行业 + 支持设定/修改 ID |
+| `a7df598` | feat(customers): 导入导出增加运营/销售经理字段 + 导入预检查二次确认 |
+
+### Status
+
+[OK] **Completed**
