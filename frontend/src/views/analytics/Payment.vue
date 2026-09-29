@@ -155,12 +155,14 @@ const AXIS_LINE = '#DBE3EF'
 const SPLIT_LINE = '#F1F5F9'
 
 // --- 统一筛选 ---
+// 行业默认不筛选（与客户列表/余额管理一致）：行业名可能被编辑/迁移改名，
+// 硬编码默认值会导致数据被错误过滤（如只剩个别客户）。
 const createDefaultFilters = () => ({
   start_date: '',
   end_date: '',
   keyword: '',
   account_type: '正式账号',
-  industry: ['房产经纪', '房产ERP', '房产平台'] as string[],
+  industry: [] as string[],
   scale_level: '',
   consume_level: '',
   manager_id: null as number | null,
