@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..models.customers import CustomerProfile
 from ..models.industry_type import IndustryType
 
 
@@ -106,10 +107,29 @@ class IndustryTypeService:
         Returns:
             True: 删除成功
             False: 行业类型不存在
+
+        Raises:
+            ValueError: 行业类型仍被客户画像引用（硬规则：共享主数据被引用禁止删除，
+                避免客户列表行业列悬空、导出回灌时行业名失配）
         """
         industry_type = await self.get_by_id(id)
         if not industry_type:
             return False
+
+        # 引用保护：被 customer_profiles.industry_type_id 引用的行业禁止删除。
+        # 与导入侧（customers.py import）行业名→id 映射保持一致——行业一旦删除，
+        # 客户画像仍持有其 id，列表 join 显示悬空，导出文件回灌时行业名失配报错。
+        ref_count = (
+            await self.db_session.execute(
+                select(func.count())
+                .select_from(CustomerProfile)
+                .where(CustomerProfile.industry_type_id == id)
+            )
+        ).scalar()
+        if ref_count:
+            raise ValueError(
+                f"行业类型 '{industry_type.name}' 正被 {ref_count} 个客户使用，不能删除"
+            )
 
         # 注意：BaseModel.deleted_at 使用 TIMESTAMP WITHOUT TIME ZONE
         # 因此使用 datetime.utcnow() 而非 datetime.now(timezone.utc)

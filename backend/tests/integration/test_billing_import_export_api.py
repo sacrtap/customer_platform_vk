@@ -854,6 +854,80 @@ async def test_export_package_plans_success(test_client, auth_token, db_session)
 
 
 @pytest.mark.asyncio
+async def test_export_package_plans_reimport_round_trip(test_client, auth_token, db_session):
+    """包年套餐导出文件可直接回灌导入（导出 ⊇ 模板列契约）
+
+    回归防护：导出含 id/created_at/updated_at 展示列，导入解析须忽略多余列；
+    若导出列与模板列错位（如新增列未入模板或解析漏读），回灌会整批失败。
+    """
+    suffix = uuid.uuid4().hex[:6].upper()
+    ptype = f"RTT{suffix}"
+
+    db_session.execute(
+        text(
+            """
+            INSERT INTO package_plans (name, package_type, is_unlimited, base_fee,
+                                       device_type, layer_type, limit_count,
+                                       over_limit_unit_price, description, status,
+                                       created_at, updated_at)
+            VALUES (:name, :ptype, FALSE, 25000, 'X', 'multi', 500,
+                    10.5, '回灌契约套餐', 'active', NOW(), NOW())
+            """
+        ),
+        {"name": f"回灌套餐_{suffix}", "ptype": ptype},
+    )
+    db_session.commit()
+
+    try:
+        _request, exported = await test_client.get(
+            "/api/v1/billing/package-plans/export",
+            params={"keyword": ptype},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert exported.status == 200
+
+        # 回灌前先删除原套餐：避免命中「package_type 已存在」去重
+        db_session.execute(
+            text("DELETE FROM package_plans WHERE package_type = :ptype"), {"ptype": ptype}
+        )
+        db_session.commit()
+
+        _request, reimported = await test_client.post(
+            "/api/v1/billing/package-plans/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(exported.body),
+        )
+        assert reimported.status == 200
+        data = reimported.json["data"]
+        assert data["success_count"] == 1, data["errors"]
+        assert data["error_count"] == 0, data["errors"]
+
+        # 回灌后字段完整落库（含模板列与展示列之外的处理）
+        row = db_session.execute(
+            text(
+                "SELECT name, package_type, is_unlimited, base_fee, device_type, layer_type, "
+                "limit_count, over_limit_unit_price, description, status "
+                "FROM package_plans WHERE package_type = :ptype AND deleted_at IS NULL"
+            ),
+            {"ptype": ptype},
+        ).first()
+        assert row is not None, "回灌后套餐未落库"
+        assert row[2] is False  # is_unlimited（导出 bool → 导入解析）
+        assert float(row[3]) == 25000.0  # base_fee
+        assert row[4] == "X"  # device_type
+        assert row[5] == "multi"  # layer_type
+        assert row[6] == 500  # limit_count
+        assert float(row[7]) == 10.5  # over_limit_unit_price
+        assert row[8] == "回灌契约套餐"  # description
+        assert row[9] == "active"  # status
+    finally:
+        db_session.execute(
+            text("DELETE FROM package_plans WHERE package_type = :ptype"), {"ptype": ptype}
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_import_package_plans_forbidden_without_permission(test_client, auth_token):
     """包年套餐导入：缺少 billing:package_import 权限返回 403"""
     headers = ["name", "package_type", "base_fee"]

@@ -232,3 +232,90 @@ class TestDeleteIndustryType:
             headers=auth_headers,
         )
         assert response.status == 404
+
+    @pytest.mark.asyncio
+    async def test_rejects_delete_when_industry_in_use(self, test_client, auth_headers, db_session):
+        """被客户画像引用的行业禁止删除（共享主数据引用保护）"""
+        from sqlalchemy import text
+
+        # 造一个被引用的行业
+        _req, create_resp = await test_client.post(
+            "/api/v1/industry-types",
+            json={"name": "被引用行业", "sort_order": 50},
+            headers=auth_headers,
+        )
+        industry_id = create_resp.json["data"]["id"]
+
+        # 造一个引用该行业的客户画像（最小化：仅 industry_type_id）
+        db_session.execute(
+            text(
+                """
+                INSERT INTO customer_profiles (industry_type_id, created_at, updated_at)
+                VALUES (:itid, NOW(), NOW())
+                """
+            ),
+            {"itid": industry_id},
+        )
+        db_session.commit()
+
+        try:
+            _req, response = await test_client.delete(
+                f"/api/v1/industry-types/{industry_id}",
+                headers=auth_headers,
+            )
+            assert response.status == 409
+            assert "使用" in response.json["message"]
+
+            # 引用保护后行业仍存在
+            _req, list_resp = await test_client.get("/api/v1/industry-types", headers=auth_headers)
+            ids = [item["id"] for item in list_resp.json["data"]]
+            assert industry_id in ids
+        finally:
+            db_session.execute(
+                text("DELETE FROM customer_profiles WHERE industry_type_id = :itid"),
+                {"itid": industry_id},
+            )
+            db_session.execute(
+                text("DELETE FROM industry_types WHERE id = :itid"),
+                {"itid": industry_id},
+            )
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_update_writes_audit_log(self, test_client, auth_headers, db_session):
+        """行业改名须写审计日志（共享主数据可追溯）"""
+        from sqlalchemy import text
+
+        _req, create_resp = await test_client.post(
+            "/api/v1/industry-types",
+            json={"name": "审计前名称", "sort_order": 60},
+            headers=auth_headers,
+        )
+        industry_id = create_resp.json["data"]["id"]
+
+        try:
+            _req, response = await test_client.put(
+                f"/api/v1/industry-types/{industry_id}",
+                json={"name": "审计后名称", "sort_order": 61},
+                headers=auth_headers,
+            )
+            assert response.status == 200
+
+            audit = db_session.execute(
+                text(
+                    "SELECT action, record_type, record_id FROM audit_logs "
+                    "WHERE module = 'industry_type' AND record_id = :id "
+                    "ORDER BY id DESC LIMIT 1"
+                ),
+                {"id": industry_id},
+            ).first()
+            assert audit is not None, "行业改名未写入审计日志"
+            assert audit[0] == "update"
+            assert audit[1] == "industry_type"
+            assert audit[2] == industry_id
+        finally:
+            db_session.execute(
+                text("DELETE FROM industry_types WHERE id = :itid"),
+                {"itid": industry_id},
+            )
+            db_session.commit()

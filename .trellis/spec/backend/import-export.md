@@ -58,7 +58,7 @@ GET  /api/v1/billing/invoices/import-template
 |---|---|
 | 方法 | `POST`，`multipart/form-data`，字段名 `file` |
 | 文件类型 | 仅 `.xlsx` |
-| 行数上限 | ≤ 1000 行（与余额导入先例一致，超限返回 `40004`） |
+| 行数上限 | ≤ 1000 行（与余额导入先例一致，超限返回 `40004`；**客户导入例外**：无后端强制，仅前端提示「单次建议不超过 1000 条」，2026-09-29 核验确认，避免阻断全量导出回灌） |
 | 数据行起点 | 模板第 3 行（第 1 行英文列名、第 2 行中文说明、第 3 行示例） |
 
 ### 导入响应（`data`）
@@ -125,6 +125,43 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 - `status` 固定 `draft`，`is_auto_generated=False`（禁止导入端指定状态，规避绕过审批流程）
 - `invoice_no` 缺省按系统规则生成：`INV-YYYYMMDD-{customer_id}-{4位随机码}`
 - 明细（`detail_file_*` 等内部字段）不开放
+
+---
+
+## 四端点字段对称核验表（2026-09-29 扩散排查）
+
+正则：**模板列 == 服务解析列**（不许静默丢列）；**导出 ⊇ 模板**（实体型端点须可回灌）。
+
+| 端点 | 导出列 | 模板列 | 性质 | 回灌 | 结论 |
+|---|---|---|---|---|---|
+| 客户 customers | 23 列（含 auto_initiate_settlement） | 23 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement） |
+| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
+| 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
+| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ❌ 语义不成立 | 模板==解析（4 键全消费），导出为列表快照，非同一实体回灌非预期 |
+| 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |
+
+操作型端点（余额/结算单）**不强制导出回灌**——导入是补录动作、导出是查询视图，列集合天然不同；
+实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**，导出文件即最佳导入夹具。
+
+### 枚举转换函数方向契约（`backend/app/services/customers.py`）
+
+所有 `convert_*_to_storage` 必须满足（2026-09-29 起强制，方向性单测 `tests/unit/test_enum_conversions.py`）：
+
+1. 中文 → 英文存储值（`定价`→`pricing`、`预付费`→`prepaid`、`月结`→`monthly`）
+2. 已是英文存储值 → **原样透传（幂等）**
+3. 未知值 → **返回 None**，由调用方报行级错误（**禁止 `.get(k, k)` 透传脏值落库**——曾导致「无效计费模式」校验形同虚设）
+
+调用方契约：`price_policy` / `settlement_type` / `settlement_cycle` / `cooperation_status` 四个字段
+未知值一律行级报错并 `continue`，绝不静默置空。
+
+### 行业类型共享主数据规则（`industry_type_routes.py` / `industry_type_service.py`）
+
+- **改名/删除必须写审计日志**（`module='industry_type'`，可追溯「_编辑_编辑」式脏名责任人）
+- **删除引用保护**：被 `customer_profiles.industry_type_id` 引用的行业返回 409 禁止删除
+  （行业删除会连锁导致：客户列表行业列悬空、导出文件回灌时行业名失配报错——本次 1242 行
+  导入失败的直接根因之一）
+- 客户导入侧行业映射查询（`customers.py:966 select(IndustryType)`）不过滤软删除——若需
+  严格禁止回罐已删行业，改为 `where(deleted_at.is_(None))` 并配套错误提示
 
 ---
 

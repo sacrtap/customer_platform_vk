@@ -128,6 +128,27 @@ async def update_industry_type(request: Request, id: int):
                 status=404,
             )
 
+        # 审计留痕：行业属共享主数据，改名须可追溯（防止「_编辑」式脏名无人负责）
+        from ..middleware.auth import get_current_user
+        from ..utils.audit_helpers import create_audit_entry
+
+        current_user = get_current_user(request)
+        await create_audit_entry(
+            db_session=db_session,
+            user_id=current_user.get("user_id") if current_user else None,
+            action="update",
+            module="industry_type",
+            record_id=id,
+            record_type="industry_type",
+            changes={
+                "after": {"id": id, "name": name, "sort_order": sort_order},
+            },
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=True,
+        )
+
         return json(
             {
                 "code": 0,
@@ -162,13 +183,39 @@ async def delete_industry_type(request: Request, id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = IndustryTypeService(db_session)
 
-    success = await service.soft_delete(id)
+    try:
+        success = await service.soft_delete(id)
+    except ValueError as e:
+        # 引用保护：被客户画像使用的行业禁止删除
+        return json(
+            {"code": 409, "message": str(e)},
+            status=409,
+        )
 
     if not success:
         return json(
             {"code": 404, "message": "行业类型不存在"},
             status=404,
         )
+
+    # 审计留痕：共享主数据删除须可追溯
+    from ..middleware.auth import get_current_user
+    from ..utils.audit_helpers import create_audit_entry
+
+    current_user = get_current_user(request)
+    await create_audit_entry(
+        db_session=db_session,
+        user_id=current_user.get("user_id") if current_user else None,
+        action="delete",
+        module="industry_type",
+        record_id=id,
+        record_type="industry_type",
+        changes={"after": {"id": id, "deleted": True}},
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
 
     # 行业类型删除后，清除客户列表缓存
     await cache_service.invalidate_customer_cache()

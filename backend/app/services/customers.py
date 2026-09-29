@@ -147,8 +147,19 @@ SETTLEMENT_CYCLE_MAP = {
 SETTLEMENT_CYCLE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_CYCLE_MAP.items()}
 
 
-def convert_price_policy_to_storage(value: str) -> str:
-    return PRICE_POLICY_MAP.get(value, value)
+def convert_price_policy_to_storage(value: str) -> Optional[str]:
+    """将导入的中文计费模式转换为数据库存储的英文标识符
+
+    中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly`；已是英文存储值则
+    原样返回；未知值返回 None，由调用方报行级错误（禁止静默透传脏值落库）。
+    """
+    if not value:
+        return None
+    if value in PRICE_POLICY_MAP:
+        return PRICE_POLICY_MAP[value]
+    if value in PRICE_POLICY_REVERSE_MAP:
+        return value
+    return None
 
 
 def convert_price_policy_to_display(value: str) -> str:
@@ -160,10 +171,18 @@ def convert_settlement_type_to_display(value: str) -> str:
 
 
 def convert_settlement_cycle_to_storage(value: Optional[str]) -> Optional[str]:
-    """将导入的中文结算周期转换为数据库存储的英文标识符"""
+    """将导入的中文结算周期转换为数据库存储的英文标识符
+
+    中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly`；
+    已是英文存储值则原样返回；未知值返回 None，由调用方报行级错误（禁止静默透传）。
+    """
     if not value:
         return None
-    return SETTLEMENT_CYCLE_MAP.get(value, value)
+    if value in SETTLEMENT_CYCLE_MAP:
+        return SETTLEMENT_CYCLE_MAP[value]
+    if value in SETTLEMENT_CYCLE_REVERSE_MAP:
+        return value
+    return None
 
 
 def convert_settlement_cycle_to_display(value: str) -> str:
@@ -1192,10 +1211,19 @@ class CustomerService:
                 data["first_payment_date"] = parse_date_to_object(data.get("first_payment_date"))
                 data["onboarding_date"] = parse_date_to_object(data.get("onboarding_date"))
 
-                # 转换结算周期：中文→英文
+                # 转换结算周期：中文→英文；未知值报行级错误（禁止静默透传脏值落库）
                 settlement_cycle = data.get("settlement_cycle")
                 if settlement_cycle:
-                    data["settlement_cycle"] = convert_settlement_cycle_to_storage(settlement_cycle)
+                    storage_cycle = convert_settlement_cycle_to_storage(
+                        str(settlement_cycle).strip()
+                    )
+                    if storage_cycle is None:
+                        errors.append(
+                            f"行{row_num}: 无效的结算周期: {settlement_cycle} "
+                            "(可选值：日结/周结/月结/季结/年结)"
+                        )
+                        continue
+                    data["settlement_cycle"] = storage_cycle
 
                 # 转换结算方式：导出/模板填中文「预付费/后付费」，须转英文存储值
                 settlement_type = data.get("settlement_type")
