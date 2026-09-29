@@ -41,11 +41,16 @@ class AnalyticsService:
         start_date: datetime,
         end_date: datetime,
         customer_id: Optional[int] = None,
+        mine_user_id: Optional[int] = None,
     ) -> Dict[int, Dict[str, Any]]:
         """计算限量套餐客户的超量费用估算
 
         查询指定时间段内所有限量套餐客户的累计订单数，
         与 limit_count 对比计算超量费用。
+
+        mine_user_id: 数据可见性约束（服务端强制）。透传后仅统计当前用户
+        负责（manager_id/sales_manager_id）的客户的超量费用，防止无
+        customers:view_all 用户间接算入其他负责人的超量费用。
 
         Returns:
             {customer_id: {"over_limit_cost": float, "total_order_count": int, "limit_count": int}}
@@ -61,6 +66,14 @@ class AnalyticsService:
         )
         if customer_id:
             rule_stmt = rule_stmt.where(PricingRule.customer_id == customer_id)
+        if mine_user_id:
+            # 可见性约束：仅统计当前用户负责的客户的套餐规则
+            rule_stmt = rule_stmt.join(Customer, Customer.id == PricingRule.customer_id).where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
 
         rule_result = await self.db.execute(rule_stmt)
         rules = rule_result.scalars().all()
@@ -263,7 +276,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到最后一天的费用中
         if trend_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date, customer_id=customer_id
+                start_date, end_date, customer_id=customer_id, mine_user_id=mine_user_id
             )
             if over_limit_estimates:
                 total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
@@ -368,7 +381,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到 "package" 设备类型上
         if dist_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date, customer_id=customer_id
+                start_date, end_date, customer_id=customer_id, mine_user_id=mine_user_id
             )
             if over_limit_estimates:
                 total_over_limit = sum(e["over_limit_cost"] for e in over_limit_estimates.values())
@@ -530,7 +543,7 @@ class AnalyticsService:
         # 限量套餐超量费用估算：加到每个客户的总费用中
         if customers_data and metric == "cost":
             over_limit_estimates = await self._get_package_over_limit_estimates(
-                start_date, end_date
+                start_date, end_date, mine_user_id=mine_user_id
             )
             for c in customers_data:
                 est = over_limit_estimates.get(c["customer_id"])
@@ -2966,124 +2979,123 @@ class AnalyticsService:
             for row in result
         ]
 
+    async def get_risk_customers(
+        self, limit: int = 20, mine_user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """获取风险客户列表（余额覆盖不足 + 流失风险）
 
-async def get_risk_customers(
-    self, limit: int = 20, mine_user_id: Optional[int] = None
-) -> List[Dict[str, Any]]:
-    """获取风险客户列表（余额覆盖不足 + 流失风险）
+        余额风险：近 90 天有消耗记录，但余额缺失或不足 1000 元
+        流失风险：曾有消耗但最近 90 天无消耗
 
-    余额风险：近 90 天有消耗记录，但余额缺失或不足 1000 元
-    流失风险：曾有消耗但最近 90 天无消耗
+        mine_user_id: 数据可见性约束（服务端强制）。
+        """
+        from datetime import timedelta
 
-    mine_user_id: 数据可见性约束（服务端强制）。
-    """
-    from datetime import timedelta
+        from ..models.daily_consumption import DailyConsumption
 
-    from ..models.daily_consumption import DailyConsumption
+        now = datetime.utcnow()
+        ninety_days_ago = now - timedelta(days=90)
 
-    now = datetime.utcnow()
-    ninety_days_ago = now - timedelta(days=90)
-
-    # 近 90 天有消耗的客户
-    active_ids_stmt = (
-        select(DailyConsumption.customer_id.label("customer_id"))
-        .where(
-            and_(
-                DailyConsumption.consumption_date >= ninety_days_ago,
-                DailyConsumption.deleted_at.is_(None),
+        # 近 90 天有消耗的客户
+        active_ids_stmt = (
+            select(DailyConsumption.customer_id.label("customer_id"))
+            .where(
+                and_(
+                    DailyConsumption.consumption_date >= ninety_days_ago,
+                    DailyConsumption.deleted_at.is_(None),
+                )
             )
+            .distinct()
+            .subquery()
         )
-        .distinct()
-        .subquery()
-    )
 
-    # 余额信息（LEFT JOIN 保留无余额记录客户）
-    # 余额风险判定下沉 SQL：余额缺失（无余额记录）优先，其次余额不足（<1000 元）
-    remaining_expr = func.coalesce(CustomerBalance.real_amount, 0) + func.coalesce(
-        CustomerBalance.bonus_amount, 0
-    )
-    balance_missing = and_(
-        CustomerBalance.real_amount.is_(None),
-        CustomerBalance.bonus_amount.is_(None),
-    )
-    risk_score = case((balance_missing, 50), else_=30)
-    stmt = (
-        select(
-            Customer.id,
-            Customer.name,
-            Customer.manager_id,
-            User.real_name.label("manager_name"),
-            CustomerBalance.real_amount,
-            CustomerBalance.bonus_amount,
-            risk_score.label("risk_score"),
+        # 余额信息（LEFT JOIN 保留无余额记录客户）
+        # 余额风险判定下沉 SQL：余额缺失（无余额记录）优先，其次余额不足（<1000 元）
+        remaining_expr = func.coalesce(CustomerBalance.real_amount, 0) + func.coalesce(
+            CustomerBalance.bonus_amount, 0
         )
-        .join(active_ids_stmt, Customer.id == active_ids_stmt.c.customer_id)
-        .outerjoin(User, Customer.manager_id == User.id)
-        .outerjoin(
-            CustomerBalance,
-            and_(
-                CustomerBalance.customer_id == Customer.id,
-                CustomerBalance.deleted_at.is_(None),
-            ),
+        balance_missing = and_(
+            CustomerBalance.real_amount.is_(None),
+            CustomerBalance.bonus_amount.is_(None),
         )
-        .where(
-            and_(
-                Customer.deleted_at.is_(None),
-                or_(balance_missing, remaining_expr < 1000),
+        risk_score = case((balance_missing, 50), else_=30)
+        stmt = (
+            select(
+                Customer.id,
+                Customer.name,
+                Customer.manager_id,
+                User.real_name.label("manager_name"),
+                CustomerBalance.real_amount,
+                CustomerBalance.bonus_amount,
+                risk_score.label("risk_score"),
             )
-        )
-        .order_by(risk_score.desc(), Customer.id)
-        .limit(limit)
-    )
-    if mine_user_id:
-        stmt = stmt.where(
-            or_(
-                Customer.manager_id == mine_user_id,
-                Customer.sales_manager_id == mine_user_id,
+            .join(active_ids_stmt, Customer.id == active_ids_stmt.c.customer_id)
+            .outerjoin(User, Customer.manager_id == User.id)
+            .outerjoin(
+                CustomerBalance,
+                and_(
+                    CustomerBalance.customer_id == Customer.id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
             )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    or_(balance_missing, remaining_expr < 1000),
+                )
+            )
+            .order_by(risk_score.desc(), Customer.id)
+            .limit(limit)
         )
-    result = (await self.db.execute(stmt)).all()
+        if mine_user_id:
+            stmt = stmt.where(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+        result = (await self.db.execute(stmt)).all()
 
-    customers: List[Dict[str, Any]] = []
-    for row in result:
-        has_balance = row.real_amount is not None or row.bonus_amount is not None
-        remaining = float(row.real_amount or 0) + float(row.bonus_amount or 0)
-        if not has_balance:
-            risk_type, score = "余额缺失", 50
-        elif remaining < 1000:
-            risk_type, score = "余额不足", 30
-        else:
-            continue  # 余额充足（防御：SQL 已过滤）
-        customers.append(
-            {
-                "customer_id": row.id,
-                "customer_name": row.name,
-                "score": score,
-                "risk_type": risk_type,
-                "manager_name": row.manager_name or "未分配",
-            }
-        )
-
-    # 补充流失风险客户（曾有消耗但近 90 天无消耗）
-    if len(customers) < limit:
-        inactive = await self.get_inactive_customers(
-            days=90, limit=limit - len(customers), mine_user_id=mine_user_id
-        )
-        existing_ids = {c["customer_id"] for c in customers}
-        for ic in inactive:
-            if ic["customer_id"] in existing_ids:
-                continue
-            existing_ids.add(ic["customer_id"])
+        customers: List[Dict[str, Any]] = []
+        for row in result:
+            has_balance = row.real_amount is not None or row.bonus_amount is not None
+            remaining = float(row.real_amount or 0) + float(row.bonus_amount or 0)
+            if not has_balance:
+                risk_type, score = "余额缺失", 50
+            elif remaining < 1000:
+                risk_type, score = "余额不足", 30
+            else:
+                continue  # 余额充足（防御：SQL 已过滤）
             customers.append(
                 {
-                    "customer_id": ic["customer_id"],
-                    "customer_name": ic["customer_name"],
-                    "score": 40,
-                    "risk_type": "流失风险",
-                    "manager_name": ic.get("manager_name", "未分配"),
+                    "customer_id": row.id,
+                    "customer_name": row.name,
+                    "score": score,
+                    "risk_type": risk_type,
+                    "manager_name": row.manager_name or "未分配",
                 }
             )
-            if len(customers) >= limit:
-                break
 
-    return customers
+        # 补充流失风险客户（曾有消耗但近 90 天无消耗）
+        if len(customers) < limit:
+            inactive = await self.get_inactive_customers(
+                days=90, limit=limit - len(customers), mine_user_id=mine_user_id
+            )
+            existing_ids = {c["customer_id"] for c in customers}
+            for ic in inactive:
+                if ic["customer_id"] in existing_ids:
+                    continue
+                existing_ids.add(ic["customer_id"])
+                customers.append(
+                    {
+                        "customer_id": ic["customer_id"],
+                        "customer_name": ic["customer_name"],
+                        "score": 40,
+                        "risk_type": "流失风险",
+                        "manager_name": ic.get("manager_name", "未分配"),
+                    }
+                )
+                if len(customers) >= limit:
+                    break
+
+        return customers

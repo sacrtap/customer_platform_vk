@@ -5,6 +5,7 @@ from datetime import datetime
 from functools import wraps
 
 from sanic import Sanic
+from sanic.exceptions import SanicException
 from sanic.request import Request
 from sanic.response import json
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,7 +187,11 @@ async def customer_scope_user_id(request: Request) -> int | None:
     """
     user = get_current_user(request)
     if not user:
-        return None
+        # fail-closed：未认证/无用户上下文时拒绝放行，而非返回 None 静默放开全量可见性。
+        # 当前所有调用点均位于 auth_required/require_permission 保护之下（不可达），
+        # 此处防御未来将该辅助函数复用到未受认证保护的 route 时的越权风险。
+        # 不要与「有 view_all → None」复用同一返回语义。
+        raise SanicException("未认证，无法确定客户可见范围", status_code=401)
     user_id = user["user_id"]
 
     # Lazy import to support test mocking

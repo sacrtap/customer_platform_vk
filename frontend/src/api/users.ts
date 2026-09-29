@@ -123,7 +123,9 @@ export function resetPassword(id: number, newPassword: string) {
  * @returns API 响应
  */
 export function getManagers(params?: { page?: number; page_size?: number }) {
-  return api.get('/users/options', { params: { ...params, page_size: params?.page_size || 100 } })
+  // 不传 page_size：/users/options 默认一次拉取全部经理（page_size=2000）
+  // 后端已读请求参数并带上限保护；此处若透传 page_size=100 反而拿不全经理下拉
+  return api.get('/users/options', { params })
 }
 
 /** 个人信息数据类型 */

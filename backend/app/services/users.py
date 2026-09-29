@@ -62,15 +62,27 @@ class UserService:
         return result.scalar_one_or_none()  # pyright: ignore[reportAttributeAccessIssue]
 
     async def get_all_users(
-        self, page: int = 1, page_size: int = 20, keyword: Optional[str] = None
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        keyword: Optional[str] = None,
+        active_only: bool = False,
     ) -> tuple[List[User], int]:
-        """获取用户列表(分页)"""
+        """获取用户列表(分页)
+
+        active_only: 仅返回启用（is_active=True）的用户。供 /users/options
+        等「下拉/姓名展示」场景使用，避免把停用账号暴露给普通业务用户。
+        """
         from sqlalchemy.orm import selectinload
 
         offset = (page - 1) * page_size
 
         # 构建基础查询条件
         base_conditions = [User.deleted_at.is_(None)]
+
+        # 仅返回启用用户（is_active 为 NULL 视为停用，与登录校验 is_truthy(user.is_active) 一致）
+        if active_only:
+            base_conditions.append(User.is_active.is_(True))
 
         # 添加 keyword 搜索条件
         if keyword:

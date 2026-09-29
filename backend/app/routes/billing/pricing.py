@@ -13,6 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
+from ...constants.error_codes import ErrorCodes
 from ...middleware.auth import (
     auth_required,
     customer_scope_user_id,
@@ -135,6 +136,15 @@ async def create_pricing_rule(request: Request):
     # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户创建规则
     scope_user_id = await customer_scope_user_id(request)
     if scope_user_id is not None:
+        # 受限用户：规则必须绑定自己负责的客户。customer_id 缺失时返回 400
+        # 参数错误（而非 403 无权访问的误导信息）；admin 允许创建设备级规则
+        # （不绑定 customer_id），故该必填校验仅在受限分支生效。
+        if not data.get("customer_id"):
+            return json(
+                {"code": ErrorCodes.MISSING_PARAMETER, "message": "客户 ID 不能为空"},
+                status=400,
+            )
+
         from sqlalchemy import select
 
         from ...models.customers import Customer
@@ -151,7 +161,7 @@ async def create_pricing_rule(request: Request):
             cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
         ):
             return json(
-                {"code": 40301, "message": "无权访问该客户", "data": None},
+                {"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户", "data": None},
                 status=403,
             )
 
@@ -498,6 +508,13 @@ async def import_pricing_rules(request: Request):
         result = await db_session.execute(customer_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
+        # 全量映射：区分「客户不存在」与「无权操作该客户」（无 view_all 时）
+        all_customer_stmt = select(Customer.id, Customer.company_id).where(
+            Customer.deleted_at.is_(None)
+        )
+        all_result = await db_session.execute(all_customer_stmt)
+        all_company_ids = {row[1] for row in all_result.all()}
+
         # 预加载有效的包年套餐类型（仅 active 且未软删除，与 create_pricing_rule 查询条件一致）
         plan_result = await db_session.execute(
             select(PackagePlan.package_type).where(
@@ -537,7 +554,12 @@ async def import_pricing_rules(request: Request):
                     errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
                     continue
                 if company_id not in company_to_customer:
-                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    if company_id in all_company_ids:
+                        errors.append(
+                            f"第 {row_num} 行：无权操作客户编号 {company_id}，仅可为自己负责的客户导入规则"
+                        )
+                    else:
+                        errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
                     continue
 
                 # 校验 pricing_type

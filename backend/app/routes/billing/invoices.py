@@ -382,6 +382,13 @@ async def calculate_invoice_items(request: Request):
     db: AsyncSession = request.ctx.db_session
     data = request.json
 
+    # 参数校验：customer_id 必填（先于权限校验，缺参返回 400 而非 KeyError→500 / 误报 403）
+    if not data.get("customer_id"):
+        return json(
+            {"code": ErrorCodes.MISSING_PARAMETER, "message": "客户 ID 不能为空"},
+            status=400,
+        )
+
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户计算
@@ -660,6 +667,13 @@ async def generate_invoice(request: Request):
     db: AsyncSession = request.ctx.db_session
     data = request.json
     user = get_current_user(request)
+
+    # 参数校验：customer_id 必填（先于权限校验，缺参返回 400 而非 KeyError→500 / 误报 403）
+    if not data.get("customer_id"):
+        return json(
+            {"code": ErrorCodes.MISSING_PARAMETER, "message": "客户 ID 不能为空"},
+            status=400,
+        )
 
     invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
@@ -1699,6 +1713,13 @@ async def import_invoices(request: Request):
         result = await db.execute(company_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
 
+        # 全量映射：区分「客户不存在」与「无权操作该客户」（无 view_all 时）
+        all_company_stmt = select(Customer.id, Customer.company_id).where(
+            Customer.deleted_at.is_(None)
+        )
+        all_result = await db.execute(all_company_stmt)
+        all_company_ids = {row[1] for row in all_result.all()}
+
         # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
         # 范围收敛为「本日自动生成前缀」+「本次 Excel 显式指定的单号」：原实现
         # select(Invoice.invoice_no) 会把该列全表加载，随表增长内存与耗时无限膨胀。
@@ -1752,7 +1773,12 @@ async def import_invoices(request: Request):
                     errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
                     continue
                 if company_id not in company_to_customer:
-                    errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                    if company_id in all_company_ids:
+                        errors.append(
+                            f"第 {row_num} 行：无权操作客户编号 {company_id}，仅可为自己负责的客户导入结算单"
+                        )
+                    else:
+                        errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
                     continue
 
                 # 账期
