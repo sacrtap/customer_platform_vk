@@ -53,6 +53,7 @@ async def create_industry_type(request: Request):
     Request Body:
     - name: str (required)
     - sort_order: int (required)
+    - id: int (optional) 指定行业类型 ID；缺省自增。已被占用（含软删记录）时返回 409
 
     Response:
     - data: {id, name, sort_order}
@@ -63,6 +64,7 @@ async def create_industry_type(request: Request):
     data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
+    id = data.get("id")
 
     if not name or sort_order is None:
         return json(
@@ -70,8 +72,15 @@ async def create_industry_type(request: Request):
             status=422,
         )
 
+    # id 可选；提供时必须为正整数
+    if id is not None and (not isinstance(id, int) or isinstance(id, bool) or id <= 0):
+        return json(
+            {"code": 422, "message": "id 必须为正整数"},
+            status=422,
+        )
+
     try:
-        industry_type = await service.create(name, sort_order)
+        industry_type = await service.create(name, sort_order, id=id)
 
         return json(
             {
@@ -102,6 +111,8 @@ async def update_industry_type(request: Request, id: int):
     Request Body:
     - name: str (required)
     - sort_order: int (required)
+    - id: int (optional) 新 ID；缺省保持不变。与当前 id 不同时执行主键修改，
+      目标 id 已被占用（含软删记录）或行业正被客户引用时返回 409
 
     Response:
     - data: {id, name, sort_order}
@@ -112,6 +123,7 @@ async def update_industry_type(request: Request, id: int):
     data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
+    new_id = data.get("id")
 
     if not name or sort_order is None:
         return json(
@@ -119,8 +131,17 @@ async def update_industry_type(request: Request, id: int):
             status=422,
         )
 
+    # 新 id 可选；提供时必须为正整数
+    if new_id is not None and (
+        not isinstance(new_id, int) or isinstance(new_id, bool) or new_id <= 0
+    ):
+        return json(
+            {"code": 422, "message": "id 必须为正整数"},
+            status=422,
+        )
+
     try:
-        industry_type = await service.update(id, name, sort_order)
+        industry_type = await service.update(id, name, sort_order, new_id=new_id)
 
         if industry_type is None:
             return json(
@@ -138,10 +159,15 @@ async def update_industry_type(request: Request, id: int):
             user_id=current_user.get("user_id") if current_user else None,
             action="update",
             module="industry_type",
-            record_id=id,
+            record_id=industry_type.id,
             record_type="industry_type",
             changes={
-                "after": {"id": id, "name": name, "sort_order": sort_order},
+                "before": {"id": id},
+                "after": {
+                    "id": industry_type.id,
+                    "name": name,
+                    "sort_order": sort_order,
+                },
             },
             ip_address=request.headers.get(
                 "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
