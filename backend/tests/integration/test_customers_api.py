@@ -2249,6 +2249,18 @@ async def test_kpi_stats_mine_scope_only(test_client, db_session, auth_token):
                 f"A 待完善画像应=1，实际={data_a['incomplete_profile']}"
             )
             assert data_a["my_customers"] == 1
+
+            # 受限用户 + mine=true：三个卡片与 my_customers 均按归属统计
+            request, response = await test_client.get(
+                "/api/v1/customers/kpi-stats?force_refresh=true&mine=true",
+                headers={"Authorization": f"Bearer {token_a}"},
+            )
+            assert response.status == 200
+            data_a_mine = response.json["data"]
+            assert data_a_mine["total"] == 1, (
+                f"A+mine=true 客户总数应=1，实际={data_a_mine['total']}"
+            )
+            assert data_a_mine["my_customers"] == 1
         finally:
             perm_module.permission_cache.get_permissions = original_get
 
@@ -2266,6 +2278,26 @@ async def test_kpi_stats_mine_scope_only(test_client, db_session, auth_token):
         assert data_admin["incomplete_profile"] == 1, (
             f"admin 待完善画像应=1，实际={data_admin['incomplete_profile']}"
         )
+
+        # 回归：前端始终传 mine=true，admin（有 view_all）的全量卡片必须不受影响
+        # （此前 mine=true 会把 total/key/incomplete 误过滤为 admin 名下客户数）
+        request, response = await test_client.get(
+            "/api/v1/customers/kpi-stats?force_refresh=true&mine=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status == 200
+        data_admin_mine = response.json["data"]
+        assert data_admin_mine["total"] == 2, (
+            f"admin+mine=true 客户总数应=2，实际={data_admin_mine['total']}"
+        )
+        assert data_admin_mine["key_customers"] == 2, (
+            f"admin+mine=true 重点客户应=2，实际={data_admin_mine['key_customers']}"
+        )
+        assert data_admin_mine["incomplete_profile"] == 1, (
+            f"admin+mine=true 待完善画像应=1，实际={data_admin_mine['incomplete_profile']}"
+        )
+        # my_customers 卡片语义保留：mine=true 时统计 admin 名下客户（无 → 0）
+        assert data_admin_mine["my_customers"] == 0
     finally:
         db_session.execute(text("TRUNCATE customers CASCADE"))
         db_session.execute(

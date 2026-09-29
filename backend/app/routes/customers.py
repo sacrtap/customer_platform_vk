@@ -276,6 +276,9 @@ async def get_kpi_stats(request: Request):
     # 我的客户需要当前用户 ID
     # 数据可见性（服务端强制）：无 customers:view_all 时 KPI 仅统计当前用户负责的客户，
     # 顶部卡片数字与列表可见范围保持一致。
+    # mine=true 是前端「我的客户」卡片的显式请求（计入 my_customers）；三个全量卡片
+    # （total/key_customers/incomplete_profile）的可见性由 scope_user_id 单独强制，
+    # 避免 admin（有 view_all）传了 mine=true 后全量卡片被误过滤。
     mine = request.args.get("mine")
     mine_user_id = None
     if mine and mine.lower() == "true":
@@ -287,7 +290,9 @@ async def get_kpi_stats(request: Request):
         mine_user_id = scope_user_id
 
     # 检查缓存
-    cache_input = str(sorted({**filters, "mine": mine_user_id}.items()))
+    cache_input = str(
+        sorted({**filters, "mine": mine_user_id, "visibility": scope_user_id}.items())
+    )
     cache_key = f"kpi_{hashlib.md5(cache_input.encode(), usedforsecurity=False).hexdigest()[:8]}"
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
     if not force_refresh:
@@ -299,7 +304,9 @@ async def get_kpi_stats(request: Request):
     service = CustomerService(db_session)
 
     try:
-        stats = await service.get_kpi_stats(filters=filters, mine_user_id=mine_user_id)
+        stats = await service.get_kpi_stats(
+            filters=filters, mine_user_id=mine_user_id, visibility_user_id=scope_user_id
+        )
     except Exception as e:
         return json({"code": 50000, "message": str(e)}, status=500)
 
@@ -329,11 +336,12 @@ async def get_kpi_stats(request: Request):
         )
 
     # 可见性约束：无 customers:view_all 时本月新增仅统计当前用户负责的客户
-    if mine_user_id:
+    # （用 scope_user_id 而非 mine_user_id：admin 传 mine=true 时仍显示全量）
+    if scope_user_id:
         new_this_month_stmt = new_this_month_stmt.where(
             or_(
-                Customer.manager_id == mine_user_id,
-                Customer.sales_manager_id == mine_user_id,
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
             )
         )
 

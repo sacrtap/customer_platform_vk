@@ -550,3 +550,56 @@ UTC ISO 时刻（如 `"2026-03-31T16:00:00+00:00"`）；编辑弹窗 `a-date-pic
 > **教训**：跨层日期契约要在**读出口**守：写入口只认 `"YYYY-MM-DD"`，那么凡是要
 > 回填表单的读出口就必须吐 `"YYYY-MM-DD"`。别用「浏览器时区恰好转对」来掩盖
 > —— 同一 ISO 串在不同时区/不同选择器下表现不一致，且回灌写入口必炸。
+
+---
+
+## Data Visibility Filter vs Business Parameter（可见性强制 vs 业务参数语义分离）
+
+数据可见性（按权限强制过滤）与前端业务参数（如「我的客户」mine=true）**不能合并
+为同一个服务端输入**——即使它们的取值在多数场景相同（都是当前用户 ID）。
+
+### 契约原则
+
+- **服务端强制可见性**（无 `customers:view_all` 时只显示自己负责的客户）由
+  `customer_scope_user_id(request)` 返回的 `scope_user_id` 独占驱动，**只允许
+  None（有 view_all → 全量）或 user_id（受限 → 归属过滤）两种取值**；
+- **业务参数**（前端显式请求，如 mine=true 的「我的客户」卡片计数）只影响对应的
+  业务输出项（`my_customers`），**不得反向污染全量统计卡片**；
+- 前端会无条件携带的参数（如本案例前端 `loadKpiData` 固定传 `mine: 'true'`），
+  服务端必须假设它**对任何用户都出现**——包括有 view_all 的 admin；
+- 缓存 key 必须同时包含两种输入（`{"mine": mine_user_id, "visibility": scope_user_id}`），
+  否则不同组合命中同一缓存。
+
+### Checklist: 新增「按当前用户过滤」的统计/列表接口时
+
+- [ ] 区分「服务端强制可见性」与「前端业务筛选参数」，接口签名用独立参数
+      （如 `visibility_user_id` vs `mine_user_id`），禁止合并为一个参数
+- [ ] 全量统计项（总数/重点/待完善等卡片）只受可见性参数约束；
+      即使前端传了业务参数，有 view_all 的用户也必须看到全量
+- [ ] 回归测试覆盖**有 view_all 用户 + 携带业务参数**组合（admin+mine=true），
+      以及**受限用户 ± 业务参数**组合——缺任何一组都抓不到此类 bug
+- [ ] 缓存 key 纳入全部影响输出的参数
+
+### Real-world example (2026-09-29)
+
+客户管理页顶部 KPI 卡片：admin（有 view_all）进入页面后 total/key_customers/
+incomplete_profile 显示接近 0。
+
+**现象**：admin 明明能看全部客户，列表全量，但 KPI 卡片数字异常小。
+
+**根因**：前端 `loadKpiData` **无条件**传 `mine: 'true'`（该参数本意是「我的客户」
+卡片计数）；route 层 `mine=true → mine_user_id = admin.user_id`，而 admin 的
+`scope_user_id` 为 None（有 view_all）不触发覆盖 → `mine_user_id` 保持 admin ID；
+KPI 可见性改造时用 `mine_user_id` 过滤三个全量卡片 → admin 的 total 只统计
+admin 名下客户（≈0）。此前测试只覆盖「受限用户无 mine」与「admin 无 mine」，
+漏掉了「admin + mine=true」（前端真实请求形态），所以两个方向的修复各自都
+看起来正确。
+
+**修复**：service `get_kpi_stats` 新增 `visibility_user_id` 参数（= route 的
+`scope_user_id`），total/key/incomplete 三个全量卡片只按它过滤；`mine_user_id`
+仅保留「我的客户」计数语义；`new_this_month` 同理改用 `scope_user_id`；缓存 key
+加入 visibility。回归测试补充 admin+mine=true（全量）与受限+mine=true（归属）两组。
+
+> **教训**：可见性过滤必须由服务端独立参数独占驱动，业务参数不得复用它；
+> 前端无条件携带的参数 = 服务端必须对全角色正确。测试矩阵要包含
+> 「最高权限 + 业务参数」组合，那正是 bug 最易藏身的地方。
