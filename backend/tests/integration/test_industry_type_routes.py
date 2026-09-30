@@ -301,17 +301,19 @@ class TestDeleteIndustryType:
             )
             assert response.status == 200
 
+            # 审计由全局中间件 middleware/audit.py 自动记录：
+            # module 取路径段（industry-types），record_type 为模型类名小写（industrytype）
             audit = db_session.execute(
                 text(
                     "SELECT action, record_type, record_id FROM audit_logs "
-                    "WHERE module = 'industry_type' AND record_id = :id "
+                    "WHERE module = 'industry-types' AND record_id = :id "
                     "ORDER BY id DESC LIMIT 1"
                 ),
                 {"id": industry_id},
             ).first()
             assert audit is not None, "行业改名未写入审计日志"
             assert audit[0] == "update"
-            assert audit[1] == "industry_type"
+            assert audit[1] == "industrytype"
             assert audit[2] == industry_id
         finally:
             db_session.execute(
@@ -516,6 +518,48 @@ class TestCreateRestoresSoftDeleted:
             db_session.execute(
                 text("DELETE FROM industry_types WHERE id = :itid"),
                 {"itid": industry_id},
+            )
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_name_colliding_with_soft_deleted(
+        self, test_client, auth_headers, db_session
+    ):
+        """改名撞软删同名 → 409（Bug fix：仅查未删除会漏掉占用，撞唯一索引报 500）"""
+        from sqlalchemy import text
+
+        _req, resp_a = await test_client.post(
+            "/api/v1/industry-types",
+            json={"name": "甲行业", "sort_order": 30},
+            headers=auth_headers,
+        )
+        _req, resp_b = await test_client.post(
+            "/api/v1/industry-types",
+            json={"name": "乙行业", "sort_order": 31},
+            headers=auth_headers,
+        )
+        id_a = resp_a.json["data"]["id"]
+        id_b = resp_b.json["data"]["id"]
+
+        try:
+            # 软删 B（其名称「乙行业」仍被唯一索引占用）
+            _req, _ = await test_client.delete(
+                f"/api/v1/industry-types/{id_b}",
+                headers=auth_headers,
+            )
+
+            # A 改名为「乙行业」→ 409（而非撞唯一约束 500）
+            _req, response = await test_client.put(
+                f"/api/v1/industry-types/{id_a}",
+                json={"name": "乙行业", "sort_order": 30},
+                headers=auth_headers,
+            )
+            assert response.status == 409
+            assert "已存在" in response.json["message"]
+        finally:
+            db_session.execute(
+                text("DELETE FROM industry_types WHERE id IN (:a, :b)"),
+                {"a": id_a, "b": id_b},
             )
             db_session.commit()
 

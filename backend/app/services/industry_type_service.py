@@ -96,7 +96,7 @@ class IndustryTypeService:
         if matches:
             industry_type = matches[0]
             if id is not None and id != industry_type.id:
-                raise ValueError(f"行业类型 ID {id} 已存在")
+                raise ValueError(f"恢复已删除的同名行业时必须沿用原 ID {industry_type.id}")
             industry_type.deleted_at = None  # pyright: ignore[reportAttributeAccessIssue]
             industry_type.sort_order = sort_order  # pyright: ignore[reportAttributeAccessIssue]
             await self.db_session.commit()
@@ -151,16 +151,10 @@ class IndustryTypeService:
         if not industry_type:
             return None
 
-        # 检查名称是否重复（排除当前记录和已删除记录）
-        existing = await self.db_session.execute(
-            select(IndustryType).where(
-                IndustryType.name == name,
-                IndustryType.id != id,
-                IndustryType.deleted_at.is_(None),
-            )
-        )
-        existing = existing.scalar_one_or_none()
-        if existing:
+        # 检查名称是否重复：name 唯一索引覆盖软删记录（ix_industry_types_name unique），
+        # 仅查未删除会漏掉占用，改名撞唯一约束报 500；与 create 的 get_any_by_name 一致
+        matches = await self.get_any_by_name(name)
+        if any(m.id != id for m in matches):
             raise ValueError(f"行业类型名称 '{name}' 已存在")
 
         # 修改主键 id：目标 id 占用校验（含软删记录）+ 引用保护
@@ -188,8 +182,8 @@ class IndustryTypeService:
         await self.db_session.commit()
         await self.db_session.refresh(industry_type)
 
-        # 显式 id 可能越过当前序列值，同步序列避免后续自增撞主键
-        if new_id is not None:
+        # 显式新 id 可能越过当前序列值，同步序列避免后续自增撞主键（未实际改 id 则跳过）
+        if new_id is not None and new_id != id:
             await self._sync_id_sequence()
             await self.db_session.commit()
 

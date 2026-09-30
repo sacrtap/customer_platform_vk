@@ -149,31 +149,8 @@ async def update_industry_type(request: Request, id: int):
                 status=404,
             )
 
-        # 审计留痕：行业属共享主数据，改名须可追溯（防止「_编辑」式脏名无人负责）
-        from ..middleware.auth import get_current_user
-        from ..utils.audit_helpers import create_audit_entry
-
-        current_user = get_current_user(request)
-        await create_audit_entry(
-            db_session=db_session,
-            user_id=current_user.get("user_id") if current_user else None,
-            action="update",
-            module="industry_type",
-            record_id=industry_type.id,
-            record_type="industry_type",
-            changes={
-                "before": {"id": id},
-                "after": {
-                    "id": industry_type.id,
-                    "name": name,
-                    "sort_order": sort_order,
-                },
-            },
-            ip_address=request.headers.get(
-                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-            ),
-            auto_commit=True,
-        )
+        # 审计由全局中间件 middleware/audit.py 自动记录（industry-types 已映射），
+        # 此处不再手动写，避免每次更新产生两条审计日志。
 
         return json(
             {
@@ -224,24 +201,8 @@ async def delete_industry_type(request: Request, id: int):
             status=404,
         )
 
-    # 审计留痕：共享主数据删除须可追溯
-    from ..middleware.auth import get_current_user
-    from ..utils.audit_helpers import create_audit_entry
-
-    current_user = get_current_user(request)
-    await create_audit_entry(
-        db_session=db_session,
-        user_id=current_user.get("user_id") if current_user else None,
-        action="delete",
-        module="industry_type",
-        record_id=id,
-        record_type="industry_type",
-        changes={"after": {"id": id, "deleted": True}},
-        ip_address=request.headers.get(
-            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-        ),
-        auto_commit=True,
-    )
+    # 审计由全局中间件 middleware/audit.py 自动记录（industry-types 已映射），
+    # 此处不再手动写，避免每次删除产生两条审计日志。
 
     # 行业类型删除后，清除客户列表缓存
     await cache_service.invalidate_customer_cache()
