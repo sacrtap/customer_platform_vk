@@ -111,7 +111,7 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 | 字段 | 规则 |
 |---|---|
 | `industry` | 名称 → `industry_type_id`；不存在 → 行级错误；**解析失败整行剔除** |
-| `manager` | **运营经理中文姓名/用户名 → `manager_id`**（`real_name` 优先、`username` 兜底；仅匹配启用用户）；不存在或已停用 → 行级错误「运营经理 'x' 不存在或已停用」，**整行剔除**（与 industry 同语义：填了但无法解析则不入库，而非静默留空） |
+| `manager` | **运营经理中文姓名/用户名 → `manager_id`**（`real_name` 优先、`username` 兜底；仅匹配启用用户）；不存在或已停用 → 行级错误「运营经理 'x' 不存在或已停用」，**整行剔除**（与 industry 同语义：填了但无法解析则不入库，而非静默留空）。**real_name 重名规则（2026-09-30 起）**：`User.real_name` 无唯一约束，同名多个启用用户时按姓名**不自动映射**，行级报错「对应多个启用用户，请改用用户名填写」并整行剔除（防静默错配——manager_id 驱动数据可见性，错配污染归属） |
 | `sales_manager` | 销售经理中文姓名/用户名 → `sales_manager_id`，规则同 `manager` |
 | `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
 | `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
@@ -178,10 +178,15 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 
 调用方契约：`price_policy` / `settlement_type` / `settlement_cycle` / `cooperation_status` 四个字段
 未知值一律行级报错并 `continue`，绝不静默置空。
+**空白字符串（2026-09-30 起）**：`strip()` 后为空的单元格按「未填写」处理，不报无效值——
+`settlement_type` 走 prepaid 默认值，`price_policy` / `settlement_cycle` 跳过转换（用户误输空格不应报错）。
 
 ### 行业类型共享主数据规则（`industry_type_routes.py` / `industry_type_service.py`）
 
-- **改名/删除必须写审计日志**（`module='industry_type'`，可追溯「_编辑_编辑」式脏名责任人）
+- **改名/删除审计由全局中间件 `middleware/audit.py` 自动记录**（可追溯「_编辑_编辑」式脏名责任人）；
+  **禁止在路由内再写手动审计**（2026-09-30 起：原 PUT/DELETE 手动审计已删除，否则每条操作落两条日志）。
+  中间件命名规则：`module` = 路径段原样（`industry-types`），`record_type` = 模型类名小写
+  （`industrytype`），`before` 快照由 request 中间件序列化完整记录——写断言/查询审计时按此命名
 - **删除引用保护**：被 `customer_profiles.industry_type_id` 引用的行业返回 409 禁止删除
   （行业删除会连锁导致：客户列表行业列悬空、导出文件回灌时行业名失配报错——本次 1242 行
   导入失败的直接根因之一）
@@ -197,6 +202,10 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
   若只查 `deleted_at IS NULL` 会漏掉占用 → INSERT 撞数据库唯一约束 → 500（实测无法新增
   「项目」：id=1 软删但仍占用 name 唯一索引，849 个客户画像引用其 id）。恢复即让客户
   引用重新生效，列表行业列不悬空
+- **update 名称唯一校验必须含软删（2026-09-30 起）**：与 create 一致用 `get_any_by_name`
+  全量匹配（仅查 `deleted_at IS NULL` 会漏掉软删占用 → 改名撞唯一索引 → 500）；改为
+  软删同名 → 409「行业类型名称 'x' 已存在」（与 create 恢复语义不同：update 是改名，
+  不允许借道软删占位）
 - **编辑可修改 id**（body `id` 可选作新主键）：目标 id 被其他记录占用（含软删）→ 409；
   **被 customer_profiles 引用的行业禁止修改 id** → 409「正被 N 个客户使用，不能修改 ID」
   （改 id 会使外键引用悬空，与删除引用保护同理）

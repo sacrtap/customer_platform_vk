@@ -751,3 +751,36 @@ EditCustomerDialog.vue 加载态 loading 图标未居中修复：a-spin 根元�
 ### Status
 
 [OK] **Completed**
+
+
+## Session 32: OCR 审查分支 fix/customer-import-bug + 修复 13 条发现
+<!-- trellis-session: v=2 fp=8c2f5a1b7e94d30c -->
+
+**Date**: 2026-09-30
+**Task**: open-code-review 审查 main..HEAD（10 代码文件）+ 修复全部发现 + 报告存 docs/code-review/
+**Branch**: `fix/customer-import-bug`
+
+### Summary
+
+OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮全量 2 次因网关 524/530/502/503 全组失败 → 改分组小批量并行 + resume 补审后 10/10 覆盖，去重 13 条发现（high 2 / medium 4 / low 7）全部修复：
+
+- **high-1 重名经理静默错绑**（customers.py 导入）：`User.real_name` 无唯一约束，重名用户按姓名静默绑定任意同名人且无提示（manager_id 驱动可见性）；改 `dict[str, list[int]]` 收集同名全部候选，重名行级报错「改用用户名填写」。
+- **high-2 update 名称唯一校验漏软删**（industry_type_service.py）：update 只查未删除，改名撞软删同名唯一索引 → IntegrityError 500；改 `get_any_by_name` 全量匹配 → 409，与 create 一致。
+- **medium ×2 重复审计**（industry_type_routes.py PUT/DELETE）：全局审计中间件已自动记录 industry-types，路由手动审计导致每次操作两条日志（且手动 before 缺改名前的 name/sort_order）；删除手动审计块。连带：`test_update_writes_audit_log` 按中间件真实命名修正断言（module='industry-types'、record_type='industrytype'）。
+- **medium ×2 导入弹窗**（CustomerImportModal.vue）：预检结果 errors 无空值兜底（缺字段模板 TypeError 白屏）→ 归一化 + 可选链；预检查失败未清旧结果（过期数据可确认导入）→ catch 清 previewResult。
+- **low ×7**：docstring dry_run 移到 Query 段、dry_run 字段契约注释、恢复软删文案误导、new_id==id 冗余写库、success_count===0 未禁用、handleImportSubmit 死代码返回、空白枚举单元格误判无效值（settlement_type 走 prepaid / price_policy / settlement_cycle 跳过转换）。
+
+回归测试 +3：重名经理行级报错、update 撞软删同名 409、空白枚举按未填处理。验证：后端 318 passed（基线 315+3）、ruff lint/format 通过、vue-tsc 通过、前端 100 单测通过。报告：`docs/code-review/2026-09-30-customer-import-export-review.md`。经验沉淀：`.trellis/spec/guides/code-review-guide.md`（网关不稳定下分组并行 + resume 补审策略）；import-export.md 补 manager 重名规则 / 空白枚举 / update 软删同名 / 中间件审计命名。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| （待提交） | fix(customers): 导入经理重名行级报错 + 空白枚举按未填处理（OCR 审查修复） |
+| （待提交） | fix(industry-types): update 名称唯一校验含软删 + 移除重复手动审计（OCR 审查修复） |
+| （待提交） | test(customers): OCR 审查回归测试（重名经理/空白枚举） |
+| （待提交） | docs: OCR 审查报告 + spec 沉淀（code-review-guide、import-export 契约） |
+
+### Status
+
+[OK] **Completed**
