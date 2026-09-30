@@ -253,5 +253,6 @@ export interface ImportResult {
   success_count: number
   error_count: number
   errors: string[]
+  /** 仅 dry_run 预检响应返回；真实导入响应不带此字段 */
   dry_run?: boolean
 }

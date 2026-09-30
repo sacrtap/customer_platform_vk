@@ -911,6 +911,8 @@ async def import_customers(request: Request):
 
     Form:
     - file: Excel 文件 (.xlsx)
+
+    Query:
     - dry_run: 可选，true/1/yes/on 时仅预检查（完整行级校验、不落库），
       返回可入库条数 + 错误列表（含行号），供前端二次确认
 
@@ -995,11 +997,13 @@ async def import_customers(request: Request):
         manager_result = await db_session.execute(
             select(User.id, User.real_name, User.username).where(User.is_active.is_(True))
         )
-        manager_by_real_name: dict[str, int] = {}
+        # real_name 无唯一约束（仅 username unique），重名用户存在时按姓名
+        # 静默绑定会错配到任意同名人；此处收集同名全部候选，解析时要求唯一
+        manager_by_real_name: dict[str, list[int]] = {}
         manager_by_username: dict[str, int] = {}
         for uid, real_name, username in manager_result.all():
             if real_name:
-                manager_by_real_name[real_name] = uid
+                manager_by_real_name.setdefault(real_name, []).append(uid)
             if username:
                 manager_by_username[username] = uid
 
@@ -1024,7 +1028,14 @@ async def import_customers(request: Request):
             value = value.strip()
             if not value:
                 return None, None
-            user_id = manager_by_real_name.get(value) or manager_by_username.get(value)
+            name_ids = manager_by_real_name.get(value)
+            if name_ids is not None:
+                if len(name_ids) > 1:
+                    return None, (
+                        f"行{row['_row_num']}: {label} '{value}' 对应多个启用用户，请改用用户名填写"
+                    )
+                return name_ids[0], None
+            user_id = manager_by_username.get(value)
             if user_id is None:
                 return None, (f"行{row['_row_num']}: {label} '{value}' 不存在或已停用")
             return user_id, None

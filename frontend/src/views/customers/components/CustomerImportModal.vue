@@ -119,13 +119,17 @@
           <span class="preview-ok">可入库：{{ previewResult.success_count }} 条</span>
           <span class="preview-error">错误：{{ previewResult.error_count }} 条</span>
         </div>
-        <div v-if="previewResult.errors.length" class="preview-errors">
+        <div v-if="previewResult.errors?.length" class="preview-errors">
           <div class="preview-errors-title">错误明细（含行号）：</div>
           <ul class="preview-errors-list">
-            <li v-for="(err, idx) in previewResult.errors" :key="idx">{{ err }}</li>
+            <li v-for="(err, idx) in previewResult.errors ?? []" :key="idx">{{ err }}</li>
           </ul>
-          <div v-if="previewResult.error_count > previewResult.errors.length" class="preview-more">
-            ... 还有 {{ previewResult.error_count - previewResult.errors.length }} 条错误未显示
+          <div
+            v-if="previewResult.error_count > (previewResult.errors?.length ?? 0)"
+            class="preview-more"
+          >
+            ... 还有
+            {{ previewResult.error_count - (previewResult.errors?.length ?? 0) }} 条错误未显示
           </div>
         </div>
       </div>
@@ -165,7 +169,7 @@
       <a-button
         type="primary"
         :loading="importLoading"
-        :disabled="!previewResult"
+        :disabled="!previewResult || previewResult.success_count === 0"
         @click="handleImportSubmit"
       >
         确认导入
@@ -292,7 +296,8 @@ const handlePreview = async () => {
   try {
     const res = await importCustomers(importFile.value, true)
     const data = (res as { data: ImportResult }).data
-    previewResult.value = data
+    // 归一化 errors（缺字段兜底 []），避免模板访问 .length 抛 TypeError 白屏
+    previewResult.value = { ...data, errors: data.errors ?? [] }
     if (data.error_count === 0) {
       Message.success(`预检查通过：可入库 ${data.success_count} 条`)
     } else {
@@ -302,6 +307,8 @@ const handlePreview = async () => {
       })
     }
   } catch (error: unknown) {
+    // 失败时清空旧结果，防止用过期（与当前文件不符）的预检数据直接确认导入
+    previewResult.value = null
     handleError(error, '预检查失败')
   } finally {
     previewLoading.value = false
@@ -341,10 +348,8 @@ const handleImportSubmit = async () => {
     }
     emit('imported')
     resetState()
-    return true
   } catch (error: unknown) {
     handleError(error, '导入失败')
-    return false
   } finally {
     importLoading.value = false
   }

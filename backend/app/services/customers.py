@@ -1174,6 +1174,8 @@ class CustomerService:
                     continue
 
                 price_policy = data.get("price_policy")
+                if isinstance(price_policy, str):
+                    price_policy = price_policy.strip() or None
                 if price_policy:
                     # 转换为存储值（中文→英文）
                     storage_value = convert_price_policy_to_storage(price_policy)
@@ -1222,6 +1224,8 @@ class CustomerService:
 
                 # 转换结算周期：中文→英文；未知值报行级错误（禁止静默透传脏值落库）
                 settlement_cycle = data.get("settlement_cycle")
+                if isinstance(settlement_cycle, str):
+                    settlement_cycle = settlement_cycle.strip() or None
                 if settlement_cycle:
                     storage_cycle = convert_settlement_cycle_to_storage(
                         str(settlement_cycle).strip()
@@ -1234,9 +1238,12 @@ class CustomerService:
                         continue
                     data["settlement_cycle"] = storage_cycle
 
-                # 转换结算方式：导出/模板填中文「预付费/后付费」，须转英文存储值
+                # 转换结算方式：导出/模板填中文「预付费/后付费」，须转英文存储值；
+                # 纯空白字符串视为未填写（走 prepaid 默认值，而非报无效值）
                 settlement_type = data.get("settlement_type")
-                if settlement_type is None:
+                if settlement_type is None or (
+                    isinstance(settlement_type, str) and not settlement_type.strip()
+                ):
                     data["settlement_type"] = "prepaid"
                 else:
                     storage_settlement_type = convert_settlement_type_to_storage(
