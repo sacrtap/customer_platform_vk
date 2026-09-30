@@ -2908,6 +2908,67 @@ class TestImportManagerColumns:
             db_session.execute(text("DELETE FROM industry_types WHERE name = '经理测试行业2'"))
             db_session.commit()
 
+    @pytest.mark.asyncio
+    async def test_import_ambiguous_manager_name_reports_row_error(
+        self, test_client, auth_headers, db_session
+    ):
+        """real_name 重名（多个启用用户同名）时行级报错，引导改用用户名
+
+        回归：Bug fix——User.real_name 无唯一约束，重名时按姓名静默绑定
+        会错配到任意同名人（manager_id 驱动数据可见性，错配影响归属）。
+        """
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('经理测试行业3', 5, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.execute(
+            text(
+                "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
+                "VALUES ('op_dup_1', '张重名', 'x', TRUE, NOW()), "
+                "('op_dup_2', '张重名', 'x', TRUE, NOW()) "
+                "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "manager", "industry"])
+        ws.append([1001004, "重名行", "张重名", "经理测试行业3"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "managers_dup.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["success_count"] == 0
+            assert data["error_count"] == 1
+            err_text = "\n".join(data["errors"])
+            assert "行2" in err_text, f"错误应含行号: {err_text}"
+            assert "对应多个启用用户" in err_text
+            assert "改用用户名" in err_text
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001004)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '经理测试行业3'"))
+            db_session.execute(text("DELETE FROM users WHERE username IN ('op_dup_1', 'op_dup_2')"))
+            db_session.commit()
+
 
 class TestImportDryRun:
     """测试导入预检查（dry_run=true，不落库）"""
@@ -3045,4 +3106,58 @@ class TestExportManagerColumns:
             db_session.execute(text("DELETE FROM customers WHERE company_id = 1003001"))
             db_session.execute(text("DELETE FROM industry_types WHERE name = '导出经理行业'"))
             db_session.execute(text("DELETE FROM users WHERE username IN ('exp_op', 'exp_sales')"))
+            db_session.commit()
+
+
+class TestImportBlankEnumAsUnfilled:
+    """测试空白枚举单元格按未填写处理（Bug fix：空白字符串被误报无效值）"""
+
+    @pytest.mark.asyncio
+    async def test_blank_settlement_type_defaults_to_prepaid(
+        self, test_client, auth_headers, db_session
+    ):
+        """settlement_type 为空白字符串 → 落库 prepaid 而非行级报错"""
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('空白枚举行业', 6, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "settlement_type", "industry"])
+        ws.append([1001005, "空白结算行", "   ", "空白枚举行业"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "blank_enum.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["success_count"] == 1, f"空白枚举不应报错: {data['errors']}"
+            assert data["error_count"] == 0
+
+            row = db_session.execute(
+                text("SELECT settlement_type FROM customers WHERE company_id = 1001005")
+            ).first()
+            assert row is not None
+            assert row[0] == "prepaid"
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001005)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '空白枚举行业'"))
             db_session.commit()
