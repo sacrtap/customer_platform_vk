@@ -611,11 +611,13 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     assert ws.title == "客户导入模板"
 
-    # 验证第 1 行：表头字段（22 个字段）
+    # 验证第 1 行：表头字段（25 个字段）
     headers = [cell.value for cell in ws[1]]
     expected_headers = [
         "company_id",
         "name",
+        "manager",
+        "sales_manager",
         "account_type",
         "industry",
         "price_policy",
@@ -628,6 +630,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "onboarding_date",
         "cooperation_status",
         "is_settlement_enabled",
+        "auto_initiate_settlement",
         "is_disabled",
         "notes",
         "scale_level",
@@ -643,27 +646,31 @@ async def test_download_import_template_field_structure(test_client, auth_header
     notes = [cell.value for cell in ws[2]]
     assert "必填" in str(notes[0])  # company_id
     assert "必填" in str(notes[1])  # name
-    assert "正式账号" in str(notes[2])  # account_type
-    assert "定价" in str(notes[4])  # price_policy
-    assert "prepaid" in str(notes[5])  # settlement_type
+    assert "运营经理" in str(notes[2])  # manager
+    assert "销售经理" in str(notes[3])  # sales_manager
+    assert "正式账号" in str(notes[4])  # account_type
+    assert "定价" in str(notes[6])  # price_policy
+    assert "prepaid" in str(notes[7])  # settlement_type
 
     # 验证第 3 行：示例数据
     example = [cell.value for cell in ws[3]]
     assert example[0] == 100001  # company_id 示例
     assert "示例公司" in str(example[1])  # name 示例
-    assert example[4] == "定价"  # price_policy 示例
-    assert example[5] == "prepaid"  # settlement_type 示例
-    assert "example@" in str(example[8])  # email 示例
+    assert example[2] == "张三"  # manager 示例
+    assert example[3] == "李四"  # sales_manager 示例
+    assert example[6] == "定价"  # price_policy 示例
+    assert example[7] == "prepaid"  # settlement_type 示例
+    assert "example@" in str(example[10])  # email 示例
     # 验证新增字段
-    assert example[10] == "2024-01-15"  # first_payment_date
-    assert example[12] == "active"  # cooperation_status
-    assert example[16] == "C"  # scale_level
-    assert example[17] == "C2"  # consume_level
+    assert example[12] == "2024-01-15"  # first_payment_date
+    assert example[14] == "active"  # cooperation_status
+    assert example[19] == "C"  # scale_level
+    assert example[20] == "C2"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 22 个字段"""
+    """测试下载导入模板 - 验证表头数量为 25 个字段（含 manager/sales_manager 经理列）"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -677,7 +684,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 22, f"期望 22 个表头，实际 {header_count} 个"
+    assert header_count == 25, f"期望 25 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -944,6 +951,15 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
             "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
         )
     )
+    # 模板示例行的运营/销售经理为「张三/李四」：须存在启用用户，否则行级报错
+    db_session.execute(
+        text(
+            "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
+            "VALUES ('zhangsan', '张三', 'x', TRUE, NOW()), "
+            "('lisi', '李四', 'x', TRUE, NOW()) "
+            "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
+        )
+    )
     db_session.commit()
 
     request, response = await test_client.post(
@@ -968,6 +984,7 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
             text("DELETE FROM customers WHERE company_id = :cid"), {"cid": company_id}
         )
         db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
+        db_session.execute(text("DELETE FROM users WHERE username IN ('zhangsan', 'lisi')"))
         db_session.commit()
 
 
@@ -1284,6 +1301,214 @@ async def test_import_customers_unknown_industry_reports_error(
         text("DELETE FROM customers WHERE company_id >= 1000050 AND company_id < 1000060")
     )
     db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_full_fields_persist(test_client, auth_headers, db_session):
+    """测试导入 - 导出文件所列字段须完整落库
+
+    回归防护 —— 导入模板与导出同构（23 列），以下字段此前在批量导入链路
+    被静默丢弃或错误存储：
+    - auto_initiate_settlement（模板缺列 + 服务不处理）→ 应转布尔入库
+    - scale_level（profile_fields 缺该键）→ 应写 customer_profiles.scale_level
+    - settlement_type 中文值「预付费/后付费」→ 应转英文 prepaid/postpaid 存储
+    - cooperation_status 未知值（如 bding）→ 应回传行级错误而非静默置空
+    """
+    from openpyxl import Workbook
+
+    # 行业名须已存在（与其它导入用例一致）
+    db_session.execute(
+        text(
+            "INSERT INTO industry_types (name, sort_order, created_at) "
+            "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(
+        [
+            "company_id",
+            "name",
+            "account_type",
+            "industry",
+            "price_policy",
+            "settlement_type",
+            "settlement_cycle",
+            "is_key_customer",
+            "email",
+            "erp_system",
+            "first_payment_date",
+            "onboarding_date",
+            "cooperation_status",
+            "is_settlement_enabled",
+            "auto_initiate_settlement",
+            "is_disabled",
+            "notes",
+            "scale_level",
+            "consume_level",
+            "monthly_avg_shots",
+            "monthly_avg_shots_estimated",
+            "estimated_annual_spend",
+            "actual_annual_spend_2025",
+        ]
+    )
+    # 两条正常行：中文结算方式 + auto_initiate_settlement/scale_level 落库
+    ws.append(
+        [
+            1000060,
+            "字段全量客户 A",
+            "正式账号",
+            "房产经纪",
+            "定价",
+            "预付费",
+            "月结",
+            "是",
+            "full_a@example.com",
+            "易遨",
+            "2024-01-15",
+            "2024-02-01",
+            "active",
+            "是",
+            "是",
+            "否",
+            "备注A",
+            "S",
+            "C1",
+            500,
+            450,
+            50000.00,
+            45000.00,
+        ]
+    )
+    ws.append(
+        [
+            1000061,
+            "字段全量客户 B",
+            "正式账号",
+            "房产经纪",
+            None,
+            "后付费",
+            None,
+            "否",
+            None,
+            None,
+            None,
+            None,
+            "noused",
+            "否",
+            "否",
+            "是",
+            None,
+            "A",
+            "C2",
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
+    # 一条未知合作状态行：应行级报错
+    ws.append(
+        [
+            1000062,
+            "脏状态客户",
+            "正式账号",
+            "房产经纪",
+            None,
+            "预付费",
+            None,
+            "否",
+            None,
+            None,
+            None,
+            None,
+            "bding",
+            "是",
+            "是",
+            "否",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_full_fields.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 1, data["data"]
+    assert any("bding" in e for e in data["data"]["errors"]), data["data"]
+
+    try:
+        # 中文结算方式已转英文存储值
+        st_rows = db_session.execute(
+            text(
+                "SELECT company_id, settlement_type FROM customers "
+                "WHERE company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        st_map = {cid: st for cid, st in st_rows}
+        assert st_map[1000060] == "prepaid", st_map
+        assert st_map[1000061] == "postpaid", st_map
+
+        # auto_initiate_settlement 转布尔入库
+        auto_rows = db_session.execute(
+            text(
+                "SELECT company_id, auto_initiate_settlement FROM customers "
+                "WHERE company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        auto_map = {cid: v for cid, v in auto_rows}
+        assert auto_map[1000060] is True, auto_map
+        assert auto_map[1000061] is False, auto_map
+
+        # scale_level 写入 customer_profiles
+        sl_rows = db_session.execute(
+            text(
+                "SELECT c.company_id, p.scale_level FROM customer_profiles p "
+                "JOIN customers c ON c.id = p.customer_id "
+                "WHERE c.company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        sl_map = {cid: sl for cid, sl in sl_rows}
+        assert sl_map[1000060] == "S", sl_map
+        assert sl_map[1000061] == "A", sl_map
+
+        # 脏状态行未入库
+        bad_count = db_session.execute(
+            text("SELECT COUNT(*) FROM customers WHERE company_id = 1000062")
+        ).scalar()
+        assert bad_count == 0
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id >= 1000060 AND company_id < 1000070")
+        )
+        db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -2555,3 +2780,384 @@ async def test_kpi_stats_mine_scope_only(test_client, db_session, auth_token):
             {"a": username_a, "b": username_b},
         )
         db_session.commit()
+
+
+class TestImportManagerColumns:
+    """测试导入运营经理/销售经理（中文姓名 → user_id）"""
+
+    @pytest.mark.asyncio
+    async def test_import_with_manager_names(self, test_client, auth_headers, db_session):
+        """中文姓名正确解析为 manager_id / sales_manager_id 落库"""
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('经理测试行业', 3, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.execute(
+            text(
+                "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
+                "VALUES ('op_manager', '运营甲', 'x', TRUE, NOW()), "
+                "('sales_manager', '销售乙', 'x', TRUE, NOW()) "
+                "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "manager", "sales_manager", "industry"])
+        ws.append([1001001, "经理映射公司", "运营甲", "销售乙", "经理测试行业"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "managers.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["errors"] == [], f"导入不应有错误: {data['errors']}"
+            assert data["success_count"] == 1
+
+            # 落库校验：中文姓名 → user_id
+            row = db_session.execute(
+                text(
+                    "SELECT c.manager_id, c.sales_manager_id, "
+                    "um.real_name AS manager_name, us.real_name AS sales_name "
+                    "FROM customers c "
+                    "LEFT JOIN users um ON um.id = c.manager_id "
+                    "LEFT JOIN users us ON us.id = c.sales_manager_id "
+                    "WHERE c.company_id = 1001001"
+                )
+            ).first()
+            assert row is not None
+            assert row[0] is not None, "manager_id 未落库"
+            assert row[1] is not None, "sales_manager_id 未落库"
+            assert row[2] == "运营甲"
+            assert row[3] == "销售乙"
+        finally:
+            db_session.execute(
+                text("DELETE FROM customers WHERE company_id = :cid"), {"cid": 1001001}
+            )
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '经理测试行业'"))
+            db_session.execute(
+                text("DELETE FROM users WHERE username IN ('op_manager', 'sales_manager')")
+            )
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_import_unknown_manager_reports_row_error(
+        self, test_client, auth_headers, db_session
+    ):
+        """经理姓名不存在时行级报错（含行号），但不影响其它行入库"""
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('经理测试行业2', 4, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "manager", "sales_manager", "industry"])
+        ws.append([1001002, "好行", "", "", "经理测试行业2"])
+        ws.append([1001003, "坏行", "不存在的经理", "不存在的销售", "经理测试行业2"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "managers_err.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            # 好行入库、坏行被拒：行级错误含行号（第 2 行数据 = Excel 行 3，
+            # 本文件无中文说明行，第 1 行表头、第 2 行起为数据）
+            assert data["success_count"] == 1
+            assert data["error_count"] == 2
+            err_text = "\n".join(data["errors"])
+            assert "行3" in err_text, f"错误应含行号: {err_text}"
+            assert "运营经理" in err_text
+            assert "销售经理" in err_text
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001002, 1001003)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '经理测试行业2'"))
+            db_session.commit()
+
+    @pytest.mark.asyncio
+    async def test_import_ambiguous_manager_name_reports_row_error(
+        self, test_client, auth_headers, db_session
+    ):
+        """real_name 重名（多个启用用户同名）时行级报错，引导改用用户名
+
+        回归：Bug fix——User.real_name 无唯一约束，重名时按姓名静默绑定
+        会错配到任意同名人（manager_id 驱动数据可见性，错配影响归属）。
+        """
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('经理测试行业3', 5, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.execute(
+            text(
+                "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
+                "VALUES ('op_dup_1', '张重名', 'x', TRUE, NOW()), "
+                "('op_dup_2', '张重名', 'x', TRUE, NOW()) "
+                "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "manager", "industry"])
+        ws.append([1001004, "重名行", "张重名", "经理测试行业3"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "managers_dup.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["success_count"] == 0
+            assert data["error_count"] == 1
+            err_text = "\n".join(data["errors"])
+            assert "行2" in err_text, f"错误应含行号: {err_text}"
+            assert "对应多个启用用户" in err_text
+            assert "改用用户名" in err_text
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001004)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '经理测试行业3'"))
+            db_session.execute(text("DELETE FROM users WHERE username IN ('op_dup_1', 'op_dup_2')"))
+            db_session.commit()
+
+
+class TestImportDryRun:
+    """测试导入预检查（dry_run=true，不落库）"""
+
+    @pytest.mark.asyncio
+    async def test_dry_run_does_not_persist(self, test_client, auth_headers, db_session):
+        """预检查返回可入库数/错误，但不写库"""
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('预检行业', 5, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "industry"])
+        ws.append([1002001, "预检好行", "预检行业"])
+        ws.append([1002002, "预检坏行", "不存在的行业"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import?dry_run=true",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "dry_run.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["dry_run"] is True
+            assert data["success_count"] == 1
+            assert data["error_count"] == 1
+            assert "行3" in data["errors"][0]  # 第 2 行数据 = Excel 行 3
+            assert "不存在" in data["errors"][0]
+
+            # 未落库
+            count = db_session.execute(
+                text("SELECT count(*) FROM customers WHERE company_id IN (1002001, 1002002)")
+            ).scalar()
+            assert count == 0, "dry_run 不应写库"
+
+            # 同文件不带 dry_run → 真正入库
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "dry_run.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data.get("dry_run") is not True
+            assert data["success_count"] == 1
+            count = db_session.execute(
+                text("SELECT count(*) FROM customers WHERE company_id IN (1002001, 1002002)")
+            ).scalar()
+            assert count == 1
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1002001, 1002002)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '预检行业'"))
+            db_session.commit()
+
+
+class TestExportManagerColumns:
+    """测试导出运营经理/销售经理中文姓名（user_id → 姓名，可回灌）"""
+
+    @pytest.mark.asyncio
+    async def test_export_contains_manager_names(self, test_client, auth_headers, db_session):
+        """导出列含 manager/sales_manager 中文姓名"""
+        from openpyxl import load_workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('导出经理行业', 6, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.execute(
+            text(
+                "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
+                "VALUES ('exp_op', '导出运营', 'x', TRUE, NOW()), "
+                "('exp_sales', '导出销售', 'x', TRUE, NOW()) "
+                "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
+            )
+        )
+        db_session.commit()
+
+        # 直接造客户 + 经理引用（走 SQL，避免权限/序列号副作用）
+        db_session.execute(
+            text(
+                "INSERT INTO customers "
+                "(company_id, name, manager_id, sales_manager_id, created_at, updated_at) "
+                "SELECT 1003001, '导出经理公司', u1.id, u2.id, NOW(), NOW() "
+                "FROM users u1, users u2 "
+                "WHERE u1.username = 'exp_op' AND u2.username = 'exp_sales'"
+            )
+        )
+        db_session.commit()
+
+        try:
+            request, response = await test_client.get(
+                "/api/v1/customers/export?keyword=1003001",
+                headers=auth_headers,
+            )
+            assert response.status == 200
+
+            wb = load_workbook(io.BytesIO(response.body))
+            ws = wb.active
+            headers = [cell.value for cell in ws[1]]
+            assert "manager" in headers
+            assert "sales_manager" in headers
+
+            # 数据行（表头后第一行）
+            data_row = [cell.value for cell in ws[2]]
+            manager_idx = headers.index("manager")
+            sales_idx = headers.index("sales_manager")
+            assert data_row[manager_idx] == "导出运营"
+            assert data_row[sales_idx] == "导出销售"
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id = 1003001"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '导出经理行业'"))
+            db_session.execute(text("DELETE FROM users WHERE username IN ('exp_op', 'exp_sales')"))
+            db_session.commit()
+
+
+class TestImportBlankEnumAsUnfilled:
+    """测试空白枚举单元格按未填写处理（Bug fix：空白字符串被误报无效值）"""
+
+    @pytest.mark.asyncio
+    async def test_blank_settlement_type_defaults_to_prepaid(
+        self, test_client, auth_headers, db_session
+    ):
+        """settlement_type 为空白字符串 → 落库 prepaid 而非行级报错"""
+        from openpyxl import Workbook
+
+        db_session.execute(
+            text(
+                "INSERT INTO industry_types (name, sort_order, created_at) "
+                "VALUES ('空白枚举行业', 6, NOW()) ON CONFLICT (name) DO NOTHING"
+            )
+        )
+        db_session.commit()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["company_id", "name", "settlement_type", "industry"])
+        ws.append([1001005, "空白结算行", "   ", "空白枚举行业"])
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        try:
+            request, response = await test_client.post(
+                "/api/v1/customers/import",
+                headers=auth_headers,
+                files={
+                    "file": (
+                        "blank_enum.xlsx",
+                        output.getvalue(),
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
+            )
+            assert response.status == 200
+            data = response.json["data"]
+            assert data["success_count"] == 1, f"空白枚举不应报错: {data['errors']}"
+            assert data["error_count"] == 0
+
+            row = db_session.execute(
+                text("SELECT settlement_type FROM customers WHERE company_id = 1001005")
+            ).first()
+            assert row is not None
+            assert row[0] == "prepaid"
+        finally:
+            db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001005)"))
+            db_session.execute(text("DELETE FROM industry_types WHERE name = '空白枚举行业'"))
+            db_session.commit()

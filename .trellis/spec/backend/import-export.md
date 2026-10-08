@@ -58,7 +58,7 @@ GET  /api/v1/billing/invoices/import-template
 |---|---|
 | 方法 | `POST`，`multipart/form-data`，字段名 `file` |
 | 文件类型 | 仅 `.xlsx` |
-| 行数上限 | ≤ 1000 行（与余额导入先例一致，超限返回 `40004`） |
+| 行数上限 | ≤ 1000 行（与余额导入先例一致，超限返回 `40004`；**客户导入例外**：无后端强制，仅前端提示「单次建议不超过 1000 条」，2026-09-29 核验确认，避免阻断全量导出回灌） |
 | 数据行起点 | 模板第 3 行（第 1 行英文列名、第 2 行中文说明、第 3 行示例） |
 
 ### 导入响应（`data`）
@@ -92,6 +92,57 @@ GET  /api/v1/billing/invoices/import-template
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
+### 客户导入/导出字段对称（25 列，禁止单侧增删）
+
+`customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
+（2026-09-29 起强制；此前模板缺 `auto_initiate_settlement` 导致导出回灌时该列与
+`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25）：
+
+```
+company_id, name, manager, sales_manager, account_type, industry, price_policy,
+settlement_type, settlement_cycle, is_key_customer, email, erp_system,
+first_payment_date, onboarding_date, cooperation_status, is_settlement_enabled,
+auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
+monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
+```
+
+导入侧转换规则（`CustomerService.batch_create_customers`，不得静默丢列）：
+
+| 字段 | 规则 |
+|---|---|
+| `industry` | 名称 → `industry_type_id`；不存在 → 行级错误；**解析失败整行剔除** |
+| `manager` | **运营经理中文姓名/用户名 → `manager_id`**（`real_name` 优先、`username` 兜底；仅匹配启用用户）；不存在或已停用 → 行级错误「运营经理 'x' 不存在或已停用」，**整行剔除**（与 industry 同语义：填了但无法解析则不入库，而非静默留空）。**real_name 重名规则（2026-09-30 起）**：`User.real_name` 无唯一约束，同名多个启用用户时按姓名**不自动映射**，行级报错「对应多个启用用户，请改用用户名填写」并整行剔除（防静默错配——manager_id 驱动数据可见性，错配污染归属） |
+| `sales_manager` | 销售经理中文姓名/用户名 → `sales_manager_id`，规则同 `manager` |
+| `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
+| `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
+| `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
+| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
+| `cooperation_status` | 白名单 `active/suspended/terminated/noused` + 中文映射；未知值 → 行级错误（不静默置空） |
+| `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
+| `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
+
+导出侧（`GET /customers/export`）：`manager` / `sales_manager` 列输出 user 的
+`real_name`（空则 `username`）——与导入侧解析**互逆**，导出文件可直接回灌导入。
+批量映射 user_id → 姓名（一次性查询 `User.id.in_(manager_ids)`，避免 N+1）。
+
+### 客户导入预检查（dry_run，二次确认契约）
+
+`POST /customers/import?dry_run=true`：**完整行级校验但不落库**（含行业/枚举/经理
+姓名/重复 company_id 等全部规则），返回：
+
+```json
+{ "code": 0, "message": "预检查完成",
+  "data": { "dry_run": true, "success_count": 5, "error_count": 2, "errors": ["行3: ...", ...] } }
+```
+
+- `success_count` = 通过全部校验、将入库的行数；`errors` 含真实 Excel 行号
+- 不写库、不写审计、不动缓存；重复提交同文件（不带 dry_run）才真正入库
+- dry_run 返回 `errors[:50]`（足够确认）；真实导入仍 `errors[:10]`
+- 前端流程：上传文件 → **预检查** → 展示「可入库 N 条 / 错误 M 条 + 行号明细」→
+  **确认导入** 才落库（`CustomerImportModal` 两步按钮）；更换文件后须重新预检查
+- 服务层 `batch_create_customers(customers_data, dry_run=True)` 同一校验路径复用，
+  保证预检结果与实际入库一致（不出现「预检通过但落库失败」偏差）
+
 ### 结算单导入受控字段
 
 仅暴露 `company_id` / `period_start` / `period_end` / `total_amount` / `discount_amount` / `invoice_no`（可选）：
@@ -99,6 +150,70 @@ GET  /api/v1/billing/invoices/import-template
 - `status` 固定 `draft`，`is_auto_generated=False`（禁止导入端指定状态，规避绕过审批流程）
 - `invoice_no` 缺省按系统规则生成：`INV-YYYYMMDD-{customer_id}-{4位随机码}`
 - 明细（`detail_file_*` 等内部字段）不开放
+
+---
+
+## 四端点字段对称核验表（2026-09-29 扩散排查）
+
+正则：**模板列 == 服务解析列**（不许静默丢列）；**导出 ⊇ 模板**（实体型端点须可回灌）。
+
+| 端点 | 导出列 | 模板列 | 性质 | 回灌 | 结论 |
+|---|---|---|---|---|---|
+| 客户 customers | 23 列（含 auto_initiate_settlement） | 23 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement） |
+| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
+| 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
+| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ❌ 语义不成立 | 模板==解析（4 键全消费），导出为列表快照，非同一实体回灌非预期 |
+| 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |
+
+操作型端点（余额/结算单）**不强制导出回灌**——导入是补录动作、导出是查询视图，列集合天然不同；
+实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**，导出文件即最佳导入夹具。
+
+### 枚举转换函数方向契约（`backend/app/services/customers.py`）
+
+所有 `convert_*_to_storage` 必须满足（2026-09-29 起强制，方向性单测 `tests/unit/test_enum_conversions.py`）：
+
+1. 中文 → 英文存储值（`定价`→`pricing`、`预付费`→`prepaid`、`月结`→`monthly`）
+2. 已是英文存储值 → **原样透传（幂等）**
+3. 未知值 → **返回 None**，由调用方报行级错误（**禁止 `.get(k, k)` 透传脏值落库**——曾导致「无效计费模式」校验形同虚设）
+
+调用方契约：`price_policy` / `settlement_type` / `settlement_cycle` / `cooperation_status` 四个字段
+未知值一律行级报错并 `continue`，绝不静默置空。
+**空白字符串（2026-09-30 起）**：`strip()` 后为空的单元格按「未填写」处理，不报无效值——
+`settlement_type` 走 prepaid 默认值，`price_policy` / `settlement_cycle` 跳过转换（用户误输空格不应报错）。
+
+### 行业类型共享主数据规则（`industry_type_routes.py` / `industry_type_service.py`）
+
+- **改名/删除审计由全局中间件 `middleware/audit.py` 自动记录**（可追溯「_编辑_编辑」式脏名责任人）；
+  **禁止在路由内再写手动审计**（2026-09-30 起：原 PUT/DELETE 手动审计已删除，否则每条操作落两条日志）。
+  中间件命名规则：`module` = 路径段原样（`industry-types`），`record_type` = 模型类名小写
+  （`industrytype`），`before` 快照由 request 中间件序列化完整记录——写断言/查询审计时按此命名
+- **删除引用保护**：被 `customer_profiles.industry_type_id` 引用的行业返回 409 禁止删除
+  （行业删除会连锁导致：客户列表行业列悬空、导出文件回灌时行业名失配报错——本次 1242 行
+  导入失败的直接根因之一）
+- 客户导入侧行业映射查询（`customers.py:966 select(IndustryType)`）不过滤软删除——若需
+  严格禁止回罐已删行业，改为 `where(deleted_at.is_(None))` 并配套错误提示
+
+### 行业类型 ID 管理规则（2026-09-29 起）
+
+- **新增可指定 id**（body `id` 可选，正整数；缺省自增）。指定 id 已占用——**含软删记录**——
+  返回 409「行业类型 ID n 已存在」（主键唯一约束对软删记录仍生效）
+- **同名软删记录自动恢复**：新增时若存在软删除的同名记录，**恢复原记录**（undelete，保留
+  原 id 与 sort_order 更新），而非新建。必要原因：`name` UNIQUE 索引被软删记录占位，
+  若只查 `deleted_at IS NULL` 会漏掉占用 → INSERT 撞数据库唯一约束 → 500（实测无法新增
+  「项目」：id=1 软删但仍占用 name 唯一索引，849 个客户画像引用其 id）。恢复即让客户
+  引用重新生效，列表行业列不悬空
+- **update 名称唯一校验必须含软删（2026-09-30 起）**：与 create 一致用 `get_any_by_name`
+  全量匹配（仅查 `deleted_at IS NULL` 会漏掉软删占用 → 改名撞唯一索引 → 500）；改为
+  软删同名 → 409「行业类型名称 'x' 已存在」（与 create 恢复语义不同：update 是改名，
+  不允许借道软删占位）
+- **编辑可修改 id**（body `id` 可选作新主键）：目标 id 被其他记录占用（含软删）→ 409；
+  **被 customer_profiles 引用的行业禁止修改 id** → 409「正被 N 个客户使用，不能修改 ID」
+  （改 id 会使外键引用悬空，与删除引用保护同理）
+- **显式 id 必须同步序列**：指定 id 高于当前自增序列时，执行
+  `SELECT setval(pg_get_serial_sequence('industry_types','id'), max_id)`，否则后续自增
+  撞主键（`_sync_id_sequence`）
+- 审计：update 记录 `changes.before.id`（旧 id）与 `changes.after.id`（新 id），
+  `record_id` 用新 id；改名/删除审计留痕规则不变
 
 ---
 

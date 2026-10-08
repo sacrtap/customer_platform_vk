@@ -249,6 +249,46 @@ ranges = tiers.get("ranges", [])   # tiers 若是 list → AttributeError → HT
 
 ---
 
+## Import/Export Symmetry (导入/导出字段对称性)
+
+导入与导出是**同一份数据的两个方向**，模板、导出、服务解析三处必须列对齐——
+缺一列=用户数据静默丢失，多一列=该列永远无法导入。
+
+### Checklist: 修改导入/导出任一端时
+
+- [ ] 模板 headers、导出列、服务解析字段**三处列名逐一 diff**
+- [ ] 新增强制/枚举转换字段后，检查是否存在「仅导出有」或「仅模板有」的列
+- [ ] 枚举转换函数实现方向正确（`中文→存储值`，不是反写）
+- [ ] 未知枚举值报行级错误，绝不静默置空（`map.get(k)` 命中 None 要察觉）
+- [ ] 集成测试断言：导出字段能完整回灌导入，落库后回读值一致
+
+### Real-world example (2026-09-29, customer import)
+
+模板补 `auto_initiate_settlement` 列 + 服务层补 `scale_level`/`auto_initiate_settlement`
+处理 + settlement_type 中文→英文转换 + 未知合作状态行级报错。
+根因同 `Widening vs Narrowing Parser`，这里强调了**回灌对称**这个测试视角：
+导出文件本身就是最好的导入测试夹具。
+
+### 操作型 vs 实体型导入（回灌适用性判定）
+
+不是所有导入都要求「导出可回灌」——先按语义分类再定契约：
+
+| 类型 | 判定 | 契约 |
+|---|---|---|
+| 实体型（客户/计费规则/套餐） | 导入创建实体，导出是该实体的查询视图 | **导出 ⊇ 模板列，导出文件必须可直接回灌** |
+| 操作型（余额充值/结算单导入） | 导入是补录动作，导出是不同语义的列表快照 | 只要求**模板列 == 服务解析列**（无静默丢列），回灌不适用 |
+
+判错代价：对操作型强行要求回灌会把「充值动作」误当「实体同步」；对实体型放任
+「模板缺列」则用户数据静默丢失。核验时先标性质，再选断言。
+
+### 枚举转换方向（`convert_*_to_storage` 族）
+
+统一三态契约：中文→英文存储值；英文原样透传（幂等）；**未知→None 由调用方报行级错误**。
+`map.get(k, k)` 的透传写法会让「无效值校验」形同虚设（校验点拿到永远非 None 的结果）。
+方向性单测用 parametrize 覆盖三态 + display 反向映射。
+
+---
+
 ## Cross-Platform Template Consistency
 
 In Trellis, command templates (e.g., `record-session.md`) exist in **multiple platforms** with identical or near-identical content. This is a cross-layer boundary.

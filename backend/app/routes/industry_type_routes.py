@@ -53,6 +53,7 @@ async def create_industry_type(request: Request):
     Request Body:
     - name: str (required)
     - sort_order: int (required)
+    - id: int (optional) 指定行业类型 ID；缺省自增。已被占用（含软删记录）时返回 409
 
     Response:
     - data: {id, name, sort_order}
@@ -63,6 +64,7 @@ async def create_industry_type(request: Request):
     data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
+    id = data.get("id")
 
     if not name or sort_order is None:
         return json(
@@ -70,8 +72,15 @@ async def create_industry_type(request: Request):
             status=422,
         )
 
+    # id 可选；提供时必须为正整数
+    if id is not None and (not isinstance(id, int) or isinstance(id, bool) or id <= 0):
+        return json(
+            {"code": 422, "message": "id 必须为正整数"},
+            status=422,
+        )
+
     try:
-        industry_type = await service.create(name, sort_order)
+        industry_type = await service.create(name, sort_order, id=id)
 
         return json(
             {
@@ -102,6 +111,8 @@ async def update_industry_type(request: Request, id: int):
     Request Body:
     - name: str (required)
     - sort_order: int (required)
+    - id: int (optional) 新 ID；缺省保持不变。与当前 id 不同时执行主键修改，
+      目标 id 已被占用（含软删记录）或行业正被客户引用时返回 409
 
     Response:
     - data: {id, name, sort_order}
@@ -112,6 +123,7 @@ async def update_industry_type(request: Request, id: int):
     data = request.json or {}
     name = data.get("name")
     sort_order = data.get("sort_order")
+    new_id = data.get("id")
 
     if not name or sort_order is None:
         return json(
@@ -119,14 +131,26 @@ async def update_industry_type(request: Request, id: int):
             status=422,
         )
 
+    # 新 id 可选；提供时必须为正整数
+    if new_id is not None and (
+        not isinstance(new_id, int) or isinstance(new_id, bool) or new_id <= 0
+    ):
+        return json(
+            {"code": 422, "message": "id 必须为正整数"},
+            status=422,
+        )
+
     try:
-        industry_type = await service.update(id, name, sort_order)
+        industry_type = await service.update(id, name, sort_order, new_id=new_id)
 
         if industry_type is None:
             return json(
                 {"code": 404, "message": "行业类型不存在"},
                 status=404,
             )
+
+        # 审计由全局中间件 middleware/audit.py 自动记录（industry-types 已映射），
+        # 此处不再手动写，避免每次更新产生两条审计日志。
 
         return json(
             {
@@ -162,13 +186,23 @@ async def delete_industry_type(request: Request, id: int):
     db_session: AsyncSession = request.ctx.db_session
     service = IndustryTypeService(db_session)
 
-    success = await service.soft_delete(id)
+    try:
+        success = await service.soft_delete(id)
+    except ValueError as e:
+        # 引用保护：被客户画像使用的行业禁止删除
+        return json(
+            {"code": 409, "message": str(e)},
+            status=409,
+        )
 
     if not success:
         return json(
             {"code": 404, "message": "行业类型不存在"},
             status=404,
         )
+
+    # 审计由全局中间件 middleware/audit.py 自动记录（industry-types 已映射），
+    # 此处不再手动写，避免每次删除产生两条审计日志。
 
     # 行业类型删除后，清除客户列表缓存
     await cache_service.invalidate_customer_cache()

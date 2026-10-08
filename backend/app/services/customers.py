@@ -114,12 +114,18 @@ def parse_date_to_object(value: Optional[Any]) -> Optional[date]:
 
 
 def convert_settlement_type_to_storage(value: Optional[str]) -> Optional[str]:
-    """将前端/导入的中文值转换为数据库存储的英文标识符"""
+    """将前端/导入的中文值转换为数据库存储的英文标识符
+
+    中文「预付费/后付费」→ 英文 `prepaid/postpaid`；已是英文存储值则原样返回；
+    未知值返回 None（由调用方报行级错误兜底）。
+    """
     if not value:
         return None
     if value in SETTLEMENT_TYPE_MAP:
+        return SETTLEMENT_TYPE_MAP[value]
+    if value in SETTLEMENT_TYPE_REVERSE_MAP:
         return value
-    return SETTLEMENT_TYPE_REVERSE_MAP.get(value)
+    return None
 
 
 # 计费模式转换
@@ -141,8 +147,19 @@ SETTLEMENT_CYCLE_MAP = {
 SETTLEMENT_CYCLE_REVERSE_MAP = {v: k for k, v in SETTLEMENT_CYCLE_MAP.items()}
 
 
-def convert_price_policy_to_storage(value: str) -> str:
-    return PRICE_POLICY_MAP.get(value, value)
+def convert_price_policy_to_storage(value: str) -> Optional[str]:
+    """将导入的中文计费模式转换为数据库存储的英文标识符
+
+    中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly`；已是英文存储值则
+    原样返回；未知值返回 None，由调用方报行级错误（禁止静默透传脏值落库）。
+    """
+    if not value:
+        return None
+    if value in PRICE_POLICY_MAP:
+        return PRICE_POLICY_MAP[value]
+    if value in PRICE_POLICY_REVERSE_MAP:
+        return value
+    return None
 
 
 def convert_price_policy_to_display(value: str) -> str:
@@ -154,10 +171,18 @@ def convert_settlement_type_to_display(value: str) -> str:
 
 
 def convert_settlement_cycle_to_storage(value: Optional[str]) -> Optional[str]:
-    """将导入的中文结算周期转换为数据库存储的英文标识符"""
+    """将导入的中文结算周期转换为数据库存储的英文标识符
+
+    中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly`；
+    已是英文存储值则原样返回；未知值返回 None，由调用方报行级错误（禁止静默透传）。
+    """
     if not value:
         return None
-    return SETTLEMENT_CYCLE_MAP.get(value, value)
+    if value in SETTLEMENT_CYCLE_MAP:
+        return SETTLEMENT_CYCLE_MAP[value]
+    if value in SETTLEMENT_CYCLE_REVERSE_MAP:
+        return value
+    return None
 
 
 def convert_settlement_cycle_to_display(value: str) -> str:
@@ -1046,12 +1071,18 @@ class CustomerService:
 
         return profile
 
-    async def batch_create_customers(self, customers_data: List[dict]) -> Tuple[int, List[str]]:
+    async def batch_create_customers(
+        self,
+        customers_data: list[dict],
+        dry_run: bool = False,
+    ) -> tuple[int, list[str]]:
         """
         批量创建客户（优化版：批量检查重复，减少 N+1 查询）
 
         Args:
             customers_data: 客户数据列表
+            dry_run: True 时仅执行完整行级校验（含行业/枚举/经理姓名映射等），
+                不落库、不写审计；success_count 表示「通过校验、将入库的行数」。
 
         Returns:
             (success_count, errors)
@@ -1093,14 +1124,19 @@ class CustomerService:
                     # 新增字段
                     "cooperation_status",
                     "is_settlement_enabled",
+                    "auto_initiate_settlement",
                     "is_disabled",
                     "first_payment_date",
                     "onboarding_date",
+                    "scale_level",
                     "consume_level",
                     "monthly_avg_shots",
                     "monthly_avg_shots_estimated",
                     "estimated_annual_spend",
                     "actual_annual_spend_2025",
+                    # 经理映射（路由已完成中文姓名 → user_id；这里统一 NaN/#N/A 清洗）
+                    "manager_id",
+                    "sales_manager_id",
                 ]
                 for field in optional_fields:
                     val = data.get(field)
@@ -1138,6 +1174,8 @@ class CustomerService:
                     continue
 
                 price_policy = data.get("price_policy")
+                if isinstance(price_policy, str):
+                    price_policy = price_policy.strip() or None
                 if price_policy:
                     # 转换为存储值（中文→英文）
                     storage_value = convert_price_policy_to_storage(price_policy)
@@ -1171,20 +1209,57 @@ class CustomerService:
                             "终止": "terminated",
                             "近一年未使用": "noused",
                         }
-                        data["cooperation_status"] = status_map.get(cooperation_status)
+                        mapped = status_map.get(cooperation_status)
+                        if mapped is None:
+                            errors.append(
+                                f"行{row_num}: 无效的合作状态: {cooperation_status} "
+                                "(可选值：active/合作中, suspended/暂停, terminated/终止, noused/近一年未使用)"
+                            )
+                            continue
+                        data["cooperation_status"] = mapped
 
                 # 转换日期字段（DATE 列需要 date 对象，字符串会在 flush 时报错）
                 data["first_payment_date"] = parse_date_to_object(data.get("first_payment_date"))
                 data["onboarding_date"] = parse_date_to_object(data.get("onboarding_date"))
 
-                # 转换结算周期：中文→英文
+                # 转换结算周期：中文→英文；未知值报行级错误（禁止静默透传脏值落库）
                 settlement_cycle = data.get("settlement_cycle")
+                if isinstance(settlement_cycle, str):
+                    settlement_cycle = settlement_cycle.strip() or None
                 if settlement_cycle:
-                    data["settlement_cycle"] = convert_settlement_cycle_to_storage(settlement_cycle)
+                    storage_cycle = convert_settlement_cycle_to_storage(
+                        str(settlement_cycle).strip()
+                    )
+                    if storage_cycle is None:
+                        errors.append(
+                            f"行{row_num}: 无效的结算周期: {settlement_cycle} "
+                            "(可选值：日结/周结/月结/季结/年结)"
+                        )
+                        continue
+                    data["settlement_cycle"] = storage_cycle
 
-                # 结算方式统一设为 prepaid
-                if data.get("settlement_type") is None:
+                # 转换结算方式：导出/模板填中文「预付费/后付费」，须转英文存储值；
+                # 纯空白字符串视为未填写（走 prepaid 默认值，而非报无效值）
+                settlement_type = data.get("settlement_type")
+                if settlement_type is None or (
+                    isinstance(settlement_type, str) and not settlement_type.strip()
+                ):
                     data["settlement_type"] = "prepaid"
+                else:
+                    storage_settlement_type = convert_settlement_type_to_storage(
+                        str(settlement_type).strip()
+                    )
+                    if storage_settlement_type is None:
+                        errors.append(
+                            f"行{row_num}: 无效的结算方式: {settlement_type} (可选值：预付费/后付费)"
+                        )
+                        continue
+                    data["settlement_type"] = storage_settlement_type
+
+                # 转换 auto_initiate_settlement（导出/模板为「是/否」或 true/false）
+                data["auto_initiate_settlement"] = convert_bool_field(
+                    data.get("auto_initiate_settlement")
+                )
 
                 # 数值字段清洗（月均拍摄量等）
                 for num_field in [
@@ -1223,6 +1298,7 @@ class CustomerService:
                 profile_data = None
                 profile_fields = {
                     "industry_type_id": data.get("industry_type_id"),
+                    "scale_level": data.get("scale_level"),
                     "consume_level": data.get("consume_level"),
                     "monthly_avg_shots": data.get("monthly_avg_shots"),
                     "monthly_avg_shots_estimated": data.get("monthly_avg_shots_estimated"),
@@ -1238,6 +1314,7 @@ class CustomerService:
                     account_type=data.get("account_type"),
                     price_policy=storage_value,
                     manager_id=data.get("manager_id"),
+                    sales_manager_id=data.get("sales_manager_id"),
                     settlement_cycle=data.get("settlement_cycle"),
                     settlement_type=data.get("settlement_type"),
                     is_key_customer=data.get("is_key_customer", False),
@@ -1248,27 +1325,30 @@ class CustomerService:
                     onboarding_date=data.get("onboarding_date"),
                     cooperation_status=data.get("cooperation_status"),
                     is_settlement_enabled=data.get("is_settlement_enabled"),
+                    auto_initiate_settlement=data.get("auto_initiate_settlement"),
                     is_disabled=data.get("is_disabled"),
                     notes=data.get("notes"),
                 )
-                self.db.add(customer)
-                new_customers.append(customer)
-                # 暂存 profile 数据（等待 flush 后设置 customer_id）
-                if profile_data:
-                    pending_profiles.append(
-                        {
-                            "data": profile_data,
-                            "company_id": company_id,
-                        }
-                    )
+                # dry_run 仅做校验，不构造 ORM 对象、不落库
+                if not dry_run:
+                    self.db.add(customer)
+                    new_customers.append(customer)
+                    # 暂存 profile 数据（等待 flush 后设置 customer_id）
+                    if profile_data:
+                        pending_profiles.append(
+                            {
+                                "data": profile_data,
+                                "company_id": company_id,
+                            }
+                        )
                 existing_company_ids.add(company_id)  # 防止同批次重复
 
                 success_count += 1
             except Exception as e:
                 errors.append(f"行{row_num}: {str(e)}")
 
-        # 批量创建余额记录和 profile
-        if success_count > 0:
+        # 批量创建余额记录和 profile（dry_run 跳过）
+        if not dry_run and success_count > 0:
             # flush 后 customer.id 可用
             await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
@@ -1284,6 +1364,7 @@ class CustomerService:
                         profile = CustomerProfile(
                             customer_id=customer_id,
                             industry_type_id=pd.get("industry_type_id"),
+                            scale_level=pd.get("scale_level"),
                             consume_level=pd.get("consume_level"),
                             monthly_avg_shots=pd.get("monthly_avg_shots"),
                             monthly_avg_shots_estimated=pd.get("monthly_avg_shots_estimated"),
@@ -1292,7 +1373,9 @@ class CustomerService:
                         )
                         self.db.add(profile)
 
-        await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
+        # dry_run 不提交
+        if not dry_run:
+            await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
         return success_count, errors
 
 

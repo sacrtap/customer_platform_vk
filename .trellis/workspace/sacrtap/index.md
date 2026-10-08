@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
-- **Last Active**: 2026-09-23
+- **Total Sessions**: 31
+- **Last Active**: 2026-09-29
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~668 | Active |
+| `journal-1.md` | ~753 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 31 | 2026-09-29 | 行业类型 ID 管理修复 + 客户导入导出运营/销售经理字段与预检查 | `dd2822c`, `a7df598` | `fix/customer-import-bug` |
+| 30 | 2026-09-29 | 修复客户导入大量报错 + 导入导出字段对称扩散排查 | `9e64732`, `20e2e7d` | `fix/customer-import-bug` |
 | 28 | 2026-09-23 | 余额管理页按结算类型拆分与筛选优化 + ocr 代码审查修复 | `af2b15f`, `6f90af7` | `main` |
 | 27 | 2026-09-21 | 批量编辑弹框新增行业与ERP编辑项（含 code review 修复） | `c258d8a`, `30c86f7`, `0b6cf4d`, `f1b5579` | `customer-batch-edit-optimization` |
 | 24 | 2026-09-20 | 编辑弹窗 loading 居中修复 | `fabf9a9`, `706c830` | `customer-module-optimization` |

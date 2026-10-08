@@ -62,6 +62,19 @@
       @cancel="handleModalCancel"
     >
       <a-form ref="formRef" :model="form" :rules="formRules" layout="vertical">
+        <a-form-item
+          field="id"
+          label="ID（可选）"
+          :extra="isEditMode ? '修改 ID 需未被客户引用' : '留空则自动生成'"
+        >
+          <a-input-number
+            v-model="form.id"
+            placeholder="请输入行业类型 ID"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
+        </a-form-item>
         <a-form-item field="name" label="行业类型名称">
           <a-input v-model="form.name" placeholder="请输入行业类型名称" />
         </a-form-item>
@@ -122,6 +135,7 @@ const formRef = ref<FormInstance>()
 const editingId = ref<number | null>(null)
 
 const form = reactive({
+  id: undefined as number | undefined,
   name: '',
   sort_order: 0,
 })
@@ -150,6 +164,7 @@ const loadIndustryTypes = async () => {
 const handleCreate = () => {
   isEditMode.value = false
   editingId.value = null
+  form.id = undefined
   form.name = ''
   form.sort_order = 0
   modalVisible.value = true
@@ -158,6 +173,7 @@ const handleCreate = () => {
 const handleEdit = (record: IndustryType) => {
   isEditMode.value = true
   editingId.value = record.id
+  form.id = record.id
   form.name = record.name
   form.sort_order = record.sort_order
   modalVisible.value = true
@@ -168,12 +184,14 @@ const handleSubmit = async () => {
     submitting.value = true
     if (isEditMode.value && editingId.value !== null) {
       await updateIndustryType(editingId.value, {
+        id: form.id,
         name: form.name,
         sort_order: form.sort_order,
       })
       Message.success('更新成功')
     } else {
       await createIndustryType({
+        id: form.id,
         name: form.name,
         sort_order: form.sort_order,
       })

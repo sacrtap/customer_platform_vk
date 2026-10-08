@@ -125,10 +125,10 @@ export function updateProfile(
 }
 
 // Excel 导入
-export function importCustomers(file: File) {
+export function importCustomers(file: File, dryRun = false) {
   const formData = new FormData()
   formData.append('file', file)
-  return api.post('/customers/import', formData, {
+  return api.post(`/customers/import${dryRun ? '?dry_run=true' : ''}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
