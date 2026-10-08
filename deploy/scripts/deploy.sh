@@ -79,6 +79,24 @@ check_dependencies() {
                 echo '{"auths":{}}' > "$REGISTRY_AUTH_FILE"
             fi
             log_info "已配置 Podman 使用文件式认证"
+
+            # 为 docker-compose 创建无 credsStore 的配置文件，避免 macOS Keychain 在 SSH 非交互式会话中不可用
+            export DOCKER_CONFIG="${HOME}/.config/containers/docker"
+            mkdir -p "$DOCKER_CONFIG"
+            if [ -f "${HOME}/.docker/config.json" ]; then
+                python3 -c "
+import json
+with open('${HOME}/.docker/config.json') as f:
+    c = json.load(f)
+c.pop('credsStore', None)
+c.pop('credHelpers', None)
+with open('${DOCKER_CONFIG}/config.json', 'w') as f:
+    json.dump(c, f)
+" 2>/dev/null || echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
+            else
+                echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
+            fi
+            log_info "已配置 docker-compose 使用文件式认证（绕过 Keychain）"
         fi
     elif detect_runtime docker; then
         log_info "检测到 Docker"
