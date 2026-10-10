@@ -784,3 +784,26 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 33: 开放平台全量客户余额接口开发与验证
+<!-- trellis-session: v=2 fp=db11862f24caea1f -->
+
+**Date**: 2026-10-10
+**Task**: 开放平台全量客户余额接口开发与验证
+**Branch**: `feat/openapi-all-balances`
+
+### Summary
+
+新增开放平台接口 GET /api/v1/balances（全量客户余额，与 ERP 渠道域平级），扩展认证中间件多前缀，抽取公共查询逻辑，补齐 100% 覆盖率（单元+集成互补，规避 asgi_client 下 coverage await 盲区），补充 VitePress 开放平台文档。实测验证：全量接口 1320 条 ~24ms、渠道接口与数据库口径逐条一致、qiaofang 渠道 4 客户余额正确；修复 openapi-docs dev 端口 5173→5174 冲突。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `37f613e` | feat: 开放平台新增全量客户余额接口 GET /api/v1/balances |
+| `1f915eb` | fix(docs): openapi 文档站 dev 端口 5173 → 5174，避免与前端 Vite 默认端口冲突 |
+
+### Status
+
+[OK] **Completed**
