@@ -5,7 +5,7 @@
   "type": "module",
   "description": "客户运营中台开放平台开发者文档站（VitePress）",
   "scripts": {
-    "docs:dev": "vitepress dev docs --port 5173",
+    "docs:dev": "vitepress dev docs --port 5174",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs --port 4173"
   },
