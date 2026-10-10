@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 31
-- **Last Active**: 2026-09-29
+- **Total Sessions**: 33
+- **Last Active**: 2026-10-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~753 | Active |
+| `journal-1.md` | ~809 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 33 | 2026-10-10 | 开放平台全量客户余额接口开发与验证 | `37f613e`, `1f915eb` | `feat/openapi-all-balances` |
 | 31 | 2026-09-29 | 行业类型 ID 管理修复 + 客户导入导出运营/销售经理字段与预检查 | `dd2822c`, `a7df598` | `fix/customer-import-bug` |
 | 30 | 2026-09-29 | 修复客户导入大量报错 + 导入导出字段对称扩散排查 | `9e64732`, `20e2e7d` | `fix/customer-import-bug` |
 | 28 | 2026-09-23 | 余额管理页按结算类型拆分与筛选优化 + ocr 代码审查修复 | `af2b15f`, `6f90af7` | `main` |

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "开放平台接口错误码与响应规范"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "db_session 使用与软删除约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试约定与禁止模式"}
+{"file": ".trellis/spec/guides/vitepress-docs-ci-guide.md", "reason": "文档站工程约定"}

@@ -30,6 +30,7 @@ export default defineConfig({
           text: 'API 参考',
           items: [
             { text: '接口索引', link: '/api-reference/' },
+            { text: '客户余额查询（全量）', link: '/api-reference/all-balances' },
             { text: 'ERP 渠道客户余额查询', link: '/api-reference/erp-balances' },
           ],
         },
