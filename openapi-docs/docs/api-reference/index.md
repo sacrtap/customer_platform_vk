@@ -6,6 +6,7 @@
 
 | 接口 | 方法 | 路径 | 说明 |
 | --- | --- | --- | --- |
+| [客户余额查询（全量）](/api-reference/all-balances) | `GET` | `/api/v1/balances` | 返回全部客户的客户 ID、名称和当前余额（不限 ERP 渠道） |
 | [ERP 渠道客户余额查询](/api-reference/erp-balances) | `GET` | `/api/v1/erp/balances` | 返回指定 ERP 渠道下所有企业的客户 ID、名称和当前余额 |
 
 ::: tip 扩展说明

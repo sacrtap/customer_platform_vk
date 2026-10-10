@@ -22,7 +22,8 @@ from ..services.token_blacklist import TokenBlacklistService
 logger = logging.getLogger(__name__)
 
 # 开放平台 API 路径前缀，使用 API-Key 认证而非 JWT
-OPENAPI_PREFIX = "/api/v1/erp/"
+# 全量客户余额接口与 ERP 渠道域平级（/api/v1/balances），与渠道接口同走 API-Key 认证
+OPENAPI_PREFIXES = ("/api/v1/erp/", "/api/v1/balances")
 
 
 def auth_middleware(app: Sanic):
@@ -48,7 +49,7 @@ def auth_middleware(app: Sanic):
                 return
 
             # 开放平台 API 路径走 API-Key 认证
-            if request.path.startswith(OPENAPI_PREFIX):
+            if request.path.startswith(OPENAPI_PREFIXES):
                 return await _authenticate_api_key(request, app)
 
             # 其他路径走 JWT 认证
