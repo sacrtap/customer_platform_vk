@@ -82,10 +82,11 @@ async def import_balance(request: Request):
                 status=400,
             )
 
-        # 行数限制
-        if len(df) > 1000:
+        # 行数限制（2026-10-13 提高至 2000：余额导出文件回灌可达 1274 行，
+        # 1000 上限会拦截真实工作流；其他导入端点仍为 1000）
+        if len(df) > 2000:
             return json(
-                {"code": 40004, "message": "单次最多导入 1000 条记录"},
+                {"code": 40004, "message": "单次最多导入 2000 条记录"},
                 status=400,
             )
 
