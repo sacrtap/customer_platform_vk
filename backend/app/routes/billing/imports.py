@@ -174,12 +174,8 @@ async def import_balance(request: Request):
                     errors.append(f"第 {row_num} 行：赠送金额格式错误")
                     continue
 
-            # 校验实充+赠送不能同时为 0
-            if real_amount == 0 and bonus_amount == 0:
-                errors.append(f"第 {row_num} 行：实充金额和赠送金额不能同时为 0")
-                continue
-
-            # 备注
+            # 备注（0 元充值允许导入：2026-10-13 起取消「实充+赠送不能同时为 0」
+            # 限制，用于批量初始化/迁移场景；0 元行生成 0 元充值记录、余额不变）
             remark = row.get("remark")
             if bool(pd.isna(remark)) or remark is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 remark = None

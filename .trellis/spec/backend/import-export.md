@@ -187,14 +187,15 @@ estimated_annual_spend, actual_annual_spend_2025
 | 客户 customers | 26 列（含 auto_initiate_settlement、is_real_estate） | 26 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement；2026-10-13 补 is_real_estate 三处） |
 | 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
 | 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
-| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ✅ 列别名软回灌 | 模板==解析（4 键全消费）；**2026-10-13 起导出文件列名自动归一**（客户ID/实充余额（元）/赠送余额（元）→ company_id/real_amount/bonus_amount），快照按充值入账、0 金额行级拒绝 |
+| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ✅ 列别名软回灌 | 模板==解析（4 键全消费）；**2026-10-13 起导出文件列名自动归一**（客户ID/实充余额（元）/赠送余额（元）→ company_id/real_amount/bonus_amount），快照按充值入账、0 元充值允许导入 |
 | 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |
 
 操作型端点（余额/结算单）**默认不强制导出回灌**——导入是补录动作、导出是查询视图，
 列集合天然不同；实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**。
 **余额导入例外（2026-10-13 起）**：提供**列别名软回灌**——导出文件可直接上传，
 中文展示列自动映射英文存储列（不再报「缺少必填列」），快照金额按本次充值入账
-（0 金额行被「实充+赠送不能同时为 0」行级拒绝）——语义仍是充值，不把快照当余额覆盖。
+（0 元充值允许导入，2026-10-13 起，用于批量初始化/迁移；生成 0 元充值记录、余额不变）
+——语义仍是充值，不把快照当余额覆盖。
 
 ### 枚举转换函数方向契约（`backend/app/services/customers.py`）
 

@@ -233,7 +233,7 @@ async def test_import_balances_accepts_export_file_columns(
     回归防护 —— 导出列是中文展示名（客户ID/实充余额（元）/赠送余额（元）），
     导入期待英文列；此前导出文件回灌报 40003「Excel 缺少必填列：company_id,
     real_amount, bonus_amount」，用户误以为文件损坏。修复后列名自动归一，
-    按同一校验路径处理（快照金额按本次充值入账，0 金额行级报错）。
+    按同一校验路径处理（快照金额按本次充值入账；0 元充值 2026-10-13 起允许导入）。
     """
     # 模拟 /billing/balances/export 的导出文件结构（中文列名）
     body = _xlsx(
@@ -283,7 +283,7 @@ async def test_import_balances_accepts_export_file_columns(
                 None,
                 0,
             ],
-            # 余额为 0 的快照行：列名可识别，但 0 元充值被行级拒绝
+            # 余额为 0 的快照行：列名可识别；0 元充值允许导入（2026-10-13 起）
             [
                 import_customer["company_id"],
                 "测试客户",
@@ -312,16 +312,16 @@ async def test_import_balances_accepts_export_file_columns(
     assert response.status == 200
     assert response.json["code"] == 0
     data = response.json["data"]
-    assert data["success_count"] == 1, data
-    assert data["error_count"] == 2, data
+    # 有效行 2（含 0 元充值行，2026-10-13 起允许）、不存在客户 1 行报错
+    assert data["success_count"] == 2, data
+    assert data["error_count"] == 1, data
     assert any("客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
-    assert any("实充金额和赠送金额不能同时为 0" in e for e in data["errors"]), data["errors"]
 
     count = db_session.execute(
         text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
         {"cid": import_customer["id"]},
     ).scalar()
-    assert count == 1  # 仅有效行产生充值记录
+    assert count == 2  # 含 0 元充值行生成的充值记录
 
 
 @pytest.mark.asyncio
