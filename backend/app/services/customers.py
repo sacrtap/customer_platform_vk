@@ -1092,6 +1092,19 @@ class CustomerService:
         existing_result = await self.db.execute(existing_stmt)  # pyright: ignore[reportGeneralTypeIssues]
         existing_company_ids = {row[0] for row in existing_result.all()}
 
+        # 合作状态字典实时取自 cooperation_statuses 表（过滤软删，与「合作状态」
+        # 管理页面同源）：预检查/入库校验与页面新增/编辑的枚举保持一致，
+        # 避免硬编码枚举与页面新增值脱节（如页面新增 bding/拓展中后导入仍报无效）。
+        from ..models.cooperation_status import CooperationStatus
+
+        status_result = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            select(CooperationStatus).where(CooperationStatus.deleted_at.is_(None))
+        )
+        _cooperation_statuses = status_result.scalars().all()
+        valid_status_values = {cs.value for cs in _cooperation_statuses}
+        status_name_to_value = {cs.name: cs.value for cs in _cooperation_statuses}
+        status_allowed_hint = ", ".join(f"{cs.value}/{cs.name}" for cs in _cooperation_statuses)
+
         pending_profiles: list[dict] = []
         new_customers: list[Customer] = []
         success_count = 0
@@ -1197,23 +1210,17 @@ class CustomerService:
                 )
                 data["is_disabled"] = convert_bool_field(data.get("is_disabled"))
 
-                # 转换 cooperation_status：支持 noused 值
+                # 转换 cooperation_status：实时与 cooperation_statuses 表对齐
+                # （value 直接匹配；name 中文映射），不再硬编码枚举值
                 cooperation_status = data.get("cooperation_status")
                 if cooperation_status:
-                    valid_statuses = {"active", "suspended", "terminated", "noused"}
-                    if cooperation_status not in valid_statuses:
-                        # 尝试中文映射
-                        status_map = {
-                            "合作中": "active",
-                            "暂停": "suspended",
-                            "终止": "terminated",
-                            "近一年未使用": "noused",
-                        }
-                        mapped = status_map.get(cooperation_status)
+                    if cooperation_status not in valid_status_values:
+                        # 尝试中文名称映射（如 合作中 → active）
+                        mapped = status_name_to_value.get(cooperation_status)
                         if mapped is None:
                             errors.append(
                                 f"行{row_num}: 无效的合作状态: {cooperation_status} "
-                                "(可选值：active/合作中, suspended/暂停, terminated/终止, noused/近一年未使用)"
+                                f"(可选值：{status_allowed_hint})"
                             )
                             continue
                         data["cooperation_status"] = mapped

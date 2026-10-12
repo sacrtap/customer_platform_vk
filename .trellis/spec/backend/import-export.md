@@ -117,9 +117,14 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 | `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
 | `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
 | `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
-| `cooperation_status` | 白名单 `active/suspended/terminated/noused` + 中文映射；未知值 → 行级错误（不静默置空） |
+| `cooperation_status` | **实时取 `cooperation_statuses` 字典表**（`deleted_at IS NULL`，与「合作状态」管理页面同源）：`value` 直接匹配 + `name` 中文映射；均不命中 → 行级错误（不静默置空）。**禁止硬编码白名单**——页面可增删改枚举，硬编码会让导入与页面脱节（2026-10-13：页面新增 `bding/拓展中` 后校验仍报「无效的合作状态」） |
 | `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
 | `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
+
+**字典驱动字段（2026-10-13 起）**：`cooperation_status` 的有效值集**实时查询
+`cooperation_statuses` 表**（过滤软删，与「合作状态」页面同源），禁止在服务层硬编码
+白名单——该表由页面动态增删改，「页面有但校验不认」即契约脱节。模板第 2 行提示
+与错误信息里的可选值均由同一查询动态生成，保持与页面一致。
 
 导出侧（`GET /customers/export`）：`manager` / `sales_manager` 列输出 user 的
 `real_name`（空则 `username`）——与导入侧解析**互逆**，导出文件可直接回灌导入。

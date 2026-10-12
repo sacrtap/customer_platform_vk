@@ -289,6 +289,35 @@ ranges = tiers.get("ranges", [])   # tiers 若是 list → AttributeError → HT
 
 ---
 
+## 可配置字典 vs 硬编码白名单（Dictionary-Driven Enums vs Hardcoded Whitelists）
+
+带管理页面的枚举（合作状态/行业/账号类型等）有**两个潜在真相源**：数据库字典表
+（页面可增删改）与代码里硬编码的校验白名单。页面每次新增/编辑枚举后，硬编码校验
+就成了过期快照——「页面有该值、导入/校验不认」是典型的跨层契约脱节（B 类）。
+
+### Checklist: 校验/转换一个页面可配置的枚举字段时
+
+- [ ] 确认该枚举是否有管理页面/字典表（`*_statuses`/`*_types` 表 + CRUD 路由），
+      有则**读表校验**，禁止硬编码集合
+- [ ] 服务层查询字典时与页面同源过滤（如 `deleted_at IS NULL`），不另起口径
+- [ ] 错误提示里的可选值**动态拼接**（来自同一次查询），不要写死文案
+- [ ] 模板/文档中的可选值说明同步动态化（如导入模板第 2 行提示）
+- [ ] 集成测试：测试库插入新枚举 → 断言该值可通过校验/导入（证明校验与页面实时对齐）
+- [ ] spec 中该字段规则写「读字典表」，不要写死具体值列表
+
+### Real-world example (2026-10-13, customer import bding)
+
+「合作状态」页面是 `cooperation_statuses` 表驱动（可新增「拓展中/bding」），而
+`CustomerService.batch_create_customers` 硬编码 `{"active", "suspended", "terminated", "noused"}`
+校验 → 页面新增 `bding` 后，导入预检查仍报「行306: 无效的合作状态: bding」。
+修复：导入校验改为实时查询字典表（`value` 直接匹配 + `name` 中文映射），模板提示
+同步动态化；并在集成测试 conftest 预置迁移默认枚举（测试库 TRUNCATE 后需恢复，
+否则合法值也会被误报无效）。
+教训：**「未知值报行级错误」的强化（2026-09-29）方向正确，但它钉死的是白名单本身，
+不是「与页面同源」这一原则——报错逻辑应基于实时字典，而非代码里的静态集合。**
+
+---
+
 ## Cross-Platform Template Consistency
 
 In Trellis, command templates (e.g., `record-session.md`) exist in **multiple platforms** with identical or near-identical content. This is a cross-layer boundary.

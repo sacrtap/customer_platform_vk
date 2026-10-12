@@ -1512,6 +1512,91 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
 
 
 @pytest.mark.asyncio
+async def test_import_customers_accepts_db_driven_cooperation_status(
+    test_client, auth_headers, db_session
+):
+    """测试导入 - 合作状态实时取字典表：页面新增的枚举值可正常导入
+
+    回归防护 —— 此前 batch_create_customers 硬编码 active/suspended/terminated/noused，
+    「合作状态」页面新增枚举（如 bding/拓展中）后导入仍报「无效的合作状态」；
+    修复后预检查/入库与 cooperation_statuses 表实时对齐（value 直接匹配 +
+    中文 name 映射）。
+    """
+    from openpyxl import Workbook
+
+    # 模拟「合作状态」页面新增的枚举值
+    db_session.execute(
+        text(
+            "INSERT INTO cooperation_statuses (name, value, sort_order, created_at, updated_at) "
+            "VALUES ('拓展中', 'bding', 0, NOW(), NOW()) "
+            "ON CONFLICT (value) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id", "name", "cooperation_status"])
+    # 英文 value 直接匹配
+    ws.append([1000070, "表驱动状态客户", "bding"])
+    # 中文 name 映射为 value
+    ws.append([1000071, "中文名状态客户", "拓展中"])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_db_status.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    # 预检查：两行均通过
+    request, response = await test_client.post(
+        "/api/v1/customers/import?dry_run=true",
+        headers=auth_headers,
+        files=files,
+    )
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 0, data["data"]
+
+    # 正式导入：两行均落库，中文名归一为英文 value
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 0, data["data"]
+
+    try:
+        rows = db_session.execute(
+            text(
+                "SELECT company_id, cooperation_status FROM customers "
+                "WHERE company_id IN (1000070, 1000071)"
+            )
+        ).all()
+        status_map = {cid: s for cid, s in rows}
+        assert status_map[1000070] == "bding", status_map
+        assert status_map[1000071] == "bding", status_map
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id >= 1000070 AND company_id < 1000080")
+        )
+        db_session.execute(text("DELETE FROM cooperation_statuses WHERE value = 'bding'"))
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_import_customers_without_notes_row(test_client, auth_headers, db_session):
     """测试导入普通用户文件（无说明行，不应跳过）"""
     from openpyxl import Workbook

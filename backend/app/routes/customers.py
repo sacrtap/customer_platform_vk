@@ -1197,6 +1197,17 @@ async def download_import_template(request: Request):
     ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 添加中文说明行（不作为数据行，仅提示用户）
+    # 合作状态提示实时取自 cooperation_statuses 表（与「合作状态」页面可配置值
+    # 保持一致，避免模板提示与页面新增/编辑的枚举脱节）
+    from ..models.cooperation_status import CooperationStatus
+
+    db_session: AsyncSession = request.ctx.db_session
+    status_result = await db_session.execute(
+        select(CooperationStatus).where(CooperationStatus.deleted_at.is_(None))
+    )
+    cooperation_status_hint = ", ".join(
+        f"{cs.value}={cs.name}" for cs in status_result.scalars().all()
+    )
     notes = [
         "必填：唯一整数",
         "必填：客户名称",
@@ -1212,7 +1223,7 @@ async def download_import_template(request: Request):
         "可选：所属 ERP 系统",
         "可选：YYYY-MM-DD 格式",
         "可选：YYYY-MM-DD 格式",
-        "可选：active=合作中, suspended=暂停, terminated=终止, noused=近一年未使用",
+        f"可选：{cooperation_status_hint}",
         "可选：true/false",
         "可选：true/false",
         "可选：true/false",
