@@ -146,30 +146,25 @@ async def import_balance(request: Request):
 
             customer_id = company_to_customer[company_id]
 
-            # 校验 real_amount
+            # 校验 real_amount（负金额允许导入：2026-10-13 起放开，用于后付费应收余额等
+            # 负快照回灌；负值按充值记录入账并扣减余额）
             real_amount = row.get("real_amount")
             if bool(pd.isna(real_amount)) or real_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 real_amount = 0
             else:
                 try:
                     real_amount = float(real_amount)  # pyright: ignore[reportArgumentType]
-                    if real_amount < 0:
-                        errors.append(f"第 {row_num} 行：实充金额不能为负数")
-                        continue
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：实充金额格式错误")
                     continue
 
-            # 校验 bonus_amount
+            # 校验 bonus_amount（负金额允许导入，2026-10-13 起，与实充口径一致）
             bonus_amount = row.get("bonus_amount")
             if bool(pd.isna(bonus_amount)) or bonus_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 bonus_amount = 0
             else:
                 try:
                     bonus_amount = float(bonus_amount)  # pyright: ignore[reportArgumentType]
-                    if bonus_amount < 0:
-                        errors.append(f"第 {row_num} 行：赠送金额不能为负数")
-                        continue
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：赠送金额格式错误")
                     continue

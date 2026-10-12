@@ -299,6 +299,23 @@ async def test_import_balances_accepts_export_file_columns(
                 None,
                 0,
             ],
+            # 负实充快照行（后付费应收余额场景）：负金额允许导入（2026-10-13 起），
+            # 按充值记录入账并扣减余额
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                -40,
+                -50,
+                10,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
         ],
     )
 
@@ -312,16 +329,31 @@ async def test_import_balances_accepts_export_file_columns(
     assert response.status == 200
     assert response.json["code"] == 0
     data = response.json["data"]
-    # 有效行 2（含 0 元充值行，2026-10-13 起允许）、不存在客户 1 行报错
-    assert data["success_count"] == 2, data
+    # 有效行 3（0 元、正金额 2026-10-13 起均可导入）、不存在客户 1 行报错
+    assert data["success_count"] == 3, data
     assert data["error_count"] == 1, data
     assert any("客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
 
-    count = db_session.execute(
-        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+    # 三行充值记录精确落库（含 0 元与负金额行）
+    records = db_session.execute(
+        text(
+            "SELECT real_amount, bonus_amount FROM recharge_records "
+            "WHERE customer_id = :cid ORDER BY id"
+        ),
         {"cid": import_customer["id"]},
-    ).scalar()
-    assert count == 2  # 含 0 元充值行生成的充值记录
+    ).all()
+    assert [tuple(r) for r in records] == [
+        (100.0, 50.0),
+        (0.0, 0.0),
+        (-50.0, 10.0),
+    ], records
+
+    # 余额按三行累加：real 8000+100+0-50=8050、bonus 2000+50+0+10=2060
+    bal = db_session.execute(
+        text("SELECT real_amount, bonus_amount FROM customer_balances WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).one()
+    assert (bal[0], bal[1]) == (8050.0, 2060.0), bal
 
 
 @pytest.mark.asyncio
