@@ -2,10 +2,8 @@
   <a-modal
     v-model:visible="isVisible"
     :title="title"
-    :ok-text="loading ? '导入中...' : '开始导入'"
-    :confirm-loading="loading"
+    :footer="false"
     width="560px"
-    @before-ok="handleSubmit"
     @cancel="emit('update:visible', false)"
   >
     <div class="import-content">
@@ -83,12 +81,29 @@
       </div>
       <div v-if="result" class="import-result">
         <a-alert :type="result.error_count === 0 ? 'success' : 'warning'">
-          <template #title>导入结果</template>
+          <template #title>{{ previewed ? '预检查结果' : '导入结果' }}</template>
           <div>成功：{{ result.success_count }} 条，失败：{{ result.error_count }} 条</div>
+          <div v-if="previewed" class="preview-tip">
+            预检查仅提示问题，不会写入数据。确认无误后点击「确认导入」完成导入。
+          </div>
           <ul v-if="result.errors?.length" class="error-list">
             <li v-for="(err, i) in result.errors" :key="i">{{ err }}</li>
           </ul>
         </a-alert>
+      </div>
+      <div class="import-actions">
+        <a-button :disabled="!file || importing" :loading="previewing" long @click="handlePreview">
+          预检查
+        </a-button>
+        <a-button
+          type="primary"
+          :disabled="!file || !previewed"
+          :loading="importing"
+          long
+          @click="handleSubmit"
+        >
+          确认导入
+        </a-button>
       </div>
     </div>
   </a-modal>
@@ -101,6 +116,7 @@ import { Message } from '@arco-design/web-vue'
 interface ImportResult {
   success_count: number
   error_count: number
+  dry_run?: boolean
   errors?: string[]
 }
 
@@ -119,8 +135,8 @@ const props = defineProps<{
   visible: boolean
   /** 弹窗标题，如「批量导入计费规则」 */
   title: string
-  /** 导入接口（返回 { data: ImportResult } 的响应） */
-  importApi: (file: File) => Promise<{ data: ImportResult }>
+  /** 导入接口（返回 { data: ImportResult } 的响应）；dryRun=true 预检查不落库 */
+  importApi: (file: File, dryRun?: boolean) => Promise<{ data: ImportResult }>
   /** 模板下载接口（blob 响应） */
   templateApi: () => Promise<{ data: Blob }>
   /** 下载的模板文件名 */
@@ -132,7 +148,9 @@ const isVisible = computed({ get: () => props.visible, set: (val) => emit('updat
 
 const fileInputRef = ref<HTMLInputElement>()
 const file = ref<File | null>(null)
-const loading = ref(false)
+const previewing = ref(false)
+const importing = ref(false)
+const previewed = ref(false)
 const result = ref<ImportResult | null>(null)
 
 // 本组件由父级常驻挂载（v-model:visible 只控制显隐，关闭不销毁实例），重开时必须清空
@@ -145,7 +163,9 @@ watch(
     if (!visible) return
     file.value = null
     result.value = null
-    loading.value = false
+    previewed.value = false
+    previewing.value = false
+    importing.value = false
     if (fileInputRef.value) fileInputRef.value.value = ''
   }
 )
@@ -169,9 +189,12 @@ const validateAndSetFile = (f: File) => {
   }
   file.value = f
   result.value = null
+  previewed.value = false // 更换文件后需重新预检查
 }
 const removeFile = () => {
   file.value = null
+  result.value = null
+  previewed.value = false
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 const formatFileSize = (b: number) => {
@@ -206,33 +229,65 @@ const downloadTemplate = async () => {
   }
 }
 
+// 第一步：预检查（dry_run=true，不落库），返回可导入条数与错误明细（含行号）
+const handlePreview = async () => {
+  if (!file.value) {
+    Message.warning('请选择要导入的文件')
+    return
+  }
+  previewing.value = true
+  try {
+    const res = await props.importApi(file.value, true)
+    result.value = res.data
+    previewed.value = true
+    if (res.data.error_count === 0) {
+      Message.success(`预检查通过：可导入 ${res.data.success_count} 条`)
+    } else {
+      Message.warning({
+        content: `预检查完成：可导入 ${res.data.success_count} 条，错误 ${res.data.error_count} 条`,
+        duration: 5000,
+      })
+    }
+  } catch (error: unknown) {
+    Message.error(pickErrorMessage(error, '预检查失败'))
+  } finally {
+    previewing.value = false
+  }
+}
+
+// 第二步：确认导入（正式落库，仅导入预检查通过的行）
 const handleSubmit = async () => {
   if (!file.value) {
     Message.warning('请选择要导入的文件')
     return false
   }
-  loading.value = true
+  importing.value = true
   try {
     const res = await props.importApi(file.value)
     result.value = res.data
+    previewed.value = false
     if (res.data.success_count > 0) {
       Message.success(`导入成功：${res.data.success_count} 条`)
       emit('success')
     }
     const hasErrors = res.data.error_count > 0
     if (hasErrors) {
-      // 部分失败时清空已选文件：此时返回 false 会让弹窗保持打开、确认按钮恢复为
-      // 可用的「开始导入」，若不清空，用户看到错误结果后再点一次就会重复提交同一
-      // 文件 —— 余额充值会重复入账、计费规则/结算单会重复建数据。removeFile 会同时
-      // 清空 input.value，使同一文件可被重新选择并触发 change 事件。
+      // 部分失败时清空已选文件：此时保持弹窗打开、确认按钮不可用（previewed=false），
+      // 用户需重新选择并预检查后再导入，避免重复提交同一文件 —— 余额充值会重复入账、
+      // 计费规则/结算单会重复建数据。removeFile 会同时清空 input.value，使同一文件
+      // 可被重新选择并触发 change 事件。
       removeFile()
+    } else {
+      // 全部成功时清空选择并允许关闭；父级触发列表刷新
+      removeFile()
+      isVisible.value = false
     }
     return !hasErrors
   } catch (error: unknown) {
     Message.error(pickErrorMessage(error, '导入失败'))
     return false
   } finally {
-    loading.value = false
+    importing.value = false
   }
 }
 </script>
@@ -296,6 +351,19 @@ const handleSubmit = async () => {
 }
 .import-result {
   margin-top: 16px;
+}
+.preview-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.import-actions .arco-btn {
+  flex: 1;
 }
 .error-list {
   margin-top: 8px;

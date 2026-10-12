@@ -77,8 +77,9 @@ GET  /api/v1/billing/invoices/import-template
 
 ### 预检查（dry_run，二次确认契约）
 
-`POST /import?dry_run=true`：客户与余额导入均支持（2026-10-13 余额补齐，与客户导入
-同模式）——**完整行级校验但不落库**，返回：
+`POST /import?dry_run=true`：**5 个导入端点全覆盖**（客户/余额/计费规则/套餐/结算单；
+2026-10-13 余额、计费规则、套餐、结算单依次补齐，与客户导入同模式）——**完整行级
+校验但不落库**，返回：
 
 ```json
 { "code": 0, "message": "预检查完成",
@@ -89,6 +90,9 @@ GET  /api/v1/billing/invoices/import-template
 - **dry_run 分支必须先于 `valid_rows` 空分支判断**：全部行有错误时也应返回
   「预检查完成」而非「导入完成」（2026-10-13 踩坑修正）
 - 预检查返回 `errors[:50]`（足够确认）；真实导入仍 `errors[:10]`
+- 套餐/结算单 dry_run 在循环内**同样维护判重集合**（`existing_types` /
+  `existing_invoice_nos`），保证预检查与真实导入的去重结果一致
+- dry_run 分支先于 commit/缓存失效/审计——**请求不产生任何副作用**
 - 不写库、不写审计、不动缓存；前端两步流程：上传 → **预检查** → 展示
   「可导入 N 条 / 错误 M 条 + 行号明细」→ **确认导入** 才真正落库
 
@@ -185,7 +189,7 @@ estimated_annual_spend, actual_annual_spend_2025
 | 端点 | 导出列 | 模板列 | 性质 | 回灌 | 结论 |
 |---|---|---|---|---|---|
 | 客户 customers | 26 列（含 auto_initiate_settlement、is_real_estate） | 26 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement；2026-10-13 补 is_real_estate 三处） |
-| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
+| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip`；**2026-10-13 用户 228 行导出文件回灌 dry_run 全过（success 228 / error 0）** |
 | 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
 | 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ✅ 列别名软回灌 | 模板==解析（4 键全消费）；**2026-10-13 起导出文件列名自动归一**（客户ID/实充余额（元）/赠送余额（元）→ company_id/real_amount/bonus_amount），快照按充值入账；0 元与负金额（后付费应收）均允许导入 |
 | 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |

@@ -1696,6 +1696,11 @@ async def import_invoices(request: Request):
                 status=400,
             )
 
+        # 预检查（dry_run=true）：完整行级校验但不落库、不写审计/缓存，返回可入库
+        # 条数与错误明细（含行号），供前端二次确认后才真正导入（与计费规则/套餐/
+        # 余额/客户导入预检查同模式）。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
+
         # 预加载客户 company_id -> customer_id 映射（排除软删除客户：
         # 列表 get_invoices 与导出 export_invoices 均通过 join 过滤了软删除客户，
         # 导入若仍可命中会为其创建结算单，但这些结算单在列表/导出中不可见，形成
@@ -1875,14 +1880,33 @@ async def import_invoices(request: Request):
                 # 时只回滚该行。原实现仅记录异常而不回滚，会话会进入 PendingRollback
                 # 状态，导致后续所有行的 flush 与最终 commit 全部失败 —— 整批（含已成功
                 # 的行）一并落空，行级错误隔离形同虚设。
-                async with db.begin_nested():
-                    db.add(invoice)
-                    await db.flush()
+                # 预检查模式：校验完成即计成功，不落库
+                if not dry_run:
+                    async with db.begin_nested():
+                        db.add(invoice)
+                        await db.flush()
+                # 预检查也维护已见单号集合，保证与真实导入的单号判重结果一致
                 existing_invoice_nos.add(invoice_no)
                 success_count += 1
             except Exception as e:  # 兜底，避免单行异常中断整个导入
                 logger.warning("结算单导入第 %d 行失败: %s", row_num, e)
                 errors.append(f"第 {row_num} 行：{str(e)}")
+
+        # 预检查：返回校验结果，不落库、不写审计、不动缓存。
+        # 必须先于 commit/缓存失效/审计：dry_run 请求不应产生任何副作用。
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": success_count,
+                        "error_count": len(errors),
+                        "errors": errors[:50],
+                    },
+                }
+            )
 
         await db.commit()
 
