@@ -269,6 +269,16 @@ ranges = tiers.get("ranges", [])   # tiers 若是 list → AttributeError → HT
 根因同 `Widening vs Narrowing Parser`，这里强调了**回灌对称**这个测试视角：
 导出文件本身就是最好的导入测试夹具。
 
+### Real-world example (2026-10-13, is_real_estate 三处遗漏)
+
+`is_real_estate`（是否房产客户）前端全链路已支持（新增/编辑/筛选/详情/批量编辑），
+但**导入模板、导出文件、批量导入服务三处均未加该列**（服务 `optional_fields`/布尔
+转换/Customer 构造三处也漏），文件链路完全无法读写该字段。修复补全模板+导出列，
+并在服务补齐 NaN 清洗、`convert_bool_field` 转换与 ORM 构造传参。
+教训：字段在前端表单存在 ≠ 文件链路存在——**为字段新增/同步时，按
+「模板列 ↔ 导出列 ↔ 服务解析 ↔ ORM 构造」四处逐一核对**，尤其注意 ORM 构造只写了
+`data.get` 却可能没传（转换了但不落库）。
+
 ### 操作型 vs 实体型导入（回灌适用性判定）
 
 不是所有导入都要求「导出可回灌」——先按语义分类再定契约：

@@ -92,18 +92,21 @@ GET  /api/v1/billing/invoices/import-template
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
-### 客户导入/导出字段对称（25 列，禁止单侧增删）
+### 客户导入/导出字段对称（26 列，禁止单侧增删）
 
 `customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
 （2026-09-29 起强制；此前模板缺 `auto_initiate_settlement` 导致导出回灌时该列与
-`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25）：
+`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25；**2026-10-13 追加
+`is_real_estate`（房产客户）25→26**——此前模板/导出均缺该列，前端新增/编辑/筛选
+已支持但文件链路无法读写）：
 
 ```
 company_id, name, manager, sales_manager, account_type, industry, price_policy,
-settlement_type, settlement_cycle, is_key_customer, email, erp_system,
-first_payment_date, onboarding_date, cooperation_status, is_settlement_enabled,
-auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
-monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
+settlement_type, settlement_cycle, is_key_customer, is_real_estate, email,
+erp_system, first_payment_date, onboarding_date, cooperation_status,
+is_settlement_enabled, auto_initiate_settlement, is_disabled, notes, scale_level,
+consume_level, monthly_avg_shots, monthly_avg_shots_estimated,
+estimated_annual_spend, actual_annual_spend_2025
 ```
 
 导入侧转换规则（`CustomerService.batch_create_customers`，不得静默丢列）：
@@ -116,7 +119,7 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 | `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
 | `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
 | `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
-| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
+| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` / `is_real_estate` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
 | `cooperation_status` | **实时取 `cooperation_statuses` 字典表**（`deleted_at IS NULL`，与「合作状态」管理页面同源）：`value` 直接匹配 + `name` 中文映射；均不命中 → 行级错误（不静默置空）。**禁止硬编码白名单**——页面可增删改枚举，硬编码会让导入与页面脱节（2026-10-13：页面新增 `bding/拓展中` 后校验仍报「无效的合作状态」） |
 | `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
 | `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
@@ -164,7 +167,7 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 
 | 端点 | 导出列 | 模板列 | 性质 | 回灌 | 结论 |
 |---|---|---|---|---|---|
-| 客户 customers | 23 列（含 auto_initiate_settlement） | 23 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement） |
+| 客户 customers | 26 列（含 auto_initiate_settlement、is_real_estate） | 26 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement；2026-10-13 补 is_real_estate 三处） |
 | 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
 | 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
 | 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ❌ 语义不成立 | 模板==解析（4 键全消费），导出为列表快照，非同一实体回灌非预期 |

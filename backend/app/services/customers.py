@@ -1133,6 +1133,7 @@ class CustomerService:
                     "settlement_type",
                     "email",
                     "erp_system",
+                    "is_real_estate",
                     "notes",
                     # 新增字段
                     "cooperation_status",
@@ -1209,6 +1210,7 @@ class CustomerService:
                     data.get("is_settlement_enabled")
                 )
                 data["is_disabled"] = convert_bool_field(data.get("is_disabled"))
+                data["is_real_estate"] = convert_bool_field(data.get("is_real_estate"))
 
                 # 转换 cooperation_status：实时与 cooperation_statuses 表对齐
                 # （value 直接匹配；name 中文映射），不再硬编码枚举值
@@ -1325,6 +1327,7 @@ class CustomerService:
                     settlement_cycle=data.get("settlement_cycle"),
                     settlement_type=data.get("settlement_type"),
                     is_key_customer=data.get("is_key_customer", False),
+                    is_real_estate=data.get("is_real_estate"),
                     email=data.get("email"),
                     # 新增字段
                     erp_system=data.get("erp_system"),
