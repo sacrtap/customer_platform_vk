@@ -57,6 +57,19 @@ async def import_balance(request: Request):
         # 密集操作，10MB xlsx 解析可能阻塞事件循环数百毫秒到数秒，移到线程执行。
         df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
+        # 兼容「余额导出」文件直接回灌：导出列是中文展示名（客户ID/实充余额（元）/
+        # 赠送余额（元）），导入期待英文存储列（company_id/real_amount/bonus_amount）。
+        # 统一别名后导出文件无需改写即可按同一校验路径处理（快照金额按本次充值入账；
+        # 无法对齐的展示列——客户名称/行业/结算方式等——不参与导入）。
+        df.rename(
+            columns={
+                "客户ID": "company_id",
+                "实充余额（元）": "real_amount",
+                "赠送余额（元）": "bonus_amount",
+            },
+            inplace=True,
+        )
+
         # 必填列检查
         required_columns = ["company_id", "real_amount", "bonus_amount"]
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -77,6 +90,10 @@ async def import_balance(request: Request):
             )
 
         db_session: AsyncSession = request.ctx.db_session
+
+        # 预检查（dry_run=true）：完整行级校验但不落库，返回可入库条数与错误明细，
+        # 供前端二次确认后才真正导入（与客户导入预检查同模式）。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
 
         # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户充值导入
         scope_user_id = await customer_scope_user_id(request)
@@ -174,6 +191,23 @@ async def import_balance(request: Request):
                     "real_amount": real_amount,
                     "bonus_amount": bonus_amount,
                     "remark": remark,
+                }
+            )
+
+        # 预检查（dry_run=true）：完整行级校验但不落库、不写审计/缓存，返回可入库条数
+        # 与错误明细（含行号），供前端二次确认后才真正导入（与客户导入预检查同模式）。
+        # 必须先于 valid_rows 空分支判断：预检查时全部行有错误也应返回「预检查完成」。
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": len(valid_rows),
+                        "error_count": len(errors),
+                        "errors": errors[:50],
+                    },
                 }
             )
 

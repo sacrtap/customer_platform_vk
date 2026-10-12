@@ -554,8 +554,8 @@ export function getBalanceTrend(customerId: number, months: number = 6) {
 
 // ==================== 余额导入 ====================
 
-export function importBalances(file: File) {
-  return importFile('/billing/import', file)
+export function importBalances(file: File, dryRun = false) {
+  return importFile(`/billing/import${dryRun ? '?dry_run=true' : ''}`, file)
 }
 
 export function downloadBalanceImportTemplate() {

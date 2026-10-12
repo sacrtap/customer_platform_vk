@@ -224,6 +224,161 @@ async def test_import_balances_from_downloaded_template(
     assert count == 1
 
 
+@pytest.mark.asyncio
+async def test_import_balances_accepts_export_file_columns(
+    test_client, auth_token, db_session, import_customer
+):
+    """余额导出文件（中文展示列）可直接回灌导入，不再报「缺少必填列」
+
+    回归防护 —— 导出列是中文展示名（客户ID/实充余额（元）/赠送余额（元）），
+    导入期待英文列；此前导出文件回灌报 40003「Excel 缺少必填列：company_id,
+    real_amount, bonus_amount」，用户误以为文件损坏。修复后列名自动归一，
+    按同一校验路径处理（快照金额按本次充值入账，0 金额行级报错）。
+    """
+    # 模拟 /billing/balances/export 的导出文件结构（中文列名）
+    body = _xlsx(
+        [
+            "客户ID",
+            "客户名称",
+            "行业",
+            "账号类型",
+            "结算方式",
+            "余额（元）",
+            "实充余额（元）",
+            "赠送余额（元）",
+            "已消耗（元）",
+            "最新充值时间",
+            "预计可支撑天数",
+            "日均消耗（元）",
+            "消耗天数",
+        ],
+        [
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                150,
+                100,
+                50,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+            [
+                999999999,
+                "不存在的客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+            # 余额为 0 的快照行：列名可识别，但 0 元充值被行级拒绝
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+        ],
+    )
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+
+    # 列级错误消失：不再报「缺少必填列」，进入行级校验
+    assert response.status == 200
+    assert response.json["code"] == 0
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+    assert data["error_count"] == 2, data
+    assert any("客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
+    assert any("实充金额和赠送金额不能同时为 0" in e for e in data["errors"]), data["errors"]
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 1  # 仅有效行产生充值记录
+
+
+@pytest.mark.asyncio
+async def test_import_balances_dry_run_preview(
+    test_client, auth_token, db_session, import_customer
+):
+    """余额导入预检查（dry_run=true）：完整行级校验但不落库
+
+    与客户导入预检查同模式：返回可入库条数与错误明细（含行号），
+    不生成充值记录、不写审计、不动缓存；确认后才真正导入。
+    """
+    body = _xlsx(
+        ["company_id", "real_amount", "bonus_amount", "remark"],
+        [
+            [import_customer["company_id"], 100.0, 50.0, "预检测试"],
+            [999999999, 10.0, 0.0, None],
+        ],
+    )
+
+    # 预检查：合法行 1、错误行 1，且不落库
+    _request, response = await test_client.post(
+        "/api/v1/billing/import?dry_run=true",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+
+    assert response.status == 200
+    assert response.json["code"] == 0
+    data = response.json["data"]
+    assert data["dry_run"] is True
+    assert data["success_count"] == 1, data
+    assert data["error_count"] == 1, data
+    assert data["errors"][0].startswith("第 3 行"), data["errors"]
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 0, f"预检查不应落库，实际 {count} 条"
+
+    # 正式导入：同样文件真实落库 1 条
+    _request, response = await test_client.post(
+        "/api/v1/billing/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 1
+
+
 # ==================== 计费规则导入 / 导出 ====================
 
 

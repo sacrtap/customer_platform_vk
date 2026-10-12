@@ -75,6 +75,23 @@ GET  /api/v1/billing/invoices/import-template
 - **行级错误不阻塞其他行**：逐行 try/except，成功行照常提交
 - 导入必须写审计：`create_audit_entry(module="billing", action="batch_create", operation_type="batch")`
 
+### 预检查（dry_run，二次确认契约）
+
+`POST /import?dry_run=true`：客户与余额导入均支持（2026-10-13 余额补齐，与客户导入
+同模式）——**完整行级校验但不落库**，返回：
+
+```json
+{ "code": 0, "message": "预检查完成",
+  "data": { "dry_run": true, "success_count": 2, "error_count": 1,
+            "errors": ["第 3 行：…", ...] } }
+```
+
+- **dry_run 分支必须先于 `valid_rows` 空分支判断**：全部行有错误时也应返回
+  「预检查完成」而非「导入完成」（2026-10-13 踩坑修正）
+- 预检查返回 `errors[:50]`（足够确认）；真实导入仍 `errors[:10]`
+- 不写库、不写审计、不动缓存；前端两步流程：上传 → **预检查** → 展示
+  「可导入 N 条 / 错误 M 条 + 行号明细」→ **确认导入** 才真正落库
+
 ### 模板结构（生成规则）
 
 | 行 | 内容 |
@@ -170,11 +187,14 @@ estimated_annual_spend, actual_annual_spend_2025
 | 客户 customers | 26 列（含 auto_initiate_settlement、is_real_estate） | 26 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement；2026-10-13 补 is_real_estate 三处） |
 | 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
 | 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
-| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ❌ 语义不成立 | 模板==解析（4 键全消费），导出为列表快照，非同一实体回灌非预期 |
+| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ✅ 列别名软回灌 | 模板==解析（4 键全消费）；**2026-10-13 起导出文件列名自动归一**（客户ID/实充余额（元）/赠送余额（元）→ company_id/real_amount/bonus_amount），快照按充值入账、0 金额行级拒绝 |
 | 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |
 
-操作型端点（余额/结算单）**不强制导出回灌**——导入是补录动作、导出是查询视图，列集合天然不同；
-实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**，导出文件即最佳导入夹具。
+操作型端点（余额/结算单）**默认不强制导出回灌**——导入是补录动作、导出是查询视图，
+列集合天然不同；实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**。
+**余额导入例外（2026-10-13 起）**：提供**列别名软回灌**——导出文件可直接上传，
+中文展示列自动映射英文存储列（不再报「缺少必填列」），快照金额按本次充值入账
+（0 金额行被「实充+赠送不能同时为 0」行级拒绝）——语义仍是充值，不把快照当余额覆盖。
 
 ### 枚举转换函数方向契约（`backend/app/services/customers.py`）
 
