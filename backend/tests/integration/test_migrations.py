@@ -243,3 +243,92 @@ class TestOverLimitUnitPriceNullSemantics:
         ]
         for base_fee, limit_count, expected in cases:
             assert _business_auto_price(base_fee, limit_count) == expected
+
+
+# ============================================================================
+# 模型 ↔ 迁移一致性守卫（防止「改了模型没写迁移 / 迁移缺列」）
+# ============================================================================
+#
+# 事故背景（2026-10-13）：给 Customer 加了 balance_warning_level 字段但运行库未升级，
+# 导致 select(Customer) 报 UndefinedColumnError → 客户管理页 500。单测（MagicMock）
+# 与 e2e（create_all 建全新库）都无法发现「迁移链缺列」。
+#
+# 本测试把「模型声明的表/列必须能由迁移链建出」变成断言：在一个空库上从 base 一路
+# upgrade 到 head，再用 alembic.autogenerate 比对——若模型有列而迁移链建不出（即有人
+# 只改了模型没补迁移），add_column/add_table 差异会非空，测试失败。
+
+
+class TestModelMigrationParity:
+    """升级到 head 后，模型与数据库 schema 必须无「缺表/缺列」漂移。"""
+
+    # 用独立库名，避免与模块级 migration_db fixture 共用同名库导致 teardown 冲突
+    PARITY_DB_NAME = "customer_platform_parity_test"
+
+    @property
+    def _parity_url(self) -> str:
+        return (
+            f"postgresql://{TEST_DB_USER}:{TEST_DB_PASSWORD}"
+            f"@{TEST_DB_HOST}:{TEST_DB_PORT}/{self.PARITY_DB_NAME}"
+        )
+
+    def _config(self) -> Config:
+        """指向 parity 独立库的 alembic 配置。"""
+        os.environ["DATABASE_URL"] = self._parity_url
+
+        import app.config
+
+        app.config.get_settings.cache_clear()
+        app.config.settings = app.config.get_settings()
+
+        cfg = Config(str(ALEMBIC_INI))
+        cfg.set_main_option("sqlalchemy.url", self._parity_url)
+        return cfg
+
+    @pytest.fixture(scope="class")
+    def head_db(self):
+        """空库 → upgrade 到 head。"""
+        admin_engine = create_engine(_admin_url, isolation_level="AUTOCOMMIT")
+        with admin_engine.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{self.PARITY_DB_NAME}"'))
+            conn.execute(text(f'CREATE DATABASE "{self.PARITY_DB_NAME}"'))
+        admin_engine.dispose()
+
+        engine = create_engine(self._parity_url, isolation_level="AUTOCOMMIT")
+        import app.config
+
+        original_settings = app.config.settings
+        try:
+            command.upgrade(self._config(), "head")
+            yield engine
+        finally:
+            app.config.get_settings.cache_clear()
+            app.config.settings = original_settings
+            engine.dispose()
+            admin_engine = create_engine(_admin_url, isolation_level="AUTOCOMMIT")
+            with admin_engine.connect() as conn:
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{self.PARITY_DB_NAME}"'))
+            admin_engine.dispose()
+
+    def test_no_missing_tables_or_columns(self, head_db):
+        """模型有、迁移链建不出的表/列必须为空（否则就是漏写迁移）。"""
+        from alembic.autogenerate import compare_metadata
+        from alembic.runtime.migration import MigrationContext
+
+        from app.models import Base
+
+        with head_db.connect() as conn:
+            diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
+
+        missing_tables = [e[1].name for e in diff if e[0] == "add_table"]
+        missing_columns = [
+            f"{e[2]}.{getattr(e[3], 'name', e[3])}" for e in diff if e[0] == "add_column"
+        ]
+
+        assert not missing_tables, (
+            f"模型声明了迁移链未创建的表：{missing_tables}。"
+            f"请为这些表补 Alembic 迁移（backend/alembic/versions/）。"
+        )
+        assert not missing_columns, (
+            f"模型声明了迁移链未创建的列：{missing_columns}。"
+            f"请补 Alembic 迁移，否则真实库查询会 UndefinedColumnError 500。"
+        )

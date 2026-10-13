@@ -45,7 +45,14 @@ python -m alembic upgrade head
 
 # 验证迁移结果
 python -m alembic current
+
+# 校验模型与运行库是否漂移（缺表/列会失败）
+python scripts/check_schema_drift.py
 ```
+
+> ⚠️ **改了 ORM 模型就必须升级运行库**：只改 `app/models/` 而不执行 `alembic upgrade head`，
+> 会让查询报 `column xxx does not exist` → 接口 500（2026-10-13 客户列表事故）。
+> 提交前用 `python scripts/check_schema_drift.py` 或 `make db-check` 确认无「模型有、库里没有」的表/列。
 
 ## 验证表结构
 

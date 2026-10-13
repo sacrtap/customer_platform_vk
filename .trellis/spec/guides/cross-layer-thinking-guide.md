@@ -123,6 +123,44 @@ After implementation:
 
 ---
 
+## ORM 模型 ↔ 数据库 Schema 契约（模型改了，库必须同源升级）
+
+[来源: Bug fix 2026-10-13 — 客户管理页 `GET /api/v1/customers` 恒 500，`column customers.balance_warning_level does not exist`]
+
+这是**跨层契约（B 类）**：ORM 模型与数据库 schema 是同一实体的两份声明，代码里
+`select(Customer)` 隐含「库中有 `Customer` 的全部列」这一契约。当两者的**版本不一致**时，
+契约破裂，且失败面是**整个实体**的所有查询（列表/详情/KPI/导出/后台任务），不只一个端点。
+
+### 关键盲区：三层都是「假绿」
+
+| 层 | 假绿原因 |
+|---|---|
+| 单测 | `MagicMock(spec=Model)` 校验的是**模型**，与真实 DB 无关 |
+| 集成/E2E | conftest 用 `metadata.create_all` **全新库按当前模型建全列**——永远不会缺列 |
+| CI（本 bug 时） | 只 `alembic upgrade head` 建库；没有比对「模型 vs 运行库」 |
+
+→ 「模型有列」和「迁移链有该列」在 CI 里都成立，唯独「**运行库已执行该迁移**」无人校验。
+> 修复后已补两道门禁：CI 加 `scripts/check_schema_drift.py`；单测级加 `TestModelMigrationParity`。
+
+### Checklist: 任何 ORM 模型字段变更后
+
+- [ ] 模型：`Mapped[...] = mapped_column(...)`，可空性注解与列 nullable 一致（否则映射期直接报错）
+- [ ] 迁移：写 `backend/alembic/versions/` 迁移
+- [ ] **应用**：`cd backend && python -m alembic upgrade head`
+- [ ] **验证**：`cd backend && python scripts/check_schema_drift.py`（无「模型有、库里没有」的表/列）
+- [ ] 环境核对：本地 / 测试 / 预发 / 生产是否都已 `upgrade head`
+- [ ] 测试库**不要**再手写 `ALTER TABLE ... ADD COLUMN` 补列清单——已由 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步（防止清单滞后于模型）
+
+### Real-world example (2026-10-13, balance_warning_level)
+
+余额预警任务修复（`005e5b7`）给 `Customer` 加了 `balance_warning_level` /
+`balance_warning_updated_at` 两个字段和一版迁移，但**没有把迁移应用到本地库**（停在
+`v1w2x3y4z5a6`）。模型已有该列 → `select(Customer)` 生成的 SQL 带该列 → Postgres 报
+`UndefinedColumnError` → 整个客户列表 500。修复即 `alembic upgrade head`，端点恢复正常
+（`total=1274`）。教训：**「写了迁移」不是「升了库」**；CI 绿色与单测绿色都不能证明运行库已升级。
+
+---
+
 ## Frontend-Backend Option Consistency
 
 When the backend defines an enum or a fixed set of valid values (e.g., `InvoiceStatus`, `SETTLEMENT_CYCLE_MAP`), every frontend component that renders or filters by that field must support **exactly the same set of values**.

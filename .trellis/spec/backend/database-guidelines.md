@@ -410,6 +410,92 @@ if pricing_result and pricing_result.tiers:
 
 ---
 
+## 模型新增字段 → 迁移必须应用到运行环境（Schema Drift）
+
+[来源: Bug fix 2026-10-13 — `GET /api/v1/customers` 恒 500 `column customers.balance_warning_level does not exist`]
+
+**症状**：ORM 声明了数据库里不存在的列。查询该实体（`select(Customer)`）在 `.execute()` 时抛
+`asyncpg.exceptions.UndefinedColumnError` → `ProgrammingError` → 端点 500，且**所有**触及该实体的
+查询（列表/详情/KPI/导出/定时任务）全部失败，而非单点故障。
+
+**根因**：模型改了、迁移也写了，但**迁移没有应用到运行中的数据库**。
+`005e5b7` 同时提交了 `Customer.balance_warning_level` 字段与迁移 `w2x3y4z5a6b7`，
+但本地/运行环境仍停在 `v1w2x3y4z5a6`，两边脱节。
+
+### Checklist: 修改 ORM 模型字段后（缺一不可）
+
+- [ ] 1. 模型加字段（`Mapped[...] = mapped_column(...)`，注解可空性与列 nullable 一致）
+- [ ] 2. 写 Alembic 迁移（`backend/alembic/versions/`）
+- [ ] 3. **把迁移应用到运行环境**：`cd backend && python -m alembic upgrade head`
+- [ ] 4. **验证无漂移**：`cd backend && python scripts/check_schema_drift.py`（应对齐；缺失会 `❌ FAILED`）
+- [ ] 5. 确认本地/测试/预发/生产**各环境**都执行了第 3 步（CI 的 `upgrade head` 只管 CI 库）
+
+> **关键区别于既有 spec**：第 2 步（写迁移）是必要不充分条件。本 bug 证明「有迁移文件」不等于
+> 「数据库已升级」——漏掉第 3 步时，**CI 全绿、单测全绿**，只有真实请求路径 500。
+
+### 为什么 CI 与单测都漏掉了它
+
+| 层 | 为何漏 | 佐证 |
+|---|---|---|
+| 单测 | `MagicMock(spec=Customer)` 只校验**模型**字段，与 DB 无关 | 15 passed |
+| 集成/E2E | conftest 用 `BaseModel.metadata.create_all` 建表，**全新库直接按当前模型建全列** | `integration/conftest.py:109`、`e2e/conftest.py:70` |
+| conftest 补列 | 手工维护的 `ALTER TABLE ... ADD COLUMN` 列表**按需增补、易滞后**（本 bug 前） | 修复前 `integration/conftest.py` 补的是 `is_real_estate`/`auto_initiate_settlement`，**没有** `balance_warning_*`；**已改为 `sync_test_schema` 自动同步** |
+| CI（本 bug 时） | 只跑 `alembic upgrade head`（建库），**没有**比对模型↔库 | 修复后已加 `scripts/check_schema_drift.py` 步骤（见 `.github/workflows/pr-checks.yml`） |
+
+→ 只有当「用 alembic 增量迁移过的库 + 新模型代码」组合时才会炸，恰好是**开发机与生产**的组合。
+
+### 手工补列列表是反模式 → 已改为 metadata 自动同步
+
+`integration/conftest.py` / `e2e/conftest.py` 里逐个字段写 `if "x" not in columns: ALTER TABLE ...`
+**无法自动跟进新字段**——每次模型加列都要记得同步这张手写清单，一旦忘记，测试库就与模型脱节，
+本 bug 的字段正是漏加的那个（实测：给 `Customer` 加 `balance_warning_level` 后未同步清单，
+`tests/integration/test_customers_api.py` 45 个用例全 500）。
+
+**已实施的修复（方案 A：metadata 驱动自动同步）**：
+- 新增 `tests/_test_data.py::sync_test_schema(engine)`：以 **SQLAlchemy metadata 为唯一真相**，
+  对已存在的表逐列比对，缺失列用 `CreateColumn(column).compile(dialect)` 渲染定义后
+  `ALTER TABLE ... ADD COLUMN`。模型加列后**无需再维护任何手写清单**。
+- `integration/conftest.py`、`e2e/conftest.py` 的 `sync_test_engine` 在 `create_all` 之后调用它，
+  并打印 `🔧 已按模型自动补齐测试库缺失列: [...]`（幂等，无缺失时返回 `[]`）。
+
+> **为何不直接让测试库 `alembic upgrade head`**：本仓测试库常年用 `create_all` 建全新库
+> （含 xdist worker 库 `*_gw0`），改用 alembic 增量迁移是更大范围的改动（需处理 worker 库、
+> 备份表噪声等）。方案 A 以最小改动消除「手写清单滞后」这一**具体致因**，且不改变
+> 「CI 用真实迁移链」这一真正权威的 drift 探测路径（见下）。
+
+### 双层防护：本地测试库自愈 ≠ 放过迁移缺失
+
+自动同步**只作用于本地/测试库**（`create_all` 之后补列），**不会掩盖「漏写迁移文件」**——
+CI 用的是 `alembic upgrade head` 建库，与 conftest 无关，两道独立门禁仍会拦截：
+
+| 门禁 | 位置 | 机制 | 拦截对象 |
+|---|---|---|---|
+| `scripts/check_schema_drift.py` | CI `pr-checks.yml`（upgrade head 后） | 比对运行库 ↔ 模型，库缺列即 `❌ FAILED` | 模型有、迁移链没有的列/表 |
+| `TestModelMigrationParity` | `tests/integration/test_migrations.py` | 在**独立库**上 `upgrade head` 后 `compare_metadata` | 同上（单测级，本地即可跑） |
+
+实测：注入一个无迁移的 `customers.phantom_col` 后，两者均正确 FAILED（见下"快速定位命令"）。
+
+### 快速定位命令
+
+```bash
+# 运行库的版本 vs 代码里的 head
+cd backend && python -m alembic current && python -m alembic heads
+
+# 模型与库是否存在漂移（本 bug 的精确探测手段）
+cd backend && python scripts/check_schema_drift.py
+#   会自动忽略 22 个遗留对象/索引差异；关注「运行库缺少列/表」的 ❌ FAILED。
+#   等价底层手段（噪声较多）：python -m alembic check —— 手工备份表
+#   customer_balances_backup_20260812 会报 remove_table，属预期。
+
+# 单测级守护（本地即可跑，用独立库 upgrade head 后比对）
+cd backend && pytest tests/integration/test_migrations.py::TestModelMigrationParity -q
+
+# 直接比对该表实际列
+python -c "import asyncio,asyncpg; ..."  # information_schema.columns where table_name='customers'
+```
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)
@@ -418,3 +504,5 @@ if pricing_result and pricing_result.tiers:
 - ❌ **Forgetting to close sessions** — the middleware handles this; do not create sessions outside the middleware pattern
 - ❌ **`asyncio.gather()` with multiple `session.execute()` on the same AsyncSession** — see AsyncSession Concurrency Constraint above
 - ❌ **Passing Python `False` or `True` to `.where()`** — see "Impossible" WHERE Conditions above
+- ❌ **Orphan column: adding ORM fields without applying the migration to the running DB** — 「有迁移文件」≠「库已升级」；改模型后必须 `alembic upgrade head` 并用 `scripts/check_schema_drift.py` 验证，见上方 Schema Drift 一节
+- ❌ **Manually maintaining `ALTER TABLE ... ADD COLUMN` lists in test conftest** — 已废止，改用 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步；新增字段勿再手写清单

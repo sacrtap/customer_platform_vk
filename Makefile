@@ -75,6 +75,10 @@ clean: ## 清理临时文件
 
 db-migrate: ## 运行数据库迁移
 	cd backend && python -m alembic upgrade head
+	cd backend && python scripts/check_schema_drift.py
+
+db-check: ## 校验模型与运行库 schema 是否漂移（缺表/列则失败）
+	cd backend && python scripts/check_schema_drift.py
 
 db-rollback: ## 回滚数据库迁移
 	cd backend && python -m alembic downgrade -1
