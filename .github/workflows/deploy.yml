@@ -149,12 +149,28 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
 
-          # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
-          # 单引号刻意保留：${DEPLOY_DIR}/${IMAGE_TAG} 需在远端展开而非本地
-          # shellcheck disable=SC2016,SC2089
-          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+          SSH_OPTS="-i ~/.ssh/staging_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ProxyCommand=\"cloudflared access ssh --hostname ${SSH_HOST}\""
 
-          # 通过 Cloudflare Tunnel 远程执行部署
+          # 通过 scp 传输部署文件到远端（避免远端 git fetch，Cloudflare Tunnel SSH 会话无法访问 github.com）
+          echo "📦 传输部署文件..."
+          REMOTE_DEPLOY_DIR=$(mktemp -d)
+          mkdir -p "${REMOTE_DEPLOY_DIR}/deploy/scripts" "${REMOTE_DEPLOY_DIR}/deploy/docker"
+          cp deploy/scripts/deploy.sh "${REMOTE_DEPLOY_DIR}/deploy/scripts/"
+          cp deploy/docker-compose.yml "${REMOTE_DEPLOY_DIR}/deploy/"
+          cp deploy/docker/Containerfile "${REMOTE_DEPLOY_DIR}/deploy/docker/"
+
+          # shellcheck disable=SC2086
+          scp -r ${SSH_OPTS} "${REMOTE_DEPLOY_DIR}/deploy" "${SSH_USER}@${SSH_HOST}:${DEPLOY_DIR}/" || {
+            echo "❌ 传输部署文件失败"
+            exit 1
+          }
+          rm -rf "${REMOTE_DEPLOY_DIR}"
+          echo "✅ 部署文件已传输"
+
+          # 通过 Cloudflare Tunnel 远程执行部署（不使用 git fetch，直接使用传输的文件）
+          # shellcheck disable=SC2016,SC2089
+          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
           MAX_RETRIES=3
           RETRY_COUNT=0
@@ -162,11 +178,8 @@ jobs:
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh -i ~/.ssh/staging_key \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=30 \
-                -o ServerAliveInterval=60 \
-                -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+            # shellcheck disable=SC2086
+            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh ${SSH_OPTS} \
                 "${SSH_USER}@${SSH_HOST}" \
                 IMAGE_TAG="${IMAGE_TAG}" \
                 GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
@@ -237,12 +250,28 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
           chmod 600 ~/.ssh/production_key
 
-          # 部署脚本（不使用 heredoc 避免缩进问题，通过 printf 管道传递）
-          # 单引号刻意保留：${DEPLOY_DIR}/${IMAGE_TAG} 需在远端展开而非本地
-          # shellcheck disable=SC2016,SC2089
-          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && git fetch origin main && git reset --hard origin/main && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+          SSH_OPTS="-i ~/.ssh/production_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ProxyCommand=\"cloudflared access ssh --hostname ${SSH_HOST}\""
 
-          # 通过 Cloudflare Tunnel 远程执行部署
+          # 通过 scp 传输部署文件到远端（避免远端 git fetch，Cloudflare Tunnel SSH 会话无法访问 github.com）
+          echo "📦 传输部署文件..."
+          REMOTE_DEPLOY_DIR=$(mktemp -d)
+          mkdir -p "${REMOTE_DEPLOY_DIR}/deploy/scripts" "${REMOTE_DEPLOY_DIR}/deploy/docker"
+          cp deploy/scripts/deploy.sh "${REMOTE_DEPLOY_DIR}/deploy/scripts/"
+          cp deploy/docker-compose.yml "${REMOTE_DEPLOY_DIR}/deploy/"
+          cp deploy/docker/Containerfile "${REMOTE_DEPLOY_DIR}/deploy/docker/"
+
+          # shellcheck disable=SC2086
+          scp -r ${SSH_OPTS} "${REMOTE_DEPLOY_DIR}/deploy" "${SSH_USER}@${SSH_HOST}:${DEPLOY_DIR}/" || {
+            echo "❌ 传输部署文件失败"
+            exit 1
+          }
+          rm -rf "${REMOTE_DEPLOY_DIR}"
+          echo "✅ 部署文件已传输"
+
+          # 通过 Cloudflare Tunnel 远程执行部署（不使用 git fetch，直接使用传输的文件）
+          # shellcheck disable=SC2016,SC2089
+          DEPLOY_SCRIPT='cd "${DEPLOY_DIR}" && ./deploy/scripts/deploy.sh --use-remote-image "${IMAGE_TAG}"'
+
           # 重试机制: Cloudflare Tunnel 偶发 websocket bad handshake，最多重试 3 次
           MAX_RETRIES=3
           RETRY_COUNT=0
@@ -250,11 +279,8 @@ jobs:
             RETRY_COUNT=$((RETRY_COUNT + 1))
             echo "📋 部署尝试 ${RETRY_COUNT}/${MAX_RETRIES}..."
 
-            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh -i ~/.ssh/production_key \
-                -o StrictHostKeyChecking=no \
-                -o ConnectTimeout=30 \
-                -o ServerAliveInterval=60 \
-                -o ProxyCommand="cloudflared access ssh --hostname ${SSH_HOST}" \
+            # shellcheck disable=SC2086
+            if printf '%s\n' "$DEPLOY_SCRIPT" | ssh ${SSH_OPTS} \
                 "${SSH_USER}@${SSH_HOST}" \
                 IMAGE_TAG="${IMAGE_TAG}" \
                 GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
