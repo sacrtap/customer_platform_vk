@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
+import ArcoVue from '@arco-design/web-vue'
 import BalanceTable from '@/views/billing/components/BalanceTable.vue'
 import type { Balance } from '@/api/billing'
 
@@ -264,6 +265,32 @@ describe('BalanceTable - 余额展示', () => {
 
     expect(rowOf(wrapper, 2).find('.never-recharge').text()).toBe('从未充值')
     expect(rowOf(wrapper, 0).find('.never-recharge').exists()).toBe(false)
+  })
+
+  it('余额燃尽列 Hover tooltip 使用 Arco a-tooltip 承载多行明细，而非原生 title', () => {
+    const wrapper = mount(BalanceTable, {
+      props: defaultProps,
+      global: { plugins: [ArcoVue] },
+    })
+    // 第 1 行 days_remaining=15，预付费且有消费数据 → 渲染油表单元格
+    const cell = rowOf(wrapper, 0).find('.burn-cell')
+
+    expect(cell.exists()).toBe(true)
+    // 不应再使用浏览器原生 title 提示
+    expect(cell.attributes('title')).toBeUndefined()
+    expect(cell.attributes('data-tooltip')).toBeUndefined()
+
+    // tooltip 内容为多段明细，用换行分隔（a-tooltip content 由 getBurnTooltip 生成）
+    const tip = wrapper
+      .findAllComponents({ name: 'Tooltip' })
+      .find((t) => String(t.props('content') ?? '').includes('预计可支撑 15 天'))
+    expect(tip).toBeTruthy()
+    const content = String(tip!.props('content'))
+    expect(content).toContain('日均消耗')
+    expect(content).toContain('30 天内有 18 天消费记录')
+    expect(content).toContain('当前余额')
+    expect(content).toContain('预计可支撑 15 天')
+    expect(content).toContain('\n')
   })
 
   it('操作列按钮为充值/记录/重算', () => {

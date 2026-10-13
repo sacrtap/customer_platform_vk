@@ -221,6 +221,8 @@ a:not(.nav-subitem):not(.nav-parent):not(.nav-btn):hover {
 
 .arco-tooltip-content {
   background-color: var(--ink) !important;
+  font-size: 12px;
+  white-space: pre-line;
 }
 
 /* ==========================================
