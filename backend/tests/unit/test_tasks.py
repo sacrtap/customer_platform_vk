@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.billing import CustomerBalance
 from app.models.customers import Customer
 
 # ============================================================================
@@ -38,7 +39,7 @@ class TestBalanceCheckTask:
         customer.deleted_at = None
         customer.balance_warning_level = None
 
-        balance = MagicMock()
+        balance = MagicMock(spec=CustomerBalance)
         balance.real_amount = 5000
         balance.bonus_amount = 1000
 
@@ -62,7 +63,7 @@ class TestBalanceCheckTask:
         customer.deleted_at = None
         customer.balance_warning_level = None
 
-        balance = MagicMock()
+        balance = MagicMock(spec=CustomerBalance)
         balance.real_amount = 200  # 低于严重预警阈值 500
         balance.bonus_amount = 100
 
@@ -86,7 +87,7 @@ class TestBalanceCheckTask:
         customer.deleted_at = None
         customer.balance_warning_level = None
 
-        balance = MagicMock()
+        balance = MagicMock(spec=CustomerBalance)
         balance.real_amount = 800  # 低于预警阈值 1000
         balance.bonus_amount = 100
 
@@ -109,7 +110,7 @@ class TestBalanceCheckTask:
         customer.deleted_at = None
         customer.balance_warning_level = "critical"
 
-        balance = MagicMock()
+        balance = MagicMock(spec=CustomerBalance)
         balance.real_amount = 200
         balance.bonus_amount = 100
         mock_result = MagicMock()
@@ -132,7 +133,7 @@ class TestBalanceCheckTask:
         customer.deleted_at = None
         customer.balance_warning_level = "warning"
 
-        balance = MagicMock()
+        balance = MagicMock(spec=CustomerBalance)
         balance.real_amount = 5000
         balance.bonus_amount = 1000
 
