@@ -1,11 +1,12 @@
 """客户信息与画像模型"""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
     Date,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -59,6 +60,14 @@ class Customer(BaseModel):
         Boolean, nullable=True, default=False, index=True
     )  # 是否停用
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # 备注
+
+    # P6-4: 余额预警状态（由 check_balance_warning 定时任务每小时维护）
+    balance_warning_level: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, index=True
+    )  # 预警级别: warning/critical，NULL 表示正常
+    balance_warning_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )  # 预警状态最近更新时间
 
     __table_args__ = (
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增

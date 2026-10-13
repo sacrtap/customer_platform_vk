@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.customers import Customer
+
 # ============================================================================
 # 测试余额预警检查任务 (balance_check.py)
 # ============================================================================
@@ -30,9 +32,9 @@ class TestBalanceCheckTask:
     async def test_check_balance_warning_success(self, mock_session):
         """测试余额预警检查成功"""
         # 创建正常客户
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "正常公司"
+        customer.name = "正常公司"
         customer.deleted_at = None
         customer.balance_warning_level = None
 
@@ -54,9 +56,9 @@ class TestBalanceCheckTask:
     @pytest.mark.asyncio
     async def test_check_balance_warning_critical_level(self, mock_session):
         """测试严重预警级别"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "严重预警公司"
+        customer.name = "严重预警公司"
         customer.deleted_at = None
         customer.balance_warning_level = None
 
@@ -78,9 +80,9 @@ class TestBalanceCheckTask:
     @pytest.mark.asyncio
     async def test_check_balance_warning_warning_level(self, mock_session):
         """测试预警级别"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "预警公司"
+        customer.name = "预警公司"
         customer.deleted_at = None
         customer.balance_warning_level = None
 
@@ -101,9 +103,9 @@ class TestBalanceCheckTask:
     @pytest.mark.asyncio
     async def test_check_balance_warning_no_update_needed(self, mock_session):
         """测试无需更新预警级别"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "已预警公司"
+        customer.name = "已预警公司"
         customer.deleted_at = None
         customer.balance_warning_level = "critical"
 
@@ -124,9 +126,9 @@ class TestBalanceCheckTask:
     @pytest.mark.asyncio
     async def test_check_balance_warning_clear_warning(self, mock_session):
         """测试清除预警状态"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "恢复公司"
+        customer.name = "恢复公司"
         customer.deleted_at = None
         customer.balance_warning_level = "warning"
 
@@ -194,9 +196,9 @@ class TestInvoiceGeneratorTask:
     @pytest.mark.asyncio
     async def test_generate_monthly_invoices_no_data(self, mock_session):
         """测试无用量数据时跳过"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "测试公司"
+        customer.name = "测试公司"
         customer.deleted_at = None
         customer.is_key_customer = False
 
@@ -228,9 +230,9 @@ class TestInvoiceGeneratorTask:
     @pytest.mark.asyncio
     async def test_generate_monthly_invoices_handles_exception(self, mock_session, caplog):
         """测试处理单个客户异常"""
-        customer = MagicMock()
+        customer = MagicMock(spec=Customer)
         customer.id = 1
-        customer.company_name = "异常公司"
+        customer.name = "异常公司"
         customer.deleted_at = None
         customer.is_key_customer = False
 

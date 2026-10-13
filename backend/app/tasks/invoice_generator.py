@@ -65,7 +65,7 @@ async def generate_monthly_invoices(session: AsyncSession):
                     )
                 )
                 if existing.scalar_one_or_none():
-                    logger.debug(f"⏭️  客户 {customer.company_name} 已存在结算单，跳过")  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.debug(f"⏭️  客户 {customer.name} 已存在结算单，跳过")
                     skipped_count += 1
                     continue
 
@@ -82,15 +82,16 @@ async def generate_monthly_invoices(session: AsyncSession):
                 if invoice:
                     generated_count += 1
                     logger.debug(
-                        f"✅ 客户 {customer.company_name} 结算单生成成功，金额：{invoice.final_amount}"  # pyright: ignore[reportAttributeAccessIssue]
+                        f"✅ 客户 {customer.name} 结算单生成成功，"
+                        f"金额：{invoice.total_amount - (invoice.discount_amount or 0)}"
                     )
                 else:
                     skipped_count += 1
-                    logger.debug(f"⚠️  客户 {customer.company_name} 无用量数据，跳过结算单生成")  # pyright: ignore[reportAttributeAccessIssue]
+                    logger.debug(f"⚠️  客户 {customer.name} 无用量数据，跳过结算单生成")
 
             except Exception as e:
                 failed_count += 1
-                logger.error(f"❌ 客户 {customer.company_name} 结算单生成失败：{str(e)}")  # pyright: ignore[reportAttributeAccessIssue]
+                logger.error(f"❌ 客户 {customer.name} 结算单生成失败：{str(e)}")
                 continue
 
         logger.info(

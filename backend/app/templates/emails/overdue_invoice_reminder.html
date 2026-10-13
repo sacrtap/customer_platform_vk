@@ -122,7 +122,7 @@
                 {% for invoice in invoices %}
                 <tr>
                     <td>{{ invoice.invoice_no }}</td>
-                    <td>{{ invoice.customer.company_name }}</td>
+                    <td>{{ invoice.customer.name }}</td>
                     <td>
                         {{ invoice.billing_start.strftime('%m/%d') }} -
                         {{ invoice.billing_end.strftime('%m/%d') }}
