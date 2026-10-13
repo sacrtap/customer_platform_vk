@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "编辑页消费等级选项展示改动涉及表单组件与选项渲染约定"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "消费等级选项类型约束"}
