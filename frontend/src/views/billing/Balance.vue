@@ -85,7 +85,8 @@
         v-model:filters="filters"
         v-model:advanced-filters="advancedFilters"
         :industry-types="industryTypes"
-        :tag-options="tagOptions"
+        :erp-systems="erpSystems"
+        :cooperation-statuses="cooperationStatuses"
         :managers="managers"
         :active-kpi-badge="kpiBadgeText"
         :empty="balances.length === 0 && !loading"
@@ -154,7 +155,8 @@ const {
   advancedFilters,
   pagination,
   industryTypes,
-  tagOptions,
+  erpSystems,
+  cooperationStatuses,
   managers,
   stats,
   loadBalances,
@@ -167,7 +169,8 @@ const {
   handleSearch,
   handleReset,
   loadIndustries,
-  loadTags,
+  loadErpSystems,
+  loadCooperationStatuses,
   loadManagers,
 } = useBalance()
 
@@ -362,7 +365,8 @@ onMounted(() => {
   loadBalances()
   loadStats()
   loadIndustries()
-  loadTags()
+  loadErpSystems()
+  loadCooperationStatuses()
   loadManagers()
 })
 </script>

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "composable 模式：useBalance 状态/参数构建约定"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "组件契约：props/emits 类型化、FilterDropdown 用法"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript 严格模式、禁止 any、接口定义"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "API 层与错误处理约定"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端路由/SQLAlchemy 约定入口"}

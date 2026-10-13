@@ -45,6 +45,27 @@ def _settlement_group_condition(group: str):
     return func.coalesce(Customer.settlement_type, "prepaid") != "postpaid"
 
 
+def _bool_filter_condition(column, value: bool, *, null_as_true: bool):
+    """构建布尔筛选条件（历史 NULL 兼容，语义对齐客户管理页）
+
+    Args:
+        column: 客户表布尔列
+        value: 筛选值（True=是 / False=否）
+        null_as_true: 该字段历史 NULL 的业务默认值是否为「是」
+            - 自动发起结算（默认是）：True → 列 IS TRUE OR IS NULL；False → 列 IS FALSE
+            - 是否停用（默认否）：True → 列 IS TRUE；False → 列 IS FALSE OR IS NULL
+    """
+    from sqlalchemy import or_
+
+    if value:
+        if null_as_true:
+            return or_(column.is_(True), column.is_(None))
+        return column.is_(True)
+    if null_as_true:
+        return column.is_(False)
+    return or_(column.is_(False), column.is_(None))
+
+
 async def _batch_query_consumption_stats(
     db: AsyncSession, customer_ids: list[int]
 ) -> dict[int, dict]:
@@ -221,9 +242,35 @@ def _parse_balance_filters(request: Request) -> dict:
     else:
         is_settlement_enabled = None
 
+    # 自动发起结算 / 是否停用（与客户管理页筛选项对齐）
+    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
+    if auto_initiate_settlement is not None and auto_initiate_settlement.strip() != "":
+        if auto_initiate_settlement.lower() not in ("true", "false"):
+            raise ValueError("auto_initiate_settlement 参数必须为 'true' 或 'false'")
+        auto_initiate_settlement = auto_initiate_settlement.lower() == "true"
+    else:
+        auto_initiate_settlement = None
+
+    is_disabled = request.args.get("is_disabled")
+    if is_disabled is not None and is_disabled.strip() != "":
+        if is_disabled.lower() not in ("true", "false"):
+            raise ValueError("is_disabled 参数必须为 'true' 或 'false'")
+        is_disabled = is_disabled.lower() == "true"
+    else:
+        is_disabled = None
+
     settlement_type = request.args.get("settlement_type")
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
+
+    # ERP 系统 / 合作状态（字符串精确匹配，与客户管理页筛选项对齐）
+    erp_system = request.args.get("erp_system")
+    if erp_system is not None and erp_system.strip() == "":
+        erp_system = None
+
+    cooperation_status = request.args.get("cooperation_status")
+    if cooperation_status is not None and cooperation_status.strip() == "":
+        cooperation_status = None
 
     settlement_group = request.args.get("settlement_group")
     if settlement_group is not None and settlement_group.strip() == "":
@@ -251,7 +298,11 @@ def _parse_balance_filters(request: Request) -> dict:
         "is_key_customer": is_key_customer,
         "is_real_estate": is_real_estate,
         "is_settlement_enabled": is_settlement_enabled,
+        "auto_initiate_settlement": auto_initiate_settlement,
+        "is_disabled": is_disabled,
         "settlement_type": settlement_type,
+        "erp_system": erp_system,
+        "cooperation_status": cooperation_status,
         "settlement_group": settlement_group,
         "balance_min": balance_min,
         "balance_max": balance_max,
@@ -299,7 +350,11 @@ async def _query_balance_rows_raw(
     is_key_customer = filters["is_key_customer"]
     is_real_estate = filters["is_real_estate"]
     is_settlement_enabled = filters["is_settlement_enabled"]
+    auto_initiate_settlement = filters.get("auto_initiate_settlement")
+    is_disabled = filters.get("is_disabled")
     settlement_type = filters["settlement_type"]
+    erp_system = filters.get("erp_system")
+    cooperation_status = filters.get("cooperation_status")
     settlement_group = filters["settlement_group"]
     balance_min = filters["balance_min"]
     balance_max = filters["balance_max"]
@@ -359,8 +414,28 @@ async def _query_balance_rows_raw(
     if is_settlement_enabled is not None:
         base_stmt = base_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
 
+    if auto_initiate_settlement is not None:
+        # 「自动发起结算」默认值为「是」，历史 NULL 视为是（语义对齐客户管理页）
+        base_stmt = base_stmt.where(
+            _bool_filter_condition(
+                Customer.auto_initiate_settlement,
+                auto_initiate_settlement,
+                null_as_true=True,
+            )
+        )
+
+    if is_disabled is not None:
+        # 「是否停用」历史 NULL 视为未停用（语义对齐客户管理页）
+        base_stmt = base_stmt.where(
+            _bool_filter_condition(Customer.is_disabled, is_disabled, null_as_true=False)
+        )
+
     if settlement_type:
         base_stmt = base_stmt.where(Customer.settlement_type == settlement_type)
+    if erp_system:
+        base_stmt = base_stmt.where(Customer.erp_system == erp_system)
+    if cooperation_status:
+        base_stmt = base_stmt.where(Customer.cooperation_status == cooperation_status)
     if settlement_group:
         base_stmt = base_stmt.where(_settlement_group_condition(settlement_group))
 
@@ -445,8 +520,26 @@ async def _query_balance_rows_raw(
     if is_settlement_enabled is not None:
         count_stmt = count_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
 
+    if auto_initiate_settlement is not None:
+        count_stmt = count_stmt.where(
+            _bool_filter_condition(
+                Customer.auto_initiate_settlement,
+                auto_initiate_settlement,
+                null_as_true=True,
+            )
+        )
+
+    if is_disabled is not None:
+        count_stmt = count_stmt.where(
+            _bool_filter_condition(Customer.is_disabled, is_disabled, null_as_true=False)
+        )
+
     if settlement_type:
         count_stmt = count_stmt.where(Customer.settlement_type == settlement_type)
+    if erp_system:
+        count_stmt = count_stmt.where(Customer.erp_system == erp_system)
+    if cooperation_status:
+        count_stmt = count_stmt.where(Customer.cooperation_status == cooperation_status)
     if settlement_group:
         count_stmt = count_stmt.where(_settlement_group_condition(settlement_group))
     if balance_min is not None:
@@ -888,9 +981,44 @@ async def get_balance_stats(request: Request):
     else:
         is_settlement_enabled = None
 
+    # 自动发起结算 / 是否停用（与列表页及客户管理页筛选项对齐）
+    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
+    if auto_initiate_settlement is not None and auto_initiate_settlement.strip() != "":
+        if auto_initiate_settlement.lower() not in ("true", "false"):
+            return json(
+                {
+                    "code": 40001,
+                    "message": "auto_initiate_settlement 参数必须为 'true' 或 'false'",
+                },
+                status=400,
+            )
+        auto_initiate_settlement = auto_initiate_settlement.lower() == "true"
+    else:
+        auto_initiate_settlement = None
+
+    is_disabled = request.args.get("is_disabled")
+    if is_disabled is not None and is_disabled.strip() != "":
+        if is_disabled.lower() not in ("true", "false"):
+            return json(
+                {"code": 40001, "message": "is_disabled 参数必须为 'true' 或 'false'"},
+                status=400,
+            )
+        is_disabled = is_disabled.lower() == "true"
+    else:
+        is_disabled = None
+
     settlement_type = request.args.get("settlement_type")
     if settlement_type is not None and settlement_type.strip() == "":
         settlement_type = None
+
+    # ERP 系统 / 合作状态（字符串精确匹配）
+    erp_system = request.args.get("erp_system")
+    if erp_system is not None and erp_system.strip() == "":
+        erp_system = None
+
+    cooperation_status = request.args.get("cooperation_status")
+    if cooperation_status is not None and cooperation_status.strip() == "":
+        cooperation_status = None
 
     tag_ids = request.args.get("tag_ids")
 
@@ -919,8 +1047,24 @@ async def get_balance_stats(request: Request):
         customer_filters.append(Customer.is_real_estate == is_real_estate)
     if is_settlement_enabled is not None:
         customer_filters.append(Customer.is_settlement_enabled == is_settlement_enabled)
+    if auto_initiate_settlement is not None:
+        customer_filters.append(
+            _bool_filter_condition(
+                Customer.auto_initiate_settlement,
+                auto_initiate_settlement,
+                null_as_true=True,
+            )
+        )
+    if is_disabled is not None:
+        customer_filters.append(
+            _bool_filter_condition(Customer.is_disabled, is_disabled, null_as_true=False)
+        )
     if settlement_type:
         customer_filters.append(Customer.settlement_type == settlement_type)
+    if erp_system:
+        customer_filters.append(Customer.erp_system == erp_system)
+    if cooperation_status:
+        customer_filters.append(Customer.cooperation_status == cooperation_status)
 
     # 行业筛选条件（需要 JOIN IndustryType）
     industry_filter_stmts = []

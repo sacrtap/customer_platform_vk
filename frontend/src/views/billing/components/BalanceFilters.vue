@@ -53,32 +53,49 @@
       </div>
     </div>
 
-    <!-- 第二行：更多筛选（折行显示，左对齐） -->
+    <!-- 第二行：更多筛选（折行显示，左对齐，对齐客户管理页，去掉「标签」） -->
     <transition name="expand">
       <div v-if="showMore" class="filters-row more-row">
         <FilterDropdown
           v-model="settlementEnabledValue"
           label="是否结算"
-          :options="boolOptions"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="autoInitiateValue"
+          label="自动发起结算"
+          :options="BOOLEAN_FILTER_OPTIONS"
           @apply="handleSearch"
         />
         <FilterDropdown
           v-model="keyCustomerValue"
           label="是否重点客户"
-          :options="boolOptions"
+          :options="BOOLEAN_FILTER_OPTIONS"
           @apply="handleSearch"
         />
         <FilterDropdown
           v-model="realEstateValue"
           label="是否房产客户"
-          :options="boolOptions"
+          :options="BOOLEAN_FILTER_OPTIONS"
           @apply="handleSearch"
         />
         <FilterDropdown
-          v-model="tagValue"
-          label="标签"
-          :options="tagOptions"
-          multiple
+          v-model="disabledValue"
+          label="是否停用"
+          :options="BOOLEAN_FILTER_OPTIONS"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="filters.erp_system"
+          label="ERP系统"
+          :options="erpSystemOptions"
+          @apply="handleSearch"
+        />
+        <FilterDropdown
+          v-model="filters.cooperation_status"
+          label="合作状态"
+          :options="cooperationStatusOptions"
           @apply="handleSearch"
         />
       </div>
@@ -96,8 +113,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { IndustryType } from '@/types'
+import type { IndustryType, ErpSystem, CooperationStatus } from '@/types'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import { BOOLEAN_FILTER_OPTIONS } from '@/constants/customerOptions'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import { BALANCE_RANGE_OPTIONS } from '@/composables/useBalance'
 
@@ -109,7 +127,11 @@ interface Filters {
   is_key_customer: boolean | null
   is_real_estate: boolean | null
   is_settlement_enabled: boolean | null
+  auto_initiate_settlement: boolean | null
+  is_disabled: boolean | null
   settlement_type: string
+  erp_system: string
+  cooperation_status: string
   /** KPI 卡片联动：prepaid = 非后付费（含未设置），postpaid = 后付费 */
   settlement_group: '' | 'prepaid' | 'postpaid'
   balance_range: string
@@ -118,7 +140,6 @@ interface Filters {
 interface AdvancedFilters {
   manager_id: number | null
   sales_manager_id: number | null
-  tag_ids: number[]
 }
 
 const filters = defineModel<Filters>('filters', { required: true })
@@ -126,7 +147,8 @@ const advancedFilters = defineModel<AdvancedFilters>('advancedFilters', { requir
 
 const props = defineProps<{
   industryTypes: IndustryType[]
-  tagOptions: Array<Record<string, unknown>>
+  erpSystems: ErpSystem[]
+  cooperationStatuses: CooperationStatus[]
   managers: Array<Record<string, unknown>>
   activeKpiBadge?: string
   /** 列表为空时显示「清除筛选条件」（当前筛选无结果） */
@@ -162,11 +184,6 @@ const balanceRangeOptions = BALANCE_RANGE_OPTIONS.map((o) => ({
   value: o.value,
 }))
 
-const boolOptions = [
-  { label: '是', value: 'true' },
-  { label: '否', value: 'false' },
-]
-
 const industryOptions = computed(() =>
   props.industryTypes.map((it) => ({ label: it.name, value: it.name }))
 )
@@ -179,8 +196,12 @@ const salesOptions = computed(() =>
   props.managers.map((m) => ({ label: String(m.real_name ?? m.id), value: String(m.id) }))
 )
 
-const tagOptions = computed(() =>
-  props.tagOptions.map((t) => ({ label: String(t.name ?? ''), value: String(t.id) }))
+const erpSystemOptions = computed(() =>
+  props.erpSystems.map((es) => ({ label: es.name, value: es.value }))
+)
+
+const cooperationStatusOptions = computed(() =>
+  props.cooperationStatuses.map((cs) => ({ label: cs.name, value: cs.value }))
 )
 
 // 行业多选转换
@@ -213,11 +234,22 @@ const salesValue = computed({
   },
 })
 
-// 标签多选 (number[] -> string[])
-const tagValue = computed({
-  get: () => advancedFilters.value.tag_ids.map(String),
-  set: (val: string[]) => {
-    advancedFilters.value.tag_ids = val.map(Number)
+// 自动发起结算 (boolean | null -> string)
+const autoInitiateValue = computed({
+  get: () =>
+    filters.value.auto_initiate_settlement === null
+      ? ''
+      : String(filters.value.auto_initiate_settlement),
+  set: (val: string) => {
+    filters.value.auto_initiate_settlement = val === '' ? null : val === 'true'
+  },
+})
+
+// 是否停用 (boolean | null -> string)
+const disabledValue = computed({
+  get: () => (filters.value.is_disabled === null ? '' : String(filters.value.is_disabled)),
+  set: (val: string) => {
+    filters.value.is_disabled = val === '' ? null : val === 'true'
   },
 })
 

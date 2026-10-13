@@ -3,9 +3,10 @@ import { Message } from '@arco-design/web-vue'
 import { getBalances, getBalanceStats, recharge as rechargeApi } from '@/api/billing'
 import type { Balance, BalanceQueryParams } from '@/api/billing'
 import { getIndustryTypes } from '@/api/customers'
-import { getTags } from '@/api/tags'
+import { getErpSystemsList } from '@/api/erpSystems'
+import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 import { getManagers } from '@/api/users'
-import type { IndustryType, Tag, User } from '@/types'
+import type { IndustryType, ErpSystem, CooperationStatus, User } from '@/types'
 
 // 默认行业筛选（与客户管理页 useCustomerList 保持一致：默认全部行业，仅限定正式账号）
 export const DEFAULT_INDUSTRY: string[] = []
@@ -19,7 +20,11 @@ const defaultFilters = () => ({
   is_key_customer: null as boolean | null,
   is_real_estate: null as boolean | null,
   is_settlement_enabled: null as boolean | null,
+  auto_initiate_settlement: null as boolean | null,
+  is_disabled: null as boolean | null,
   settlement_type: '',
+  erp_system: '',
+  cooperation_status: '',
   // 结算类型分组（KPI 卡片联动）：prepaid = 非后付费（含未设置），postpaid = 后付费
   settlement_group: '' as '' | 'prepaid' | 'postpaid',
   balance_range: '' as string,
@@ -28,7 +33,6 @@ const defaultFilters = () => ({
 const defaultAdvancedFilters = () => ({
   manager_id: null as number | null,
   sales_manager_id: null as number | null,
-  tag_ids: [] as number[],
 })
 
 export interface SortState {
@@ -86,7 +90,8 @@ export function useBalance() {
   })
 
   const industryTypes = ref<IndustryType[]>([])
-  const tagOptions = ref<Tag[]>([])
+  const erpSystems = ref<ErpSystem[]>([])
+  const cooperationStatuses = ref<CooperationStatus[]>([])
   const managers = ref<User[]>([])
 
   const backendSortOrder = (): 'asc' | 'desc' => {
@@ -118,7 +123,8 @@ export function useBalance() {
     if (filters.settlement_type) params.settlement_type = filters.settlement_type
     if (advancedFilters.manager_id) params.manager_id = advancedFilters.manager_id
     if (advancedFilters.sales_manager_id) params.sales_manager_id = advancedFilters.sales_manager_id
-    if (advancedFilters.tag_ids?.length) params.tag_ids = advancedFilters.tag_ids.join(',')
+    if (filters.erp_system) params.erp_system = filters.erp_system
+    if (filters.cooperation_status) params.cooperation_status = filters.cooperation_status
     if (filters.is_key_customer !== null && filters.is_key_customer !== undefined) {
       params.is_key_customer = stringifyBooleans
         ? String(filters.is_key_customer)
@@ -133,6 +139,17 @@ export function useBalance() {
       params.is_settlement_enabled = stringifyBooleans
         ? String(filters.is_settlement_enabled)
         : filters.is_settlement_enabled
+    }
+    if (
+      filters.auto_initiate_settlement !== null &&
+      filters.auto_initiate_settlement !== undefined
+    ) {
+      params.auto_initiate_settlement = stringifyBooleans
+        ? String(filters.auto_initiate_settlement)
+        : filters.auto_initiate_settlement
+    }
+    if (filters.is_disabled !== null && filters.is_disabled !== undefined) {
+      params.is_disabled = stringifyBooleans ? String(filters.is_disabled) : filters.is_disabled
     }
     return params
   }
@@ -269,10 +286,16 @@ export function useBalance() {
     industryTypes.value = res.data || []
   }
 
-  const loadTags = async () => {
-    const res = await getTags()
-    // getTags 返回分页结构 {list, total}，与客户管理页处理方式保持一致
-    tagOptions.value = res.data?.list || res.data || []
+  const loadErpSystems = async () => {
+    const res = await getErpSystemsList()
+    // getErpSystemsList 返回 { data: [...] }，与客户管理页处理方式保持一致
+    erpSystems.value = res.data?.data || res.data || []
+  }
+
+  const loadCooperationStatuses = async () => {
+    const res = await getCooperationStatusesList()
+    // getCooperationStatusesList 返回 { data: [...] }，与客户管理页处理方式保持一致
+    cooperationStatuses.value = res.data?.data || res.data || []
   }
 
   const loadManagers = async () => {
@@ -290,7 +313,8 @@ export function useBalance() {
     sortState,
     pagination,
     industryTypes,
-    tagOptions,
+    erpSystems,
+    cooperationStatuses,
     managers,
     stats,
     loadBalances,
@@ -304,7 +328,8 @@ export function useBalance() {
     handleReset,
     doRecharge,
     loadIndustries,
-    loadTags,
+    loadErpSystems,
+    loadCooperationStatuses,
     loadManagers,
   }
 }

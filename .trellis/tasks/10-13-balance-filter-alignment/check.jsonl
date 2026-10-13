@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "质量检查：type-check、API 层、错误处理"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端检查：路由参数解析与过滤实现"}
