@@ -78,6 +78,25 @@ class TestCustomerService_CreateCustomer:
 - Test functions: `test_<action>_<condition>` (e.g., `test_create_customer_success`)
 - Every async test has `@pytest.mark.asyncio`
 
+### E2E 测试选择器规范（避开 DOM 顺序/宽文本匹配）
+
+[来源: 2026-10-13 — Full E2E 全量验证暴露 3 处失配]
+
+弹窗/表单定位禁止依赖**字段顺序**（`modal.locator('input').first()`）或**宽泛文本**
+（`button:has-text("导入")`）：组件加字段、按钮文案含关键词都会静默破坏用例。
+
+- 输入框用 placeholder 精确定位：`modal.locator('input[placeholder="请输入行业类型名称"]')`
+- 按钮用 role + 精确名：`page.getByRole('button', { name: '导入客户' })`（宽泛
+  `has-text("导入")` 会同时命中「导入客户」与弹窗内「确认导入」，strict mode violation）
+- 真实案例：
+  - `dd2822c`（2026-09-29）行业类型弹窗首位新增「ID（可选）」数字框 →
+    `input.first()` 填名称失效、提交静默失败（H03/H04）
+  - 两步导入改版（ImportBalanceModal/ImportModal）按钮文案从「开始导入」变
+    「预检查/确认导入」→ 断言旧文案的用例全挂；Arco 关闭按钮 class 是
+    `.arco-modal-close-btn` 而非 `close-icon`
+- UI 改版（文案/按钮/表单字段）后，**必须全量 E2E 验证**——只用集成测试收尾会
+  漏掉 UI 层断言失配（2026-10-13 教训：dry_run 功能集成全绿但 3 个 E2E 文件挂）
+
 ### 陷阱：mock 返回值式断言无法防御筛选条件写错
 
 [来源: 2026-09-20 — 客户列表新增布尔筛选]

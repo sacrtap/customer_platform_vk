@@ -1,5 +1,11 @@
 import { test, expect } from './fixtures'
-import { uiLogin, waitForTableLoaded, waitForModal, apiLogin } from './test-helpers'
+import {
+  uiLogin,
+  waitForTableLoaded,
+  waitForModal,
+  getVisibleModal,
+  apiLogin,
+} from './test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -135,8 +141,9 @@ test.describe('余额导入', () => {
     await page.getByRole('button', { name: '导入' }).click()
     await waitForModal(page)
 
-    // 两步导入版弹窗无底部「取消」按钮（footer=false），右上角关闭 X 是唯一关闭途径
-    await page.locator('.arco-modal-close-btn').click()
+    // 两步导入版弹窗无底部「取消」按钮（footer=false），右上角关闭 X 是唯一关闭途径。
+    // 页面存在多个 modal 实例（余额充值等），close-btn 需限定在可见 modal 内
+    await getVisibleModal(page).locator('.arco-modal-close-btn').click()
 
     // 验证对话框关闭
     await expect(
