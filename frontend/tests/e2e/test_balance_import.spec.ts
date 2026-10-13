@@ -54,8 +54,16 @@ test.describe('余额导入', () => {
     // 验证自定义上传区域存在
     await expect(page.locator('.upload-area')).toBeVisible()
 
-    // 验证提示信息
-    await expect(page.locator('.arco-modal-body').getByText(/请下载模板文件/)).toBeVisible()
+    // 验证提示信息（两步导入：预检查 → 确认导入，文案随 ImportBalanceModal 改版）
+    await expect(page.locator('.arco-modal-body').getByText(/请选择文件进行导入/)).toBeVisible()
+
+    // 验证两步导入按钮存在
+    await expect(
+      page.locator('.arco-modal-body').getByRole('button', { name: /预检查/i })
+    ).toBeVisible()
+    await expect(
+      page.locator('.arco-modal-body').getByRole('button', { name: /确认导入/i })
+    ).toBeVisible()
   })
 
   test('3. 上传文件并导入', async ({ page }) => {
@@ -94,8 +102,16 @@ test.describe('余额导入', () => {
     await expect(page.locator('.file-selected')).toBeVisible({ timeout: 5000 })
     await expect(page.locator('.file-name')).toContainText('balance_import_test.xlsx')
 
-    // 点击确认导入按钮（modal 底部按钮）
-    await page.getByRole('button', { name: /开始导入/i }).click()
+    // 两步导入：先预检查（不落库），再确认导入
+    await page.getByRole('button', { name: /预检查/i }).click()
+    await expect(
+      page
+        .locator('.arco-modal-body')
+        .getByText(/预检查结果/)
+        .first()
+    ).toBeVisible({ timeout: 10000 })
+
+    await page.getByRole('button', { name: /确认导入/i }).click()
 
     // 等待导入结果
     await page.waitForTimeout(3000)
@@ -114,13 +130,13 @@ test.describe('余额导入', () => {
     }
   })
 
-  test('4. 导入对话框取消功能', async ({ page }) => {
+  test('4. 导入对话框可关闭', async ({ page }) => {
     // 打开导入对话框
     await page.getByRole('button', { name: '导入' }).click()
     await waitForModal(page)
 
-    // 点击取消按钮
-    await page.getByRole('button', { name: /取消/i }).click()
+    // 两步导入版弹窗无底部「取消」按钮（footer=false），右上角关闭 X 是唯一关闭途径
+    await page.locator('.arco-modal-close-icon').click()
 
     // 验证对话框关闭
     await expect(
@@ -128,17 +144,14 @@ test.describe('余额导入', () => {
     ).not.toBeVisible({ timeout: 5000 })
   })
 
-  test('5. 未选择文件时点击导入提示错误', async ({ page }) => {
+  test('5. 未选择文件时预检查按钮禁用', async ({ page }) => {
     // 打开导入对话框
     await page.getByRole('button', { name: '导入' }).click()
     await waitForModal(page)
 
-    // 直接点击确认导入按钮（不上传文件）
-    await page.getByRole('button', { name: /开始导入/i }).click()
-
-    // 验证错误提示（Arco Message 组件）
-    await expect(page.locator('.arco-message-warning, .arco-message-error').first()).toBeVisible({
-      timeout: 5000,
-    })
+    // 未上传文件时「预检查」禁用，无法发起导入流程（两步导入语义：选文件后才能预检查）
+    await expect(
+      page.locator('.arco-modal-body').getByRole('button', { name: /预检查/i })
+    ).toBeDisabled()
   })
 })
