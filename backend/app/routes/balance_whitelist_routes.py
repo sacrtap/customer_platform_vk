@@ -155,10 +155,11 @@ async def add_balance_whitelist(request: Request):
 @require_permission("balance_whitelist:manage")
 async def update_balance_whitelist(request: Request, id: int):
     """
-    编辑白名单客户静态余额
+    编辑白名单客户静态余额（可选更新备注）
 
     Request Body:
     - static_balance: number (required)
+    - remark: string | null (optional) — 未提供时保持原备注；传空/null 清空备注
     """
     db_session: AsyncSession = request.ctx.db_session
     service = BalanceWhitelistService(db_session)
@@ -176,8 +177,13 @@ async def update_balance_whitelist(request: Request, id: int):
     except ValueError as e:
         return json({"code": ErrorCodes.INVALID_FORMAT, "message": str(e)}, status=400)
 
+    remark_provided = "remark" in data
+    remark_raw = data.get("remark")
+
     try:
-        record = await service.update(id, static_balance)
+        record = await service.update(
+            id, static_balance, remark=remark_raw, remark_provided=remark_provided
+        )
     except ValueError as e:
         return json({"code": ErrorCodes.BAD_REQUEST, "message": str(e)}, status=400)
 
@@ -192,6 +198,7 @@ async def update_balance_whitelist(request: Request, id: int):
                 "id": record.id,
                 "customer_id": record.customer_id,
                 "static_balance": float(record.static_balance),
+                "remark": record.remark,
             },
         }
     )

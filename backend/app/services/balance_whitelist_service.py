@@ -67,6 +67,7 @@ class BalanceWhitelistService:
                 Customer.name,
                 Customer.erp_system,
                 BalanceWhitelist.static_balance,
+                BalanceWhitelist.remark,
                 BalanceWhitelist.created_at,
             )
             .select_from(
@@ -89,6 +90,7 @@ class BalanceWhitelistService:
                 name,
                 erp_system,
                 static_balance,
+                remark,
                 created_at,
             ) = row
             items.append(
@@ -99,6 +101,7 @@ class BalanceWhitelistService:
                     "customer_name": name,
                     "erp_system": erp_system,
                     "static_balance": float(static_balance),
+                    "remark": remark,
                     "created_at": created_at.isoformat() if created_at else None,
                 }
             )
@@ -241,19 +244,34 @@ class BalanceWhitelistService:
         await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
         return record
 
-    async def update(self, id: int, static_balance: Decimal) -> Optional[BalanceWhitelist]:
+    async def update(
+        self,
+        id: int,
+        static_balance: Decimal,
+        remark: str | None = None,
+        remark_provided: bool = False,
+    ) -> Optional[BalanceWhitelist]:
         """
-        编辑白名单客户静态余额。
+        编辑白名单客户静态余额（可选同时更新备注）。
+
+        Args:
+            id: 白名单记录 id
+            static_balance: 新静态余额
+            remark: 新备注；未提供时不改动
+            remark_provided: 是否显式提供了 remark（区分「未传」与「传空/清空」）
 
         Raises:
-            ValueError: 余额格式非法
+            ValueError: 余额格式非法；备注超长
         """
         balance = self._validate_balance(static_balance)
+        normalized_remark = self._normalize_remark(remark) if remark_provided else None
 
         record = await self.db.get(BalanceWhitelist, id)
         if record is None or record.deleted_at is not None:
             return None
         record.static_balance = balance  # pyright: ignore[reportAttributeAccessIssue]
+        if remark_provided:
+            record.remark = normalized_remark  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
         return record
 
@@ -278,3 +296,15 @@ class BalanceWhitelistService:
         if parsed < 0:
             raise ValueError("静态余额不能为负数")
         return parsed
+
+    @staticmethod
+    def _normalize_remark(value: str | None) -> str | None:
+        """备注规范化：去首尾空白；空值 → None；超长（>200）报错。"""
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        if len(text) > 200:
+            raise ValueError("备注最长 200 字符")
+        return text

@@ -265,6 +265,7 @@ export interface BalanceWhitelistItem {
   customer_name: string
   erp_system: string | null
   static_balance: number
+  remark: string | null
   created_at: string | null
 }
 

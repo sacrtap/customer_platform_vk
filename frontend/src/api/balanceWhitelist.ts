@@ -24,9 +24,9 @@ export function addBalanceWhitelist(data: { customer_id: number; static_balance?
   return api.post<BalanceWhitelistItem>('/balance-whitelists', data)
 }
 
-/** 编辑静态余额 */
-export function updateBalanceWhitelist(id: number, static_balance: number) {
-  return api.put<BalanceWhitelistItem>(`/balance-whitelists/${id}`, { static_balance })
+/** 编辑静态余额（可选更新备注；remark 传 null 表示清空备注） */
+export function updateBalanceWhitelist(id: number, static_balance: number, remark?: string | null) {
+  return api.put<BalanceWhitelistItem>(`/balance-whitelists/${id}`, { static_balance, remark })
 }
 
 /** 移出白名单（软删除） */

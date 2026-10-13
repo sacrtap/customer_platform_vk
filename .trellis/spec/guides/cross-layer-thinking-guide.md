@@ -737,3 +737,34 @@ admin 名下客户（≈0）。此前测试只覆盖「受限用户无 mine」�
 > **教训**：可见性过滤必须由服务端独立参数独占驱动，业务参数不得复用它；
 > 前端无条件携带的参数 = 服务端必须对全角色正确。测试矩阵要包含
 > 「最高权限 + 业务参数」组合，那正是 bug 最易藏身的地方。
+
+## Optional Field Absent vs Explicit Null（可选字段「未传」与「显式 null」的区别）
+
+部分更新（PUT/PATCH）接口里，**「JSON body 缺少该键」与「键存在但值为 null/空」是两种不同语义**，
+不能都当作「不改」或都当作「清空」：
+
+| 请求形态 | 语义 | 实现 |
+|---|---|---|
+| body 不含 `field` 键 | **不改动**该字段（向后兼容旧客户端） | `if "field" in data:` 才写库 |
+| `field: null` 或 `field: ""`/空白 | **显式清空**（存 NULL） | `_normalize` 后写 None |
+
+判定必须用**键存在性**（`"field" in data`），不能用 `data.get("field")` 是否为 None ——
+后者无法区分「未传」与「传 null」。
+
+前端契约：编辑表单提交时，若值被清空则**显式传 `null`**（不是省略键），
+例如 `const v = form.field?.trim() ? form.field.trim() : null; api.put(..., { field: v })`。
+
+### Checklist: 新增/修改部分更新接口时
+
+- [ ] 区分「未传（保持）」与「显式空（清空）」，用 `in data` 判键存在
+- [ ] 服务层收「是否提供」标志（如 `remark_provided: bool`），仅在提供时写库
+- [ ] 规范化函数统一处理：`null` / 空串 / 空白 → `None`；超长等 → `ValueError` → 400
+- [ ] 前端清空时显式传 `null`，不要把「清空」实现成「省略字段」
+- [ ] 回归测试覆盖三态：不传（保持原值）/ 传值（更新）/ 传 null 或空白（清空）
+
+### Real-world example (2026-10-13, balance_whitelists.remark)
+
+余额白名单「编辑余额」弹窗新增备注字段：`PUT /api/v1/balance-whitelists/<id>` 用
+`remark_provided = "remark" in data` 判定；`service.update(..., remark_provided=...)`
+仅在提供时写 `record.remark`。前端清空备注提交 `null`。
+若误用 `data.get("remark")`，则「只改余额不改备注」的旧调用会静默清空备注。
