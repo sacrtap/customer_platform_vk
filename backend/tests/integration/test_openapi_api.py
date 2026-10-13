@@ -177,3 +177,98 @@ async def test_erp_balances_regression(test_client, valid_api_key, db_session):
     assert response.status == 200
     assert response.json["code"] == 0
     assert [i["customer_id"] for i in response.json["data"]] == ["100"]
+
+
+@pytest.mark.asyncio
+async def test_all_balances_whitelist_overrides(test_client, valid_api_key, db_session):
+    """余额白名单客户优先返回静态余额，非白名单维持计算余额"""
+    whitelist_cid = _insert_customer(
+        db_session,
+        company_id=1000,
+        name="白名单客户",
+        erp_system="qiaofang",
+        balance=(100000.0, 60000.0),  # 计算余额 40000，白名单应返回静态值
+    )
+    _insert_customer(
+        db_session,
+        company_id=1001,
+        name="普通客户",
+        erp_system="qiaofang",
+        balance=(5000.0, 1500.0),  # 计算余额 3500，白名单不应影响
+    )
+    # 白名单静态余额 2000
+    db_session.execute(
+        text("""
+            INSERT INTO balance_whitelists (customer_id, static_balance, created_at, updated_at)
+            VALUES (:cid, 2000, NOW(), NOW())
+        """),
+        {"cid": whitelist_cid},
+    )
+    db_session.commit()
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    items = response.json["data"]
+    by_id = {i["customer_id"]: i for i in items}
+    assert by_id["1000"]["balance"] == 2000.0
+    assert by_id["1001"]["balance"] == 3500.0
+
+
+@pytest.mark.asyncio
+async def test_all_balances_whitelist_soft_deleted_ignored(test_client, valid_api_key, db_session):
+    """软删除（已移出）的白名单记录不生效，返回计算余额"""
+    cid = _insert_customer(
+        db_session,
+        company_id=1100,
+        name="移出客户",
+        balance=(10000.0, 4000.0),  # 计算余额 6000
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO balance_whitelists
+                (customer_id, static_balance, deleted_at, created_at, updated_at)
+            VALUES (:cid, 9999, NOW(), NOW(), NOW())
+        """),
+        {"cid": cid},
+    )
+    db_session.commit()
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    items = response.json["data"]
+    assert items[0]["customer_id"] == "1100"
+    assert items[0]["balance"] == 6000.0
+
+
+@pytest.mark.asyncio
+async def test_erp_balances_unaffected_by_whitelist(test_client, valid_api_key, db_session):
+    """ERP 渠道接口不受白名单影响（仅全量接口生效，回归）"""
+    cid = _insert_customer(
+        db_session,
+        company_id=1200,
+        name="渠道客户",
+        erp_system="qiaofang",
+        balance=(8000.0, 2000.0),  # 计算余额 6000
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO balance_whitelists (customer_id, static_balance, created_at, updated_at)
+            VALUES (:cid, 777, NOW(), NOW())
+        """),
+        {"cid": cid},
+    )
+    db_session.commit()
+
+    _request, response = await test_client.get(
+        "/api/v1/erp/balances",
+        params={"erp_channel": "qiaofang"},
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    assert response.json["data"][0]["balance"] == 6000.0

@@ -832,3 +832,26 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 35: 开放平台余额白名单（静态余额优先）
+<!-- trellis-session: v=2 fp=e5b6e0274a915791 -->
+
+**Date**: 2026-10-13
+**Task**: 开放平台余额白名单（静态余额优先）
+**Branch**: `feat/balance-whitelist`
+
+### Summary
+
+实施开放平台余额白名单：系统管理新增「余额白名单」页面（ERP 批量导入 dry_run 预检两步确认、单独添加默认 1000、编辑余额、移出软删、重复导入幂等/软删恢复）；开放平台 GET /api/v1/balances 白名单客户优先返回静态余额、/api/v1/erp/balances 不变。验证：白名单相关 29 测试、单元门禁 568 passed/34.08%、合并全量 893 passed/53.72%、ruff/pyright、前端 type-check/eslint/build、迁移可逆性（独立临时库）、E2E 浏览器全流程 + API-Key 接口对照（1264 客户逐条一致、48 白名单静态余额覆盖）。另：openapi 文档移除「数据来源」说明行并 docs:build 验证。期间修复前端 axios 解包层级 bug（res.data.data→res.data，类型迁至 types/index.ts）与 openapi 单元测试 5 列签名。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5a0e4c0` | feat: 开放平台余额白名单（静态余额优先） |
+| `d16dd30` | docs: 移除 openapi 文档接口信息表中的「数据来源」说明 |
+
+### Status
+
+[OK] **Completed**

@@ -22,11 +22,30 @@ def _make_request(erp_channel=None):
     request.args.get.return_value = erp_channel
     session = AsyncMock()
     result = MagicMock()
+    # 行结构: (Customer.id, company_id, name, total_amount, used_total)
     result.all.return_value = [
-        (615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0),
-        (1552, "荣城地产", None, None),
+        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0),
+        (1552, 1552, "荣城地产", None, None),
     ]
     session.execute = AsyncMock(return_value=result)
+    request.ctx.db_session = session
+    return request
+
+
+def _make_request_all():
+    """构造全量版 Request: 白名单 map 查询为空 + 客户余额行（5 列）"""
+    request = MagicMock()
+    request.args.get.return_value = None
+    session = AsyncMock()
+    whitelist_result = MagicMock()
+    whitelist_result.all.return_value = []
+    customer_result = MagicMock()
+    customer_result.all.return_value = [
+        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0),
+        (1552, 1552, "荣城地产", None, None),
+    ]
+    # 第一次 execute 查白名单 map（空），第二次查客户余额
+    session.execute = AsyncMock(side_effect=[whitelist_result, customer_result])
     request.ctx.db_session = session
     return request
 
@@ -60,7 +79,7 @@ async def test_erp_balances_missing_channel_direct():
 @pytest.mark.asyncio
 async def test_all_balances_success_direct():
     """全量版: 无渠道参数 → 200 + 余额组装正确"""
-    response = await get_all_customer_balances(_make_request())
+    response = await get_all_customer_balances(_make_request_all())
     assert response.status == 200
     data = _response_json(response)["data"]
     assert data[0] == {

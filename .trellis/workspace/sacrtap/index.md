@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 34
+- **Total Sessions**: 35
 - **Last Active**: 2026-10-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~834 | Active |
+| `journal-1.md` | ~857 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 35 | 2026-10-13 | 开放平台余额白名单（静态余额优先） | `5a0e4c0`, `d16dd30` | `feat/balance-whitelist` |
 | 34 | 2026-10-13 | Full E2E Suite 定时任务失败修复（workers 空值 + E2E 测试适配） | `89e24d6`, `f3ba2fe`, `48704d4`, `49d0762` | `fix/e2e-schedule-inputs` |
 | 33 | 2026-10-10 | 开放平台全量客户余额接口开发与验证 | `37f613e`, `1f915eb` | `feat/openapi-all-balances` |
 | 31 | 2026-09-29 | 行业类型 ID 管理修复 + 客户导入导出运营/销售经理字段与预检查 | `dd2822c`, `a7df598` | `fix/customer-import-bug` |

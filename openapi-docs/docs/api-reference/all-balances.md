@@ -9,7 +9,6 @@
 | 方法 | `GET` |
 | 路径 | `/api/v1/balances` |
 | 认证 | 必填（`Authorization: Bearer {api_key}`） |
-| 数据来源 | `backend/app/routes/openapi.py` |
 
 ## 请求参数
 
