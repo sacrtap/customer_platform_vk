@@ -61,3 +61,47 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
 
 # mock 权限缓存使用的 code 集合 —— 派生自上面的行数据，不单独维护
 PERMISSION_CODES: frozenset[str] = frozenset(code for code, _, _ in PERMISSION_ROWS)
+
+
+def sync_test_schema(engine) -> list[str]:
+    """把测试库补齐到与当前 ORM 模型一致（自动、无需手写字段清单）。
+
+    背景（2026-10-13 事故）：integration/e2e conftest 原先手工维护一张
+    `if "xxx" not in columns: ALTER TABLE ... ADD COLUMN` 清单。模型加字段时，
+    若忘记同步这张手写清单，测试库就悄悄落后于模型——单测（MagicMock）与
+    集成测试全绿，但真实库查询报 `column xxx does not exist` → 500。
+    实测：给 Customer 加 `balance_warning_level` 后，未同步清单导致
+    test_customers_api.py 45 个用例全 500。
+
+    本函数以 **SQLAlchemy metadata 为唯一真相**：
+      - 缺失的表：交给调用方 `create_all`（此处只处理已存在表的新增列）
+      - 缺失的列：按 metadata 自动 `ALTER TABLE ... ADD COLUMN`（类型从列定义推导）
+
+    返回实际补齐的 `table.column` 列表（便于测试断言/日志）。
+    """
+    from sqlalchemy import inspect, text
+    from sqlalchemy.schema import CreateColumn
+
+    from app.models.base import BaseModel
+
+    dialect = engine.dialect
+    added: list[str] = []
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        existing_tables = set(inspector.get_table_names())
+        for table in BaseModel.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue  # 新表由 create_all 负责
+            have = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in have:
+                    continue
+                # 用 CreateColumn 渲染列定义（含类型、可空等），去掉前导列名
+                col_ddl = str(CreateColumn(column).compile(dialect=dialect))
+                # col_ddl 形如 "name INTEGER NOT NULL"；取其类型/约束部分
+                definition = col_ddl[len(column.name) :].strip()
+                conn.execute(
+                    text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {definition}')
+                )
+                added.append(f"{table.name}.{column.name}")
+    return added

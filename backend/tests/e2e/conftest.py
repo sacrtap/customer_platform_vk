@@ -11,7 +11,7 @@ E2E 测试配置 — 提供数据库、Redis mock、认证等基础 fixture。
 import os
 import sys
 
-from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS
+from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS, sync_test_schema
 
 # JWT_SECRET 统一由 tests/conftest.py 设置（setdefault "test-secret-key"），此处不得强制覆盖：
 # 与 integration/conftest.py 共存于同一全量会话时，各自设置不同密钥会让模块级 settings 单例
@@ -68,17 +68,12 @@ def sync_test_engine():
     """创建同步测试数据库引擎（用于建表和创建测试用户）"""
     engine = create_engine(TEST_DATABASE_SYNC_URL, echo=False)
     BaseModel.metadata.create_all(engine)
-    # create_all 不修改已存在的表：手动补齐新增列（与 integration/conftest 一致）
-    from sqlalchemy import inspect, text
-
-    inspector = inspect(engine)
-    if "customers" in inspector.get_table_names():
-        columns = [col["name"] for col in inspector.get_columns("customers")]
-        if "auto_initiate_settlement" not in columns:
-            with engine.begin() as conn:
-                conn.execute(
-                    text("ALTER TABLE customers ADD COLUMN auto_initiate_settlement BOOLEAN")
-                )
+    # create_all 不修改已存在的表：按 ORM metadata 自动补齐缺失列。
+    # 原先是手工 `if "auto_initiate_settlement" not in columns:` 清单，模型加字段时
+    # 漏同步会导致测试库落后于模型（2026-10-13 事故），故改为自动同步。
+    added = sync_test_schema(engine)
+    if added:
+        print(f"🔧 已按模型自动补齐测试库缺失列: {added}")
     yield engine
     engine.dispose()
 

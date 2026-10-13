@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 
-from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS
+from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS, sync_test_schema
 
 logger = logging.getLogger(__name__)
 
@@ -114,38 +114,13 @@ def sync_test_engine():
         tables = inspector.get_table_names()
         print(f"✅ 已创建 {len(tables)} 个表: {tables[:5]}...")
 
-        # 确保新增的列存在（create_all 不修改已存在的表）
-        if "invoices" in tables:
-            columns = [col["name"] for col in inspector.get_columns("invoices")]
-            if "cancelled_at" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_at VARCHAR(50)"))
-            if "discount_applied_at" not in columns:
-                conn.execute(
-                    text("ALTER TABLE invoices ADD COLUMN discount_applied_at VARCHAR(50)")
-                )
-            if "customer_confirmed_by" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN customer_confirmed_by INTEGER"))
-            if "completed_by" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN completed_by INTEGER"))
-            if "cancelled_by" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN cancelled_by INTEGER"))
-            if "ops_confirmed_by" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN ops_confirmed_by INTEGER"))
-            if "ops_confirmed_at" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN ops_confirmed_at VARCHAR(50)"))
-            if "sales_confirmed_by" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN sales_confirmed_by INTEGER"))
-            if "sales_confirmed_at" not in columns:
-                conn.execute(text("ALTER TABLE invoices ADD COLUMN sales_confirmed_at VARCHAR(50)"))
-        # 确保 customers.is_real_estate 列存在
-        if "customers" in tables:
-            columns = [col["name"] for col in inspector.get_columns("customers")]
-            if "is_real_estate" not in columns:
-                conn.execute(text("ALTER TABLE customers ADD COLUMN is_real_estate BOOLEAN"))
-            if "auto_initiate_settlement" not in columns:
-                conn.execute(
-                    text("ALTER TABLE customers ADD COLUMN auto_initiate_settlement BOOLEAN")
-                )
+    # create_all 不修改已存在的表：按 ORM metadata 自动补齐缺失列。
+    # 原先此处手写 `if "xxx" not in columns: ALTER TABLE ...` 清单，模型加字段时
+    # 忘记同步 → 测试库落后于模型 → 集成测试报 column does not exist（2026-10-13 事故）。
+    # 现改为以 metadata 为唯一真相自动同步，模型加列后无需再维护此清单。
+    added = sync_test_schema(engine)
+    if added:
+        print(f"🔧 已按模型自动补齐测试库缺失列: {added}")
 
     yield engine
 

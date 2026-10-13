@@ -248,6 +248,19 @@ jobs:
           DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_db_gw0" \
             python -m alembic upgrade head
 
+      # 防止「改了 ORM 模型但没写迁移」（2026-10-13 balance_warning_level 事故：
+      # 模型有列、运行库没有 → 所有 select(该实体) 500，而单测全绿、集成/e2e 因
+      # create_all 建全新库也全绿，只有真实库路径暴露）。
+      # 这里在「已跑完 alembic upgrade head 的库」上比对模型：若模型声明了库中
+      # 没有的表/列，说明迁移链缺失（无对应迁移文件）→ 阻断合并。
+      - name: Verify model matches migrations (schema drift)
+        if: steps.changes.outputs.backend == 'true'
+        env:
+          DATABASE_URL: postgresql+asyncpg://test_user:test_password@localhost:5432/test_db
+        run: |
+          cd backend
+          python scripts/check_schema_drift.py
+
       - name: Seed test data
         if: steps.changes.outputs.backend == 'true'
         env:

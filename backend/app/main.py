@@ -22,6 +22,50 @@ from .middleware.correlation import correlation_middleware, install_request_id_f
 logger = logging.getLogger(__name__)
 
 
+async def _check_schema_version(session_factory) -> None:
+    """启动时校验运行库是否已升级到最新 Alembic 迁移（fail-open，仅告警不阻断）。
+
+    背景（2026-10-13 事故）：模型新增列 + 迁移文件都已提交，但运行库未执行
+    `alembic upgrade head` → `select(Customer)` 报 `UndefinedColumnError` → 所有
+    客户相关请求 500。CI 的 `alembic upgrade head` 只作用于 CI 库，无法发现
+    「本机/线上库落后于 head」。此处启动即比对版本号，把此类事故提前暴露。
+
+    设计：任何异常都吞掉（库未建、alembic_version 缺失、离线环境等），
+    只记日志，绝不阻断启动——避免把「检查器故障」变成新的可用性故障。
+    """
+    import logging
+
+    log = logging.getLogger(__name__)
+    try:
+        from pathlib import Path
+
+        from alembic.config import Config as AlembicConfig
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import text
+
+        backend_dir = Path(__file__).resolve().parents[1]
+        cfg = AlembicConfig(str(backend_dir / "alembic.ini"))
+        cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+        heads = set(ScriptDirectory.from_config(cfg).get_heads())
+
+        async with session_factory() as session:
+            row = (await session.execute(text("SELECT version_num FROM alembic_version"))).first()
+
+        current = row[0] if row else None
+        if current not in heads:
+            log.error(
+                "❌ 运行库迁移版本落后：当前 %s，最新 head %s。"
+                "请执行 `cd backend && python -m alembic upgrade head`，"
+                "否则引用新字段的查询会 500（column does not exist）。",
+                current,
+                sorted(heads),
+            )
+        else:
+            log.info(f"✓ 数据库迁移版本已是最新：{current}")
+    except Exception as e:  # noqa: BLE001 - fail-open，任何异常都不应影响启动
+        log.debug(f"跳过迁移版本校验：{e}")
+
+
 def create_app(
     app_name: str | None = None,
     database_engine: Union[AsyncEngine, Engine, None] = None,
@@ -217,6 +261,11 @@ def create_app(
 
         logger = logging.getLogger(__name__)
         logger.info(f"🚀 {settings.app_name} 启动在 {settings.host}:{settings.port}")
+
+        # 校验运行库迁移版本是否最新（fail-open）：防止「模型改了但库没升级」导致
+        # 的 UndefinedColumnError 500（2026-10-13 balance_warning_level 事故）。
+        if is_async:
+            await _check_schema_version(async_session_maker)  # pyright: ignore[reportPossiblyUnboundVariable]
 
         # 恢复卡住的同步任务
         if is_async:

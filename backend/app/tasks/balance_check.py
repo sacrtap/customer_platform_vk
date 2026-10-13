@@ -61,8 +61,7 @@ async def check_balance_warning(session: AsyncSession):
                         )
                         critical_count += 1
                         logger.warning(
-                            f"🚨 客户 {customer.company_name} 余额严重不足 | "
-                            f"总余额：{total_balance:.2f} 元"
+                            f"🚨 客户 {customer.name} 余额严重不足 | 总余额：{total_balance:.2f} 元"
                         )
                     else:
                         normal_count += 1
@@ -80,8 +79,7 @@ async def check_balance_warning(session: AsyncSession):
                         )
                         warning_count += 1
                         logger.warning(
-                            f"⚠️  客户 {customer.company_name} 余额不足 | "
-                            f"总余额：{total_balance:.2f} 元"
+                            f"⚠️  客户 {customer.name} 余额不足 | 总余额：{total_balance:.2f} 元"
                         )
                     else:
                         normal_count += 1
@@ -100,7 +98,8 @@ async def check_balance_warning(session: AsyncSession):
                     normal_count += 1
 
             except Exception as e:
-                logger.error(f"❌ 客户 {customer.company_name} 余额检查失败：{str(e)}")
+                cust_label = getattr(customer, "name", None) or getattr(customer, "id", "?")
+                logger.error(f"❌ 客户 {cust_label} 余额检查失败：{str(e)}")
                 continue
 
         await session.commit()
