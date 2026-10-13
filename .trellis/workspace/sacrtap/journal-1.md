@@ -916,3 +916,27 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Next Steps
 
 - 无
+
+
+## Session 38: 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序）
+<!-- trellis-session: v=2 fp=7cde9d40633a9fc5 -->
+
+**Date**: 2026-10-14
+**Task**: 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序）
+**Branch**: `customer-management-page-optimization`
+
+### Summary
+
+三子任务完成：1) 编辑页消费等级选项参考规模等级方案显示金额区间（C1（100万以上）~C6（6万以下）），选值不变；2) 客户列表操作列新增删除按钮（customers:delete 权限门控），后端 delete_customer 级联软删除补全 BalanceWhitelist/DailyOrder/CustomerTag/ProfileTag，新增 9 表级联集成测试；3) 编辑页字段顺序调整（消费等级→合作状态下方，首次回款/接入时间→运营经理下方）。验证：前端 type-check+lint、后端 ruff+pyright、customers 集成测试 63 通过、浏览器冒烟验证删除确认弹窗与字段顺序。spec 沉淀级联软删除经验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1801e3a` | feat(customer-edit): 编辑页消费等级显示金额区间并调整字段顺序 |
+| `f99912e` | feat(customer-delete): 列表操作列删除按钮 + 删除级联软删除补全 |
+| `b5858b0` | docs(spec): 沉淀级联软删除经验（外键 CASCADE 不触发于软删除） |
+
+### Status
+
+[OK] **Completed**
