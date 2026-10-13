@@ -136,7 +136,7 @@ test.describe('余额导入', () => {
     await waitForModal(page)
 
     // 两步导入版弹窗无底部「取消」按钮（footer=false），右上角关闭 X 是唯一关闭途径
-    await page.locator('.arco-modal-close-icon').click()
+    await page.locator('.arco-modal-close-btn').click()
 
     // 验证对话框关闭
     await expect(
