@@ -807,3 +807,28 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 34: Full E2E Suite 定时任务失败修复（workers 空值 + E2E 测试适配）
+<!-- trellis-session: v=2 fp=49f92db421d8974f -->
+
+**Date**: 2026-10-13
+**Task**: Full E2E Suite 定时任务失败修复（workers 空值 + E2E 测试适配）
+**Branch**: `fix/e2e-schedule-inputs`
+
+### Summary
+
+根因：schedule 事件无 workflow_dispatch 的 inputs 上下文，--workers= 空值致 Playwright 启动即败（近 4 次定时任务 2-3 分钟内全灭）。修复 e2e-full.yml（inputs.workers||'3' 回退 + shell 变量单一来源 + skip_visual 回退）。全量验证暴露 3 处 E2E 失配并修复：两步导入 UI 改版（balance 4 用例）、导入按钮宽泛选择器（strict violation）、dd2822c 新增 ID 输入框致 input.first() 失配（industry H03/H04）。最终全量 256 passed / 0 failed。spec 沉淀：GitHub Actions 事件契约 + E2E 选择器规范。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `89e24d6` | fix(ci): Full E2E 定时触发时 workers 输入为空导致测试无法启动 |
+| `f3ba2fe` | test(e2e): 适配两步导入 UI 改版 |
+| `48704d4` | test(e2e): 修复余额导入关闭按钮与行业类型名称框选择器 |
+| `49d0762` | test(e2e): 关闭按钮限定可见 modal 并补 import；spec 沉淀 E2E 选择器规范 |
+
+### Status
+
+[OK] **Completed**
