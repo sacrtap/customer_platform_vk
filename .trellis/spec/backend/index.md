@@ -48,6 +48,12 @@ Before submitting code:
 5. **Cache invalidated after mutations** — `cache_service.invalidate_*()`
 6. **Test coverage ≥ 50%** for new code (CI gate: merged unit + integration coverage, see pr-checks.yml)
 7. **Type check passes**: `cd backend && pyright` → 0 error（配置 `backend/pyrightconfig.json`；模型字段须用 `Mapped[...] = mapped_column(...)`）
+8. **ORM 模型字段有变更时**：除写迁移外，必须**应用到运行库并验证**
+   ```bash
+   cd backend && python -m alembic upgrade head && python scripts/check_schema_drift.py   # 或 make db-migrate
+   ```
+   「写了迁移文件」≠「运行库已升级」——漏掉本步时 CI/单测全绿，但本地与生产启动后
+   所有触及该实体的查询 500（`column ... does not exist`）。见 database-guidelines.md「Schema Drift」一节。
 
 ---
 

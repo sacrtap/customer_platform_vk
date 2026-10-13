@@ -12,7 +12,7 @@ install: ## 安装依赖（首次使用）
 	@echo "=== 安装 pre-commit hooks ==="
 	pre-commit install
 
-dev: ## 启动开发环境
+dev: db-migrate ## 启动开发环境（先应用数据库迁移，防止运行库落后于模型）
 	@echo "=== 启动后端 ==="
 	cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
 	@echo "=== 启动前端 ==="

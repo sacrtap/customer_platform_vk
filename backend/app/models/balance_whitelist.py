@@ -5,7 +5,7 @@
 
 from decimal import Decimal
 
-from sqlalchemy import DECIMAL, ForeignKey, Integer
+from sqlalchemy import DECIMAL, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import BaseModel
@@ -22,6 +22,7 @@ class BalanceWhitelist(BaseModel):
     static_balance: Mapped[Decimal] = mapped_column(
         DECIMAL(12, 2), nullable=False, default=Decimal("1000.00")
     )  # 静态余额（元），默认 1000
+    remark: Mapped[str | None] = mapped_column(String(200), nullable=True)  # 备注（最长 200 字符）
 
     def __repr__(self):
         return f"<BalanceWhitelist customer_id={self.customer_id} static_balance={self.static_balance}>"

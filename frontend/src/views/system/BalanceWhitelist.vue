@@ -163,6 +163,15 @@
             style="width: 100%"
           />
         </a-form-item>
+        <a-form-item field="remark" label="备注">
+          <a-input
+            v-model="editForm.remark"
+            placeholder="选填，最长 200 字符"
+            :max-length="200"
+            show-word-limit
+            allow-clear
+          />
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -211,6 +220,7 @@ const columns = [
   { title: '客户名称', dataIndex: 'customer_name', width: 200 },
   { title: 'ERP', dataIndex: 'erp_system', width: 140 },
   { title: '静态余额', slotName: 'static_balance', width: 130, align: 'right' as const },
+  { title: '备注', dataIndex: 'remark', width: 180, ellipsis: true, tooltip: true },
   { title: '添加时间', slotName: 'created_at', width: 170 },
   { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
 ]
@@ -399,11 +409,13 @@ const editForm = reactive<{
   customer_name: string
   company_id: number | null
   static_balance: number | undefined
+  remark: string | undefined
 }>({
   id: null,
   customer_name: '',
   company_id: null,
   static_balance: undefined,
+  remark: undefined,
 })
 
 const editFormRules = {
@@ -415,6 +427,7 @@ const handleOpenEdit = (record: BalanceWhitelistItem) => {
   editForm.customer_name = record.customer_name
   editForm.company_id = record.company_id
   editForm.static_balance = record.static_balance
+  editForm.remark = record.remark ?? undefined
   editVisible.value = true
 }
 
@@ -430,7 +443,8 @@ const handleEditSubmit = async () => {
   }
   submitting.value = true
   try {
-    await updateBalanceWhitelist(editForm.id, editForm.static_balance)
+    const remark = editForm.remark?.trim() ? editForm.remark.trim() : null
+    await updateBalanceWhitelist(editForm.id, editForm.static_balance, remark)
     Message.success('更新成功')
     await loadList()
     return true
@@ -446,6 +460,7 @@ const handleEditSubmit = async () => {
 
 const handleEditCancel = () => {
   editForm.id = null
+  editForm.remark = undefined
 }
 
 // ========== 移出白名单 ==========

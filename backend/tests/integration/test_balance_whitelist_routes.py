@@ -4,7 +4,7 @@
 1. GET /api/v1/balance-whitelists — 未认证 / 列表 / keyword 过滤
 2. POST /api/v1/balance-whitelists — 单独添加（默认余额 / 指定余额 / 客户不存在 / 重复添加 / 软删恢复）
 3. POST /api/v1/balance-whitelists/batch-import — ERP 批量导入（计数 / 幂等跳过 / 软删恢复 / 停用删除客户排除）
-4. PUT /api/v1/balance-whitelists/<id> — 编辑余额
+4. PUT /api/v1/balance-whitelists/<id> — 编辑余额（含备注：提交/去空白/清空/不传保持/超长拒绝）
 5. DELETE /api/v1/balance-whitelists/<id> — 移出白名单
 6. 权限 — 无 balance_whitelist:manage 权限 → 403
 """
@@ -48,15 +48,15 @@ async def auth_headers(auth_token):
     return {"Authorization": f"Bearer {auth_token}"}
 
 
-def _insert_whitelist(db_session, customer_id, static_balance):
+def _insert_whitelist(db_session, customer_id, static_balance, remark=None):
     """插入白名单记录，返回 id"""
     return db_session.execute(
         text("""
-            INSERT INTO balance_whitelists (customer_id, static_balance, created_at, updated_at)
-            VALUES (:cid, :sb, NOW(), NOW())
+            INSERT INTO balance_whitelists (customer_id, static_balance, remark, created_at, updated_at)
+            VALUES (:cid, :sb, :remark, NOW(), NOW())
             RETURNING id
         """),
-        {"cid": customer_id, "sb": static_balance},
+        {"cid": customer_id, "sb": static_balance, "remark": remark},
     ).scalar()
 
 
@@ -94,6 +94,7 @@ class TestListBalanceWhitelist:
         assert item["customer_name"] == "白名单客户A"
         assert item["erp_system"] == "erp_cloud"
         assert item["static_balance"] == 1000.0
+        assert item["remark"] is None
 
     @pytest.mark.asyncio
     async def test_keyword_filters(self, test_client, auth_headers, db_session):
@@ -459,6 +460,113 @@ class TestUpdateBalanceWhitelist:
             headers=auth_headers,
         )
         assert response.status == 400
+
+    @pytest.mark.asyncio
+    async def test_updates_remark(self, test_client, auth_headers, db_session):
+        """编辑时提交备注 → 响应与列表均返回该备注"""
+        cid = _insert_customer(db_session, company_id=5003, name="备注客户")
+        db_session.commit()
+        wid = _insert_whitelist(db_session, cid, 1000)
+        db_session.commit()
+
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1200, "remark": "临时调额至月底"},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+        assert response.json["data"]["remark"] == "临时调额至月底"
+
+        # 列表回读
+        _req, response = await test_client.get(
+            "/api/v1/balance-whitelists",
+            headers=auth_headers,
+        )
+        item = response.json["data"]["items"][0]
+        assert item["remark"] == "临时调额至月底"
+        assert item["static_balance"] == 1200.0
+
+    @pytest.mark.asyncio
+    async def test_remark_trimmed(self, test_client, auth_headers, db_session):
+        """备注首尾空白被去除后存储"""
+        cid = _insert_customer(db_session, company_id=5004, name="去空白客户")
+        db_session.commit()
+        wid = _insert_whitelist(db_session, cid, 1000)
+        db_session.commit()
+
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1000, "remark": "  有空格  "},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+        assert response.json["data"]["remark"] == "有空格"
+
+    @pytest.mark.asyncio
+    async def test_remark_cleared(self, test_client, auth_headers, db_session):
+        """备注传空串/None → 清空为 null"""
+        cid = _insert_customer(db_session, company_id=5005, name="清空备注客户")
+        db_session.commit()
+        wid = _insert_whitelist(db_session, cid, 1000, remark="原备注")
+        db_session.commit()
+
+        # 空串清空
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1000, "remark": "   "},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+        assert response.json["data"]["remark"] is None
+
+        # 先写回备注，再用 null 清空
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1000, "remark": "再写一条"},
+            headers=auth_headers,
+        )
+        assert response.json["data"]["remark"] == "再写一条"
+
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1000, "remark": None},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+        assert response.json["data"]["remark"] is None
+
+    @pytest.mark.asyncio
+    async def test_remark_absent_keeps_value(self, test_client, auth_headers, db_session):
+        """不传 remark 键 → 备注保持不变（向后兼容）"""
+        cid = _insert_customer(db_session, company_id=5006, name="保留备注客户")
+        db_session.commit()
+        wid = _insert_whitelist(db_session, cid, 1000, remark="既有备注")
+        db_session.commit()
+
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1500},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+        assert response.json["data"]["static_balance"] == 1500.0
+        assert response.json["data"]["remark"] == "既有备注"
+
+    @pytest.mark.asyncio
+    async def test_remark_too_long_rejected(self, test_client, auth_headers, db_session):
+        """备注超过 200 字符 → 400"""
+        cid = _insert_customer(db_session, company_id=5007, name="超长备注客户")
+        db_session.commit()
+        wid = _insert_whitelist(db_session, cid, 1000)
+        db_session.commit()
+
+        _req, response = await test_client.put(
+            f"/api/v1/balance-whitelists/{wid}",
+            json={"static_balance": 1000, "remark": "a" * 201},
+            headers=auth_headers,
+        )
+        assert response.status == 400
+        assert "200" in response.json["message"]
 
 
 class TestRemoveBalanceWhitelist:

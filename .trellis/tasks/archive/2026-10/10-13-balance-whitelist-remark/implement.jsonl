@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端开发规范总览（Sanic 蓝图/ORM/鉴权/错误码/质量门禁）"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLAlchemy async 模型与服务写法、软删除、迁移约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ErrorCodes 与 json 响应格式约定"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端开发规范总览（Vue3+Arco 组件/类型/API 层）"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "弹窗表单模式与 props/emit 约定"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "接口类型组织与 nullable 字段约定"}

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端测试/覆盖率/禁用模式检查"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端 type-check、API 层与错误处理检查"}
