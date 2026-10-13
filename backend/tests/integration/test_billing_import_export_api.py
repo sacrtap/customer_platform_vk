@@ -224,7 +224,270 @@ async def test_import_balances_from_downloaded_template(
     assert count == 1
 
 
+@pytest.mark.asyncio
+async def test_import_balances_accepts_export_file_columns(
+    test_client, auth_token, db_session, import_customer
+):
+    """余额导出文件（中文展示列）可直接回灌导入，不再报「缺少必填列」
+
+    回归防护 —— 导出列是中文展示名（客户ID/实充余额（元）/赠送余额（元）），
+    导入期待英文列；此前导出文件回灌报 40003「Excel 缺少必填列：company_id,
+    real_amount, bonus_amount」，用户误以为文件损坏。修复后列名自动归一，
+    按同一校验路径处理（快照金额按本次充值入账；0 元充值 2026-10-13 起允许导入）。
+    """
+    # 模拟 /billing/balances/export 的导出文件结构（中文列名）
+    body = _xlsx(
+        [
+            "客户ID",
+            "客户名称",
+            "行业",
+            "账号类型",
+            "结算方式",
+            "余额（元）",
+            "实充余额（元）",
+            "赠送余额（元）",
+            "已消耗（元）",
+            "最新充值时间",
+            "预计可支撑天数",
+            "日均消耗（元）",
+            "消耗天数",
+        ],
+        [
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                150,
+                100,
+                50,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+            [
+                999999999,
+                "不存在的客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+            # 余额为 0 的快照行：列名可识别；0 元充值允许导入（2026-10-13 起）
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+            # 负实充快照行（后付费应收余额场景）：负金额允许导入（2026-10-13 起），
+            # 按充值记录入账并扣减余额
+            [
+                import_customer["company_id"],
+                "测试客户",
+                "项目",
+                "正式账号",
+                "prepaid",
+                -40,
+                -50,
+                10,
+                0,
+                None,
+                None,
+                None,
+                0,
+            ],
+        ],
+    )
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+
+    # 列级错误消失：不再报「缺少必填列」，进入行级校验
+    assert response.status == 200
+    assert response.json["code"] == 0
+    data = response.json["data"]
+    # 有效行 3（0 元、正金额 2026-10-13 起均可导入）、不存在客户 1 行报错
+    assert data["success_count"] == 3, data
+    assert data["error_count"] == 1, data
+    assert any("客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
+
+    # 三行充值记录精确落库（含 0 元与负金额行）
+    records = db_session.execute(
+        text(
+            "SELECT real_amount, bonus_amount FROM recharge_records "
+            "WHERE customer_id = :cid ORDER BY id"
+        ),
+        {"cid": import_customer["id"]},
+    ).all()
+    assert [tuple(r) for r in records] == [
+        (100.0, 50.0),
+        (0.0, 0.0),
+        (-50.0, 10.0),
+    ], records
+
+    # 余额按三行累加：real 8000+100+0-50=8050、bonus 2000+50+0+10=2060
+    bal = db_session.execute(
+        text("SELECT real_amount, bonus_amount FROM customer_balances WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).one()
+    assert (bal[0], bal[1]) == (8050.0, 2060.0), bal
+
+
+@pytest.mark.asyncio
+async def test_import_balances_dry_run_preview(
+    test_client, auth_token, db_session, import_customer
+):
+    """余额导入预检查（dry_run=true）：完整行级校验但不落库
+
+    与客户导入预检查同模式：返回可入库条数与错误明细（含行号），
+    不生成充值记录、不写审计、不动缓存；确认后才真正导入。
+    """
+    body = _xlsx(
+        ["company_id", "real_amount", "bonus_amount", "remark"],
+        [
+            [import_customer["company_id"], 100.0, 50.0, "预检测试"],
+            [999999999, 10.0, 0.0, None],
+        ],
+    )
+
+    # 预检查：合法行 1、错误行 1，且不落库
+    _request, response = await test_client.post(
+        "/api/v1/billing/import?dry_run=true",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+
+    assert response.status == 200
+    assert response.json["code"] == 0
+    data = response.json["data"]
+    assert data["dry_run"] is True
+    assert data["success_count"] == 1, data
+    assert data["error_count"] == 1, data
+    assert data["errors"][0].startswith("第 3 行"), data["errors"]
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 0, f"预检查不应落库，实际 {count} 条"
+
+    # 正式导入：同样文件真实落库 1 条
+    _request, response = await test_client.post(
+        "/api/v1/billing/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(body),
+    )
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM recharge_records WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 1
+
+
 # ==================== 计费规则导入 / 导出 ====================
+
+
+@pytest.mark.asyncio
+async def test_import_pricing_rules_dry_run_preview(
+    test_client, auth_token, db_session, import_customer
+):
+    """计费规则导入预检查（dry_run=true）：完整行级校验但不落库
+
+    与余额/客户导入预检查同模式：返回可入库条数与错误明细（含行号），
+    不创建定价规则、不写审计、不动缓存；确认后才真正导入。
+    """
+    headers = [
+        "company_id",
+        "pricing_type",
+        "effective_date",
+        "device_type",
+        "layer_type",
+        "unit_price",
+    ]
+    notes = ["必填"] * 6
+    rows = [
+        # 合法行 + 未知客户行（避开其他测试的 2026-04-01 账期）
+        [import_customer["company_id"], "fixed", "2026-05-01", "X", "single", 12.5],
+        [999999999, "fixed", "2026-05-01", "X", "single", 12.5],
+    ]
+    try:
+        # 预检查：合法行 1、错误行 1，且不落库
+        _request, response = await test_client.post(
+            "/api/v1/billing/pricing-rules/import?dry_run=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        data = response.json["data"]
+        assert data["dry_run"] is True
+        assert data["success_count"] == 1, data
+        assert data["error_count"] == 1, data
+        # 带模板说明行（第 2 行）时非法行为 Excel 第 4 行：说明行被丢弃且行号仍
+        # 指向真实 Excel 行
+        assert data["errors"][0].startswith("第 4 行") and "不存在" in data["errors"][0]
+
+        count = db_session.execute(
+            text(
+                "SELECT COUNT(*) FROM pricing_rules "
+                "WHERE customer_id = :cid AND effective_date = '2026-05-01'"
+            ),
+            {"cid": import_customer["id"]},
+        ).scalar()
+        assert count == 0, f"预检查不应落库，实际 {count} 条"
+
+        # 正式导入：同样文件真实落库 1 条
+        _request, response = await test_client.post(
+            "/api/v1/billing/pricing-rules/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["data"]["success_count"] == 1
+
+        count = db_session.execute(
+            text(
+                "SELECT COUNT(*) FROM pricing_rules "
+                "WHERE customer_id = :cid AND effective_date = '2026-05-01'"
+            ),
+            {"cid": import_customer["id"]},
+        ).scalar()
+        assert count == 1
+    finally:
+        db_session.execute(
+            text(
+                "DELETE FROM pricing_rules WHERE customer_id = :cid AND effective_date = '2026-05-01'"
+            ),
+            {"cid": import_customer["id"]},
+        )
+        db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -734,6 +997,66 @@ async def test_import_package_plans_success(test_client, auth_token, db_session)
 
 
 @pytest.mark.asyncio
+async def test_import_package_plans_dry_run_preview(test_client, auth_token, db_session):
+    """包年套餐导入预检查（dry_run=true）：完整行级校验但不落库
+
+    与计费规则/余额/客户导入预检查同模式：返回可入库条数与错误明细（含行号），
+    不创建套餐、不写审计、不动缓存；确认后才真正导入。
+    """
+    suffix = uuid.uuid4().hex[:6].upper()
+    ptype = f"DRY{suffix}"
+    headers = ["name", "package_type", "base_fee", "is_unlimited"]
+    notes = ["必填"] * 4
+    rows = [
+        [f"预检查测试套餐_{suffix}", ptype, 30000.0, "是"],
+        [f"预检查非法套餐_{suffix}", f"DRYB{suffix}", -5.0, "是"],
+    ]
+    try:
+        # 预检查：合法行 1、错误行 1（负数基础费用），且不落库
+        _request, response = await test_client.post(
+            "/api/v1/billing/package-plans/import?dry_run=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        data = response.json["data"]
+        assert data["dry_run"] is True
+        assert data["success_count"] == 1, data
+        assert data["error_count"] == 1, data
+        # 带模板说明行（第 2 行）时非法行为 Excel 第 4 行：验证说明行被丢弃且
+        # 行号仍指向真实 Excel 行
+        assert data["errors"][0].startswith("第 4 行") and "负数" in data["errors"][0]
+
+        count = db_session.execute(
+            text("SELECT COUNT(*) FROM package_plans WHERE package_type IN (:pt, :pb)"),
+            {"pt": ptype, "pb": f"DRYB{suffix}"},
+        ).scalar()
+        assert count == 0, f"预检查不应落库，实际 {count} 条"
+
+        # 正式导入：同样文件真实落库 1 条
+        _request, response = await test_client.post(
+            "/api/v1/billing/package-plans/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["data"]["success_count"] == 1
+
+        count = db_session.execute(
+            text("SELECT COUNT(*) FROM package_plans WHERE package_type = :pt"),
+            {"pt": ptype},
+        ).scalar()
+        assert count == 1
+    finally:
+        db_session.execute(
+            text("DELETE FROM package_plans WHERE package_type IN (:pt, :pb)"),
+            {"pt": ptype, "pb": f"DRYB{suffix}"},
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_import_package_plans_duplicate_type(test_client, auth_token, db_session):
     """包年套餐导入：package_type 重复产生行级错误"""
     suffix = uuid.uuid4().hex[:6].upper()
@@ -1059,6 +1382,64 @@ async def test_import_invoices_success_as_draft(
     assert row[1] == "draft"
     assert row[2] is False
     assert row[0].startswith("INV-")
+
+
+@pytest.mark.asyncio
+async def test_import_invoices_dry_run_preview(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导入预检查（dry_run=true）：完整行级校验但不落库
+
+    与计费规则/套餐/余额/客户导入预检查同模式：返回可入库条数与错误明细（含行号），
+    不创建结算单、不写审计、不动缓存；确认后才真正导入。
+    """
+    suffix = uuid.uuid4().hex[:6].upper()
+    invoice_no = f"DRY-INV-{suffix}"
+    headers = ["invoice_no", "company_id", "period_start", "period_end", "total_amount"]
+    notes = ["必填"] * 5
+    rows = [
+        [invoice_no, import_customer["company_id"], "2026-05-01", "2026-05-31", 15800.5],
+        ["", 999999999, "2026-05-01", "2026-05-31", 100.0],
+    ]
+    try:
+        # 预检查：合法行 1、错误行 1（未知客户），且不落库
+        _request, response = await test_client.post(
+            "/api/v1/billing/invoices/import?dry_run=true",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        data = response.json["data"]
+        assert data["dry_run"] is True
+        assert data["success_count"] == 1, data
+        assert data["error_count"] == 1, data
+        # 带模板说明行（第 2 行）时非法行为 Excel 第 4 行：说明行被丢弃且行号仍
+        # 指向真实 Excel 行
+        assert data["errors"][0].startswith("第 4 行") and "不存在" in data["errors"][0]
+
+        count = db_session.execute(
+            text("SELECT COUNT(*) FROM invoices WHERE invoice_no = :no"),
+            {"no": invoice_no},
+        ).scalar()
+        assert count == 0, f"预检查不应落库，实际 {count} 条"
+
+        # 正式导入：同样文件真实落库 1 条
+        _request, response = await test_client.post(
+            "/api/v1/billing/invoices/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, notes)),
+        )
+        assert response.status == 200
+        assert response.json["data"]["success_count"] == 1
+
+        row = db_session.execute(
+            text("SELECT id, status FROM invoices WHERE invoice_no = :no"), {"no": invoice_no}
+        ).first()
+        assert row is not None and row[1] == "draft"
+    finally:
+        db_session.execute(text("DELETE FROM invoices WHERE invoice_no = :no"), {"no": invoice_no})
+        db_session.commit()
 
 
 @pytest.mark.asyncio

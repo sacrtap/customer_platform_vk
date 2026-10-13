@@ -2,15 +2,13 @@
   <a-modal
     v-model:visible="isVisible"
     title="批量导入充值"
-    :ok-text="loading ? '导入中...' : '开始导入'"
-    :confirm-loading="loading"
+    :footer="false"
     width="560px"
-    @before-ok="handleSubmit"
     @cancel="emit('update:visible', false)"
   >
     <div class="import-content">
       <a-alert type="info" style="margin-bottom: 20px">
-        请下载模板文件，填写后上传 Excel 文件进行导入
+        请选择文件进行导入：可下载模板填写充值数据，也可直接使用「余额导出」文件回灌充值
         <template #action
           ><a-button type="text" size="small" @click="downloadTemplate"
             >下载模板</a-button
@@ -83,14 +81,31 @@
       </div>
       <div v-if="result" class="import-result">
         <a-alert :type="result.error_count === 0 ? 'success' : 'warning'">
-          <template #title>导入结果</template>
+          <template #title>{{ previewed ? '预检查结果' : '导入结果' }}</template>
           <div>成功：{{ result.success_count }} 条，失败：{{ result.error_count }} 条</div>
+          <div v-if="previewed" class="preview-tip">
+            预检查仅提示问题，不会写入数据。确认无误后点击「确认导入」完成充值。
+          </div>
           <ul v-if="result.errors?.length" class="error-list">
             <li v-for="(err, i) in result.errors" :key="i">
-              第 {{ err.row }} 行：{{ err.message }}
+              {{ typeof err === 'string' ? err : `第 ${err.row} 行：${err.message}` }}
             </li>
           </ul>
         </a-alert>
+      </div>
+      <div class="import-actions">
+        <a-button :disabled="!file || importing" :loading="previewing" long @click="handlePreview">
+          预检查
+        </a-button>
+        <a-button
+          type="primary"
+          :disabled="!file || !previewed"
+          :loading="importing"
+          long
+          @click="handleSubmit"
+        >
+          确认导入
+        </a-button>
       </div>
     </div>
   </a-modal>
@@ -104,7 +119,8 @@ import { importBalances, downloadBalanceImportTemplate } from '@/api/billing'
 interface ImportResult {
   success_count: number
   error_count: number
-  errors?: { row: number; message: string }[]
+  dry_run?: boolean
+  errors?: (string | { row: number; message: string })[]
 }
 
 const props = defineProps<{ visible: boolean }>()
@@ -114,8 +130,18 @@ const isVisible = computed({ get: () => props.visible, set: (val) => emit('updat
 
 const fileInputRef = ref<HTMLInputElement>()
 const file = ref<File | null>(null)
-const loading = ref(false)
+const previewing = ref(false)
+const importing = ref(false)
+const previewed = ref(false)
 const result = ref<ImportResult | null>(null)
+
+const resetState = () => {
+  result.value = null
+  previewed.value = false
+  file.value = null
+  if (fileInputRef.value) fileInputRef.value.value = ''
+  isVisible.value = false
+}
 
 const triggerFileInput = () => fileInputRef.value?.click()
 const handleFileInputChange = (event: Event) => {
@@ -136,9 +162,12 @@ const validateAndSetFile = (f: File) => {
   }
   file.value = f
   result.value = null
+  previewed.value = false // 更换文件后需重新预检查
 }
 const removeFile = () => {
   file.value = null
+  result.value = null
+  previewed.value = false
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 const formatFileSize = (b: number) => {
@@ -159,25 +188,59 @@ const downloadTemplate = async () => {
   URL.revokeObjectURL(url)
 }
 
+// 第一步：预检查（dry_run=true，不落库），返回可入库条数与错误明细（含行号）
+const handlePreview = async () => {
+  if (!file.value) {
+    Message.warning('请选择要导入的文件')
+    return
+  }
+  previewing.value = true
+  try {
+    const res = await importBalances(file.value, true)
+    result.value = res.data as ImportResult
+    previewed.value = true
+    if (res.data.error_count === 0) {
+      Message.success(`预检查通过：可导入 ${res.data.success_count} 条`)
+    } else {
+      Message.warning({
+        content: `预检查完成：可导入 ${res.data.success_count} 条，错误 ${res.data.error_count} 条`,
+        duration: 5000,
+      })
+    }
+  } catch (error: unknown) {
+    Message.error((error as Error).message || '预检查失败')
+  } finally {
+    previewing.value = false
+  }
+}
+
+// 第二步：确认导入（正式落库，仅导入预检查通过的行）
 const handleSubmit = async () => {
   if (!file.value) {
     Message.warning('请选择要导入的文件')
     return false
   }
-  loading.value = true
+  importing.value = true
   try {
     const res = await importBalances(file.value)
-    result.value = res.data
+    result.value = res.data as ImportResult
+    previewed.value = false
     if (res.data.error_count === 0) {
       Message.success(`导入成功：${res.data.success_count} 条`)
       emit('success')
+      resetState()
+    } else {
+      Message.warning({
+        content: `导入完成：成功 ${res.data.success_count} 条，失败 ${res.data.error_count} 条`,
+        duration: 5000,
+      })
     }
     return res.data.error_count === 0
   } catch (error: unknown) {
     Message.error((error as Error).message || '导入失败')
     return false
   } finally {
-    loading.value = false
+    importing.value = false
   }
 }
 </script>
@@ -241,6 +304,19 @@ const handleSubmit = async () => {
 }
 .import-result {
   margin-top: 16px;
+}
+.preview-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.import-actions .arco-btn {
+  flex: 1;
 }
 .error-list {
   margin-top: 8px;

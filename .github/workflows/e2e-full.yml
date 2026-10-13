@@ -149,15 +149,20 @@ jobs:
       - name: Run full E2E test suite
         env:
           API_BASE_URL: http://localhost:8000
-          PLAYWRIGHT_WORKERS: ${{ inputs.workers }}
+          # schedule 事件没有 workflow_dispatch 的 inputs 上下文（inputs.workers 为空），
+          # 直接展开会得到 `--workers=` 空值，Playwright 报 "Workers must be a number"
+          # 导致整个测试 step 在启动阶段失败（2026-10-13 修复前 4 次定时任务全灭）。
+          # `|| '3'` 让手动触发用所选值、定时触发回退默认 3；skip_visual 同理回退 true
+          # （定时任务默认跳过视觉回归，与 workflow 头注释语义一致）。
+          PLAYWRIGHT_WORKERS: ${{ inputs.workers || '3' }}
         run: |
           cd frontend
-          if [ "${{ inputs.skip_visual }}" = "true" ]; then
-            echo "🚀 Running E2E tests (excluding visual regression) with ${{ inputs.workers }} workers"
-            npx playwright test --project=chromium --workers=${{ inputs.workers }} --grep-invert="视觉回归" --reporter=list,html
+          if [ "${{ inputs.skip_visual || 'true' }}" = "true" ]; then
+            echo "🚀 Running E2E tests (excluding visual regression) with $PLAYWRIGHT_WORKERS workers"
+            npx playwright test --project=chromium --workers="$PLAYWRIGHT_WORKERS" --grep-invert="视觉回归" --reporter=list,html
           else
-            echo "🚀 Running full E2E tests (including visual regression) with ${{ inputs.workers }} workers"
-            npx playwright test --project=chromium --workers=${{ inputs.workers }} --reporter=list,html
+            echo "🚀 Running full E2E tests (including visual regression) with $PLAYWRIGHT_WORKERS workers"
+            npx playwright test --project=chromium --workers="$PLAYWRIGHT_WORKERS" --reporter=list,html
           fi
 
       - name: Upload full E2E test report

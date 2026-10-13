@@ -56,7 +56,9 @@ test.describe('行业类型页面', () => {
     await expect(getVisibleModal(page).locator('.arco-modal-title')).toContainText('新增行业类型')
 
     // 填入行业名称
-    const nameInput = modal.locator('input').first()
+    // 弹窗首位是「ID（可选）」数字框（2026-09-29 dd2822c 新增），input.first()
+    // 会匹配到它导致名称填不进去；用 placeholder 精确定位名称输入框
+    const nameInput = modal.locator('input[placeholder="请输入行业类型名称"]')
     await expect(nameInput).toBeVisible()
     await nameInput.fill(`测试行业_${Date.now()}`)
 
@@ -90,8 +92,8 @@ test.describe('行业类型页面', () => {
     await expect(modal).toBeVisible({ timeout: 5000 })
     await expect(getVisibleModal(page).locator('.arco-modal-title')).toContainText('编辑行业类型')
 
-    // 验证弹窗预填了数据
-    const nameInput = modal.locator('input').first()
+    // 验证弹窗预填了数据（名称框；同 H03，须避开首位 ID 数字框）
+    const nameInput = modal.locator('input[placeholder="请输入行业类型名称"]')
     const prefilledValue = await nameInput.inputValue()
     expect(prefilledValue).toBeTruthy()
 

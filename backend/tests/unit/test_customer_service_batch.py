@@ -45,12 +45,16 @@ class MockDBSession(AsyncSession):
 
 
 def make_mock_execute_result(rows, scalar_value=None):
-    """创建 execute 返回结果"""
+    """创建 execute 返回结果
+
+    scalars().all() 用于合作状态字典查询（表驱动校验）；单元测试不构造状态
+    数据，返回空列表即可，避免复用 rows（元组无 .value 属性）导致崩溃。
+    """
     result = MagicMock()
     result.all = MagicMock(return_value=rows)
     result.scalar = MagicMock(return_value=scalar_value)
     result.scalar_one_or_none = MagicMock(return_value=rows[0] if rows else None)
-    result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
+    result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
     return result
 
 
@@ -240,8 +244,9 @@ async def test_single_bulk_query_not_n_plus_1(customer_service):
 
     await service.batch_create_customers(customers_data)
 
-    # execute 应该只被调用 1 次（批量查询现有 ID）
-    assert mock_db.execute.call_count == 1
+    # execute 应被调用 2 次：现有 ID 批量查询 + 合作状态字典查询（表驱动校验，
+    # 均非每行查询，不构成 N+1）
+    assert mock_db.execute.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -313,7 +318,8 @@ async def test_large_batch(customer_service):
 
     assert success_count == 150
     assert len(errors) == 0
-    assert mock_db.execute.call_count == 1
+    # 现有 ID 批量查询 + 合作状态字典查询（表驱动校验）
+    assert mock_db.execute.call_count == 2
 
 
 @pytest.mark.asyncio

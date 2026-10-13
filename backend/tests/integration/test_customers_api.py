@@ -611,7 +611,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     assert ws.title == "客户导入模板"
 
-    # 验证第 1 行：表头字段（25 个字段）
+    # 验证第 1 行：表头字段（26 个字段）
     headers = [cell.value for cell in ws[1]]
     expected_headers = [
         "company_id",
@@ -624,6 +624,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "settlement_type",
         "settlement_cycle",
         "is_key_customer",
+        "is_real_estate",
         "email",
         "erp_system",
         "first_payment_date",
@@ -660,17 +661,19 @@ async def test_download_import_template_field_structure(test_client, auth_header
     assert example[3] == "李四"  # sales_manager 示例
     assert example[6] == "定价"  # price_policy 示例
     assert example[7] == "prepaid"  # settlement_type 示例
-    assert "example@" in str(example[10])  # email 示例
+    assert example[9] == "true"  # is_key_customer 示例
+    assert example[10] == "false"  # is_real_estate 示例
+    assert "example@" in str(example[11])  # email 示例
     # 验证新增字段
-    assert example[12] == "2024-01-15"  # first_payment_date
-    assert example[14] == "active"  # cooperation_status
-    assert example[19] == "C"  # scale_level
-    assert example[20] == "C2"  # consume_level
+    assert example[13] == "2024-01-15"  # first_payment_date
+    assert example[15] == "active"  # cooperation_status
+    assert example[20] == "C"  # scale_level
+    assert example[21] == "C2"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 25 个字段（含 manager/sales_manager 经理列）"""
+    """测试下载导入模板 - 验证表头数量为 26 个字段（含 manager/sales_manager 经理列与 is_real_estate）"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -684,7 +687,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 25, f"期望 25 个表头，实际 {header_count} 个"
+    assert header_count == 26, f"期望 26 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -1307,7 +1310,7 @@ async def test_import_customers_unknown_industry_reports_error(
 async def test_import_customers_full_fields_persist(test_client, auth_headers, db_session):
     """测试导入 - 导出文件所列字段须完整落库
 
-    回归防护 —— 导入模板与导出同构（23 列），以下字段此前在批量导入链路
+    回归防护 —— 导入模板与导出同构（26 列），以下字段此前在批量导入链路
     被静默丢弃或错误存储：
     - auto_initiate_settlement（模板缺列 + 服务不处理）→ 应转布尔入库
     - scale_level（profile_fields 缺该键）→ 应写 customer_profiles.scale_level
@@ -1337,6 +1340,7 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
             "settlement_type",
             "settlement_cycle",
             "is_key_customer",
+            "is_real_estate",
             "email",
             "erp_system",
             "first_payment_date",
@@ -1365,6 +1369,7 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
             "预付费",
             "月结",
             "是",
+            "是",
             "full_a@example.com",
             "易遨",
             "2024-01-15",
@@ -1391,6 +1396,7 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
             None,
             "后付费",
             None,
+            "否",
             "否",
             None,
             None,
@@ -1419,6 +1425,7 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
             None,
             "预付费",
             None,
+            "否",
             "否",
             None,
             None,
@@ -1486,6 +1493,17 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
         assert auto_map[1000060] is True, auto_map
         assert auto_map[1000061] is False, auto_map
 
+        # is_real_estate 转布尔入库（是/否 → True/False）
+        re_rows = db_session.execute(
+            text(
+                "SELECT company_id, is_real_estate FROM customers "
+                "WHERE company_id IN (1000060, 1000061)"
+            )
+        ).all()
+        re_map = {cid: v for cid, v in re_rows}
+        assert re_map[1000060] is True, re_map
+        assert re_map[1000061] is False, re_map
+
         # scale_level 写入 customer_profiles
         sl_rows = db_session.execute(
             text(
@@ -1508,6 +1526,91 @@ async def test_import_customers_full_fields_persist(test_client, auth_headers, d
             text("DELETE FROM customers WHERE company_id >= 1000060 AND company_id < 1000070")
         )
         db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_accepts_db_driven_cooperation_status(
+    test_client, auth_headers, db_session
+):
+    """测试导入 - 合作状态实时取字典表：页面新增的枚举值可正常导入
+
+    回归防护 —— 此前 batch_create_customers 硬编码 active/suspended/terminated/noused，
+    「合作状态」页面新增枚举（如 bding/拓展中）后导入仍报「无效的合作状态」；
+    修复后预检查/入库与 cooperation_statuses 表实时对齐（value 直接匹配 +
+    中文 name 映射）。
+    """
+    from openpyxl import Workbook
+
+    # 模拟「合作状态」页面新增的枚举值
+    db_session.execute(
+        text(
+            "INSERT INTO cooperation_statuses (name, value, sort_order, created_at, updated_at) "
+            "VALUES ('拓展中', 'bding', 0, NOW(), NOW()) "
+            "ON CONFLICT (value) DO NOTHING"
+        )
+    )
+    db_session.commit()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["company_id", "name", "cooperation_status"])
+    # 英文 value 直接匹配
+    ws.append([1000070, "表驱动状态客户", "bding"])
+    # 中文 name 映射为 value
+    ws.append([1000071, "中文名状态客户", "拓展中"])
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    files = {
+        "file": (
+            "test_db_status.xlsx",
+            output.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    # 预检查：两行均通过
+    request, response = await test_client.post(
+        "/api/v1/customers/import?dry_run=true",
+        headers=auth_headers,
+        files=files,
+    )
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 0, data["data"]
+
+    # 正式导入：两行均落库，中文名归一为英文 value
+    request, response = await test_client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers,
+        files=files,
+    )
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["data"]["success_count"] == 2, data["data"]
+    assert data["data"]["error_count"] == 0, data["data"]
+
+    try:
+        rows = db_session.execute(
+            text(
+                "SELECT company_id, cooperation_status FROM customers "
+                "WHERE company_id IN (1000070, 1000071)"
+            )
+        ).all()
+        status_map = {cid: s for cid, s in rows}
+        assert status_map[1000070] == "bding", status_map
+        assert status_map[1000071] == "bding", status_map
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id >= 1000070 AND company_id < 1000080")
+        )
+        db_session.execute(text("DELETE FROM cooperation_statuses WHERE value = 'bding'"))
         db_session.commit()
 
 
@@ -1638,6 +1741,7 @@ async def test_export_customers_field_consistency(test_client, auth_headers, cus
         "settlement_type",
         "settlement_cycle",
         "is_key_customer",
+        "is_real_estate",
         "email",
         "erp_system",
         "first_payment_date",

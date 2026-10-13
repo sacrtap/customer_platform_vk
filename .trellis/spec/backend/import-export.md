@@ -58,7 +58,7 @@ GET  /api/v1/billing/invoices/import-template
 |---|---|
 | 方法 | `POST`，`multipart/form-data`，字段名 `file` |
 | 文件类型 | 仅 `.xlsx` |
-| 行数上限 | ≤ 1000 行（与余额导入先例一致，超限返回 `40004`；**客户导入例外**：无后端强制，仅前端提示「单次建议不超过 1000 条」，2026-09-29 核验确认，避免阻断全量导出回灌） |
+| 行数上限 | **余额充值导入 ≤ 2000 行**（2026-10-13 提高：余额导出回灌可达 1274 行，1000 会拦截真实工作流；超限返回 `40004`）；计费规则/套餐/结算单 ≤ 1000 行；客户导入无后端强制，仅前端提示「单次建议不超过 1000 条」，避免阻断全量导出回灌 |
 | 数据行起点 | 模板第 3 行（第 1 行英文列名、第 2 行中文说明、第 3 行示例） |
 
 ### 导入响应（`data`）
@@ -74,6 +74,27 @@ GET  /api/v1/billing/invoices/import-template
 - `errors` 最多返回 10 条（`errors[:10]`），完整错误仅落日志/审计
 - **行级错误不阻塞其他行**：逐行 try/except，成功行照常提交
 - 导入必须写审计：`create_audit_entry(module="billing", action="batch_create", operation_type="batch")`
+
+### 预检查（dry_run，二次确认契约）
+
+`POST /import?dry_run=true`：**5 个导入端点全覆盖**（客户/余额/计费规则/套餐/结算单；
+2026-10-13 余额、计费规则、套餐、结算单依次补齐，与客户导入同模式）——**完整行级
+校验但不落库**，返回：
+
+```json
+{ "code": 0, "message": "预检查完成",
+  "data": { "dry_run": true, "success_count": 2, "error_count": 1,
+            "errors": ["第 3 行：…", ...] } }
+```
+
+- **dry_run 分支必须先于 `valid_rows` 空分支判断**：全部行有错误时也应返回
+  「预检查完成」而非「导入完成」（2026-10-13 踩坑修正）
+- 预检查返回 `errors[:50]`（足够确认）；真实导入仍 `errors[:10]`
+- 套餐/结算单 dry_run 在循环内**同样维护判重集合**（`existing_types` /
+  `existing_invoice_nos`），保证预检查与真实导入的去重结果一致
+- dry_run 分支先于 commit/缓存失效/审计——**请求不产生任何副作用**
+- 不写库、不写审计、不动缓存；前端两步流程：上传 → **预检查** → 展示
+  「可导入 N 条 / 错误 M 条 + 行号明细」→ **确认导入** 才真正落库
 
 ### 模板结构（生成规则）
 
@@ -92,18 +113,21 @@ GET  /api/v1/billing/invoices/import-template
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
-### 客户导入/导出字段对称（25 列，禁止单侧增删）
+### 客户导入/导出字段对称（26 列，禁止单侧增删）
 
 `customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
 （2026-09-29 起强制；此前模板缺 `auto_initiate_settlement` 导致导出回灌时该列与
-`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25）：
+`scale_level` 静默丢失；2026-09-30 追加运营/销售经理列 23→25；**2026-10-13 追加
+`is_real_estate`（房产客户）25→26**——此前模板/导出均缺该列，前端新增/编辑/筛选
+已支持但文件链路无法读写）：
 
 ```
 company_id, name, manager, sales_manager, account_type, industry, price_policy,
-settlement_type, settlement_cycle, is_key_customer, email, erp_system,
-first_payment_date, onboarding_date, cooperation_status, is_settlement_enabled,
-auto_initiate_settlement, is_disabled, notes, scale_level, consume_level,
-monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
+settlement_type, settlement_cycle, is_key_customer, is_real_estate, email,
+erp_system, first_payment_date, onboarding_date, cooperation_status,
+is_settlement_enabled, auto_initiate_settlement, is_disabled, notes, scale_level,
+consume_level, monthly_avg_shots, monthly_avg_shots_estimated,
+estimated_annual_spend, actual_annual_spend_2025
 ```
 
 导入侧转换规则（`CustomerService.batch_create_customers`，不得静默丢列）：
@@ -116,10 +140,15 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 | `price_policy` | 中文「定价/阶梯/包年」→ 英文 `pricing/tiered/yearly` |
 | `settlement_type` | 中文「预付费/后付费」→ 英文 `prepaid/postpaid`（`convert_settlement_type_to_storage`） |
 | `settlement_cycle` | 中文「日结/周结/月结/季结/年结」→ 英文 `daily/weekly/monthly/quarterly/yearly` |
-| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
-| `cooperation_status` | 白名单 `active/suspended/terminated/noused` + 中文映射；未知值 → 行级错误（不静默置空） |
+| `is_key_customer` / `is_settlement_enabled` / `auto_initiate_settlement` / `is_disabled` / `is_real_estate` | 「是/否」/`true/false` → 布尔；`convert_bool_field` |
+| `cooperation_status` | **实时取 `cooperation_statuses` 字典表**（`deleted_at IS NULL`，与「合作状态」管理页面同源）：`value` 直接匹配 + `name` 中文映射；均不命中 → 行级错误（不静默置空）。**禁止硬编码白名单**——页面可增删改枚举，硬编码会让导入与页面脱节（2026-10-13：页面新增 `bding/拓展中` 后校验仍报「无效的合作状态」） |
 | `scale_level` / `consume_level` | 写入 `customer_profiles`（`scale_level` 必须进 profile_fields） |
 | `first_payment_date` / `onboarding_date` | 统一 `parse_date_to_object`（date 对象，非字符串） |
+
+**字典驱动字段（2026-10-13 起）**：`cooperation_status` 的有效值集**实时查询
+`cooperation_statuses` 表**（过滤软删，与「合作状态」页面同源），禁止在服务层硬编码
+白名单——该表由页面动态增删改，「页面有但校验不认」即契约脱节。模板第 2 行提示
+与错误信息里的可选值均由同一查询动态生成，保持与页面一致。
 
 导出侧（`GET /customers/export`）：`manager` / `sales_manager` 列输出 user 的
 `real_name`（空则 `username`）——与导入侧解析**互逆**，导出文件可直接回灌导入。
@@ -159,14 +188,18 @@ monthly_avg_shots, monthly_avg_shots_estimated, estimated_annual_spend, actual_a
 
 | 端点 | 导出列 | 模板列 | 性质 | 回灌 | 结论 |
 |---|---|---|---|---|---|
-| 客户 customers | 23 列（含 auto_initiate_settlement） | 23 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement） |
-| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip` |
+| 客户 customers | 26 列（含 auto_initiate_settlement、is_real_estate） | 26 列 | 实体型 | ✅ 可行 | 已修复（模板缺列/服务丢 scale_level、auto_initiate_settlement；2026-10-13 补 is_real_estate 三处） |
+| 计费规则 pricing-rules | 13 列（⊇ 模板，多 id/customer_name） | 11 列 | 实体型 | ✅ 可行 | 已核验，有回灌测试 `test_export_pricing_rules_date_round_trip`；**2026-10-13 用户 228 行导出文件回灌 dry_run 全过（success 228 / error 0）** |
 | 包年套餐 package-plans | 13 列（⊇ 模板，多 id/created_at/updated_at） | 10 列 | 实体型 | ✅ 可行 | 已补回灌测试 `test_export_package_plans_reimport_round_trip` |
-| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ❌ 语义不成立 | 模板==解析（4 键全消费），导出为列表快照，非同一实体回灌非预期 |
+| 余额 recharge | 13 列中文快照（查询视图） | 4 列（充值操作） | 操作型 | ✅ 列别名软回灌 | 模板==解析（4 键全消费）；**2026-10-13 起导出文件列名自动归一**（客户ID/实充余额（元）/赠送余额（元）→ company_id/real_amount/bonus_amount），快照按充值入账；0 元与负金额（后付费应收）均允许导入 |
 | 结算单 invoices | 9 列中文快照 | 6 列（受控 draft） | 操作型 | ❌ 语义不成立 | 模板==解析（6 键全消费），导出含状态/客户名等受控字段 |
 
-操作型端点（余额/结算单）**不强制导出回灌**——导入是补录动作、导出是查询视图，列集合天然不同；
-实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**，导出文件即最佳导入夹具。
+操作型端点（余额/结算单）**默认不强制导出回灌**——导入是补录动作、导出是查询视图，
+列集合天然不同；实体型端点（客户/计费规则/套餐）**必须导出⊇模板且可回灌**。
+**余额导入例外（2026-10-13 起）**：提供**列别名软回灌**——导出文件可直接上传，
+中文展示列自动映射英文存储列（不再报「缺少必填列」），快照金额按本次充值入账
+（0 元与负金额均允许导入，用于批量初始化/迁移与后付费应收余额快照；负值按充值
+记录入账并扣减余额）——语义仍是充值，不把快照当余额覆盖。
 
 ### 枚举转换函数方向契约（`backend/app/services/customers.py`）
 

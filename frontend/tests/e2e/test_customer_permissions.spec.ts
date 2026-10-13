@@ -145,7 +145,9 @@ test.describe('客户管理权限控制', () => {
   })
 
   test('4. Super Admin 可见导入按钮', async ({ page }) => {
-    const importBtn = page.locator('button:has-text("导入")')
+    // 精确匹配页面工具栏「导入客户」按钮：两步导入弹窗内还有「确认导入」按钮，
+    // 宽泛的 has-text("导入") 会同时命中二者触发 strict mode violation
+    const importBtn = page.getByRole('button', { name: '导入客户' })
     const importVisible = await importBtn.isVisible({ timeout: 5000 })
     expect(importVisible).toBeTruthy()
 

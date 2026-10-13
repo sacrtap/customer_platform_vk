@@ -555,6 +555,11 @@ async def import_package_plans(request: Request):
 
         db_session: AsyncSession = request.ctx.db_session
 
+        # 预检查（dry_run=true）：完整行级校验但不落库、不写审计/缓存，返回可入库
+        # 条数与错误明细（含行号），供前端二次确认后才真正导入（与计费规则/余额/
+        # 客户导入预检查同模式）。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
+
         # 预加载已存在的 package_type（含软删除过滤）
         existing_rows = await db_session.execute(
             select(PackagePlan.package_type).where(PackagePlan.deleted_at.is_(None))
@@ -700,15 +705,34 @@ async def import_package_plans(request: Request):
                     description=description,
                     status=status,
                 )
-                # SAVEPOINT 隔离：flush 失败只回滚该行，外层事务与已成功行不受影响
-                async with db_session.begin_nested():
-                    db_session.add(plan)
-                    await db_session.flush()
+                # 预检查模式：校验完成即计成功，不落库
+                if not dry_run:
+                    # SAVEPOINT 隔离：flush 失败只回滚该行，外层事务与已成功行不受影响
+                    async with db_session.begin_nested():
+                        db_session.add(plan)
+                        await db_session.flush()
+                # 预检查也维护已见类型集合，保证与真实导入的去重结果一致
                 existing_types.add(package_type)
                 success_count += 1
             except Exception as e:  # 兜底，避免单行异常中断整个导入
                 logger.warning("包年套餐导入第 %d 行失败: %s", row_num, e)
                 errors.append(f"第 {row_num} 行：{str(e)}")
+
+        # 预检查：返回校验结果，不落库、不写审计、不动缓存。
+        # 必须先于 commit/缓存失效/审计：dry_run 请求不应产生任何副作用。
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": success_count,
+                        "error_count": len(errors),
+                        "errors": errors[:50],
+                    },
+                }
+            )
 
         await db_session.commit()
 

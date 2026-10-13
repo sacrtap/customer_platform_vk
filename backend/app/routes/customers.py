@@ -1178,6 +1178,7 @@ async def download_import_template(request: Request):
         "settlement_type",
         "settlement_cycle",
         "is_key_customer",
+        "is_real_estate",
         "email",
         "erp_system",
         "first_payment_date",
@@ -1197,6 +1198,17 @@ async def download_import_template(request: Request):
     ws.append(headers)  # pyright: ignore[reportOptionalMemberAccess]
 
     # 添加中文说明行（不作为数据行，仅提示用户）
+    # 合作状态提示实时取自 cooperation_statuses 表（与「合作状态」页面可配置值
+    # 保持一致，避免模板提示与页面新增/编辑的枚举脱节）
+    from ..models.cooperation_status import CooperationStatus
+
+    db_session: AsyncSession = request.ctx.db_session
+    status_result = await db_session.execute(
+        select(CooperationStatus).where(CooperationStatus.deleted_at.is_(None))
+    )
+    cooperation_status_hint = ", ".join(
+        f"{cs.value}={cs.name}" for cs in status_result.scalars().all()
+    )
     notes = [
         "必填：唯一整数",
         "必填：客户名称",
@@ -1208,11 +1220,12 @@ async def download_import_template(request: Request):
         "可选：prepaid=预付费, postpaid=后付费",
         "可选：daily=日结, weekly=周结, monthly=月结, quarterly=季结, yearly=年结",
         "可选：true/false",
+        "可选：true/false（是否房产客户）",
         "可选：邮箱地址",
         "可选：所属 ERP 系统",
         "可选：YYYY-MM-DD 格式",
         "可选：YYYY-MM-DD 格式",
-        "可选：active=合作中, suspended=暂停, terminated=终止, noused=近一年未使用",
+        f"可选：{cooperation_status_hint}",
         "可选：true/false",
         "可选：true/false",
         "可选：true/false",
@@ -1242,6 +1255,7 @@ async def download_import_template(request: Request):
         "prepaid",
         "monthly",
         "true",
+        "false",
         "example@company.com",
         "易遨",
         "2024-01-15",
@@ -1403,6 +1417,9 @@ async def export_customers(request: Request):
                 "settlement_type": convert_settlement_type_to_display(c.settlement_type),  # pyright: ignore[reportArgumentType]
                 "settlement_cycle": convert_settlement_cycle_to_display(c.settlement_cycle),  # pyright: ignore[reportArgumentType]
                 "is_key_customer": "是" if c.is_key_customer else "否",  # pyright: ignore[reportGeneralTypeIssues]
+                "is_real_estate": ("是" if c.is_real_estate else "否")  # pyright: ignore[reportGeneralTypeIssues]
+                if c.is_real_estate is not None
+                else None,
                 "email": c.email,
                 # === 扩展字段（13个） ===
                 "erp_system": c.erp_system,

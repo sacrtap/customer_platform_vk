@@ -307,6 +307,21 @@ def db_session(sync_test_engine, test_user):
     SessionLocal = sessionmaker(bind=sync_test_engine, class_=Session, expire_on_commit=False)
     session = SessionLocal()
     try:
+        # 恢复系统字典预置数据：合作状态（与生产迁移 g6b7c8d9e0f1 预置一致）。
+        # 客户导入预检查实时查询 cooperation_statuses 表（表驱动校验），
+        # 测试库无预置会把 active/noused 等合法值误报「无效的合作状态」。
+        session.execute(
+            text("""
+            INSERT INTO cooperation_statuses (name, value, sort_order, created_at, updated_at)
+            VALUES
+                ('合作中', 'active', 1, NOW(), NOW()),
+                ('暂停', 'suspended', 2, NOW(), NOW()),
+                ('终止', 'terminated', 3, NOW(), NOW()),
+                ('近一年未使用', 'noused', 4, NOW(), NOW())
+            ON CONFLICT (value) DO NOTHING
+            """)
+        )
+        session.commit()
         yield session
     finally:
         # 测试后清理业务数据（保留 auth 数据）。

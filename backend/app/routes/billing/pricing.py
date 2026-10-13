@@ -491,6 +491,11 @@ async def import_pricing_rules(request: Request):
 
         db_session: AsyncSession = request.ctx.db_session
 
+        # 预检查（dry_run=true）：完整行级校验但不落库、不写审计/缓存，返回可入库
+        # 条数与错误明细（含行号），供前端二次确认后才真正导入（与客户/余额导入
+        # 预检查同模式）。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
+
         # 预加载所有客户 company_id -> customer_id 映射（排除软删除客户：
         # 软删除客户已不可在页面选择，导入若仍可命中会为其创建规则，导出后也无法回灌）
         # 数据可见性（服务端强制）：无 customers:view_all 时仅可导入自己负责客户的规则
@@ -707,7 +712,9 @@ async def import_pricing_rules(request: Request):
                     "created_by": operator_id,
                 }
 
-                await pricing_service.create_pricing_rule(rule_data)
+                # 预检查模式：校验完成即计成功，不落库
+                if not dry_run:
+                    await pricing_service.create_pricing_rule(rule_data)
                 success_count += 1
             except ValueError as e:
                 # create_pricing_rule 内部逐行 commit，失败行的工作本就未落库；
@@ -721,6 +728,22 @@ async def import_pricing_rules(request: Request):
                 # 通用异常只记录日志，不回传 str(e)：DB 约束名/驱动报错可能泄露内部信息到前端
                 logger.warning("计费规则导入第 %d 行失败: %s", row_num, e)
                 errors.append(f"第 {row_num} 行：导入失败，请检查该行数据")
+
+        # 预检查：返回校验结果，不落库、不写审计、不动缓存。
+        # 必须先于缓存失效/审计：dry_run 请求不应产生任何副作用。
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": success_count,
+                        "error_count": len(errors),
+                        "errors": errors[:50],
+                    },
+                }
+            )
 
         # 清除计费规则相关缓存
         await cache_service.invalidate_billing_cache()

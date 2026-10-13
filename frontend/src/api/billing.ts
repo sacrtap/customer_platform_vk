@@ -554,8 +554,8 @@ export function getBalanceTrend(customerId: number, months: number = 6) {
 
 // ==================== 余额导入 ====================
 
-export function importBalances(file: File) {
-  return importFile('/billing/import', file)
+export function importBalances(file: File, dryRun = false) {
+  return importFile(`/billing/import${dryRun ? '?dry_run=true' : ''}`, file)
 }
 
 export function downloadBalanceImportTemplate() {
@@ -621,8 +621,8 @@ export function exportBalances(params?: BalanceQueryParams) {
 
 // ==================== 计费规则导入导出 ====================
 
-export function importPricingRules(file: File) {
-  return importFile('/billing/pricing-rules/import', file)
+export function importPricingRules(file: File, dryRun = false) {
+  return importFile(`/billing/pricing-rules/import${dryRun ? '?dry_run=true' : ''}`, file)
 }
 
 export function downloadPricingRuleTemplate() {
@@ -645,8 +645,8 @@ export function exportPricingRules(params?: {
 
 // ==================== 包年套餐导入导出 ====================
 
-export function importPackagePlans(file: File) {
-  return importFile('/billing/package-plans/import', file)
+export function importPackagePlans(file: File, dryRun = false) {
+  return importFile(`/billing/package-plans/import${dryRun ? '?dry_run=true' : ''}`, file)
 }
 
 export function downloadPackagePlanTemplate() {
@@ -667,8 +667,8 @@ export function exportPackagePlans(params?: {
 
 // ==================== 结算单导入 ====================
 
-export function importInvoices(file: File) {
-  return importFile('/billing/invoices/import', file)
+export function importInvoices(file: File, dryRun = false) {
+  return importFile(`/billing/invoices/import${dryRun ? '?dry_run=true' : ''}`, file)
 }
 
 export function downloadInvoiceTemplate() {

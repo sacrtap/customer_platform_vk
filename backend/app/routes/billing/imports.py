@@ -57,6 +57,19 @@ async def import_balance(request: Request):
         # 密集操作，10MB xlsx 解析可能阻塞事件循环数百毫秒到数秒，移到线程执行。
         df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "company_id")
 
+        # 兼容「余额导出」文件直接回灌：导出列是中文展示名（客户ID/实充余额（元）/
+        # 赠送余额（元）），导入期待英文存储列（company_id/real_amount/bonus_amount）。
+        # 统一别名后导出文件无需改写即可按同一校验路径处理（快照金额按本次充值入账；
+        # 无法对齐的展示列——客户名称/行业/结算方式等——不参与导入）。
+        df.rename(
+            columns={
+                "客户ID": "company_id",
+                "实充余额（元）": "real_amount",
+                "赠送余额（元）": "bonus_amount",
+            },
+            inplace=True,
+        )
+
         # 必填列检查
         required_columns = ["company_id", "real_amount", "bonus_amount"]
         missing_columns = [col for col in required_columns if col not in df.columns]
@@ -69,14 +82,19 @@ async def import_balance(request: Request):
                 status=400,
             )
 
-        # 行数限制
-        if len(df) > 1000:
+        # 行数限制（2026-10-13 提高至 2000：余额导出文件回灌可达 1274 行，
+        # 1000 上限会拦截真实工作流；其他导入端点仍为 1000）
+        if len(df) > 2000:
             return json(
-                {"code": 40004, "message": "单次最多导入 1000 条记录"},
+                {"code": 40004, "message": "单次最多导入 2000 条记录"},
                 status=400,
             )
 
         db_session: AsyncSession = request.ctx.db_session
+
+        # 预检查（dry_run=true）：完整行级校验但不落库，返回可入库条数与错误明细，
+        # 供前端二次确认后才真正导入（与客户导入预检查同模式）。
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
 
         # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户充值导入
         scope_user_id = await customer_scope_user_id(request)
@@ -128,40 +146,31 @@ async def import_balance(request: Request):
 
             customer_id = company_to_customer[company_id]
 
-            # 校验 real_amount
+            # 校验 real_amount（负金额允许导入：2026-10-13 起放开，用于后付费应收余额等
+            # 负快照回灌；负值按充值记录入账并扣减余额）
             real_amount = row.get("real_amount")
             if bool(pd.isna(real_amount)) or real_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 real_amount = 0
             else:
                 try:
                     real_amount = float(real_amount)  # pyright: ignore[reportArgumentType]
-                    if real_amount < 0:
-                        errors.append(f"第 {row_num} 行：实充金额不能为负数")
-                        continue
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：实充金额格式错误")
                     continue
 
-            # 校验 bonus_amount
+            # 校验 bonus_amount（负金额允许导入，2026-10-13 起，与实充口径一致）
             bonus_amount = row.get("bonus_amount")
             if bool(pd.isna(bonus_amount)) or bonus_amount is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 bonus_amount = 0
             else:
                 try:
                     bonus_amount = float(bonus_amount)  # pyright: ignore[reportArgumentType]
-                    if bonus_amount < 0:
-                        errors.append(f"第 {row_num} 行：赠送金额不能为负数")
-                        continue
                 except (ValueError, TypeError):
                     errors.append(f"第 {row_num} 行：赠送金额格式错误")
                     continue
 
-            # 校验实充+赠送不能同时为 0
-            if real_amount == 0 and bonus_amount == 0:
-                errors.append(f"第 {row_num} 行：实充金额和赠送金额不能同时为 0")
-                continue
-
-            # 备注
+            # 备注（0 元充值允许导入：2026-10-13 起取消「实充+赠送不能同时为 0」
+            # 限制，用于批量初始化/迁移场景；0 元行生成 0 元充值记录、余额不变）
             remark = row.get("remark")
             if bool(pd.isna(remark)) or remark is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
                 remark = None
@@ -174,6 +183,23 @@ async def import_balance(request: Request):
                     "real_amount": real_amount,
                     "bonus_amount": bonus_amount,
                     "remark": remark,
+                }
+            )
+
+        # 预检查（dry_run=true）：完整行级校验但不落库、不写审计/缓存，返回可入库条数
+        # 与错误明细（含行号），供前端二次确认后才真正导入（与客户导入预检查同模式）。
+        # 必须先于 valid_rows 空分支判断：预检查时全部行有错误也应返回「预检查完成」。
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": len(valid_rows),
+                        "error_count": len(errors),
+                        "errors": errors[:50],
+                    },
                 }
             )
 
