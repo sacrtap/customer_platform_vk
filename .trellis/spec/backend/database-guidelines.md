@@ -433,6 +433,12 @@ if pricing_result and pricing_result.tiers:
 > **关键区别于既有 spec**：第 2 步（写迁移）是必要不充分条件。本 bug 证明「有迁移文件」不等于
 > 「数据库已升级」——漏掉第 3 步时，**CI 全绿、单测全绿**，只有真实请求路径 500。
 
+> **复发记录（2026-10-13，同一类第二次）**：`balance_whitelists.remark`（迁移 `x3y4z5a6b7c8`）
+> 同样只写了迁移、未 `alembic upgrade head`，启动时报「运行库迁移版本落后」（`main.py` 启动校验）。
+> 两次的共同点：**改动者跑完测试（全绿）就认为完事**，因为没有任何一步要求「把迁移应用到运行库」。
+> 已把该步写入两处主动执行的清单：`.trellis/spec/backend/index.md` Quality Check 第 8 条、
+> `trellis-check` skill Step 3。核心口诀：**「写了迁移」≠「升了库」；测试全绿 ≠ 运行库已升级。**
+
 ### 为什么 CI 与单测都漏掉了它
 
 | 层 | 为何漏 | 佐证 |
