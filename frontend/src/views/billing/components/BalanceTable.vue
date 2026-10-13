@@ -52,14 +52,16 @@
             <!-- 余额燃尽列：油表进度条 + 剩余天数 -->
             <td>
               <span v-if="record.settlement_type === 'postpaid'" class="tag gray">后付费</span>
-              <div v-else class="burn-cell" :title="getBurnTooltip(record)">
-                <div class="burn-bar" :class="getBurnBarClass(record)">
-                  <div class="burn-fill" :style="{ width: getBurnFillPct(record) + '%' }"></div>
+              <a-tooltip v-else :content="getBurnTooltip(record)">
+                <div class="burn-cell">
+                  <div class="burn-bar" :class="getBurnBarClass(record)">
+                    <div class="burn-fill" :style="{ width: getBurnFillPct(record) + '%' }"></div>
+                  </div>
+                  <span class="burn-text" :class="getBurnTextClass(record)">
+                    {{ getBurnLabel(record) }}
+                  </span>
                 </div>
-                <span class="burn-text" :class="getBurnTextClass(record)">
-                  {{ getBurnLabel(record) }}
-                </span>
-              </div>
+              </a-tooltip>
             </td>
             <td>
               <div>
@@ -295,7 +297,7 @@ const getBurnTooltip = (record: Balance): string => {
       const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
       parts.push(`距上次充值 ${daysSince} 天`)
     }
-    return parts.join('；')
+    return parts.join('\n')
   }
 
   const parts: string[] = []
@@ -321,7 +323,7 @@ const getBurnTooltip = (record: Balance): string => {
   }
 
   parts.push('预测基于近 30 天日均消耗，实际扣款以结算单为准')
-  return parts.join('；')
+  return parts.join('\n')
 }
 </script>
 
@@ -542,7 +544,7 @@ const getBurnTooltip = (record: Balance): string => {
   background: #ef4444;
 }
 .burn-bar.no-data .burn-fill {
-  background: #cbd5e1;
+  background: #94a3b8;
 }
 .burn-bar.postpaid {
   display: none;
