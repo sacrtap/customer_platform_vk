@@ -295,6 +295,30 @@ admin.roles.append(super_admin_role)
 - Pre-commit hooks: ruff (lint), formatting check
 - Run tests: `cd backend && python -m pytest tests/ -v`
 
+### GitHub Actions 事件契约（schedule × workflow_dispatch）
+
+[来源: 2026-10-13 — Full E2E Suite 定时任务连续 4 次失败]
+
+同时支持 `schedule` 与 `workflow_dispatch` 的 workflow，**`inputs.*` 在 schedule 触发下
+为空字符串**（`inputs` 上下文只属于 `workflow_dispatch`；手动触发才填入所选值/默认值）。
+直接展开会得到 `--workers=` 空值，Playwright 启动即报
+`Workers must be a number or percentage`，测试从未运行（job 2-3 分钟即败，连 report
+都不生成）。
+
+引用 inputs 必须带回退默认：
+
+```yaml
+env:
+  PLAYWRIGHT_WORKERS: ${{ inputs.workers || '3' }}
+run: |
+  # run 内引用 shell 变量单一来源，避免多处内联展开漂移
+  npx playwright test --workers=$PLAYWRIGHT_WORKERS
+```
+
+排查信号：workflow 支持双事件、定时任务在分钟级失败且无测试输出、日志里命令参数
+展开为空——先怀疑 inputs 上下文缺失，而不是测试本身。手动 dispatch 有默认值，
+**无法复现**该问题，验证定时分支需靠表达式回退 + 推理。
+
 ### Affected tests（codegraph 依赖图补充）
 
 [来源: 2026-09-29 — PR 门禁 integration 引入 `codegraph affected` 补充]
