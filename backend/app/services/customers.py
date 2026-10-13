@@ -954,8 +954,11 @@ class CustomerService:
 
         from sqlalchemy import update as sa_update
 
+        from ..models.balance_whitelist import BalanceWhitelist
         from ..models.billing import CustomerBalance, Invoice
         from ..models.daily_consumption import DailyConsumption
+        from ..models.daily_order import DailyOrder
+        from ..models.tags import CustomerTag, ProfileTag
 
         customer.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -995,6 +998,48 @@ class CustomerService:
             .where(DailyConsumption.customer_id == customer_id)
             .values(deleted_at=func.now())
         )
+
+        # 级联软删除余额白名单记录
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(BalanceWhitelist)
+            .where(
+                BalanceWhitelist.customer_id == customer_id,
+                BalanceWhitelist.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
+
+        # 级联软删除每日订单原始数据
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(DailyOrder)
+            .where(
+                DailyOrder.customer_id == customer_id,
+                DailyOrder.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
+
+        # 级联软删除客户标签关联
+        await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+            sa_update(CustomerTag)
+            .where(
+                CustomerTag.customer_id == customer_id,
+                CustomerTag.deleted_at.is_(None),
+            )
+            .values(deleted_at=func.now())
+        )
+
+        # 级联软删除画像标签关联（经 profile_id，画像软删后标签关联一并隐藏）
+        profile = customer.profile
+        if profile is not None:
+            await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+                sa_update(ProfileTag)
+                .where(
+                    ProfileTag.profile_id == profile.id,
+                    ProfileTag.deleted_at.is_(None),
+                )
+                .values(deleted_at=func.now())
+            )
 
         await self.db.commit()  # pyright: ignore[reportGeneralTypeIssues]
 
