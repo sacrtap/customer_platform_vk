@@ -495,6 +495,120 @@ async def test_delete_customer_not_found(test_client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_delete_customer_cascades_related_data(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试删除客户 - 级联软删除全部关联数据
+
+    覆盖：余额 / 画像 / 结算单 / 日消耗 / 余额白名单 / 每日订单 / 客户标签 / 画像标签。
+    标签定义本身（tags 表）不应被删除。
+    """
+    customer_id = customer_data["customer_id"]
+
+    # 构造关联数据
+    db_session.execute(
+        text("""
+            INSERT INTO customer_balances
+                (customer_id, total_amount, real_amount, bonus_amount,
+                 used_total, used_real, used_bonus, created_at, updated_at)
+            VALUES (:cid, 1000, 1000, 0, 100, 100, 0, NOW(), NOW())
+        """),
+        {"cid": customer_id},
+    )
+    profile_id = db_session.execute(
+        text("""
+            INSERT INTO customer_profiles (customer_id, scale_level, consume_level, created_at)
+            VALUES (:cid, 'A', 'C1', NOW())
+            RETURNING id
+        """),
+        {"cid": customer_id},
+    ).scalar()
+    db_session.execute(
+        text("""
+            INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                total_amount, detail_file_status, created_at, updated_at)
+            VALUES ('INV-DEL-CASCADE-001', :cid, NOW(), NOW(), 100.00, 'pending', NOW(), NOW())
+        """),
+        {"cid": customer_id},
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO daily_consumptions (customer_id, consumption_date, device_type,
+                layer_type, created_at, updated_at)
+            VALUES (:cid, NOW(), 'X', 'T', NOW(), NOW())
+        """),
+        {"cid": customer_id},
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO balance_whitelists (customer_id, static_balance, remark, created_at, updated_at)
+            VALUES (:cid, 1000.00, '测试白名单', NOW(), NOW())
+        """),
+        {"cid": customer_id},
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO daily_orders (order_code, customer_id, create_date, sync_date, created_at, updated_at)
+            VALUES ('ORD-DEL-CASCADE-001', :cid, NOW(), NOW(), NOW(), NOW())
+        """),
+        {"cid": customer_id},
+    )
+    tag_id = db_session.execute(
+        text("""
+            INSERT INTO tags (name, type, created_at, updated_at)
+            VALUES ('删除级联标签', 'customer', NOW(), NOW())
+            RETURNING id
+        """),
+    ).scalar()
+    db_session.execute(
+        text("INSERT INTO customer_tags (customer_id, tag_id) VALUES (:cid, :tid)"),
+        {"cid": customer_id, "tid": tag_id},
+    )
+    db_session.execute(
+        text("INSERT INTO profile_tags (profile_id, tag_id) VALUES (:pid, :tid)"),
+        {"pid": profile_id, "tid": tag_id},
+    )
+    db_session.commit()
+
+    request, response = await test_client.delete(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+
+    assert response.status == 200
+    data = response.json
+    assert data["code"] == 0
+    assert data["message"] == "删除成功"
+
+    # 断言全部关联数据级联软删除（deleted_at 置位）
+    checks = [
+        ("customers", "id", customer_id),
+        ("customer_balances", "customer_id", customer_id),
+        ("customer_profiles", "customer_id", customer_id),
+        ("invoices", "customer_id", customer_id),
+        ("daily_consumptions", "customer_id", customer_id),
+        ("balance_whitelists", "customer_id", customer_id),
+        ("daily_orders", "customer_id", customer_id),
+        ("customer_tags", "customer_id", customer_id),
+        ("profile_tags", "profile_id", profile_id),
+    ]
+    for table, col, value in checks:
+        result = db_session.execute(
+            text(f"SELECT deleted_at FROM {table} WHERE {col} = :v"),
+            {"v": value},
+        )
+        deleted_at = result.scalar_one()
+        assert deleted_at is not None, f"{table} 未级联软删除（customer_id={customer_id}）"
+
+    # 标签定义本身不应被删除
+    tag_deleted = db_session.execute(
+        text("SELECT deleted_at FROM tags WHERE id = :tid"),
+        {"tid": tag_id},
+    ).scalar_one()
+    assert tag_deleted is None
+
+
+@pytest.mark.asyncio
 async def test_get_customer_profile_success(test_client, auth_headers, customer_data):
     """测试获取客户画像 - 成功场景"""
     customer_id = customer_data["customer_id"]

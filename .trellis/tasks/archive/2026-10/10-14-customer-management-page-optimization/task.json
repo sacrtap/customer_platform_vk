@@ -1,0 +1,30 @@
+{
+  "id": "customer-management-page-optimization",
+  "name": "customer-management-page-optimization",
+  "title": "客户管理页面优化",
+  "description": "优化客户管理页面：1) 编辑页消费等级显示金额范围(参考规模等级方案)；2) 增加删除客户功能及对应权限配置；3) 编辑页字段顺序调整(消费等级移到合作状态下方，首次回款时间/接入时间移到运营经理下方)",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "sacrtap",
+  "assignee": "sacrtap",
+  "createdAt": "2026-10-14",
+  "completedAt": "2026-10-14",
+  "branch": "customer-management-page-optimization",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-14-edit-form-field-order",
+    "10-14-customer-delete-and-permission",
+    "10-14-consumption-level-amount-range"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

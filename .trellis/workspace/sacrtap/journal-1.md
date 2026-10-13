@@ -890,3 +890,53 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 37: 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45）
+<!-- trellis-session: v=2 fp=9baeef6713709a98 -->
+
+**Date**: 2026-10-14
+**Task**: 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45）
+**Branch**: `main`
+
+### Summary
+
+优化余额管理页「余额燃尽」列显示效果：1) Hover tooltip 由原生 title 改为 Arco a-tooltip，支持 \n 多行明细（主题补 white-space:pre-line + font-size:12px），teleport 到 body 不受表格 overflow 裁剪，与客户管理页「30天消耗」列深色气泡效果一致；2) 无消耗状态满格灰条 #cbd5e1 → #94a3b8，修复真实数据（days_remaining 全为 null）下与轨道色对比度不足导致进度条几乎不可见的问题。验证：vitest 105 passed、vue-tsc 通过、prettier/eslint 通过、vite build 成功、Playwright 实测 tooltip 5 行完整不裁剪 + 8 种燃尽状态对比清晰。PR #45 已合并（f0aba2a），本地 main 已同步。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fcc0db7` | fix(balance-table): 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度 |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无
+
+
+## Session 38: 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序）
+<!-- trellis-session: v=2 fp=7cde9d40633a9fc5 -->
+
+**Date**: 2026-10-14
+**Task**: 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序）
+**Branch**: `customer-management-page-optimization`
+
+### Summary
+
+三子任务完成：1) 编辑页消费等级选项参考规模等级方案显示金额区间（C1（100万以上）~C6（6万以下）），选值不变；2) 客户列表操作列新增删除按钮（customers:delete 权限门控），后端 delete_customer 级联软删除补全 BalanceWhitelist/DailyOrder/CustomerTag/ProfileTag，新增 9 表级联集成测试；3) 编辑页字段顺序调整（消费等级→合作状态下方，首次回款/接入时间→运营经理下方）。验证：前端 type-check+lint、后端 ruff+pyright、customers 集成测试 63 通过、浏览器冒烟验证删除确认弹窗与字段顺序。spec 沉淀级联软删除经验。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1801e3a` | feat(customer-edit): 编辑页消费等级显示金额区间并调整字段顺序 |
+| `f99912e` | feat(customer-delete): 列表操作列删除按钮 + 删除级联软删除补全 |
+| `b5858b0` | docs(spec): 沉淀级联软删除经验（外键 CASCADE 不触发于软删除） |
+
+### Status
+
+[OK] **Completed**

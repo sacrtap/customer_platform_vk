@@ -161,6 +161,14 @@
               >
                 详情
               </button>
+              <button
+                v-if="can('customers:delete')"
+                class="btn btn-danger"
+                style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+                @click="emit('delete', record.id)"
+              >
+                删除
+              </button>
             </td>
           </tr>
           <tr v-if="customers.length === 0 && !loading">
@@ -753,6 +761,13 @@ const isRowWarning = (record: Customer) => {
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+.btn-danger {
+  color: #dc2626;
+}
+.btn-danger:hover {
+  border-color: #fca5a5;
+  background: #fef2f2;
 }
 
 /* 空状态 */

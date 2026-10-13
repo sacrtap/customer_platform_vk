@@ -505,6 +505,8 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)
+- ❌ **Soft-delete 主记录后以为物理外键 `ondelete="CASCADE"` 会自动清理关联表** — 外键 CASCADE 只在**物理删除主表行**时触发；软删除（置 `deleted_at`）不触发，所有关联表记录会变成孤儿数据。删除业务实体时必须显式级联软删全部关联表，并排查所有 `ForeignKey("xxx.id")` 引用该实体的表（如 `grep -rn "customer_id" models/`）
+- ❌ **删除实体时只删直接关联、漏掉经中间键的关联** — 如 `ProfileTag` 经 `profile_id` 关联客户画像，删除客户软删画像后 `profile_tags` 仍残留；删除时需先取中间键（如 `customer.profile.id`）再级联。删除关联表（`customer_tags`/`profile_tags`）≠ 删除定义表（`tags`），标签定义本身应保留
 - ❌ **Creating sessions with `async_session_maker()` in routes** — always use `request.ctx.db_session`
 - ❌ **Committing in routes without understanding service commit behavior** — some services commit internally (e.g., `CustomerService.create_customer`), some expect the caller to commit
 - ❌ **Forgetting to close sessions** — the middleware handles this; do not create sessions outside the middleware pattern

@@ -119,21 +119,21 @@
                   </a-option>
                 </a-select>
               </a-form-item>
+              <a-form-item field="consume_level" label="消费等级">
+                <a-select v-model="editForm.consume_level" placeholder="请选择" allow-clear>
+                  <a-option value="C1">C1（100万以上）</a-option>
+                  <a-option value="C2">C2（50万-100万）</a-option>
+                  <a-option value="C3">C3（25万-50万）</a-option>
+                  <a-option value="C4">C4（12万-25万）</a-option>
+                  <a-option value="C5">C5（6万-12万）</a-option>
+                  <a-option value="C6">C6（6万以下）</a-option>
+                </a-select>
+              </a-form-item>
               <a-form-item field="is_settlement_enabled" label="启用结算">
                 <a-switch v-model="editForm.is_settlement_enabled" />
               </a-form-item>
               <a-form-item field="auto_initiate_settlement" label="自动发起结算">
                 <a-switch v-model="editForm.auto_initiate_settlement" />
-              </a-form-item>
-              <a-form-item field="consume_level" label="消费等级">
-                <a-select v-model="editForm.consume_level" placeholder="请选择" allow-clear>
-                  <a-option value="C1">C1</a-option>
-                  <a-option value="C2">C2</a-option>
-                  <a-option value="C3">C3</a-option>
-                  <a-option value="C4">C4</a-option>
-                  <a-option value="C5">C5</a-option>
-                  <a-option value="C6">C6</a-option>
-                </a-select>
               </a-form-item>
             </div>
 
@@ -164,12 +164,6 @@
                   </a-option>
                 </a-select>
               </a-form-item>
-              <a-form-item field="is_key_customer" label="是否重点客户">
-                <a-switch v-model="editForm.is_key_customer" />
-              </a-form-item>
-              <a-form-item field="is_disabled" label="是否停用">
-                <a-switch v-model="editForm.is_disabled" />
-              </a-form-item>
               <a-form-item field="first_payment_date" label="首次回款时间">
                 <a-date-picker
                   v-model="editForm.first_payment_date"
@@ -187,6 +181,12 @@
                   allow-clear
                   value-format="YYYY-MM-DD"
                 />
+              </a-form-item>
+              <a-form-item field="is_key_customer" label="是否重点客户">
+                <a-switch v-model="editForm.is_key_customer" />
+              </a-form-item>
+              <a-form-item field="is_disabled" label="是否停用">
+                <a-switch v-model="editForm.is_disabled" />
               </a-form-item>
             </div>
 

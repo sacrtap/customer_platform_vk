@@ -385,16 +385,20 @@ class TestCustomerService_DeleteCustomer:
         assert result is True
         # 验证设置了 deleted_at
         assert existing_customer.deleted_at is not None
-        # 验证数据库操作：1 次查询客户 + 4 次级联软删 UPDATE（余额/画像/结算单/日消耗）
-        assert mock_db_session.execute.call_count == 5
+        # 验证数据库操作：1 次查询客户 + 7 次级联软删 UPDATE（余额/画像/结算单/日消耗/白名单/日订单/客户标签）
+        # 画像标签 UPDATE 有 profile 条件，本用例客户无 profile 故跳过
+        assert mock_db_session.execute.call_count == 8
         # 第一个调用是查询现有客户
         assert "SELECT" in str(mock_db_session.execute.call_args_list[0][0][0])
-        # 后续 4 个调用分别级联软删 4 张表
+        # 后续 7 个调用分别级联软删 7 张表
         update_sqls = [str(call[0][0]) for call in mock_db_session.execute.call_args_list[1:]]
         assert any("UPDATE customer_balances" in sql for sql in update_sqls)
         assert any("UPDATE customer_profiles" in sql for sql in update_sqls)
         assert any("UPDATE invoices" in sql for sql in update_sqls)
         assert any("UPDATE daily_consumptions" in sql for sql in update_sqls)
+        assert any("UPDATE balance_whitelists" in sql for sql in update_sqls)
+        assert any("UPDATE daily_orders" in sql for sql in update_sqls)
+        assert any("UPDATE customer_tags" in sql for sql in update_sqls)
         assert all("deleted_at" in sql for sql in update_sqls)
         mock_db_session.commit.assert_called_once()
 

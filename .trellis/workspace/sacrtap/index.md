@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 36
-- **Last Active**: 2026-10-13
+- **Total Sessions**: 38
+- **Last Active**: 2026-10-14
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~892 | Active |
+| `journal-1.md` | ~942 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,8 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 38 | 2026-10-14 | 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序） | `1801e3a`, `f99912e`, `b5858b0` | `customer-management-page-optimization` |
+| 37 | 2026-10-14 | 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45） | `fcc0db7` | `main` |
 | 36 | 2026-10-13 | 余额管理页第二排筛选项对齐客户管理页 | `060d970` | `feat/balance-filter-alignment` |
 | 35 | 2026-10-13 | 开放平台余额白名单（静态余额优先） | `5a0e4c0`, `d16dd30` | `feat/balance-whitelist` |
 | 34 | 2026-10-13 | Full E2E Suite 定时任务失败修复（workers 空值 + E2E 测试适配） | `89e24d6`, `f3ba2fe`, `48704d4`, `49d0762` | `fix/e2e-schedule-inputs` |
