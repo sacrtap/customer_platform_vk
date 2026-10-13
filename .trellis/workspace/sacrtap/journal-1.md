@@ -890,3 +890,29 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 37: 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45）
+<!-- trellis-session: v=2 fp=9baeef6713709a98 -->
+
+**Date**: 2026-10-14
+**Task**: 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45）
+**Branch**: `main`
+
+### Summary
+
+优化余额管理页「余额燃尽」列显示效果：1) Hover tooltip 由原生 title 改为 Arco a-tooltip，支持 \n 多行明细（主题补 white-space:pre-line + font-size:12px），teleport 到 body 不受表格 overflow 裁剪，与客户管理页「30天消耗」列深色气泡效果一致；2) 无消耗状态满格灰条 #cbd5e1 → #94a3b8，修复真实数据（days_remaining 全为 null）下与轨道色对比度不足导致进度条几乎不可见的问题。验证：vitest 105 passed、vue-tsc 通过、prettier/eslint 通过、vite build 成功、Playwright 实测 tooltip 5 行完整不裁剪 + 8 种燃尽状态对比清晰。PR #45 已合并（f0aba2a），本地 main 已同步。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fcc0db7` | fix(balance-table): 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度 |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 无
