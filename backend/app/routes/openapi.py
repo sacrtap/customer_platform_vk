@@ -14,6 +14,7 @@ from sqlalchemy.orm import outerjoin
 from ..constants import ErrorCodes
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer
+from ..services.balance_whitelist_service import BalanceWhitelistService
 
 openapi_bp = Blueprint("open_platform", url_prefix="/api/v1/erp")
 # 全量客户余额接口与 ERP 渠道域平级，使用独立蓝图（url_prefix=/api/v1）
@@ -28,9 +29,13 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
 
     LEFT JOIN 余额表，无余额记录的客户保留（balance 按 0 处理），
     按 company_id 升序，两个开放平台余额接口共用，保证口径一致。
+
+    第 1 列返回 Customer.id（DB 主键）供白名单按主键匹配；
+    响应中的 customer_id 仍取第 2 列 Customer.company_id（对外契约不变）。
     """
     stmt = (
         select(
+            Customer.id,
             Customer.company_id,
             Customer.name,
             CustomerBalance.total_amount,
@@ -50,14 +55,22 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
     return stmt
 
 
-def _format_balance_rows(rows) -> list[dict]:
-    """将余额查询结果格式化为统一响应结构"""
+def _format_balance_rows(rows, whitelist_map: dict[int, float] | None = None) -> list[dict]:
+    """将余额查询结果格式化为统一响应结构
+
+    - whitelist_map 为空：全部客户 balance = total_amount - used_total（计算余额）
+    - whitelist_map 非空：命中白名单（按 DB 主键 Customer.id）的客户
+      balance 直接取静态余额，其余维持计算余额
+    """
     data = []
     for row in rows:
-        company_id, name, total_amount, used_total = row
+        customer_pk, company_id, name, total_amount, used_total = row
         total = float(total_amount) if total_amount else 0.0
         used = float(used_total) if used_total else 0.0
         balance = round(total - used, 2)
+
+        if whitelist_map and customer_pk in whitelist_map:
+            balance = whitelist_map[customer_pk]
 
         data.append(
             {
@@ -110,14 +123,19 @@ async def get_all_customer_balances(request: Request):
     通过 API-Key 认证，返回全部有效客户（未删除、未停用，不限 ERP 渠道，
     含无 ERP / noerp 客户）的客户ID、名称和当前余额。
 
+    余额白名单客户（balance_whitelists 表中未软删记录）优先返回静态余额，
+    其余客户返回计算余额（total_amount - used_total）。
+
     Response:
     - data: [{customer_id, customer_name, balance}, ...]
     """
     db_session: AsyncSession = request.ctx.db_session
+    service = BalanceWhitelistService(db_session)
+    whitelist_map = await service.list_whitelist_map()
     result = await db_session.execute(_build_customer_balance_stmt())
     payload = {
         "code": 0,
         "message": "success",
-        "data": _format_balance_rows(result.all()),
+        "data": _format_balance_rows(result.all(), whitelist_map=whitelist_map),
     }
     return json(payload)

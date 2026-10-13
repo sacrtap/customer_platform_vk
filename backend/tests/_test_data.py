@@ -56,6 +56,7 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("tags:delete", "删除标签", "tags"),
     ("industry_types:manage", "行业类型管理", "system"),
     ("cooperation_statuses:manage", "合作状态管理", "system"),
+    ("balance_whitelist:manage", "余额白名单管理", "system"),
 ]
 
 # mock 权限缓存使用的 code 集合 —— 派生自上面的行数据，不单独维护

@@ -256,3 +256,20 @@ export interface ImportResult {
   /** 仅 dry_run 预检响应返回；真实导入响应不带此字段 */
   dry_run?: boolean
 }
+
+/** 余额白名单记录 */
+export interface BalanceWhitelistItem {
+  id: number
+  customer_id: number
+  company_id: number
+  customer_name: string
+  erp_system: string | null
+  static_balance: number
+  created_at: string | null
+}
+
+/** 余额白名单列表结果（分页） */
+export interface BalanceWhitelistListResult {
+  items: BalanceWhitelistItem[]
+  total: number
+}

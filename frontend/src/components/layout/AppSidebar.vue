@@ -338,6 +338,26 @@
           <span class="nav-text">ERP 系统</span>
         </button>
         <button
+          v-if="can('balance_whitelist:manage')"
+          class="nav-btn"
+          :class="{ active: $route.path === '/system/balance-whitelist' }"
+          :aria-current="$route.path === '/system/balance-whitelist' ? 'page' : undefined"
+          @click="goTo('/system/balance-whitelist')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 2v20m8-17a9 9 0 00-16 0m16 0a9 9 0 01-16 0m10 0h-4m4 6h-4m4 6h-4" /></svg
+          ></span>
+          <span class="nav-text">余额白名单</span>
+        </button>
+        <button
           v-if="can('api_keys:manage')"
           class="nav-btn"
           :class="{ active: $route.path === '/system/api-keys' }"

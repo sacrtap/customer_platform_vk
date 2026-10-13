@@ -336,7 +336,8 @@ def db_session(sync_test_engine, test_user):
                     "customer_balances, recharge_records, customer_profiles, consumption_records, "
                     "daily_consumptions, daily_orders, files, audit_logs, sync_task_logs, "
                     "sync_tasks, pricing_rules, package_plans, webhook_signatures, "
-                    "token_blacklist, industry_types, cooperation_statuses, customers CASCADE"
+                    "token_blacklist, industry_types, cooperation_statuses, balance_whitelists, "
+                    "customers CASCADE"
                 )
             )
             session.commit()

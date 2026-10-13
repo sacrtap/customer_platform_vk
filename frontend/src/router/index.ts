@@ -160,6 +160,12 @@ const routes: RouteRecordRaw[] = [
             meta: { requiresPermission: 'erp_systems:manage' },
           },
           {
+            path: 'balance-whitelist',
+            name: 'BalanceWhitelist',
+            component: () => import('@/views/system/BalanceWhitelist.vue'),
+            meta: { requiresPermission: 'balance_whitelist:manage' },
+          },
+          {
             path: 'api-keys',
             name: 'ApiKeyManagement',
             component: () => import('@/views/system/ApiKeyManagement.vue'),
