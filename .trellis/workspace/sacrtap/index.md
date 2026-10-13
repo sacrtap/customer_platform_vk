@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 35
+- **Total Sessions**: 36
 - **Last Active**: 2026-10-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~857 | Active |
+| `journal-1.md` | ~892 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 36 | 2026-10-13 | 余额管理页第二排筛选项对齐客户管理页 | `060d970` | `feat/balance-filter-alignment` |
 | 35 | 2026-10-13 | 开放平台余额白名单（静态余额优先） | `5a0e4c0`, `d16dd30` | `feat/balance-whitelist` |
 | 34 | 2026-10-13 | Full E2E Suite 定时任务失败修复（workers 空值 + E2E 测试适配） | `89e24d6`, `f3ba2fe`, `48704d4`, `49d0762` | `fix/e2e-schedule-inputs` |
 | 33 | 2026-10-10 | 开放平台全量客户余额接口开发与验证 | `37f613e`, `1f915eb` | `feat/openapi-all-balances` |
