@@ -36,6 +36,13 @@ GET /api/v1/billing/balances/export?settlement_group=prepaid|postpaid
 | `settlement_group` | string | 可选，`prepaid` = 非后付费（含未设置），`postpaid` = 后付费；空串视为未传 |
 | `settlement_type` | string | 可选，**严格等值**筛选（`prepaid`/`postpaid`），与 `settlement_group` 语义不同，两者可同时出现 |
 | `is_settlement_enabled` | string | 可选，`true`/`false`；客户信息「是否结算」字段（列表与统计均支持） |
+| `auto_initiate_settlement` | string | 可选，`true`/`false`；「自动发起结算」（列表/统计/导出均支持），**历史 NULL 视为「是」** |
+| `is_disabled` | string | 可选，`true`/`false`；「是否停用」（列表/统计/导出均支持），**历史 NULL 视为未停用** |
+| `erp_system` | string | 可选，ERP 系统 `value` 精确匹配；空串视为未传 |
+| `cooperation_status` | string | 可选，合作状态 `value` 精确匹配；空串视为未传 |
+
+> 上表后 4 项为「余额管理页第二排筛选项对齐客户管理页」新增，与客户管理页筛选语义一致
+> （布尔项历史 NULL 兼容规则对齐 `backend/app/services/customers.py`）。
 
 `balance-stats` 响应 `data` 字段：
 
@@ -61,7 +68,16 @@ GET /api/v1/billing/balances/export?settlement_group=prepaid|postpaid
 | `settlement_group` ∈ {`prepaid`, `postpaid`} | 正常过滤 |
 | `settlement_group` 为空串 | 视为未传 |
 | `settlement_group` 其他取值 | `400` + `code 40001`（message 含 `settlement_group`） |
+| `auto_initiate_settlement` / `is_disabled` 非 `true`/`false` | `400` + `code 40001`（message 含对应字段名） |
+| `erp_system` / `cooperation_status` 为空串 | 视为未传（不做校验） |
 | 缺少 `billing:view` 权限 | `403`（由 `@require_permission` 处理） |
+
+布尔筛选 NULL 兼容（`_bool_filter_condition`，语义对齐客户管理页）：
+
+| 字段 | `=true` | `=false` |
+|------|---------|----------|
+| `auto_initiate_settlement`（默认「是」） | `列 IS TRUE OR IS NULL` | `列 IS FALSE` |
+| `is_disabled`（默认否） | `列 IS TRUE` | `列 IS FALSE OR IS NULL` |
 
 ### 5. Good/Base/Bad Cases
 
@@ -80,7 +96,11 @@ GET /api/v1/billing/balances/export?settlement_group=prepaid|postpaid
 | `test_get_balances_filter_settlement_group_prepaid_includes_unset` | 未设置结算类型客户出现在 `prepaid` 结果中，后付费客户不出现 |
 | `test_get_balances_filter_settlement_group_postpaid` | 仅后付费客户命中 |
 | `test_get_balances_filter_settlement_group_invalid` | `400` 且 message 含 `settlement_group` |
+| `test_get_balances_filter_erp_system_and_cooperation_status` | `erp_system`/`cooperation_status` 精确匹配命中目标客户、排除其他；统计跟随筛选 |
+| `test_get_balances_filter_auto_initiate_null_compat` | `=true` 命中 `True` 与 `NULL`、排除 `False`；`=false` 仅命中 `False`；非法值 `400` |
+| `test_get_balances_filter_is_disabled_null_compat` | `=true` 仅命中 `True`；`=false` 命中 `False` 与 `NULL`、排除 `True` |
 | `useBalance.test.ts`「结算类型分组筛选」 | 列表请求带 `settlement_group`；`getBalanceStats` 不带该参数且仍按默认筛选口径统计 |
+| `useBalance.test.ts`「新增筛选项」 | 四个新字段默认值；列表/统计请求携带；导出参数布尔序列化为字符串；`handleReset` 清空 |
 
 变异校验（防止断言空转）：把 `_settlement_group_condition("prepaid")` 换回 `!= "postpaid"`、或从 `low_balance_count` 去掉分组条件，上述前两条用例必须失败。
 

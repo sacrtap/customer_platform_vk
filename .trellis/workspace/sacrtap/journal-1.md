@@ -855,3 +855,38 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 36: 余额管理页第二排筛选项对齐客户管理页
+<!-- trellis-session: v=2 fp=bc449420f38f801a -->
+
+**Date**: 2026-10-13
+**Task**: 余额管理页第二排筛选项对齐客户管理页
+**Branch**: `feat/balance-filter-alignment`
+
+### Summary
+
+余额管理页第二排（更多）筛选项对齐客户管理页并去掉「标签」，新增 自动发起结算/是否停用/ERP系统/合作状态 四项，贯通列表、KPI 统计与导出。
+
+### Main Changes
+
+- 新增分支 feat/balance-filter-alignment；创建 Trellis 任务 10-13-balance-filter-alignment（prd/design/implement + jsonl）
+- 后端 balances.py：_parse_balance_filters 解析四个新参数（布尔非法值 400）；_query_balance_rows_raw 列表/count 与 get_balance_stats 同步应用；新增 _bool_filter_condition 统一历史 NULL 兼容语义
+- 前端：BalanceQueryParams/getBalanceStats 扩展；useBalance 新增字段与 ERP/合作状态加载、移除标签；BalanceFilters 第二排对齐（去标签、不重复结算方式）；Balance.vue 透传
+- spec：更新 .trellis/spec/backend/billing-balance-stats.md 筛选契约、错误矩阵与测试清单
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `060d970` | feat(billing): 余额管理页第二排筛选项对齐客户管理页 |
+
+### Testing
+
+- [OK] 前端 pnpm type-check 通过；vitest 全量 104 passed（含 useBalance 33）
+- [OK] 后端 pytest：新增 3 用例（erp_system/cooperation_status、auto_initiate/is_disabled NULL 兼容）3 passed；balance_stats 6 passed；filter 组合用例通过
+- [OK] ruff check/format、prettier、eslint 全部通过；pre-commit 钩子通过
+
+### Status
+
+[OK] **Completed**

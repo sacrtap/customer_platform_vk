@@ -86,7 +86,11 @@ export interface BalanceQueryParams {
   is_key_customer?: string
   is_real_estate?: string
   is_settlement_enabled?: string
+  auto_initiate_settlement?: string
+  is_disabled?: string
   settlement_type?: string
+  erp_system?: string
+  cooperation_status?: string
   /** 结算类型分组：prepaid = 非后付费（含未设置），postpaid = 后付费 */
   settlement_group?: 'prepaid' | 'postpaid'
   balance_min?: number
@@ -113,7 +117,11 @@ export function getBalanceStats(params?: {
   is_key_customer?: boolean
   is_real_estate?: boolean
   is_settlement_enabled?: boolean
+  auto_initiate_settlement?: boolean
+  is_disabled?: boolean
   settlement_type?: string
+  erp_system?: string
+  cooperation_status?: string
   tag_ids?: string
 }) {
   return api.get<BalanceStats>('/billing/balance-stats', { params })
