@@ -196,7 +196,11 @@ async def _run_query(filters: dict) -> list[str]:
 
 @pytest.mark.asyncio
 async def test_query_applies_new_filters():
-    """新增 4 项筛选同时作用于 base_stmt 与 count_stmt"""
+    """新增 4 项筛选同时作用于 base_stmt 与 count_stmt
+
+    注意：主查询以 Customer 为驱动表（select(Customer)），SELECT 列表始终包含
+    Customer 全列，故断言用「列名 + 运算符」的条件形态，避免 SELECT 列表造成虚真。
+    """
     filters = _full_filters(
         auto_initiate_settlement="true",
         is_disabled="false",
@@ -207,23 +211,23 @@ async def test_query_applies_new_filters():
     assert len(captured) == 2  # count_stmt + 主查询
 
     for sql in captured:
-        assert "auto_initiate_settlement" in sql
-        assert "is_disabled" in sql
-        assert "erp_system" in sql
-        assert "cooperation_status" in sql
+        assert "customers.auto_initiate_settlement IS" in sql
+        assert "customers.is_disabled IS" in sql
+        assert "customers.erp_system =" in sql
+        assert "customers.cooperation_status =" in sql
 
 
 @pytest.mark.asyncio
 async def test_query_without_new_filters_omits_conditions():
-    """未传新增筛选 → SQL 不含对应条件（行为与改动前一致）"""
+    """未传新增筛选 → SQL 不含对应筛选条件（行为与改动前一致）"""
     captured = await _run_query(_full_filters())
     assert len(captured) == 2
 
     for sql in captured:
-        assert "auto_initiate_settlement" not in sql
-        assert "is_disabled" not in sql
-        assert "erp_system" not in sql
-        assert "cooperation_status" not in sql
+        assert "customers.auto_initiate_settlement IS" not in sql
+        assert "customers.is_disabled IS" not in sql
+        assert "customers.erp_system =" not in sql
+        assert "customers.cooperation_status =" not in sql
 
 
 @pytest.mark.asyncio
@@ -233,4 +237,5 @@ async def test_query_bool_filter_null_semantics_in_sql():
     captured = await _run_query(filters)
     sql = str(captured[-1])
     # auto_initiate_settlement: IS TRUE OR IS NULL；is_disabled: IS FALSE OR IS NULL
-    assert sql.count("IS NULL") >= 2
+    assert "customers.auto_initiate_settlement IS NULL" in sql
+    assert "customers.is_disabled IS NULL" in sql
