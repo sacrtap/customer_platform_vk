@@ -17,6 +17,10 @@
 | `erp_channel` | Query | string | 是 | ERP 渠道编码，如巧房传 `qiaofang` |
 | `Authorization` | Header | string | 是 | 认证令牌，格式：`Bearer {api_key}` |
 
+::: tip 余额口径
+`balance` 按客户类型取值：非包年客户 = `总金额 − 已用金额`；**包年客户 = 套餐剩余额度**（`年费 − 套餐内累计消耗`）。包年客户年费为合同式预收，不写入余额池，故直接按「总金额 − 已用金额」计算会恒为 `0`。命中余额白名单的客户优先返回人工维护的静态余额。
+:::
+
 ## 请求示例
 
 curl：
@@ -50,7 +54,7 @@ print(resp.json())
 | `data` | array | 客户余额列表 |
 | `data[].customer_id` | string | 客户在 ERP 系统中的企业 ID（company_id） |
 | `data[].customer_name` | string | 客户名称（企业全称） |
-| `data[].balance` | number | 当前可用余额（总金额 - 已用金额，保留两位小数） |
+| `data[].balance` | number | 当前可用余额，保留两位小数。非包年客户 = 总金额 − 已用金额；**包年客户 = 套餐剩余额度**（年费为合同式预收，不进余额池）；命中余额白名单的客户取人工维护的静态余额 |
 
 ## 响应示例
 

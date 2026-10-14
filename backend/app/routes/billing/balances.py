@@ -21,7 +21,14 @@ from ...middleware.auth import (
 from ...models.industry_type import IndustryType
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
+from ...services.package_balance import (
+    batch_query_package_info as _batch_query_package_info,
+)
+from ...services.package_balance import (
+    build_package_remaining_cte as _build_package_remaining_cte,
+)
 from ...utils.audit_helpers import create_audit_entry
+from ...utils.timezone import CST
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -157,12 +164,32 @@ def _compute_burn_down(
     bonus_amount: float,
     settlement_type: str | None,
     stats: dict | None,
+    package_info: dict | None = None,
 ) -> dict:
     """计算燃尽指标
+
+    包年客户的「燃尽」口径为套餐到期剩余天数（而非按消耗推算的可用天数），
+    因此优先于预付费/后付费逻辑单独处理。
 
     Returns:
         {"daily_avg_cost": float|None, "consumption_days": int, "days_remaining": int|None}
     """
+    # 有效包年套餐：燃尽 = 到期剩余天数（无到期日则为 None）
+    if package_info and not package_info.get("is_expired"):
+        expiry = package_info.get("expiry_date")
+        if expiry is None:
+            return {"daily_avg_cost": None, "consumption_days": 0, "days_remaining": None}
+        days_remaining = (expiry.astimezone(CST).date() - date.today()).days
+        return {
+            "daily_avg_cost": None,
+            "consumption_days": 0,
+            "days_remaining": max(days_remaining, 0),
+        }
+
+    # 已过期包年套餐：标记为已耗尽（0 天）
+    if package_info and package_info.get("is_expired"):
+        return {"daily_avg_cost": None, "consumption_days": 0, "days_remaining": 0}
+
     if settlement_type == "postpaid":
         return {"daily_avg_cost": None, "consumption_days": 0, "days_remaining": None}
 
@@ -317,9 +344,10 @@ async def _query_balance_rows_raw(
     page: int = 1,
     page_size: int = 100,
     limit: int | None = None,
-) -> tuple[list, int, dict, dict]:
+) -> tuple[list, int, dict, dict, dict]:
     """查询余额原始数据（不含行组装），供列表与导出共用
 
+    以 Customer 为驱动表 outerjoin CustomerBalance：无余额行的包年客户也会返回。
     行组装（Decimal→float、燃尽计算等纯 CPU 工作）由 _assemble_balance_rows 单独完成，
     导出场景可在 asyncio.to_thread 中执行，避免阻塞事件循环。
 
@@ -330,7 +358,7 @@ async def _query_balance_rows_raw(
         limit: 最大返回行数（导出用，传入时忽略分页）
 
     Returns:
-        (balance ORM 对象列表, 匹配总数, 最新充值时间映射, 消费统计映射)
+        (Customer 对象列表, 匹配总数, 最新充值时间映射, 消费统计映射, 包年套餐信息映射)
     """
     from sqlalchemy import func, select
     from sqlalchemy.orm import selectinload
@@ -359,29 +387,39 @@ async def _query_balance_rows_raw(
     balance_min = filters["balance_min"]
     balance_max = filters["balance_max"]
 
+    # 包年剩余额度 CTE：供余额范围筛选、total_amount 排序与 KPI 统计复用
+    package_cte = _build_package_remaining_cte()
+
     # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
+    # 包年客户余额以套餐剩余额度（package_remaining.remaining）为准，非包年客户退化为
+    # CustomerBalance 原值（无余额行时为 0）
     sort_field_map = {
         "company_id": Customer.company_id,
         "customer_name": Customer.name,
-        "total_amount": CustomerBalance.total_amount,
-        "used_total": CustomerBalance.used_total,
+        "total_amount": func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0),
+        # 「已消耗」列表展示包年客户为套餐内累计消耗（package_remaining.consumed），
+        # 排序须用同一口径，否则展示值与排序顺序相互矛盾
+        "used_total": func.coalesce(package_cte.c.consumed, CustomerBalance.used_total, 0),
         "last_recharge_at": "last_recharge_at",  # 特殊处理
         "days_remaining": "days_remaining",  # 特殊处理（CTE）
     }
 
+    # 以 Customer 为驱动表 + outerjoin CustomerBalance：无余额行的包年客户也会出现在列表中；
+    # CustomerBalance.deleted_at 条件必须放在 outerjoin ON 子句，否则会过滤掉无余额行客户。
     base_stmt = (
-        select(CustomerBalance)
-        .join(Customer, CustomerBalance.customer_id == Customer.id)
-        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-        .where(
-            CustomerBalance.deleted_at.is_(None),
-            Customer.deleted_at.is_(None),
+        select(Customer)
+        .outerjoin(
+            CustomerBalance,
+            (CustomerBalance.customer_id == Customer.id) & (CustomerBalance.deleted_at.is_(None)),
         )
+        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+        .outerjoin(package_cte, Customer.id == package_cte.c.cid)
+        .where(Customer.deleted_at.is_(None))
     )
 
     # 服务端过滤
     if customer_id:
-        base_stmt = base_stmt.where(CustomerBalance.customer_id == customer_id)
+        base_stmt = base_stmt.where(Customer.id == customer_id)
     if keyword:
         base_stmt = base_stmt.where(Customer.name.ilike(f"%{keyword}%"))
     if account_type:
@@ -439,11 +477,12 @@ async def _query_balance_rows_raw(
     if settlement_group:
         base_stmt = base_stmt.where(_settlement_group_condition(settlement_group))
 
-    # 余额范围过滤
+    # 余额范围过滤：包年客户按套餐剩余额度参与，非包年客户按 CustomerBalance 余额
+    balance_expr = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0)
     if balance_min is not None:
-        base_stmt = base_stmt.where(CustomerBalance.total_amount >= balance_min)
+        base_stmt = base_stmt.where(balance_expr >= balance_min)
     if balance_max is not None:
-        base_stmt = base_stmt.where(CustomerBalance.total_amount <= balance_max)
+        base_stmt = base_stmt.where(balance_expr <= balance_max)
 
     # 充值时间范围过滤（需要 JOIN RechargeRecord 子查询）
     if recharge_date_from or recharge_date_to:
@@ -462,7 +501,7 @@ async def _query_balance_rows_raw(
                 func.max(RechargeRecord.created_at) <= recharge_date_to
             )
 
-        base_stmt = base_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
+        base_stmt = base_stmt.where(Customer.id.in_(recharge_filter_stmt))
 
     # 标签筛选（需要 JOIN CustomerTag 表）
     if tag_ids:
@@ -478,18 +517,19 @@ async def _query_balance_rows_raw(
         )
         base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
 
-    # 总数查询
+    # 总数查询（Customer 驱动 + outerjoin，保证无余额行的包年客户计入总数）
     count_stmt = (
-        select(func.count(CustomerBalance.id))
-        .join(Customer, CustomerBalance.customer_id == Customer.id)
-        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
-        .where(
-            CustomerBalance.deleted_at.is_(None),
-            Customer.deleted_at.is_(None),
+        select(func.count(Customer.id))
+        .outerjoin(
+            CustomerBalance,
+            (CustomerBalance.customer_id == Customer.id) & (CustomerBalance.deleted_at.is_(None)),
         )
+        .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+        .outerjoin(package_cte, Customer.id == package_cte.c.cid)
+        .where(Customer.deleted_at.is_(None))
     )
     if customer_id:
-        count_stmt = count_stmt.where(CustomerBalance.customer_id == customer_id)
+        count_stmt = count_stmt.where(Customer.id == customer_id)
     if keyword:
         count_stmt = count_stmt.where(Customer.name.ilike(f"%{keyword}%"))
     if account_type:
@@ -543,9 +583,9 @@ async def _query_balance_rows_raw(
     if settlement_group:
         count_stmt = count_stmt.where(_settlement_group_condition(settlement_group))
     if balance_min is not None:
-        count_stmt = count_stmt.where(CustomerBalance.total_amount >= balance_min)
+        count_stmt = count_stmt.where(balance_expr >= balance_min)
     if balance_max is not None:
-        count_stmt = count_stmt.where(CustomerBalance.total_amount <= balance_max)
+        count_stmt = count_stmt.where(balance_expr <= balance_max)
     if recharge_date_from or recharge_date_to:
         recharge_filter_stmt = (
             select(RechargeRecord.customer_id)
@@ -560,7 +600,7 @@ async def _query_balance_rows_raw(
             recharge_filter_stmt = recharge_filter_stmt.having(
                 func.max(RechargeRecord.created_at) <= recharge_date_to
             )
-        count_stmt = count_stmt.where(CustomerBalance.customer_id.in_(recharge_filter_stmt))
+        count_stmt = count_stmt.where(Customer.id.in_(recharge_filter_stmt))
     if tag_ids:
         from ...models.customers import CustomerTag  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -591,7 +631,7 @@ async def _query_balance_rows_raw(
                 .subquery()
             )
             base_stmt = base_stmt.outerjoin(
-                last_recharge_subq, CustomerBalance.customer_id == last_recharge_subq.c.customer_id
+                last_recharge_subq, Customer.id == last_recharge_subq.c.customer_id
             )
             order_expr = last_recharge_subq.c.last_recharge_at
             # NULL 值统一排到最后，二级排序按客户 ID 保证稳定性
@@ -601,7 +641,7 @@ async def _query_balance_rows_raw(
                 base_stmt = base_stmt.order_by(order_expr.desc().nulls_last(), Customer.id.asc())
         elif field == "days_remaining":
             # 燃尽天数排序：使用 CTE 批量聚合所有匹配客户
-            from sqlalchemy import case
+            from sqlalchemy import Date, case
 
             from ...models.daily_consumption import DailyConsumption
 
@@ -624,13 +664,18 @@ async def _query_balance_rows_raw(
             )
             base_stmt = base_stmt.outerjoin(
                 consumption_cte,
-                CustomerBalance.customer_id == consumption_cte.c.cid,
+                Customer.id == consumption_cte.c.cid,
             )
             # SQL 层计算 days_remaining 用于排序（float）
+            # 包年客户（package_cte 命中）用「套餐到期剩余天数」，其余沿用消耗推算公式
             days_remaining_expr = case(
                 (
                     Customer.settlement_type == "postpaid",
                     None,
+                ),
+                (
+                    package_cte.c.cid.is_not(None),
+                    func.cast(package_cte.c.expiry_date, Date) - func.current_date(),
                 ),
                 (
                     func.coalesce(consumption_cte.c.total_cost_30d, 0) <= 0,
@@ -666,9 +711,8 @@ async def _query_balance_rows_raw(
 
     # 分页/限制查询
     stmt = base_stmt.options(
-        selectinload(CustomerBalance.customer)
-        .selectinload(Customer.profile)
-        .selectinload(CustomerProfile.industry_type)
+        selectinload(Customer.balance),
+        selectinload(Customer.profile).selectinload(CustomerProfile.industry_type),
     )
     if limit is not None:
         stmt = stmt.limit(limit)
@@ -676,10 +720,11 @@ async def _query_balance_rows_raw(
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(stmt)
-    balances = result.scalars().all()
+    customers = result.scalars().all()
 
-    # 批量获取最新充值时间（customer_id 可空，过滤后避免 IN (NULL)）
-    customer_ids = [b.customer_id for b in balances if b.customer_id is not None]
+    customer_ids = [c.id for c in customers]
+
+    # 批量获取最新充值时间
     last_recharge_map = {}
     if customer_ids:
         recharge_result = await db.execute(
@@ -698,52 +743,98 @@ async def _query_balance_rows_raw(
     # 批量查询消费统计（L1 缓存）
     consumption_stats_map = await _batch_query_consumption_stats(db, customer_ids)
 
-    return list(balances), total or 0, last_recharge_map, consumption_stats_map
+    # 批量查询包年套餐信息（剩余额度/次数、到期日、过期标记）
+    package_info_map = await _batch_query_package_info(db, customer_ids)
+
+    return list(customers), total or 0, last_recharge_map, consumption_stats_map, package_info_map
 
 
 def _assemble_balance_rows(
-    balances: list,
+    customers: list,
     last_recharge_map: dict,
     consumption_stats_map: dict,
+    package_info_map: dict | None = None,
 ) -> list[dict]:
     """纯 CPU 行组装：Decimal→float、属性访问与燃尽计算（可安全移入线程）
 
-    只访问已通过 selectinload 预加载的属性（Customer / CustomerProfile /
-    IndustryType 均已 eager load），不会在另一线程触发懒加载；
-    last_recharge_map / consumption_stats_map 为纯 Python dict，无 ORM 依赖。
+    入参为 Customer 列表（驱动表），余额取自 `Customer.balance`（无余额行的包年客户为
+    None，各金额记 0）。只访问已通过 selectinload 预加载的属性（Customer / CustomerBalance /
+    CustomerProfile / IndustryType 均已 eager load），不会在另一线程触发懒加载；
+    last_recharge_map / consumption_stats_map / package_info_map 为纯 Python dict，无 ORM 依赖。
     """
-    rows = [
-        {
-            "id": b.id,
-            "customer_id": b.customer_id,
-            "company_id": b.customer.company_id if b.customer else None,
-            "customer_name": b.customer.name if b.customer else None,
-            "account_type": b.customer.account_type if b.customer else None,
-            "industry_type": b.customer.profile.industry_type.name
-            if b.customer and b.customer.profile and b.customer.profile.industry_type
-            else None,
-            "settlement_type": (b.customer.settlement_type if b.customer else None),
-            "is_key_customer": (b.customer.is_key_customer if b.customer else False),
-            "total_amount": float(b.total_amount) if b.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "real_amount": float(b.real_amount) if b.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "bonus_amount": float(b.bonus_amount) if b.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "used_total": float(b.used_total) if b.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "used_real": float(b.used_real) if b.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "used_bonus": float(b.used_bonus) if b.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            "last_recharge_at": (
-                last_recharge_map[b.customer_id].isoformat()
-                if b.customer_id in last_recharge_map and last_recharge_map[b.customer_id]
-                else None
-            ),
-            **_compute_burn_down(
-                real_amount=float(b.real_amount) if b.real_amount else 0,
-                bonus_amount=float(b.bonus_amount) if b.bonus_amount else 0,
-                settlement_type=b.customer.settlement_type if b.customer else None,
-                stats=consumption_stats_map.get(b.customer_id),
-            ),
-        }
-        for b in balances
-    ]
+    package_info_map = package_info_map or {}
+    rows = []
+    for c in customers:
+        b = c.balance  # CustomerBalance 或 None（无余额行的包年客户）
+        package_info = package_info_map.get(c.id)
+        is_package = bool(package_info)
+        package_expired = bool(package_info.get("is_expired")) if package_info else False
+
+        # 余额口径：包年客户以其套餐剩余额度为准（过期记 0），其余客户保留 CustomerBalance 值
+        if is_package:
+            total_amount = float(package_info["remaining_amount"]) if not package_expired else 0.0
+        else:
+            total_amount = float(b.total_amount) if b and b.total_amount else 0
+
+        real_amount = float(b.real_amount) if b and b.real_amount else 0
+        bonus_amount = float(b.bonus_amount) if b and b.bonus_amount else 0
+
+        expiry = package_info.get("expiry_date") if package_info else None
+        rows.append(
+            {
+                "id": c.id,
+                "customer_id": c.id,
+                "company_id": c.company_id,
+                "customer_name": c.name,
+                "account_type": c.account_type,
+                "industry_type": c.profile.industry_type.name
+                if c.profile and c.profile.industry_type
+                else None,
+                "settlement_type": c.settlement_type,
+                "is_key_customer": c.is_key_customer,
+                "total_amount": total_amount,
+                "real_amount": real_amount,
+                "bonus_amount": bonus_amount,
+                "used_total": float(b.used_total) if b and b.used_total else 0,
+                "used_real": float(b.used_real) if b and b.used_real else 0,
+                "used_bonus": float(b.used_bonus) if b and b.used_bonus else 0,
+                # 包年客户「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径
+                # （余额 = base_fee − 实时消耗）；非包年或已过期包年为 None（展示层回退 used_total）
+                "package_consumed_amount": (
+                    package_info.get("consumed_amount")
+                    if package_info and not package_expired
+                    else None
+                ),
+                "last_recharge_at": (
+                    last_recharge_map[c.id].isoformat()
+                    if c.id in last_recharge_map and last_recharge_map[c.id]
+                    else None
+                ),
+                # --- 包年客户额外字段（非包年客户均为 None/False）---
+                "price_policy": c.price_policy,
+                "is_package": is_package,
+                "package_remaining_amount": package_info["remaining_amount"]
+                if package_info
+                else None,
+                "package_remaining_count": package_info["remaining_count"]
+                if package_info
+                else None,
+                "package_base_fee": package_info["base_fee"] if package_info else None,
+                "package_limit_count": package_info["limit_count"] if package_info else None,
+                "package_is_unlimited": package_info["is_unlimited"] if package_info else None,
+                "package_expired": package_expired,
+                "package_expiry_date": expiry.astimezone(CST).strftime("%Y-%m-%d")
+                if expiry
+                else None,
+                **_compute_burn_down(
+                    real_amount=real_amount,
+                    bonus_amount=bonus_amount,
+                    settlement_type=c.settlement_type,
+                    stats=consumption_stats_map.get(c.id),
+                    package_info=package_info,
+                ),
+            }
+        )
 
     return rows
 
@@ -758,10 +849,16 @@ async def _query_balance_rows(
     limit: int | None = None,
 ) -> tuple[list[dict], int]:
     """查询余额并组装行（列表用，页大小 ≤ 100，行组装量小可在事件循环内完成）"""
-    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
-        db, filters, sort_by, sort_order, page, page_size, limit
+    (
+        customers,
+        total,
+        last_recharge_map,
+        consumption_stats_map,
+        package_info_map,
+    ) = await _query_balance_rows_raw(db, filters, sort_by, sort_order, page, page_size, limit)
+    rows = _assemble_balance_rows(
+        customers, last_recharge_map, consumption_stats_map, package_info_map
     )
-    rows = _assemble_balance_rows(balances, last_recharge_map, consumption_stats_map)
     return rows, total
 
 
@@ -847,7 +944,13 @@ async def export_balances(request: Request):
 
     # 全量导出（上限 50000 条，不分页）：
     # DB 查询（await）留在异步层，纯 CPU 的行组装移入线程，避免阻塞事件循环。
-    balances, total, last_recharge_map, consumption_stats_map = await _query_balance_rows_raw(
+    (
+        customers,
+        total,
+        last_recharge_map,
+        consumption_stats_map,
+        package_info_map,
+    ) = await _query_balance_rows_raw(
         db,
         filters,
         sort_by="customer.id",
@@ -857,14 +960,18 @@ async def export_balances(request: Request):
 
     # 行组装（Decimal→float、燃尽计算）是纯 CPU 工作，5 万行规模下会阻塞事件循环，
     # 与 DataFrame/Excel 生成一起移入线程。此处在线程中直接访问 ORM 实例属性
-    # （b.customer、b.customer.profile 等）的安全前提是：
-    #   1) _query_balance_rows_raw 已用 selectinload 三级预加载
-    #      （CustomerBalance.customer → Customer.profile → CustomerProfile.industry_type），
+    # （c.balance、c.profile 等）的安全前提是：
+    #   1) _query_balance_rows_raw 已用 selectinload 预加载
+    #      （Customer.balance + Customer.profile → CustomerProfile.industry_type），
     #      访问的属性均已 eager load，不会在另一线程触发懒加载；
     #   2) 查询返回后到进入线程之间无 commit/expire，实例属性不会过期、不会触发刷新。
     # 任一前提不成立时，应先在此处取出纯数据再入线程，而非直接传 ORM 实例。
     rows = await asyncio.to_thread(
-        _assemble_balance_rows, balances, last_recharge_map, consumption_stats_map
+        _assemble_balance_rows,
+        customers,
+        last_recharge_map,
+        consumption_stats_map,
+        package_info_map,
     )
 
     if not rows:
@@ -886,7 +993,21 @@ async def export_balances(request: Request):
                 "余额（元）": r["total_amount"],
                 "实充余额（元）": r["real_amount"],
                 "赠送余额（元）": r["bonus_amount"],
-                "已消耗（元）": r["used_total"],
+                "已消耗（元）": (
+                    r.get("package_consumed_amount")
+                    if r.get("is_package") and r.get("package_consumed_amount") is not None
+                    else r["used_total"]
+                ),
+                # 包年客户专属列（非包年客户留空）
+                "套餐剩余额度（元）": r.get("package_remaining_amount")
+                if r.get("is_package")
+                else None,
+                "套餐剩余次数": (
+                    "不限"
+                    if r.get("package_is_unlimited")
+                    else (r.get("package_remaining_count") if r.get("is_package") else None)
+                ),
+                "套餐到期日期": r.get("package_expiry_date") if r.get("is_package") else None,
                 "最新充值时间": r["last_recharge_at"],
                 "预计可支撑天数": r["days_remaining"],
                 "日均消耗（元）": r["daily_avg_cost"],
@@ -1092,11 +1213,13 @@ async def get_balance_stats(request: Request):
             )
 
     def apply_balance_filters(stmt, need_industry_join=False):
-        """为余额查询语句添加基础 + 筛选条件"""
-        stmt = stmt.where(
-            CustomerBalance.deleted_at.is_(None),
-            Customer.deleted_at.is_(None),
-        )
+        """为余额查询语句添加基础 + 筛选条件
+
+        注意：调用方需自行以 Customer 为驱动表 `outerjoin(CustomerBalance, ... AND
+        CustomerBalance.deleted_at IS NULL)`；此处仅保留 Customer 侧条件，避免把无余额行的
+        包年客户过滤掉。
+        """
+        stmt = stmt.where(Customer.deleted_at.is_(None))
         for cond in customer_filters:
             stmt = stmt.where(cond)
         if industry_need_join and need_industry_join:
@@ -1132,13 +1255,23 @@ async def get_balance_stats(request: Request):
     # --- 总余额（按结算类型拆分）---
     # 「预付费」= 非后付费（含未设置结算类型的客户），「后付费」= settlement_type == 'postpaid'，
     # 与列表筛选 settlement_group 共用同一口径，保证卡片数字与列表条数一致。
+    # 包年客户余额以套餐剩余额度（package_cte.remaining）参与合计，非包年客户退化为
+    # CustomerBalance.total_amount（无余额行时为 0）。
+    package_cte = _build_package_remaining_cte()
+    balance_amount_expr = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0)
+
     async def _balance_totals(group: str) -> tuple[float, int]:
         stmt = (
             select(
-                func.coalesce(func.sum(CustomerBalance.total_amount), 0),
-                func.count(CustomerBalance.id),
+                func.coalesce(func.sum(balance_amount_expr), 0),
+                func.count(Customer.id),
             )
-            .join(Customer, CustomerBalance.customer_id == Customer.id)
+            .outerjoin(
+                CustomerBalance,
+                (CustomerBalance.customer_id == Customer.id)
+                & (CustomerBalance.deleted_at.is_(None)),
+            )
+            .outerjoin(package_cte, Customer.id == package_cte.c.cid)
             .where(_settlement_group_condition(group))
         )
         stmt = add_industry_joins(stmt)
@@ -1182,10 +1315,14 @@ async def get_balance_stats(request: Request):
     # 后付费客户余额为负属于应收款而非「余额不足」，故与「即将耗尽」一致排除后付费。
     LOW_BALANCE_THRESHOLD = 10000
     low_balance_stmt = (
-        select(func.count(CustomerBalance.id))
-        .join(Customer, CustomerBalance.customer_id == Customer.id)
+        select(func.count(Customer.id))
+        .outerjoin(
+            CustomerBalance,
+            (CustomerBalance.customer_id == Customer.id) & (CustomerBalance.deleted_at.is_(None)),
+        )
+        .outerjoin(package_cte, Customer.id == package_cte.c.cid)
         .where(
-            CustomerBalance.total_amount < LOW_BALANCE_THRESHOLD,
+            balance_amount_expr < LOW_BALANCE_THRESHOLD,
             _settlement_group_condition("prepaid"),
         )
     )
@@ -1195,6 +1332,8 @@ async def get_balance_stats(request: Request):
 
     # --- 即将耗尽客户数（days_remaining ≤ 7，仅预付费）---
     from datetime import date, timedelta
+
+    from sqlalchemy import Date, case
 
     from ...models.daily_consumption import DailyConsumption
 
@@ -1213,23 +1352,40 @@ async def get_balance_stats(request: Request):
         .group_by(DailyConsumption.customer_id)
         .cte("consumption_stats_burning")
     )
-    burning_soon_days_expr = (
-        func.coalesce(CustomerBalance.real_amount, 0)
-        + func.coalesce(CustomerBalance.bonus_amount, 0)
-    ) / (
-        func.coalesce(consumption_cte.c.total_cost_30d, 0)
-        / func.greatest(func.coalesce(consumption_cte.c.consumption_days, 0), 7)
+    # 燃尽天数：包年客户用套餐到期剩余天数，其余客户沿用按日均消耗推算
+    burning_soon_days_expr = case(
+        (
+            package_cte.c.cid.is_not(None),
+            func.cast(package_cte.c.expiry_date, Date) - func.current_date(),
+        ),
+        else_=(
+            (
+                func.coalesce(CustomerBalance.real_amount, 0)
+                + func.coalesce(CustomerBalance.bonus_amount, 0)
+            )
+            / (
+                func.coalesce(consumption_cte.c.total_cost_30d, 0)
+                / func.greatest(func.coalesce(consumption_cte.c.consumption_days, 0), 7)
+            )
+        ),
     )
     burning_soon_stmt = (
-        select(func.count(CustomerBalance.id))
-        .join(Customer, CustomerBalance.customer_id == Customer.id)
-        .outerjoin(consumption_cte, CustomerBalance.customer_id == consumption_cte.c.cid)
+        select(func.count(Customer.id))
+        .outerjoin(
+            CustomerBalance,
+            (CustomerBalance.customer_id == Customer.id) & (CustomerBalance.deleted_at.is_(None)),
+        )
+        .outerjoin(consumption_cte, Customer.id == consumption_cte.c.cid)
+        .outerjoin(package_cte, Customer.id == package_cte.c.cid)
         .where(
-            CustomerBalance.deleted_at.is_(None),
             Customer.deleted_at.is_(None),
             # 未设置结算类型归入预付费，故用分组条件而非 != 'postpaid'（NULL 会被 SQL 过滤掉）
             _settlement_group_condition("prepaid"),
-            func.coalesce(consumption_cte.c.total_cost_30d, 0) > 0,
+            # 包年客户按到期天数判定（不要求近 30 天有消耗）；其余客户沿用消耗推算（需有消耗）
+            or_(
+                package_cte.c.cid.is_not(None),
+                func.coalesce(consumption_cte.c.total_cost_30d, 0) > 0,
+            ),
             burning_soon_days_expr <= 7,
         )
     )
@@ -1298,18 +1454,42 @@ async def get_customer_balance(request: Request, customer_id: int):
 
     balance = await balance_service.get_balance_by_customer_id(customer_id)
 
+    # 包年客户年费不进 CustomerBalance：余额以「套餐剩余额度」呈现，与余额管理页/客户列表一致
+    from ...services.package_balance import batch_query_package_info
+
+    package_info = (await batch_query_package_info(db, [customer_id])).get(customer_id)
+
     if not balance:
         return json(
             {
                 "code": 0,
                 "message": "success",
                 "data": {
-                    "total_amount": 0,
+                    "total_amount": (
+                        float(package_info["remaining_amount"]) if package_info is not None else 0
+                    ),
                     "real_amount": 0,
                     "bonus_amount": 0,
                     "used_total": 0,
                     "used_real": 0,
                     "used_bonus": 0,
+                    "is_package": package_info is not None,
+                    "package_expired": (
+                        bool(package_info.get("is_expired")) if package_info is not None else False
+                    ),
+                    "package_remaining_amount": (
+                        float(package_info["remaining_amount"])
+                        if package_info is not None
+                        else None
+                    ),
+                    "package_remaining_count": (
+                        package_info.get("remaining_count") if package_info is not None else None
+                    ),
+                    "package_is_unlimited": (
+                        bool(package_info.get("is_unlimited"))
+                        if package_info is not None
+                        else False
+                    ),
                 },
             }
         )
@@ -1319,12 +1499,29 @@ async def get_customer_balance(request: Request, customer_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "total_amount": float(balance.total_amount) if balance.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "total_amount": (
+                    float(package_info["remaining_amount"])
+                    if package_info is not None
+                    else (float(balance.total_amount) if balance.total_amount else 0)
+                ),
                 "real_amount": float(balance.real_amount) if balance.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_total": float(balance.used_total) if balance.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_real": float(balance.used_real) if balance.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "is_package": package_info is not None,
+                "package_expired": (
+                    bool(package_info.get("is_expired")) if package_info is not None else False
+                ),
+                "package_remaining_amount": (
+                    float(package_info["remaining_amount"]) if package_info is not None else None
+                ),
+                "package_remaining_count": (
+                    package_info.get("remaining_count") if package_info is not None else None
+                ),
+                "package_is_unlimited": (
+                    bool(package_info.get("is_unlimited")) if package_info is not None else False
+                ),
             },
         }
     )

@@ -419,9 +419,14 @@ class CustomerService:
             sort_column = CustomerProfile.consume_level
         elif sort_by == "balance":
             from ..models.billing import CustomerBalance
+            from .package_balance import build_package_remaining_cte
 
+            # 包年客户余额以「套餐剩余额度」为准，非包年退化为 CustomerBalance 原值。
+            # 与余额管理页 / 客户列表展示口径保持一致（COALESCE 保证 NULL/无余额行客户不丢）。
+            package_cte = build_package_remaining_cte()
             stmt = stmt.outerjoin(CustomerBalance, Customer.id == CustomerBalance.customer_id)
-            sort_column = CustomerBalance.total_amount
+            stmt = stmt.outerjoin(package_cte, Customer.id == package_cte.c.cid)
+            sort_column = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0)
         elif sort_by == "usage_30d":
             # 按近30天订单数排序：JOIN DailyConsumption 聚合子查询
             from datetime import timedelta

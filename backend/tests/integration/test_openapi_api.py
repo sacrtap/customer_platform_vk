@@ -272,3 +272,169 @@ async def test_erp_balances_unaffected_by_whitelist(test_client, valid_api_key, 
     )
     assert response.status == 200
     assert response.json["data"][0]["balance"] == 6000.0
+
+
+# ==================== 包年客户余额口径 ====================
+
+
+def _insert_package_customer(
+    db_session,
+    *,
+    company_id,
+    name,
+    erp_system=None,
+    base_fee,
+    consumed=0.0,
+    limit_count=100,
+    expired=False,
+):
+    """插入包年客户 + 一条包年规则（可选套餐内消耗），返回 (customer_id, rule_id)
+
+    包年客户年费不写入 `customer_balances`（合同式预收），故刻意不建余额行，
+    验证开放平台接口不会因缺余额记录而返回 0。
+    """
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    customer_id = db_session.execute(
+        text("""
+            INSERT INTO customers
+                (company_id, name, erp_system, price_policy, settlement_cycle,
+                 created_at, updated_at)
+            VALUES (:company_id, :name, :erp_system, 'yearly', 'yearly', NOW(), NOW())
+            RETURNING id
+        """),
+        {"company_id": company_id, "name": name, "erp_system": erp_system},
+    ).scalar()
+
+    now = datetime.now(timezone.utc)
+    expiry = now - timedelta(days=30) if expired else now + timedelta(days=200)
+    rule_id = db_session.execute(
+        text("""
+            INSERT INTO pricing_rules
+                (customer_id, device_type, layer_type, pricing_type, package_type,
+                 package_limits, tiers, effective_date, expiry_date, created_at, updated_at)
+            VALUES (:cid, NULL, NULL, 'package', 'A', CAST(:limits AS JSON),
+                    CAST('[]' AS JSON), :effective, :expiry, NOW(), NOW())
+            RETURNING id
+        """),
+        {
+            "cid": customer_id,
+            "limits": json.dumps(
+                {"base_fee": base_fee, "is_unlimited": False, "limit_count": limit_count}
+            ),
+            "effective": now - timedelta(days=300),
+            "expiry": expiry,
+        },
+    ).scalar()
+
+    if consumed:
+        db_session.execute(
+            text("""
+                INSERT INTO daily_consumptions
+                    (id, customer_id, consumption_date, device_type, layer_type,
+                     order_count, total_floor_count, total_cost, pricing_rule_id,
+                     has_pricing_rule, created_at, updated_at)
+                VALUES (:id, :cid, NOW() - INTERVAL '5 days', 'X', 'single',
+                        5, 5, :cost, :rid, TRUE, NOW(), NOW())
+            """),
+            {
+                "id": abs(hash(f"{company_id}-{rule_id}")) % 2_000_000_000,
+                "cid": customer_id,
+                "cost": consumed,
+                "rid": rule_id,
+            },
+        )
+    db_session.commit()
+    return customer_id, rule_id
+
+
+@pytest.mark.asyncio
+async def test_all_balances_package_customer_uses_remaining_amount(
+    test_client, valid_api_key, db_session
+):
+    """包年客户（无余额行）→ balance = 套餐剩余额度（而非 0）"""
+    _insert_package_customer(
+        db_session,
+        company_id=1300,
+        name="包年客户A",
+        base_fee=2980.0,
+        consumed=99.32,
+        limit_count=120,
+    )
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    items = {i["customer_id"]: i for i in response.json["data"]}
+    # 2980 - 99.32 = 2880.68（而非 CustomerBalance 缺失导致的 0.0）
+    assert items["1300"]["balance"] == 2880.68
+
+
+@pytest.mark.asyncio
+async def test_all_balances_non_package_unchanged(test_client, valid_api_key, db_session):
+    """非包年客户口径不变：balance = 总金额 − 已用金额"""
+    _insert_customer(
+        db_session,
+        company_id=1310,
+        name="预付费客户",
+        balance=(5000.0, 1500.0),
+    )
+    _insert_package_customer(db_session, company_id=1311, name="包年客户B", base_fee=1000.0)
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    items = {i["customer_id"]: i for i in response.json["data"]}
+    assert items["1310"]["balance"] == 3500.0  # 非包年：5000 - 1500
+    assert items["1311"]["balance"] == 1000.0  # 包年：1000 - 0
+
+
+@pytest.mark.asyncio
+async def test_all_balances_package_whitelist_still_wins(test_client, valid_api_key, db_session):
+    """包年客户命中白名单 → 静态余额优先于套餐剩余额度"""
+    cid, _rule = _insert_package_customer(
+        db_session, company_id=1320, name="包年白名单客户", base_fee=2980.0, consumed=99.32
+    )
+    db_session.execute(
+        text("""
+            INSERT INTO balance_whitelists (customer_id, static_balance, created_at, updated_at)
+            VALUES (:cid, 1234.56, NOW(), NOW())
+        """),
+        {"cid": cid},
+    )
+    db_session.commit()
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    items = {i["customer_id"]: i for i in response.json["data"]}
+    assert items["1320"]["balance"] == 1234.56
+
+
+@pytest.mark.asyncio
+async def test_erp_balances_package_customer_uses_remaining_amount(
+    test_client, valid_api_key, db_session
+):
+    """ERP 渠道接口同样接入包年口径（与全量接口一致）"""
+    _insert_package_customer(
+        db_session,
+        company_id=1330,
+        name="渠道包年客户",
+        erp_system="qiaofang",
+        base_fee=2000.0,
+        consumed=500.0,
+    )
+
+    _request, response = await test_client.get(
+        "/api/v1/erp/balances",
+        params={"erp_channel": "qiaofang"},
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    items = {i["customer_id"]: i for i in response.json["data"]}
+    assert items["1330"]["balance"] == 1500.0  # 2000 - 500

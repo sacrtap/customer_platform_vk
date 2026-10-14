@@ -124,6 +124,42 @@ invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
 ---
 
+## JSON 列不能出现在 GROUP BY / DISTINCT
+
+[来源: 2026-10-14 — 包年套餐余额查询（`balances.py::_build_package_remaining_cte`）]
+
+PostgreSQL 的 `json` 类型**没有相等操作符**，因此把 JSON 列放进 `GROUP BY` / `DISTINCT`
+会直接报错（`could not identify an equality operator for type json`）。`JSONB` 有相等操作符，
+但项目多数 JSON 列声明为 `json`，不能假设。
+
+典型症状：想「按客户聚合套餐规则」时写出 `group_by(PricingRule.customer_id, PricingRule.package_limits)`
+→ 运行期炸；单测用 `MagicMock` 时不会暴露（不经过真实 SQL）。
+
+```python
+# WRONG — package_limits 是 json 列，GROUP BY 报错
+stmt = (
+    select(PricingRule.customer_id, func.sum(...))
+    .group_by(PricingRule.customer_id, PricingRule.package_limits)
+)
+
+# CORRECT — 需要跨行去重的 JSON 值，改用关联标量子查询，不把 JSON 列拖进 GROUP BY
+consumed_subq = (
+    select(func.coalesce(func.sum(DailyConsumption.total_cost), 0))
+    .where(
+        DailyConsumption.pricing_rule_id == PricingRule.id,
+        DailyConsumption.deleted_at.is_(None),
+    )
+    .correlate(PricingRule)
+    .scalar_subquery()
+)
+# 需要「每客户最新一条」时用窗口函数 row_number() OVER (PARTITION BY ...)，而非 GROUP BY
+```
+
+> **验证手法**：涉及 JSON 列的聚合/去重 SQL 必须跑到真实 DB（集成测试或本地库冒烟），
+> 纯 `MagicMock` 单测无法暴露此类数据库方言错误。
+
+---
+
 ## Migration Pattern
 
 Migrations use **Alembic**. Migration files live in `backend/alembic/versions/`.

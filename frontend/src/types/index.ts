@@ -121,6 +121,10 @@ export interface Customer {
   scale_level: string | null
   consume_level: string | null
   balance: number | null
+  /** 是否包年客户（true 时 balance = 套餐剩余额度） */
+  is_package?: boolean
+  /** 包年是否已过期 */
+  package_expired?: boolean
   // 画像分析字段（列表接口返回，可为 null）
   usage_30d?: number | null
   usage_30d_amount?: number | null
@@ -233,6 +237,18 @@ export interface Balance {
   used_bonus: number
   created_at: string
   updated_at: string
+  /** 是否包年客户（true 时 total_amount = 套餐剩余额度，年费不进 CustomerBalance） */
+  is_package?: boolean
+  /** 包年是否已过期 */
+  package_expired?: boolean
+  /** 套餐剩余额度（元）；非包年为 null */
+  package_remaining_amount?: number | null
+  /** 套餐剩余次数；不限量或非包年为 null */
+  package_remaining_count?: number | null
+  /** 是否不限量套餐 */
+  package_is_unlimited?: boolean
+  /** 套餐内累计消耗（元，实时含未结算）；非包年/已过期为 null */
+  package_consumed_amount?: number | null
 }
 
 /** 充值记录 */

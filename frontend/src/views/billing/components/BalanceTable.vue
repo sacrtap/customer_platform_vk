@@ -36,7 +36,7 @@
             </td>
             <td>{{ record.industry_type || '-' }}</td>
             <td>
-              <div class="balance-info">
+              <div v-if="!record.is_package" class="balance-info">
                 <div class="balance-amount">
                   <b :class="{ danger: isNegativeBalance(record) }"
                     >¥{{ formatAmount(record.total_amount) }}</b
@@ -48,10 +48,44 @@
                   <span class="bonus">赠：{{ formatAmount(record.bonus_amount) }}</span>
                 </div>
               </div>
+              <!-- 包年客户：套餐剩余额度 + 剩余次数（不限量显示「不限量」） -->
+              <div v-else class="balance-info">
+                <div class="balance-amount">
+                  <b :class="{ danger: record.package_expired }"
+                    >¥{{ formatAmount(record.package_remaining_amount) }}</b
+                  >
+                  <span v-if="record.package_expired" class="tag gray">套餐已过期</span>
+                  <span v-else-if="record.package_is_unlimited" class="tag blue">不限量</span>
+                </div>
+                <div class="balance-detail">
+                  <span class="real"
+                    >额度：¥{{ formatAmount(record.package_remaining_amount) }}</span
+                  >
+                  <span
+                    v-if="!record.package_is_unlimited && record.package_remaining_count != null"
+                    class="bonus"
+                    >次数：{{ formatNumber(record.package_remaining_count) }}</span
+                  >
+                </div>
+              </div>
             </td>
             <!-- 余额燃尽列：油表进度条 + 剩余天数 -->
             <td>
               <span v-if="record.settlement_type === 'postpaid'" class="tag gray">后付费</span>
+              <span v-else-if="record.package_expired" class="tag gray">套餐已过期</span>
+              <a-tooltip v-else-if="record.is_package" :content="getPackageBurnTooltip(record)">
+                <div class="burn-cell">
+                  <div class="burn-bar" :class="getPackageBurnBarClass(record)">
+                    <div
+                      class="burn-fill"
+                      :style="{ width: getPackageBurnFillPct(record) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="burn-text" :class="getPackageBurnBarClass(record)">
+                    {{ getPackageBurnLabel(record) }}
+                  </span>
+                </div>
+              </a-tooltip>
               <a-tooltip v-else :content="getBurnTooltip(record)">
                 <div class="burn-cell">
                   <div class="burn-bar" :class="getBurnBarClass(record)">
@@ -64,7 +98,19 @@
               </a-tooltip>
             </td>
             <td>
-              <div>
+              <!-- 包年客户：「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径 -->
+              <a-tooltip
+                v-if="record.is_package && record.package_consumed_amount != null"
+                :content="getPackageConsumedTooltip(record)"
+              >
+                <div>
+                  <span>{{ formatAmount(record.package_consumed_amount) }}</span>
+                  <div class="used-detail">
+                    <span class="used-package">套餐内累计消耗（实时）</span>
+                  </div>
+                </div>
+              </a-tooltip>
+              <div v-else>
                 <span>{{ formatAmount(record.used_total) }}</span>
                 <div class="used-detail">
                   <span class="used-real">实：{{ formatAmount(record.used_real) }}</span>
@@ -243,13 +289,15 @@ const isNegativeBalance = (record: Balance): boolean => {
 
 // ===== 余额燃尽：油表进度条（满 = 安全，空 = 紧急）=====
 
-// 行高亮：≤7 天红色背景
+// 行高亮：≤7 天红色背景（已过期包年有独立灰色标签，不叠加行高亮）
 const isBurningSoon = (record: Balance): boolean => {
+  if (record.package_expired) return false
   return record.days_remaining != null && record.days_remaining <= 7
 }
 
 // 行高亮：8-30 天浅黄色背景
 const isBurningWarn = (record: Balance): boolean => {
+  if (record.package_expired) return false
   return record.days_remaining != null && record.days_remaining > 7 && record.days_remaining <= 30
 }
 
@@ -323,6 +371,71 @@ const getBurnTooltip = (record: Balance): string => {
   }
 
   parts.push('预测基于近 30 天日均消耗，实际扣款以结算单为准')
+  return parts.join('\n')
+}
+
+// ===== 包年套餐燃尽：以「到期剩余天数」为口径 =====
+
+// 包年进度条满格基准天数（一年）
+const PACKAGE_BURN_MAX_DAYS = 365
+
+// 进度条填充百分比：满格 = 距到期还很久（安全），空 = 即将/已到期
+const getPackageBurnFillPct = (record: Balance): number => {
+  if (record.days_remaining == null) return 100 // 无到期日 → 满格灰色
+  if (record.days_remaining <= 0) return 0
+  return Math.min((record.days_remaining / PACKAGE_BURN_MAX_DAYS) * 100, 100)
+}
+
+// 进度条颜色 class：≤30 天红、31-90 天黄、其余绿
+const getPackageBurnBarClass = (record: Balance): string => {
+  if (record.days_remaining == null) return 'no-data'
+  if (record.days_remaining <= 30) return 'danger'
+  if (record.days_remaining <= 90) return 'warn'
+  return 'safe'
+}
+
+// 核心文字标签
+const getPackageBurnLabel = (record: Balance): string => {
+  if (record.days_remaining == null) return '无到期日'
+  if (record.days_remaining <= 0) return '已到期'
+  return `剩余 ${Math.floor(record.days_remaining)}天到期`
+}
+
+// tooltip 详情：套餐到期日期、剩余额度、剩余次数
+const getPackageBurnTooltip = (record: Balance): string => {
+  const parts: string[] = []
+  if (record.package_expiry_date) {
+    parts.push(`套餐到期：${record.package_expiry_date}`)
+  } else {
+    parts.push('套餐无固定到期日')
+  }
+  if (record.is_package && !record.package_expired) {
+    parts.push(`套餐剩余额度 ¥${formatNumber(record.package_remaining_amount)}`)
+    if (record.package_is_unlimited) {
+      parts.push('套餐类型：不限量')
+    } else if (record.package_remaining_count != null) {
+      parts.push(`套餐剩余次数 ${formatNumber(record.package_remaining_count)}`)
+    }
+    if (record.package_expiry_date && record.days_remaining != null) {
+      parts.push(
+        record.days_remaining > 0 ? `距到期 ${Math.floor(record.days_remaining)} 天` : '套餐已到期'
+      )
+    }
+  }
+  return parts.join('\n')
+}
+
+// 「已消耗」列包年 tooltip：说明该值为套餐内累计消耗（实时口径，与余额列同口径）
+const getPackageConsumedTooltip = (record: Balance): string => {
+  const parts: string[] = []
+  parts.push(`套餐内累计消耗 ¥${formatNumber(record.package_consumed_amount)}`)
+  if (record.package_base_fee != null) {
+    parts.push(`套餐年费 ¥${formatNumber(record.package_base_fee)}`)
+  }
+  if (record.package_remaining_amount != null) {
+    parts.push(`套餐剩余额度 ¥${formatNumber(record.package_remaining_amount)}`)
+  }
+  parts.push('包年为合同式预收，此消耗按每日用量实时累计（含未结算），不依赖结算单')
   return parts.join('\n')
 }
 </script>
@@ -582,6 +695,10 @@ const getBurnTooltip = (record: Balance): string => {
   color: #dc2626;
 }
 .used-detail .used-bonus {
+  color: var(--muted);
+}
+/* 包年客户已消耗：实时口径提示文案 */
+.used-detail .used-package {
   color: var(--muted);
 }
 
