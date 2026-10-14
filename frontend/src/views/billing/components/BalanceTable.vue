@@ -98,7 +98,19 @@
               </a-tooltip>
             </td>
             <td>
-              <div>
+              <!-- 包年客户：「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径 -->
+              <a-tooltip
+                v-if="record.is_package && record.package_consumed_amount != null"
+                :content="getPackageConsumedTooltip(record)"
+              >
+                <div>
+                  <span>{{ formatAmount(record.package_consumed_amount) }}</span>
+                  <div class="used-detail">
+                    <span class="used-package">套餐内累计消耗（实时）</span>
+                  </div>
+                </div>
+              </a-tooltip>
+              <div v-else>
                 <span>{{ formatAmount(record.used_total) }}</span>
                 <div class="used-detail">
                   <span class="used-real">实：{{ formatAmount(record.used_real) }}</span>
@@ -412,6 +424,20 @@ const getPackageBurnTooltip = (record: Balance): string => {
   }
   return parts.join('\n')
 }
+
+// 「已消耗」列包年 tooltip：说明该值为套餐内累计消耗（实时口径，与余额列同口径）
+const getPackageConsumedTooltip = (record: Balance): string => {
+  const parts: string[] = []
+  parts.push(`套餐内累计消耗 ¥${formatNumber(record.package_consumed_amount)}`)
+  if (record.package_base_fee != null) {
+    parts.push(`套餐年费 ¥${formatNumber(record.package_base_fee)}`)
+  }
+  if (record.package_remaining_amount != null) {
+    parts.push(`套餐剩余额度 ¥${formatNumber(record.package_remaining_amount)}`)
+  }
+  parts.push('包年为合同式预收，此消耗按每日用量实时累计（含未结算），不依赖结算单')
+  return parts.join('\n')
+}
 </script>
 
 <style scoped>
@@ -669,6 +695,10 @@ const getPackageBurnTooltip = (record: Balance): string => {
   color: #dc2626;
 }
 .used-detail .used-bonus {
+  color: var(--muted);
+}
+/* 包年客户已消耗：实时口径提示文案 */
+.used-detail .used-package {
   color: var(--muted);
 }
 

@@ -140,6 +140,8 @@ async def test_balance_list_includes_package_customer_without_balance_row(
     assert row["total_amount"] == 90000.0
     assert row["package_remaining_amount"] == 90000.0
     assert row["package_remaining_count"] == 1000.0
+    # 「已消耗」= 套餐内累计消耗（实时口径），与余额列同口径：90000 + 30000 = 120000
+    assert row["package_consumed_amount"] == 30000.0
     assert row["package_is_unlimited"] is False
 
 
@@ -169,6 +171,7 @@ async def test_balance_list_unlimited_package_has_no_count(test_client, auth_tok
     assert row["package_is_unlimited"] is True
     assert row["package_remaining_count"] is None
     assert row["total_amount"] == 70000.0
+    assert row["package_consumed_amount"] == 10000.0
 
 
 @pytest.mark.asyncio
@@ -195,6 +198,8 @@ async def test_balance_list_expired_package_shows_zero(test_client, auth_token, 
     assert row["package_expired"] is True
     assert row["total_amount"] == 0
     assert row["days_remaining"] == 0
+    # 过期包年无实时消耗语义 → null（前端回退 CustomerBalance.used_total）
+    assert row["package_consumed_amount"] is None
 
 
 @pytest.mark.asyncio
@@ -289,3 +294,53 @@ async def test_export_balances_package_columns(test_client, auth_token, db_sessi
         assert col in df.columns
     assert df.iloc[0]["套餐剩余额度（元）"] == 80000.0
     assert df.iloc[0]["套餐剩余次数"] == 900
+    # 导出「已消耗」列对包年客户取套餐内累计消耗（与列表口径一致）
+    assert df.iloc[0]["已消耗（元）"] == 20000.0
+
+
+@pytest.mark.asyncio
+async def test_balance_sort_used_total_uses_package_consumed(test_client, auth_token, db_session):
+    """按「已消耗」排序：包年客户以套餐内累计消耗参与（而非 CustomerBalance.used_total）"""
+    cid_pkg = _unique_customer_id(87000)
+    cid_prepaid = _unique_customer_id(87500)
+
+    # 包年客户：套餐内累计消耗 80000，无 CustomerBalance 行（used_total 缺省 0）
+    _insert_customer(db_session, cid_pkg, price_policy="yearly")
+    rid = _insert_package_rule(
+        db_session,
+        cid_pkg,
+        base_fee=200000.0,
+        effective_days_ago=100,
+        expiry_days_ahead=200,
+        limit_count=1000,
+    )
+    _insert_consumption(db_session, cid_pkg, rid, total_cost=80000.0, order_count=100)
+
+    # 预付费客户：CustomerBalance.used_total = 5000
+    _insert_customer(db_session, cid_prepaid, price_policy="pricing", settlement_type="prepaid")
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customer_balances (customer_id, total_amount, real_amount, bonus_amount,
+                                           used_total, used_real, used_bonus,
+                                           created_at, updated_at)
+            VALUES (:cid, 10000, 10000, 0, 5000, 5000, 0, NOW(), NOW())
+            """
+        ),
+        {"cid": cid_prepaid},
+    )
+    db_session.commit()
+
+    _req, response = await test_client.get(
+        "/api/v1/billing/balances",
+        params={
+            "keyword": "包年测试客户_",
+            "sort_by": "used_total",
+            "sort_order": "desc",
+        },
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status == 200
+    ids = [r["customer_id"] for r in response.json["data"]["list"]]
+    # 包年客户已消耗 80000 > 预付费 5000 → 包年客户排在前面
+    assert ids.index(cid_pkg) < ids.index(cid_prepaid)

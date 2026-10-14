@@ -293,6 +293,80 @@ describe('BalanceTable - 余额展示', () => {
     expect(content).toContain('\n')
   })
 
+  it('包年客户「已消耗」列展示套餐内累计消耗（实时口径），非包年仍展示 used_total', () => {
+    const packageRow: Balance = {
+      id: 9,
+      customer_id: 109,
+      company_id: 1009,
+      customer_name: '包年客户',
+      industry_type: '房产经纪',
+      total_amount: 90000,
+      real_amount: 0,
+      bonus_amount: 0,
+      used_total: 0, // 包年 used_total 通常为 0（不走结算单累计）
+      used_real: 0,
+      used_bonus: 0,
+      last_recharge_at: undefined,
+      daily_avg_cost: null,
+      consumption_days: 0,
+      days_remaining: 45,
+      is_package: true,
+      package_expired: false,
+      package_remaining_amount: 90000,
+      package_consumed_amount: 30000, // 套餐内累计消耗（实时）
+    }
+    const wrapper = mount(BalanceTable, {
+      props: { ...defaultProps, balances: [...mockBalances, packageRow] },
+      global: { plugins: [ArcoVue] },
+    })
+    const row = rowOf(wrapper, mockBalances.length)
+
+    // 已消耗列展示 package_consumed_amount（30000）而非 used_total（0）
+    expect(row.find('td').exists()).toBe(true)
+    expect(row.text()).toContain('30,000')
+    expect(row.find('.used-package').text()).toContain('套餐内累计消耗')
+    // 包年不展示「实/赠」消耗拆分
+    expect(row.find('.used-real').exists()).toBe(false)
+
+    // tooltip 说明为实时口径、不依赖结算单
+    const tip = wrapper
+      .findAllComponents({ name: 'Tooltip' })
+      .find((t) => String(t.props('content') ?? '').includes('套餐内累计消耗'))
+    expect(tip).toBeTruthy()
+    expect(String(tip!.props('content'))).toContain('不依赖结算单')
+  })
+
+  it('过期包年客户「已消耗」回退展示 used_total（package_consumed_amount 为 null）', () => {
+    const expiredRow: Balance = {
+      id: 10,
+      customer_id: 110,
+      company_id: 1010,
+      customer_name: '过期包年客户',
+      industry_type: '房产经纪',
+      total_amount: 0,
+      real_amount: 0,
+      bonus_amount: 0,
+      used_total: 12345,
+      used_real: 12345,
+      used_bonus: 0,
+      last_recharge_at: undefined,
+      daily_avg_cost: null,
+      consumption_days: 0,
+      days_remaining: 0,
+      is_package: true,
+      package_expired: true,
+      package_remaining_amount: 0,
+      package_consumed_amount: null,
+    }
+    const wrapper = mount(BalanceTable, { props: { ...defaultProps, balances: [expiredRow] } })
+    const row = rowOf(wrapper, 0)
+
+    // 回退展示 CustomerBalance.used_total，且保留「实/赠」拆分
+    expect(row.text()).toContain('12,345')
+    expect(row.find('.used-real').exists()).toBe(true)
+    expect(row.find('.used-package').exists()).toBe(false)
+  })
+
   it('操作列按钮为充值/记录/重算', () => {
     const wrapper = mount(BalanceTable, { props: defaultProps })
     const labels = rowOf(wrapper, 0)

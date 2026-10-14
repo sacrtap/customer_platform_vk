@@ -56,6 +56,8 @@ export interface Balance {
   is_package?: boolean
   /** 套餐剩余额度（元）；包年已过期时为 0 */
   package_remaining_amount?: number | null
+  /** 套餐内累计消耗（元，实时含未结算）；包年客户「已消耗」列取此值，非包年/已过期为 null */
+  package_consumed_amount?: number | null
   /** 套餐剩余次数（限量套餐）；不限量套餐为 null */
   package_remaining_count?: number | null
   /** 套餐基础年费（元） */

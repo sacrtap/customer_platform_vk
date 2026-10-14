@@ -21,6 +21,12 @@ from ...middleware.auth import (
 from ...models.industry_type import IndustryType
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
+from ...services.package_balance import (
+    batch_query_package_info as _batch_query_package_info,
+)
+from ...services.package_balance import (
+    build_package_remaining_cte as _build_package_remaining_cte,
+)
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.timezone import CST
 from . import billing_bp
@@ -151,191 +157,6 @@ async def _batch_query_consumption_stats(
                 logger.warning("L1 缓存写入失败 billing_consumption: %s", e)
 
     return result_map
-
-
-def _build_package_remaining_cte():
-    """构建包年剩余额度 CTE（每客户最新一条生效包年规则）
-
-    `remaining = GREATEST(base_fee - 套餐内累计消耗, 0)`，供余额列表的余额范围筛选、
-    total_amount 排序与 KPI 统计复用。窗口函数取「每客户最新一条」生效规则，
-    与 `_batch_query_package_info` 的口径保持一致。
-    """
-    from sqlalchemy import func, select
-
-    from ...models.billing import PricingRule
-    from ...models.daily_consumption import DailyConsumption
-
-    # 套餐内累计消耗：关联子查询按 pricing_rule_id 聚合，避免 GROUP BY JSON 列
-    # （PostgreSQL 的 json 类型无相等操作符，不能出现在 GROUP BY 中）
-    consumed_subq = (
-        select(func.coalesce(func.sum(DailyConsumption.total_cost), 0))
-        .where(
-            DailyConsumption.pricing_rule_id == PricingRule.id,
-            DailyConsumption.deleted_at.is_(None),
-        )
-        .correlate(PricingRule)
-        .scalar_subquery()
-    )
-
-    rules_subq = (
-        select(
-            PricingRule.customer_id.label("cid"),
-            # package_limits 为 JSON 列：base_fee 提取并转 NUMERIC（PG: package_limits->>'base_fee'）
-            PricingRule.package_limits["base_fee"].as_numeric(12, 2).label("base_fee"),  # pyright: ignore[reportAttributeAccessIssue]
-            PricingRule.expiry_date.label("expiry_date"),
-            consumed_subq.label("consumed"),
-            func.row_number()
-            .over(partition_by=PricingRule.customer_id, order_by=PricingRule.created_at.desc())
-            .label("rn"),
-        )
-        .where(
-            PricingRule.pricing_type == "package",
-            PricingRule.deleted_at.is_(None),
-            PricingRule.effective_date <= func.now(),
-            or_(PricingRule.expiry_date >= func.now(), PricingRule.expiry_date.is_(None)),
-        )
-        .subquery()
-    )
-
-    return (
-        select(
-            rules_subq.c.cid,
-            func.greatest(rules_subq.c.base_fee - rules_subq.c.consumed, 0).label("remaining"),
-            rules_subq.c.expiry_date.label("expiry_date"),
-        )
-        .where(rules_subq.c.rn == 1)
-        .cte("package_remaining")
-    )
-
-
-async def _batch_query_package_info(db: AsyncSession, customer_ids: list[int]) -> dict[int, dict]:
-    """批量查询客户包年套餐信息（生效规则 / 累计消耗 / 剩余额度与次数 / 过期标记）
-
-    包年客户年费不进 `CustomerBalance`，其可用额度由 `PricingRule.package_limits.base_fee`
-    减去套餐内累计消耗得出，故余额页需单独查询。
-
-    Args:
-        db: 异步会话
-        customer_ids: 待查询客户 ID 列表
-
-    Returns:
-        {customer_id: {
-            "is_expired": bool,              # 无生效规则但有已过期包年规则
-            "base_fee": float,
-            "is_unlimited": bool,
-            "limit_count": float | None,     # 不限量套餐为 None
-            "remaining_amount": float,       # 未过期: max(base_fee - 累计消耗, 0); 过期: 0
-            "remaining_count": float | None,  # 未过期且限量: max(limit_count - 累计订单量, 0)
-            "expiry_date": datetime | None,
-            "effective_date": datetime | None,
-        }}
-    """
-    if not customer_ids:
-        return {}
-
-    from sqlalchemy import func, select
-
-    from ...models.billing import PricingRule
-    from ...models.customers import Customer
-    from ...models.daily_consumption import DailyConsumption
-    from ...utils.timezone import utc_now
-
-    now = utc_now()
-
-    # 1. 生效包年规则（每客户取最新一条：order_by 后首次出现的即最新）
-    rules_result = await db.execute(
-        select(PricingRule)
-        .where(
-            PricingRule.customer_id.in_(customer_ids),
-            PricingRule.pricing_type == "package",
-            PricingRule.effective_date <= now,
-            or_(PricingRule.expiry_date >= now, PricingRule.expiry_date.is_(None)),
-            PricingRule.deleted_at.is_(None),
-        )
-        .order_by(PricingRule.customer_id, PricingRule.created_at.desc())
-    )
-    latest_rules: dict = {}
-    for rule in rules_result.scalars().all():
-        if rule.customer_id is not None and rule.customer_id not in latest_rules:
-            latest_rules[rule.customer_id] = rule
-
-    # 2. 生效规则的累计消耗与累计订单量（按 pricing_rule_id 精确关联套餐内消费记录）
-    consumed_map: dict[int, dict] = {}
-    rule_ids = [r.id for r in latest_rules.values()]
-    if rule_ids:
-        consumption_result = await db.execute(
-            select(
-                DailyConsumption.pricing_rule_id,
-                func.coalesce(func.sum(DailyConsumption.total_cost), 0).label("total_cost"),
-                func.coalesce(func.sum(DailyConsumption.order_count), 0).label("order_count"),
-            )
-            .where(
-                DailyConsumption.pricing_rule_id.in_(rule_ids),
-                DailyConsumption.deleted_at.is_(None),
-            )
-            .group_by(DailyConsumption.pricing_rule_id)
-        )
-        for row in consumption_result.all():
-            consumed_map[row.pricing_rule_id] = {
-                "total_cost": float(row.total_cost or 0),
-                "order_count": int(row.order_count or 0),
-            }
-
-    # 3. 组装生效客户的剩余额度与剩余次数
-    info_map: dict[int, dict] = {}
-    for cid, rule in latest_rules.items():
-        limits = rule.package_limits or {}
-        base_fee = float(limits.get("base_fee", 0) or 0)
-        is_unlimited = bool(limits.get("is_unlimited", False))
-        limit_count = float(limits.get("limit_count", 0) or 0)
-        consumed = consumed_map.get(rule.id, {"total_cost": 0.0, "order_count": 0})
-        remaining_amount = max(base_fee - consumed["total_cost"], 0.0)
-        remaining_count: float | None = None
-        if not is_unlimited:
-            remaining_count = max(limit_count - consumed["order_count"], 0.0)
-        info_map[cid] = {
-            "is_expired": False,
-            "base_fee": base_fee,
-            "is_unlimited": is_unlimited,
-            "limit_count": None if is_unlimited else limit_count,
-            "remaining_amount": remaining_amount,
-            "remaining_count": remaining_count,
-            "expiry_date": rule.expiry_date,
-            "effective_date": rule.effective_date,
-        }
-
-    # 4. 过期判断：无生效规则、客户 price_policy='yearly'、存在已过期包年规则
-    missing_ids = [cid for cid in customer_ids if cid not in latest_rules]
-    if missing_ids:
-        expired_result = await db.execute(
-            select(PricingRule)
-            .join(Customer, PricingRule.customer_id == Customer.id)
-            .where(
-                PricingRule.customer_id.in_(missing_ids),
-                PricingRule.pricing_type == "package",
-                PricingRule.expiry_date.is_not(None),
-                PricingRule.expiry_date < now,
-                PricingRule.deleted_at.is_(None),
-                Customer.price_policy == "yearly",
-            )
-            .order_by(PricingRule.customer_id, PricingRule.expiry_date.desc())
-        )
-        for rule in expired_result.scalars().all():
-            if rule.customer_id is None or rule.customer_id in info_map:
-                continue  # 同一客户只取最近一条已过期规则
-            limits = rule.package_limits or {}
-            info_map[rule.customer_id] = {
-                "is_expired": True,
-                "base_fee": float(limits.get("base_fee", 0) or 0),
-                "is_unlimited": bool(limits.get("is_unlimited", False)),
-                "limit_count": None,
-                "remaining_amount": 0.0,
-                "remaining_count": None,
-                "expiry_date": rule.expiry_date,
-                "effective_date": rule.effective_date,
-            }
-
-    return info_map
 
 
 def _compute_burn_down(
@@ -576,7 +397,9 @@ async def _query_balance_rows_raw(
         "company_id": Customer.company_id,
         "customer_name": Customer.name,
         "total_amount": func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0),
-        "used_total": func.coalesce(CustomerBalance.used_total, 0),
+        # 「已消耗」列表展示包年客户为套餐内累计消耗（package_remaining.consumed），
+        # 排序须用同一口径，否则展示值与排序顺序相互矛盾
+        "used_total": func.coalesce(package_cte.c.consumed, CustomerBalance.used_total, 0),
         "last_recharge_at": "last_recharge_at",  # 特殊处理
         "days_remaining": "days_remaining",  # 特殊处理（CTE）
     }
@@ -975,6 +798,13 @@ def _assemble_balance_rows(
                 "used_total": float(b.used_total) if b and b.used_total else 0,
                 "used_real": float(b.used_real) if b and b.used_real else 0,
                 "used_bonus": float(b.used_bonus) if b and b.used_bonus else 0,
+                # 包年客户「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径
+                # （余额 = base_fee − 实时消耗）；非包年或已过期包年为 None（展示层回退 used_total）
+                "package_consumed_amount": (
+                    package_info.get("consumed_amount")
+                    if package_info and not package_expired
+                    else None
+                ),
                 "last_recharge_at": (
                     last_recharge_map[c.id].isoformat()
                     if c.id in last_recharge_map and last_recharge_map[c.id]
@@ -1163,7 +993,11 @@ async def export_balances(request: Request):
                 "余额（元）": r["total_amount"],
                 "实充余额（元）": r["real_amount"],
                 "赠送余额（元）": r["bonus_amount"],
-                "已消耗（元）": r["used_total"],
+                "已消耗（元）": (
+                    r.get("package_consumed_amount")
+                    if r.get("is_package") and r.get("package_consumed_amount") is not None
+                    else r["used_total"]
+                ),
                 # 包年客户专属列（非包年客户留空）
                 "套餐剩余额度（元）": r.get("package_remaining_amount")
                 if r.get("is_package")
@@ -1620,18 +1454,42 @@ async def get_customer_balance(request: Request, customer_id: int):
 
     balance = await balance_service.get_balance_by_customer_id(customer_id)
 
+    # 包年客户年费不进 CustomerBalance：余额以「套餐剩余额度」呈现，与余额管理页/客户列表一致
+    from ...services.package_balance import batch_query_package_info
+
+    package_info = (await batch_query_package_info(db, [customer_id])).get(customer_id)
+
     if not balance:
         return json(
             {
                 "code": 0,
                 "message": "success",
                 "data": {
-                    "total_amount": 0,
+                    "total_amount": (
+                        float(package_info["remaining_amount"]) if package_info is not None else 0
+                    ),
                     "real_amount": 0,
                     "bonus_amount": 0,
                     "used_total": 0,
                     "used_real": 0,
                     "used_bonus": 0,
+                    "is_package": package_info is not None,
+                    "package_expired": (
+                        bool(package_info.get("is_expired")) if package_info is not None else False
+                    ),
+                    "package_remaining_amount": (
+                        float(package_info["remaining_amount"])
+                        if package_info is not None
+                        else None
+                    ),
+                    "package_remaining_count": (
+                        package_info.get("remaining_count") if package_info is not None else None
+                    ),
+                    "package_is_unlimited": (
+                        bool(package_info.get("is_unlimited"))
+                        if package_info is not None
+                        else False
+                    ),
                 },
             }
         )
@@ -1641,12 +1499,29 @@ async def get_customer_balance(request: Request, customer_id: int):
             "code": 0,
             "message": "success",
             "data": {
-                "total_amount": float(balance.total_amount) if balance.total_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "total_amount": (
+                    float(package_info["remaining_amount"])
+                    if package_info is not None
+                    else (float(balance.total_amount) if balance.total_amount else 0)
+                ),
                 "real_amount": float(balance.real_amount) if balance.real_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "bonus_amount": float(balance.bonus_amount) if balance.bonus_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_total": float(balance.used_total) if balance.used_total else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_real": float(balance.used_real) if balance.used_real else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                 "used_bonus": float(balance.used_bonus) if balance.used_bonus else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+                "is_package": package_info is not None,
+                "package_expired": (
+                    bool(package_info.get("is_expired")) if package_info is not None else False
+                ),
+                "package_remaining_amount": (
+                    float(package_info["remaining_amount"]) if package_info is not None else None
+                ),
+                "package_remaining_count": (
+                    package_info.get("remaining_count") if package_info is not None else None
+                ),
+                "package_is_unlimited": (
+                    bool(package_info.get("is_unlimited")) if package_info is not None else False
+                ),
             },
         }
     )

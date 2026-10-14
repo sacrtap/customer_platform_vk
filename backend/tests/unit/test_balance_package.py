@@ -33,6 +33,7 @@ def _package_info(**overrides) -> dict:
         "limit_count": 1200.0,
         "remaining_amount": 90000.0,
         "remaining_count": 900.0,
+        "consumed_amount": 30000.0,
         "expiry_date": datetime.now(timezone.utc) + timedelta(days=200),
         "effective_date": datetime.now(timezone.utc) - timedelta(days=160),
     }
@@ -136,6 +137,8 @@ def test_assemble_package_without_balance_row():
     assert row["total_amount"] == 88000.0
     assert row["package_remaining_amount"] == 88000.0
     assert row["package_remaining_count"] == 850.0
+    # 已消耗 = 套餐内累计消耗（实时口径，与余额列同口径）
+    assert row["package_consumed_amount"] == 30000.0
     assert row["price_policy"] == "yearly"
     # 无余额行 → 实充/赠送记 0
     assert row["real_amount"] == 0
@@ -156,6 +159,8 @@ def test_assemble_expired_package_zeroes_balance():
     assert row["package_expired"] is True
     assert row["total_amount"] == 0
     assert row["days_remaining"] == 0
+    # 过期包年无实时消耗语义 → None（展示层回退 CustomerBalance.used_total）
+    assert row["package_consumed_amount"] is None
 
 
 def test_assemble_unlimited_package_no_count():
@@ -185,6 +190,7 @@ def test_assemble_non_package_unchanged():
     assert row["is_package"] is False
     assert row["package_expired"] is False
     assert row["package_remaining_amount"] is None
+    assert row["package_consumed_amount"] is None
     assert row["total_amount"] == 5000
 
 
@@ -238,6 +244,7 @@ async def test_batch_query_package_info_limit_and_count():
     assert 1 in info
     assert info[1]["remaining_amount"] == 90000.0
     assert info[1]["remaining_count"] == 1000.0
+    assert info[1]["consumed_amount"] == 30000.0
     assert info[1]["is_expired"] is False
 
 
@@ -253,6 +260,7 @@ async def test_batch_query_package_info_unlimited_has_no_count():
     info = await _batch_query_package_info(db, [2])
     assert info[2]["remaining_amount"] == 70000.0
     assert info[2]["remaining_count"] is None
+    assert info[2]["consumed_amount"] == 10000.0
     assert info[2]["is_unlimited"] is True
 
 
@@ -268,6 +276,8 @@ async def test_batch_query_package_info_clamps_negative():
     info = await _batch_query_package_info(db, [3])
     assert info[3]["remaining_amount"] == 0.0
     assert info[3]["remaining_count"] == 0.0
+    # 已消耗为未截断的真实累计消耗（超量时仍展示实际消耗 15000）
+    assert info[3]["consumed_amount"] == 15000.0
 
 
 @pytest.mark.asyncio
@@ -288,6 +298,7 @@ async def test_batch_query_package_info_expired_flag():
     assert info[4]["is_expired"] is True
     assert info[4]["remaining_amount"] == 0.0
     assert info[4]["remaining_count"] is None
+    assert info[4]["consumed_amount"] is None
 
 
 @pytest.mark.asyncio
