@@ -30,6 +30,7 @@ from ..services.customers import (
     convert_settlement_cycle_to_display,
     convert_settlement_type_to_display,
 )
+from ..services.package_balance import resolve_effective_balance
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 from ..utils.excel_import import read_import_dataframe
 
@@ -41,17 +42,20 @@ logger = logging.getLogger(__name__)
 def _customer_effective_balance(customer, package_info_map: dict) -> float:
     """客户「有效余额」——包年客户按套餐剩余额度，其余按 CustomerBalance
 
-    与余额管理页口径一致（共享 `app/services/package_balance.py`）。包年客户年费
-    不进 `CustomerBalance`，若直接读 `total_amount` 会得到 0 并误判为「高风险」。
+    直接复用共享模块 `resolve_effective_balance`，避免在此重复维护一套口径
+    （包年客户年费不进 `CustomerBalance`，若直接读 `total_amount` 会得到 0
+    并误判为「高风险」）。
     """
-    package_info = package_info_map.get(customer.id)
-    if package_info is not None:
-        return float(package_info.get("remaining_amount", 0.0) or 0.0)
-    return (
-        float(customer.balance.total_amount)
-        if customer.balance and customer.balance.total_amount
-        else 0.0
+    balance_obj = getattr(customer, "balance", None)
+    balance_total = (
+        float(balance_obj.total_amount)
+        if balance_obj is not None and balance_obj.total_amount
+        else None
     )
+    effective_balance, _is_package = resolve_effective_balance(
+        balance_total, package_info_map.get(customer.id)
+    )
+    return effective_balance
 
 
 @customers_bp.get("")
