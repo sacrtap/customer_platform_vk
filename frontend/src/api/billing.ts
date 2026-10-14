@@ -48,8 +48,26 @@ export interface Balance {
   daily_avg_cost: number | null
   /** 近 30 天有消费的天数 */
   consumption_days: number
-  /** 预计剩余天数（null = 无消耗或后付费） */
+  /** 预计剩余天数（null = 无消耗或后付费）；包年客户为套餐到期剩余天数 */
   days_remaining: number | null
+  /** 客户级计费策略：pricing/tiered/yearly */
+  price_policy?: string | null
+  /** 是否为包年客户（有包年规则记录，含已过期） */
+  is_package?: boolean
+  /** 套餐剩余额度（元）；包年已过期时为 0 */
+  package_remaining_amount?: number | null
+  /** 套餐剩余次数（限量套餐）；不限量套餐为 null */
+  package_remaining_count?: number | null
+  /** 套餐基础年费（元） */
+  package_base_fee?: number | null
+  /** 套餐总次数上限（限量套餐） */
+  package_limit_count?: number | null
+  /** 是否不限量套餐 */
+  package_is_unlimited?: boolean | null
+  /** 套餐是否已过期 */
+  package_expired?: boolean
+  /** 套餐到期日期（CST 日期串） */
+  package_expiry_date?: string | null
 }
 
 export interface BalanceStats {
