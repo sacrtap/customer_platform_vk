@@ -131,15 +131,20 @@ stmt = stmt.where(_settlement_group_condition("prepaid"))   # coalesce(settlemen
 
 ### 2. Signatures
 
-[来源: `backend/app/routes/billing/balances.py`]
+[来源: 共享模块 `backend/app/services/package_balance.py`；余额管理页 `backend/app/routes/billing/balances.py` 以 `_build_package_remaining_cte` / `_batch_query_package_info` 别名再导出]
 
 ```python
-def _build_package_remaining_cte():
+def build_package_remaining_cte():
     """每客户最新一条生效包年规则 → remaining = GREATEST(base_fee - 套餐内累计消耗, 0)
     供余额范围筛选 / total_amount 排序 / KPI 统计复用。"""
 
-async def _batch_query_package_info(db: AsyncSession, customer_ids: list[int]) -> dict[int, dict]:
+async def batch_query_package_info(db: AsyncSession, customer_ids: list[int]) -> dict[int, dict]:
     """批量为行组装补充包年字段（含过期判定）。"""
+
+def resolve_effective_balance(
+    balance_total: float | None, package_info: dict | None
+) -> tuple[float, bool]:
+    """跨页统一决策：包年 → (套餐剩余额度, True)；否则 → (CustomerBalance, False)。"""
 
 def _compute_burn_down(real_amount, bonus_amount, settlement_type, stats,
                        package_info: dict | None = None) -> dict:
@@ -151,6 +156,8 @@ def _assemble_balance_rows(customers, last_recharge_map, consumption_stats_map,
 ```
 
 关键 SQL 形态：列表以 `Customer` 为驱动表 `LEFT JOIN customer_balances` + `LEFT JOIN package_remaining`；`total_amount` / 余额范围筛选 / KPI SUM 统一用 `COALESCE(package_remaining.remaining, customer_balances.total_amount, 0)`。
+
+> **口径唯一来源**：CTE 与 Python 批量查询均已迁入 `app/services/package_balance.py`，余额管理页、客户管理页与开放平台 API**必须**从该模块导入，禁止各自重写一份口径（见下节「跨页口径一致」）。
 
 ### 3. Contracts
 
@@ -165,6 +172,7 @@ def _assemble_balance_rows(customers, last_recharge_map, consumption_stats_map,
 | `total_amount` | number | 包年覆盖为套餐剩余额度（过期 = `0`）；非包年 = `CustomerBalance.total_amount` |
 | `package_remaining_amount` | number | `max(base_fee - 套餐内累计消耗, 0)`；过期 = `0` |
 | `package_remaining_count` | number \| null | `max(limit_count - 累计订单量, 0)`；**不限量或过期 = `null`** |
+| `package_consumed_amount` | number \| null | 套餐内累计消耗（**实时，含未结算**）= `SUM(DailyConsumption.total_cost WHERE pricing_rule_id = 生效规则)`；**包年客户的「已消耗」列与 `used_total` 排序均取此值**；非包年或已过期包年 = `null`（展示层回退 `used_total`） |
 | `package_base_fee` | number | 年费（`base_fee`） |
 | `package_limit_count` | number \| null | 不限量为 `null` |
 | `package_is_unlimited` | bool | 不限量套餐 |
@@ -173,6 +181,14 @@ def _assemble_balance_rows(customers, last_recharge_map, consumption_stats_map,
 | `days_remaining` | number \| null | 包年：有效 = 到期剩余天数（无到期日 = `null`）、过期 = `0`；非包年沿用消耗推算 |
 
 导出 Excel（`_build_excel`）包年新增三列：`套餐剩余额度（元）` / `套餐剩余次数`（不限量显示「不限」）/ `套餐到期日期`。
+
+**「已消耗」列口径（包年 vs 预付费）**：
+
+- 预付费客户：`used_total`（`CustomerBalance` 累计），**仅结算单扣款后更新**。
+- 包年客户：`package_consumed_amount`（套餐内累计消耗，**实时，含未结算**），与「余额 = `base_fee − 实时消耗`」同口径，保证「余额 + 已消耗 = `base_fee`」自洽。包年已消耗**不依赖结算单**——年费为合同式预收，不走 `CustomerBalance` 现金池。
+- 已过期包年：`package_consumed_amount = null`，展示层回退 `used_total`。
+- 排序：`sort_by=used_total` 用 `COALESCE(package_remaining.consumed, customer_balances.used_total, 0)`，与展示值同口径。
+- 导出：`已消耗（元）` 列对包年客户取 `package_consumed_amount`。
 
 ### 4. Validation & Error Matrix
 
@@ -204,9 +220,11 @@ def _assemble_balance_rows(customers, last_recharge_map, consumption_stats_map,
 | `test_balance_list_expired_package_shows_zero` | 过期：`total_amount=0`、`package_expired=true`、`days_remaining=0` |
 | `test_balance_filter_package_remaining_amount` | 余额范围筛选按剩余额度命中/排除包年客户 |
 | `test_balance_stats_includes_package_remaining` | 「预付费总余额」「余额不足」计入包年剩余额度 |
-| `test_export_balances_package_columns` | 导出含三列，不限量客户次数列显示「不限」 |
+| `test_export_balances_package_columns` | 导出含三列，不限量客户次数列显示「不限」；`已消耗（元）` 对包年取套餐内累计消耗 |
+| `test_balance_sort_used_total_uses_package_consumed` | `sort_by=used_total&sort_order=desc`：包年客户以套餐内累计消耗（80000）参与排序，排在 `used_total=5000` 的预付费客户之前 |
+| `test_assemble_expired_package_zeroes_balance` / `test_balance_list_expired_package_shows_zero` | 过期包年 `package_consumed_amount = null`（展示层回退 `used_total`） |
 | `test_burn_down_valid_package_uses_expiry_days` / `..._without_expiry_returns_none` / `..._expired_package_returns_zero` | 燃尽包年三分支 |
-| `test_assemble_package_without_balance_row` / `..._expired_package_zeroes_balance` / `..._unlimited_package_no_count` / `..._non_package_unchanged` | 行组装字段输出 |
+| `test_assemble_package_without_balance_row` / `..._expired_package_zeroes_balance` / `..._unlimited_package_no_count` / `..._non_package_unchanged` | 行组装字段输出（含 `package_consumed_amount`：包年 = 实时累计、非包年/过期 = `null`） |
 | `test_batch_query_package_info_*`（limit_and_count / unlimited_has_no_count / clamps_negative / expired_flag / empty_ids） | 批量查询剩余额度与次数、负值截断、过期标记、空入参 |
 
 变异校验：把列表 `total_amount` 排序表达式从 `COALESCE(package_cte..., ...)` 换回 `CustomerBalance.total_amount`，`test_balance_filter_package_remaining_amount` 必须失败。
@@ -238,6 +256,192 @@ balance_expr = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amou
 ```
 
 > **PG JSON 陷阱**：`package_limits` 是 `json` 类型，PostgreSQL 的 `json` 无相等操作符，**不能出现在 `GROUP BY` / `DISTINCT`**。套餐内累计消耗须用按 `pricing_rule_id` 关联的标量子查询（`.correlate(PricingRule).scalar_subquery()`）聚合，不要 `GROUP BY pr.package_limits`。
+
+---
+
+## Scenario: 客户管理页余额口径对齐（列表 / 详情 / 预测 / 360 摘要）
+
+### 1. Scope / Trigger
+
+- Trigger: 跨层契约变更 —— 客户管理页（`backend/app/routes/customers.py`）的余额展示口径需与余额管理页一致；修复 `/summary` 端点既有 500、`/balance-forecast` 返回 ORM 对象两个缺陷。
+- 背景：包年客户年费不进 `CustomerBalance`，客户管理页若继续显示 `CustomerBalance.total_amount`（=0），会与余额管理页「套餐剩余额度」矛盾，并使健康度误判为「高风险」。
+
+### 2. Signatures
+
+[来源: `backend/app/routes/customers.py`，均从共享模块导入]
+
+```python
+from ..services.package_balance import (
+    batch_query_package_info,     # 列表当前页 / 详情 / 预测 / 摘要 批量补充包年字段
+    resolve_effective_balance,    # 详情余额 Tab 端点决策口径
+)
+```
+
+### 3. Contracts
+
+客户列表 `data.list[]` 包年相关字段（非包年客户 `is_package=false`、`package_expired=false`，`balance` 仍取 `CustomerBalance`）：
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| `balance` | number | 包年 → 套餐剩余额度（无 `CustomerBalance` 行也不为 0）；非包年 → `CustomerBalance.total_amount`（无余额行 = `0`） |
+| `is_package` | bool | 命中包年（生效或已过期规则）；前端据此把「余额」文案标注为「套餐剩余额度」 |
+| `package_expired` | bool | 无生效规则但存在已过期包年规则 |
+
+- 排序：`sort_by=balance` 对包年客户以套餐剩余额度参与排序（服务层 `COALESCE(package_remaining.remaining, customer_balances.total_amount, 0)`），排序与展示同口径。
+- 健康度：`health` 以**有效余额**（包年 = 套餐剩余额度）判定，避免年费不入账导致的 0 余额「高风险」误判。
+- 客户详情 `data.balance.total_amount`：包年 = 套餐剩余额度；无 `CustomerBalance` 行时以 0/0/0 结构返回（不返回 `null`）。详情写缓存后须与列表同口径。
+- 详情余额 Tab 端点 `GET /api/v1/billing/customers/<id>/balance`：`total_amount = resolve_effective_balance(...)`，并附包年字段（`is_package` / `package_remaining_amount` / `package_remaining_count` / `package_is_unlimited` / `package_expired` / `package_consumed_amount`）。
+- 余额预测 `GET /api/v1/customers/<id>/balance-forecast`：`balance` 必须为**数值**（此前误将 ORM `CustomerBalance` 对象直接返回导致前端拿不到数字）；包年取套餐剩余额度。
+- 360 摘要 `GET /api/v1/customers/<id>/summary`：`balance` 文案按包年口径（`¥` 千分位）。
+- 导出 Excel `_build_excel`：`余额` 列对包年客户输出套餐剩余额度。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|------|------|
+| 包年有生效规则 | 列表/详情/预测/摘要的余额均为套餐剩余额度；`is_package=true` |
+| 包年规则已过期 | 余额 = `0`、`package_expired=true`（不落回 `CustomerBalance` 的欠费负值） |
+| 包年无 `CustomerBalance` 行 | 列表仍出现且余额 = 剩余额度；详情 `balance` 以 0/0/0 结构返回 |
+| 非包年客户 | 余额/健康度/排序与改动前完全一致（回归基线） |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 包年客户 `base_fee=120000`、套餐内消耗 `30000` → 列表 `balance=90000`、`health=healthy`；余额管理页同一客户显示一致。
+- Base: 非包年客户 `is_package=false`，其余字段不变。
+- Bad: 列表/详情仍读 `CustomerBalance.total_amount` → 包年客户全为 0 并与余额管理页矛盾；`balance-forecast` 直接 `json({"balance": customer.balance})` → 序列化 ORM 对象报错或前端拿到非数字。
+
+### 6. Tests Required
+
+[来源: `backend/tests/integration/test_customers_package_balance.py`、`frontend/src/views/customers/detail/__tests__/CustomerBalanceTab.test.ts`]
+
+| 用例 | 断言点 |
+|------|--------|
+| `test_customer_list_package_balance_uses_remaining` | 列表包年客户 `balance` = 剩余额度（非 0），`is_package=true` |
+| `test_customer_list_package_health_not_high_risk` | 包年有消耗不因 0 余额误报 `high_risk` |
+| `test_customer_detail_package_balance` | 详情 `balance.total_amount` = 剩余额度 |
+| `test_billing_customer_balance_endpoint_package` | 余额 Tab 端点返回剩余额度 + 包年字段 |
+| `test_balance_forecast_returns_numeric_balance` | 预测 `balance` 为数值且 = 剩余额度 |
+| `test_customer_summary_package_balance_text` | 摘要余额文案为套餐剩余额度 |
+| `test_customer_list_sort_by_balance_package_first` | `sort_by=balance` 包年客户以剩余额度参与排序 |
+| `CustomerBalanceTab`（前端 4 例） | 非包年四卡片；包年三卡片 + 不显示实充/赠送；不限量显示「不限量」；过期显示「套餐已过期」标签 |
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 1) 客户管理页各自重写口径 → 与余额管理页漂移
+balance = customer.balance.total_amount if customer.balance else 0
+
+# 2) 预测接口直接返回 ORM 对象
+return json({"code": 0, "data": {"balance": customer.balance}})
+
+# 3) 调用不存在的方法（既有 500）
+await service.get_customer_detail(customer_id)
+```
+
+#### Correct
+
+```python
+# 1) 统一走共享模块
+from ..services.package_balance import batch_query_package_info
+info = (await batch_query_package_info(db, [customer_id])).get(customer_id)
+amount, _ = resolve_effective_balance(
+    float(customer.balance.total_amount) if customer.balance else 0.0, info
+)
+
+# 2) 预测接口只返回数值
+return json({"code": 0, "data": {"balance": amount}})
+
+# 3) 摘要端点改用存在的服务方法（已 selectinload profile/balance）
+customer = await CustomerService(db).get_customer_by_id(customer_id)
+```
+
+---
+
+## Scenario: 开放平台余额接口口径（`/api/v1/balances`、`/api/v1/erp/balances`）
+
+### 1. Scope / Trigger
+
+- Trigger: 对外契约修正 —— 开放平台两个余额接口此前只算 `CustomerBalance.total_amount − used_total`，包年客户恒返回 `0.0`，与内部页面矛盾。
+- 背景: 包年客户年费走合同式预收、不进 `CustomerBalance`；开放接口是 ERP 下游对账数据源，返回 0 会让下游误判「余额耗尽」。
+- 路由: `backend/app/routes/openapi.py`（`openapi_bp` = `/api/v1/erp`、`openapi_customer_bp` = `/api/v1`），认证走 API-Key（`Authorization: Bearer vk_...`，见 `OPENAPI_PREFIXES`）。
+
+### 2. Signatures
+
+[来源: `backend/app/routes/openapi.py`，复用共享模块 `build_package_remaining_cte`]
+
+```python
+def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
+    """Customer 驱动 + LEFT JOIN customer_balances + LEFT JOIN package_remaining。
+    第 6 列返回 package_remaining.remaining（非包年 → NULL）。"""
+
+def _format_balance_rows(rows, whitelist_map=None) -> list[dict]:
+    """余额优先级：白名单静态值 > 包年剩余额度 > total_amount - used_total。"""
+```
+
+### 3. Contracts
+
+响应结构不变（`customer_id` / `customer_name` / `balance`），仅 `balance` 取值口径变更：
+
+| 客户类型 | `balance` |
+|---|---|
+| 命中余额白名单 | 白名单 `static_balance`（优先级最高，人工覆盖） |
+| 包年客户（有效规则） | 套餐剩余额度 `max(base_fee − 套餐内累计消耗, 0)` |
+| 非包年客户 | `total_amount − used_total`（无余额记录 = `0.0`） |
+
+- 包年剩余额度按共享 CTE 计算，**每客户取最新一条生效规则**，与内部页面同口径。
+- 返回全部有效客户（未删除、未停用），按 `company_id` 升序；ERP 渠道接口额外按 `erp_system` 过滤。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|------|------|
+| 包年客户无 `CustomerBalance` 行 | 返回套餐剩余额度（**不再**是 `0.0`） |
+| 非包年客户无余额行 | `0.0`（口径不变） |
+| 包年客户命中白名单 | 静态余额优先 |
+| 缺少 API-Key / 无效 Key | `401` + `40104`（不变） |
+| ERP 接口缺 `erp_channel` | `400` + `40004`（不变） |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 包年客户 `base_fee=2980`、套餐内消耗 `99.32` → 接口返回 `2880.68`，与内部余额管理页一致。
+- Base: 非包年客户 `5000/1500` → `3500.0`，与改动前一致。
+- Bad: 仅用 `total_amount − used_total` → 8 个包年客户全部返回 `0.0`，ERP 下游对账错误。
+
+### 6. Tests Required
+
+[来源: `backend/tests/integration/test_openapi_api.py`]
+
+| 用例 | 断言点 |
+|------|--------|
+| `test_all_balances_package_customer_uses_remaining_amount` | 包年无余额行客户 → `balance = 2880.68` |
+| `test_all_balances_non_package_unchanged` | 非包年 = `total - used`；包年 = 剩余额度（回归基线） |
+| `test_all_balances_package_whitelist_still_wins` | 包年命中白名单 → 静态余额优先 |
+| `test_erp_balances_package_customer_uses_remaining_amount` | 渠道接口同样接入包年口径 |
+| `test_all_balances_success` / `test_all_balances_whitelist_*` / `test_erp_balances_*` | 既有契约无回归 |
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 仅算现金池：包年客户恒为 0
+select(CustomerBalance.total_amount, CustomerBalance.used_total)
+balance = round(total - used, 2)
+```
+
+#### Correct
+
+```python
+# 复用共享 CTE，包年取剩余额度
+package_cte = build_package_remaining_cte()
+stmt = (... .outerjoin(package_cte, Customer.id == package_cte.c.cid))
+if package_remaining is not None:
+    balance = round(float(package_remaining), 2)
+else:
+    balance = round(total - used, 2)
+```
 
 ---
 
