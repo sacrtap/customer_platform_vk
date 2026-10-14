@@ -149,7 +149,7 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/staging_key
           chmod 600 ~/.ssh/staging_key
 
-          SSH_OPTS=(-i ~/.ssh/staging_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 "-oProxyCommand=cloudflared access ssh --hostname ${SSH_HOST}")
+          SSH_OPTS=(-i ~/.ssh/staging_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=10 "-oProxyCommand=cloudflared access ssh --hostname ${SSH_HOST}")
 
           # 通过 scp 传输部署文件到远端（避免远端 git fetch，Cloudflare Tunnel SSH 会话无法访问 github.com）
           echo "📦 传输部署文件..."
@@ -248,7 +248,7 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/production_key
           chmod 600 ~/.ssh/production_key
 
-          SSH_OPTS=(-i ~/.ssh/production_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 "-oProxyCommand=cloudflared access ssh --hostname ${SSH_HOST}")
+          SSH_OPTS=(-i ~/.ssh/production_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=10 "-oProxyCommand=cloudflared access ssh --hostname ${SSH_HOST}")
 
           # 通过 scp 传输部署文件到远端（避免远端 git fetch，Cloudflare Tunnel SSH 会话无法访问 github.com）
           echo "📦 传输部署文件..."

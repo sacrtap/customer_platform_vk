@@ -362,14 +362,13 @@ pull_remote_image() {
     log_info "前端镜像已拉取并标记为 customer_platform_frontend:latest"
 
      # 预拉取 compose 依赖的基础镜像（postgres、redis）
-     # 避免 compose up 时自动拉取触发 macOS Keychain 凭证获取，
-     # 导致 SSH 非交互式会话报错 "keychain cannot be accessed"
+     # 直接使用 podman pull 而非 podman compose pull，
+     # 因为 podman compose 底层调用 docker-compose，会读取 ~/.docker/config.json 的
+     # credsStore 触发 macOS Keychain，在 SSH 非交互式会话中报 "keychain cannot be accessed"。
+     # podman pull 使用 REGISTRY_AUTH_FILE（文件式认证），不依赖 Keychain。
      log_step "预拉取基础镜像（postgres、redis）..."
-     $COMPOSE_CMD -f $COMPOSE_FILE pull db redis || {
-         log_warn "预拉取基础镜像失败（compose），尝试逐个拉取..."
-         $CONTAINER_RUNTIME pull postgres:18-alpine || log_warn "拉取 postgres:18-alpine 失败"
-         $CONTAINER_RUNTIME pull redis:7-alpine || log_warn "拉取 redis:7-alpine 失败"
-     }
+     $CONTAINER_RUNTIME pull postgres:18-alpine || log_warn "拉取 postgres:18-alpine 失败"
+     $CONTAINER_RUNTIME pull redis:7-alpine || log_warn "拉取 redis:7-alpine 失败"
      log_info "基础镜像预拉取完成"
 }
 
