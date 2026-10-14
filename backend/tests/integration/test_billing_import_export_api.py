@@ -23,6 +23,8 @@ import pytest
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import text
 
+from app.utils.timezone import local_date_to_utc_start
+
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -457,9 +459,9 @@ async def test_import_pricing_rules_dry_run_preview(
         count = db_session.execute(
             text(
                 "SELECT COUNT(*) FROM pricing_rules "
-                "WHERE customer_id = :cid AND effective_date = '2026-05-01'"
+                "WHERE customer_id = :cid AND effective_date = :ed"
             ),
-            {"cid": import_customer["id"]},
+            {"cid": import_customer["id"], "ed": local_date_to_utc_start("2026-05-01")},
         ).scalar()
         assert count == 0, f"预检查不应落库，实际 {count} 条"
 
@@ -475,17 +477,15 @@ async def test_import_pricing_rules_dry_run_preview(
         count = db_session.execute(
             text(
                 "SELECT COUNT(*) FROM pricing_rules "
-                "WHERE customer_id = :cid AND effective_date = '2026-05-01'"
+                "WHERE customer_id = :cid AND effective_date = :ed"
             ),
-            {"cid": import_customer["id"]},
+            {"cid": import_customer["id"], "ed": local_date_to_utc_start("2026-05-01")},
         ).scalar()
         assert count == 1
     finally:
         db_session.execute(
-            text(
-                "DELETE FROM pricing_rules WHERE customer_id = :cid AND effective_date = '2026-05-01'"
-            ),
-            {"cid": import_customer["id"]},
+            text("DELETE FROM pricing_rules WHERE customer_id = :cid AND effective_date = :ed"),
+            {"cid": import_customer["id"], "ed": local_date_to_utc_start("2026-05-01")},
         )
         db_session.commit()
 
