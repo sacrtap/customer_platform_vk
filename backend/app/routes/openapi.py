@@ -15,6 +15,7 @@ from ..constants import ErrorCodes
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer
 from ..services.balance_whitelist_service import BalanceWhitelistService
+from ..services.package_balance import build_package_remaining_cte
 
 openapi_bp = Blueprint("open_platform", url_prefix="/api/v1/erp")
 # 全量客户余额接口与 ERP 渠道域平级，使用独立蓝图（url_prefix=/api/v1）
@@ -32,7 +33,10 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
 
     第 1 列返回 Customer.id（DB 主键）供白名单按主键匹配；
     响应中的 customer_id 仍取第 2 列 Customer.company_id（对外契约不变）。
+    第 6 列返回包年剩余额度（`package_remaining.remaining`，非包年为 NULL）——
+    包年客户年费不进 `CustomerBalance`，余额须取套餐剩余额度，否则恒为 0。
     """
+    package_cte = build_package_remaining_cte()
     stmt = (
         select(
             Customer.id,
@@ -40,10 +44,12 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
             Customer.name,
             CustomerBalance.total_amount,
             CustomerBalance.used_total,
+            package_cte.c.remaining,
         )
         .select_from(
             outerjoin(Customer, CustomerBalance, Customer.id == CustomerBalance.customer_id)
         )
+        .outerjoin(package_cte, Customer.id == package_cte.c.cid)
         .where(
             Customer.deleted_at.is_(None),
             Customer.is_disabled.isnot(True),
@@ -58,16 +64,23 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
 def _format_balance_rows(rows, whitelist_map: dict[int, float] | None = None) -> list[dict]:
     """将余额查询结果格式化为统一响应结构
 
-    - whitelist_map 为空：全部客户 balance = total_amount - used_total（计算余额）
-    - whitelist_map 非空：命中白名单（按 DB 主键 Customer.id）的客户
-      balance 直接取静态余额，其余维持计算余额
+    余额优先级（与内部余额管理页口径一致）：
+
+    1. 白名单命中（按 DB 主键 `Customer.id`）→ 静态余额（人工覆盖，优先级最高）
+    2. 包年客户（`package_remaining` 非 NULL）→ 套餐剩余额度
+       （年费为合同式预收，不进 `CustomerBalance`，直接算 `total - used` 恒为 0）
+    3. 其余客户 → 计算余额 `total_amount - used_total`（无余额记录按 0 处理）
     """
     data = []
     for row in rows:
-        customer_pk, company_id, name, total_amount, used_total = row
+        customer_pk, company_id, name, total_amount, used_total, package_remaining = row
         total = float(total_amount) if total_amount else 0.0
         used = float(used_total) if used_total else 0.0
-        balance = round(total - used, 2)
+
+        if package_remaining is not None:
+            balance = round(float(package_remaining), 2)
+        else:
+            balance = round(total - used, 2)
 
         if whitelist_map and customer_pk in whitelist_map:
             balance = whitelist_map[customer_pk]

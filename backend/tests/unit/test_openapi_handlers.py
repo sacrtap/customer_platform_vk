@@ -22,10 +22,10 @@ def _make_request(erp_channel=None):
     request.args.get.return_value = erp_channel
     session = AsyncMock()
     result = MagicMock()
-    # 行结构: (Customer.id, company_id, name, total_amount, used_total)
+    # 行结构: (Customer.id, company_id, name, total_amount, used_total, package_remaining)
     result.all.return_value = [
-        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0),
-        (1552, 1552, "荣城地产", None, None),
+        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0, None),
+        (1552, 1552, "荣城地产", None, None, None),
     ]
     session.execute = AsyncMock(return_value=result)
     request.ctx.db_session = session
@@ -33,7 +33,7 @@ def _make_request(erp_channel=None):
 
 
 def _make_request_all():
-    """构造全量版 Request: 白名单 map 查询为空 + 客户余额行（5 列）"""
+    """构造全量版 Request: 白名单 map 查询为空 + 客户余额行（6 列）"""
     request = MagicMock()
     request.args.get.return_value = None
     session = AsyncMock()
@@ -41,10 +41,31 @@ def _make_request_all():
     whitelist_result.all.return_value = []
     customer_result = MagicMock()
     customer_result.all.return_value = [
-        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0),
-        (1552, 1552, "荣城地产", None, None),
+        (615, 615, "北京金诚阜业房地产经纪有限公司", 100000.0, 0.0, None),
+        (1552, 1552, "荣城地产", None, None, None),
     ]
     # 第一次 execute 查白名单 map（空），第二次查客户余额
+    session.execute = AsyncMock(side_effect=[whitelist_result, customer_result])
+    request.ctx.db_session = session
+    return request
+
+
+def _make_request_package():
+    """构造含包年客户的 Request（第 6 列 = 套餐剩余额度，非包年为 None）"""
+    request = MagicMock()
+    request.args.get.return_value = None
+    session = AsyncMock()
+    whitelist_result = MagicMock()
+    whitelist_result.all.return_value = []
+    customer_result = MagicMock()
+    customer_result.all.return_value = [
+        # 包年客户: 现金池为 0，但套餐剩余额度 2880.68 → 应返回 2880.68
+        (100, 1625, "新乡暴风雨地产", 0.0, 0.0, 2880.68),
+        # 非包年客户: 无包年列 → 走 total - used
+        (101, 200, "预付费客户", 5000.0, 1500.0, None),
+        # 包年且无余额行 → 仍取套餐剩余额度
+        (102, 300, "包年无余额行客户", None, None, 1000.0),
+    ]
     session.execute = AsyncMock(side_effect=[whitelist_result, customer_result])
     request.ctx.db_session = session
     return request
@@ -88,3 +109,14 @@ async def test_all_balances_success_direct():
         "balance": 100000.0,
     }
     assert data[1]["balance"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_all_balances_package_uses_remaining_not_cash_pool():
+    """全量版: 包年客户取套餐剩余额度（现金池为 0 也返回剩余额度），非包年走 total-used"""
+    response = await get_all_customer_balances(_make_request_package())
+    assert response.status == 200
+    by_id = {i["customer_id"]: i["balance"] for i in _response_json(response)["data"]}
+    assert by_id["1625"] == 2880.68  # 包年：现金池 0 但套餐剩 2880.68
+    assert by_id["200"] == 3500.0  # 非包年：5000 - 1500
+    assert by_id["300"] == 1000.0  # 包年无余额行：仍取套餐剩余额度
