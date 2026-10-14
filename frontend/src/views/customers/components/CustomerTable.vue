@@ -92,9 +92,18 @@
                 <span v-if="record.consume_level">{{ record.consume_level }}</span>
                 <span v-else class="subtle">-</span>
               </template>
-              <!-- 余额 -->
+              <!-- 余额（包年客户为套餐剩余额度，与余额管理页同口径） -->
               <template v-else-if="col.key === 'balance'">
-                <span v-if="record.balance != null">¥{{ formatNumber(record.balance) }}</span>
+                <span v-if="record.balance != null">
+                  <a-tooltip
+                    v-if="record.is_package"
+                    content="包年套餐剩余额度（年费为合同式预收，不进余额池）"
+                  >
+                    ¥{{ formatNumber(record.balance) }}
+                    <span v-if="record.package_expired" class="subtle">（已过期）</span>
+                  </a-tooltip>
+                  <template v-else>¥{{ formatNumber(record.balance) }}</template>
+                </span>
                 <span v-else class="subtle">-</span>
               </template>
               <!-- 30天消耗 -->

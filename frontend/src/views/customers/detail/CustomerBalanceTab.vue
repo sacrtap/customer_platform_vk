@@ -4,22 +4,58 @@
       <SkeletonCard v-for="i in 4" :key="i" height="110px" />
     </div>
     <div v-else class="balance-cards">
-      <div class="balance-card">
-        <div class="balance-label">总余额</div>
-        <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
-      </div>
-      <div class="balance-card">
-        <div class="balance-label">实充余额</div>
-        <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
-      </div>
-      <div class="balance-card">
-        <div class="balance-label">赠送余额</div>
-        <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
-      </div>
-      <div class="balance-card">
-        <div class="balance-label">已消耗</div>
-        <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
-      </div>
+      <!-- 包年客户：年费为合同式预收，不进 CustomerBalance，展示「套餐剩余额度」口径 -->
+      <template v-if="balance.is_package">
+        <div class="balance-card">
+          <div class="balance-label">套餐剩余额度</div>
+          <div class="balance-value">
+            {{ formatCurrency(balance.package_remaining_amount ?? balance.total_amount) }}
+            <span v-if="balance.package_expired" class="pkg-tag">套餐已过期</span>
+          </div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">套餐剩余次数</div>
+          <div class="balance-value">
+            {{
+              balance.package_is_unlimited
+                ? '不限量'
+                : formatNumber(balance.package_remaining_count)
+            }}
+          </div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">套餐内累计消耗</div>
+          <div class="balance-value">
+            {{
+              balance.package_consumed_amount != null
+                ? formatCurrency(balance.package_consumed_amount)
+                : '—'
+            }}
+          </div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">已结算消耗</div>
+          <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="balance-card">
+          <div class="balance-label">总余额</div>
+          <div class="balance-value">{{ formatCurrency(balance.total_amount) }}</div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">实充余额</div>
+          <div class="balance-value real">{{ formatCurrency(balance.real_amount) }}</div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">赠送余额</div>
+          <div class="balance-value bonus">{{ formatCurrency(balance.bonus_amount) }}</div>
+        </div>
+        <div class="balance-card">
+          <div class="balance-label">已消耗</div>
+          <div class="balance-value">{{ formatCurrency(balance.used_total) }}</div>
+        </div>
+      </template>
     </div>
 
     <!-- 余额趋势图 - 性能优化: 延迟加载 -->
@@ -36,7 +72,7 @@
 <script setup lang="ts">
 import type { Balance } from '@/types'
 import type { BalanceTrendItem } from '@/api/billing'
-import { formatCurrency } from '@/utils/formatters'
+import { formatCurrency, formatNumber } from '@/utils/formatters'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import BalanceTrendChart from '@/components/charts/BalanceTrendChart.vue'
 
@@ -162,6 +198,20 @@ defineProps<{
 
 .balance-value.bonus {
   color: var(--green);
+}
+
+/* 包年套餐标签（过期） */
+.pkg-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  vertical-align: middle;
 }
 
 /* 余额趋势区域 */

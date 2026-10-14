@@ -25,7 +25,7 @@
         <!-- KPI 四宫格 -->
         <div class="drawer-kpi-grid">
           <div class="drawer-kpi">
-            <span>当前余额</span>
+            <span>{{ customer.is_package ? '套餐剩余额度' : '当前余额' }}</span>
             <b>¥{{ formatNumber(customer.balance) }}</b>
           </div>
           <div class="drawer-kpi">

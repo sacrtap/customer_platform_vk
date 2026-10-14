@@ -38,6 +38,22 @@ customers_bp = Blueprint("customers", url_prefix="/api/v1/customers")
 logger = logging.getLogger(__name__)
 
 
+def _customer_effective_balance(customer, package_info_map: dict) -> float:
+    """客户「有效余额」——包年客户按套餐剩余额度，其余按 CustomerBalance
+
+    与余额管理页口径一致（共享 `app/services/package_balance.py`）。包年客户年费
+    不进 `CustomerBalance`，若直接读 `total_amount` 会得到 0 并误判为「高风险」。
+    """
+    package_info = package_info_map.get(customer.id)
+    if package_info is not None:
+        return float(package_info.get("remaining_amount", 0.0) or 0.0)
+    return (
+        float(customer.balance.total_amount)
+        if customer.balance and customer.balance.total_amount
+        else 0.0
+    )
+
+
 @customers_bp.get("")
 @auth_required
 @require_permission("customers:view")
@@ -161,6 +177,14 @@ async def list_customers(request: Request):
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)
 
+    # 批量查询当前页客户的包年套餐信息（余额口径与余额管理页一致：
+    # 包年客户余额 = 套餐剩余额度，而非 CustomerBalance.total_amount）
+    from ..services.package_balance import batch_query_package_info
+
+    package_info_map: dict[int, dict] = {}
+    if customers:
+        package_info_map = await batch_query_package_info(db_session, [c.id for c in customers])
+
     # 批量查询当前页客户的近30天消耗数据（使用独立缓存，TTL 5 分钟）
     usage_map: dict[int, dict] = {}
     if customers:
@@ -231,16 +255,29 @@ async def list_customers(request: Request):
                     # === 客户列表页新增字段 ===
                     "scale_level": c.profile.scale_level if c.profile else None,
                     "consume_level": c.profile.consume_level if c.profile else None,
-                    "balance": (float(c.balance.total_amount) if c.balance else 0.0),
+                    # 余额口径与余额管理页一致：包年客户取套餐剩余额度（无余额行也不为 0）
+                    "balance": (
+                        float(package_info_map[c.id]["remaining_amount"])
+                        if c.id in package_info_map
+                        else (float(c.balance.total_amount) if c.balance else 0.0)
+                    ),
+                    # 是否包年（前端据此把「余额」文案标注为「套餐剩余额度」）
+                    "is_package": c.id in package_info_map,
+                    "package_expired": (
+                        bool(package_info_map[c.id].get("is_expired"))
+                        if c.id in package_info_map
+                        else False
+                    ),
                     # 近30天消耗（来自 DailyConsumption 表）
                     "usage_30d": usage_map.get(c.id, {}).get("order_count", 0),  # pyright: ignore[reportArgumentType, reportCallIssue]
                     "usage_30d_amount": usage_map.get(c.id, {}).get("total_cost", 0.0),  # pyright: ignore[reportArgumentType, reportCallIssue]
-                    # 简易健康度估算（基于余额和用量，完整评分需调用 /analytics/health/customers/<id>/score）
+                    # 简易健康度估算（基于有效余额与用量，包年客户按套餐剩余额度判定，
+                    # 避免年费不入 CustomerBalance 导致的 0 余额「高风险」误判）
                     "health": (
                         "high_risk"
-                        if (c.balance and float(c.balance.total_amount) < 500)
+                        if _customer_effective_balance(c, package_info_map) < 500
                         else "attention"
-                        if (c.balance and float(c.balance.total_amount) < 1000)
+                        if _customer_effective_balance(c, package_info_map) < 1000
                         else "inactive"
                         if usage_map.get(c.id, {}).get("order_count", 0) == 0  # pyright: ignore[reportArgumentType, reportCallIssue]
                         else "healthy"
@@ -462,11 +499,17 @@ async def get_customer(request: Request, customer_id: int):
     else:
         data["profile"] = None
 
-    # 添加余额信息
+    # 添加余额信息（口径与余额管理页一致：包年客户 = 套餐剩余额度，年费不进 CustomerBalance）
+    from ..services.package_balance import batch_query_package_info
+
+    package_info = (await batch_query_package_info(db_session, [customer_id])).get(customer_id)
+
     if customer.balance:
         data["balance"] = {
             "total_amount": (
-                float(customer.balance.total_amount) if customer.balance.total_amount else 0
+                float(package_info["remaining_amount"])
+                if package_info is not None
+                else (float(customer.balance.total_amount) if customer.balance.total_amount else 0)
             ),
             "real_amount": (
                 float(customer.balance.real_amount) if customer.balance.real_amount else 0
@@ -477,6 +520,16 @@ async def get_customer(request: Request, customer_id: int):
             "used_total": float(customer.balance.used_total) if customer.balance.used_total else 0,
             "used_real": float(customer.balance.used_real) if customer.balance.used_real else 0,
             "used_bonus": float(customer.balance.used_bonus) if customer.balance.used_bonus else 0,
+        }
+    elif package_info is not None:
+        # 包年客户无 CustomerBalance 行：余额以套餐剩余额度呈现
+        data["balance"] = {
+            "total_amount": float(package_info["remaining_amount"]),
+            "real_amount": 0,
+            "bonus_amount": 0,
+            "used_total": 0,
+            "used_real": 0,
+            "used_bonus": 0,
         }
     else:
         data["balance"] = None
@@ -1489,7 +1542,10 @@ async def get_customer_summary(request: Request, customer_id: int):
 
     db: AsyncSession = request.ctx.db_session
 
-    customer = await db.get(Customer, customer_id)
+    # 既有缺陷修复：原代码调用不存在的 `service.get_customer_detail`（该端点对所有客户 500）。
+    # 统一走 `get_customer_by_id`（已 selectinload profile/balance），再补可见性校验。
+    service = CustomerService(db)
+    customer = await service.get_customer_by_id(customer_id)
     if not customer:
         return json({"code": 404, "message": "Customer not found"}, status=404)
 
@@ -1500,13 +1556,19 @@ async def get_customer_summary(request: Request, customer_id: int):
     ):
         return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
-    service = CustomerService(db)
-    # 使用现有服务获取客户健康度等数据
-    await service.get_customer_detail(customer_id)  # pyright: ignore[reportAttributeAccessIssue]
-
     # 格式化返回数据 — 通过 profile/balance 关系访问属性
     profile = customer.profile
     balance = customer.balance
+    # 包年客户年费不进 CustomerBalance：余额文案以「套餐剩余额度」呈现
+    from ..services.package_balance import batch_query_package_info
+
+    package_info = (await batch_query_package_info(db, [customer_id])).get(customer_id)
+    if package_info is not None:
+        balance_display = f"¥{float(package_info['remaining_amount']):,.0f}"
+    elif balance and balance.total_amount is not None:
+        balance_display = f"¥{float(balance.total_amount):,.0f}"
+    else:
+        balance_display = "N/A"
     return json(
         {
             "code": 0,
@@ -1517,11 +1579,7 @@ async def get_customer_summary(request: Request, customer_id: int):
                 ),
                 "scale_level": profile.scale_level if profile else None,
                 "consume_level": profile.consume_level if profile else None,
-                "balance": (
-                    f"¥{float(balance.total_amount):,.0f}"
-                    if balance and balance.total_amount is not None
-                    else "N/A"
-                ),
+                "balance": balance_display,
                 "usage_30d": "N/A",
                 "health": "—",
                 "health_class": "",
@@ -1601,7 +1659,18 @@ async def get_balance_forecast(request: Request, customer_id: int):
         return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
     # 简单预测：如果有余额和消耗数据，计算预计天数
-    balance = getattr(customer, "balance", 0) or 0
+    # 注意：customer.balance 是关联的 ORM 对象，必须取其 total_amount 数值；
+    # 包年客户年费不进 CustomerBalance，余额取「套餐剩余额度」（与其余页面一致）。
+    from ..services.package_balance import batch_query_package_info
+
+    package_info = (await batch_query_package_info(db, [customer_id])).get(customer_id)
+    if package_info is not None:
+        balance = float(package_info["remaining_amount"])
+    else:
+        balance_obj = getattr(customer, "balance", None)
+        balance = (
+            float(balance_obj.total_amount) if (balance_obj and balance_obj.total_amount) else 0
+        )
     # 日均消耗暂时返回 0，需要消耗记录表来计算
     daily_avg = 0
 
