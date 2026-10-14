@@ -940,3 +940,38 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 39: 包年套餐余额显示优化（共享模块抽取 / 客户管理页跨页对齐 / 开放平台余额口径 / 拆分提交）
+<!-- trellis-session: v=2 fp=0eec2ff58add48a4 -->
+
+**Date**: 2026-10-14
+**Task**: 包年套餐余额显示优化（共享模块抽取 / 客户管理页跨页对齐 / 开放平台余额口径 / 拆分提交）
+**Branch**: `optimize/annual-plan-balance-display`
+
+### Summary
+
+实现并交付「包年套餐余额显示优化」全量需求，分两个阶段：(1) 核心口径落地——余额管理页改 Customer 驱动 + package_remaining CTE（窗口函数取每客户最新生效规则），输出包年 9 字段，燃尽列改「剩余 N 天到期」，余额范围筛选/排序/KPI/Excel 导出全部按套餐剩余额度参与，过期包年归 0 并标「套餐已过期」；修复 360 摘要接口既有 500 与余额预测返回 ORM 对象的 bug。(2) 跨页口径对齐与拆分提交——抽出共享模块 app/services/package_balance.py（build_package_remaining_cte / batch_query_package_info / resolve_effective_balance），余额管理页、客户管理页（列表/详情/预览/预测/360 摘要）、开放平台余额接口（/api/v1/balances、/api/v1/erp/balances，优先级：白名单 > 包年剩余额度 > 计算余额）统一复用，消除多份重复口径；余额页「已消耗」列包年客户改为套餐内累计消耗（实时含未结算），与余额列同口径、排序与导出同步。按要求把 18 个改动文件 + 4 个新增路径按逻辑关注点拆成 5 个提交，并在接受复核建议后追加 1 个 refactor 提交（_customer_effective_balance 改为调用 shared resolve_effective_balance）。验证：后端 pytest 相关 6 文件 48 passed（单元 23 / 集成 14+11）；前端 vitest 19 passed（BalanceTable 15 + CustomerBalanceTab 4）；vue-tsc --noEmit 通过；ruff check/format、prettier、eslint 通过；pyright 0 errors。spec 沉淀三个场景（共享模块与已消耗实时口径 / 客户管理页余额口径对齐 / 开放平台余额接口口径）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `545b4bf` | feat(billing-balance): 包年客户余额显示套餐剩余额度/次数，燃尽改到期天数 |
+| `cc8ae0b` | test(billing-balance): 包年余额单元与集成测试 |
+| `ec2fba3` | docs(spec): 沉淀包年余额口径契约与 PG JSON 列聚合陷阱 |
+| `d3d1129` | docs(specs): 包年套餐余额显示优化方案移入 docs/specs |
+| `22ed060` | feat(billing-balance): 抽取包年口径共享模块并统一「已消耗」实时口径 |
+| `5330009` | feat(customers): 客户管理页余额展示对齐包年口径 |
+| `c8e7cf5` | fix(openapi): 开放平台余额接口按包年口径返回套餐剩余额度 |
+| `92f90c3` | docs(spec): 沉淀包年余额跨页口径契约(共享模块/客户管理页/开放平台) |
+| `862909b` | chore(task): 登记 10-14-annual-plan-balance-display 任务产物 |
+| `ab681ae` | refactor(customers): 有效余额改为复用共享模块 resolve_effective_balance |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 分支 optimize/annual-plan-balance-display 尚未 push，也未开 PR；如需交付请 push 并创建 PR 到 main。
