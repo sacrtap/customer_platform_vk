@@ -122,6 +122,125 @@ stmt = stmt.where(_settlement_group_condition("prepaid"))   # coalesce(settlemen
 
 ---
 
+## Scenario: 包年套餐客户的余额/燃尽/KPI 口径
+
+### 1. Scope / Trigger
+
+- Trigger: 跨层契约变更 —— 余额列表响应新增包年字段、余额范围筛选与排序口径改按「套餐剩余额度」、KPI 与导出同步。
+- 背景：包年客户的年费只存在 `PricingRule.package_limits.base_fee`，**不写入 `CustomerBalance`**。原列表以 `CustomerBalance` 为驱动表，导致包年客户要么完全不出现、要么余额恒为 `0`；`price_policy='yearly'` 却看不到可用额度。现约定：包年客户的「余额」= 套餐剩余额度。
+
+### 2. Signatures
+
+[来源: `backend/app/routes/billing/balances.py`]
+
+```python
+def _build_package_remaining_cte():
+    """每客户最新一条生效包年规则 → remaining = GREATEST(base_fee - 套餐内累计消耗, 0)
+    供余额范围筛选 / total_amount 排序 / KPI 统计复用。"""
+
+async def _batch_query_package_info(db: AsyncSession, customer_ids: list[int]) -> dict[int, dict]:
+    """批量为行组装补充包年字段（含过期判定）。"""
+
+def _compute_burn_down(real_amount, bonus_amount, settlement_type, stats,
+                       package_info: dict | None = None) -> dict:
+    """包年分支优先：燃尽 = 套餐到期剩余天数，而非按消耗推算。"""
+
+def _assemble_balance_rows(customers, last_recharge_map, consumption_stats_map,
+                           package_info_map) -> list[dict]:
+    """以 Customer 为驱动表组装；包年客户 total_amount 覆盖为套餐剩余额度。"""
+```
+
+关键 SQL 形态：列表以 `Customer` 为驱动表 `LEFT JOIN customer_balances` + `LEFT JOIN package_remaining`；`total_amount` / 余额范围筛选 / KPI SUM 统一用 `COALESCE(package_remaining.remaining, customer_balances.total_amount, 0)`。
+
+### 3. Contracts
+
+`PricingRule.package_limits`（JSON）字段：`base_fee` / `is_unlimited` / `limit_count` / `over_limit_unit_price`。
+
+余额列表 `data.list[]` 包年字段（非包年客户均为 `null`/`false`）：
+
+| 字段 | 类型 | 含义 |
+|------|------|------|
+| `price_policy` | string | `Customer.price_policy`，`yearly` = 包年 |
+| `is_package` | bool | 是否命中包年（有生效或已过期包年规则） |
+| `total_amount` | number | 包年覆盖为套餐剩余额度（过期 = `0`）；非包年 = `CustomerBalance.total_amount` |
+| `package_remaining_amount` | number | `max(base_fee - 套餐内累计消耗, 0)`；过期 = `0` |
+| `package_remaining_count` | number \| null | `max(limit_count - 累计订单量, 0)`；**不限量或过期 = `null`** |
+| `package_base_fee` | number | 年费（`base_fee`） |
+| `package_limit_count` | number \| null | 不限量为 `null` |
+| `package_is_unlimited` | bool | 不限量套餐 |
+| `package_expired` | bool | 无生效规则但存在已过期包年规则 |
+| `package_expiry_date` | string \| null | `YYYY-MM-DD`（CST）；无到期日 = `null` |
+| `days_remaining` | number \| null | 包年：有效 = 到期剩余天数（无到期日 = `null`）、过期 = `0`；非包年沿用消耗推算 |
+
+导出 Excel（`_build_excel`）包年新增三列：`套餐剩余额度（元）` / `套餐剩余次数`（不限量显示「不限」）/ `套餐到期日期`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|------|------|
+| 包年且 `expiry_date >= now()` 或 `IS NULL`，且 `effective_date <= now()` | 生效：剩余额度参与筛选/排序/KPI，燃尽 = 到期天数 |
+| 包年且 `expiry_date < now()`（无生效规则） | 过期：`total_amount = 0`、`package_expired = true`、`days_remaining = 0`、前端标「套餐已过期」 |
+| 包年无 `expiry_date` | 视为生效（长期有效）：`days_remaining = null`，燃尽列显示「无到期日」 |
+| 同一客户多条生效包年规则 | 取 `created_at` 最新一条（列表 CTE 用 `row_number()`，Python 侧按 `created_at desc` 首条，两处口径须一致） |
+| `is_unlimited = true` | `remaining_count = null`；剩余额度仍按 `base_fee - 累计消耗` 计算 |
+| 累计消耗超过 `base_fee` | `GREATEST(..., 0)` 下限为 0，不出现负余额 |
+
+**口径一致性要求**：CTE（SQL 侧）与 `_batch_query_package_info`（Python 侧）是同一口径的两份独立实现，改一处必须同步另一处，否则筛选/KPI 与列表展示会相互矛盾。
+
+### 5. Good/Base/Bad Cases
+
+- Good: 包年客户无 `CustomerBalance` 行 → 仍出现在列表，`is_package = true`、`total_amount = package_remaining_amount`；余额范围「1万以下」能筛到它。
+- Base: 非包年客户字段保持 `is_package = false`、包年字段 `null`，余额/燃尽/KPI 与改动前一致。
+- Bad: 继续用 `CustomerBalance` 内连接作驱动表 —— 包年客户被静默丢弃；或在 `total_amount` 排序里仍用 `CustomerBalance.total_amount` —— 包年客户全部排到 0 值区，与展示值不符。
+
+### 6. Tests Required
+
+[来源: `backend/tests/integration/test_billing_balance_package.py`、`backend/tests/unit/test_balance_package.py`]
+
+| 用例 | 断言点 |
+|------|--------|
+| `test_balance_list_includes_package_customer_without_balance_row` | 无余额行包年客户出现在列表，`is_package=true` 且余额 = 剩余额度 |
+| `test_balance_list_unlimited_package_has_no_count` | 不限量：`package_remaining_count=null` |
+| `test_balance_list_expired_package_shows_zero` | 过期：`total_amount=0`、`package_expired=true`、`days_remaining=0` |
+| `test_balance_filter_package_remaining_amount` | 余额范围筛选按剩余额度命中/排除包年客户 |
+| `test_balance_stats_includes_package_remaining` | 「预付费总余额」「余额不足」计入包年剩余额度 |
+| `test_export_balances_package_columns` | 导出含三列，不限量客户次数列显示「不限」 |
+| `test_burn_down_valid_package_uses_expiry_days` / `..._without_expiry_returns_none` / `..._expired_package_returns_zero` | 燃尽包年三分支 |
+| `test_assemble_package_without_balance_row` / `..._expired_package_zeroes_balance` / `..._unlimited_package_no_count` / `..._non_package_unchanged` | 行组装字段输出 |
+| `test_batch_query_package_info_*`（limit_and_count / unlimited_has_no_count / clamps_negative / expired_flag / empty_ids） | 批量查询剩余额度与次数、负值截断、过期标记、空入参 |
+
+变异校验：把列表 `total_amount` 排序表达式从 `COALESCE(package_cte..., ...)` 换回 `CustomerBalance.total_amount`，`test_balance_filter_package_remaining_amount` 必须失败。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 以 CustomerBalance 为驱动表：无余额行的包年客户被整体过滤掉
+select(CustomerBalance).join(Customer, ...)
+# 且把 deleted_at 过滤写在 WHERE，会连带丢掉无余额行客户
+.outerjoin(CustomerBalance, CustomerBalance.customer_id == Customer.id)
+.where(CustomerBalance.deleted_at.is_(None))
+```
+
+#### Correct
+
+```python
+# Customer 驱动 + outerjoin；软删条件必须放进 ON 子句
+select(Customer)
+.outerjoin(CustomerBalance,
+           (CustomerBalance.customer_id == Customer.id)
+           & (CustomerBalance.deleted_at.is_(None)))
+.outerjoin(package_cte, Customer.id == package_cte.c.cid)
+.where(Customer.deleted_at.is_(None))
+# 余额口径统一 COALESCE，筛选/排序/KPI 共用
+balance_expr = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0)
+```
+
+> **PG JSON 陷阱**：`package_limits` 是 `json` 类型，PostgreSQL 的 `json` 无相等操作符，**不能出现在 `GROUP BY` / `DISTINCT`**。套餐内累计消耗须用按 `pricing_rule_id` 关联的标量子查询（`.correlate(PricingRule).scalar_subquery()`）聚合，不要 `GROUP BY pr.package_limits`。
+
+---
+
 ## 相关约定
 
 - 余额范围档位（前端 `BALANCE_RANGE_OPTIONS`）中「1万以下」的 `min` 有意为 `null`（含欠费与零余额），与 `low_balance_count` 口径保持一致；「欠费」是其中只看负余额的窄档，重叠属预期。
