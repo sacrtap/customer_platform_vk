@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, afterEach } from 'vitest'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import CustomerBalanceTab from '@/views/customers/detail/CustomerBalanceTab.vue'
 import type { Balance } from '@/types'
+
+// 避免挂载的 Arco 组件在测试环境销毁后仍残留 requestAnimationFrame，
+// 触发 jsdom「Cannot read properties of null (reading '_location')」未处理异常
+enableAutoUnmount(afterEach)
 
 const baseProps = {
   balanceTrend: [],

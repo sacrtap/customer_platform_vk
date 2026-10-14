@@ -1,8 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { describe, it, expect, afterEach } from 'vitest'
+import { mount, enableAutoUnmount, type VueWrapper } from '@vue/test-utils'
 import ArcoVue from '@arco-design/web-vue'
 import BalanceTable from '@/views/billing/components/BalanceTable.vue'
 import type { Balance } from '@/api/billing'
+
+// 避免挂载的 Arco 组件（Tooltip 等）在测试环境销毁后仍残留 requestAnimationFrame，
+// 触发 jsdom「Cannot read properties of null (reading '_location')」未处理异常
+enableAutoUnmount(afterEach)
 
 // 测试数据
 const mockBalances: Balance[] = [
