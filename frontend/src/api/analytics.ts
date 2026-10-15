@@ -407,73 +407,52 @@ export function getPredictionTrend(params?: { year?: number; force_refresh?: boo
 
 export interface DashboardStats {
   total_customers: number
-  active_customers: number
-  total_revenue: number
-  monthly_growth: number
+  key_customers: number
+  total_balance: number
+  real_balance: number
+  bonus_balance: number
+  month_invoice_count: number
+  pending_confirmation: number
+  month_consumption: number
+  /** 低余额客户数（total_amount < 1000，与余额预警页口径一致） */
+  low_balance_count: number
+  /** 待回款金额（应收净额 - 已回款） */
+  pending_payment_amount: number
+  /** 待回款单数（审批确认链路中的未结单） */
+  pending_payment_count: number
+  /** 最近 30 条同步任务成功率（0-1；无记录为 null） */
+  sync_success_rate: number | null
+  /** 近 7 天异常同步任务数（partial/failed） */
+  abnormal_task_count: number
+  /** 最近同步时间（%Y-%m-%d %H:%M:%S；无记录为 null） */
+  last_sync_time: string | null
+  /** 下次计划同步时间（未启用排程为 null） */
+  next_sync_time: string | null
+  /** 活跃客户较上月环比（%）；上月无数据为 null */
+  total_customers_mom_pct: number | null
+  /** 本月消耗较上月环比（%）；上月无消耗为 null */
+  month_consumption_mom_pct: number | null
 }
 
 export function getDashboardStats() {
-  return api.get('/analytics/dashboard/stats')
+  return api.get<DashboardStats>('/analytics/dashboard/stats')
 }
 
-export interface ChartTrendItem {
-  month: string
-  value: number
-}
+// ==================== 首页仪表盘待办（行动中心） ====================
 
-export interface DashboardChartData {
-  revenue_trend: ChartTrendItem[]
-  customer_growth: ChartTrendItem[]
-}
-
-export function getDashboardChartData(params?: { chart_type?: string; months?: number }) {
-  return api.get('/analytics/dashboard/chart-data', { params })
-}
-
-// ==================== 首页仪表盘扩展 ====================
-
-// 模拟待办事项接口（后端暂未实现）
-export interface PendingTask {
-  id: number
+export interface DashboardTodo {
+  id: string
   title: string
-  type: 'warning' | 'info' | 'success'
-  created_at: string
-  status: 'pending' | 'completed'
+  count: number
+  amount: number
+  urgency: number
+  priority: 'high' | 'medium' | 'low'
+  action_url: string
+  due: string | null
 }
 
-export interface PendingTasksResponse {
-  tasks: PendingTask[]
-  total: number
-}
-
-export function getPendingTasks() {
-  // 模拟数据，后端接口暂未实现
-  return Promise.resolve({
-    tasks: [
-      {
-        id: 1,
-        title: '3 个客户余额不足',
-        type: 'warning',
-        created_at: new Date().toISOString(),
-        status: 'pending',
-      },
-      {
-        id: 2,
-        title: '5 个客户即将到期',
-        type: 'info',
-        created_at: new Date().toISOString(),
-        status: 'pending',
-      },
-      {
-        id: 3,
-        title: '2 个结算单待确认',
-        type: 'info',
-        created_at: new Date().toISOString(),
-        status: 'pending',
-      },
-    ],
-    total: 3,
-  })
+export function getDashboardTodos() {
+  return api.get<DashboardTodo[]>('/analytics/dashboard/todos')
 }
 
 // ==================== 客户健康度 ====================

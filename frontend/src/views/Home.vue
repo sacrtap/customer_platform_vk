@@ -1,56 +1,54 @@
 <template>
   <div class="home-page">
     <!-- PageHeader -->
-    <PageHeader
-      eyebrow="Home"
-      title="运营工作台"
-      subtitle="首屏回答三个问题：今天经营是否正常、哪些客户需要处理、同步/结算链路是否有风险。"
-    >
+    <PageHeader eyebrow="Home" title="运营工作台" :subtitle="pageSubtitle">
       <template #actions>
-        <a-button @click="saveView">保存视图</a-button>
         <a-button type="primary" :loading="loading" @click="refreshData">刷新数据</a-button>
       </template>
     </PageHeader>
 
-    <!-- 同步状态条 -->
-    <SyncStatusBar status="ok" last-sync="10:00" next-sync="11:00">
+    <!-- 同步状态条（真实同步健康数据） -->
+    <SyncStatusBar
+      :status="syncStatus"
+      :last-sync="stats.lastSyncTime || '暂无同步记录'"
+      :next-sync="stats.nextSyncTime || undefined"
+    >
       <template #action>
+        <span class="sync-meta">
+          <template v-if="stats.syncSuccessRate != null">
+            同步成功率 {{ (stats.syncSuccessRate * 100).toFixed(1) }}%
+          </template>
+          <template v-else>暂无成功率数据</template>
+          <span v-if="stats.abnormalTaskCount > 0" class="sync-abnormal">
+            {{ stats.abnormalTaskCount }} 个异常
+          </span>
+        </span>
         <a-button size="mini" @click="$router.push('/system/sync-logs')">查看日志</a-button>
       </template>
     </SyncStatusBar>
 
-    <!-- KPI 条（可点击下钻） -->
+    <!-- KPI 条（4 项核心指标，全量真实数据） -->
     <a-spin :loading="statsLoading" style="width: 100%">
       <div class="kpi-strip" style="margin-bottom: 18px">
         <div class="mini kpi-clickable" @click="$router.push('/customers')">
           <span>活跃客户</span>
           <b>{{ formatNumber(stats.totalCustomers) }}</b>
-          <span class="up">较上月 +8.4%</span>
+          <span class="up">较上月 {{ momText(stats.totalCustomersMomPct) }}</span>
         </div>
         <div class="mini kpi-clickable" @click="$router.push('/analytics/consumption')">
           <span>本月消耗</span>
           <b>{{ formatCurrencyWan(stats.monthConsumption) }}</b>
-          <span class="up">完成 73%</span>
+          <span class="up">较上月 {{ momText(stats.monthConsumptionMomPct) }}</span>
         </div>
         <div class="mini kpi-clickable" @click="$router.push('/analytics/payment')">
           <span>待回款</span>
-          <b>¥1.36M</b>
-          <span class="warn">{{ stats.pendingConfirmation }} 单临期</span>
+          <b>{{ formatCurrencyWan(stats.pendingPaymentAmount) }}</b>
+          <span class="warn">{{ stats.pendingPaymentCount }} 单未结</span>
         </div>
         <div class="mini kpi-clickable" @click="$router.push('/billing/balances')">
           <span>低余额客户</span>
-          <b>42</b>
+          <b>{{ stats.lowBalanceCount }}</b>
           <span class="down">需跟进</span>
-        </div>
-        <div class="mini kpi-clickable" @click="$router.push('/system/sync-logs')">
-          <span>同步成功率</span>
-          <b>98.6%</b>
-          <span class="up">稳定</span>
-        </div>
-        <div class="mini kpi-clickable" @click="$router.push('/system/sync-logs')">
-          <span>异常任务</span>
-          <b>7</b>
-          <span class="warn">待重试</span>
         </div>
       </div>
     </a-spin>
@@ -76,24 +74,34 @@
         </a-spin>
       </ChartCard>
 
-      <!-- 右侧：异常与待办 -->
+      <!-- 右侧：待办行动中心（真实聚合，可点击跳转） -->
       <ChartCard title="异常与待办">
         <template #actions>
           <span class="tag amber">{{ todos.length }} 项</span>
-          <label class="toggle-switch">
-            <input v-model="sortByAmount" type="checkbox" />
-            <span class="toggle-label-text">按金额排序</span>
-          </label>
+          <span class="sort-hint">按紧急度排序</span>
         </template>
         <a-spin :loading="todosLoading" style="width: 100%">
           <div class="compact-list">
-            <div v-for="todo in sortedTodos" :key="todo.id" class="row">
-              <span>{{ todo.title }}</span>
-              <b>{{ todo.count }}</b>
+            <div
+              v-for="todo in todos"
+              :key="todo.id"
+              class="row todo-row"
+              @click="$router.push(todo.action_url)"
+            >
+              <div class="todo-main">
+                <span>{{ todo.title }}</span>
+                <b>{{ todo.count }}</b>
+                <span v-if="todo.amount > 0" class="todo-amount">{{
+                  formatCurrency(todo.amount)
+                }}</span>
+              </div>
+              <span class="todo-urgency" :class="`urgency-${todo.priority}`">{{
+                todo.urgency
+              }}</span>
             </div>
           </div>
         </a-spin>
-        <!-- 快捷操作面板 -->
+        <!-- 快捷操作面板（按角色显隐） -->
         <div class="quick-actions">
           <button class="quick-action-btn" @click="$router.push('/customers')">
             <span class="qa-icon">+</span>新建客户
@@ -101,7 +109,11 @@
           <button class="quick-action-btn" @click="$router.push('/billing/invoices')">
             <span class="qa-icon">¥</span>生成结算单
           </button>
-          <button class="quick-action-btn" @click="$router.push('/system/sync-logs')">
+          <button
+            v-if="roleProfile.canManageSystem"
+            class="quick-action-btn"
+            @click="$router.push('/system/sync-logs')"
+          >
             <span class="qa-icon">⟳</span>数据同步
           </button>
           <button class="quick-action-btn" @click="exportReport">
@@ -115,7 +127,7 @@
     <div class="card pad" style="margin-top: 14px">
       <div class="section-title">
         <h2>今日优先跟进客户</h2>
-        <a-button @click="batchAssign">批量分配</a-button>
+        <a-button v-if="roleProfile.canOpsConfirm" @click="batchAssign">批量分配</a-button>
       </div>
       <a-spin :loading="invoicesLoading" style="width: 100%">
         <div class="table-wrap">
@@ -173,12 +185,14 @@ import { Message } from '@arco-design/web-vue'
 import {
   getDashboardStats,
   getDashboardTrend,
-  getPendingTasks,
+  getDashboardTodos,
   getPriorityCustomers,
+  type DashboardTodo,
   type DashboardTrendMetric,
 } from '@/api/analytics'
-import { formatCurrencyWan, formatNumber } from '@/utils/formatters'
+import { formatCurrency, formatCurrencyWan, formatNumber } from '@/utils/formatters'
 import { useCachedRequest } from '@/composables/useCachedRequest'
+import { useWorkbenchRole } from '@/composables/useWorkbenchRole'
 import PageHeader from '@/components/PageHeader.vue'
 import ChartCard from '@/components/ChartCard.vue'
 import SyncStatusBar from '@/components/SyncStatusBar.vue'
@@ -194,9 +208,32 @@ const loadEcharts = async () => {
 }
 
 const router = useRouter()
+const { roleProfile } = useWorkbenchRole()
+
+const pageSubtitle = computed(() => {
+  switch (roleProfile.value.tier) {
+    case 'admin':
+      return '全局经营视图 · 同步 / 结算链路全量健康监测'
+    case 'ops':
+      return '我负责的客户经营视图'
+    default:
+      return '我跟进的客户经营视图'
+  }
+})
+
+/** 环比文案：null 表示上月无基准数据 */
+const momText = (pct: number | null): string => {
+  if (pct == null) return '暂无上月数据'
+  const sign = pct > 0 ? '+' : ''
+  return `${sign}${pct.toFixed(1)}%`
+}
+
+const syncStatus = computed<'ok' | 'warning' | 'syncing'>(() =>
+  stats.abnormalTaskCount > 0 ? 'warning' : 'ok'
+)
 
 const statsRequest = useCachedRequest('stats', getDashboardStats, 5 * 60 * 1000)
-const todosRequest = useCachedRequest('todos', getPendingTasks, 2 * 60 * 1000)
+const todosRequest = useCachedRequest('todos', getDashboardTodos, 2 * 60 * 1000)
 
 const statsLoading = ref(false)
 const chartLoading = ref(false)
@@ -215,36 +252,27 @@ const stats = reactive({
   monthInvoiceCount: 0,
   pendingConfirmation: 0,
   monthConsumption: 0,
+  lowBalanceCount: 0,
+  pendingPaymentAmount: 0,
+  pendingPaymentCount: 0,
+  syncSuccessRate: null as number | null,
+  abnormalTaskCount: 0,
+  lastSyncTime: null as string | null,
+  nextSyncTime: null as string | null,
+  totalCustomersMomPct: null as number | null,
+  monthConsumptionMomPct: null as number | null,
 })
 
 const trendTabs = [
   { key: 'consume', label: '消耗' },
   { key: 'payment', label: '回款' },
   { key: 'customers', label: '客户数' },
-  { key: 'health', label: '健康度' },
+  { key: 'health', label: '健康度（当月快照）' },
 ]
-const activeTrendTab = ref('consume')
+// 默认指标按角色：销售经理关注回款，其余默认消耗
+const activeTrendTab = ref(roleProfile.value.tier === 'sales' ? 'payment' : 'consume')
 
-const todos = ref<
-  Array<{
-    id: number
-    title: string
-    count: number
-    amount: number
-    urgency: number
-    priority: 'high' | 'medium' | 'low'
-    priorityText: string
-    due: string
-  }>
->([])
-
-const sortByAmount = ref(false)
-const sortedTodos = computed(() => {
-  const list = [...todos.value]
-  return sortByAmount.value
-    ? list.sort((a, b) => b.amount - a.amount)
-    : list.sort((a, b) => b.urgency - a.urgency)
-})
+const todos = ref<DashboardTodo[]>([])
 
 const priorityCustomers = ref<
   Array<{
@@ -292,6 +320,15 @@ const loadStats = async (forceRefresh = false) => {
     stats.monthInvoiceCount = res.data.month_invoice_count
     stats.pendingConfirmation = res.data.pending_confirmation
     stats.monthConsumption = res.data.month_consumption
+    stats.lowBalanceCount = res.data.low_balance_count ?? 0
+    stats.pendingPaymentAmount = res.data.pending_payment_amount ?? 0
+    stats.pendingPaymentCount = res.data.pending_payment_count ?? 0
+    stats.syncSuccessRate = res.data.sync_success_rate ?? null
+    stats.abnormalTaskCount = res.data.abnormal_task_count ?? 0
+    stats.lastSyncTime = res.data.last_sync_time ?? null
+    stats.nextSyncTime = res.data.next_sync_time ?? null
+    stats.totalCustomersMomPct = res.data.total_customers_mom_pct ?? null
+    stats.monthConsumptionMomPct = res.data.month_consumption_mom_pct ?? null
   } catch (error) {
     console.error('加载统计数据失败:', error)
     Message.error('加载统计数据失败')
@@ -436,18 +473,8 @@ const loadTodos = async (forceRefresh = false) => {
   todosLoading.value = true
   try {
     const res = await todosRequest.execute(forceRefresh)
-    todos.value = res.tasks.map(
-      (item: { id: number; title: string; type: string; created_at: string }) => ({
-        id: item.id,
-        title: item.title,
-        count: Math.floor(Math.random() * 50) + 1,
-        amount: Math.floor(Math.random() * 1000000),
-        urgency: Math.floor(Math.random() * 10) + 1,
-        priority: item.type === 'warning' ? 'high' : 'medium',
-        priorityText: item.type === 'warning' ? '警告' : '信息',
-        due: item.created_at,
-      })
-    )
+    // 后端已按 urgency 降序返回；直接使用真实聚合数据
+    todos.value = res.data.map((item: DashboardTodo) => ({ ...item }))
   } catch (error) {
     console.error('加载待办事项失败:', error)
     Message.error('加载待办事项失败')
@@ -475,9 +502,48 @@ const refreshData = async () => {
   }
 }
 
-const saveView = () => Message.info('保存视图功能开发中')
-const exportReport = () => Message.info('导出报告功能开发中')
-const batchAssign = () => Message.info('批量分配功能开发中')
+/**
+ * 导出运营工作台快照（前端生成 CSV：KPI 4 项 + 待办列表）
+ */
+const exportReport = () => {
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const rows: Array<Array<string | number>> = [
+    [`运营工作台快照 ${dateStr}`],
+    [],
+    ['指标', '数值'],
+    ['活跃客户', formatNumber(stats.totalCustomers)],
+    ['本月消耗', formatCurrencyWan(stats.monthConsumption)],
+    ['待回款金额', formatCurrency(stats.pendingPaymentAmount)],
+    ['低余额客户', stats.lowBalanceCount],
+    [
+      '同步成功率',
+      stats.syncSuccessRate != null
+        ? `${(stats.syncSuccessRate * 100).toFixed(1)}%`
+        : '暂无同步记录',
+    ],
+    ['异常任务', stats.abnormalTaskCount],
+    [],
+    ['待办', '数量', '金额'],
+    ...todos.value.map((todo) => [
+      todo.title,
+      todo.count,
+      todo.amount > 0 ? formatCurrency(todo.amount) : '',
+    ]),
+  ]
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `workbench-${dateStr}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 批量分配：跳转客户列表优先跟进筛选（原为占位提示） */
+const batchAssign = () => router.push('/customers?priority=1')
 
 const handleAction = (val: string, customer: { id: number; name: string }) => {
   if (val === 'detail') router.push(`/customers/${customer.id}`)
@@ -545,6 +611,21 @@ onUnmounted(() => {
   color: #1d4ed8;
 }
 
+/* 同步状态条旁侧健康标签 */
+.sync-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.sync-abnormal {
+  color: #dc2626;
+  font-weight: 700;
+}
+
 /* 紧凑列表 */
 .compact-list {
   display: grid;
@@ -560,6 +641,61 @@ onUnmounted(() => {
 }
 .compact-list .row:last-child {
   border-bottom: 0;
+}
+
+/* 待办行动中心：可点击跳转 + 紧急度标识 */
+.todo-row {
+  cursor: pointer;
+  transition: all 0.18s ease;
+  border-radius: 8px;
+  padding: 8px 6px;
+}
+.todo-row:hover {
+  background: #f8fbff;
+}
+.todo-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.todo-main > span:first-child {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.todo-main b {
+  color: var(--ink);
+  font-size: 14px;
+}
+.todo-amount {
+  color: var(--muted);
+  font-size: 12px;
+}
+.todo-urgency {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.urgency-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.urgency-medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+.urgency-low {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+.sort-hint {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* 快捷操作面板 */
@@ -600,19 +736,6 @@ onUnmounted(() => {
   font-weight: 700;
   background: #dbeafe;
   color: #1d4ed8;
-}
-
-/* 排序开关 */
-.toggle-switch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--muted);
-}
-.toggle-switch input[type='checkbox'] {
-  accent-color: #1d4ed8;
 }
 
 /* 标签 */
