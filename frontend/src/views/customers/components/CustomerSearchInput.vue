@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   background: #fff;
   padding: 9px 12px;
-  width: 180px;
+  width: 160px;
   flex-shrink: 0;
   transition:
     border-color 0.2s,
