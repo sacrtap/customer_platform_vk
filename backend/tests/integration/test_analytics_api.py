@@ -3,7 +3,7 @@ Analytics API 集成测试
 
 测试覆盖：
 1. GET /api/v1/analytics/dashboard/stats - 获取仪表盘统计
-2. GET /api/v1/analytics/dashboard/chart-data - 获取仪表盘图表数据
+2. GET /api/v1/analytics/dashboard/todos - 获取仪表盘待办（行动中心）
 3. GET /api/v1/analytics/consumption/trend - 消耗趋势
 4. GET /api/v1/analytics/consumption/top - Top 消耗客户
 5. GET /api/v1/analytics/consumption/device-distribution - 设备类型分布
@@ -290,21 +290,24 @@ async def test_dashboard_stats_no_cartesian_product(
 
 
 @pytest.mark.asyncio
-async def test_dashboard_chart_data_success(test_client, auth_token, mock_cache):
-    """测试获取仪表盘图表数据 - 成功场景"""
+async def test_dashboard_todos_success(test_client, auth_token, mock_cache):
+    """测试获取仪表盘待办 - 成功场景"""
     request, response = await test_client.get(
-        "/api/v1/analytics/dashboard/chart-data",
+        "/api/v1/analytics/dashboard/todos",
         headers=auth_token,
-        params={"months": 6},
     )
 
     assert response.status == 200
     data = response.json
     assert data["code"] == 0
     assert data["message"] == "success"
-    assert "data" in data
-    assert "consumption_trend" in data["data"]
-    assert "payment_trend" in data["data"]
+    assert isinstance(data["data"], list)
+    # 基础待办项（低余额/逾期/临期/流失风险）应始终存在（count 可为 0）
+    todo_ids = {item["id"] for item in data["data"]}
+    assert {"low_balance", "overdue_invoices", "due_soon", "churn_risk"} <= todo_ids
+    for item in data["data"]:
+        assert "urgency" in item
+        assert "action_url" in item
 
 
 @pytest.mark.asyncio
