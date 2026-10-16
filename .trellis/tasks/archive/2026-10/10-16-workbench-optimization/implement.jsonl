@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/billing-balance-stats.md", "reason": "余额统计字段契约、结算类型口径"}
+{"file": ".trellis/spec/backend/analytics-forecast.md", "reason": "分析/预测接口契约"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "composable 模式与命名"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "类型组织与禁止 any"}

@@ -110,7 +110,7 @@ async def generate_monthly_invoices(session: AsyncSession):
             generated_count=generated_count,
             failed_count=failed_count,
             skipped_count=skipped_count,
-            executed_at=datetime.utcnow(),
+            executed_at=datetime.now(),
         )
 
     except Exception as e:
@@ -124,7 +124,7 @@ async def generate_monthly_invoices(session: AsyncSession):
                 generated_count=0,
                 failed_count=0,
                 skipped_count=0,
-                executed_at=datetime.utcnow(),
+                executed_at=datetime.now(),
                 error_message=str(e),
             )
         except Exception as log_err:

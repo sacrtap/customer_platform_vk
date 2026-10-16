@@ -120,7 +120,7 @@ async def check_balance_warning(session: AsyncSession):
             warning_count=warning_count,
             critical_count=critical_count,
             normal_count=normal_count,
-            executed_at=datetime.utcnow(),
+            executed_at=datetime.now(),
         )
 
     except Exception as e:
@@ -134,7 +134,7 @@ async def check_balance_warning(session: AsyncSession):
                 warning_count=0,
                 critical_count=0,
                 normal_count=0,
-                executed_at=datetime.utcnow(),
+                executed_at=datetime.now(),
                 error_message=str(e),
             )
         except Exception as log_err:

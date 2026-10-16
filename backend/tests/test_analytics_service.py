@@ -984,96 +984,190 @@ class TestGetDashboardStats:
     """get_dashboard_stats 测试"""
 
     async def test_get_dashboard_stats_success(self, analytics_service):
-        """测试获取仪表盘统计数据成功"""
+        """测试扩展字段：低余额/待回款/同步健康/环比"""
         service, mock_db = analytics_service
 
-        # 优化后：单次聚合查询
         with patch("app.services.analytics.datetime") as mock_datetime:
             mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
+            mock_datetime.now.return_value = datetime(2026, 4, 3, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
-            stats_row = MagicMock()
-            stats_row.total_customers = 100
-            stats_row.key_customers = 20
-            stats_row.total_balance = Decimal("50000.00")
-            stats_row.real_balance = Decimal("40000.00")
-            stats_row.bonus_balance = Decimal("10000.00")
-            stats_row.month_invoice_count = 15
-            stats_row.pending_confirmation = 5
-            stats_row.month_consumption = Decimal("25000.00")
+            def make_count(value):
+                return make_mock_execute_result([], scalar_value=value)
 
-            mock_db.execute.return_value = make_mock_execute_result([stats_row])
+            balance_row = MagicMock(
+                total_customers=100,
+                key_customers=20,
+                total_balance=Decimal("50000.00"),
+                real_balance=Decimal("40000.00"),
+                bonus_balance=Decimal("10000.00"),
+            )
+            invoice_row = MagicMock(
+                month_invoice_count=15,
+                pending_confirmation=5,
+                month_consumption=Decimal("25000.00"),
+            )
+            outstanding_row = MagicMock(
+                pending_payment_count=3, pending_payment_amount=Decimal("25000.00")
+            )
+            sync_rate_row = MagicMock(success=4, partial=1, failed=2)
+            schedule_row = MagicMock(sync_time="01:00")
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([balance_row]),  # 查询1 客户统计
+                make_mock_execute_result([invoice_row]),  # 查询2 结算单统计
+                make_count(5),  # 查询3 低余额客户数
+                make_mock_execute_result([outstanding_row]),  # 查询4 待回款
+                make_mock_execute_result([sync_rate_row]),  # 同步成功率汇总
+                make_count(2),  # 近7天异常任务
+                make_count("2026-04-02 10:00:00"),  # 最近同步时间
+                make_mock_execute_result([schedule_row]),  # 排程配置
+                make_count(90),  # 上月末存量客户
+                make_count(20000),  # 上月消耗
+            ]
 
             result = await service.get_dashboard_stats()
 
+            # 旧字段保持
             assert result["total_customers"] == 100
             assert result["key_customers"] == 20
             assert result["total_balance"] == 50000.00
-            assert result["real_balance"] == 40000.00
-            assert result["bonus_balance"] == 10000.00
             assert result["month_invoice_count"] == 15
             assert result["pending_confirmation"] == 5
             assert result["month_consumption"] == 25000.00
+            # 新字段
+            assert result["low_balance_count"] == 5
+            assert result["pending_payment_amount"] == 25000.0
+            assert result["pending_payment_count"] == 3
+            assert result["sync_success_rate"] == round((4 + 1 * 0.5) / 7, 4)
+            assert result["abnormal_task_count"] == 2
+            assert result["last_sync_time"] == "2026-04-02 10:00:00"
+            assert result["next_sync_time"] is not None
+            assert result["total_customers_mom_pct"] == round((100 - 90) / 90 * 100, 1)
+            assert result["month_consumption_mom_pct"] == round((25000 - 20000) / 20000 * 100, 1)
 
     async def test_get_dashboard_stats_empty(self, analytics_service):
-        """测试空数据"""
+        """测试空数据：sync 字段为 None/0，环比为 None"""
         service, mock_db = analytics_service
 
         with patch("app.services.analytics.datetime") as mock_datetime:
             mock_datetime.utcnow.return_value = datetime(2026, 4, 3, 12, 0, 0)
+            mock_datetime.now.return_value = datetime(2026, 4, 3, 12, 0, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
-            stats_row = MagicMock()
-            stats_row.total_customers = 0
-            stats_row.key_customers = 0
-            stats_row.total_balance = None
-            stats_row.real_balance = None
-            stats_row.bonus_balance = None
-            stats_row.month_invoice_count = 0
-            stats_row.pending_confirmation = 0
-            stats_row.month_consumption = None
+            def make_count(value):
+                return make_mock_execute_result([], scalar_value=value)
 
-            mock_db.execute.return_value = make_mock_execute_result([stats_row])
+            balance_row = MagicMock(
+                total_customers=0,
+                key_customers=0,
+                total_balance=None,
+                real_balance=None,
+                bonus_balance=None,
+            )
+            invoice_row = MagicMock(
+                month_invoice_count=0,
+                pending_confirmation=0,
+                month_consumption=None,
+            )
+            outstanding_row = MagicMock(pending_payment_count=0, pending_payment_amount=None)
+            sync_rate_row = MagicMock(success=0, partial=0, failed=0)
+
+            mock_db.execute.side_effect = [
+                make_mock_execute_result([balance_row]),
+                make_mock_execute_result([invoice_row]),
+                make_count(0),  # 低余额
+                make_mock_execute_result([outstanding_row]),  # 待回款
+                make_mock_execute_result([sync_rate_row]),  # 同步汇总
+                make_count(0),  # 异常任务
+                make_count(None),  # 最近同步
+                make_mock_execute_result([]),  # 排程（空）
+                make_count(0),  # 上月末存量
+                make_count(None),  # 上月消耗
+            ]
 
             result = await service.get_dashboard_stats()
 
             assert result["total_customers"] == 0
-            assert result["key_customers"] == 0
-            assert result["total_balance"] == 0.0
             assert result["month_consumption"] == 0.0
+            assert result["low_balance_count"] == 0
+            assert result["pending_payment_amount"] == 0.0
+            assert result["pending_payment_count"] == 0
+            assert result["sync_success_rate"] is None  # 无同步记录
+            assert result["abnormal_task_count"] == 0
+            assert result["last_sync_time"] is None
+            assert result["next_sync_time"] is None
+            assert result["total_customers_mom_pct"] is None
+            assert result["month_consumption_mom_pct"] is None
 
 
-class TestGetDashboardChartData:
-    """get_dashboard_chart_data 测试"""
+class TestGetDashboardTodos:
+    """get_dashboard_todos 测试"""
 
-    async def test_get_dashboard_chart_data_success(self, analytics_service):
-        """测试获取仪表盘图表数据成功"""
+    async def test_todos_default_items(self, analytics_service):
+        """基础 4 项（低余额/逾期/临期/流失风险），无审批项"""
         service, mock_db = analytics_service
 
-        # Mock 消耗趋势
-        consumption_trend_data = [
-            {"period": "2025-11", "total_amount": 10000.00},
-            {"period": "2025-12", "total_amount": 12000.00},
-            {"period": "2026-01", "total_amount": 15000.00},
+        def make_count(value):
+            return make_mock_execute_result([], scalar_value=value)
+
+        overdue_row = MagicMock(count=1, amount=Decimal("8000.00"))
+        due_soon_row = MagicMock(count=4, amount=Decimal("12000.00"))
+
+        mock_db.execute.side_effect = [
+            make_count(3),  # 低余额
+            make_mock_execute_result([overdue_row]),  # 逾期
+            make_mock_execute_result([due_soon_row]),  # 临期
+            make_count(2),  # 流失风险
         ]
 
-        # Mock 回款分析数据
-        payment_data = {
-            "total_invoiced": 10000.00,
-            "total_paid": 8000.00,
-            "completion_rate": 80.0,
-        }
+        result = await service.get_dashboard_todos(mine_user_id=1)
 
-        with patch.object(service, "get_consumption_trend", return_value=consumption_trend_data):
-            with patch.object(service, "get_payment_analysis", return_value=payment_data):
-                result = await service.get_dashboard_chart_data(months=3)
+        ids = [t["id"] for t in result]
+        assert ids == ["low_balance", "overdue_invoices", "due_soon", "churn_risk"]
+        # urgency 降序
+        urgencies = [t["urgency"] for t in result]
+        assert urgencies == sorted(urgencies, reverse=True)
+        item = next(t for t in result if t["id"] == "overdue_invoices")
+        assert item["count"] == 1
+        assert item["amount"] == 8000.0
+        assert item["action_url"] == "/billing/invoices?status=overdue"
+        assert item["priority"] == "high"
 
-                assert "consumption_trend" in result
-                assert "payment_trend" in result
-                assert len(result["consumption_trend"]) == 3
-                assert len(result["payment_trend"]) == 3
-                assert result["payment_trend"][0]["invoiced"] == 10000.00
-                assert result["payment_trend"][0]["paid"] == 8000.00
+    async def test_todos_with_permission_items(self, analytics_service):
+        """含待运营确认/待销售审批项"""
+        service, mock_db = analytics_service
+
+        def make_count(value):
+            return make_mock_execute_result([], scalar_value=value)
+
+        overdue_row = MagicMock(count=0, amount=None)
+        due_soon_row = MagicMock(count=0, amount=None)
+
+        mock_db.execute.side_effect = [
+            make_count(0),  # 低余额
+            make_mock_execute_result([overdue_row]),  # 逾期
+            make_mock_execute_result([due_soon_row]),  # 临期
+            make_count(0),  # 流失风险
+            make_count(7),  # 待运营确认
+            make_count(5),  # 待销售审批
+        ]
+
+        result = await service.get_dashboard_todos(
+            mine_user_id=2,
+            include_ops_pending=True,
+            include_sales_pending=True,
+        )
+
+        ids = [t["id"] for t in result]
+        assert "pending_ops" in ids
+        assert "pending_sales" in ids
+        ops_item = next(t for t in result if t["id"] == "pending_ops")
+        sales_item = next(t for t in result if t["id"] == "pending_sales")
+        assert ops_item["count"] == 7
+        assert ops_item["action_url"] == "/billing/invoices?status=pending_ops"
+        assert sales_item["count"] == 5
+        assert sales_item["priority"] == "high"
 
 
 # ==================== 边缘情况测试 ====================

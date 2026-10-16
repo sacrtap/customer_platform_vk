@@ -234,23 +234,6 @@ class CustomerPlatformUser(HttpUser):
         )
 
     @task(1)
-    def get_analytics_chart_data(self):
-        """
-        获取仪表盘图表数据 - 低频操作
-        权重：1
-        """
-        params = {
-            "months": random.choice([3, 6, 12]),
-        }
-
-        self.client.get(
-            "/api/v1/analytics/dashboard/chart-data",
-            headers=self._auth_headers,
-            params=params,
-            name="/api/v1/analytics/dashboard/chart-data [GET]",
-        )
-
-    @task(1)
     def get_current_user(self):
         """
         获取当前用户信息 - 低频操作

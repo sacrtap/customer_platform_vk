@@ -2,7 +2,7 @@
 
 import logging
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +17,7 @@ from ..models.billing import (
     InvoiceItem,
     PricingRule,
     RechargeRecord,
+    SyncTaskLog,
 )
 from ..models.customers import Customer, CustomerProfile
 from ..models.daily_consumption import DailyConsumption
@@ -2821,72 +2822,471 @@ class AnalyticsService:
             invoice_stmt = invoice_stmt.where(and_(*scope_conds))
         invoice_result = (await self.db.execute(invoice_stmt)).first()
 
+        # 查询 3: 低余额客户数（与余额预警 total_amount<1000 口径一致）
+        low_balance_stmt = (
+            select(func.count(Customer.id))
+            .select_from(Customer)
+            .join(
+                CustomerBalance,
+                and_(
+                    Customer.id == CustomerBalance.customer_id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    CustomerBalance.total_amount < 1000,
+                )
+            )
+        )
+        if scope_conds:
+            low_balance_stmt = low_balance_stmt.where(and_(*scope_conds))
+        low_balance_count = (await self.db.execute(low_balance_stmt)).scalar() or 0
+
+        # 查询 4: 待回款金额/单数（与回款分析「应收净额 − 已回款」同口径：
+        # 排除草稿/取消/已结清，保留审批确认链路中的未结单）
+        outstanding_status = [
+            "pending_ops",
+            "pending_sales",
+            "pending_customer",
+            "customer_confirmed",
+        ]
+        outstanding_stmt = (
+            select(
+                func.count(Invoice.id).label("pending_payment_count"),
+                func.sum(Invoice.total_amount - func.coalesce(Invoice.discount_amount, 0)).label(
+                    "pending_payment_amount"
+                ),
+            )
+            .select_from(Customer)
+            .join(Invoice, Customer.id == Invoice.customer_id)
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    Invoice.status.in_(outstanding_status),
+                )
+            )
+        )
+        if scope_conds:
+            outstanding_stmt = outstanding_stmt.where(and_(*scope_conds))
+        outstanding_result = (await self.db.execute(outstanding_stmt)).first()
+        pending_payment_count = outstanding_result.pending_payment_count or 0  # pyright: ignore[reportOptionalMemberAccess]
+        pending_payment_amount = float(outstanding_result.pending_payment_amount or 0)  # pyright: ignore[reportOptionalMemberAccess]
+
+        # 查询 5: 同步链路健康度（成功率/异常数/最近·下次同步）
+        sync_stats = await self._get_sync_health_stats()
+
+        # 查询 6: 环比基准（上月同期：上月末存量客户 / 上月结算消耗）
+        prev_month_start = (
+            date(today.year - 1, 12, 1)
+            if today.month == 1
+            else date(today.year, today.month - 1, 1)
+        )
+        prev_month_end = current_month_start - timedelta(days=1)
+
+        prev_customer_stmt = select(func.count(Customer.id)).where(
+            and_(
+                Customer.deleted_at.is_(None),
+                Customer.created_at < current_month_start,
+            )
+        )
+        if scope_conds:
+            prev_customer_stmt = prev_customer_stmt.where(and_(*scope_conds))
+        prev_customer_count = (await self.db.execute(prev_customer_stmt)).scalar() or 0
+
+        prev_consumption_stmt = (
+            select(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Invoice.period_start >= prev_month_start,
+                                Invoice.period_end <= prev_month_end,
+                                Invoice.status != "cancelled",
+                            ),
+                            Invoice.total_amount,
+                        )
+                    )
+                )
+            )
+            .select_from(Customer)
+            .outerjoin(Invoice, Customer.id == Invoice.customer_id)
+            .where(Customer.deleted_at.is_(None))
+        )
+        if scope_conds:
+            prev_consumption_stmt = prev_consumption_stmt.where(and_(*scope_conds))
+        prev_month_consumption = float((await self.db.execute(prev_consumption_stmt)).scalar() or 0)
+
+        total_customers = int(balance_result.total_customers or 0)  # pyright: ignore[reportOptionalMemberAccess]
+        month_consumption = float(invoice_result.month_consumption or 0)  # pyright: ignore[reportOptionalMemberAccess]
+        total_customers_mom_pct = (
+            round((total_customers - prev_customer_count) / prev_customer_count * 100, 1)
+            if prev_customer_count > 0
+            else None
+        )
+        month_consumption_mom_pct = (
+            round((month_consumption - prev_month_consumption) / prev_month_consumption * 100, 1)
+            if prev_month_consumption > 0
+            else None
+        )
+
         return {
-            "total_customers": balance_result.total_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
+            "total_customers": total_customers,
             "key_customers": balance_result.key_customers or 0,  # pyright: ignore[reportOptionalMemberAccess]
             "total_balance": float(balance_result.total_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
             "real_balance": float(balance_result.real_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
             "bonus_balance": float(balance_result.bonus_balance or 0),  # pyright: ignore[reportOptionalMemberAccess]
             "month_invoice_count": invoice_result.month_invoice_count or 0,  # pyright: ignore[reportOptionalMemberAccess]
             "pending_confirmation": invoice_result.pending_confirmation or 0,  # pyright: ignore[reportOptionalMemberAccess]
-            "month_consumption": float(invoice_result.month_consumption or 0),  # pyright: ignore[reportOptionalMemberAccess]
+            "month_consumption": month_consumption,
+            "low_balance_count": int(low_balance_count),
+            "pending_payment_amount": pending_payment_amount,
+            "pending_payment_count": pending_payment_count,
+            "sync_success_rate": sync_stats.get("success_rate"),
+            "abnormal_task_count": sync_stats.get("abnormal_count", 0),
+            "last_sync_time": sync_stats.get("last_sync_time"),
+            "next_sync_time": sync_stats.get("next_sync_time"),
+            "total_customers_mom_pct": total_customers_mom_pct,
+            "month_consumption_mom_pct": month_consumption_mom_pct,
         }
 
-    async def get_dashboard_chart_data(
-        self, months: int = 6, mine_user_id: Optional[int] = None
-    ) -> Dict[str, Any]:
-        """获取仪表盘图表数据
+    async def _get_sync_health_stats(self) -> Dict[str, Any]:
+        """聚合同步链路健康度（仅统计 consumption_sync 消费同步任务，与同步日志页 SyncTask 口径一致）
 
-        mine_user_id: 数据可见性约束（服务端强制），非空时仅统计该用户负责的客户。
+        SyncTaskLog.task_name='consumption_sync' 的 status 终值为 success/partial/failed
+        （pending 为运行中，排除）；check_balance_warning/send_overdue_emails/
+        generate_monthly_invoices 等业务检查任务不参与同步健康统计。
+        executed_at 为固定宽度字符串（%Y-%m-%d %H:%M:%S）且统一写入**本地时间**
+        （与 func.now()/排程 sync_time 同基准；historical utcnow 混用已修正），字符串比较安全。
+        next_sync_time 由 SyncScheduleConfig(daily_sync) 排程推算，未启用返回 None。
         """
-        from dateutil.relativedelta import relativedelta
-
-        today = datetime.utcnow()
-        end_date = today.date()
-        start_date = end_date - relativedelta(months=months)
-
-        # 消耗趋势
-        consumption_trend = await self.get_consumption_trend(
-            start_date, end_date, mine_user_id=mine_user_id
+        # 最近 30 条已完成日志（按 id 倒序限制，避免全表扫描）。
+        # 【口径】只统计 consumption_sync（消费数据同步），与同步日志页
+        # 的 SyncTask 表口径一致；check_balance_warning/send_overdue_emails/
+        # generate_monthly_invoices 是业务检查/通知任务，不入同步健康统计。
+        # 成功率按【任务】级别聚合（status 终值为任务级健康判定）：
+        # 不同任务写入的 success_count/failed_count/skipped_count 单位不一致
+        # （consumption_sync=天数、check_balance_warning=客户数、email/invoice=条数），
+        # 混合汇总无意义；partial 计为 0.5。
+        sync_task_filter = SyncTaskLog.task_name == "consumption_sync"
+        recent_subq = (
+            select(SyncTaskLog.status)
+            .where(
+                sync_task_filter,
+                SyncTaskLog.status.in_(["success", "partial", "failed"]),
+            )
+            .order_by(SyncTaskLog.id.desc())
+            .limit(30)
+            .subquery()
         )
-
-        # 回款趋势
-        payment_trend = []
-        for i in range(months):
-            month_date = end_date - relativedelta(months=i)
-            from datetime import datetime as dt
-
-            from ..utils.timezone import CST, UTC
-
-            month_start = dt(month_date.year, month_date.month, 1, 0, 0, 0, tzinfo=CST).astimezone(
-                UTC
+        rate_row = (
+            await self.db.execute(
+                select(
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "success", 1), else_=0)), 0
+                    ).label("success"),
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "partial", 1), else_=0)), 0
+                    ).label("partial"),
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "failed", 1), else_=0)), 0
+                    ).label("failed"),
+                )
             )
-            month_end = dt(
-                month_date.year,
-                month_date.month,
-                monthrange(month_date.year, month_date.month)[1],
-                23,
-                59,
-                59,
-                tzinfo=CST,
-            ).astimezone(UTC)
+        ).first()
+        success_cnt = int(rate_row.success)  # pyright: ignore[reportOptionalMemberAccess]
+        partial_cnt = int(rate_row.partial)  # pyright: ignore[reportOptionalMemberAccess]
+        failed_cnt = int(rate_row.failed)  # pyright: ignore[reportOptionalMemberAccess]
+        processed_total = success_cnt + partial_cnt + failed_cnt
+        if processed_total > 0:
+            success_rate = round((success_cnt + partial_cnt * 0.5) / processed_total, 4)
+        else:
+            success_rate = None
 
-            payment_data = await self.get_payment_analysis(
-                month_start, month_end, mine_user_id=mine_user_id
+        # 近 7 天异常任务（partial/failed）
+        seven_days_ago_str = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        abnormal_count = (
+            await self.db.execute(
+                select(func.count(SyncTaskLog.id)).where(
+                    sync_task_filter,
+                    SyncTaskLog.status.in_(["partial", "failed"]),
+                    SyncTaskLog.executed_at >= seven_days_ago_str,
+                )
             )
-            payment_trend.append(
-                {
-                    "period": f"{month_date.year}-{month_date.month:02d}",
-                    "invoiced": payment_data["total_invoiced"],
-                    "paid": payment_data["total_paid"],
-                    "completion_rate": payment_data["completion_rate"],
-                }
+        ).scalar() or 0
+
+        # 最近同步时间（仅消费同步任务）
+        last_sync_time = (
+            await self.db.execute(
+                select(func.max(SyncTaskLog.executed_at)).where(
+                    sync_task_filter,
+                    SyncTaskLog.status.in_(["success", "partial", "failed"]),
+                )
             )
+        ).scalar()
+
+        # 下次同步时间（本地业务时间 HH:MM，与排程配置同语义）
+        from ..models.sync_schedule import SyncScheduleConfig
+
+        schedule = (
+            await self.db.execute(
+                select(SyncScheduleConfig).where(
+                    SyncScheduleConfig.task_name == "daily_sync",
+                    SyncScheduleConfig.enabled.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+        next_sync_time: Optional[str] = None
+        if schedule is not None and schedule.sync_time:
+            sync_time = schedule.sync_time
+            now_hm = datetime.now().strftime("%H:%M")
+            day_offset = 0 if now_hm < sync_time else 1
+            target = datetime.now() + timedelta(days=day_offset)
+            next_sync_time = f"{target.strftime('%Y-%m-%d')} {sync_time}"
 
         return {
-            "consumption_trend": consumption_trend,
-            "payment_trend": list(reversed(payment_trend)),  # 按时间正序
+            "success_rate": success_rate,
+            "abnormal_count": int(abnormal_count),
+            "last_sync_time": last_sync_time,
+            "next_sync_time": next_sync_time,
         }
+
+    async def get_dashboard_todos(
+        self,
+        mine_user_id: Optional[int] = None,
+        include_ops_pending: bool = False,
+        include_sales_pending: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """聚合仪表盘待办（行动中心）
+
+        全部按 mine_user_id scope 过滤；「待我处理结算单」仅在调用方持有对应
+        审批权限时聚合（ops→pending_ops 第一步、sales→pending_sales 第二步）。
+
+        Returns:
+            [{id, title, count, amount, urgency, priority, action_url, due}]
+            （按 urgency 降序；due 当前无到期日概念，恒为 None）
+        """
+        from ..models.daily_consumption import DailyConsumption
+
+        today_date = datetime.now().date()
+        current_month_start = date(today_date.year, today_date.month, 1)
+        next_month_start = (
+            date(today_date.year + 1, 1, 1)
+            if today_date.month == 12
+            else date(today_date.year, today_date.month + 1, 1)
+        )
+        scope_conds = []
+        if mine_user_id is not None:
+            scope_conds.append(
+                or_(
+                    Customer.manager_id == mine_user_id,
+                    Customer.sales_manager_id == mine_user_id,
+                )
+            )
+
+        def _todo(
+            item_id: str,
+            title: str,
+            count: int,
+            urgency: int,
+            action_url: str,
+            amount: float = 0.0,
+        ) -> Dict[str, Any]:
+            priority = "high" if urgency >= 7 else ("medium" if urgency >= 5 else "low")
+            return {
+                "id": item_id,
+                "title": title,
+                "count": count,
+                "amount": amount,
+                "urgency": urgency,
+                "priority": priority,
+                "action_url": action_url,
+                "due": None,
+            }
+
+        todos: List[Dict[str, Any]] = []
+
+        # 1) 低余额客户（total_amount<1000，与余额预警口径一致）
+        low_balance_stmt = (
+            select(func.count(Customer.id))
+            .select_from(Customer)
+            .join(
+                CustomerBalance,
+                and_(
+                    Customer.id == CustomerBalance.customer_id,
+                    CustomerBalance.deleted_at.is_(None),
+                ),
+            )
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    CustomerBalance.total_amount < 1000,
+                )
+            )
+        )
+        if scope_conds:
+            low_balance_stmt = low_balance_stmt.where(and_(*scope_conds))
+        low_balance_count = (await self.db.execute(low_balance_stmt)).scalar() or 0
+        todos.append(
+            _todo(
+                "low_balance",
+                "低余额客户",
+                int(low_balance_count),
+                9,
+                "/billing/balances?warning=1",
+            )
+        )
+
+        # 2) 逾期结算单（结算周期已结束仍未结清） + 3) 临期回款（本月应收未结清）
+        # 口径与回款分析一致：排除草稿/取消/已回款
+        unsettled_status = [
+            "pending_ops",
+            "pending_sales",
+            "pending_customer",
+            "customer_confirmed",
+        ]
+        invoice_pending_filter = (
+            Customer.deleted_at.is_(None),
+            Invoice.status.in_(unsettled_status),
+        )
+
+        def _invoice_count_stmt(period_cond, amount_label: str) -> Any:
+            stmt = (
+                select(
+                    func.count(Invoice.id).label("count"),
+                    func.sum(
+                        Invoice.total_amount - func.coalesce(Invoice.discount_amount, 0)
+                    ).label(amount_label),
+                )
+                .select_from(Customer)
+                .join(Invoice, Customer.id == Invoice.customer_id)
+                .where(and_(*invoice_pending_filter, period_cond))
+            )
+            if scope_conds:
+                stmt = stmt.where(and_(*scope_conds))
+            return stmt
+
+        overdue_row = (
+            await self.db.execute(
+                _invoice_count_stmt(Invoice.period_end < current_month_start, "amount")
+            )
+        ).first()
+        overdue_count = int(overdue_row.count or 0)  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType]
+        overdue_amount = float(overdue_row.amount or 0)  # pyright: ignore[reportOptionalMemberAccess]
+        todos.append(
+            _todo(
+                "overdue_invoices",
+                "逾期结算单",
+                overdue_count,
+                8,
+                "/billing/invoices?status=overdue",
+                amount=overdue_amount,
+            )
+        )
+
+        due_soon_row = (
+            await self.db.execute(
+                _invoice_count_stmt(
+                    and_(
+                        Invoice.period_end >= current_month_start,
+                        Invoice.period_end < next_month_start,
+                    ),
+                    "amount",
+                )
+            )
+        ).first()
+        due_soon_count = int(due_soon_row.count or 0)  # pyright: ignore[reportOptionalMemberAccess, reportArgumentType]
+        todos.append(
+            _todo("due_soon", "临期回款", due_soon_count, 6, "/billing/invoices?status=pending")
+        )
+
+        # 4) 流失风险客户（曾有消耗但近 90 天无消耗，与 get_inactive_customers 同口径）
+        cutoff_date = (datetime.utcnow() - timedelta(days=90)).date()
+        last_usage_subq = (
+            select(DailyConsumption.customer_id.label("customer_id"))
+            .where(
+                DailyConsumption.deleted_at.is_(None),
+                DailyConsumption.consumption_date < cutoff_date,
+            )
+            .group_by(DailyConsumption.customer_id)
+            .subquery()
+        )
+        # 全部客户 LEFT JOIN 近 90 天无消耗 → 排除存在近期消耗的客户
+        recent_usage_ids = (
+            select(func.distinct(DailyConsumption.customer_id).label("customer_id"))
+            .where(
+                DailyConsumption.consumption_date >= cutoff_date,
+                DailyConsumption.deleted_at.is_(None),
+            )
+            .subquery()
+        )
+        churn_stmt = (
+            select(func.count(Customer.id))
+            .join(last_usage_subq, Customer.id == last_usage_subq.c.customer_id)
+            .outerjoin(recent_usage_ids, Customer.id == recent_usage_ids.c.customer_id)
+            .where(
+                and_(
+                    Customer.deleted_at.is_(None),
+                    recent_usage_ids.c.customer_id.is_(None),
+                )
+            )
+        )
+        if scope_conds:
+            churn_stmt = churn_stmt.where(and_(*scope_conds))
+        churn_count = (await self.db.execute(churn_stmt)).scalar() or 0
+        todos.append(
+            _todo("churn_risk", "流失风险客户", int(churn_count), 5, "/analytics/health?tab=churn")
+        )
+
+        # 5) 待我处理结算单（按权限聚合）
+        if include_ops_pending:
+            ops_stmt = (
+                select(func.count(Invoice.id))
+                .select_from(Customer)
+                .join(Invoice, Customer.id == Invoice.customer_id)
+                .where(
+                    Customer.deleted_at.is_(None),
+                    Invoice.status == "pending_ops",
+                )
+            )
+            if scope_conds:
+                ops_stmt = ops_stmt.where(and_(*scope_conds))
+            ops_count = (await self.db.execute(ops_stmt)).scalar() or 0
+            todos.append(
+                _todo(
+                    "pending_ops",
+                    "待运营确认",
+                    int(ops_count),
+                    7,
+                    "/billing/invoices?status=pending_ops",
+                )
+            )
+        if include_sales_pending:
+            sales_stmt = (
+                select(func.count(Invoice.id))
+                .select_from(Customer)
+                .join(Invoice, Customer.id == Invoice.customer_id)
+                .where(
+                    Customer.deleted_at.is_(None),
+                    Invoice.status == "pending_sales",
+                )
+            )
+            if scope_conds:
+                sales_stmt = sales_stmt.where(and_(*scope_conds))
+            sales_count = (await self.db.execute(sales_stmt)).scalar() or 0
+            todos.append(
+                _todo(
+                    "pending_sales",
+                    "待销售审批",
+                    int(sales_count),
+                    7,
+                    "/billing/invoices?status=pending_sales",
+                )
+            )
+
+        todos.sort(key=lambda t: t["urgency"], reverse=True)
+        return todos
 
     async def get_consumption_trend_daily(
         self, start_date: datetime, end_date: datetime, mine_user_id: Optional[int] = None

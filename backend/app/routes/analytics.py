@@ -1004,7 +1004,7 @@ async def get_dashboard_stats(request: Request):
     """获取仪表盘统计数据"""
     # 数据可见性（服务端强制）
     scope_user_id = await customer_scope_user_id(request)
-    cache_key = f"stats:scope:{scope_user_id or 'all'}"
+    cache_key = f"stats:v2:scope:{scope_user_id or 'all'}"
     cached = await cache_service.get("analytics_dashboard_stats", cache_key)
     if cached is not None:
         return json(cached)
@@ -1019,27 +1019,55 @@ async def get_dashboard_stats(request: Request):
     return json(result)
 
 
-@analytics.route("/dashboard/chart-data", methods=["GET"])
+@analytics.route("/dashboard/todos", methods=["GET"])
 @auth_required
-async def get_dashboard_chart_data(request: Request):
-    """获取仪表盘图表数据"""
-    months = int(request.args.get("months", 6))
+async def get_dashboard_todos(request: Request):
+    """获取仪表盘待办（行动中心）
+
+    待办全部按数据可见性 scope 过滤；「待我处理结算单」按当前用户权限聚合：
+    billing:ops_approve → 待运营确认（第一步），billing:sales_approve → 待销售
+    审批（第二步）。无对应权限的角色不返回对应项。
+    """
+    from ..cache.permissions import permission_cache
+    from ..middleware.auth import get_current_user
+    from ..services.permissions import get_user_permissions
 
     # 数据可见性（服务端强制）
     scope_user_id = await customer_scope_user_id(request)
-    cache_key = f"{months}:scope:{scope_user_id or 'all'}"
-    cached = await cache_service.get("analytics_dashboard_chart", cache_key)
+
+    # 权限标志（与 customer_scope_user_id 同一套缓存；超管默认命中全部）
+    user = get_current_user(request)
+    if user is None:
+        # auth_required 已保证用户上下文；防御未来解耦
+        return json({"code": 401, "message": "未认证"}, status=401)
+    user_id = user["user_id"]
+    user_permissions = await permission_cache.get_permissions(user_id)
+    if user_permissions is None:
+        db_session = request.ctx.db_session
+        user_permissions = await get_user_permissions(db_session, user_id)
+        await permission_cache.set_permissions(user_id, user_permissions)  # pyright: ignore[reportArgumentType]
+    include_ops_pending = "billing:ops_approve" in user_permissions  # pyright: ignore[reportOperatorIssue]
+    include_sales_pending = "billing:sales_approve" in user_permissions  # pyright: ignore[reportOperatorIssue]
+
+    cache_key = (
+        f"todos:v1:scope:{scope_user_id or 'all'}:ops:{int(include_ops_pending)}"
+        f":sales:{int(include_sales_pending)}"
+    )
+    cached = await cache_service.get("analytics_dashboard_todos", cache_key)
     if cached is not None:
-        return json(cached)
+        return json({"code": 0, "message": "success", "data": cached})
 
     db_session = request.ctx.db_session
     service = AnalyticsService(db_session)
 
-    chart_data = await service.get_dashboard_chart_data(months, mine_user_id=scope_user_id)
+    todos = await service.get_dashboard_todos(
+        mine_user_id=scope_user_id,
+        include_ops_pending=include_ops_pending,
+        include_sales_pending=include_sales_pending,
+    )
 
-    result = {"code": 0, "message": "success", "data": chart_data}
-    await cache_service.set("analytics_dashboard_chart", result, cache_key)
-    return json(result)
+    await cache_service.set("analytics_dashboard_todos", todos, cache_key, ttl=60)
+    return json({"code": 0, "message": "success", "data": todos})
 
 
 @analytics.route("/dashboard/trend", methods=["GET"])

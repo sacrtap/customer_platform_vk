@@ -39,13 +39,17 @@ vi.mock('@/api/analytics', () => ({
       metric: 'consumption',
     },
   }),
-  getPendingTasks: vi.fn().mockResolvedValue({
-    tasks: [
+  getDashboardTodos: vi.fn().mockResolvedValue({
+    data: [
       {
-        id: 1,
+        id: 'low_balance',
         title: 'Test task',
-        type: 'warning',
-        created_at: '2024-01-01',
+        count: 3,
+        amount: 0,
+        urgency: 9,
+        priority: 'high',
+        action_url: '/billing/balances?warning=1',
+        due: null,
       },
     ],
   }),
@@ -107,7 +111,8 @@ vi.stubGlobal('localStorage', localStorageMock)
 // Mock useUserStore
 vi.mock('@/stores/user', () => ({
   useUserStore: vi.fn(() => ({
-    userInfo: { id: 1 },
+    userInfo: { id: 1, roles: [] },
+    permissions: new Set(),
   })),
 }))
 
