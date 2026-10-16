@@ -121,6 +121,7 @@ Rendering code may format fields, but it must not redefine the payload contract.
 **Rule**: 任何"多源写入、一端聚合"的指标，先在契约里写死：
 
 - 每个写入端各 count 字段的**单位**（天数/条数/客户数），禁止混合汇总
+- 参与聚合的**业务域**（哪些 task 算"同步"）先与用户可见的参照页面对齐——2026-10-16 工作台同步状态栏曾把余额检查任务算成同步异常，与同步日志页（仅消费同步、100% 成功）矛盾引发二次返工
 - `*_at` 时间字段的**写入基准**（统一 naive 本地时间，与 `func.now()` 同基准；禁止 utcnow 混用）
 - 历史脏数据按写入端区分一次性修正（`to_char(executed_at::timestamp + interval '8 hours', ...)`）
 

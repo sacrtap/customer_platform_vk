@@ -2952,21 +2952,30 @@ class AnalyticsService:
         }
 
     async def _get_sync_health_stats(self) -> Dict[str, Any]:
-        """聚合同步链路健康度
+        """聚合同步链路健康度（仅统计 consumption_sync 消费同步任务，与同步日志页 SyncTask 口径一致）
 
-        SyncTaskLog.status 终值为 success/partial/failed（pending 为运行中，排除）；
+        SyncTaskLog.task_name='consumption_sync' 的 status 终值为 success/partial/failed
+        （pending 为运行中，排除）；check_balance_warning/send_overdue_emails/
+        generate_monthly_invoices 等业务检查任务不参与同步健康统计。
         executed_at 为固定宽度字符串（%Y-%m-%d %H:%M:%S）且统一写入**本地时间**
         （与 func.now()/排程 sync_time 同基准；historical utcnow 混用已修正），字符串比较安全。
         next_sync_time 由 SyncScheduleConfig(daily_sync) 排程推算，未启用返回 None。
         """
         # 最近 30 条已完成日志（按 id 倒序限制，避免全表扫描）。
+        # 【口径】只统计 consumption_sync（消费数据同步），与同步日志页
+        # 的 SyncTask 表口径一致；check_balance_warning/send_overdue_emails/
+        # generate_monthly_invoices 是业务检查/通知任务，不入同步健康统计。
         # 成功率按【任务】级别聚合（status 终值为任务级健康判定）：
         # 不同任务写入的 success_count/failed_count/skipped_count 单位不一致
         # （consumption_sync=天数、check_balance_warning=客户数、email/invoice=条数），
         # 混合汇总无意义；partial 计为 0.5。
+        sync_task_filter = SyncTaskLog.task_name == "consumption_sync"
         recent_subq = (
             select(SyncTaskLog.status)
-            .where(SyncTaskLog.status.in_(["success", "partial", "failed"]))
+            .where(
+                sync_task_filter,
+                SyncTaskLog.status.in_(["success", "partial", "failed"]),
+            )
             .order_by(SyncTaskLog.id.desc())
             .limit(30)
             .subquery()
@@ -3000,17 +3009,19 @@ class AnalyticsService:
         abnormal_count = (
             await self.db.execute(
                 select(func.count(SyncTaskLog.id)).where(
+                    sync_task_filter,
                     SyncTaskLog.status.in_(["partial", "failed"]),
                     SyncTaskLog.executed_at >= seven_days_ago_str,
                 )
             )
         ).scalar() or 0
 
-        # 最近同步时间
+        # 最近同步时间（仅消费同步任务）
         last_sync_time = (
             await self.db.execute(
                 select(func.max(SyncTaskLog.executed_at)).where(
-                    SyncTaskLog.status.in_(["success", "partial", "failed"])
+                    sync_task_filter,
+                    SyncTaskLog.status.in_(["success", "partial", "failed"]),
                 )
             )
         ).scalar()

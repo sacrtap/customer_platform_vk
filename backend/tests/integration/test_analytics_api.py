@@ -161,6 +161,57 @@ async def test_dashboard_stats_success(test_client, auth_token, mock_cache):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_stats_sync_health_counts_only_sync_tasks(
+    test_client, auth_token, mock_cache, db_session: Session
+):
+    """同步健康统计只统计消费同步任务（consumption_sync），与同步日志页口径一致
+
+    场景：check_balance_warning 等业务检查任务即使失败/成功，也不应计入
+    同步成功率、异常数与最近同步时间；只有 consumption_sync 任务参与。
+    """
+    from app.models.billing import SyncTaskLog
+
+    # 清理日志（fixture 事务回滚，不影响其他测试）
+    db_session.execute(text("DELETE FROM sync_task_logs"))
+    db_session.commit()
+
+    today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # 消费同步：1 成功（今天）+ 1 失败（昨天）→ 成功率 50%、异常 1
+    db_session.add(SyncTaskLog(task_name="consumption_sync", status="success", executed_at=today))
+    db_session.add(
+        SyncTaskLog(task_name="consumption_sync", status="failed", executed_at=yesterday)
+    )
+    # 业务检查任务：1 失败 + 1 成功（今天）→ 不应计入任一同步字段
+    db_session.add(
+        SyncTaskLog(
+            task_name="check_balance_warning",
+            status="failed",
+            executed_at=today,
+        )
+    )
+    db_session.add(
+        SyncTaskLog(
+            task_name="check_balance_warning",
+            status="success",
+            executed_at=today,
+        )
+    )
+    db_session.commit()
+
+    request, response = await test_client.get(
+        "/api/v1/analytics/dashboard/stats",
+        headers=auth_token,
+    )
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["sync_success_rate"] == 0.5
+    assert data["abnormal_task_count"] == 1
+    assert data["last_sync_time"] == today
+
+
+@pytest.mark.asyncio
 async def test_dashboard_stats_no_cartesian_product(
     test_client, auth_token, mock_cache, db_session: Session
 ):
