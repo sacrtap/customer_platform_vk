@@ -2955,16 +2955,17 @@ class AnalyticsService:
         """聚合同步链路健康度
 
         SyncTaskLog.status 终值为 success/partial/failed（pending 为运行中，排除）；
-        executed_at 为固定宽度字符串（%Y-%m-%d %H:%M:%S），字符串比较安全。
+        executed_at 为固定宽度字符串（%Y-%m-%d %H:%M:%S）且统一写入**本地时间**
+        （与 func.now()/排程 sync_time 同基准；historical utcnow 混用已修正），字符串比较安全。
         next_sync_time 由 SyncScheduleConfig(daily_sync) 排程推算，未启用返回 None。
         """
-        # 最近 30 条已完成日志的成功/失败/跳过汇总（按 id 倒序限制，避免全表扫描）
+        # 最近 30 条已完成日志（按 id 倒序限制，避免全表扫描）。
+        # 成功率按【任务】级别聚合（status 终值为任务级健康判定）：
+        # 不同任务写入的 success_count/failed_count/skipped_count 单位不一致
+        # （consumption_sync=天数、check_balance_warning=客户数、email/invoice=条数），
+        # 混合汇总无意义；partial 计为 0.5。
         recent_subq = (
-            select(
-                SyncTaskLog.success_count,
-                SyncTaskLog.failed_count,
-                SyncTaskLog.skipped_count,
-            )
+            select(SyncTaskLog.status)
             .where(SyncTaskLog.status.in_(["success", "partial", "failed"]))
             .order_by(SyncTaskLog.id.desc())
             .limit(30)
@@ -2973,17 +2974,26 @@ class AnalyticsService:
         rate_row = (
             await self.db.execute(
                 select(
-                    func.coalesce(func.sum(recent_subq.c.success_count), 0).label("success"),
-                    func.coalesce(func.sum(recent_subq.c.failed_count), 0).label("failed"),
-                    func.coalesce(func.sum(recent_subq.c.skipped_count), 0).label("skipped"),
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "success", 1), else_=0)), 0
+                    ).label("success"),
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "partial", 1), else_=0)), 0
+                    ).label("partial"),
+                    func.coalesce(
+                        func.sum(case((recent_subq.c.status == "failed", 1), else_=0)), 0
+                    ).label("failed"),
                 )
             )
         ).first()
-        success_total = int(rate_row.success)  # pyright: ignore[reportOptionalMemberAccess]
-        failed_total = int(rate_row.failed)  # pyright: ignore[reportOptionalMemberAccess]
-        skipped_total = int(rate_row.skipped)  # pyright: ignore[reportOptionalMemberAccess]
-        processed_total = success_total + failed_total + skipped_total
-        success_rate = round(success_total / processed_total, 4) if processed_total > 0 else None
+        success_cnt = int(rate_row.success)  # pyright: ignore[reportOptionalMemberAccess]
+        partial_cnt = int(rate_row.partial)  # pyright: ignore[reportOptionalMemberAccess]
+        failed_cnt = int(rate_row.failed)  # pyright: ignore[reportOptionalMemberAccess]
+        processed_total = success_cnt + partial_cnt + failed_cnt
+        if processed_total > 0:
+            success_rate = round((success_cnt + partial_cnt * 0.5) / processed_total, 4)
+        else:
+            success_rate = None
 
         # 近 7 天异常任务（partial/failed）
         seven_days_ago_str = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")

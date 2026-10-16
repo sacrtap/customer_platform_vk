@@ -40,9 +40,9 @@ GET /api/v1/analytics/dashboard/trend   (@auth_required)   # 既有，未改动
 | **low_balance_count** | int | `CustomerBalance.total_amount < 1000`（与余额预警口径一致，非 real+bonus） |
 | **pending_payment_amount** | float | 应收净额累计：`status NOT IN (draft,cancelled,paid,completed)` 的 `total_amount - discount_amount` |
 | **pending_payment_count** | int | 同上范围 COUNT |
-| **sync_success_rate** | number\|null | 最近 30 条 `SyncTaskLog`（status∈success/partial/failed）`Σsuccess/(Σsuccess+Σfailed+Σskipped)`；无记录 null |
+| **sync_success_rate** | number\|null | 最近 30 条已终态任务（status∈success/partial/failed）**任务级**成功率 `(Σsuccess + 0.5×Σpartial)/Σ任务数`；无任务 null。**禁止**按 `success_count/failed_count` 跨任务汇总（单位不一致，见 Common Mistakes） |
 | **abnormal_task_count** | int | 近 7 天 status∈(partial,failed) 行数 |
-| **last_sync_time** | string\|null | `MAX(executed_at)`；executed_at 固定 `%Y-%m-%d %H:%M:%S` 字符串，可安全 max/比较 |
+| **last_sync_time** | string\|null | `MAX(executed_at)`；executed_at 固定 `%Y-%m-%d %H:%M:%S` 字符串且**统一本地时间**（与 func.now()/排程同时区），可安全 max/比较 |
 | **next_sync_time** | string\|null | `SyncScheduleConfig(daily_sync, enabled)` 推算当天/次日 HH:MM；未启用 null |
 | **total_customers_mom_pct / month_consumption_mom_pct** | number\|null | 环比 %；上月基准为 0/None → null |
 
@@ -102,3 +102,5 @@ GET /api/v1/analytics/dashboard/trend   (@auth_required)   # 既有，未改动
 - **Plan/需求中的权限码语义必须对照 seed.py 核实**：`billing:confirm`（第三步，商务/运营经理）、`billing:ops_approve`（第一步，运营经理独有）、`billing:sales_approve`（第二步，销售经理独有）。seed.py `PRESET_ROLES` 与 `ALL_PERMISSIONS` 注释是唯一权威。
 - invoice 状态机：draft →(submit)→ pending_ops →(ops_approve)→ pending_sales →(sales_approve)→ pending_customer →(confirm 扣款)→ completed；paid/completed=已回款。
 - 低余额统一用 `total_amount < 1000`（total_amount 为维护字段，与 real+bonus 同步）；不要混用 `real_amount+bonus_amount` 口径。
+- **`SyncTaskLog` 的 count 字段跨任务单位不一致，禁止跨任务混合汇总**：`consumption_sync` 的 success_count=成功同步天数（可上万）、`check_balance_warning` 的 success_count=正常客户数、failed_count=**严重预警客户数**（不是失败！）、skipped_count=普通预警客户数、`email/invoice` 的 count=条数。唯一跨任务通用口径是 **status 任务级**（success/failed/partial 终值，partial 按 0.5 计）。
+- **`SyncTaskLog.executed_at` 必须写本地时间**（naive `datetime.now()`）：2026-10-16 修复前 consumption_sync 用 `datetime.now()`（本地）而 check_balance_warning/email/invoice 用 `datetime.utcnow()`（UTC），导致 `MAX()` 字符串排序受 8h 时差误导、工作台展示时间差 8 小时。统一与 `func.now()`（DB 本地）、排程 `sync_time`（本地业务时间）同基准；历史 UTC 数据需 `to_char(executed_at::timestamp + interval '8 hours', ...)` 修正。

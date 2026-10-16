@@ -1010,7 +1010,7 @@ class TestGetDashboardStats:
             outstanding_row = MagicMock(
                 pending_payment_count=3, pending_payment_amount=Decimal("25000.00")
             )
-            sync_rate_row = MagicMock(success=100, failed=10, skipped=0)
+            sync_rate_row = MagicMock(success=4, partial=1, failed=2)
             schedule_row = MagicMock(sync_time="01:00")
 
             mock_db.execute.side_effect = [
@@ -1039,7 +1039,7 @@ class TestGetDashboardStats:
             assert result["low_balance_count"] == 5
             assert result["pending_payment_amount"] == 25000.0
             assert result["pending_payment_count"] == 3
-            assert result["sync_success_rate"] == round(100 / 110, 4)
+            assert result["sync_success_rate"] == round((4 + 1 * 0.5) / 7, 4)
             assert result["abnormal_task_count"] == 2
             assert result["last_sync_time"] == "2026-04-02 10:00:00"
             assert result["next_sync_time"] is not None
@@ -1071,7 +1071,7 @@ class TestGetDashboardStats:
                 month_consumption=None,
             )
             outstanding_row = MagicMock(pending_payment_count=0, pending_payment_amount=None)
-            sync_rate_row = MagicMock(success=0, failed=0, skipped=0)
+            sync_rate_row = MagicMock(success=0, partial=0, failed=0)
 
             mock_db.execute.side_effect = [
                 make_mock_execute_result([balance_row]),
