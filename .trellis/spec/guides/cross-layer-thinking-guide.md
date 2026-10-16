@@ -100,6 +100,30 @@ create one owner for:
 
 Rendering code may format fields, but it must not redefine the payload contract.
 
+### Mistake 5: 聚合端臆造源数据语义（单位 / 时区）
+
+[来源: Bug fix 2026-10-16 — 运营工作台同步状态栏：成功率 98.1% 无意义、最近同步时间差 8 小时]
+
+**Bad**: 聚合端看到 `SyncTaskLog.success_count/failed_count/skipped_count` 就假定它们
+是同一单位的"成功/失败/跳过数量"，`Σsuccess/(Σsuccess+Σfailed+Σskipped)` 一把梭：
+
+- `consumption_sync` 的 success_count = 成功同步**天数**（可上万）
+- `check_balance_warning` 的 success_count = 正常客户数，failed_count = **严重预警客户数**（不是失败！）
+- `email/invoice` 的 count = 发送**条数**
+
+同时 `executed_at` 有的任务写 `datetime.now()`（本地）、有的写 `datetime.utcnow()`（UTC），
+聚合端 `MAX(executed_at)` 字符串比较被 8h 时差误导，返回的不是真实最近一次。
+
+**Good**: 跨任务/跨写入端聚合前，先核查每个源的字段语义与时间基准（单位是否一致、
+是否同本地/UTC）；语义不一时改用**任务级**口径（本案例按 status 终值计数，partial 计 0.5），
+时间统一为本地写入。
+
+**Rule**: 任何"多源写入、一端聚合"的指标，先在契约里写死：
+
+- 每个写入端各 count 字段的**单位**（天数/条数/客户数），禁止混合汇总
+- `*_at` 时间字段的**写入基准**（统一 naive 本地时间，与 `func.now()` 同基准；禁止 utcnow 混用）
+- 历史脏数据按写入端区分一次性修正（`to_char(executed_at::timestamp + interval '8 hours', ...)`）
+
 ---
 
 ## Checklist for Cross-Layer Features
