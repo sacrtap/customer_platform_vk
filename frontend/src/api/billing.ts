@@ -380,6 +380,8 @@ export function getInvoices(params?: {
   customer_id?: number
   keyword?: string
   status?: string
+  industry_type?: string
+  erp_system?: string
   page?: number
   page_size?: number
 }) {

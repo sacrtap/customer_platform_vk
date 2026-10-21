@@ -108,6 +108,8 @@ async def get_invoices(request: Request):
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
     keyword = request.args.get("keyword")  # 客户名称模糊搜索
     status = request.args.get("status")
+    industry_type = request.args.get("industry_type")
+    erp_system = request.args.get("erp_system")
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
@@ -128,6 +130,8 @@ async def get_invoices(request: Request):
         page_size=page_size,
         sort_by=sort_by,
         sort_order=sort_order,
+        industry_type=industry_type,
+        erp_system=erp_system,
         mine_user_id=scope_user_id,
     )
 

@@ -1223,6 +1223,102 @@ async def test_get_invoices_list(test_client, auth_token):
 
 
 @pytest.mark.asyncio
+async def test_get_invoices_filter_industry_type_and_erp_system(
+    test_client, auth_token, db_session
+):
+    """测试结算单列表筛选 — industry_type（按行业名称）+ erp_system（按 ERP value）"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_a = _unique_customer_id(96000)
+    cid_b = _unique_customer_id(96500)
+
+    # 行业字典（唯一名，避免与其它并行测试冲突）
+    industry_a = f"互联网_{uuid.uuid4().hex[:6]}"
+    industry_b = f"房地产_{uuid.uuid4().hex[:6]}"
+    db_session.execute(
+        text("""
+        INSERT INTO industry_types (name, sort_order, created_at)
+        VALUES (:a, 1, NOW()), (:b, 2, NOW())
+        """),
+        {"a": industry_a, "b": industry_b},
+    )
+    db_session.commit()
+    industry_map = {
+        row.name: row.id
+        for row in db_session.execute(
+            text("SELECT id, name FROM industry_types WHERE name IN (:a, :b)"),
+            {"a": industry_a, "b": industry_b},
+        )
+    }
+
+    # 客户A：ERP=yonyou + 行业A；客户B：ERP=kingdee + 行业B
+    for cid, erp, industry in [(cid_a, "yonyou", industry_a), (cid_b, "kingdee", industry_b)]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   erp_system, created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid',
+                    :erp, NOW(), NOW())
+            """),
+            {"id": cid, "company_id": cid, "name": f"行业ERP筛选_{cid}", "erp": erp},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO customer_profiles (customer_id, industry_type_id, created_at)
+            VALUES (:cid, :industry_id, NOW())
+            """),
+            {"cid": cid, "industry_id": industry_map[industry]},
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                  total_amount, discount_amount, status, is_auto_generated,
+                                  detail_file_status, created_at, updated_at)
+            VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                    'pending', NOW(), NOW())
+            """),
+            {"no": f"INV-FILTER-{uuid.uuid4().hex[:8]}", "cid": cid},
+        )
+    db_session.commit()
+
+    async def _fetch(**params):
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        _request, response = await test_client.get(
+            f"/api/v1/billing/invoices?{query}",
+            headers=headers,
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        return response.json["data"]
+
+    # 行业筛选（按名称）：仅含客户A
+    data = await _fetch(industry_type=industry_a)
+    customer_ids = [item["customer_id"] for item in data["list"]]
+    assert cid_a in customer_ids
+    assert cid_b not in customer_ids
+
+    # ERP 筛选（按 value）：仅含客户B
+    data = await _fetch(erp_system="kingdee")
+    customer_ids = [item["customer_id"] for item in data["list"]]
+    assert cid_b in customer_ids
+    assert cid_a not in customer_ids
+
+    # 组合筛选：互斥条件应为空
+    data = await _fetch(industry_type=industry_a, erp_system="kingdee")
+    assert data["list"] == []
+
+    # 无筛选：两条都在（outerjoin 不产生重复、不遗漏）
+    data = await _fetch()
+    customer_ids = [item["customer_id"] for item in data["list"]]
+    assert cid_a in customer_ids
+    assert cid_b in customer_ids
+
+    # total 与列表长度一致（join/where 同时作用于计数）
+    assert data["total"] >= 2
+
+
+@pytest.mark.asyncio
 async def test_get_invoices_sort_by_total_amount_asc(test_client, auth_token):
     """测试结算单列表按总金额升序排序"""
     headers = {"Authorization": f"Bearer {auth_token}"}
