@@ -68,6 +68,10 @@ class Customer(BaseModel):
     balance_warning_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True
     )  # 预警状态最近更新时间
+    # 结算账户（代扣余额）：NULL=用自身余额结算；非空=用该客户的 CustomerBalance 扣款
+    settlement_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("customers.id"), nullable=True, index=True
+    )
 
     __table_args__ = (
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
@@ -78,6 +82,9 @@ class Customer(BaseModel):
     # 关联
     profile = relationship("CustomerProfile", uselist=False, back_populates="customer")
     balance = relationship("CustomerBalance", uselist=False, back_populates="customer")
+    settlement_account = relationship(
+        "Customer", remote_side="Customer.id", lazy="selectin"
+    )  # 结算账户客户（代扣余额对象），自引用
     tags = relationship("CustomerTag", back_populates="customer", lazy="selectin")
     daily_consumptions = relationship("DailyConsumption", back_populates="customer")
 

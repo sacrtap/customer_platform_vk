@@ -159,6 +159,11 @@ class Invoice(BaseModel):
     is_auto_generated: Mapped[bool | None] = mapped_column(Boolean, default=True)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
 
+    # 结算账户（代扣余额）：生成时从客户配置快照；NULL=用自身余额，非空=用该客户余额扣款
+    settlement_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("customers.id"), nullable=True, index=True
+    )
+
     # 明细文件
     detail_file_path: Mapped[str | None] = mapped_column(
         String(255), nullable=True
@@ -183,7 +188,10 @@ class Invoice(BaseModel):
 
     # 关联
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
-    customer = relationship("Customer")
+    customer = relationship("Customer", foreign_keys=[customer_id], lazy="selectin")
+    settlement_account = relationship(
+        "Customer", foreign_keys=[settlement_account_id], lazy="selectin"
+    )  # 结算账户客户（代扣余额对象），与 customer 区分 foreign_keys
 
     __table_args__ = (
         Index("idx_invoice_customer_period", "customer_id", "period_start", "period_end"),

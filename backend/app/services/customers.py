@@ -218,6 +218,7 @@ class CustomerService:
             options=[
                 selectinload(Customer.profile).selectinload(CustomerProfile.industry_type),
                 selectinload(Customer.balance),
+                selectinload(Customer.settlement_account),
             ],
         )
 
@@ -668,6 +669,7 @@ class CustomerService:
             auto_initiate_settlement=data.get("auto_initiate_settlement", True),
             is_disabled=data.get("is_disabled", False),
             notes=data.get("notes"),
+            settlement_account_id=data.get("settlement_account_id"),
         )
 
         self.db.add(customer)
@@ -740,7 +742,23 @@ class CustomerService:
             "auto_initiate_settlement",
             "is_disabled",
             "notes",
+            "settlement_account_id",
         ]
+
+        # 结算账户校验：禁止自引用；非空时目标客户必须存在且未删除
+        if "settlement_account_id" in data:
+            account_id = data.get("settlement_account_id")
+            if account_id is not None:
+                if account_id == customer_id:
+                    raise ValueError("结算账户不能为客户自身")
+                exists = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
+                    select(Customer.id).where(
+                        Customer.id == account_id,
+                        Customer.deleted_at.is_(None),
+                    )
+                )
+                if exists.scalar_one_or_none() is None:
+                    raise ValueError("结算账户客户不存在")
 
         # 日期字段转换：前端传 YYYY-MM-DD 字符串，需转换为 date 对象
         date_fields = ["first_payment_date", "onboarding_date"]

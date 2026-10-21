@@ -76,6 +76,15 @@
             </a-select>
           </a-form-item>
         </a-col>
+        <a-col :span="12">
+          <a-form-item field="settlement_account_id" label="结算账户">
+            <CustomerAutoComplete
+              v-model="customerForm.settlement_account_id"
+              placeholder="留空使用自身余额"
+              :width="'100%'"
+            />
+          </a-form-item>
+        </a-col>
       </a-row>
 
       <a-row :gutter="16">
@@ -153,6 +162,7 @@ import type { FormInstance } from '@arco-design/web-vue'
 import type { IndustryType, Customer } from '@/types'
 import { handleError } from '@/utils/errorHandler'
 import { createCustomer, updateCustomer } from '@/api/customers'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 interface CustomerForm {
   company_id: number | undefined
@@ -167,6 +177,8 @@ interface CustomerForm {
   auto_initiate_settlement: boolean
   manager_id: number | null
   sales_manager_id: number | null
+  /** 结算账户客户 ID（代扣余额），null=用自身余额 */
+  settlement_account_id: number | null | undefined
 }
 
 const props = defineProps<{
@@ -204,6 +216,7 @@ const customerForm = reactive<CustomerForm>({
   auto_initiate_settlement: true,
   manager_id: null,
   sales_manager_id: null,
+  settlement_account_id: null,
 })
 
 const customerFormRules = {
@@ -232,6 +245,7 @@ const initFormForCreate = () => {
   customerForm.auto_initiate_settlement = true
   customerForm.manager_id = null
   customerForm.sales_manager_id = null
+  customerForm.settlement_account_id = null
 }
 
 const initFormForEdit = (record: Customer) => {
@@ -247,6 +261,7 @@ const initFormForEdit = (record: Customer) => {
   customerForm.auto_initiate_settlement = record.auto_initiate_settlement ?? true
   customerForm.manager_id = record.manager_id || null
   customerForm.sales_manager_id = record.sales_manager_id || null
+  customerForm.settlement_account_id = record.settlement_account_id ?? null
 }
 
 // Auto-initialize form when modal opens
@@ -286,8 +301,21 @@ const handleCustomerSubmit = async () => {
       is_key_customer: customerForm.is_key_customer,
       is_real_estate: customerForm.is_real_estate ?? undefined,
       auto_initiate_settlement: customerForm.auto_initiate_settlement,
-      manager_id: customerForm.manager_id || undefined,
-      sales_manager_id: customerForm.sales_manager_id || undefined,
+      // 经理字段直接传值：null（清空）必须送达后端以置 NULL，
+      // 后端按「字段是否出现在 data 中」决定是否更新（见 update_customer）
+      manager_id: customerForm.manager_id,
+      sales_manager_id: customerForm.sales_manager_id,
+      settlement_account_id: customerForm.settlement_account_id ?? undefined,
+    }
+
+    // 前端自引用校验（与后端双保险）
+    if (
+      customerForm.settlement_account_id != null &&
+      props.isEditMode &&
+      customerForm.settlement_account_id === props.customerRecord?.id
+    ) {
+      Message.warning('结算账户不能选择客户自身')
+      return false
     }
 
     if (props.isEditMode && props.customerRecord?.id) {

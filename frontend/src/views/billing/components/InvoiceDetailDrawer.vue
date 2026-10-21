@@ -43,6 +43,23 @@
             {{ formatDate(invoice.period_start) }} ~
             {{ formatDate(invoice.period_end) }}
           </a-descriptions-item>
+          <!-- 结算账户（代扣余额）：客户确认前可改，确认后锁定 -->
+          <a-descriptions-item label="结算账户">
+            <div class="settlement-account-cell">
+              <a-tag v-if="invoice.settlement_account_name" color="arcoblue">
+                {{ invoice.settlement_account_name }}
+              </a-tag>
+              <span v-else class="subtle">自身</span>
+              <a-button
+                v-if="canEditSettlementAccount"
+                type="text"
+                size="mini"
+                @click="accountDialogVisible = true"
+                >{{ invoice.settlement_account_id ? '修改' : '设置' }}</a-button
+              >
+              <span v-else-if="invoice.settlement_account_id" class="locked-tip">已锁定</span>
+            </div>
+          </a-descriptions-item>
           <a-descriptions-item label="总金额">{{
             formatCurrency(invoice.total_amount)
           }}</a-descriptions-item>
@@ -241,11 +258,33 @@
         </div>
       </div>
     </template>
+
+    <!-- 结算账户编辑弹窗（代扣余额）：审批流中可改，留空=用客户自身余额 -->
+    <a-modal
+      v-model:visible="accountDialogVisible"
+      title="设置结算账户"
+      :width="480"
+      @ok="handleSettlementAccountSubmit"
+      @cancel="accountDialogVisible = false"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="结算账户" extra="留空表示使用客户自身余额结算；客户确认后不可修改">
+          <CustomerAutoComplete
+            v-model="accountForm.settlement_account_id"
+            placeholder="请输入客户名称搜索"
+            :width="'100%'"
+          />
+        </a-form-item>
+        <div class="form-tip">
+          当前客户：{{ invoice?.customer_name || '-' }}（不能选择客户自身）
+        </div>
+      </a-form>
+    </a-modal>
   </a-drawer>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { formatCurrency, formatDate } from '@/utils/formatters'
@@ -254,6 +293,7 @@ import { downloadInvoiceDetail, regenerateInvoiceDetail } from '@/api/billing'
 import type { Invoice } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 import InvoiceTimeline from '@/components/invoice/InvoiceTimeline.vue'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -261,21 +301,58 @@ const props = defineProps<{
   retrying?: boolean
 }>()
 
-const emit = defineEmits<{
-  'update:visible': [value: boolean]
-  submit: [id: number]
-  'edit-discount': [id: number]
-  'confirm-ops': [id: number]
-  'confirm-sales': [id: number]
-  confirm: [id: number]
-  'retry-deduction': [id: number]
-  cancel: [id: number]
-  'go-customer': [id: number]
-  'regenerate-detail': [id: number]
-}>()
+interface InvoiceDrawerEmits {
+  (e: 'update:visible', value: boolean): void
+  (e: 'submit', id: number): void
+  (e: 'edit-discount', id: number): void
+  (e: 'confirm-ops', id: number): void
+  (e: 'confirm-sales', id: number): void
+  (e: 'confirm', id: number): void
+  (e: 'retry-deduction', id: number): void
+  (e: 'cancel', id: number): void
+  (e: 'go-customer', id: number): void
+  (e: 'regenerate-detail', id: number): void
+  (e: 'update-settlement-account', invoiceId: number, accountId: number | null): void
+}
+
+const emit = defineEmits<InvoiceDrawerEmits>()
 
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
+
+// ===== 结算账户（代扣余额）编辑 =====
+const accountDialogVisible = ref(false)
+const accountForm = reactive<{ settlement_account_id: number | null | undefined }>({
+  settlement_account_id: undefined,
+})
+
+// 审批流中（draft/pending_ops/pending_sales/pending_customer）且具备编辑权限才可修改
+const canEditSettlementAccount = computed(() => {
+  if (!props.invoice) return false
+  if (!can('billing:edit')) return false
+  return ['draft', 'pending_ops', 'pending_sales', 'pending_customer'].includes(
+    props.invoice.status
+  )
+})
+
+// 打开弹窗时回填当前值
+watch(accountDialogVisible, (val) => {
+  if (val) {
+    accountForm.settlement_account_id = props.invoice?.settlement_account_id ?? undefined
+  }
+})
+
+const handleSettlementAccountSubmit = () => {
+  if (!props.invoice) return
+  const accountId = accountForm.settlement_account_id ?? null
+  // 前端自引用校验（与后端双保险）
+  if (accountId !== null && accountId === props.invoice.customer_id) {
+    Message.warning('结算账户不能选择客户自身')
+    return
+  }
+  emit('update-settlement-account', props.invoice.id, accountId)
+  accountDialogVisible.value = false
+}
 
 const isVisible = computed({
   get: () => props.visible,
@@ -575,5 +652,20 @@ const handleRegenerate = async () => {
   gap: 8px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.settlement-account-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settlement-account-cell .locked-tip {
+  font-size: 12px;
+  color: var(--muted);
+}
+.form-tip {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
 }
 </style>

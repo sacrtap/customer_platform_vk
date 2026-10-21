@@ -55,14 +55,16 @@ export function createCustomer(data: {
   industry_type_id?: number
   industry?: string
   price_policy?: PricePolicy | string
-  manager_id?: number
-  sales_manager_id?: number
+  manager_id?: number | null
+  sales_manager_id?: number | null
   settlement_cycle?: string
   settlement_type?: string
   is_key_customer?: boolean
   auto_initiate_settlement?: boolean
   is_real_estate?: boolean | null
   email?: string
+  /** 结算账户客户 ID（代扣余额），null=用自身余额 */
+  settlement_account_id?: number | null
 }) {
   return api.post('/customers', data)
 }
@@ -76,7 +78,7 @@ export function updateCustomer(
     account_type?: string
     industry_type_id?: number | null
     price_policy?: PricePolicy | string
-    manager_id?: number
+    manager_id?: number | null
     settlement_cycle?: string
     settlement_type?: string
     is_key_customer?: boolean
@@ -85,12 +87,14 @@ export function updateCustomer(
     erp_system?: string
     first_payment_date?: string
     onboarding_date?: string
-    sales_manager_id?: number
+    sales_manager_id?: number | null
     cooperation_status?: string
     is_settlement_enabled?: boolean
     auto_initiate_settlement?: boolean
     is_disabled?: boolean
     notes?: string
+    /** 结算账户客户 ID（代扣余额），null=用自身余额，不能为自身 */
+    settlement_account_id?: number | null
   }
 ) {
   return api.put(`/customers/${id}`, data)

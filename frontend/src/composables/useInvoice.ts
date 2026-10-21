@@ -14,6 +14,7 @@ import {
   confirmOps,
   confirmSales,
   retryDeduction,
+  updateInvoiceSettlementAccount,
 } from '@/api/billing'
 import type { Invoice, InvoiceItem } from '@/api/billing'
 
@@ -29,6 +30,14 @@ const defaultFilters = () => ({
 export interface SortState {
   sort_by: string
   sort_order: 'asc' | 'desc' | ''
+}
+
+/** 从拦截器 reject 的未知错误中提取用户可读消息（拦截器约定 reject { code, message }） */
+function errorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+    return err.message || fallback
+  }
+  return fallback
 }
 
 export function useInvoice() {
@@ -231,51 +240,103 @@ export function useInvoice() {
     period_end: string
     items: InvoiceItem[]
   }) => {
-    await generateInvoice(data)
-    Message.success('结算单生成成功')
-    loadInvoices()
+    try {
+      await generateInvoice(data)
+      Message.success('结算单生成成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '结算单生成失败'))
+      throw err
+    }
   }
 
   const doApplyDiscount = async (invoiceId: number, discountAmount: number, reason: string) => {
-    await applyDiscount(invoiceId, { discount_amount: discountAmount, discount_reason: reason })
-    Message.success('减免申请提交成功')
-    loadInvoices()
+    try {
+      await applyDiscount(invoiceId, { discount_amount: discountAmount, discount_reason: reason })
+      Message.success('减免申请提交成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '减免申请提交失败'))
+      throw err
+    }
+  }
+
+  const doUpdateSettlementAccount = async (invoiceId: number, accountId: number | null) => {
+    try {
+      await updateInvoiceSettlementAccount(invoiceId, { settlement_account_id: accountId })
+      Message.success('结算账户已更新')
+      await fetchDetail(invoiceId)
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '结算账户更新失败'))
+      throw err
+    }
   }
 
   const doPay = async (invoiceId: number, paymentMethod: string) => {
-    await payInvoice(invoiceId, { payment_proof: paymentMethod })
-    Message.success('付款确认成功')
-    loadInvoices()
+    try {
+      await payInvoice(invoiceId, { payment_proof: paymentMethod })
+      Message.success('付款确认成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '付款确认失败'))
+      throw err
+    }
   }
 
   const doSubmit = async (invoiceId: number) => {
-    await submitInvoice(invoiceId)
-    Message.success('提交成功')
-    loadInvoices()
+    try {
+      await submitInvoice(invoiceId)
+      Message.success('提交成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '提交失败'))
+      throw err
+    }
   }
 
   const doConfirm = async (invoiceId: number) => {
-    await confirmInvoice(invoiceId)
-    Message.success('确认成功')
-    loadInvoices()
+    try {
+      await confirmInvoice(invoiceId)
+      Message.success('确认成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '确认失败'))
+      throw err
+    }
   }
 
   const doCancel = async (invoiceId: number) => {
-    await cancelInvoice(invoiceId)
-    Message.success('已取消')
-    loadInvoices()
+    try {
+      await cancelInvoice(invoiceId)
+      Message.success('已取消')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '取消失败'))
+      throw err
+    }
   }
 
   const doConfirmOps = async (invoiceId: number) => {
-    await confirmOps(invoiceId)
-    Message.success('运营经理确认成功')
-    loadInvoices()
+    try {
+      await confirmOps(invoiceId)
+      Message.success('运营经理确认成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '运营经理确认失败'))
+      throw err
+    }
   }
 
   const doConfirmSales = async (invoiceId: number) => {
-    await confirmSales(invoiceId)
-    Message.success('销售经理确认成功')
-    loadInvoices()
+    try {
+      await confirmSales(invoiceId)
+      Message.success('销售经理确认成功')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '销售经理确认失败'))
+      throw err
+    }
   }
 
   const doRetryDeduction = async (invoiceId: number) => {
@@ -284,16 +345,20 @@ export function useInvoice() {
       Message.success(res.data?.message || '重试扣款成功')
       loadInvoices()
     } catch (err) {
-      const msg = (err as { message?: string })?.message || '重试扣款失败'
-      Message.error(msg)
+      Message.error(errorMessage(err, '重试扣款失败'))
       throw err
     }
   }
 
   const doDelete = async (invoiceId: number) => {
-    await deleteInvoice(invoiceId)
-    Message.success('已删除')
-    loadInvoices()
+    try {
+      await deleteInvoice(invoiceId)
+      Message.success('已删除')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '删除失败'))
+      throw err
+    }
   }
 
   return {
@@ -317,6 +382,7 @@ export function useInvoice() {
     pollFileStatus,
     doGenerate,
     doApplyDiscount,
+    doUpdateSettlementAccount,
     doPay,
     doSubmit,
     doConfirm,

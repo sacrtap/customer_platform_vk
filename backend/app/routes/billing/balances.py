@@ -404,8 +404,18 @@ async def _query_balance_rows_raw(
         "days_remaining": "days_remaining",  # 特殊处理（CTE）
     }
 
-    # 以 Customer 为驱动表 + outerjoin CustomerBalance：无余额行的包年客户也会出现在列表中；
+    # 以 Customer 为驱动表 outerjoin CustomerBalance：无余额行的包年客户也会出现在列表中；
     # CustomerBalance.deleted_at 条件必须放在 outerjoin ON 子句，否则会过滤掉无余额行客户。
+    # 无余额档案客户默认不可见（避免惰性补建副作用与空行）；例外是包年客户
+    # （price_policy='yearly'）：其「余额」= 套餐剩余额度（含过期归 0），不依赖
+    # CustomerBalance 行，与 545b4bf「无余额行的包年客户不再丢失」的意图一致。
+    # 用 price_policy 而非 package_cte 命中：CTE 只含生效中的规则，过期包年客户
+    # 不在其中但仍须可见（total_amount=0、package_expired=True）。
+    # 注意：count_stmt 独立重建（下方），该条件必须共享，否则 total 与实际行数漂移。
+    has_balance_row = or_(
+        CustomerBalance.id.is_not(None),
+        Customer.price_policy == "yearly",
+    )
     base_stmt = (
         select(Customer)
         .outerjoin(
@@ -415,6 +425,7 @@ async def _query_balance_rows_raw(
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .outerjoin(package_cte, Customer.id == package_cte.c.cid)
         .where(Customer.deleted_at.is_(None))
+        .where(has_balance_row)
     )
 
     # 服务端过滤
@@ -518,6 +529,7 @@ async def _query_balance_rows_raw(
         base_stmt = base_stmt.where(Customer.id.in_(tag_customer_subq))
 
     # 总数查询（Customer 驱动 + outerjoin，保证无余额行的包年客户计入总数）
+    # has_balance_row 与 base_stmt 共享，防止 total 与实际返回行数漂移
     count_stmt = (
         select(func.count(Customer.id))
         .outerjoin(
@@ -527,6 +539,7 @@ async def _query_balance_rows_raw(
         .outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
         .outerjoin(package_cte, Customer.id == package_cte.c.cid)
         .where(Customer.deleted_at.is_(None))
+        .where(has_balance_row)
     )
     if customer_id:
         count_stmt = count_stmt.where(Customer.id == customer_id)
@@ -1829,19 +1842,48 @@ async def get_consumption_records(request: Request):
     stmt = select(ConsumptionRecord).where(ConsumptionRecord.deleted_at.is_(None))
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的消费记录
+    # 代扣场景放宽：cr.customer 或关联结算单 invoice.customer 任一归属该用户即可见
+    # （用 EXISTS 而非 join，避免「两个客户都归属该用户」时产生重复行）
     scope_user_id = await customer_scope_user_id(request)
     if scope_user_id is not None:
         from ...models.customers import Customer
 
-        stmt = stmt.join(Customer, Customer.id == ConsumptionRecord.customer_id).where(
-            or_(
-                Customer.manager_id == scope_user_id,
-                Customer.sales_manager_id == scope_user_id,
+        cr_customer_owned = (
+            select(Customer.id)
+            .where(
+                Customer.id == ConsumptionRecord.customer_id,
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                ),
             )
+            .exists()
         )
+        invoice_customer_owned = (
+            select(Invoice.id)
+            .join(Customer, Customer.id == Invoice.customer_id)
+            .where(
+                Invoice.id == ConsumptionRecord.invoice_id,
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                ),
+            )
+            .exists()
+        )
+        stmt = stmt.where(or_(cr_customer_owned, invoice_customer_owned))
 
     if customer_id:
-        stmt = stmt.where(ConsumptionRecord.customer_id == customer_id)
+        # 被结算客户也可见：既看到扣自己余额的记录（cr.customer_id==cid），
+        # 也看到「自己的结算单、扣结算账户余额」的记录（invoice.customer_id==cid）
+        stmt = stmt.where(
+            or_(
+                ConsumptionRecord.customer_id == customer_id,
+                ConsumptionRecord.invoice_id.in_(
+                    select(Invoice.id).where(Invoice.customer_id == customer_id)
+                ),
+            )
+        )
 
     # 总数
     from sqlalchemy import func
@@ -1866,6 +1908,20 @@ async def get_consumption_records(request: Request):
         for row in inv_result:
             invoice_no_map[row.id] = row.invoice_no
 
+    # 批量查询实际扣款客户（cr.customer_id，代扣场景为结算账户客户，可能与页面筛选客户不同）
+    from ...models.customers import Customer as _Customer
+
+    cr_customer_ids = [r.customer_id for r in records if r.customer_id]
+    customer_name_map: dict[int, tuple[str, int]] = {}
+    if cr_customer_ids:
+        cust_result = await db.execute(
+            select(_Customer.id, _Customer.name, _Customer.company_id).where(
+                _Customer.id.in_(cr_customer_ids)
+            )
+        )
+        for row in cust_result:
+            customer_name_map[row.id] = (row.name, row.company_id)
+
     return json(
         {
             "code": 0,
@@ -1877,6 +1933,13 @@ async def get_consumption_records(request: Request):
                         "customer_id": r.customer_id,
                         "invoice_id": r.invoice_id,
                         "invoice_no": invoice_no_map.get(r.invoice_id) if r.invoice_id else None,
+                        # 实际扣款客户（结算账户）：代扣时与页面入口客户不同，供前端展示
+                        "actual_customer_name": customer_name_map[r.customer_id][0]
+                        if r.customer_id in customer_name_map
+                        else None,
+                        "actual_customer_id": customer_name_map[r.customer_id][1]
+                        if r.customer_id in customer_name_map
+                        else None,
                         "amount": float(r.amount),  # pyright: ignore[reportArgumentType]
                         "bonus_used": float(r.bonus_used) if r.bonus_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "real_used": float(r.real_used) if r.real_used else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]

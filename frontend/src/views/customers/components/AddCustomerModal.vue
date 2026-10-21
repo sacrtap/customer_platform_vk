@@ -90,6 +90,16 @@
             </a-select>
           </a-form-item>
         </a-col>
+        <!-- 结算账户（代扣余额） -->
+        <a-col :span="12">
+          <a-form-item field="settlement_account_id" label="结算账户">
+            <CustomerAutoComplete
+              v-model="form.settlement_account_id"
+              placeholder="留空使用自身余额"
+              :width="'100%'"
+            />
+          </a-form-item>
+        </a-col>
         <!-- 是否重点客户（开关按钮样式） -->
         <a-col :span="12">
           <a-form-item field="is_key_customer" label="是否重点客户">
@@ -178,6 +188,7 @@ import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import type { IndustryType } from '@/types'
 import { createCustomer } from '@/api/customers'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { handleError } from '@/utils/errorHandler'
 import {
   ACCOUNT_TYPE_OPTIONS,
@@ -223,6 +234,8 @@ interface CreateForm {
   cooperation_status: string
   erp_system: string
   notes: string
+  /** 结算账户客户 ID（代扣余额），undefined=用自身余额 */
+  settlement_account_id: number | undefined
 }
 
 const createDefaultForm = (): CreateForm => ({
@@ -242,6 +255,7 @@ const createDefaultForm = (): CreateForm => ({
   cooperation_status: '',
   erp_system: '',
   notes: '',
+  settlement_account_id: undefined,
 })
 
 const form = reactive<CreateForm>(createDefaultForm())
@@ -297,6 +311,7 @@ const handleConfirm = async () => {
     if (form.cooperation_status) payload.cooperation_status = form.cooperation_status
     if (form.erp_system) payload.erp_system = form.erp_system
     if (form.notes) payload.notes = form.notes
+    if (form.settlement_account_id) payload.settlement_account_id = form.settlement_account_id
 
     await createCustomer(payload as Parameters<typeof createCustomer>[0])
     Message.success('创建成功')
