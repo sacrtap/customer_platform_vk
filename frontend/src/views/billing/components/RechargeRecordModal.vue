@@ -48,6 +48,13 @@
           <template #balance_after="{ record }">
             <span class="balance-after">{{ formatCurrency(record.balance_after) }}</span>
           </template>
+          <template #actual_customer="{ record }">
+            <span v-if="record.actual_customer_name">
+              {{ record.actual_customer_name }}
+              <span class="customer-id">（ID: {{ record.actual_customer_id }}）</span>
+            </span>
+            <span v-else>-</span>
+          </template>
           <template #invoice_no="{ record }">
             <a
               v-if="record.invoice_no"
@@ -119,6 +126,7 @@ const consumptionPagination = reactive({ current: 1, pageSize: 10, showTotal: tr
 const consumptionColumns = [
   { title: '消耗金额', slotName: 'amount', width: 200 },
   { title: '扣款后余额', slotName: 'balance_after', width: 150 },
+  { title: '实际结算客户', slotName: 'actual_customer', width: 200 },
   { title: '关联结算单', slotName: 'invoice_no', width: 180 },
   { title: '消耗时间', slotName: 'consumed_at', width: 180 },
 ]
@@ -190,6 +198,11 @@ watch(
 .balance-after {
   color: var(--primary);
   font-weight: 500;
+}
+
+.customer-id {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .invoice-link {
