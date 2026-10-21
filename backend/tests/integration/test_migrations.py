@@ -332,3 +332,82 @@ class TestModelMigrationParity:
             f"模型声明了迁移链未创建的列：{missing_columns}。"
             f"请补 Alembic 迁移，否则真实库查询会 UndefinedColumnError 500。"
         )
+
+
+# ==================== Settlement Account Migration (y4z5a6b7c8d9) ====================
+
+
+class TestSettlementAccountMigration:
+    """结算账户迁移 y4z5a6b7c8d9：两列 nullable 无默认，历史行自动 NULL"""
+
+    MIGRATION_DB_NAME = "customer_platform_settlement_migration_test"
+
+    @property
+    def _url(self) -> str:
+        return (
+            f"postgresql://{TEST_DB_USER}:{TEST_DB_PASSWORD}"
+            f"@{TEST_DB_HOST}:{TEST_DB_PORT}/{self.MIGRATION_DB_NAME}"
+        )
+
+    def _config(self) -> Config:
+        os.environ["DATABASE_URL"] = self._url
+        import app.config
+
+        app.config.get_settings.cache_clear()
+        app.config.settings = app.config.get_settings()
+        cfg = Config(str(ALEMBIC_INI))
+        cfg.set_main_option("sqlalchemy.url", self._url)
+        return cfg
+
+    @pytest.fixture(scope="class")
+    def migrated_db(self):
+        admin_engine = create_engine(_admin_url, isolation_level="AUTOCOMMIT")
+        with admin_engine.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"'))
+            conn.execute(text(f'CREATE DATABASE "{self.MIGRATION_DB_NAME}"'))
+        admin_engine.dispose()
+
+        import app.config
+
+        original_settings = app.config.settings
+        engine = create_engine(self._url, isolation_level="AUTOCOMMIT")
+        try:
+            command.upgrade(self._config(), "y4z5a6b7c8d9")
+            yield engine
+        finally:
+            app.config.get_settings.cache_clear()
+            app.config.settings = original_settings
+            engine.dispose()
+            admin_engine = create_engine(_admin_url, isolation_level="AUTOCOMMIT")
+            with admin_engine.connect() as conn:
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"'))
+            admin_engine.dispose()
+
+    def test_upgrade_adds_nullable_columns(self, migrated_db):
+        """upgrade：两列存在且 nullable，历史行无需 backfill"""
+        with migrated_db.connect() as conn:
+            for table in ("customers", "invoices"):
+                row = conn.execute(
+                    text(
+                        "SELECT is_nullable FROM information_schema.columns "
+                        "WHERE table_name = :t AND column_name = 'settlement_account_id'"
+                    ),
+                    {"t": table},
+                ).scalar()
+                assert row == "YES", f"{table}.settlement_account_id 必须 nullable"
+
+    def test_downgrade_removes_columns(self, migrated_db):
+        """downgrade：列与索引被移除"""
+        with migrated_db.connect() as conn:
+            command.downgrade(self._config(), "x3y4z5a6b7c8")
+            for table in ("customers", "invoices"):
+                row = conn.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name = :t AND column_name = 'settlement_account_id'"
+                    ),
+                    {"t": table},
+                ).scalar()
+                assert row is None, f"{table}.settlement_account_id 应已删除"
+            # 恢复 head 供同 session 后续测试
+            command.upgrade(self._config(), "y4z5a6b7c8d9")
