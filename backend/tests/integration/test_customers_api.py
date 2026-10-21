@@ -130,7 +130,11 @@ async def test_list_customers_usage_30d_cache_hit(test_client, auth_headers, cus
         if namespace == "customer_list":
             return None
         if namespace == "customer_usage_30d":
-            return {customer_id: {"order_count": 7, "total_cost": 88.5}}
+            # 模拟真实 Redis：CacheService.set 走 json.dumps、get 走 json.loads，
+            # int 顶层 key 会被序列化为 str。直接复刻该序列化路径。
+            import json
+
+            return json.loads(json.dumps({customer_id: {"order_count": 7, "total_cost": 88.5}}))
         return None
 
     # 直接替换路由模块绑定的 cache_service，绕过 conftest 的 mock 注入时机问题

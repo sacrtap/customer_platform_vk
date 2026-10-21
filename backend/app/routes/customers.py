@@ -197,7 +197,10 @@ async def list_customers(request: Request):
         usage_cache_key = f"usage30d_{','.join(str(i) for i in sorted(customer_ids))}"
         cached_usage = await cache_service.get("customer_usage_30d", usage_cache_key)
         if cached_usage is not None:
-            usage_map = cached_usage
+            # Redis 经 json.dumps/json.loads 序列化后 dict 顶层 key 由 int 变 str，
+            # 而下方 usage_map.get(c.id, ...) 用 int 查询会失配 → usage_30d 退化为 0。
+            # 归一化顶层 key 回 int，保持与 c.id 类型一致（value 内层 key 本就是 str，不受影响）。
+            usage_map = {int(k): v for k, v in cached_usage.items()}
         else:
             thirty_days_ago = date.today() - timedelta(days=30)
             from sqlalchemy import func as sa_func
