@@ -998,3 +998,25 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 41: 客户代扣结算功能（结算账户）开发与四项修复
+<!-- trellis-session: v=2 fp=b8772c55428c9f34 -->
+
+**Date**: 2026-10-21
+**Task**: 客户代扣结算功能（结算账户）开发与四项修复
+**Branch**: `main`
+
+### Summary
+
+在 feat/customer-withholding-settlement 分支完成客户代扣结算功能（结算账户）A-G 全阶段：Customer.settlement_account_id 自引用 FK + Invoice 快照列（迁移 y4z5a6b7c8d9 三态验证）、客户配置校验、结算单生成快照、扣款走结算账户（_execute_deduction/complete_invoice）、PUT /invoices/<id>/settlement-account 路由与状态锁定、消耗记录双方可见（OR + EXISTS scope）。端到端 API 七项全过，新增 28 项测试全绿。另修复四个问题：(1) vite dev proxy ETIMEDOUT——Node 18+ verbatim DNS 优先 localhost→::1 而后端仅监听 IPv4，target 改 127.0.0.1；(2) 既有失败 test_balances_list_excludes_customer_without_archive——无余额档案客户默认不可见（例外包年 price_policy=yearly），base_stmt 与 count_stmt 共享过滤条件修 total/list 漂移；(3) 清空运营/销售经理保存不生效——null 被 || undefined 擦除致 JSON 丢键，改为直接传 null；(4) 结算确认失败无提示——useInvoice 11 个 do* 方法统一 try/catch + Message.error。另在消耗记录新增「实际结算客户」列。PR #55 squash 合并入 main，CI 10 项全绿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cd9fe09` | feat(billing): 客户代扣结算功能（结算账户）+ 四项修复 (#55) |
+
+### Status
+
+[OK] **Completed**
