@@ -1,7 +1,7 @@
 # 消耗分析页面增强 - 技术设计文档
 
 **创建日期**: 2026-06-13
-**关联 PRD**: `docs/specs/consumption-analysis-enhancement.md`
+**关联 PRD**: `docs/specs/2026-07-04-consumption-analysis-enhancement.md`
 **版本**: v1.0
 
 ---

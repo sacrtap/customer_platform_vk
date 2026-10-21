@@ -3,7 +3,7 @@
 **日期**: 2026-06-24
 **作者**: Technical Architect
 **状态**: Draft
-**关联 PRD**: `docs/specs/consumption-sync-optimization.md`
+**关联 PRD**: `docs/specs/2026-07-04-consumption-sync-optimization.md`
 
 ---
 
