@@ -86,9 +86,9 @@
           </a-col>
           <a-col :span="12">
             <a-form-item label="是否房产客户">
-              <a-select v-model="batchForm.is_real_estate" placeholder="请选择">
-                <a-option :value="true">是</a-option>
-                <a-option :value="false">否</a-option>
+              <a-select v-model="realEstateValue" placeholder="全部" allow-clear>
+                <a-option value="true">是</a-option>
+                <a-option value="false">否</a-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -290,7 +290,15 @@ const batchForm = reactive({
   industry_type_ids: [] as number[],
   scale_levels: [] as string[],
   consume_levels: [] as string[],
-  is_real_estate: true as boolean,
+  is_real_estate: null as boolean | null,
+})
+
+// 是否房产客户（boolean | null -> string 三态，与 BalanceFilters 的布尔筛选项一致）
+const realEstateValue = computed({
+  get: () => (batchForm.is_real_estate === null ? '' : String(batchForm.is_real_estate)),
+  set: (val: string) => {
+    batchForm.is_real_estate = val === '' ? null : val === 'true'
+  },
 })
 
 const batchPeriodRange = ref<string[]>([])
@@ -311,7 +319,9 @@ const previewColumns = [
 ]
 
 // 加载行业类型选项
+const loadingIndustryOptions = ref(false)
 const loadIndustryOptions = async () => {
+  loadingIndustryOptions.value = true
   try {
     const res = await getIndustryTypesList()
     const list: IndustryType[] = res.data?.data || res.data || []
@@ -328,11 +338,14 @@ const loadIndustryOptions = async () => {
     }
   } catch {
     industryOptions.value = []
+  } finally {
+    loadingIndustryOptions.value = false
   }
 }
 
 // 批量预览
 const doPreviewBatch = async () => {
+  if (loadingIndustryOptions.value) return
   if (!batchForm.pricing_type) {
     previewCustomers.value = []
     return
@@ -345,7 +358,7 @@ const doPreviewBatch = async () => {
         : undefined,
       scale_levels: batchForm.scale_levels.length ? batchForm.scale_levels : undefined,
       consume_levels: batchForm.consume_levels.length ? batchForm.consume_levels : undefined,
-      is_real_estate: batchForm.is_real_estate,
+      is_real_estate: batchForm.is_real_estate === null ? undefined : batchForm.is_real_estate,
     })
     previewCustomers.value = res.data?.customers || []
   } catch {
@@ -371,13 +384,13 @@ watch(
 )
 
 // 切换模式时初始化
-const handleModeChange = (val: string | number | boolean) => {
-  if (val === 'batch' && industryOptions.value.length === 0) {
-    loadIndustryOptions()
+const handleModeChange = async (val: string | number | boolean) => {
+  if (val !== 'batch') return
+  // 先等字典加载完（会写入默认行业 ID），再预览，避免首次预览漏掉默认行业条件
+  if (industryOptions.value.length === 0) {
+    await loadIndustryOptions()
   }
-  if (val === 'batch') {
-    doPreviewBatch()
-  }
+  doPreviewBatch()
 }
 
 // 弹窗打开时：保留结算周期，仅清空客户和预览数据
@@ -398,7 +411,7 @@ watch(
       batchForm.industry_type_ids = []
       batchForm.scale_levels = []
       batchForm.consume_levels = []
-      batchForm.is_real_estate = true
+      batchForm.is_real_estate = null
     }
   }
 )
@@ -465,7 +478,7 @@ const handleSubmitBatch = async () => {
         : undefined,
       scale_levels: batchForm.scale_levels.length ? batchForm.scale_levels : undefined,
       consume_levels: batchForm.consume_levels.length ? batchForm.consume_levels : undefined,
-      is_real_estate: batchForm.is_real_estate,
+      is_real_estate: batchForm.is_real_estate === null ? undefined : batchForm.is_real_estate,
       period_start: batchPeriodRange.value[0],
       period_end: batchPeriodRange.value[1],
     })
