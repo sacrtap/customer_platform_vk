@@ -445,6 +445,101 @@ else:
 
 ---
 
+## Scenario: 结算单列表按客户行业/ERP 筛选
+
+### 1. Scope / Trigger
+
+- Trigger: 跨层契约变更 —— `GET /api/v1/billing/invoices` 新增 `industry_type` / `erp_system` 查询参数，前端筛选栏新增对应两个单选下拉。
+- 背景：结算单管理页原先只有「客户名称」「状态」两个筛选项。行业与 ERP 属性归属客户（`Customer.erp_system`、`CustomerProfile.industry_type_id` → `IndustryType`），需在结算单列表上按客户属性过滤。**筛选语义沿用客户列表后端既有约定**（`backend/app/services/customers.py:276-284,313-314`），不新建第二套口径。
+
+### 2. Signatures
+
+[来源: 项目源码 — `backend/app/services/billing.py` `InvoiceService.get_invoices`、`backend/app/routes/billing/invoices.py` `get_invoices`]
+
+```python
+async def get_invoices(
+    self,
+    customer_id: Optional[int] = None,
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    industry_type: Optional[str] = None,   # 行业名称，按 IndustryType.name 匹配
+    erp_system: Optional[str] = None,      # ErpSystem.value，按 Customer.erp_system 精确匹配
+    ...
+    mine_user_id: Optional[int] = None,
+) -> Tuple[List[Invoice], int]:
+```
+
+```
+GET /api/v1/billing/invoices?industry_type=互联网&erp_system=yonyou
+```
+
+### 3. Contracts
+
+请求字段（均为可选，空串视为未传）：
+
+| 字段 | 类型 | 匹配口径 |
+|------|------|----------|
+| `industry_type` | string | **行业名称**（`IndustryType.name` 精确匹配），非 ID。经 `CustomerProfile.industry_type_id` 外键关联 |
+| `erp_system` | string | **`ErpSystem.value`**（`Customer.erp_system` 精确匹配），非名称 |
+
+关键实现约束：
+
+- ERP 筛选复用 `get_invoices` 已有的 `Customer` inner join，**不加额外 join**；行业筛选按 `customers.py` 范式追加 `CustomerProfile`、`IndustryType` 两个 **outerjoin**。
+- join/where 必须在 `count_stmt = select(func.count()).select_from(stmt.subquery())` **之前**完成，使计数与数据查询同口径。
+- `CustomerProfile.customer_id` 唯一，outerjoin 不产生重复行；`result.scalars().unique().all()` 二次去重兜底。
+- 响应字段不增不减（列表项不回显这两个筛选值）；权限（`billing:view`）与 `customer_scope_user_id` 数据可见性逻辑不变。
+
+前端契约：
+
+- `useInvoice` 的 `defaultFilters()` 新增 `industry_type: ''` / `erp_system: ''`；`loadInvoices` 仅在非空时拼参。
+- `InvoiceFilters.vue` 字典复用 `getIndustryTypes()`（`/dicts/industry_types`）与 `getErpSystemsList()`（`/erp-systems`），防御式解包 `res.data?.data || res.data || []`；选项 value 分别为行业 `name` 与 ERP `value`，与后端匹配口径对齐。
+- 导出（`exportInvoices`）不传这两个参数，仅 `status`——列表筛选语义不扩展到导出。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `industry_type` / `erp_system` 为空串或缺失 | 不加对应 where，返回全量 |
+| 行业名称不存在 | 结果为空列表（`total=0`），非报错 |
+| 互斥组合（`industry_type=A&erp_system=B`，A/B 属不同客户） | 空列表 |
+| 非法参数名 | 忽略（Sanic `request.args.get` 返回 None） |
+
+### 5. Good/Base/Bad Cases
+
+- Good：客户A（互联网 + yonyou）、客户B（房地产 + kingdee）各一条结算单；`?industry_type=互联网` 仅含 A；`?erp_system=kingdee` 仅含 B；无筛选两条都在。
+- Base：行业名称带前后空格不匹配（精确等值，无 trim）；客户无 profile 时行业筛选不命中（outerjoin 保证不因缺 profile 丢行——只在传行业筛选时才 join）。
+- Bad：把 `industry_type` 当 ID 传（`industry_type=1`）→ 空列表，与既有 name 口径不符。
+
+### 6. Tests Required
+
+| 测试 | 断言点 |
+|------|--------|
+| `test_billing_api.py::test_get_invoices_filter_industry_type_and_erp_system` | 行业名称筛选仅含目标客户；ERP value 筛选仅含目标客户；互斥组合为空；无筛选两条都在；`total >= 2`（计数与数据同口径） |
+| `test_billing_api.py::test_get_invoices_list`（既有） | 无筛选不回归 |
+| 前端 `useInvoice.test.ts`（既有） | `defaultFilters` 扩展未破坏排序逻辑 |
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 新建 ID 口径：与客户列表 name 匹配语义分裂
+if industry_type:
+    stmt = stmt.where(CustomerProfile.industry_type_id == int(industry_type))
+```
+
+#### Correct
+
+```python
+# 镜像 customers.py：outerjoin 后按 IndustryType.name 匹配
+if industry_type:
+    stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+    stmt = stmt.outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+    stmt = stmt.where(IndustryType.name == industry_type)
+```
+
+---
+
 ## 相关约定
 
 - 余额范围档位（前端 `BALANCE_RANGE_OPTIONS`）中「1万以下」的 `min` 有意为 `null`（含欠费与零余额），与 `low_balance_count` 口径保持一致；「欠费」是其中只看负余额的窄档，重叠属预期。

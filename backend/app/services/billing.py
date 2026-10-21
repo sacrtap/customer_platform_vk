@@ -28,8 +28,9 @@ from ..models.billing import (
     PricingRule,
     RechargeRecord,
 )
-from ..models.customers import Customer
+from ..models.customers import Customer, CustomerProfile
 from ..models.daily_consumption import DailyConsumption
+from ..models.industry_type import IndustryType
 from ..repository import (
     BalanceRepository,
     BalanceRepositoryProtocol,
@@ -1442,6 +1443,8 @@ class InvoiceService:
         page_size: int = 20,
         sort_by: str = "",
         sort_order: str = "desc",
+        industry_type: Optional[str] = None,
+        erp_system: Optional[str] = None,
         mine_user_id: Optional[int] = None,
     ) -> Tuple[List[Invoice], int]:
         """获取结算单列表（支持服务端排序）
@@ -1462,6 +1465,15 @@ class InvoiceService:
             stmt = stmt.where(Customer.name.ilike(f"%{keyword}%"))
         if status:
             stmt = stmt.where(Invoice.status == status)
+        if erp_system:
+            # ERP 系统筛选：Customer.erp_system 存 ErpSystem.value，精确匹配（Customer 已 inner join）
+            stmt = stmt.where(Customer.erp_system == erp_system)
+        if industry_type:
+            # 行业筛选：经 CustomerProfile.industry_type_id 外键按 IndustryType.name 匹配，
+            # 镜像 customers.py 筛选范式；CustomerProfile.customer_id 唯一，outerjoin 不产生重复行
+            stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
+            stmt = stmt.outerjoin(IndustryType, CustomerProfile.industry_type_id == IndustryType.id)
+            stmt = stmt.where(IndustryType.name == industry_type)
         if period_start:
             stmt = stmt.where(Invoice.period_start >= period_start)
         if period_end:

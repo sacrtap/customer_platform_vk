@@ -8,6 +8,18 @@
         :options="statusOptions"
         @apply="emit('search')"
       />
+      <FilterDropdown
+        v-model="filters.industry_type"
+        label="行业类型"
+        :options="industryOptions"
+        @apply="emit('search')"
+      />
+      <FilterDropdown
+        v-model="filters.erp_system"
+        label="ERP系统"
+        :options="erpSystemOptions"
+        @apply="emit('search')"
+      />
       <button type="button" class="btn primary" @click="emit('search')">筛选</button>
       <button type="button" class="btn" @click="emit('reset')">重置</button>
     </div>
@@ -15,13 +27,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import { INVOICE_STATUS_OPTIONS } from '@/constants/invoiceStatus'
+import { getIndustryTypes } from '@/api/customers'
+import { getErpSystemsList } from '@/api/erpSystems'
+import type { IndustryType, ErpSystem } from '@/types'
 
 interface Filters {
   keyword: string
   status: string
+  industry_type: string
+  erp_system: string
 }
 
 const filters = defineModel<Filters>('filters', { required: true })
@@ -32,6 +50,34 @@ const emit = defineEmits<{
 }>()
 
 const statusOptions = INVOICE_STATUS_OPTIONS
+
+// ===== 字典加载（镜像 useCustomerList 的防御式解包） =====
+const industryTypes = ref<IndustryType[]>([])
+const erpSystems = ref<ErpSystem[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await getIndustryTypes()
+    industryTypes.value = (res.data?.data || res.data || []) as IndustryType[]
+  } catch (error) {
+    console.error('加载行业类型失败:', error)
+  }
+  try {
+    const res = await getErpSystemsList()
+    erpSystems.value = (res.data?.data || res.data || []) as ErpSystem[]
+  } catch (error) {
+    console.error('加载 ERP 系统失败:', error)
+  }
+})
+
+// 行业按名称匹配（后端按 IndustryType.name 筛选）；ERP 按 value 匹配（Customer.erp_system）
+const industryOptions = computed(() =>
+  industryTypes.value.map((it) => ({ label: it.name, value: it.name }))
+)
+
+const erpSystemOptions = computed(() =>
+  erpSystems.value.map((es) => ({ label: es.name, value: es.value }))
+)
 </script>
 
 <style scoped>

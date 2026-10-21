@@ -20,6 +20,8 @@ import type { Invoice, InvoiceItem } from '@/api/billing'
 const defaultFilters = () => ({
   keyword: '',
   status: '',
+  industry_type: '',
+  erp_system: '',
   invoice_date: [] as string[],
   due_date: [] as string[],
 })
@@ -160,6 +162,8 @@ export function useInvoice() {
       }
       if (filters.keyword) params.keyword = filters.keyword
       if (filters.status) params.status = filters.status
+      if (filters.industry_type) params.industry_type = filters.industry_type
+      if (filters.erp_system) params.erp_system = filters.erp_system
       if (filters.invoice_date?.length === 2) {
         params.invoice_date_from = filters.invoice_date[0]
         params.invoice_date_to = filters.invoice_date[1]
