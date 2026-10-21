@@ -95,6 +95,14 @@
                   <a-option value="yearly">包年</a-option>
                 </a-select>
               </a-form-item>
+              <a-form-item field="settlement_account_id" label="结算账户">
+                <CustomerAutoComplete
+                  v-model="editForm.settlement_account_id"
+                  placeholder="留空使用自身余额"
+                  :display-name="editForm.settlement_account_name || ''"
+                  :width="'100%'"
+                />
+              </a-form-item>
               <a-form-item field="erp_system" label="ERP 系统">
                 <a-select
                   v-model="editForm.erp_system"
@@ -216,6 +224,7 @@ import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import type { IndustryType, CooperationStatus, ErpSystem } from '@/types'
 import { getCustomer, updateCustomer, getIndustryTypes } from '@/api/customers'
+import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 import { getErpSystemsList } from '@/api/erpSystems'
 import { getManagers } from '@/api/users'
@@ -275,11 +284,11 @@ interface EditForm {
   settlement_type?: string
   settlement_cycle?: string
   is_key_customer: boolean
-  manager_id?: number
+  manager_id: number | null
   erp_system?: string
   first_payment_date?: string
   onboarding_date?: string
-  sales_manager_id?: number
+  sales_manager_id: number | null
   cooperation_status?: string
   is_settlement_enabled: boolean
   auto_initiate_settlement: boolean
@@ -288,6 +297,10 @@ interface EditForm {
   is_real_estate: boolean | null
   scale_level?: string
   consume_level?: string
+  /** 结算账户客户 ID（代扣余额），undefined=用自身余额 */
+  settlement_account_id: number | null | undefined
+  /** 结算账户客户名称（回显用） */
+  settlement_account_name: string | null
 }
 
 const createDefaultForm = (): EditForm => ({
@@ -300,11 +313,11 @@ const createDefaultForm = (): EditForm => ({
   settlement_type: undefined,
   settlement_cycle: undefined,
   is_key_customer: false,
-  manager_id: undefined,
+  manager_id: null,
   erp_system: undefined,
   first_payment_date: undefined,
   onboarding_date: undefined,
-  sales_manager_id: undefined,
+  sales_manager_id: null,
   cooperation_status: undefined,
   is_settlement_enabled: true,
   auto_initiate_settlement: true,
@@ -313,6 +326,8 @@ const createDefaultForm = (): EditForm => ({
   is_real_estate: null,
   scale_level: undefined,
   consume_level: undefined,
+  settlement_account_id: undefined,
+  settlement_account_name: null,
 })
 
 const editForm = reactive<EditForm>(createDefaultForm())
@@ -404,11 +419,11 @@ const fetchAndInitForm = async () => {
       settlement_type: c.settlement_type || undefined,
       settlement_cycle: c.settlement_cycle || undefined,
       is_key_customer: c.is_key_customer || false,
-      manager_id: c.manager_id || undefined,
+      manager_id: c.manager_id ?? undefined,
       erp_system: c.erp_system || undefined,
       first_payment_date: c.first_payment_date || undefined,
       onboarding_date: c.onboarding_date || undefined,
-      sales_manager_id: c.sales_manager_id || undefined,
+      sales_manager_id: c.sales_manager_id ?? undefined,
       cooperation_status: c.cooperation_status || undefined,
       is_settlement_enabled: c.is_settlement_enabled ?? true,
       auto_initiate_settlement: c.auto_initiate_settlement ?? true,
@@ -417,6 +432,8 @@ const fetchAndInitForm = async () => {
       is_real_estate: c.is_real_estate ?? null,
       scale_level: c.profile?.scale_level || c.scale_level || undefined,
       consume_level: c.profile?.consume_level || c.consume_level || undefined,
+      settlement_account_id: c.settlement_account_id ?? undefined,
+      settlement_account_name: c.settlement_account_name ?? null,
     })
   } catch (error) {
     handleError(error, '加载客户数据失败')
@@ -455,8 +472,9 @@ const handleSubmit = async () => {
       settlement_type: form.settlement_type,
       settlement_cycle: form.settlement_cycle || undefined,
       is_key_customer: form.is_key_customer,
-      manager_id: form.manager_id || undefined,
-      sales_manager_id: form.sales_manager_id || undefined,
+      // 经理字段直接传值：null（清空）必须送达后端置 NULL
+      manager_id: form.manager_id,
+      sales_manager_id: form.sales_manager_id,
       erp_system: form.erp_system || undefined,
       first_payment_date: form.first_payment_date || undefined,
       onboarding_date: form.onboarding_date || undefined,
@@ -468,6 +486,13 @@ const handleSubmit = async () => {
       is_real_estate: form.is_real_estate,
       scale_level: form.scale_level || undefined,
       consume_level: form.consume_level || undefined,
+      settlement_account_id: form.settlement_account_id ?? null,
+    }
+
+    // 前端自引用校验（与后端双保险）
+    if (form.settlement_account_id != null && form.settlement_account_id === props.customerId) {
+      Message.warning('结算账户不能选择客户自身')
+      return
     }
 
     await updateCustomer(props.customerId!, updateData as Parameters<typeof updateCustomer>[1])

@@ -116,6 +116,10 @@ export interface Customer {
   is_disabled: boolean | null
   notes: string | null
   is_real_estate: boolean | null
+  /** 结算账户客户 ID（代扣余额），null=用自身余额结算 */
+  settlement_account_id?: number | null
+  /** 结算账户客户名称（详情接口返回） */
+  settlement_account_name?: string | null
   // 行业类型 ID（API 返回）
   industry_type_id: number | null
   scale_level: string | null

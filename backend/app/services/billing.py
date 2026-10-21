@@ -1402,9 +1402,14 @@ class InvoiceService:
         )
 
         # 创建结算单
+        # 结算账户快照：生成时取客户当前配置，扣款以此为准（客户后续改配置不影响已生成单）
+        customer = await self._get_customer(customer_id)
+        if not customer:
+            raise ValueError("客户不存在")
         invoice = Invoice(
             invoice_no=invoice_no,
             customer_id=customer_id,
+            settlement_account_id=customer.settlement_account_id,
             period_start=period_start,
             period_end=period_end,
             total_amount=total_amount,
@@ -1454,7 +1459,11 @@ class InvoiceService:
         """
         stmt = (
             select(Invoice)
-            .options(selectinload(Invoice.items), selectinload(Invoice.customer))
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.customer),
+                selectinload(Invoice.settlement_account),
+            )
             .join(Customer, Invoice.customer_id == Customer.id)
             .where(Invoice.deleted_at.is_(None), Customer.deleted_at.is_(None))
         )
@@ -1520,7 +1529,11 @@ class InvoiceService:
         """获取结算单详情"""
         result = await self.db.execute(
             select(Invoice)
-            .options(selectinload(Invoice.items), selectinload(Invoice.customer))
+            .options(
+                selectinload(Invoice.items),
+                selectinload(Invoice.customer),
+                selectinload(Invoice.settlement_account),
+            )
             .where(
                 Invoice.id == invoice_id,
                 Invoice.deleted_at.is_(None),
@@ -1577,6 +1590,38 @@ class InvoiceService:
         await self.db.commit()
 
         return True, "减免应用成功"
+
+    async def update_settlement_account(
+        self, invoice_id: int, settlement_account_id: Optional[int]
+    ) -> Tuple[bool, str]:
+        """修改结算单的结算账户（代扣余额对象）
+
+        仅审批流中（draft/pending_ops/pending_sales/pending_customer）可修改；
+        客户确认后锁定（扣款以快照为准）。传 None 表示清空=用客户自身余额。
+
+        Returns:
+            (success, message)
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status not in ("draft", "pending_ops", "pending_sales", "pending_customer"):
+            return False, "客户确认后不可修改结算账户"
+
+        # 自引用校验：结算账户不能为结算单所属客户自身（等价 null 但易误操作）
+        if settlement_account_id is not None:
+            if settlement_account_id == invoice.customer_id:
+                return False, "结算账户不能为客户自身"
+            account = await self._get_customer(settlement_account_id)
+            if not account:
+                return False, "结算账户客户不存在"
+
+        invoice.settlement_account_id = settlement_account_id  # pyright: ignore[reportAttributeAccessIssue]
+        await self.db.commit()
+
+        return True, "结算账户修改成功"
 
     async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
         """提交结算单（进入运营经理确认阶段）
@@ -1719,10 +1764,16 @@ class InvoiceService:
         """
         # 事务边界由 consume 自行收敛（见其实现），此处无需预先提交
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
+        # 结算账户快照：生成/修改结算单时确定，扣款按快照执行；空=用自身余额
+        deduct_customer_id = invoice.settlement_account_id or invoice.customer_id
+        if invoice.settlement_account_id is not None:
+            account = await self._get_customer(invoice.settlement_account_id)
+            if not account:
+                return False, "结算账户客户不存在"
         balance_service = BalanceService(BalanceRepository(self.db))
         try:
             success, message = await balance_service.consume(
-                customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+                customer_id=deduct_customer_id,  # pyright: ignore[reportArgumentType]
                 amount=final_amount,  # pyright: ignore[reportArgumentType]
                 invoice_id=invoice.id,  # pyright: ignore[reportArgumentType]
             )
@@ -1782,10 +1833,16 @@ class InvoiceService:
 
         # 执行扣款（事务边界由 consume 自行收敛，无需预先提交）
         final_amount = invoice.total_amount - (invoice.discount_amount or 0)
+        # 结算账户快照：空=用自身余额；非空=用结算账户客户余额
+        deduct_customer_id = invoice.settlement_account_id or invoice.customer_id
+        if invoice.settlement_account_id is not None:
+            account = await self._get_customer(invoice.settlement_account_id)
+            if not account:
+                return False, "结算账户客户不存在"
         balance_service = BalanceService(BalanceRepository(self.db))
         try:
             success, message = await balance_service.consume(
-                customer_id=invoice.customer_id,  # pyright: ignore[reportArgumentType]
+                customer_id=deduct_customer_id,  # pyright: ignore[reportArgumentType]
                 amount=final_amount,  # pyright: ignore[reportArgumentType]
                 invoice_id=invoice_id,
             )

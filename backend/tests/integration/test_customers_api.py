@@ -3383,3 +3383,48 @@ class TestImportBlankEnumAsUnfilled:
             db_session.execute(text("DELETE FROM customers WHERE company_id IN (1001005)"))
             db_session.execute(text("DELETE FROM industry_types WHERE name = '空白枚举行业'"))
             db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_update_customer_settlement_account_roundtrip(
+    test_client, auth_headers, customer_data, db_session
+):
+    """测试更新客户 - 结算账户字段往返（API 写入 + GET 返回 id/name）"""
+    from sqlalchemy import text
+
+    customer_id = customer_data["customer_id"]
+
+    # 创建第二个客户作为结算账户
+    db_session.execute(
+        text("""
+        INSERT INTO customers (company_id, name, account_type, settlement_cycle,
+                               settlement_type, created_at, updated_at)
+        VALUES (:cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"cid": customer_id + 500000, "name": "结算账户客户"},
+    )
+    db_session.commit()
+    account_id = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = :cid"),
+        {"cid": customer_id + 500000},
+    ).scalar()
+
+    request, response = await test_client.put(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+        json={"settlement_account_id": account_id},
+    )
+    assert response.status == 200
+
+    request, response = await test_client.get(
+        f"/api/v1/customers/{customer_id}",
+        headers=auth_headers,
+    )
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["settlement_account_id"] == account_id
+    assert data["settlement_account_name"] == "结算账户客户"
+
+    # 清理
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": account_id})
+    db_session.commit()

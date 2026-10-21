@@ -146,6 +146,10 @@ async def get_invoices(request: Request):
                         "invoice_no": i.invoice_no,
                         "customer_id": i.customer_id,
                         "customer_name": i.customer.name if i.customer else None,
+                        "settlement_account_id": i.settlement_account_id,
+                        "settlement_account_name": (
+                            i.settlement_account.name if i.settlement_account else None
+                        ),
                         # 客户指定的运营/销售经理（前端据此判断按钮是否可点击）
                         "customer_manager_id": i.customer.manager_id if i.customer else None,
                         "customer_sales_manager_id": i.customer.sales_manager_id
@@ -299,6 +303,10 @@ async def get_invoice(request: Request, invoice_id: int):
                 "invoice_no": invoice.invoice_no,
                 "customer_id": invoice.customer_id,
                 "customer_name": invoice.customer.name if invoice.customer else None,
+                "settlement_account_id": invoice.settlement_account_id,
+                "settlement_account_name": (
+                    invoice.settlement_account.name if invoice.settlement_account else None
+                ),
                 # 客户指定的运营/销售经理（前端据此判断按钮是否可点击）
                 "customer_manager_id": invoice.customer.manager_id if invoice.customer else None,
                 "customer_sales_manager_id": invoice.customer.sales_manager_id
@@ -873,6 +881,96 @@ async def apply_discount(request: Request, invoice_id: int):
                     invoice_after.total_amount - (invoice_after.discount_amount or 0)
                 ),
                 "status": invoice_after.status,
+            },
+        }
+    )
+
+
+@billing_bp.put("/invoices/<invoice_id:int>/settlement-account")
+@auth_required
+@require_permission("billing:edit")
+async def update_settlement_account(request: Request, invoice_id: int):
+    """
+    修改结算单的结算账户（代扣余额对象）
+
+    Body:
+    {
+        "settlement_account_id": 123  // null=清空（用客户自身余额）
+    }
+
+    仅允许在 draft / pending_ops / pending_sales / pending_customer 状态下修改；
+    客户确认后锁定（扣款以结算单上标记的结算账户为准）。
+    """
+    db: AsyncSession = request.ctx.db_session
+    data = request.json
+    user = get_current_user(request)
+
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
+    settlement_account_id = data.get("settlement_account_id")
+    if settlement_account_id is not None:
+        try:
+            settlement_account_id = int(settlement_account_id)
+        except (TypeError, ValueError):
+            return json(
+                {"code": ErrorCodes.INVALID_FORMAT, "message": "结算账户客户ID格式不正确"},
+                status=400,
+            )
+
+    success, message = await invoice_service.update_settlement_account(
+        invoice_id=invoice_id,
+        settlement_account_id=settlement_account_id,
+    )
+
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    # 结算单结算账户变更后清除相关缓存
+    await cache_service.invalidate_billing_cache()
+
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="update_settlement_account",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "old": {"settlement_account_id": invoice_before.settlement_account_id},
+            "new": {"settlement_account_id": settlement_account_id},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+    if invoice_after is None:
+        return json({"code": ErrorCodes.NOT_FOUND, "message": "结算单不存在"}, status=404)
+
+    return json(
+        {
+            "code": 0,
+            "message": message,
+            "data": {
+                "id": invoice_after.id,
+                "settlement_account_id": invoice_after.settlement_account_id,
+                "settlement_account_name": (
+                    invoice_after.settlement_account.name
+                    if invoice_after.settlement_account
+                    else None
+                ),
             },
         }
     )

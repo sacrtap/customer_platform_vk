@@ -476,6 +476,10 @@ async def get_customer(request: Request, customer_id: int):
         "is_disabled": customer.is_disabled,
         "is_real_estate": customer.is_real_estate,
         "notes": customer.notes,
+        "settlement_account_id": customer.settlement_account_id,
+        "settlement_account_name": (
+            customer.settlement_account.name if customer.settlement_account else None
+        ),
     }
 
     # 添加画像信息
@@ -568,7 +572,8 @@ async def create_customer(request: Request):
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
         "is_real_estate": "boolean (optional)",
-        "email": "string (optional)"
+        "email": "string (optional)",
+        "settlement_account_id": "integer (optional, 结算账户客户ID, 空=用自身余额, 不能为自身)"
     }
     """
     data = request.json
@@ -642,7 +647,8 @@ async def update_customer(request: Request, customer_id: int):
         "settlement_type": "string (optional)",
         "is_key_customer": "boolean (optional)",
         "is_real_estate": "boolean (optional)",
-        "email": "string (optional)"
+        "email": "string (optional)",
+        "settlement_account_id": "integer (optional, 结算账户客户ID, null=用自身余额, 不能为自身)"
     }
     """
     data = request.json

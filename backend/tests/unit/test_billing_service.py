@@ -15,6 +15,7 @@ from app.models.billing import (
     PricingRule,
     RechargeRecord,
 )
+from app.models.customers import Customer
 from app.services.billing import BalanceService, InvoiceService, PricingService
 from app.utils.timezone import (
     local_date_range_to_utc,
@@ -1584,13 +1585,15 @@ class TestInvoiceService_CalculateItemsIncremental:
             }
         ]
 
-        result = await invoice_service.generate_invoice(
-            customer_id=100,
-            period_start=date(2026, 1, 1),
-            period_end=date(2026, 1, 31),
-            items=items,
-            created_by=1,
-        )
+        customer = Customer(id=100, company_id=100, name="客户100")
+        with patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)):
+            result = await invoice_service.generate_invoice(
+                customer_id=100,
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                items=items,
+                created_by=1,
+            )
 
         assert result is not None
         assert result.total_amount == Decimal("17")  # 使用 subtotal 而非 quantity × unit_price
@@ -1685,3 +1688,259 @@ class TestInvoiceService_DeductionFailureDowngrade:
         assert success is False
         assert message == "扣款失败：数据库繁忙，请稍后重试"
         assert invoice.status == "paid"  # 未被推进为 completed
+
+
+# ==================== Test InvoiceService - Settlement Account (代扣余额) ====================
+
+
+class TestInvoiceService_SettlementAccount:
+    """结算账户（代扣余额）测试
+
+    核心契约：
+    - generate_invoice 生成时把客户当前 settlement_account_id 快照到结算单
+    - 扣款（_execute_deduction / complete_invoice）按快照执行，空=用客户自身余额
+    - 结算账户客户不存在时扣款失败，状态保持可重试
+    - update_settlement_account 仅在审批流中可改，禁止自引用
+    """
+
+    @pytest.fixture
+    def invoice_service(self, mock_db_session):
+        from app.repository import InvoiceRepository, PricingRepository
+
+        mock_invoice_repo = MagicMock(spec=InvoiceRepository)
+        mock_invoice_repo.db = mock_db_session
+        mock_pricing_repo = MagicMock(spec=PricingRepository)
+        mock_pricing_repo.db = mock_db_session
+        return InvoiceService(invoice_repo=mock_invoice_repo, pricing_repo=mock_pricing_repo)
+
+    @staticmethod
+    def _customer(customer_id: int, settlement_account_id=None) -> Customer:
+        customer = Customer(
+            id=customer_id,
+            company_id=customer_id,
+            name=f"客户{customer_id}",
+        )
+        customer.settlement_account_id = settlement_account_id
+        return customer
+
+    @staticmethod
+    def _invoice(
+        status: str,
+        customer_id: int = 100,
+        settlement_account_id=None,
+    ) -> Invoice:
+        invoice = Invoice(
+            id=1,
+            customer_id=customer_id,
+            status=status,
+            total_amount=Decimal("300.00"),
+            discount_amount=Decimal("0.00"),
+        )
+        invoice.settlement_account_id = settlement_account_id
+        return invoice
+
+    @pytest.mark.asyncio
+    async def test_generate_invoice_snapshots_customer_settlement_account(
+        self, invoice_service, mock_db_session
+    ):
+        """生成结算单：快照客户当前结算账户配置到结算单"""
+        customer = self._customer(customer_id=100, settlement_account_id=200)
+        mock_db_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+        )
+
+        invoice = await invoice_service.generate_invoice(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            items=[{"device_type": "L", "layer_type": "single", "quantity": 3, "unit_price": 100}],
+            created_by=1,
+        )
+
+        assert invoice.settlement_account_id == 200
+
+    @pytest.mark.asyncio
+    async def test_generate_invoice_null_settlement_account_stays_null(
+        self, invoice_service, mock_db_session
+    ):
+        """生成结算单：客户未配置结算账户时快照为 NULL（用自身余额）"""
+        customer = self._customer(customer_id=100, settlement_account_id=None)
+        mock_db_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+        )
+
+        invoice = await invoice_service.generate_invoice(
+            customer_id=100,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            items=[{"device_type": "L", "layer_type": "single", "quantity": 3, "unit_price": 100}],
+            created_by=1,
+        )
+
+        assert invoice.settlement_account_id is None
+
+    @pytest.mark.asyncio
+    async def test_execute_deduction_consumes_settlement_account_balance(
+        self, invoice_service, mock_db_session
+    ):
+        """自动扣款：结算账户非空时扣该客户余额（confirm_invoice 路径）"""
+        invoice = self._invoice("pending_customer", customer_id=100, settlement_account_id=200)
+        account = self._customer(customer_id=200)
+
+        consume_mock = AsyncMock(return_value=(True, "ok"))
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=account)),
+            patch.object(BalanceService, "consume", consume_mock),
+        ):
+            success, _ = await invoice_service.confirm_invoice(invoice_id=1, user_id=7)
+
+        assert success is True
+        assert invoice.status == "completed"
+        # 扣款 customer_id 是结算账户客户，而非结算单所属客户
+        assert consume_mock.await_args.kwargs["customer_id"] == 200
+
+    @pytest.mark.asyncio
+    async def test_complete_invoice_consumes_settlement_account_balance(
+        self, invoice_service, mock_db_session
+    ):
+        """完成结算（旧流程 paid→completed）：同样按结算账户快照扣款"""
+        invoice = self._invoice("paid", customer_id=100, settlement_account_id=200)
+        account = self._customer(customer_id=200)
+
+        consume_mock = AsyncMock(return_value=(True, "ok"))
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=account)),
+            patch.object(BalanceService, "consume", consume_mock),
+        ):
+            success, _ = await invoice_service.complete_invoice(invoice_id=1, user_id=7)
+
+        assert success is True
+        assert invoice.status == "completed"
+        assert consume_mock.await_args.kwargs["customer_id"] == 200
+
+    @pytest.mark.asyncio
+    async def test_deduction_without_settlement_account_uses_customer_self(
+        self, invoice_service, mock_db_session
+    ):
+        """未配置结算账户：扣款仍走客户自身余额（回归保护）"""
+        invoice = self._invoice("pending_customer", customer_id=100, settlement_account_id=None)
+
+        consume_mock = AsyncMock(return_value=(True, "ok"))
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(BalanceService, "consume", consume_mock),
+        ):
+            success, _ = await invoice_service.confirm_invoice(invoice_id=1, user_id=7)
+
+        assert success is True
+        assert consume_mock.await_args.kwargs["customer_id"] == 100
+
+    @pytest.mark.asyncio
+    async def test_deduction_fails_when_settlement_account_customer_missing(
+        self, invoice_service, mock_db_session
+    ):
+        """结算账户客户被软删：扣款失败返回明确错误，状态保持 customer_confirmed 可改账户后重试"""
+        invoice = self._invoice("pending_customer", customer_id=100, settlement_account_id=200)
+
+        consume_mock = AsyncMock(return_value=(True, "ok"))
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=None)),
+            patch.object(BalanceService, "consume", consume_mock),
+        ):
+            success, message = await invoice_service.confirm_invoice(invoice_id=1, user_id=7)
+
+        assert success is False
+        assert message == "结算账户客户不存在"
+        assert invoice.status == "customer_confirmed"
+        consume_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_success_in_approval_flow(
+        self, invoice_service, mock_db_session
+    ):
+        """审批流中修改结算账户成功"""
+        invoice = self._invoice("pending_ops", customer_id=100)
+        account = self._customer(customer_id=300)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=account)),
+        ):
+            success, message = await invoice_service.update_settlement_account(
+                invoice_id=1, settlement_account_id=300
+            )
+
+        assert success is True
+        assert invoice.settlement_account_id == 300
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_clear_to_null(self, invoice_service, mock_db_session):
+        """清空结算账户（null=用客户自身余额）"""
+        invoice = self._invoice("draft", customer_id=100, settlement_account_id=200)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+        ):
+            success, _ = await invoice_service.update_settlement_account(
+                invoice_id=1, settlement_account_id=None
+            )
+
+        assert success is True
+        assert invoice.settlement_account_id is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", ["customer_confirmed", "paid", "completed", "cancelled"])
+    async def test_update_settlement_account_locked_after_customer_confirmed(
+        self, invoice_service, mock_db_session, status
+    ):
+        """客户确认后（及之后状态）锁定结算账户，不可修改"""
+        invoice = self._invoice(status, customer_id=100)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+        ):
+            success, message = await invoice_service.update_settlement_account(
+                invoice_id=1, settlement_account_id=200
+            )
+
+        assert success is False
+        assert message == "客户确认后不可修改结算账户"
+        assert invoice.settlement_account_id is None
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_rejects_self_reference(
+        self, invoice_service, mock_db_session
+    ):
+        """自引用拒绝：结算账户不能为结算单所属客户自身"""
+        invoice = self._invoice("draft", customer_id=100)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+        ):
+            success, message = await invoice_service.update_settlement_account(
+                invoice_id=1, settlement_account_id=100
+            )
+
+        assert success is False
+        assert message == "结算账户不能为客户自身"
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_rejects_missing_customer(
+        self, invoice_service, mock_db_session
+    ):
+        """目标客户不存在（含软删）时拒绝"""
+        invoice = self._invoice("draft", customer_id=100)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=None)),
+        ):
+            success, message = await invoice_service.update_settlement_account(
+                invoice_id=1, settlement_account_id=999
+            )
+
+        assert success is False
+        assert message == "结算账户客户不存在"

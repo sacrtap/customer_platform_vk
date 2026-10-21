@@ -975,3 +975,26 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Next Steps
 
 - 分支 optimize/annual-plan-balance-display 尚未 push，也未开 PR；如需交付请 push 并创建 PR 到 main。
+
+
+## Session 40: 结算单列表新增行业/ERP筛选 + 修复批量生成预览默认为空
+<!-- trellis-session: v=2 fp=5e52b213bb77a14c -->
+
+**Date**: 2026-10-21
+**Task**: 结算单列表新增行业/ERP筛选 + 修复批量生成预览默认为空
+**Branch**: `main`
+
+### Summary
+
+实现结算单管理页筛选栏新增「行业类型」「ERP系统」两个单选下拉：后端 get_invoices 新增 industry_type/erp_system 参数，行业按 IndustryType.name 匹配（outerjoin CustomerProfile/IndustryType，镜像 customers.py 范式）、ERP 按 Customer.erp_system 精确匹配，join/where 置于 count_stmt 之前保证计数与数据查询同口径；前端 InvoiceFilters 加两下拉 + 字典加载（复用 getIndustryTypes/getErpSystemsList 防御式解包），选项 value 分别取行业 name 与 ERP value 与后端对齐；新增集成测试 test_get_invoices_filter_industry_type_and_erp_system。随后排查并修复「按计费类型」生成预览默认为空：根因是 batchForm.is_real_estate 硬编码默认 true 而后端按 Customer.is_real_estate IS true 精确过滤，存量 1274 个客户全为 false/NULL 致匹配恒为 0（实测旧默认 0 条 → 新默认 104 条）；改为默认 null 不过滤 + 「是否房产客户」三态下拉（全部/是/否，computed 映射范式同 BalanceFilters）+ handleModeChange 改 async 等字典加载完再预览并用 loadingIndustryOptions 抑制并发。跨层契约已沉淀至 .trellis/spec/backend/billing-balance-stats.md。验证：billing 集成 59 passed、后端 ruff/pyright 0 error、前端 type-check + 116/116 单测、真实库匹配数对比证实。PR #54 squash 合并入 main（0b46e45），CI 10 项 SUCCESS。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `56c005b` | feat(billing): 结算单列表新增「行业类型」「ERP系统」筛选 |
+| `1252843` | fix(billing): 修复生成结算单「按计费类型」预览默认为空 |
+
+### Status
+
+[OK] **Completed**

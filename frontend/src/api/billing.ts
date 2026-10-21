@@ -194,6 +194,9 @@ export interface ConsumptionRecord {
   customer_id: number
   invoice_id?: number
   invoice_no?: string | null
+  /** 实际扣款客户（代扣场景为结算账户客户，与入口客户可能不同） */
+  actual_customer_name?: string | null
+  actual_customer_id?: number | null
   amount: number
   bonus_used: number
   real_used: number
@@ -360,6 +363,10 @@ export interface Invoice {
   detail_file_status?: string
   /** 减免修改历史（按时间倒序） */
   discount_history?: DiscountHistory[]
+  /** 结算账户客户 ID（代扣余额快照），null=用客户自身余额 */
+  settlement_account_id?: number | null
+  /** 结算账户客户名称 */
+  settlement_account_name?: string | null
 }
 
 /** 减免修改历史记录 */
@@ -493,6 +500,14 @@ export interface ApplyDiscountParams {
 
 export function applyDiscount(invoiceId: number, data: ApplyDiscountParams) {
   return api.put(`/billing/invoices/${invoiceId}/discount`, data)
+}
+
+/** 修改结算单结算账户（代扣余额对象），null=清空用客户自身余额 */
+export function updateInvoiceSettlementAccount(
+  id: number,
+  data: { settlement_account_id: number | null }
+) {
+  return api.put(`/billing/invoices/${id}/settlement-account`, data)
 }
 
 /**

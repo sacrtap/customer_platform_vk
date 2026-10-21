@@ -2420,3 +2420,329 @@ async def test_check_pricing_rule_conflict_no_conflict(test_client, auth_token, 
     )
     db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
     db_session.commit()
+
+
+# ==================== Settlement Account (代扣余额) Integration ====================
+
+
+@pytest.fixture
+async def test_customers_pair(db_session, test_user, worker_id):
+    """创建一对测试客户：被结算客户 A + 结算账户客户 B"""
+    import random
+
+    wid = worker_id if worker_id != "master" else "local"
+    base = int(f"{hash(wid) % 10000:04d}{random.randint(1000, 9999)}")
+    ids = {"a": base, "b": base + 1}
+
+    for key, cid in ids.items():
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"结算测试客户_{key.upper()}_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": "prepaid",
+            },
+        )
+    db_session.commit()
+
+    yield ids
+
+    for cid in ids.values():
+        db_session.execute(
+            text(
+                "DELETE FROM invoice_items WHERE invoice_id IN "
+                "(SELECT id FROM invoices WHERE customer_id = :id)"
+            ),
+            {"id": cid},
+        )
+        # 代扣笔的 consumption_records.customer_id 可能是结算账户客户，
+        # 须按关联 invoice 删除，否则外键阻塞 invoices 清理
+        db_session.execute(
+            text(
+                "DELETE FROM consumption_records WHERE invoice_id IN "
+                "(SELECT id FROM invoices WHERE customer_id = :id)"
+            ),
+            {"id": cid},
+        )
+        db_session.execute(
+            text("DELETE FROM consumption_records WHERE customer_id = :id"), {"id": cid}
+        )
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(
+            text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": cid}
+        )
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.commit()
+
+
+async def _set_balance(db_session, customer_id: int, total: float, real: float, bonus: float):
+    """直接写入客户余额（测试专用）"""
+    db_session.execute(
+        text("DELETE FROM customer_balances WHERE customer_id = :cid"), {"cid": customer_id}
+    )
+    db_session.execute(
+        text("""
+        INSERT INTO customer_balances
+            (customer_id, total_amount, real_amount, bonus_amount,
+             used_total, used_real, used_bonus, created_at, updated_at)
+        VALUES (:cid, :total, :real, :bonus, 0, 0, 0, NOW(), NOW())
+        """),
+        {"cid": customer_id, "total": total, "real": real, "bonus": bonus},
+    )
+    db_session.commit()
+
+
+async def _get_balance(test_client, auth_token, customer_id: int) -> dict:
+    req, resp = await test_client.get(
+        f"/api/v1/billing/customers/{customer_id}/balance",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert resp.status == 200
+    return resp.json["data"]
+
+
+@pytest.mark.asyncio
+async def test_customer_settlement_account_roundtrip(test_client, auth_token, test_customers_pair):
+    """客户配置往返：PUT 成功 + GET 返回 id/name；自引用 400"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a, b = test_customers_pair["a"], test_customers_pair["b"]
+
+    req, resp = await test_client.put(
+        f"/api/v1/customers/{a}",
+        json={"settlement_account_id": b},
+        headers=headers,
+    )
+    assert resp.status == 200
+    assert resp.json["code"] == 0
+
+    req, resp = await test_client.get(
+        f"/api/v1/customers/{a}",
+        headers=headers,
+    )
+    assert resp.status == 200
+    data = resp.json["data"]
+    assert data["settlement_account_id"] == b
+    assert data["settlement_account_name"] is not None
+
+    # 自引用拒绝
+    req, resp = await test_client.put(
+        f"/api/v1/customers/{a}",
+        json={"settlement_account_id": a},
+        headers=headers,
+    )
+    assert resp.status == 400
+
+    # 目标不存在拒绝
+    req, resp = await test_client.put(
+        f"/api/v1/customers/{a}",
+        json={"settlement_account_id": 999999999},
+        headers=headers,
+    )
+    assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_generate_invoice_snapshots_settlement_account(
+    test_client, auth_token, db_session, test_customers_pair
+):
+    """生成快照：客户配置结算账户后，生成的结算单详情/列表均含结算账户字段"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a, b = test_customers_pair["a"], test_customers_pair["b"]
+
+    db_session.execute(
+        text("UPDATE customers SET settlement_account_id = :b WHERE id = :a"),
+        {"a": a, "b": b},
+    )
+    db_session.commit()
+
+    req, resp = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": a,
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 5, "unit_price": 10}
+            ],
+        },
+        headers=headers,
+    )
+    assert resp.status == 201
+    invoice_id = resp.json["data"]["id"]
+
+    req, resp = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert resp.status == 200
+    data = resp.json["data"]
+    assert data["settlement_account_id"] == b
+    assert data["settlement_account_name"] is not None
+
+    req, resp = await test_client.get(
+        "/api/v1/billing/invoices",
+        params={"customer_id": a},
+        headers=headers,
+    )
+    assert resp.status == 200
+    row = next(i for i in resp.json["data"]["list"] if i["id"] == invoice_id)
+    assert row["settlement_account_id"] == b
+
+
+@pytest.mark.asyncio
+async def test_update_invoice_settlement_account_lock_after_confirm(
+    test_client, auth_token, db_session, test_customers_pair
+):
+    """详情修改：审批流中可改；customer_confirmed 后锁定 400"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a, b = test_customers_pair["a"], test_customers_pair["b"]
+
+    req, resp = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": a,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-30",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 5, "unit_price": 10}
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = resp.json["data"]["id"]
+
+    # draft 状态可改
+    req, resp = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/settlement-account",
+        json={"settlement_account_id": b},
+        headers=headers,
+    )
+    assert resp.status == 200
+    assert resp.json["data"]["settlement_account_id"] == b
+
+    # 推进到 customer_confirmed
+    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers)
+    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/confirm", headers=headers)
+
+    # 客户确认后锁定
+    req, resp = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/settlement-account",
+        json={"settlement_account_id": None},
+        headers=headers,
+    )
+    assert resp.status == 400
+    assert "不可修改" in resp.json["message"]
+
+
+@pytest.mark.asyncio
+async def test_update_invoice_settlement_account_rejects_self_and_missing(
+    test_client, auth_token, test_customers_pair
+):
+    """详情修改：自引用与目标不存在均 400"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a = test_customers_pair["a"]
+
+    req, resp = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": a,
+            "period_start": "2026-07-01",
+            "period_end": "2026-07-31",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 5, "unit_price": 10}
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = resp.json["data"]["id"]
+
+    req, resp = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/settlement-account",
+        json={"settlement_account_id": a},
+        headers=headers,
+    )
+    assert resp.status == 400
+
+    req, resp = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/settlement-account",
+        json={"settlement_account_id": 999999999},
+        headers=headers,
+    )
+    assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_deduction_via_settlement_account_e2e(
+    test_client, auth_token, db_session, test_customers_pair
+):
+    """端到端核心：A（结算账户=B）确认后扣 B 余额，A 余额不变；消耗记录双方可见"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a, b = test_customers_pair["a"], test_customers_pair["b"]
+
+    await _set_balance(db_session, b, 1000.0, 1000.0, 0.0)
+    await _set_balance(db_session, a, 500.0, 500.0, 0.0)
+
+    db_session.execute(
+        text("UPDATE customers SET settlement_account_id = :b WHERE id = :a"),
+        {"a": a, "b": b},
+    )
+    db_session.commit()
+
+    req, resp = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": a,
+            "period_start": "2026-08-01",
+            "period_end": "2026-08-31",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 30, "unit_price": 10}
+            ],
+        },
+        headers=headers,
+    )
+    assert resp.status == 201
+    invoice_id = resp.json["data"]["id"]
+
+    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers)
+    req, resp = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/confirm", headers=headers
+    )
+    assert resp.status == 200
+    assert resp.json["code"] == 0
+
+    # B 余额减 300，A 余额不变
+    bal_b = await _get_balance(test_client, auth_token, b)
+    bal_a = await _get_balance(test_client, auth_token, a)
+    assert bal_b["total_amount"] == pytest.approx(700.0, abs=0.01)
+    assert bal_a["total_amount"] == pytest.approx(500.0, abs=0.01)
+
+    # 消耗记录：被结算客户 A 与结算账户客户 B 均可见该笔
+    req, resp = await test_client.get(
+        "/api/v1/billing/consumption-records",
+        params={"customer_id": a, "page_size": 100},
+        headers=headers,
+    )
+    assert resp.status == 200
+    a_records = [r for r in resp.json["data"]["list"] if r["invoice_id"] == invoice_id]
+    assert len(a_records) == 1
+    assert a_records[0]["customer_id"] == b  # 实际扣款客户是 B
+
+    req, resp = await test_client.get(
+        "/api/v1/billing/consumption-records",
+        params={"customer_id": b, "page_size": 100},
+        headers=headers,
+    )
+    assert resp.status == 200
+    b_records = [r for r in resp.json["data"]["list"] if r["invoice_id"] == invoice_id]
+    assert len(b_records) == 1
+    assert b_records[0]["customer_id"] == b

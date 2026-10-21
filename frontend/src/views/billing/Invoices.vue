@@ -249,8 +249,8 @@
       @retry-deduction="handleSingleAction(currentDetail!, 'retry-deduction')"
       @cancel="handleSingleAction(currentDetail!, 'cancel')"
       @regenerate-detail="handleRegenerateDetail"
+      @update-settlement-account="handleUpdateSettlementAccount"
     />
-
     <!-- 生成结算单弹窗 -->
     <GenerateInvoiceModal v-model:visible="generateModalVisible" @success="handleGenerateSuccess" />
     <!-- 提交结算单弹窗 -->
@@ -360,6 +360,7 @@ const {
   doRetryDeduction,
   doCancel,
   doDelete,
+  doUpdateSettlementAccount,
 } = useInvoice()
 
 const drawerVisible = ref(false)
@@ -431,6 +432,15 @@ const handleRegenerateDetail = async (id: number) => {
   startPolling()
   // 同时刷新列表
   loadInvoices()
+}
+
+// 修改结算单结算账户（代扣余额）；composable 内部已刷新详情与列表
+const handleUpdateSettlementAccount = async (invoiceId: number, accountId: number | null) => {
+  try {
+    await doUpdateSettlementAccount(invoiceId, accountId)
+  } catch {
+    // 错误消息已由 axios 拦截器 / handleError 统一处理
+  }
 }
 
 const goToCustomer = (id: number) => router.push(`/customers/${id}`)

@@ -52,6 +52,16 @@
       <span class="label">结算周期</span>
       <span class="value">{{ settlementCycleText }}</span>
     </div>
+    <!-- 结算账户（代扣余额）：空=用自身余额 -->
+    <div class="info-item">
+      <span class="label">结算账户</span>
+      <span class="value">
+        <a-tag v-if="customer.settlement_account_name" color="arcoblue">
+          {{ customer.settlement_account_name }}
+        </a-tag>
+        <span v-else class="muted">自身</span>
+      </span>
+    </div>
     <!-- 第 5 行 -->
     <div class="info-item">
       <span class="label">邮箱</span>

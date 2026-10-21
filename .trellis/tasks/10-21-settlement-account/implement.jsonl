@@ -1,0 +1,4 @@
+{"file": "docs/specs/2026-10-21-settlement-account-plan.md", "reason": "结算账户执行计划：核心单点改动与全链路锚点"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端编码规范入口"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "事务/软删/缓存失效/schema drift 规则"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误码与响应格式"}

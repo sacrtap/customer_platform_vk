@@ -943,3 +943,134 @@ class TestCustomerService_BooleanFilters:
         sql = self._capture_count_stmt(mock_db_session)
         assert "auto_initiate_settlement IS false" in sql
         assert "auto_initiate_settlement IS NULL" not in sql
+
+
+# ==================== Test Customer Service - Settlement Account (代扣余额) ====================
+
+
+class TestCustomerService_SettlementAccount:
+    """客户结算账户字段测试
+
+    契约：
+    - update 白名单含 settlement_account_id，可正常往返
+    - 自引用（== 自身）拒绝
+    - 目标客户不存在（含软删）拒绝
+    - 批量更新不含该字段（传入即被白名单拒绝）
+    """
+
+    @pytest.fixture
+    def customer_service(self, mock_db_session):
+        return CustomerService(db_session=mock_db_session)
+
+    @staticmethod
+    def _existing(customer_id: int = 1) -> Customer:
+        return Customer(
+            id=customer_id,
+            company_id=1001,
+            name="客户A",
+            deleted_at=None,
+        )
+
+    @staticmethod
+    def _target_exists() -> MagicMock:
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = 2  # 结算账户客户存在
+        return result
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_success(self, customer_service, mock_db_session):
+        """更新结算账户成功（目标客户存在）"""
+        existing = self._existing()
+
+        mock_db_session.execute.side_effect = [
+            MagicMock(scalar_one_or_none=MagicMock(return_value=existing)),  # get_customer_by_id
+            self._target_exists(),  # 结算账户存在性校验
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # profile 查询（无）
+        ]
+
+        result = await customer_service.update_customer(1, {"settlement_account_id": 2})
+
+        assert result is not None
+        assert result.settlement_account_id == 2
+        mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_clear_to_null(self, customer_service, mock_db_session):
+        """清空结算账户（null=用自身余额），不做目标存在性校验"""
+        existing = self._existing()
+        existing.settlement_account_id = 2
+
+        mock_db_session.execute.side_effect = [
+            MagicMock(scalar_one_or_none=MagicMock(return_value=existing)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),
+        ]
+
+        result = await customer_service.update_customer(1, {"settlement_account_id": None})
+
+        assert result is not None
+        assert result.settlement_account_id is None
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_rejects_self_reference(
+        self, customer_service, mock_db_session
+    ):
+        """自引用拒绝：结算账户不能为客户自身"""
+        existing = self._existing()
+
+        mock_db_session.execute.return_value = MagicMock(
+            scalar_one_or_none=MagicMock(return_value=existing)
+        )
+
+        with pytest.raises(ValueError, match="结算账户不能为客户自身"):
+            await customer_service.update_customer(1, {"settlement_account_id": 1})
+
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_account_rejects_missing_target(
+        self, customer_service, mock_db_session
+    ):
+        """目标客户不存在（含软删）时拒绝"""
+        existing = self._existing()
+
+        mock_db_session.execute.side_effect = [
+            MagicMock(scalar_one_or_none=MagicMock(return_value=existing)),
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # 目标不存在
+        ]
+
+        with pytest.raises(ValueError, match="结算账户客户不存在"):
+            await customer_service.update_customer(1, {"settlement_account_id": 999})
+
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_customer_with_settlement_account(self, mock_db_session_with_flush):
+        """创建客户时携带结算账户字段"""
+        mock_db_session_with_flush.flush = AsyncMock()
+        mock_db_session_with_flush.refresh = AsyncMock()
+        service = CustomerService(db_session=mock_db_session_with_flush)
+
+        mock_db_session_with_flush.execute.side_effect = [
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # company_id 唯一性
+            MagicMock(scalar_one_or_none=MagicMock(return_value=None)),  # 已有余额查询
+        ]
+
+        customer = await service.create_customer(
+            {
+                "company_id": 2001,
+                "name": "客户C",
+                "settlement_account_id": 2,
+            }
+        )
+
+        assert customer.settlement_account_id == 2
+
+    @pytest.mark.asyncio
+    async def test_batch_update_rejects_settlement_account(self, customer_service, mock_db_session):
+        """批量更新拒绝 settlement_account_id（敏感关系逐个改）"""
+        with pytest.raises(ValueError, match="不在白名单内"):
+            await customer_service.batch_update_customers(
+                customer_ids=[1],
+                fields={"settlement_account_id": 2},
+                current_user={"user_id": 1},
+            )

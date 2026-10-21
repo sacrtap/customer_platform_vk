@@ -38,6 +38,10 @@ export interface EditForm {
   is_real_estate: boolean | null
   scale_level?: string
   consume_level?: string
+  /** 结算账户客户 ID（代扣余额），undefined=用自身余额 */
+  settlement_account_id?: number | null
+  /** 结算账户客户名称（回显用） */
+  settlement_account_name?: string | null
 }
 
 export function useCustomerDetail() {
@@ -100,6 +104,8 @@ export function useCustomerDetail() {
     is_real_estate: null,
     scale_level: undefined,
     consume_level: undefined,
+    settlement_account_id: undefined,
+    settlement_account_name: null,
   })
 
   const keyCustomerLoading = ref(false)
@@ -275,6 +281,8 @@ export function useCustomerDetail() {
       is_real_estate: (customer.value?.is_real_estate as boolean | null) ?? null,
       scale_level: profile.value?.scale_level || undefined,
       consume_level: profile.value?.consume_level || undefined,
+      settlement_account_id: customer.value?.settlement_account_id ?? undefined,
+      settlement_account_name: customer.value?.settlement_account_name ?? null,
     })
     editModalVisible.value = true
   }
