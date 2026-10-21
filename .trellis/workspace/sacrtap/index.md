@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 39
-- **Last Active**: 2026-10-14
+- **Total Sessions**: 40
+- **Last Active**: 2026-10-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~977 | Active |
+| `journal-1.md` | ~1000 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 40 | 2026-10-21 | 结算单列表新增行业/ERP筛选 + 修复批量生成预览默认为空 | `56c005b`, `1252843` | `main` |
 | 39 | 2026-10-14 | 包年套餐余额显示优化（共享模块抽取 / 客户管理页跨页对齐 / 开放平台余额口径 / 拆分提交） | `545b4bf`, `cc8ae0b`, `ec2fba3`, `d3d1129`, `22ed060`, `5330009`, `c8e7cf5`, `92f90c3`, `862909b`, `ab681ae` | `optimize/annual-plan-balance-display` |
 | 38 | 2026-10-14 | 客户管理页面优化（消费等级金额区间 / 删除客户级联补全 / 字段顺序） | `1801e3a`, `f99912e`, `b5858b0` | `customer-management-page-optimization` |
 | 37 | 2026-10-14 | 余额燃尽列 tooltip 改用 Arco 组件并修复无消耗进度条对比度（PR #45） | `fcc0db7` | `main` |
