@@ -75,7 +75,6 @@ const timelineEvents = computed(() => {
     | 'ops_confirmed_at'
     | 'sales_confirmed_at'
     | 'customer_confirmed_at'
-    | 'paid_at'
     | 'completed_at'
   type OperatorField =
     | 'created_by_name'
@@ -122,16 +121,6 @@ const timelineEvents = computed(() => {
       label: '客户确认',
       statusKey: 'customer_confirmed',
       operatorField: 'customer_confirmed_name',
-    },
-    {
-      field: 'paid_at',
-      label: '确认付款',
-      statusKey: 'paid',
-      detailParts: () => {
-        const proof = props.invoice.payment_proof
-        if (!proof) return undefined
-        return [{ type: 'text', text: `凭证：${proof}` }]
-      },
     },
     {
       field: 'completed_at',

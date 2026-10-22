@@ -330,7 +330,6 @@ export interface Invoice {
     | 'pending_sales'
     | 'pending_customer'
     | 'customer_confirmed'
-    | 'paid'
     | 'completed'
     | 'cancelled'
   is_auto_generated: boolean

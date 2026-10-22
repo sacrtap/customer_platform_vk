@@ -112,7 +112,7 @@
                 下载明细
               </button>
               <button
-                v-if="can('billing:edit') && invoice.detail_file_status === 'failed'"
+                v-if="can('billing:detail_regenerate') && invoice.detail_file_status === 'failed'"
                 class="btn btn-sm"
                 @click="handleRegenerate"
               >
@@ -176,6 +176,13 @@
                   <td :colspan="6" class="empty-state">该客户未配置计费规则或本周期无用量数据</td>
                 </tr>
               </tbody>
+              <tfoot v-if="(invoice.items || []).length > 0">
+                <tr class="usage-total-row">
+                  <td colspan="3">用量总计</td>
+                  <td class="amount">{{ formatItemNumber(totalUsage) }}</td>
+                  <td colspan="2"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -289,7 +296,12 @@ import { computed, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { formatCurrency, formatDate } from '@/utils/formatters'
-import { pricingTypeText, formatQuantity, formatRuleDetail } from '@/utils/invoiceFormatters'
+import {
+  pricingTypeText,
+  formatQuantity,
+  formatRuleDetail,
+  formatItemNumber,
+} from '@/utils/invoiceFormatters'
 import { downloadInvoiceDetail, regenerateInvoiceDetail } from '@/api/billing'
 import type { Invoice } from '@/api/billing'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
@@ -320,6 +332,11 @@ const emit = defineEmits<InvoiceDrawerEmits>()
 
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
+
+// 计费明细用量总计（表格底部汇总行）
+const totalUsage = computed(() =>
+  (props.invoice?.items || []).reduce((s, i) => s + (Number(i.quantity) || 0), 0)
+)
 
 // ===== 结算账户（代扣余额）编辑 =====
 const accountDialogVisible = ref(false)
@@ -539,6 +556,12 @@ const handleRegenerate = async () => {
 }
 .table tbody tr:hover td {
   background: #f8fbff;
+}
+/* 用量总计汇总行 */
+.usage-total-row td {
+  font-weight: 600;
+  background: #f8fafc;
+  border-bottom: none;
 }
 
 /* 金额 */
