@@ -1,0 +1,8 @@
+{"file": "backend/app/services/billing.py", "reason": "get_invoices 筛选/generate_invoices_batch 去门禁/submit_invoice+confirm_ops 三分支/新增 batch 三方法"}
+{"file": "backend/app/routes/billing/invoices.py", "reason": "get_invoices query 参数/detail-logs 默认过滤+counts/新增 4 个端点/触发失败 warning"}
+{"file": "frontend/src/composables/useInvoice.ts", "reason": "经理筛选参数+批量选择状态与方法"}
+{"file": "frontend/src/views/billing/Invoices.vue", "reason": "多选 UI+批量工具栏+明细状态抽屉入口+failed 行内重生成"}
+{"file": "frontend/src/views/billing/components/InvoiceFilters.vue", "reason": "经理筛选下拉"}
+{"file": "frontend/src/views/billing/components/InvoiceDetailDrawer.vue", "reason": "空 items 占位+steps CSS 覆盖"}
+{"file": "frontend/src/views/billing/components/GenerateInvoiceModal.vue", "reason": "删 eligibleCount 门禁+预览文案"}
+{"file": "frontend/src/api/billing.ts", "reason": "5 个新 API"}
