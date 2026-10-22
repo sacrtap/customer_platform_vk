@@ -1046,3 +1046,25 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 43: 明细生成任务重启恢复与批量重试健壮性
+<!-- trellis-session: v=2 fp=4cccb4ca7bdb3979 -->
+
+**Date**: 2026-10-22
+**Task**: 明细生成任务重启恢复与批量重试健壮性
+**Branch**: `main`
+
+### Summary
+
+修复结算单明细 Excel 生成任务重启丢失问题：启动钩子恢复 generating→failed、pending 重新入队；定时检测 generating 超 10 分钟转 failed；生成器原子 claim + 终态条件写消除并发覆盖；批量/单条重试端点 try+rollback 健壮化；新增 tests/unit/test_detail_recovery.py。PR #59 合并，全量单元 681 + billing 集成 69 通过，ruff/pyright 全过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d14ee35` | fix(billing): 明细生成任务重启恢复与批量重试健壮性 (#59) |
+
+### Status
+
+[OK] **Completed**

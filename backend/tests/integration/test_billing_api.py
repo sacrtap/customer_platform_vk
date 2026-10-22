@@ -2748,6 +2748,126 @@ async def test_deduction_via_settlement_account_e2e(
     assert b_records[0]["customer_id"] == b
 
 
+@pytest.fixture
+async def test_customers_distinct_ids(db_session, test_user, worker_id):
+    """id != company_id 的测试客户对：用于区分内部主键与外部编号的断言"""
+    import random
+
+    wid = worker_id if worker_id != "local" and worker_id != "master" else "local"
+    base = int(f"{hash(wid) % 10000:04d}{random.randint(1000, 9999)}")
+    # id 与 company_id 显式错开：真实生产中 id != company_id，
+    # 旧 fixture id == company_id 会掩盖「字段名 vs 值」类 bug
+    ids = {"a": base, "b": base + 1}
+    companies = {"a": base + 100000, "b": base + 100001}
+
+    for key, cid in ids.items():
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, :account_type,
+                    :cycle, :type, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": companies[key],
+                "name": f"编号区分测试客户_{key.upper()}_{cid}",
+                "account_type": "enterprise",
+                "cycle": "monthly",
+                "type": "prepaid",
+            },
+        )
+    db_session.commit()
+
+    yield {**ids, "a_company": companies["a"], "b_company": companies["b"]}
+
+    for cid in ids.values():
+        db_session.execute(
+            text(
+                "DELETE FROM invoice_items WHERE invoice_id IN "
+                "(SELECT id FROM invoices WHERE customer_id = :id)"
+            ),
+            {"id": cid},
+        )
+        db_session.execute(
+            text(
+                "DELETE FROM consumption_records WHERE invoice_id IN "
+                "(SELECT id FROM invoices WHERE customer_id = :id)"
+            ),
+            {"id": cid},
+        )
+        db_session.execute(
+            text("DELETE FROM consumption_records WHERE customer_id = :id"), {"id": cid}
+        )
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(
+            text("DELETE FROM customer_balances WHERE customer_id = :id"), {"id": cid}
+        )
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_consumption_record_actual_company_id(
+    test_client, auth_token, db_session, test_customers_distinct_ids
+):
+    """代扣场景：actual_company_id 返回结算账户客户的外部编号 company_id（非 PK）"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    a, b = test_customers_distinct_ids["a"], test_customers_distinct_ids["b"]
+    a_company = test_customers_distinct_ids["a_company"]
+    b_company = test_customers_distinct_ids["b_company"]
+    assert a != a_company and b != b_company  # 前提：id 与 company_id 可区分
+
+    await _set_balance(db_session, b, 1000.0, 1000.0, 0.0)
+    await _set_balance(db_session, a, 500.0, 500.0, 0.0)
+
+    db_session.execute(
+        text("UPDATE customers SET settlement_account_id = :b WHERE id = :a"),
+        {"a": a, "b": b},
+    )
+    db_session.commit()
+
+    req, resp = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": a,
+            "period_start": "2026-09-01",
+            "period_end": "2026-09-30",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 30, "unit_price": 10}
+            ],
+        },
+        headers=headers,
+    )
+    assert resp.status == 201
+    invoice_id = resp.json["data"]["id"]
+
+    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers)
+    req, resp = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/confirm", headers=headers
+    )
+    assert resp.status == 200
+    assert resp.json["code"] == 0
+
+    req, resp = await test_client.get(
+        "/api/v1/billing/consumption-records",
+        params={"customer_id": a, "page_size": 100},
+        headers=headers,
+    )
+    assert resp.status == 200
+    records = [r for r in resp.json["data"]["list"] if r["invoice_id"] == invoice_id]
+    assert len(records) == 1
+    record = records[0]
+
+    # 实际扣款客户是结算账户 B：name 与外部编号
+    assert record["customer_id"] == b
+    assert record["actual_customer_name"] == f"编号区分测试客户_B_{b}"
+    assert record["actual_company_id"] == b_company  # 外部编号，非 PK b
+    assert "actual_customer_id" not in record  # 旧键已移除
+
+
 @pytest.mark.asyncio
 async def test_get_invoices_filter_by_managers(test_client, auth_token, db_session):
     """测试结算单列表按运营/销售经理筛选"""

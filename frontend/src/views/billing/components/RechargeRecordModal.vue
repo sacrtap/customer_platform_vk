@@ -51,7 +51,7 @@
           <template #actual_customer="{ record }">
             <span v-if="record.actual_customer_name">
               {{ record.actual_customer_name }}
-              <span class="customer-id">（ID: {{ record.actual_customer_id }}）</span>
+              <span class="customer-id">（ID: {{ record.actual_company_id }}）</span>
             </span>
             <span v-else>-</span>
           </template>
