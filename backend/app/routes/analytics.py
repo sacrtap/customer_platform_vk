@@ -230,9 +230,10 @@ async def manual_sync_consumption(request: Request):
     产生任务记录与执行明细，可在「同步日志」页面查看执行信息。
     """
 
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     from ..services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
+    from ..utils.timezone import cst_today
 
     db_session = request.ctx.db_session
 
@@ -262,7 +263,9 @@ async def manual_sync_consumption(request: Request):
 
     try:
         # 同步昨日数据（与定时任务一致的目标日期），强制覆盖保持原接口语义
-        yesterday = date.today() - timedelta(days=1)
+        # 按 CST 业务日取昨天：date.today() 在 UTC 环境下取到 CST 的前天，
+        # 会丢一天订单数据
+        yesterday = cst_today() - timedelta(days=1)
         logger.info("创建同步任务，日期: %s", yesterday)
         external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
         service = SyncTaskService(

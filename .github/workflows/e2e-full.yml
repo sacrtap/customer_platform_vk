@@ -110,6 +110,8 @@ jobs:
           JWT_SECRET: test-secret-key-for-ci
           DEBUG: "false"
           APP_ENV: testing
+          # 时区对齐生产（CST）：后端进程内兜底会强制 CST，这里显式声明便于排查
+          TZ: Asia/Shanghai
         run: |
           cd backend
           python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &

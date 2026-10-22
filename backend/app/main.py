@@ -22,6 +22,42 @@ from .middleware.correlation import correlation_middleware, install_request_id_f
 logger = logging.getLogger(__name__)
 
 
+def _force_cst_timezone() -> None:
+    """把进程本地时区固定为 CST（Asia/Shanghai）。
+
+    背景（2026-10-22 审计）：全系统依赖「服务器本地时区 == CST」这一隐式约定 ——
+    - DB 列是 `timestamp without time zone`，存的是 PG 会话时区的墙钟时间（生产 CST）
+    - `datetime.now().isoformat()` 写入的 String 字段（approved_at 等）是裸本地时间
+    - 前端 `new Date(str)` 把不带时区后缀的字符串当本地时间解析
+    - APScheduler `CronTrigger(hour=2)` 不传 timezone 时用 `get_localzone()`
+
+    只要部署环境时区不是 CST（CI runner、未设 TZ 的容器默认 UTC），上述环节
+    全部静默偏移：统计窗口差一天、结算周期差一月、cron 触发时刻差 8 小时。
+
+    这里在 import 期就把 TZ 钉死，让 `datetime.now()` / `date.today()` /
+    `get_localzone()` 在任何环境下都确定性地等于 CST。新增代码仍应优先使用
+    `utils.timezone.cst_today()` / `cst_now()`（显式、可测、不依赖进程状态），
+    本函数是兜底而非替代。
+    """
+    import os
+    import time
+
+    desired_tz = "Asia/Shanghai"
+    current_tz = os.environ.get("TZ")
+    if current_tz != desired_tz:
+        os.environ["TZ"] = desired_tz
+        time.tzset()
+        logger.info(
+            "🕐 进程时区未设置为 CST，已强制切换：%s → %s"
+            "（保证统计窗口/结算周期/cron 触发时刻一致）",
+            current_tz or "(系统默认)",
+            desired_tz,
+        )
+
+
+_force_cst_timezone()
+
+
 async def _check_schema_version(session_factory) -> None:
     """启动时校验运行库是否已升级到最新 Alembic 迁移（fail-open，仅告警不阻断）。
 

@@ -25,6 +25,7 @@ from ..models.forecast_config import ForecastUnitPrice
 from ..models.industry_type import IndustryType
 from ..models.users import User
 from ..utils.tiers import TierFormatError, normalize_tiers
+from ..utils.timezone import cst_now, cst_today
 
 logger = logging.getLogger(__name__)
 
@@ -1955,10 +1956,10 @@ class AnalyticsService:
         每月返回预测金额（用量×单价）和实际消费（已发生实盘）。
         """
         from calendar import monthrange
-        from datetime import datetime
 
-        # 计算月份范围
-        current_month = datetime.now().month
+        # 计算月份范围（按 CST 业务月，不能用 datetime.now().month：
+        # UTC 环境下 CST 次月的前 8 小时会偏一个月）
+        current_month = cst_today().month
 
         # 确定起始月份
         if apply_to == "future_only":
@@ -3005,7 +3006,9 @@ class AnalyticsService:
             success_rate = None
 
         # 近 7 天异常任务（partial/failed）
-        seven_days_ago_str = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        # 基准取 CST 墙钟时刻：SyncTaskLog.executed_at 是 String 列，写入值为
+        # 服务器本地（CST）时间，用 datetime.now() 在 UTC 环境下窗口边界偏移
+        seven_days_ago_str = (cst_now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
         abnormal_count = (
             await self.db.execute(
                 select(func.count(SyncTaskLog.id)).where(
@@ -3040,9 +3043,13 @@ class AnalyticsService:
         next_sync_time: Optional[str] = None
         if schedule is not None and schedule.sync_time:
             sync_time = schedule.sync_time
-            now_hm = datetime.now().strftime("%H:%M")
+            # 当前时刻与 sync_time 均按 CST 墙钟比较（sync_time 是用户在
+            # CST 语义下配置的 HH:MM），用 datetime.now() 在 UTC 环境下
+            # 会整体偏移 8 小时
+            now = cst_now()
+            now_hm = now.strftime("%H:%M")
             day_offset = 0 if now_hm < sync_time else 1
-            target = datetime.now() + timedelta(days=day_offset)
+            target = now + timedelta(days=day_offset)
             next_sync_time = f"{target.strftime('%Y-%m-%d')} {sync_time}"
 
         return {
@@ -3069,7 +3076,9 @@ class AnalyticsService:
         """
         from ..models.daily_consumption import DailyConsumption
 
-        today_date = datetime.now().date()
+        # 「本月」按 CST 业务月：datetime.now().date() 在 UTC 环境下会取到
+        # CST 的次日，导致月初几天把上月数据算进本月
+        today_date = cst_today()
         current_month_start = date(today_date.year, today_date.month, 1)
         next_month_start = (
             date(today_date.year + 1, 1, 1)

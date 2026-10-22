@@ -33,7 +33,7 @@ from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.excel_import import read_import_dataframe
 from ...utils.tiers import TierFormatError
-from ...utils.timezone import local_date_range_to_utc
+from ...utils.timezone import cst_today, local_date_range_to_utc
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -1845,7 +1845,9 @@ async def import_invoices(request: Request):
         # 预加载已存在的 invoice_no（避免随机码碰撞 / 用户指定单号重号）。
         # 范围收敛为「本日自动生成前缀」+「本次 Excel 显式指定的单号」：原实现
         # select(Invoice.invoice_no) 会把该列全表加载，随表增长内存与耗时无限膨胀。
-        today_prefix = f"INV-{datetime.now().strftime('%Y%m%d')}-"
+        # 日期前缀按 CST 业务日：datetime.now() 在 UTC 16:00 后会生成次日日期，
+        # 使 today_prefix 与实际生成日不匹配 → 同日单号可能重复
+        today_prefix = f"INV-{cst_today().strftime('%Y%m%d')}-"
         existing_invoice_nos = set(
             (
                 await db.execute(
@@ -1975,10 +1977,9 @@ async def import_invoices(request: Request):
                         # 与 services/billing.py 的既有单号规则一致：4 位随机码取自
                         # 大写字母+数字（36^4 命名空间）。原先仅用数字（10^4）会使同
                         # 客户同日的碰撞概率高出 168 倍，且单日超 1 万条时会无限循环。
+                        # 日期按 CST 业务日，与 today_prefix 一致
                         code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                        invoice_no = (
-                            f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_key}-{code}"
-                        )
+                        invoice_no = f"INV-{cst_today().strftime('%Y%m%d')}-{customer_key}-{code}"
                         if invoice_no not in existing_invoice_nos:
                             break
 

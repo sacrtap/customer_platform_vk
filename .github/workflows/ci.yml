@@ -36,6 +36,9 @@ jobs:
     name: Backend Smoke (main)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # 时区对齐生产（CST）：导入期会触发 app.main 的时区兜底
+    env:
+      TZ: Asia/Shanghai
 
     steps:
       - name: Checkout code

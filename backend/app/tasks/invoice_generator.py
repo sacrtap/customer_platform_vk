@@ -4,7 +4,7 @@ P6-3: 月度结算单自动生成任务
 """
 
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import Invoice
 from ..models.customers import Customer
+from ..utils.timezone import cst_today
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,9 @@ async def generate_monthly_invoices(session: AsyncSession):
     logger.info("📝 开始执行月度结算单自动生成任务")
 
     try:
-        # 计算上月日期范围
-        today = date.today()
+        # 计算上月日期范围（按 CST 业务月，不能用 date.today()：UTC 环境
+        # 下会取到 CST 的次日/次月，导致结算周期整体偏移一个月）
+        today = cst_today()
         first_day_of_last_month = today.replace(day=1) - relativedelta(months=1)
         last_day_of_last_month = first_day_of_last_month + relativedelta(months=1, days=-1)
 

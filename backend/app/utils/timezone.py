@@ -91,6 +91,19 @@ def cst_today() -> date:
     return datetime.now(CST).date()
 
 
+def cst_now() -> datetime:
+    """获取当前 CST 时刻（带时区）。
+
+    用于需要与 CST 墙钟时间（DB `timestamp without time zone` 列存的是
+    PG 会话时区的本地时间，生产为 CST）比较或展示的场景。
+
+    注意：与 utc_now() 的区别仅在时区标注，两者表示同一瞬间。若只是
+    要一个「截止时间戳」做绝对比较，优先用 utc_now()；若要与 DB 墙钟
+    时间（created_at 等）做算术，用本函数。
+    """
+    return datetime.now(CST)
+
+
 def local_today_utc_start() -> datetime:
     """今天（本地日期）对应的 UTC 开始时刻。"""
     today = date.today()

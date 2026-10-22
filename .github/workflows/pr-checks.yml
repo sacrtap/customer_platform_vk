@@ -111,6 +111,10 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
     timeout-minutes: 5
+    # 生产服务器本地时区固定 CST，DB 墙钟时间/单号日期/统计窗口均按 CST 语义。
+    # runner 默认 UTC 会让「只在特定时段触发」的时区缺陷在 CI 隐形，故显式对齐。
+    env:
+      TZ: Asia/Shanghai
 
     steps:
       - name: Checkout code
@@ -175,6 +179,9 @@ jobs:
     # CI runner 上 Postgres/Redis 均为容器，单个集成测试约 8s（本地约 1s），
     # 全量 integration 实测需 30min+，20min 上限会误杀
     timeout-minutes: 45
+    # 时区对齐生产（CST）：DB 墙钟时间、cron 触发时刻、统计窗口均按 CST 语义
+    env:
+      TZ: Asia/Shanghai
 
     services:
       postgres:
@@ -364,6 +371,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
+    # 时区对齐生产（CST）：nightly 在 UTC 18:00 触发（CST 次日 02:00），
+    # 正是「UTC 已过 16:00、CST 已跨日」的高危窗口，必须显式对齐
+    env:
+      TZ: Asia/Shanghai
     services:
       postgres:
         image: postgres:18
