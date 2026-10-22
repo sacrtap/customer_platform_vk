@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -2063,9 +2063,10 @@ class TestInvoiceService_ManagerFiltersAndSkip:
         assert result["generated"][0]["customer_id"] == 100
 
     @pytest.mark.asyncio
-    async def test_generate_batch_no_usage_still_skipped(self, invoice_service):
+    async def test_generate_batch_no_usage_still_skipped(self, invoice_service, mock_db_session):
         """有规则但本周期无用量的客户仍被 skip（无可结算）"""
         customers = [{"id": 100, "name": "无用量的客户", "manager_id": 1, "sales_manager_id": 2}]
+        mock_db_session.scalar = AsyncMock(return_value=0)
         with (
             patch.object(
                 InvoiceService,
@@ -2078,11 +2079,180 @@ class TestInvoiceService_ManagerFiltersAndSkip:
                 AsyncMock(return_value=([], Decimal("0"))),
             ),
         ):
-            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+            result = await invoice_service.generate_invoices_batch(
+                pricing_type="fixed",
+                period_start=datetime(2026, 1, 1),
+                period_end=datetime(2026, 1, 31),
+            )
 
         assert result["success_count"] == 0
         assert len(result["skipped"]) == 1
         assert "无用量" in result["skipped"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_generate_batch_skip_reason_no_effective_rule(self, invoice_service):
+        """跳过原因为细化文案：本周期内无生效的计费规则"""
+        customers = [{"id": 100, "name": "规则过期客户", "manager_id": 1, "sales_manager_id": 2}]
+        with (
+            patch.object(
+                InvoiceService,
+                "get_customers_for_batch",
+                AsyncMock(return_value=customers),
+            ),
+            patch.object(
+                InvoiceService,
+                "calculate_items_from_rules",
+                AsyncMock(return_value=([], Decimal("0"))),
+            ),
+            patch.object(
+                InvoiceService,
+                "_diagnose_batch_skip_reason",
+                AsyncMock(return_value="本周期内无生效的计费规则（规则已过期或尚未生效）"),
+            ) as mock_diagnose,
+        ):
+            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+
+        assert result["success_count"] == 0
+        assert "无生效的计费规则" in result["skipped"][0]["reason"]
+        mock_diagnose.assert_awaited_once()
+        assert mock_diagnose.await_args.kwargs["customer_id"] == 100
+        assert mock_diagnose.await_args.kwargs["error"] is None
+
+    @pytest.mark.asyncio
+    async def test_generate_batch_skip_reason_type_mismatch(self, invoice_service):
+        """跳过原因为细化文案：设备/楼层类型无匹配的计费规则"""
+        customers = [{"id": 100, "name": "类型不匹配客户", "manager_id": 1, "sales_manager_id": 2}]
+        with (
+            patch.object(
+                InvoiceService,
+                "get_customers_for_batch",
+                AsyncMock(return_value=customers),
+            ),
+            patch.object(
+                InvoiceService,
+                "calculate_items_from_rules",
+                AsyncMock(return_value=([], Decimal("0"))),
+            ),
+            patch.object(
+                InvoiceService,
+                "_diagnose_batch_skip_reason",
+                AsyncMock(return_value="有用量但设备/楼层类型无匹配的计费规则"),
+            ),
+        ):
+            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+
+        assert "设备/楼层类型无匹配" in result["skipped"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_generate_batch_skip_reason_calc_error(self, invoice_service):
+        """计算抛异常时：诊断方法收到 error 原文，reason 含计算异常"""
+        customers = [{"id": 100, "name": "计算异常客户", "manager_id": 1, "sales_manager_id": 2}]
+        with (
+            patch.object(
+                InvoiceService,
+                "get_customers_for_batch",
+                AsyncMock(return_value=customers),
+            ),
+            patch.object(
+                InvoiceService,
+                "calculate_items_from_rules",
+                AsyncMock(side_effect=ValueError("bad tiers")),
+            ),
+            patch.object(
+                InvoiceService,
+                "_diagnose_batch_skip_reason",
+                AsyncMock(return_value="计费明细计算异常：bad tiers"),
+            ) as mock_diagnose,
+        ):
+            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+
+        assert result["success_count"] == 0
+        assert "计费明细计算异常" in result["skipped"][0]["reason"]
+        assert mock_diagnose.await_args.kwargs["error"] == "bad tiers"
+
+    # ===== C. 跳过原因诊断 =====
+
+    @pytest.mark.asyncio
+    async def test_diagnose_batch_skip_reason_calc_error(self, invoice_service):
+        """诊断直测：error 非空直接返回计算异常文案（不发查询）"""
+        reason = await invoice_service._diagnose_batch_skip_reason(
+            customer_id=100,
+            period_start=datetime(2026, 1, 1),
+            period_end=datetime(2026, 1, 31),
+            error="boom",
+        )
+
+        assert reason == "计费明细计算异常：boom"
+        invoice_service.db.scalar.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_diagnose_batch_skip_reason_no_usage(self, invoice_service, mock_db_session):
+        """诊断直测：用量计数为 0 → 无用量数据（不再查规则）"""
+        mock_db_session.scalar = AsyncMock(return_value=0)
+
+        reason = await invoice_service._diagnose_batch_skip_reason(
+            customer_id=100,
+            period_start=datetime(2026, 1, 1),
+            period_end=datetime(2026, 1, 31),
+        )
+
+        assert reason == "本周期内无用量数据"
+        assert mock_db_session.scalar.await_count == 1
+        stmt = mock_db_session.scalar.await_args.args[0]
+        compiled = str(stmt.compile())
+        assert "daily_consumptions" in compiled
+        assert "consumption_date" in compiled
+
+    @pytest.mark.asyncio
+    async def test_diagnose_batch_skip_reason_no_effective_rule(
+        self, invoice_service, mock_db_session
+    ):
+        """诊断直测：有用量但规则计数为 0 → 无生效规则"""
+        mock_db_session.scalar = AsyncMock(side_effect=[3, 0])
+
+        reason = await invoice_service._diagnose_batch_skip_reason(
+            customer_id=100,
+            period_start=datetime(2026, 1, 1),
+            period_end=datetime(2026, 1, 31),
+        )
+
+        assert "无生效的计费规则" in reason
+        assert mock_db_session.scalar.await_count == 2
+        rule_stmt = mock_db_session.scalar.await_args_list[1].args[0]
+        compiled = str(rule_stmt.compile())
+        assert "pricing_rules" in compiled
+        assert "effective_date" in compiled
+        assert "expiry_date" in compiled
+
+    @pytest.mark.asyncio
+    async def test_diagnose_batch_skip_reason_type_mismatch(self, invoice_service, mock_db_session):
+        """诊断直测：有用量且有规则 → 设备/楼层类型不匹配"""
+        mock_db_session.scalar = AsyncMock(side_effect=[3, 2])
+
+        reason = await invoice_service._diagnose_batch_skip_reason(
+            customer_id=100,
+            period_start=datetime(2026, 1, 1),
+            period_end=datetime(2026, 1, 31),
+        )
+
+        assert reason == "有用量但设备/楼层类型无匹配的计费规则"
+
+    @pytest.mark.asyncio
+    async def test_diagnose_batch_skip_reason_query_failure_fallback(
+        self, invoice_service, mock_db_session
+    ):
+        """诊断直测：诊断自身查询异常 → 兜底文案，不向上抛"""
+        mock_db_session.scalar = AsyncMock(
+            side_effect=OperationalError("stmt", {}, Exception("db down"))
+        )
+
+        reason = await invoice_service._diagnose_batch_skip_reason(
+            customer_id=100,
+            period_start=datetime(2026, 1, 1),
+            period_end=datetime(2026, 1, 31),
+        )
+
+        assert reason == "跳过原因诊断失败"
 
     @pytest.mark.asyncio
     async def test_submit_both_managers_goes_to_pending_ops(self, invoice_service):

@@ -173,6 +173,21 @@
       </template>
     </a-form>
   </a-modal>
+
+  <!-- 批量生成结果：列出被跳过客户及具体原因 -->
+  <a-modal v-model:visible="batchResultVisible" title="批量生成结果" width="720px" :footer="false">
+    <div class="preview-summary">
+      成功 <strong>{{ batchSuccessCount }}</strong> 个，跳过
+      <strong class="text-warn">{{ batchSkipped.length }}</strong> 个
+    </div>
+    <a-table
+      :columns="skipResultColumns"
+      :data="batchSkipped"
+      :pagination="{ pageSize: 10 }"
+      size="small"
+      row-key="customer_id"
+    />
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -189,7 +204,7 @@ import { formatCurrency } from '@/utils/formatters'
 import { pricingTypeText, formatQuantity, formatRuleDetail } from '@/utils/invoiceFormatters'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import type { IndustryType } from '@/types'
-import type { InvoiceItem } from '@/api/billing'
+import type { InvoiceItem, BatchGenerateResult } from '@/api/billing'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ 'update:visible': [value: boolean]; success: [] }>()
@@ -416,6 +431,16 @@ watch(
   }
 )
 
+// ===== 批量结果弹框 =====
+const batchResultVisible = ref(false)
+const batchSkipped = ref<BatchGenerateResult['skipped']>([])
+const batchSuccessCount = ref(0)
+const skipResultColumns = [
+  { title: '客户ID', dataIndex: 'customer_id', width: 90 },
+  { title: '客户名称', dataIndex: 'name' },
+  { title: '跳过原因', dataIndex: 'reason' },
+]
+
 // ===== 提交 =====
 const handleSubmit = async () => {
   if (mode.value === 'customer') {
@@ -476,16 +501,23 @@ const handleSubmitBatch = async () => {
       period_end: batchPeriodRange.value[1],
     })
     const result = res.data
-    if (result.success_count > 0) {
-      Message.success(
-        `批量生成完成：成功 ${result.success_count} 个，跳过 ${result.skipped.length} 个`
-      )
+    if (result.skipped.length > 0) {
+      batchSuccessCount.value = result.success_count
+      batchSkipped.value = result.skipped
+      batchResultVisible.value = true
+      if (result.success_count > 0) {
+        Message.success(
+          `批量生成完成：成功 ${result.success_count} 个，跳过 ${result.skipped.length} 个`
+        )
+      } else {
+        Message.warning('所有客户均被跳过，未生成任何结算单')
+      }
       emit('success')
-      return true
-    } else {
-      Message.warning('所有客户均被跳过，未生成任何结算单')
       return false
     }
+    Message.success(`批量生成完成：成功 ${result.success_count} 个`)
+    emit('success')
+    return true
   } catch (err: unknown) {
     Message.error((err as Error)?.message || '批量生成失败')
     return false

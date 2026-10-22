@@ -2190,21 +2190,30 @@ class InvoiceService:
 
         for cust in customers:
             # 计算结算明细
+            items: List[Dict[str, Any]] = []
+            total_amount = Decimal(0)
+            calc_error: Optional[str] = None
             try:
                 items, total_amount = await self.calculate_items_from_rules(
                     customer_id=cust["id"],
                     period_start=period_start,  # pyright: ignore[reportArgumentType]
                     period_end=period_end,  # pyright: ignore[reportArgumentType]
                 )
-            except Exception:
-                items, total_amount = [], Decimal(0)
+            except Exception as e:
+                calc_error = str(e) or e.__class__.__name__
 
             if not items:
+                reason = await self._diagnose_batch_skip_reason(
+                    customer_id=cust["id"],
+                    period_start=period_start,  # pyright: ignore[reportArgumentType]
+                    period_end=period_end,  # pyright: ignore[reportArgumentType]
+                    error=calc_error,
+                )
                 skipped.append(
                     {
                         "customer_id": cust["id"],
                         "name": cust["name"],
-                        "reason": "结算周期内无用量数据或无匹配的计费规则",
+                        "reason": reason,
                     }
                 )
                 continue
@@ -2234,3 +2243,63 @@ class InvoiceService:
             "skipped": skipped,
             "generated": generated,
         }
+
+    async def _diagnose_batch_skip_reason(
+        self,
+        customer_id: int,
+        period_start: datetime,
+        period_end: datetime,
+        error: Optional[str] = None,
+    ) -> str:
+        """诊断批量生成跳过某客户的具体原因
+
+        仅在 calculate_items_from_rules 返回空 items（或抛异常）时调用。
+        过滤条件严格镜像 calculate_items_from_rules 内部的用量查询与规则查询，
+        避免诊断口径与实际计算口径漂移。
+
+        Args:
+            customer_id: 客户 ID
+            period_start: 结算周期开始
+            period_end: 结算周期结束
+            error: calculate_items_from_rules 抛出的异常信息（如有）
+
+        Returns:
+            具体跳过原因文案（计算异常 / 无用量 / 无生效规则 / 设备楼层类型不匹配）
+        """
+        from sqlalchemy import func as sa_func
+
+        try:
+            if error:
+                return f"计费明细计算异常：{error}"
+
+            # 1. 周期内是否有用量数据（镜像 calculate_items_from_rules 用量查询条件）
+            usage_count = await self.db.scalar(
+                select(sa_func.count())
+                .select_from(DailyConsumption)
+                .where(
+                    DailyConsumption.customer_id == customer_id,
+                    DailyConsumption.consumption_date >= period_start,
+                    DailyConsumption.consumption_date <= period_end,
+                )
+            )
+            if not usage_count:
+                return "本周期内无用量数据"
+
+            # 2. 周期内是否有生效的计费规则（镜像规则查询条件）
+            rule_count = await self.db.scalar(
+                select(sa_func.count())
+                .select_from(PricingRule)
+                .where(
+                    PricingRule.customer_id == customer_id,
+                    PricingRule.effective_date <= period_end,
+                    (PricingRule.expiry_date.is_(None)) | (PricingRule.expiry_date >= period_start),
+                )
+            )
+            if not rule_count:
+                return "本周期内无生效的计费规则（规则已过期或尚未生效）"
+
+            # 3. 有用量且有生效规则但明细仍为空：设备/楼层类型无匹配规则
+            return "有用量但设备/楼层类型无匹配的计费规则"
+        except Exception as e:
+            logger.warning(f"批量跳过原因诊断失败（customer_id={customer_id}）：{e}")
+            return "跳过原因诊断失败"
