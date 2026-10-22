@@ -132,6 +132,7 @@
 | [2026-04-22-profile-dashboard-plan.md](superpowers/plans/2026-04-22-profile-dashboard-plan.md) | 04-22 | 画像仪表盘 | ✅ 完成 |
 | [2026-04-22-profile-pages-merge-plan.md](superpowers/plans/2026-04-22-profile-pages-merge-plan.md) | 04-22 | 画像页面合并 | ✅ 完成 |
 | [2026-04-23-customer-search-filter-implementation.md](superpowers/plans/2026-04-23-customer-search-filter-implementation.md) | 04-23 | 客户筛选器输入检索 | ✅ 完成 |
+| [2026-10-23-unify-balance-whitelist-search-plan.md](superpowers/plans/2026-10-23-unify-balance-whitelist-search-plan.md) | 10-23 | 统一余额白名单搜索组件样式 | ✅ 完成 |
 
 ---
 
