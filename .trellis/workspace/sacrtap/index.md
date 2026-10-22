@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 42
+- **Total Sessions**: 43
 - **Last Active**: 2026-10-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1048 | Active |
+| `journal-1.md` | ~1070 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 43 | 2026-10-22 | 明细生成任务重启恢复与批量重试健壮性 | `d14ee35` | `main` |
 | 42 | 2026-10-22 | 结算管理页五项功能 + 明细生成事件循环冻结修复 | `99874e6`, `6101694`, `e8bf83b`, `2877c42`, `ef275b8` | `main` |
 | 41 | 2026-10-21 | 客户代扣结算功能（结算账户）开发与四项修复 | `cd9fe09` | `main` |
 | 40 | 2026-10-21 | 结算单列表新增行业/ERP筛选 + 修复批量生成预览默认为空 | `56c005b`, `1252843` | `main` |
