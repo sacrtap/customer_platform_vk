@@ -109,7 +109,7 @@ class TestDetailGeneratorThreePhase:
         assert built["called"], "generate_detail_file 未被调用"
         # 终态更新走工厂短会话
         assert factory_session.commit.await_count >= 1
-        assert factory_session.get.await_count >= 1
+        assert factory_session.execute.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_final_status_via_factory_short_session(self, monkeypatch):
@@ -132,10 +132,10 @@ class TestDetailGeneratorThreePhase:
 
         await generate_invoice_detail(session, None, 7001, session_factory=factory)
 
-        # 终态更新走工厂会话：get 一次 + commit 一次
-        assert factory_session.get.await_count == 1
+        # 终态更新走工厂会话：execute（条件 UPDATE）一次 + commit 一次
+        assert factory_session.execute.await_count == 1
         assert factory_session.commit.await_count == 1
-        assert session.commit.await_count == 2  # generating + 释放连接前
+        assert session.commit.await_count == 2  # 原子 claim + 释放连接前
 
     @pytest.mark.asyncio
     async def test_fallback_without_factory(self, monkeypatch):
@@ -160,8 +160,9 @@ class TestDetailGeneratorThreePhase:
 
         await generate_invoice_detail(session, None, 7001)
 
-        # 回退路径：重新打开主会话 get + commit 更新终态
-        assert session.get.await_count >= 2  # 首次查询 + 终态回退查询
+        # 回退路径：主会话条件 UPDATE 更新终态（claim 后仅一次 get）
+        assert session.get.await_count >= 1  # 原子 claim 后重新加载
+        assert session.execute.await_count >= 2  # claim + 终态更新
 
     @pytest.mark.asyncio
     async def test_exception_marks_failed_via_factory(self, monkeypatch):
@@ -184,5 +185,5 @@ class TestDetailGeneratorThreePhase:
         await generate_invoice_detail(session, None, 7001, session_factory=factory)
 
         # 兜底也走工厂会话
-        assert factory_session.get.await_count >= 1
+        assert factory_session.execute.await_count >= 1
         assert factory_session.commit.await_count >= 1
