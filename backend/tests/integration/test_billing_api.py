@@ -2746,3 +2746,397 @@ async def test_deduction_via_settlement_account_e2e(
     b_records = [r for r in resp.json["data"]["list"] if r["invoice_id"] == invoice_id]
     assert len(b_records) == 1
     assert b_records[0]["customer_id"] == b
+
+
+@pytest.mark.asyncio
+async def test_get_invoices_filter_by_managers(test_client, auth_token, db_session):
+    """测试结算单列表按运营/销售经理筛选"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid_a = _unique_customer_id(97000)
+    cid_b = _unique_customer_id(97500)
+    manager_a, sales_a = _unique_customer_id(97100), _unique_customer_id(97200)
+    manager_b, sales_b = _unique_customer_id(97300), _unique_customer_id(97400)
+
+    # 4 个经理用户 + 2 个客户
+    for uid in (manager_a, sales_a, manager_b, sales_b):
+        db_session.execute(text("DELETE FROM users WHERE id = :id"), {"id": uid})
+        db_session.execute(
+            text("""
+            INSERT INTO users (id, username, password_hash, real_name, is_active,
+                               created_at, updated_at)
+            VALUES (:id, :username, 'x', :name, TRUE, NOW(), NOW())
+            """),
+            {"id": uid, "username": f"mgr_{uid}", "name": f"经理{uid}"},
+        )
+    for cid, mgr, sales in [(cid_a, manager_a, sales_a), (cid_b, manager_b, sales_b)]:
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   manager_id, sales_manager_id,
+                                   created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid',
+                    :mgr, :sales, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"经理筛选_{cid}",
+                "mgr": mgr,
+                "sales": sales,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                  total_amount, discount_amount, status, is_auto_generated,
+                                  detail_file_status, created_at, updated_at)
+            VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                    'pending', NOW(), NOW())
+            """),
+            {"no": f"INV-MGR-{uuid.uuid4().hex[:8]}", "cid": cid},
+        )
+    db_session.commit()
+
+    try:
+
+        async def _fetch(**params):
+            query = "&".join(f"{k}={v}" for k, v in params.items())
+            _request, response = await test_client.get(
+                f"/api/v1/billing/invoices?{query}",
+                headers=headers,
+            )
+            assert response.status == 200
+            assert response.json["code"] == 0
+            return response.json["data"]
+
+        # 运营经理筛选：仅含客户A
+        data = await _fetch(manager_id=manager_a)
+        customer_ids = [item["customer_id"] for item in data["list"]]
+        assert cid_a in customer_ids
+        assert cid_b not in customer_ids
+
+        # 销售经理筛选：仅含客户B
+        data = await _fetch(sales_manager_id=sales_b)
+        customer_ids = [item["customer_id"] for item in data["list"]]
+        assert cid_b in customer_ids
+        assert cid_a not in customer_ids
+
+        # 组合筛选：互斥条件应为空
+        data = await _fetch(manager_id=manager_a, sales_manager_id=sales_b)
+        assert data["list"] == []
+    finally:
+        for cid in (cid_a, cid_b):
+            db_session.execute(
+                text(
+                    "DELETE FROM invoice_items WHERE invoice_id IN "
+                    "(SELECT id FROM invoices WHERE customer_id = :id)"
+                ),
+                {"id": cid},
+            )
+            db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+            db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        for uid in (manager_a, sales_a, manager_b, sales_b):
+            db_session.execute(text("DELETE FROM users WHERE id = :id"), {"id": uid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_submit_cancel_delete_invoices(test_client, auth_token, db_session):
+    """测试结算单批量提交/取消/删除端点"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid = _unique_customer_id(98000)
+    db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type,
+                               settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"id": cid, "company_id": cid, "name": f"批量操作_{cid}"},
+    )
+    db_session.commit()
+
+    invoice_ids = []
+    try:
+        # 3 张 draft + 1 张 pending_ops（提交时应被跳过）
+        for i, status in enumerate(["draft", "draft", "draft", "pending_ops"]):
+            result = db_session.execute(
+                text("""
+                INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                      total_amount, discount_amount, status, is_auto_generated,
+                                      detail_file_status, created_at, updated_at)
+                VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, :status, FALSE,
+                        'pending', NOW(), NOW())
+                RETURNING id
+                """),
+                {
+                    "no": f"INV-BATCH-{uuid.uuid4().hex[:8]}",
+                    "cid": cid,
+                    "status": status,
+                },
+            )
+            invoice_ids.append(result.scalar())
+        db_session.commit()
+
+        # 批量提交：3 success + 1 skipped
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-submit",
+            json={"ids": invoice_ids},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert resp.json["code"] == 0
+        data = resp.json["data"]
+        assert data["success_count"] == 3
+        assert len(data["skipped"]) == 1
+        assert data["skipped"][0]["id"] == invoice_ids[3]
+
+        # 批量取消：3 张已提交的可取消成功
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-cancel",
+            json={"ids": invoice_ids[:3]},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert resp.json["data"]["success_count"] == 3
+
+        # 批量删除：软删全部 4 张
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-delete",
+            json={"ids": invoice_ids},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert resp.json["data"]["success_count"] == 4
+
+        remaining = db_session.execute(
+            text("SELECT COUNT(*) FROM invoices WHERE customer_id = :id AND deleted_at IS NULL"),
+            {"id": cid},
+        ).scalar()
+        assert remaining == 0
+    finally:
+        db_session.execute(
+            text(
+                "DELETE FROM invoice_items WHERE invoice_id IN "
+                "(SELECT id FROM invoices WHERE customer_id = :id)"
+            ),
+            {"id": cid},
+        )
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_invoice_detail_logs_counts_and_default_filter(
+    test_client, auth_token, db_session
+):
+    """测试明细文件生成日志：默认过滤 completed + counts 统计 + status 精筛"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid = _unique_customer_id(98500)
+    db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type,
+                               settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"id": cid, "company_id": cid, "name": f"明细状态_{cid}"},
+    )
+    db_session.commit()
+
+    try:
+        # pending / failed / completed 各一张
+        for file_status in ("pending", "failed", "completed"):
+            db_session.execute(
+                text("""
+                INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                      total_amount, discount_amount, status, is_auto_generated,
+                                      detail_file_status, created_at, updated_at)
+                VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                        :fs, NOW(), NOW())
+                """),
+                {
+                    "no": f"INV-LOG-{uuid.uuid4().hex[:8]}",
+                    "cid": cid,
+                    "fs": file_status,
+                },
+            )
+        db_session.commit()
+
+        _req, resp = await test_client.get(
+            "/api/v1/billing/invoices/detail-logs",
+            params={"customer_id": cid},
+            headers=headers,
+        )
+        assert resp.status == 200
+        data = resp.json["data"]
+        # 默认过滤：不含 completed
+        assert all(item["detail_file_status"] != "completed" for item in data["list"])
+        # counts：各状态统计正确（不受 status_filter 影响）
+        assert data["counts"]["pending"] == 1
+        assert data["counts"]["failed"] == 1
+        assert data["counts"]["completed"] == 1
+
+        # status=failed 精筛：仅失败
+        _req, resp = await test_client.get(
+            "/api/v1/billing/invoices/detail-logs",
+            params={"customer_id": cid, "status": "failed"},
+            headers=headers,
+        )
+        assert resp.status == 200
+        data = resp.json["data"]
+        assert len(data["list"]) == 1
+        assert data["list"][0]["detail_file_status"] == "failed"
+
+        # status=completed 显式查看：仅完成
+        _req, resp = await test_client.get(
+            "/api/v1/billing/invoices/detail-logs",
+            params={"customer_id": cid, "status": "completed"},
+            headers=headers,
+        )
+        assert resp.status == 200
+        data = resp.json["data"]
+        assert len(data["list"]) == 1
+        assert data["list"][0]["detail_file_status"] == "completed"
+    finally:
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_regenerate_detail_batch(test_client, auth_token, db_session):
+    """测试批量重新生成明细文件端点：triggered 计数 + 不存在单条计入 failed"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid = _unique_customer_id(99000)
+    db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type,
+                               settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"id": cid, "company_id": cid, "name": f"批量重生成_{cid}"},
+    )
+    db_session.commit()
+
+    try:
+        result = db_session.execute(
+            text("""
+            INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                  total_amount, discount_amount, status, is_auto_generated,
+                                  detail_file_status, created_at, updated_at)
+            VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                    'failed', NOW(), NOW())
+            RETURNING id
+            """),
+            {"no": f"INV-REGEN-{uuid.uuid4().hex[:8]}", "cid": cid},
+        )
+        invoice_id = result.scalar()
+        db_session.commit()
+
+        missing_id = invoice_id + 100000
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/regenerate-detail-batch",
+            json={"ids": [invoice_id, missing_id]},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert resp.json["code"] == 0
+        data = resp.json["data"]
+        assert data["triggered"] == 1
+        assert len(data["failed"]) == 1
+        assert data["failed"][0]["id"] == missing_id
+
+        # 状态被重置为 pending
+        status = db_session.execute(
+            text("SELECT detail_file_status FROM invoices WHERE id = :id"), {"id": invoice_id}
+        ).scalar()
+        assert status == "pending"
+    finally:
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_generate_batch_triggers_detail_generation(
+    test_client, auth_token, db_session, monkeypatch
+):
+    """批量生成必须为每张结算单触发明细异步生成（回归：key 名误用导致任务从未入队）
+
+    历史 bug：route 从 generated 项取 "id"，而 service 返回的键名是 "invoice_id"，
+    inv_id 恒为 None，任务从未 add_job，全部结算单卡在 pending。
+    """
+    from app.routes.billing import invoices as invoices_route
+
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid = _unique_customer_id(99500)
+    db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type,
+                               settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"id": cid, "company_id": cid, "name": f"触发明细_{cid}"},
+    )
+    db_session.commit()
+
+    triggered_ids: list[int] = []
+
+    async def fake_trigger(request, invoice_id):
+        triggered_ids.append(invoice_id)
+
+    monkeypatch.setattr(invoices_route, "_trigger_detail_generation", fake_trigger)
+
+    try:
+        # 只验证触发循环：service 层 mock 掉，直接构造两单 generated 返回
+        from unittest.mock import AsyncMock, patch
+
+        from app.services.billing import InvoiceService
+
+        fake_result = {
+            "success_count": 2,
+            "skipped": [],
+            "generated": [
+                {"customer_id": cid, "name": "A", "invoice_id": 900001, "invoice_no": "INV-A"},
+                {"customer_id": cid, "name": "B", "invoice_id": 900002, "invoice_no": "INV-B"},
+            ],
+        }
+        with patch.object(
+            InvoiceService, "generate_invoices_batch", AsyncMock(return_value=fake_result)
+        ):
+            _req, resp = await test_client.post(
+                "/api/v1/billing/invoices/generate-batch",
+                json={
+                    "pricing_type": "fixed",
+                    "period_start": "2026-09-01",
+                    "period_end": "2026-09-30",
+                },
+                headers=headers,
+            )
+
+        assert resp.status == 200
+        assert sorted(triggered_ids) == [900001, 900002]
+    finally:
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()

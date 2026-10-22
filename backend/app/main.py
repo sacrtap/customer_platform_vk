@@ -96,6 +96,12 @@ def create_app(
         engine = create_async_engine(
             settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
             echo=settings.database_echo,
+            # asyncpg 默认 pool_size=5/overflow=10（共 15）：批量生成结算单时
+            # 每张单的明细任务 + 接口请求同时抢连接，超过 15 即 30s 超时报
+            # QueuePool limit 错误。明细任务已有信号量限流（并发 5），这里放大
+            # 池容量兜底其他并发请求。
+            pool_size=20,
+            max_overflow=10,
         )
     elif isinstance(database_engine, AsyncEngine):
         engine = database_engine

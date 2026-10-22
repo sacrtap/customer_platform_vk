@@ -4,6 +4,7 @@
 通过 APScheduler 的 add_job 即时触发。
 """
 
+import asyncio
 import logging
 from decimal import Decimal
 
@@ -15,33 +16,55 @@ from ..services.invoice_excel import InvoiceExcelService
 
 logger = logging.getLogger(__name__)
 
+# 明细生成并发上限：批量生成结算单时会为每张单 add_job 一次性并行触发（实测
+# 81 张），若不限流会同时占满外部 MySQL 连接池（pool_size=5, overflow 10）
+# 与本地 PG 池，后到的任务 30s 超时抛 QueuePool limit 错误、单置 failed。
+# 取外部池容量同级的 5：每个任务持 1 个外部连接做订单查询（最长的操作），
+# 其余排队等待而非失败。
+_DETAIL_GEN_CONCURRENCY = 5
+_detail_gen_semaphore = asyncio.Semaphore(_DETAIL_GEN_CONCURRENCY)
+
 
 async def generate_invoice_detail(
     session: AsyncSession,
     external_engine: AsyncEngine | None,
     invoice_id: int,
+    session_factory=None,
 ):
     """异步生成结算单明细 Excel 文件
 
     Args:
-        session: 数据库 session
+        session: 数据库 session（用于前置查询与状态标记）
         external_engine: 外部 MySQL 引擎
         invoice_id: 结算单 ID
+        session_factory: 可选会话工厂。提供后，余额查询与终态更新改用短会话，
+            主 session 在计费项查询后即可关闭——避免 PG 连接+事务覆盖整个
+            Excel 构建段（构建段最长可达数秒，5 并发即长占 5 条连接）。
     """
+    # 并发限流：排队等待而非耗尽连接池失败（详见 _detail_gen_semaphore 注释）
+    async with _detail_gen_semaphore:
+        await _generate_invoice_detail_inner(session, external_engine, invoice_id, session_factory)
+
+
+async def _generate_invoice_detail_inner(
+    session: AsyncSession,
+    external_engine: AsyncEngine | None,
+    invoice_id: int,
+    session_factory=None,
+):
     logger.info(f"开始异步生成结算单 {invoice_id} 的明细文件")
 
     try:
-        # 1. 查询结算单
+        # ===== 阶段 1：数据查询（持主 session）=====
         invoice = await session.get(Invoice, invoice_id)
         if not invoice:
             logger.error(f"结算单 {invoice_id} 不存在")
             return
 
-        # 2. 标记为生成中
+        # 标记为生成中
         invoice.detail_file_status = "generating"  # pyright: ignore[reportAttributeAccessIssue]
         await session.commit()
 
-        # 3. 查询客户信息
         customer = await session.get(Customer, invoice.customer_id)
         if not customer:
             logger.error(f"结算单 {invoice_id} 的客户不存在")
@@ -49,7 +72,14 @@ async def generate_invoice_detail(
             await session.commit()
             return
 
-        # 4. 查询结算明细项（JOIN PricingRule 获取多层计费信息）
+        if invoice.customer_id is None:
+            # DB schema 允许 NULL（历史遗留），但生成明细文件必须有关联客户
+            logger.error(f"结算单 {invoice_id} 缺少客户 ID，无法生成明细文件")
+            invoice.detail_file_status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
+            await session.commit()
+            return
+
+        # 查询结算明细项（JOIN PricingRule 获取多层计费信息）
         from sqlalchemy import select
 
         from ..models.billing import PricingRule
@@ -77,49 +107,89 @@ async def generate_invoice_detail(
                 }
             )
 
-        # 5. 获取客户的 company_id（对应外部数据库的 group_type）
+        # 查询完毕：提交并关闭主会话，释放 PG 连接与事务。
+        # 余额查询/终态更新改用短会话（见 InvoiceExcelService.session_factory）。
+        await session.commit()
+        await session.close()
+
+        # 快照生成所需的单头字段（session 关闭后 ORM 实例已 detached，
+        # 提前取标量值避免 expired attribute 访问）
+        customer_name = customer.name
+        period_start = invoice.period_start
+        period_end = invoice.period_end
+        total_amount = invoice.total_amount
+        discount_amount = invoice.discount_amount or Decimal(0)
+        invoice_status = invoice.status or "draft"
         group_type = customer.company_id
 
-        # 6. 生成 Excel
-        if invoice.customer_id is None:
-            # DB schema 允许 NULL（历史遗留），但生成明细文件必须有关联客户
-            logger.error(f"结算单 {invoice_id} 缺少客户 ID，无法生成明细文件")
-            return
-        excel_service = InvoiceExcelService(db=session, external_engine=external_engine)
+        # ===== 阶段 2：生成 Excel（不持 DB 连接）=====
+        # InvoiceExcelService 余额查询走 session_factory 短会话；Excel 构建
+        # 在 asyncio.to_thread 中执行（见 generate_detail_file），不阻塞事件循环
+        excel_service = InvoiceExcelService(
+            db=session,  # 仅为兼容签名，实际 DB 访问已走 session_factory
+            external_engine=external_engine,
+            session_factory=session_factory,
+        )
         file_path = await excel_service.generate_detail_file(
             invoice_id=invoice_id,
             customer_id=invoice.customer_id,
-            customer_name=customer.name,
-            period_start=invoice.period_start,
-            period_end=invoice.period_end,
-            total_amount=invoice.total_amount,
-            discount_amount=invoice.discount_amount or Decimal(0),
+            customer_name=customer_name,
+            period_start=period_start,
+            period_end=period_end,
+            total_amount=total_amount,
+            discount_amount=discount_amount,
             unit_price=unit_price,
             group_type=group_type,
-            invoice_status=invoice.status or "draft",
+            invoice_status=invoice_status,
             invoice_items=invoice_items,
         )
 
-        # 7. 更新结算单
+        # ===== 阶段 3：更新终态（短会话或主会话）=====
         if file_path:
-            invoice.detail_file_path = file_path  # pyright: ignore[reportAttributeAccessIssue]
-            invoice.detail_file_status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
             logger.info(f"结算单 {invoice_id} 明细文件生成成功: {file_path}")
+            new_status, new_path = "completed", file_path
         else:
-            invoice.detail_file_status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
             logger.warning(f"结算单 {invoice_id} 明细文件生成失败")
+            new_status, new_path = "failed", None
 
-        await session.commit()
+        await _update_final_status(session, session_factory, invoice_id, new_status, new_path)
 
     except Exception as e:
         logger.error(f"结算单 {invoice_id} 明细文件生成异常: {e}", exc_info=True)
         # 尝试标记为失败
         try:
-            invoice = await session.get(Invoice, invoice_id)
-            if invoice:
-                invoice.detail_file_status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
-                await session.commit()
+            await _update_final_status(session, session_factory, invoice_id, "failed", None)
         except Exception:
             pass
     finally:
         await session.close()
+
+
+async def _update_final_status(
+    session: AsyncSession,
+    session_factory,
+    invoice_id: int,
+    status: str,
+    file_path: str | None,
+):
+    """更新结算单明细文件终态。
+
+    有 session_factory 时用短会话（主会话已在构建前关闭）；否则回退主会话
+    （兼容未传工厂的调用方，如测试）。
+    """
+    if session_factory is not None:
+        async with session_factory() as s:
+            invoice = await s.get(Invoice, invoice_id)
+            if invoice:
+                invoice.detail_file_status = status  # pyright: ignore[reportAttributeAccessIssue]
+                if file_path:
+                    invoice.detail_file_path = file_path  # pyright: ignore[reportAttributeAccessIssue]
+                await s.commit()
+        return
+
+    invoice = await session.get(Invoice, invoice_id)
+    if invoice:
+        invoice.detail_file_status = status  # pyright: ignore[reportAttributeAccessIssue]
+        if file_path:
+            invoice.detail_file_path = file_path  # pyright: ignore[reportAttributeAccessIssue]
+        await session.commit()
