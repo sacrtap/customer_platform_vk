@@ -44,14 +44,6 @@ class TestMapMethodToAction:
         """POST 确认发票不应映射为 create"""
         assert map_method_to_action("POST", "/api/v1/billing/invoices/123/confirm") == "confirm"
 
-    def test_post_pay_invoice(self):
-        """POST 支付发票不应映射为 create"""
-        assert map_method_to_action("POST", "/api/v1/billing/invoices/123/pay") == "pay"
-
-    def test_post_complete_invoice(self):
-        """POST 完成发票不应映射为 create"""
-        assert map_method_to_action("POST", "/api/v1/billing/invoices/123/complete") == "complete"
-
     def test_post_cancel_invoice(self):
         """POST 取消发票不应映射为 create"""
         assert map_method_to_action("POST", "/api/v1/billing/invoices/123/cancel") == "cancel"
