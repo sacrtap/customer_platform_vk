@@ -55,6 +55,7 @@ pytest-cov==4.1.0
 pytest-xdist==3.8.0
 pytest-timeout==2.3.1
 pytest-testmon==2.2.0
+freezegun==1.5.5
 locust==2.20.0
 
 # Type Stubs (for Pyright type checking)
