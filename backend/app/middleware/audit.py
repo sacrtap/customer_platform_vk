@@ -359,8 +359,6 @@ def map_method_to_action(method: str, path: str) -> str:
         ("/roles", "assign_roles"),  # POST /users/<id>/roles
         ("/submit", "submit"),
         ("/confirm", "confirm"),
-        ("/pay", "pay"),
-        ("/complete", "complete"),
         ("/cancel", "cancel"),
     ]
 

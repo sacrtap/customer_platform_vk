@@ -1302,124 +1302,6 @@ async def retry_deduction(request: Request, invoice_id: int):
     return json({"code": 0, "message": message})
 
 
-@billing_bp.post("/invoices/<invoice_id:int>/pay")
-@auth_required
-@require_permission("billing:pay")
-async def pay_invoice(request: Request, invoice_id: int):
-    """确认付款"""
-    db: AsyncSession = request.ctx.db_session
-    user = get_current_user(request)
-    data = request.json or {}
-    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
-
-    # 获取付款前状态
-    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
-    if not invoice_before:
-        return json({"code": 40401, "message": "结算单不存在"}, status=404)
-
-    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
-    denied = await _ensure_invoice_scope(request, invoice_before)
-    if denied is not None:
-        return denied
-
-    status_before = invoice_before.status if invoice_before else None
-
-    success, message = await invoice_service.pay_invoice(
-        invoice_id=invoice_id,
-        payment_proof=data.get("payment_proof"),
-    )
-
-    if not success:
-        return json({"code": 40001, "message": message}, status=400)
-
-    # 获取付款后状态
-    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
-
-    # 结算单付款后清除相关缓存
-    await cache_service.invalidate_billing_cache()
-
-    # 记录审计日志
-    await create_audit_entry(
-        db_session=db,
-        user_id=user.get("user_id") if user else None,
-        action="pay",
-        module="billing",
-        record_id=invoice_id,
-        record_type="invoice",
-        changes={
-            "before": {"status": status_before, "payment_proof": None},
-            "after": {
-                "status": invoice_after.status if invoice_after else None,
-                "payment_proof": data.get("payment_proof"),
-            },
-        },
-        operation_type="standard",
-        ip_address=request.headers.get(
-            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-        ),
-        auto_commit=True,
-    )
-
-    return json({"code": 0, "message": message})
-
-
-@billing_bp.post("/invoices/<invoice_id:int>/complete")
-@auth_required
-@require_permission("billing:pay")
-async def complete_invoice(request: Request, invoice_id: int):
-    """完成结算（扣款）"""
-    db: AsyncSession = request.ctx.db_session
-    user = get_current_user(request)
-    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
-
-    # 获取完成前状态
-    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
-    if not invoice_before:
-        return json({"code": 40401, "message": "结算单不存在"}, status=404)
-
-    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
-    denied = await _ensure_invoice_scope(request, invoice_before)
-    if denied is not None:
-        return denied
-
-    status_before = invoice_before.status if invoice_before else None
-
-    success, message = await invoice_service.complete_invoice(
-        invoice_id=invoice_id,
-        user_id=user.get("user_id") if user else 1,  # pyright: ignore[reportArgumentType]
-    )
-
-    if not success:
-        return json({"code": 40001, "message": message}, status=400)
-
-    # 获取完成后状态
-    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
-
-    # 结算单完成后清除相关缓存
-    await cache_service.invalidate_billing_cache()
-
-    # 记录审计日志
-    await create_audit_entry(
-        db_session=db,
-        user_id=user.get("user_id") if user else None,
-        action="complete",
-        module="billing",
-        record_id=invoice_id,
-        record_type="invoice",
-        changes={
-            "before": {"status": status_before},
-            "after": {"status": invoice_after.status if invoice_after else None},
-        },
-        operation_type="standard",
-        ip_address=request.headers.get(
-            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-        ),
-        auto_commit=True,
-    )
-
-    return json({"code": 0, "message": message})
-
-
 @billing_bp.post("/invoices/<invoice_id:int>/cancel")
 @auth_required
 @require_permission("billing:edit")
@@ -1652,7 +1534,6 @@ async def export_invoices(request: Request):
         "draft": "草稿",
         "pending_customer": "待客户确认",
         "customer_confirmed": "客户已确认",
-        "paid": "已付款",
         "completed": "已结算",
         "cancelled": "已取消",
     }
@@ -2347,7 +2228,7 @@ async def batch_delete_invoices(request: Request):
 
 @billing_bp.post("/invoices/regenerate-detail-batch")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:detail_regenerate")
 async def regenerate_invoice_detail_batch(request: Request):
     """批量重新生成结算单明细 Excel 文件"""
     db: AsyncSession = request.ctx.db_session
@@ -2394,7 +2275,7 @@ async def regenerate_invoice_detail_batch(request: Request):
 
 @billing_bp.post("/invoices/<invoice_id:int>/regenerate-detail")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:detail_regenerate")
 async def regenerate_invoice_detail(request: Request, invoice_id: int):
     """重新生成结算单明细 Excel 文件"""
     db: AsyncSession = request.ctx.db_session
@@ -2425,7 +2306,7 @@ async def regenerate_invoice_detail(request: Request, invoice_id: int):
 
 @billing_bp.get("/invoices/detail-logs")
 @auth_required
-@require_permission("billing:view")
+@require_permission("billing:detail_status_view")
 async def get_invoice_detail_logs(request: Request):
     """结算单明细文件生成日志列表"""
     db: AsyncSession = request.ctx.db_session

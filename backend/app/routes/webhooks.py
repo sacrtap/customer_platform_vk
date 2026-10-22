@@ -427,9 +427,12 @@ async def payment_notify(request):
             )
             # 金额不匹配时，记录但不拒绝，由财务人工核对
 
-        # 更新结算单状态
-        invoice.status = InvoiceStatus.PAID
+        # 更新结算单状态：外部支付通知即视为结算完成（paid 旧流程已废弃）。
+        # paid_at 保留为外部支付时间凭证；completed_by 留空（外部回调无操作人）。
+        invoice.status = InvoiceStatus.COMPLETED
         invoice.paid_at = datetime.utcnow()
+        invoice.completed_at = datetime.utcnow().isoformat()
+        invoice.completed_by = None
         invoice.payment_method = payment_method
         invoice.transaction_id = transaction_id
 
