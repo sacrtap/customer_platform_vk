@@ -389,6 +389,8 @@ export function getInvoices(params?: {
   status?: string
   industry_type?: string
   erp_system?: string
+  manager_id?: string
+  sales_manager_id?: string
   page?: number
   page_size?: number
 }) {
@@ -544,16 +546,24 @@ export function getInvoiceDetailLogs(params?: {
   return api.get('/billing/invoices/detail-logs', { params })
 }
 
+export function batchSubmitInvoices(ids: number[]) {
+  return api.post('/billing/invoices/batch-submit', { ids })
+}
+
+export function batchCancelInvoices(ids: number[]) {
+  return api.post('/billing/invoices/batch-cancel', { ids })
+}
+
+export function batchDeleteInvoices(ids: number[]) {
+  return api.post('/billing/invoices/batch-delete', { ids })
+}
+
+export function regenerateDetailBatch(ids: number[]) {
+  return api.post('/billing/invoices/regenerate-detail-batch', { ids })
+}
+
 export function confirmInvoice(invoiceId: number) {
   return api.post(`/billing/invoices/${invoiceId}/confirm`)
-}
-
-export function payInvoice(invoiceId: number, data: { payment_proof?: string }) {
-  return api.post(`/billing/invoices/${invoiceId}/pay`, data)
-}
-
-export function completeInvoice(invoiceId: number) {
-  return api.post(`/billing/invoices/${invoiceId}/complete`)
 }
 
 export function deleteInvoice(id: number) {

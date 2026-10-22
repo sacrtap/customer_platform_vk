@@ -18,13 +18,14 @@
 
         <!-- 审批流程状态条 -->
         <div v-if="invoice.status !== 'cancelled'" class="flow-steps">
-          <a-steps :current="flowStepIndex" size="small">
+          <a-steps :current="flowStepIndex" size="small" :status="flowStepsStatus">
             <a-step title="创建" :description="invoice.created_by_name || undefined" />
             <a-step title="运营确认" :description="invoice.ops_confirmed_name || undefined" />
             <a-step title="销售确认" :description="invoice.sales_confirmed_name || undefined" />
             <a-step title="客户确认" :description="invoice.customer_confirmed_name || undefined" />
-            <a-step title="已付款" />
-            <a-step title="已完成" />
+            <!-- 客户确认后由后端自动扣款（confirm_invoice → _execute_deduction），
+                 故「客户确认」与「结算」合并为一步；paid 为旧流程兼容态，同落此步 -->
+            <a-step title="已结算" :description="flowSettledDescription || undefined" />
           </a-steps>
         </div>
         <div v-else class="flow-steps flow-cancelled">
@@ -172,7 +173,7 @@
                   </td>
                 </tr>
                 <tr v-if="!invoice.items || invoice.items.length === 0">
-                  <td :colspan="6" class="empty-state">暂无计费明细</td>
+                  <td :colspan="6" class="empty-state">该客户未配置计费规则或本周期无用量数据</td>
                 </tr>
               </tbody>
             </table>
@@ -393,19 +394,37 @@ const salesDisabledTip = computed(() => {
 })
 
 // ===== 审批流程状态条 =====
+// 流程共 5 步：创建 → 运营确认 → 客户确认前的各级确认 → 客户确认 → 已结算
+// 客户确认后由后端自动扣款（InvoiceService.confirm_invoice → _execute_deduction），
+// 成功即 completed，故「客户确认」与「结算」合并为末步「已结算」；
+// paid 为旧流程（线下付款）兼容态，同落末步。
+// 注意：Arco Steps 的 current 是 1-based 步号（内部 stepNumber = index + 1，
+// getStatus 比较 step < current），故此处映射必须用 1-based：draft=1 表示
+// 流程走到第 1 步「创建」。早年用 0-based 导致 draft 单整条流程无高亮、
+// completed 单高亮错步，属显示层 bug。
 const STATUS_TO_STEP: Record<string, number> = {
-  draft: 0,
-  pending_ops: 1,
-  pending_sales: 2,
-  pending_customer: 3,
-  customer_confirmed: 4,
-  paid: 4,
+  draft: 1,
+  pending_ops: 2,
+  pending_sales: 3,
+  pending_customer: 4,
+  customer_confirmed: 5,
+  paid: 5,
   completed: 5,
 }
 const flowStepIndex = computed(() => {
-  if (!props.invoice) return 0
-  return STATUS_TO_STEP[props.invoice.status] ?? 0
+  if (!props.invoice) return 1
+  return STATUS_TO_STEP[props.invoice.status] ?? 1
 })
+
+// customer_confirmed = 客户已确认但自动扣款失败/进行中：末步标红提示需重试扣款，
+// 避免误显示为「已结算完成」（当前仅 customer_confirmed 会走到这里，
+// completed/paid 均为终态）。
+const flowStepsStatus = computed(() =>
+  props.invoice?.status === 'customer_confirmed' ? 'error' : 'process'
+)
+const flowSettledDescription = computed(() =>
+  props.invoice?.status === 'customer_confirmed' ? '扣款失败，待重试' : undefined
+)
 
 // ===== 明细文件下载/重试 =====
 const handleDownload = async () => {
@@ -442,6 +461,20 @@ const handleRegenerate = async () => {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 16px 20px 6px;
+}
+/* Arco steps 默认字号偏大，720px 抽屉内 6 步的 description（人名）会截断/换行 */
+.flow-steps :deep(.arco-steps) {
+  padding: 4px 0;
+}
+.flow-steps :deep(.arco-steps-item-title) {
+  font-size: 13px;
+}
+.flow-steps :deep(.arco-steps-item-description) {
+  font-size: 12px;
+  max-width: 100px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .flow-cancelled {
   padding: 16px 20px;

@@ -1,4 +1,4 @@
-import { onUnmounted, reactive, ref } from 'vue'
+import { computed, onUnmounted, reactive, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import {
   getInvoices,
@@ -6,7 +6,6 @@ import {
   getInvoiceFileStatus,
   generateInvoice,
   applyDiscount,
-  payInvoice,
   submitInvoice,
   confirmInvoice,
   cancelInvoice,
@@ -15,6 +14,9 @@ import {
   confirmSales,
   retryDeduction,
   updateInvoiceSettlementAccount,
+  batchSubmitInvoices,
+  batchCancelInvoices,
+  batchDeleteInvoices,
 } from '@/api/billing'
 import type { Invoice, InvoiceItem } from '@/api/billing'
 
@@ -23,6 +25,8 @@ const defaultFilters = () => ({
   status: '',
   industry_type: '',
   erp_system: '',
+  manager_id: '',
+  sales_manager_id: '',
   invoice_date: [] as string[],
   due_date: [] as string[],
 })
@@ -51,23 +55,26 @@ export function useInvoice() {
   let pollTimer: ReturnType<typeof setInterval> | null = null
   const POLL_INTERVAL = 5000 // 5 秒轮询
 
-  /** 轮询列表中文件生成中的结算单状态 */
+  /** 轮询列表中文件生成中/待生成的结算单状态 */
   const pollFileStatus = async () => {
-    const generatingIds = invoices.value
-      .filter((inv) => inv.detail_file_status === 'generating')
+    const pollingIds = invoices.value
+      .filter(
+        (inv) => inv.detail_file_status === 'generating' || inv.detail_file_status === 'pending'
+      )
       .map((inv) => inv.id)
     // 也检查当前详情抽屉中的结算单
     if (
       currentDetail.value &&
-      currentDetail.value.detail_file_status === 'generating' &&
-      !generatingIds.includes(currentDetail.value.id)
+      (currentDetail.value.detail_file_status === 'generating' ||
+        currentDetail.value.detail_file_status === 'pending') &&
+      !pollingIds.includes(currentDetail.value.id)
     ) {
-      generatingIds.push(currentDetail.value.id)
+      pollingIds.push(currentDetail.value.id)
     }
-    if (generatingIds.length === 0) return
+    if (pollingIds.length === 0) return
 
     try {
-      const res = await getInvoiceFileStatus(generatingIds)
+      const res = await getInvoiceFileStatus(pollingIds)
       const list: { id: number; detail_file_status: string; detail_file_path?: string }[] =
         res.data?.list || []
 
@@ -91,11 +98,14 @@ export function useInvoice() {
         }
       }
 
-      // 如果所有生成中的都已完成/失败，停止轮询
-      const stillGenerating =
-        invoices.value.some((inv) => inv.detail_file_status === 'generating') ||
-        currentDetail.value?.detail_file_status === 'generating'
-      if (!stillGenerating && pollTimer) {
+      // 如果所有生成中/待生成的都已完成/失败，停止轮询
+      const stillPolling =
+        invoices.value.some(
+          (inv) => inv.detail_file_status === 'generating' || inv.detail_file_status === 'pending'
+        ) ||
+        currentDetail.value?.detail_file_status === 'generating' ||
+        currentDetail.value?.detail_file_status === 'pending'
+      if (!stillPolling && pollTimer) {
         clearInterval(pollTimer)
         pollTimer = null
       }
@@ -118,11 +128,14 @@ export function useInvoice() {
       clearInterval(pollTimer)
       pollTimer = null
     } else if (!document.hidden && !pollTimer) {
-      // 页面恢复可见时，检查是否还有生成中的文件
-      const hasGenerating =
-        invoices.value.some((inv) => inv.detail_file_status === 'generating') ||
-        currentDetail.value?.detail_file_status === 'generating'
-      if (hasGenerating) {
+      // 页面恢复可见时，检查是否还有生成中/待生成的文件
+      const hasPolling =
+        invoices.value.some(
+          (inv) => inv.detail_file_status === 'generating' || inv.detail_file_status === 'pending'
+        ) ||
+        currentDetail.value?.detail_file_status === 'generating' ||
+        currentDetail.value?.detail_file_status === 'pending'
+      if (hasPolling) {
         pollTimer = setInterval(pollFileStatus, POLL_INTERVAL)
         pollFileStatus() // 立即执行一次
       }
@@ -173,6 +186,8 @@ export function useInvoice() {
       if (filters.status) params.status = filters.status
       if (filters.industry_type) params.industry_type = filters.industry_type
       if (filters.erp_system) params.erp_system = filters.erp_system
+      if (filters.manager_id) params.manager_id = filters.manager_id
+      if (filters.sales_manager_id) params.sales_manager_id = filters.sales_manager_id
       if (filters.invoice_date?.length === 2) {
         params.invoice_date_from = filters.invoice_date[0]
         params.invoice_date_to = filters.invoice_date[1]
@@ -184,9 +199,13 @@ export function useInvoice() {
       const res = await getInvoices(params)
       invoices.value = res.data?.list || []
       total.value = res.data?.total || 0
-      // 如果列表中有文件生成中的结算单，启动轮询
-      const hasGenerating = invoices.value.some((inv) => inv.detail_file_status === 'generating')
-      if (hasGenerating) {
+      // 生成中或刚触发（pending）的结算单启动轮询：pending 会在任务开跑后
+      // 转为 generating，再转为 completed/failed；只轮 generating 会漏掉
+      // 手动重试后 pending→generating 的这段窗口
+      const needsPolling = invoices.value.some(
+        (inv) => inv.detail_file_status === 'generating' || inv.detail_file_status === 'pending'
+      )
+      if (needsPolling) {
         startPolling()
       } else {
         stopPolling()
@@ -273,17 +292,6 @@ export function useInvoice() {
     }
   }
 
-  const doPay = async (invoiceId: number, paymentMethod: string) => {
-    try {
-      await payInvoice(invoiceId, { payment_proof: paymentMethod })
-      Message.success('付款确认成功')
-      loadInvoices()
-    } catch (err) {
-      Message.error(errorMessage(err, '付款确认失败'))
-      throw err
-    }
-  }
-
   const doSubmit = async (invoiceId: number) => {
     try {
       await submitInvoice(invoiceId)
@@ -361,6 +369,81 @@ export function useInvoice() {
     }
   }
 
+  // ===== 批量操作 =====
+  const selectedInvoiceIds = ref<number[]>([])
+  const hasSelected = computed(() => selectedInvoiceIds.value.length > 0)
+
+  const handleBatchSelect = (checked: boolean, id: number) => {
+    if (checked) {
+      if (!selectedInvoiceIds.value.includes(id)) {
+        selectedInvoiceIds.value.push(id)
+      }
+    } else {
+      const idx = selectedInvoiceIds.value.indexOf(id)
+      if (idx > -1) {
+        selectedInvoiceIds.value.splice(idx, 1)
+      }
+    }
+  }
+
+  // 全选仅当前页（与客户管理一致）；取消全选清空整个选择
+  const handleBatchSelectAll = (checked: boolean, invoices: Invoice[]) => {
+    if (checked) {
+      selectedInvoiceIds.value = invoices.map((i) => i.id)
+    } else {
+      selectedInvoiceIds.value = []
+    }
+  }
+
+  const clearSelection = () => {
+    selectedInvoiceIds.value = []
+  }
+
+  const doBatchSubmit = async () => {
+    try {
+      const res = await batchSubmitInvoices(selectedInvoiceIds.value)
+      const data = res.data
+      Message.success(
+        `批量提交完成：成功 ${data?.success_count ?? 0} 个，跳过 ${data?.skipped?.length ?? 0} 个`
+      )
+      clearSelection()
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '批量提交失败'))
+      throw err
+    }
+  }
+
+  const doBatchCancel = async () => {
+    try {
+      const res = await batchCancelInvoices(selectedInvoiceIds.value)
+      const data = res.data
+      Message.success(
+        `批量取消完成：成功 ${data?.success_count ?? 0} 个，跳过 ${data?.skipped?.length ?? 0} 个`
+      )
+      clearSelection()
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '批量取消失败'))
+      throw err
+    }
+  }
+
+  const doBatchDelete = async () => {
+    try {
+      const res = await batchDeleteInvoices(selectedInvoiceIds.value)
+      const data = res.data
+      Message.success(
+        `批量删除完成：成功 ${data?.success_count ?? 0} 个，跳过 ${data?.skipped?.length ?? 0} 个`
+      )
+      clearSelection()
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '批量删除失败'))
+      throw err
+    }
+  }
+
   return {
     loading,
     detailLoading,
@@ -383,7 +466,6 @@ export function useInvoice() {
     doGenerate,
     doApplyDiscount,
     doUpdateSettlementAccount,
-    doPay,
     doSubmit,
     doConfirm,
     doConfirmOps,
@@ -391,5 +473,13 @@ export function useInvoice() {
     doRetryDeduction,
     doCancel,
     doDelete,
+    selectedInvoiceIds,
+    hasSelected,
+    handleBatchSelect,
+    handleBatchSelectAll,
+    clearSelection,
+    doBatchSubmit,
+    doBatchCancel,
+    doBatchDelete,
   }
 }
