@@ -1020,3 +1020,29 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 42: 结算管理页五项功能 + 明细生成事件循环冻结修复
+<!-- trellis-session: v=2 fp=273983e3cead4ccf -->
+
+**Date**: 2026-10-22
+**Task**: 结算管理页五项功能 + 明细生成事件循环冻结修复
+**Branch**: `main`
+
+### Summary
+
+结算单管理页五项功能（经理筛选/无经理流程/批量操作/明细状态可见化/流程条优化）+ 修复明细批量生成期间接口无反馈。卡顿根因：AsyncIOScheduler 默认把 async job 跑在 Web 主事件循环，纯同步 openpyxl 构建零 await 点独占循环，实测详情接口 13ms→17.16s。修复：Excel 构建改 asyncio.to_thread + 任务体三段化释放 PG 连接 + 连接池扩容。修复后 8 张并发期间最高 0.557s、81 张全量 0 ERROR 全 completed。已通过 PR #56 合入 main。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `99874e6` | feat(billing): 结算管理页五项功能 |
+| `6101694` | fix(billing): 明细批量生成期间事件循环冻结导致接口无反馈 |
+| `e8bf83b` | fix(billing): 同步前后端结算状态文案 |
+| `2877c42` | refactor(billing): 清理死代码 |
+| `ef275b8` | chore: task.json 由 pre-commit 更新 |
+
+### Status
+
+[OK] **Completed**

@@ -76,6 +76,21 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def cst_today() -> date:
+    """获取当前 CST 日期（业务口径的「今天」）。
+
+    业务上所有「今天/近 N 天」统计均按 CST 自然日计算，但运行环境时区
+    可能是 UTC（CI runner / 容器默认 UTC）。date.today() 跟随环境时区，
+    在 UTC 16:00-24:00 时段会返回 CST 的次日，导致：
+
+    - 统计窗口偏移 1 天（近 30 天实际从 31 天前起算）
+    - 与 expiry.astimezone(CST).date() 混算时差 1 天（燃尽天数多算一天）
+
+    因此「今天」一律用本函数，不要用 date.today()。
+    """
+    return datetime.now(CST).date()
+
+
 def local_today_utc_start() -> datetime:
     """今天（本地日期）对应的 UTC 开始时刻。"""
     today = date.today()

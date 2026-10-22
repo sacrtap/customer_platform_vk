@@ -3,7 +3,7 @@
 import asyncio
 import json as _json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sanic.request import Request
@@ -28,7 +28,7 @@ from ...services.package_balance import (
     build_package_remaining_cte as _build_package_remaining_cte,
 )
 from ...utils.audit_helpers import create_audit_entry
-from ...utils.timezone import CST
+from ...utils.timezone import CST, cst_today
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,9 @@ async def _batch_query_consumption_stats(
 
     from ...models.daily_consumption import DailyConsumption
 
-    today = date.today()
+    # 统计窗口按 CST 口径：缓存 key 与 30 天窗口都不应跟随运行环境时区
+    # （UTC 容器在 CST 00:00-08:00 期间会少算一天数据，且缓存 key 与 CST 部署不一致）
+    today = cst_today()
     today_str = today.isoformat()
     thirty_days_ago = today - timedelta(days=30)
 
@@ -179,7 +181,10 @@ def _compute_burn_down(
         expiry = package_info.get("expiry_date")
         if expiry is None:
             return {"daily_avg_cost": None, "consumption_days": 0, "days_remaining": None}
-        days_remaining = (expiry.astimezone(CST).date() - date.today()).days
+        # 两个日期都按 CST 口径取：expiry 转 CST，今天用 cst_today()。
+        # 不能用 date.today()（跟随运行环境时区，UTC 容器下会取到 CST 的次日，
+        # 导致剩余天数多算一天）
+        days_remaining = (expiry.astimezone(CST).date() - cst_today()).days
         return {
             "daily_avg_cost": None,
             "consumption_days": 0,
@@ -658,7 +663,8 @@ async def _query_balance_rows_raw(
 
             from ...models.daily_consumption import DailyConsumption
 
-            today = date.today()
+            # 30 天窗口按 CST 口径，与展示层 days_remaining 的 CST 计算保持一致
+            today = cst_today()
             thirty_days_ago = today - timedelta(days=30)
             consumption_cte = (
                 select(
@@ -681,6 +687,10 @@ async def _query_balance_rows_raw(
             )
             # SQL 层计算 days_remaining 用于排序（float）
             # 包年客户（package_cte 命中）用「套餐到期剩余天数」，其余沿用消耗推算公式
+            # 「今天」显式取 CST 日期：func.current_date() 跟随 PG 会话时区（CI 的
+            # postgres 容器为 UTC，会取到 CST 次日），与 Python 侧 cst_today() 差 1 天，
+            # 导致排序结果与展示层 days_remaining 不一致
+            cst_today_expr = func.cast(func.timezone("Asia/Shanghai", func.now()), Date)
             days_remaining_expr = case(
                 (
                     Customer.settlement_type == "postpaid",
@@ -688,7 +698,7 @@ async def _query_balance_rows_raw(
                 ),
                 (
                     package_cte.c.cid.is_not(None),
-                    func.cast(package_cte.c.expiry_date, Date) - func.current_date(),
+                    func.cast(package_cte.c.expiry_date, Date) - cst_today_expr,
                 ),
                 (
                     func.coalesce(consumption_cte.c.total_cost_30d, 0) <= 0,
@@ -1344,13 +1354,14 @@ async def get_balance_stats(request: Request):
     low_balance_count = (await db.execute(low_balance_stmt)).scalar() or 0
 
     # --- 即将耗尽客户数（days_remaining ≤ 7，仅预付费）---
-    from datetime import date, timedelta
+    from datetime import timedelta
 
     from sqlalchemy import Date, case
 
     from ...models.daily_consumption import DailyConsumption
 
-    today = date.today()
+    # 30 天窗口按 CST 口径，与展示层 days_remaining 的 CST 计算保持一致
+    today = cst_today()
     thirty_days_ago = today - timedelta(days=30)
     consumption_cte = (
         select(
@@ -1366,10 +1377,13 @@ async def get_balance_stats(request: Request):
         .cte("consumption_stats_burning")
     )
     # 燃尽天数：包年客户用套餐到期剩余天数，其余客户沿用按日均消耗推算
+    # 「今天」显式取 CST 日期（同排序层）：func.current_date() 跟随 PG 会话时区，
+    # CI 的 postgres 容器为 UTC 会取到 CST 次日，与展示层 days_remaining 差 1 天
+    cst_today_expr = func.cast(func.timezone("Asia/Shanghai", func.now()), Date)
     burning_soon_days_expr = case(
         (
             package_cte.c.cid.is_not(None),
-            func.cast(package_cte.c.expiry_date, Date) - func.current_date(),
+            func.cast(package_cte.c.expiry_date, Date) - cst_today_expr,
         ),
         else_=(
             (

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 41
-- **Last Active**: 2026-10-21
+- **Total Sessions**: 42
+- **Last Active**: 2026-10-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1022 | Active |
+| `journal-1.md` | ~1048 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 42 | 2026-10-22 | 结算管理页五项功能 + 明细生成事件循环冻结修复 | `99874e6`, `6101694`, `e8bf83b`, `2877c42`, `ef275b8` | `main` |
 | 41 | 2026-10-21 | 客户代扣结算功能（结算账户）开发与四项修复 | `cd9fe09` | `main` |
 | 40 | 2026-10-21 | 结算单列表新增行业/ERP筛选 + 修复批量生成预览默认为空 | `56c005b`, `1252843` | `main` |
 | 39 | 2026-10-14 | 包年套餐余额显示优化（共享模块抽取 / 客户管理页跨页对齐 / 开放平台余额口径 / 拆分提交） | `545b4bf`, `cc8ae0b`, `ec2fba3`, `d3d1129`, `22ed060`, `5330009`, `c8e7cf5`, `92f90c3`, `862909b`, `ab681ae` | `optimize/annual-plan-balance-display` |

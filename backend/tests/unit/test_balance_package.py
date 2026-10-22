@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from freezegun import freeze_time
 
 from app.routes.billing.balances import (
     _assemble_balance_rows,
@@ -22,6 +23,17 @@ from app.routes.billing.balances import (
 )
 
 CST = timezone(timedelta(hours=8))
+
+# 冻结基准时刻：CST 2026-10-22 12:00:00（= UTC 04:00，同一天的白天，
+# 远离 CST/UTC 的日期边界）。不依赖真实时钟，测试在任何运行时刻都确定。
+# 选 UTC 04:00 而非 UTC 20:00：CI 在 UTC 20 点运行时，真实 now() 转 CST 已是
+# 次日——那正是本次修复的 bug 场景，测试必须能在该时刻复现旧代码的失败。
+FROZEN_AT = "2026-10-22 04:00:00"
+
+
+def _utcnow() -> datetime:
+    """冻结时刻对应的 UTC datetime（替代 datetime.now(timezone.utc)）。"""
+    return datetime(2026, 10, 22, 4, 0, 0, tzinfo=timezone.utc)
 
 
 def _package_info(**overrides) -> dict:
@@ -34,8 +46,8 @@ def _package_info(**overrides) -> dict:
         "remaining_amount": 90000.0,
         "remaining_count": 900.0,
         "consumed_amount": 30000.0,
-        "expiry_date": datetime.now(timezone.utc) + timedelta(days=200),
-        "effective_date": datetime.now(timezone.utc) - timedelta(days=160),
+        "expiry_date": _utcnow() + timedelta(days=200),
+        "effective_date": _utcnow() - timedelta(days=160),
     }
     info.update(overrides)
     return info
@@ -64,9 +76,10 @@ def _customer(**overrides) -> SimpleNamespace:
 # ────────────────────────────────────────────────────────────
 
 
+@freeze_time(FROZEN_AT)
 def test_burn_down_valid_package_uses_expiry_days():
     """有效包年 → days_remaining = 到期剩余天数（CST 日期差），日均/消耗天数为空"""
-    expiry = datetime.now(timezone.utc) + timedelta(days=45)
+    expiry = _utcnow() + timedelta(days=45)
     result = _compute_burn_down(
         real_amount=0.0,
         bonus_amount=0.0,
@@ -77,6 +90,27 @@ def test_burn_down_valid_package_uses_expiry_days():
     assert result["days_remaining"] == 45
     assert result["daily_avg_cost"] is None
     assert result["consumption_days"] == 0
+
+
+@freeze_time("2026-10-21 20:00:00")  # UTC 20:00 = CST 次日 04:00（CI nightly 运行时刻）
+def test_burn_down_days_remaining_is_cst_not_env_local_date():
+    """回归：UTC 容器在 CST 次日时段运行，剩余天数仍按 CST 口径计算
+
+    旧代码用 date.today()（跟随运行环境时区）：UTC 容器此刻 today=10-21，
+    而 expiry 转 CST 是 12-06，差值 46（多算一天）。修复后用 cst_today()
+    取 CST 的 10-22，差值 45。本测试在 CST 时区环境下运行旧代码会通过，
+    因此必须配合 TZ=UTC 才能真正守住回归（见 test_timezone_matrix.py）。
+    """
+    expiry = datetime(2026, 12, 6, 0, 0, 0, tzinfo=timezone.utc)  # CST 12-06 08:00
+    result = _compute_burn_down(
+        real_amount=0.0,
+        bonus_amount=0.0,
+        settlement_type=None,
+        stats=None,
+        package_info=_package_info(expiry_date=expiry),
+    )
+    # 冻结在 UTC 10-21 20:00 → CST 10-22 04:00；CST 12-06 - CST 10-22 = 45
+    assert result["days_remaining"] == 45
 
 
 def test_burn_down_valid_package_without_expiry_returns_none():
@@ -220,13 +254,14 @@ def _make_rule(cid: int, *, base_fee, is_unlimited=False, limit_count=None, days
         id=cid * 10,
         customer_id=cid,
         package_limits=limits,
-        expiry_date=datetime.now(timezone.utc) + timedelta(days=days_ahead),
-        effective_date=datetime.now(timezone.utc) - timedelta(days=200),
+        expiry_date=_utcnow() + timedelta(days=days_ahead),
+        effective_date=_utcnow() - timedelta(days=200),
         pricing_type="package",
     )
 
 
 @pytest.mark.asyncio
+@freeze_time(FROZEN_AT)
 async def test_batch_query_package_info_limit_and_count():
     """限量套餐：remaining_amount = base_fee - 累计消耗；remaining_count = limit_count - 累计订单量"""
     rule = _make_rule(1, base_fee=120000.0, limit_count=1200.0)
@@ -249,6 +284,7 @@ async def test_batch_query_package_info_limit_and_count():
 
 
 @pytest.mark.asyncio
+@freeze_time(FROZEN_AT)
 async def test_batch_query_package_info_unlimited_has_no_count():
     """不限量套餐：remaining_count 为 None"""
     rule = _make_rule(2, base_fee=80000.0, is_unlimited=True, limit_count=None)
@@ -265,6 +301,7 @@ async def test_batch_query_package_info_unlimited_has_no_count():
 
 
 @pytest.mark.asyncio
+@freeze_time(FROZEN_AT)
 async def test_batch_query_package_info_clamps_negative():
     """超量使用 → 剩余额度/次数下限为 0（不出现负值）"""
     rule = _make_rule(3, base_fee=10000.0, limit_count=100.0)
@@ -281,14 +318,15 @@ async def test_batch_query_package_info_clamps_negative():
 
 
 @pytest.mark.asyncio
+@freeze_time(FROZEN_AT)
 async def test_batch_query_package_info_expired_flag():
     """无生效规则、客户为 yearly、存在已过期规则 → is_expired=True，剩余额度为 0"""
     expired_rule = SimpleNamespace(
         id=40,
         customer_id=4,
         package_limits={"base_fee": 50000.0, "is_unlimited": False, "limit_count": 500},
-        expiry_date=datetime.now(timezone.utc) - timedelta(days=30),
-        effective_date=datetime.now(timezone.utc) - timedelta(days=400),
+        expiry_date=_utcnow() - timedelta(days=30),
+        effective_date=_utcnow() - timedelta(days=400),
     )
 
     db = AsyncMock()
