@@ -14,10 +14,15 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sanic.response import json
 
 from ..middleware.auth import auth_required, require_permission
-from ..utils.timezone import CST, cst_today
+from ..utils.timezone import CST, cst_now, cst_today
 from .monitor import get_task_results, monitored_task
 
 logger = logging.getLogger(__name__)
+
+# 明细文件生成卡死判定阈值：Excel 构建走 asyncio.to_thread（秒级），
+# 10 分钟足以覆盖大单 + 外部 MySQL 慢查询；超时即判定卡死转 failed，
+# 由用户显式重新生成（与「生成中不可手动重试」约束一致）。
+DETAIL_STUCK_MINUTES = 10
 
 # 创建全局调度器实例
 scheduler = AsyncIOScheduler()
@@ -82,6 +87,32 @@ def init_scheduler(app):
                 if recovered > 0:
                     logger.warning(f"检测到 {recovered} 个卡住的同步任务，已标记为失败")
                 return {"recovered": recovered}
+
+        @monitored_task("check_stuck_detail_tasks", "卡住明细任务检测")
+        async def _check_stuck_detail_tasks():
+            from sqlalchemy import update
+
+            from ..models.billing import Invoice
+
+            # updated_at 是 timestamp without time zone（naive CST 墙钟），
+            # asyncpg 不接受 aware datetime 参数 → 剥离 tzinfo
+            threshold = cst_now().replace(tzinfo=None) - timedelta(minutes=DETAIL_STUCK_MINUTES)
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                result = await session.execute(
+                    update(Invoice)
+                    .where(
+                        Invoice.detail_file_status == "generating",
+                        Invoice.updated_at < threshold,
+                    )
+                    .values(detail_file_status="failed")
+                )
+                await session.commit()
+                n = result.rowcount or 0
+                if n:
+                    logger.warning(
+                        f"检测到 {n} 个卡住的明细任务（>{DETAIL_STUCK_MINUTES}min），标记为失败"
+                    )
+                return {"recovered": n}
 
         # 添加定时任务 - 使用 lambda 传递 session
 
@@ -163,6 +194,16 @@ def init_scheduler(app):
             trigger=IntervalTrigger(hours=1),
             id="check_stuck_sync_tasks",
             name="卡住同步任务检测",
+            replace_existing=True,
+        )
+
+        # 卡住明细任务检测：每 10 分钟把 generating 超过 10 分钟的任务转 failed，
+        # 兜底启动恢复钩子未覆盖的运行中进程（进程还在、任务协程却挂了）
+        scheduler.add_job(
+            _check_stuck_detail_tasks,
+            trigger=IntervalTrigger(minutes=10),
+            id="check_stuck_detail_tasks",
+            name="卡住明细任务检测",
             replace_existing=True,
         )
 

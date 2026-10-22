@@ -55,28 +55,38 @@ async def _generate_invoice_detail_inner(
     logger.info(f"开始异步生成结算单 {invoice_id} 的明细文件")
 
     try:
+        # ===== 阶段 0：原子 claim（仅当 pending 才置 generating）=====
+        # 防重复触发并发覆盖：批量重试/启动重新入队可能对同一单并发挂多个 job
+        # （replace_existing 只替换 jobstore 条目，不取消在跑的协程），条件
+        # UPDATE 保证同时仅一个实例进入构建段，其余直接跳过。
+        from sqlalchemy import update
+
+        claim = await session.execute(
+            update(Invoice)
+            .where(Invoice.id == invoice_id, Invoice.detail_file_status == "pending")
+            .values(detail_file_status="generating")
+        )
+        await session.commit()
+        if claim.rowcount == 0:  # pyright: ignore[reportAttributeAccessIssue]
+            logger.info(f"结算单 {invoice_id} 非待生成状态，跳过（另一实例在跑或已完成）")
+            return
+
         # ===== 阶段 1：数据查询（持主 session）=====
-        invoice = await session.get(Invoice, invoice_id)
+        invoice = await session.get(Invoice, invoice_id)  # claim 成功后重新加载
         if not invoice:
             logger.error(f"结算单 {invoice_id} 不存在")
             return
 
-        # 标记为生成中
-        invoice.detail_file_status = "generating"  # pyright: ignore[reportAttributeAccessIssue]
-        await session.commit()
-
         customer = await session.get(Customer, invoice.customer_id)
         if not customer:
             logger.error(f"结算单 {invoice_id} 的客户不存在")
-            invoice.detail_file_status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
-            await session.commit()
+            await _update_final_status(session, session_factory, invoice_id, "failed", None)
             return
 
         if invoice.customer_id is None:
             # DB schema 允许 NULL（历史遗留），但生成明细文件必须有关联客户
             logger.error(f"结算单 {invoice_id} 缺少客户 ID，无法生成明细文件")
-            invoice.detail_file_status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
-            await session.commit()
+            await _update_final_status(session, session_factory, invoice_id, "failed", None)
             return
 
         # 查询结算明细项（JOIN PricingRule 获取多层计费信息）
@@ -172,24 +182,33 @@ async def _update_final_status(
     status: str,
     file_path: str | None,
 ):
-    """更新结算单明细文件终态。
+    """更新结算单明细文件终态（条件 UPDATE：仅当处于 generating 才写终态）。
+
+    条件化保证终态写对陈旧运行幂等：`replace_existing=True` 只替换 jobstore
+    条目，不取消在跑的协程（APScheduler AsyncIOExecutor 不取消进行中的 task），
+    若无条件写终态，后启动的实例会覆盖先启动实例的结果（last-writer-wins）。
 
     有 session_factory 时用短会话（主会话已在构建前关闭）；否则回退主会话
     （兼容未传工厂的调用方，如测试）。
     """
+    from sqlalchemy import update
+
+    async def _apply(s: AsyncSession) -> int:
+        result = await s.execute(
+            update(Invoice)
+            .where(Invoice.id == invoice_id, Invoice.detail_file_status == "generating")
+            .values(
+                detail_file_status=status,
+                **({"detail_file_path": file_path} if file_path else {}),
+            )
+        )
+        await s.commit()
+        return result.rowcount or 0  # pyright: ignore[reportAttributeAccessIssue]
+
     if session_factory is not None:
         async with session_factory() as s:
-            invoice = await s.get(Invoice, invoice_id)
-            if invoice:
-                invoice.detail_file_status = status  # pyright: ignore[reportAttributeAccessIssue]
-                if file_path:
-                    invoice.detail_file_path = file_path  # pyright: ignore[reportAttributeAccessIssue]
-                await s.commit()
-        return
-
-    invoice = await session.get(Invoice, invoice_id)
-    if invoice:
-        invoice.detail_file_status = status  # pyright: ignore[reportAttributeAccessIssue]
-        if file_path:
-            invoice.detail_file_path = file_path  # pyright: ignore[reportAttributeAccessIssue]
-        await session.commit()
+            n = await _apply(s)
+    else:
+        n = await _apply(session)
+    if n == 0:
+        logger.info(f"结算单 {invoice_id} 非生成中，跳过终态写（已被其他运行覆盖）")

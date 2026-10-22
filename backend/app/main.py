@@ -102,6 +102,52 @@ async def _check_schema_version(session_factory) -> None:
         log.debug(f"跳过迁移版本校验：{e}")
 
 
+async def _recover_stuck_detail_tasks(async_session_maker, trigger_fn, app=None) -> dict:
+    """启动恢复中断/待生成的明细文件任务。
+
+    2026-10：明细任务存内存 APScheduler jobstore，重启即丢失；DB 中
+    generating 会永久卡死、pending 永不开跑。恢复策略：
+    - generating → failed：进程中断于 Excel 构建段，可能已写半成品文件，
+      标记 failed 由用户/定时任务显式重新生成（从零覆盖），保持状态一致；
+    - pending → 重新入队：pending 表示已触发但任务未开跑（无半成品），
+      重启丢 job 后重跑无副作用、安全。
+
+    Args:
+        async_session_maker: 应用会话工厂。
+        trigger_fn: 触发函数 (app, invoice_id)，重新入队用。
+        app: 传给 trigger_fn 的应用实例（可能为 None，由调用方按需提供）。
+
+    Returns:
+        {"interrupted": n, "requeued": m} 供日志与测试断言。
+    """
+    from sqlalchemy import select, update
+
+    from app.models.billing import Invoice
+
+    async with async_session_maker() as session:
+        interrupted = await session.execute(
+            update(Invoice)
+            .where(Invoice.detail_file_status == "generating")
+            .values(detail_file_status="failed")
+        )
+        pending_ids = (
+            (
+                await session.execute(
+                    select(Invoice.id).where(Invoice.detail_file_status == "pending")
+                )
+            )
+            .scalars()
+            .all()
+        )
+        await session.commit()
+        interrupted_n = interrupted.rowcount or 0  # pyright: ignore[reportAttributeAccessIssue]
+    requeued = 0
+    for invoice_id in pending_ids:
+        await trigger_fn(app, invoice_id)
+        requeued += 1
+    return {"interrupted": interrupted_n, "requeued": requeued}
+
+
 def create_app(
     app_name: str | None = None,
     database_engine: Union[AsyncEngine, Engine, None] = None,
@@ -325,6 +371,29 @@ def create_app(
                         logger.info("✓ 无卡住的同步任务")
             except Exception as e:
                 logger.error(f"恢复卡住任务失败: {e}")
+
+        # 恢复中断/待生成的明细文件任务（generating→failed、pending 重新入队）
+        if is_async:
+            try:
+                from app.routes.billing.invoices import (
+                    _trigger_detail_generation_for_app,
+                )
+
+                detail_recovered = await _recover_stuck_detail_tasks(
+                    async_session_maker,  # pyright: ignore[reportPossiblyUnboundVariable]
+                    _trigger_detail_generation_for_app,
+                    app,
+                )
+                if detail_recovered["interrupted"]:
+                    logger.info(
+                        f"启动恢复：{detail_recovered['interrupted']} 个中断的明细任务标记为失败"
+                    )
+                if detail_recovered["requeued"]:
+                    logger.info(
+                        f"启动恢复：重新入队 {detail_recovered['requeued']} 个待生成明细任务"
+                    )
+            except Exception as e:
+                logger.error(f"恢复明细文件任务失败: {e}")
 
     # 应用关闭事件
     @app.after_server_stop

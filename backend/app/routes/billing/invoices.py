@@ -80,12 +80,12 @@ def _write_cell_text_safe(cell, value):
         cell.data_type = "s"
 
 
-async def _trigger_detail_generation(request: Request, invoice_id: int):
-    """触发结算单明细文件异步生成"""
+async def _trigger_detail_generation_for_app(app: Any, invoice_id: int):
+    """触发结算单明细文件异步生成（请求无关版本，供启动恢复钩子复用）"""
     from ...tasks.scheduler import get_scheduler
 
-    external_engine = getattr(request.app.ctx, "external_mysql_engine", None)
-    session_factory = request.app.ctx.async_session_maker
+    external_engine = getattr(app.ctx, "external_mysql_engine", None)
+    session_factory = app.ctx.async_session_maker
 
     scheduler = get_scheduler()
     scheduler.add_job(
@@ -101,6 +101,11 @@ async def _trigger_detail_generation(request: Request, invoice_id: int):
         misfire_grace_time=600,
         coalesce=True,
     )
+
+
+async def _trigger_detail_generation(request: Request, invoice_id: int):
+    """触发结算单明细文件异步生成（保持现有调用点签名不变）"""
+    await _trigger_detail_generation_for_app(request.app, invoice_id)
 
 
 @billing_bp.get("/invoices")
@@ -2356,22 +2361,25 @@ async def regenerate_invoice_detail_batch(request: Request):
     triggered = 0
     failed: List[Dict[str, Any]] = []
     for invoice_id in invoice_ids:
-        invoice = await invoice_service.get_invoice_by_id(invoice_id)
-        if not invoice:
-            failed.append({"id": invoice_id, "reason": "结算单不存在"})
-            continue
-        # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
-        denied = await _ensure_invoice_scope(request, invoice)
-        if denied is not None:
-            failed.append({"id": invoice_id, "reason": "无权访问该结算单"})
-            continue
         try:
-            # 重置状态为 pending 并触发异步生成
+            invoice = await invoice_service.get_invoice_by_id(invoice_id)
+            if not invoice:
+                failed.append({"id": invoice_id, "reason": "结算单不存在"})
+                continue
+            # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+            denied = await _ensure_invoice_scope(request, invoice)
+            if denied is not None:
+                failed.append({"id": invoice_id, "reason": "无权访问该结算单"})
+                continue
+            # 重置状态为 pending 并触发异步生成。commit 先于 add_job：保证 job
+            # 运行时已持久化 pending（job 用独立 session 查 DB 做 claim）；
+            # 单条异常 rollback 后继续下一条，避免 DB 抖动中断整批。
             invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
             await db.commit()
             await _trigger_detail_generation(request, invoice_id)
             triggered += 1
         except Exception as e:
+            await db.rollback()
             logger.warning(f"结算单 {invoice_id} 明细重新生成触发失败: {e}")
             failed.append({"id": invoice_id, "reason": "触发失败"})
 
@@ -2401,12 +2409,16 @@ async def regenerate_invoice_detail(request: Request, invoice_id: int):
     if denied is not None:
         return denied
 
-    # 重置状态为 pending
-    invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
-    await db.commit()
-
-    # 触发异步生成
-    await _trigger_detail_generation(request, invoice_id)
+    # 重置状态为 pending 并触发异步生成（commit 先于 add_job，理由见批量端点）；
+    # 触发失败回滚 pending，避免单永久卡 pending 且无入口可重试
+    try:
+        invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
+        await db.commit()
+        await _trigger_detail_generation(request, invoice_id)
+    except Exception as e:
+        await db.rollback()
+        logger.warning(f"结算单 {invoice_id} 明细重新生成触发失败: {e}")
+        return json({"code": 50000, "message": "触发失败，请重试"}, status=500)
 
     return json({"code": 0, "message": "明细文件重新生成中"})
 
