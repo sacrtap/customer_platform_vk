@@ -17,17 +17,10 @@
 
     <div class="table-section">
       <div class="search-bar">
-        <a-input
-          v-model="keyword"
-          placeholder="按客户名称 / 公司 ID 搜索"
-          allow-clear
-          style="width: 260px"
-          @press-enter="handleSearch"
-          @clear="handleSearch"
-        >
-          <template #prefix><icon-search /></template>
-        </a-input>
-        <a-button @click="handleSearch">搜索</a-button>
+        <CustomerSearchInput v-model="keyword" @search="handleSearch" />
+        <div class="search-actions">
+          <button type="button" class="btn primary" @click="handleSearch">筛选</button>
+        </div>
       </div>
 
       <a-table
@@ -180,11 +173,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import { IconSearch } from '@arco-design/web-vue/es/icon'
 import type { FormInstance } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import { useUserStore } from '@/stores/user'
 import { getErpSystemsList } from '@/api/erpSystems'
 import type { ErpSystem } from '@/types'
@@ -501,6 +494,33 @@ onMounted(() => {
   gap: 8px;
   padding: 16px;
   border-bottom: 1px solid var(--soft);
+}
+
+/* 筛选按钮固定在首行右侧（与 CustomerFilters.vue 一致） */
+.search-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.btn.primary {
+  padding: 9px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+  white-space: nowrap;
+}
+.btn.primary:hover {
+  background: #1e40af;
 }
 
 .balance-cell {
