@@ -111,7 +111,7 @@
                 <div
                   v-if="record.usage_30d != null && record.usage_30d > 0"
                   class="usage-cell has-tooltip"
-                  :data-tooltip="`30天消耗 ¥${formatNumber(record.usage_30d_amount || 0)}`"
+                  :data-tooltip="`30天消耗 ${formatCurrency(record.usage_30d_amount || 0)}`"
                 >
                   <div class="bar">
                     <span :style="{ width: `${Math.min(100, record.usage_30d)}%` }"></span>
@@ -254,7 +254,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
+import { formatCurrency, formatDateTime } from '@/utils/formatters'
 import type { Customer } from '@/types'
 import ColumnSettingModal from './ColumnSettingModal.vue'
 

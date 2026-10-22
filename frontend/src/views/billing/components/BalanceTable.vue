@@ -64,7 +64,7 @@
                   <span
                     v-if="!record.package_is_unlimited && record.package_remaining_count != null"
                     class="bonus"
-                    >次数：{{ formatNumber(record.package_remaining_count) }}</span
+                    >次数：{{ formatCount(record.package_remaining_count) }}</span
                   >
                 </div>
               </div>
@@ -271,14 +271,15 @@ const getInitials = (name?: string) => {
   return name.charAt(0).toUpperCase()
 }
 
-const formatNumber = (num: number | null | undefined): string => {
-  if (num == null) return '0'
-  return num.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
-}
-
 const formatAmount = (num: number | null | undefined): string => {
   if (num == null) return '0.00'
   return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// 计数类数值（套餐剩余次数等）：千分位整数，无小数
+const formatCount = (num: number | null | undefined): string => {
+  if (num == null) return '0'
+  return num.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
 }
 
 // 负余额 = 欠费（后付费客户未回款或预付费客户透支），红色高亮并加「欠费」标签；
@@ -350,12 +351,12 @@ const getBurnTooltip = (record: Balance): string => {
 
   const parts: string[] = []
   if (record.daily_avg_cost != null) {
-    parts.push(`日均消耗 ¥${formatNumber(record.daily_avg_cost)}`)
+    parts.push(`日均消耗 ¥${formatAmount(record.daily_avg_cost)}`)
   }
   parts.push(`30 天内有 ${record.consumption_days} 天消费记录`)
 
   const remaining = record.real_amount + record.bonus_amount
-  parts.push(`当前余额 ¥${formatNumber(remaining)}`)
+  parts.push(`当前余额 ¥${formatAmount(remaining)}`)
 
   if (record.days_remaining <= 0) {
     parts.push('余额已耗尽，需立即充值')
@@ -410,11 +411,11 @@ const getPackageBurnTooltip = (record: Balance): string => {
     parts.push('套餐无固定到期日')
   }
   if (record.is_package && !record.package_expired) {
-    parts.push(`套餐剩余额度 ¥${formatNumber(record.package_remaining_amount)}`)
+    parts.push(`套餐剩余额度 ¥${formatAmount(record.package_remaining_amount)}`)
     if (record.package_is_unlimited) {
       parts.push('套餐类型：不限量')
     } else if (record.package_remaining_count != null) {
-      parts.push(`套餐剩余次数 ${formatNumber(record.package_remaining_count)}`)
+      parts.push(`套餐剩余次数 ${formatCount(record.package_remaining_count)}`)
     }
     if (record.package_expiry_date && record.days_remaining != null) {
       parts.push(
@@ -428,12 +429,12 @@ const getPackageBurnTooltip = (record: Balance): string => {
 // 「已消耗」列包年 tooltip：说明该值为套餐内累计消耗（实时口径，与余额列同口径）
 const getPackageConsumedTooltip = (record: Balance): string => {
   const parts: string[] = []
-  parts.push(`套餐内累计消耗 ¥${formatNumber(record.package_consumed_amount)}`)
+  parts.push(`套餐内累计消耗 ¥${formatAmount(record.package_consumed_amount)}`)
   if (record.package_base_fee != null) {
-    parts.push(`套餐年费 ¥${formatNumber(record.package_base_fee)}`)
+    parts.push(`套餐年费 ¥${formatAmount(record.package_base_fee)}`)
   }
   if (record.package_remaining_amount != null) {
-    parts.push(`套餐剩余额度 ¥${formatNumber(record.package_remaining_amount)}`)
+    parts.push(`套餐剩余额度 ¥${formatAmount(record.package_remaining_amount)}`)
   }
   parts.push('包年为合同式预收，此消耗按每日用量实时累计（含未结算），不依赖结算单')
   return parts.join('\n')
