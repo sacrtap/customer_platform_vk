@@ -99,10 +99,10 @@
                     v-if="record.is_package"
                     content="包年套餐剩余额度（年费为合同式预收，不进余额池）"
                   >
-                    ¥{{ formatNumber(record.balance) }}
+                    {{ formatCurrency(record.balance) }}
                     <span v-if="record.package_expired" class="subtle">（已过期）</span>
                   </a-tooltip>
-                  <template v-else>¥{{ formatNumber(record.balance) }}</template>
+                  <template v-else>{{ formatCurrency(record.balance) }}</template>
                 </span>
                 <span v-else class="subtle">-</span>
               </template>
@@ -254,7 +254,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { formatDateTime } from '@/utils/formatters'
+import { formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters'
 import type { Customer } from '@/types'
 import ColumnSettingModal from './ColumnSettingModal.vue'
 
@@ -434,12 +434,6 @@ const truncateName = (name: string, maxChars: number) => {
   if (!name) return ''
   if ([...name].length <= maxChars) return name
   return [...name].slice(0, maxChars).join('') + '…'
-}
-
-const formatNumber = (num: number | string) => {
-  const n = typeof num === 'string' ? parseFloat(num) : num
-  if (isNaN(n)) return '0'
-  return n.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
 }
 
 const getSettlementTypeName = (type: string) => {
