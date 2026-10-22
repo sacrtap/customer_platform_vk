@@ -146,32 +146,47 @@ mask: [
 
 ## Pre-commit: Trellis 任务文件提交陷阱
 
-> [来源: 2026-10-22 会话 — `task.py archive` / `create` 后提交 `task.json` 连续失败]
+> [来源: 2026-10-22 会话 — `task.py archive` / `create` / `add_session.py` 的 auto-commit 连续失败]
 
-**What**: `.trellis/scripts/task.py` 生成的 `task.json` / `prd.md` **不带文件末尾换行**，而 pre-commit 的 `end-of-file-fixer` 钩子（`.pre-commit-config.yaml:19`）会补上该换行。钩子修改文件后，pre-commit 的 stash 还原步骤与 auto-fix 冲突并回滚，表现为提交"成功"（hook 全 Passed）但 `git log` 中无新提交。
+**What**: `.trellis/scripts/` 下 `task.py` 与 `add_session.py` 生成的文本文件**不带文件末尾换行**，而 pre-commit 的 `end-of-file-fixer` 钩子（`.pre-commit-config.yaml:19`）会补上该换行。钩子修改文件后，pre-commit 的 stash 还原步骤与 auto-fix 冲突并回滚，表现为提交"成功"（hook 全 Passed）但 `git log` 中无新提交。
 
-**Why**: 该冲突对 `.trellis/` 与 `frontend/` 同时修改的提交几乎必然触发（前端文件本身合规，钩子只改 `task.json`），且报错信息（`Stashed changes conflicted with hook auto-fixes... Rolling back fixes...`）不指向具体文件，容易被误判为代码问题而反复重试同一提交，形成"重写循环"。
+**受影响路径**（两次实际复现）：
+
+| 触发脚本 | 被钩子修改的文件 | 场景 |
+|---|---|---|
+| `task.py archive` / `create` | `.trellis/tasks/<task>/task.json`、`prd.md` | 提交混入 `.trellis/` 变更时 |
+| `add_session.py` | `.trellis/workspace/<dev>/index.md`、`journal-*.md` | 记录会话日志的 auto-commit |
+
+**Why**: 该冲突对 `.trellis/` 与 `frontend/` 同时修改的提交几乎必然触发（前端文件本身合规，钩子只改 `.trellis/` 文件），且报错信息（`Stashed changes conflicted with hook auto-fixes... Rolling back fixes...`）不指向具体文件，容易被误判为代码问题而反复重试同一提交，形成"重写循环"。
 
 **Example**：
 
 ```bash
 # 现象：hook 全 Passed，但没有新 commit
-git commit -m "chore(trellis): 归档任务 ..."
+python3 ./.trellis/scripts/task.py archive <task>
 # [WARNING] Stashed changes conflicted with hook auto-fixes... Rolling back fixes...
 # Archive moved on disk, but git auto-commit did not complete.
 
-# 诊断：哪个文件被钩子改了
-git diff --stat        # 只有 task.json，1 insertion(+), 1 deletion(-)
+# add_session.py 的对应表现：
+# [BLOCKED] Checkpoint: session N is recorded in journal-1.md and index.md,
+#           but the auto-commit did not complete.
+
+# 诊断：哪个文件被钩子改了（通常只有 1 行变更）
+git status --porcelain   # MM <file> = 索引与工作区不一致
+git diff --stat
 
 # 修复：把钩子修复后的内容重新入索引，再提交（不要改文件内容）
-git add .trellis/tasks/ && git commit -m "chore(trellis): 归档任务 ..."
+git add .trellis/ && git commit -m "chore(trellis): 归档任务 ..."
+
+# add_session.py 专属：直接重跑同一条命令，它自带 resume，
+# 从 commit 步骤继续，不会重复记录 session
 ```
 
 **Related**:
 
-- 若提交内**只**含前端代码，`task.json` 未暂存则不触发；一旦与 `.trellis/` 变更混在同一提交就会触发。
-- 一次性规避：先 `printf '\n' >> <task.json>` 手动补换行再提交。
-- 根治方案（未实施）：修改 `.trellis/scripts/` 中写文件的逻辑，统一以 `\n` 结尾生成 JSON/Markdown。
+- 若提交内**只**含前端代码、`.trellis/` 文件未暂存则不触发；一旦 `.trellis/` 变更混入提交就会触发。
+- 一次性规避：先 `printf '\n' >> <file>` 手动补换行再提交。
+- 根治方案（未实施）：修改 `.trellis/scripts/` 中写文件的逻辑（`task.py` 与 `add_session.py`），统一以 `\n` 结尾生成 JSON/Markdown。
 - 检测到"提交后 HEAD 未前进 + 钩子 auto-fix 冲突"时，按 `.omp/rules/stop-file-rewrite-loop-on-corruption.md` 的退出协议处理：停止自动修改、锁定已完成工作、向用户报告，不要重试同一提交路径。
 
 ---
