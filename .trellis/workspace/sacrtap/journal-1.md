@@ -1068,3 +1068,27 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 44: 客户与余额页金额显示统一为小数点后两位
+<!-- trellis-session: v=2 fp=ee1cb1044731324d -->
+
+**Date**: 2026-10-22
+**Task**: 客户与余额页金额显示统一为小数点后两位
+**Branch**: `main`
+
+### Summary
+
+客户管理列表余额列原取整显示，修复为固定两位小数；排查扩展发现 BalanceTable.vue tooltip 金额、CustomerTable.vue 30天消耗、PreviewDrawer.vue 预览抽屉共3处同类口径不一致，统一为两位小数。BalanceTable.vue 新增 formatCount 保护套餐剩余次数等计数字段不被误加小数，删除3个本地取整 formatter 全部改用共享/同文件 formatCurrency/formatAmount。沉淀 Trellis task.json 与 pre-commit end-of-file-fixer 冲突导致提交静默失败的陷阱到 frontend spec。PR #62 CI 全绿合并入 main。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `989cb2b` | fix(customer): 客户管理列表余额列支持小数点后两位 |
+| `2e30b9d` | fix(billing): 统一客户与余额页金额小数为两位 |
+| `f57203a` | docs(spec): 沉淀 Trellis 任务文件 pre-commit 提交陷阱 |
+
+### Status
+
+[OK] **Completed**
