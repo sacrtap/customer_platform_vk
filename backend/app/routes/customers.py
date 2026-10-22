@@ -202,7 +202,10 @@ async def list_customers(request: Request):
             # 归一化顶层 key 回 int，保持与 c.id 类型一致（value 内层 key 本就是 str，不受影响）。
             usage_map = {int(k): v for k, v in cached_usage.items()}
         else:
-            thirty_days_ago = date.today() - timedelta(days=30)
+            # 30 天窗口按 CST 业务日：date.today() 在 UTC 环境下会偏移一天
+            from ..utils.timezone import cst_today
+
+            thirty_days_ago = cst_today() - timedelta(days=30)
             from sqlalchemy import func as sa_func
 
             from ..models.daily_consumption import DailyConsumption
@@ -362,9 +365,12 @@ async def get_kpi_stats(request: Request):
         return json({"code": 50000, "message": str(e)}, status=500)
 
     # 计算本月新增客户数
-    from datetime import date
+    # 月份起点按 CST 业务月：Customer.created_at 是 DB 墙钟时间（生产 PG 为
+    # CST），用 date.today() 在 UTC 环境下会取到 CST 的次月，把上月客户
+    # 算进本月
+    from ..utils.timezone import cst_today
 
-    now = date.today()
+    now = cst_today()
     month_start = date(now.year, now.month, 1)
     new_this_month_stmt = select(func.count(Customer.id)).where(
         Customer.deleted_at.is_(None),

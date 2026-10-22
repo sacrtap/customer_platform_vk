@@ -6,7 +6,7 @@ APScheduler 任务调度器
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -14,6 +14,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sanic.response import json
 
 from ..middleware.auth import auth_required, require_permission
+from ..utils.timezone import CST, cst_today
 from .monitor import get_task_results, monitored_task
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ def init_scheduler(app):
         # P6-3: 每月 1 日 02:00 自动生成结算单
         scheduler.add_job(
             _generate_monthly_invoices,
-            trigger=CronTrigger(day=1, hour=2, minute=0),
+            trigger=CronTrigger(day=1, hour=2, minute=0, timezone=CST),
             id="generate_monthly_invoices",
             name="月度结算单自动生成",
             replace_existing=True,
@@ -105,7 +106,7 @@ def init_scheduler(app):
         # P6-7: 每日 09:00 发送逾期提醒邮件
         scheduler.add_job(
             _send_overdue_emails,
-            trigger=CronTrigger(hour=9, minute=0),
+            trigger=CronTrigger(hour=9, minute=0, timezone=CST),
             id="send_overdue_emails",
             name="逾期提醒邮件",
             replace_existing=True,
@@ -114,7 +115,7 @@ def init_scheduler(app):
         # P6-10: 每日 03:00 清理临时文件 (不需要 session)
         scheduler.add_job(
             _cleanup_temp_files,
-            trigger=CronTrigger(hour=3, minute=0),
+            trigger=CronTrigger(hour=3, minute=0, timezone=CST),
             id="cleanup_temp_files",
             name="临时文件清理",
             replace_existing=True,
@@ -123,7 +124,7 @@ def init_scheduler(app):
         # P6-8: 每日 04:00 清理 Webhook 签名（5 天前）
         scheduler.add_job(
             _cleanup_webhook_signatures,
-            trigger=CronTrigger(hour=4, minute=0),
+            trigger=CronTrigger(hour=4, minute=0, timezone=CST),
             id="cleanup_webhook_signatures",
             name="Webhook 签名清理",
             replace_existing=True,
@@ -280,7 +281,9 @@ def register_sync_daily_auto(
                 return
 
             # 目标日期 = 昨天（外部系统订单按日上传，当日数据不完整）
-            yesterday = date.today() - timedelta(days=1)
+            # 按 CST 业务日取昨天，不能用 date.today()（UTC 环境下取到 CST 的
+            # 前天，会丢一天订单数据）
+            yesterday = cst_today() - timedelta(days=1)
 
             from ..cache.base import cache_service
             from ..services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
@@ -308,7 +311,7 @@ def register_sync_daily_auto(
 
     scheduler.add_job(
         _run,
-        trigger=CronTrigger(hour=hour, minute=minute),
+        trigger=CronTrigger(hour=hour, minute=minute, timezone=CST),
         id=job_id,
         name="每日自动同步",
         replace_existing=True,

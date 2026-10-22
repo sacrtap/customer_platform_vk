@@ -38,6 +38,7 @@ from ..repository import (
     PricingRepositoryProtocol,
 )
 from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
+from ..utils.timezone import cst_today
 
 logger = logging.getLogger(__name__)
 
@@ -1390,8 +1391,10 @@ class InvoiceService:
             Invoice
         """
         # 生成结算单号：INV-生成日期-客户ID-4位随机码
+        # 日期按 CST 业务日（与 routes/billing/invoices.py 的批量导入规则一致）：
+        # datetime.now() 在 UTC 16:00 后带次日日期
         random_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-        invoice_no = f"INV-{datetime.now().strftime('%Y%m%d')}-{customer_id}-{random_code}"
+        invoice_no = f"INV-{cst_today().strftime('%Y%m%d')}-{customer_id}-{random_code}"
 
         # 计算总金额：优先使用 item 中的 subtotal 字段（支持递增模式），回退到 quantity × unit_price
         total_amount = sum(
