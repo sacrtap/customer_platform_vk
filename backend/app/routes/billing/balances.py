@@ -1951,7 +1951,7 @@ async def get_consumption_records(request: Request):
                         "actual_customer_name": customer_name_map[r.customer_id][0]
                         if r.customer_id in customer_name_map
                         else None,
-                        "actual_customer_id": customer_name_map[r.customer_id][1]
+                        "actual_company_id": customer_name_map[r.customer_id][1]
                         if r.customer_id in customer_name_map
                         else None,
                         "amount": float(r.amount),  # pyright: ignore[reportArgumentType]
