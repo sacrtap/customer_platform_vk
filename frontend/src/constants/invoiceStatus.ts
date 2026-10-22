@@ -10,7 +10,7 @@ export const INVOICE_STATUS_MAP: Record<string, string> = {
   pending_customer: '待客户确认',
   customer_confirmed: '客户已确认',
   paid: '已付款',
-  completed: '已完成',
+  completed: '已结算',
   cancelled: '已取消',
 }
 

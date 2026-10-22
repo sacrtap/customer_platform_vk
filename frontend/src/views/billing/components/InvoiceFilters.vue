@@ -20,6 +20,18 @@
         :options="erpSystemOptions"
         @apply="emit('search')"
       />
+      <FilterDropdown
+        v-model="filters.manager_id"
+        label="运营经理"
+        :options="managerOptions"
+        @apply="emit('search')"
+      />
+      <FilterDropdown
+        v-model="filters.sales_manager_id"
+        label="销售经理"
+        :options="managerOptions"
+        @apply="emit('search')"
+      />
       <button type="button" class="btn primary" @click="emit('search')">筛选</button>
       <button type="button" class="btn" @click="emit('reset')">重置</button>
     </div>
@@ -33,6 +45,7 @@ import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import { INVOICE_STATUS_OPTIONS } from '@/constants/invoiceStatus'
 import { getIndustryTypes } from '@/api/customers'
 import { getErpSystemsList } from '@/api/erpSystems'
+import { getManagers } from '@/api/users'
 import type { IndustryType, ErpSystem } from '@/types'
 
 interface Filters {
@@ -40,6 +53,8 @@ interface Filters {
   status: string
   industry_type: string
   erp_system: string
+  manager_id: string
+  sales_manager_id: string
 }
 
 const filters = defineModel<Filters>('filters', { required: true })
@@ -54,6 +69,7 @@ const statusOptions = INVOICE_STATUS_OPTIONS
 // ===== 字典加载（镜像 useCustomerList 的防御式解包） =====
 const industryTypes = ref<IndustryType[]>([])
 const erpSystems = ref<ErpSystem[]>([])
+const managers = ref<Array<{ id: number; real_name: string | null }>>([])
 
 onMounted(async () => {
   try {
@@ -68,6 +84,15 @@ onMounted(async () => {
   } catch (error) {
     console.error('加载 ERP 系统失败:', error)
   }
+  try {
+    const res = await getManagers()
+    managers.value = (res.data?.data || res.data || []) as Array<{
+      id: number
+      real_name: string | null
+    }>
+  } catch (error) {
+    console.error('加载经理列表失败:', error)
+  }
 })
 
 // 行业按名称匹配（后端按 IndustryType.name 筛选）；ERP 按 value 匹配（Customer.erp_system）
@@ -77,6 +102,11 @@ const industryOptions = computed(() =>
 
 const erpSystemOptions = computed(() =>
   erpSystems.value.map((es) => ({ label: es.name, value: es.value }))
+)
+
+// 运营/销售经理下拉共用同一经理列表（后端分别按 manager_id / sales_manager_id 过滤）
+const managerOptions = computed(() =>
+  managers.value.map((m) => ({ label: m.real_name || `#${m.id}`, value: String(m.id) }))
 )
 </script>
 

@@ -1450,6 +1450,8 @@ class InvoiceService:
         sort_order: str = "desc",
         industry_type: Optional[str] = None,
         erp_system: Optional[str] = None,
+        manager_id: Optional[int] = None,
+        sales_manager_id: Optional[int] = None,
         mine_user_id: Optional[int] = None,
     ) -> Tuple[List[Invoice], int]:
         """获取结算单列表（支持服务端排序）
@@ -1477,6 +1479,12 @@ class InvoiceService:
         if erp_system:
             # ERP 系统筛选：Customer.erp_system 存 ErpSystem.value，精确匹配（Customer 已 inner join）
             stmt = stmt.where(Customer.erp_system == erp_system)
+        if manager_id:
+            # 运营经理筛选：Customer 已 inner join，直接按外键过滤
+            stmt = stmt.where(Customer.manager_id == manager_id)
+        if sales_manager_id:
+            # 销售经理筛选：同上
+            stmt = stmt.where(Customer.sales_manager_id == sales_manager_id)
         if industry_type:
             # 行业筛选：经 CustomerProfile.industry_type_id 外键按 IndustryType.name 匹配，
             # 镜像 customers.py 筛选范式；CustomerProfile.customer_id 唯一，outerjoin 不产生重复行
@@ -1624,10 +1632,12 @@ class InvoiceService:
         return True, "结算账户修改成功"
 
     async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
-        """提交结算单（进入运营经理确认阶段）
+        """提交结算单（进入经理确认阶段）
 
-        新流程：draft → pending_ops
-        旧流程兼容：draft → pending_customer（当客户未指定运营经理时回退）
+        新流程（按客户经理配置自动跳过缺失的确认步骤）：
+        - 有运营经理：draft → pending_ops
+        - 无运营经理但有销售经理：draft → pending_sales（跳过运营确认）
+        - 两者均无：draft → pending_customer（直接待客户确认）
         """
         invoice = await self.get_invoice_by_id(invoice_id)
 
@@ -1637,12 +1647,15 @@ class InvoiceService:
         if invoice.status != "draft":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能提交：{invoice.status}"
 
-        # 查询客户是否指定了运营经理
+        # 查询客户的经理配置，自动跳过缺失的确认步骤
         customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
         if customer and customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
             invoice.status = "pending_ops"  # pyright: ignore[reportAttributeAccessIssue]
+        elif customer and customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+            # 未指定运营经理，跳过运营确认直接待销售经理确认
+            invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            # 未指定运营经理，回退到旧流程（直接待客户确认）
+            # 未指定任何经理，直接待客户确认
             invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
 
         invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
@@ -1655,7 +1668,8 @@ class InvoiceService:
     async def confirm_ops(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
         """运营经理确认（第一步）
 
-        pending_ops → pending_sales
+        pending_ops → pending_sales（客户指定了销售经理时）
+        pending_ops → pending_customer（客户未指定销售经理时，跳过销售确认）
         校验：操作人必须为该客户指定的运营经理（customer.manager_id）
         """
         invoice = await self.get_invoice_by_id(invoice_id)
@@ -1673,7 +1687,11 @@ class InvoiceService:
         if customer.manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
             return False, "您不是该客户指定的运营经理，无权确认"
 
-        invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+        # 未指定销售经理的客户跳过销售确认，直接待客户确认
+        if customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+            invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+        else:
+            invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
         invoice.ops_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         invoice.ops_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -1893,6 +1911,160 @@ class InvoiceService:
 
         return True
 
+    async def batch_submit(
+        self, invoice_ids: List[int], approver_id: int, scope_user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """批量提交结算单（draft → 按经理配置进入对应确认阶段）
+
+        与 submit_invoice 的差别：逐条处理、单次事务提交、越权/状态不符的
+        计入 skipped 而不中断。状态转移逻辑与 submit_invoice 保持一致
+        （有运营经理→pending_ops；无运营有销售→pending_sales；都无→pending_customer）。
+
+        Args:
+            scope_user_id: 数据可见性约束（服务端强制）。非 None 时，非本人负责
+                客户的结算单计入 skipped（reason="无权访问该结算单"）。
+
+        Returns:
+            {"success_count": int, "success_ids": [...], "skipped": [{"id": int, "reason": str}]}
+        """
+        success_ids: List[int] = []
+        skipped: List[Dict[str, Any]] = []
+
+        # 收敛调用方可能残留的 autobegin 事务（如 get_invoice_by_id 的 SELECT），
+        # 否则 db.begin() 抛 InvalidRequestError（同 consume 的处理，见 :246）
+        if self.db.in_transaction():
+            await self.db.commit()
+
+        async with self.db.begin():
+            for invoice_id in invoice_ids:
+                invoice = await self.get_invoice_by_id(invoice_id)
+                if not invoice:
+                    skipped.append({"id": invoice_id, "reason": "结算单不存在"})
+                    continue
+                if scope_user_id is not None and not (
+                    invoice.customer
+                    and (
+                        invoice.customer.manager_id == scope_user_id
+                        or invoice.customer.sales_manager_id == scope_user_id
+                    )
+                ):
+                    skipped.append({"id": invoice_id, "reason": "无权访问该结算单"})
+                    continue
+                if invoice.status != "draft":  # pyright: ignore[reportGeneralTypeIssues]
+                    skipped.append(
+                        {"id": invoice_id, "reason": f"当前状态不可提交：{invoice.status}"}
+                    )
+                    continue
+
+                customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
+                if customer and customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                    invoice.status = "pending_ops"  # pyright: ignore[reportAttributeAccessIssue]
+                elif customer and customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                    invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+                else:
+                    invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+
+                invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
+                invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+                success_ids.append(invoice_id)
+
+        return {
+            "success_count": len(success_ids),
+            "success_ids": success_ids,
+            "skipped": skipped,
+        }
+
+    async def batch_cancel(
+        self, invoice_ids: List[int], user_id: int, scope_user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """批量取消结算单（draft/pending_* → cancelled）
+
+        仅 draft/pending_ops/pending_sales/pending_customer 状态可取消，其余计入
+        skipped。单次事务提交，逐条 try/except 不中断。
+        """
+        success_ids: List[int] = []
+        skipped: List[Dict[str, Any]] = []
+
+        # 收敛调用方可能残留的 autobegin 事务（同 batch_submit）
+        if self.db.in_transaction():
+            await self.db.commit()
+
+        async with self.db.begin():
+            for invoice_id in invoice_ids:
+                invoice = await self.get_invoice_by_id(invoice_id)
+                if not invoice:
+                    skipped.append({"id": invoice_id, "reason": "结算单不存在"})
+                    continue
+                if scope_user_id is not None and not (
+                    invoice.customer
+                    and (
+                        invoice.customer.manager_id == scope_user_id
+                        or invoice.customer.sales_manager_id == scope_user_id
+                    )
+                ):
+                    skipped.append({"id": invoice_id, "reason": "无权访问该结算单"})
+                    continue
+                if invoice.status not in (  # pyright: ignore[reportGeneralTypeIssues]
+                    "draft",
+                    "pending_ops",
+                    "pending_sales",
+                    "pending_customer",
+                ):
+                    skipped.append(
+                        {"id": invoice_id, "reason": f"当前状态不可取消：{invoice.status}"}
+                    )
+                    continue
+
+                invoice.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
+                invoice.cancelled_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+                invoice.cancelled_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
+                success_ids.append(invoice_id)
+
+        return {
+            "success_count": len(success_ids),
+            "success_ids": success_ids,
+            "skipped": skipped,
+        }
+
+    async def batch_delete(
+        self, invoice_ids: List[int], scope_user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """批量删除结算单（软删除，无状态限制）
+
+        单次事务提交，逐条 try/except 不中断。
+        """
+        success_ids: List[int] = []
+        skipped: List[Dict[str, Any]] = []
+
+        # 收敛调用方可能残留的 autobegin 事务（同 batch_submit）
+        if self.db.in_transaction():
+            await self.db.commit()
+
+        async with self.db.begin():
+            for invoice_id in invoice_ids:
+                invoice = await self.get_invoice_by_id(invoice_id)
+                if not invoice:
+                    skipped.append({"id": invoice_id, "reason": "结算单不存在"})
+                    continue
+                if scope_user_id is not None and not (
+                    invoice.customer
+                    and (
+                        invoice.customer.manager_id == scope_user_id
+                        or invoice.customer.sales_manager_id == scope_user_id
+                    )
+                ):
+                    skipped.append({"id": invoice_id, "reason": "无权访问该结算单"})
+                    continue
+
+                invoice.deleted_at = func.now()  # pyright: ignore[reportAttributeAccessIssue]
+                success_ids.append(invoice_id)
+
+        return {
+            "success_count": len(success_ids),
+            "success_ids": success_ids,
+            "skipped": skipped,
+        }
+
     async def get_customers_for_batch(
         self,
         pricing_type: Optional[str] = None,
@@ -1988,7 +2160,8 @@ class InvoiceService:
         """批量生成结算单
 
         为每个匹配的客户独立生成一张结算单（状态 draft）。
-        跳过无用量数据/无计费规则/未指定经理的客户。
+        跳过无用量数据/无计费规则的客户（未指定经理的客户正常生成，
+        提交时自动跳过缺失经理的确认步骤）。
 
         Args:
             mine_user_id: 数据可见性约束（服务端强制），非空时仅生成该用户负责客户的结算单
@@ -2013,18 +2186,6 @@ class InvoiceService:
         skipped: List[Dict[str, Any]] = []
 
         for cust in customers:
-            # 校验客户已指定运营经理和销售经理
-            if not cust["manager_id"]:
-                skipped.append(
-                    {"customer_id": cust["id"], "name": cust["name"], "reason": "未指定运营经理"}
-                )
-                continue
-            if not cust["sales_manager_id"]:
-                skipped.append(
-                    {"customer_id": cust["id"], "name": cust["name"], "reason": "未指定销售经理"}
-                )
-                continue
-
             # 计算结算明细
             try:
                 items, total_amount = await self.calculate_items_from_rules(

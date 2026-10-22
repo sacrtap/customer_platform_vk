@@ -149,7 +149,7 @@
             <strong class="text-warn">{{
               previewCustomers.filter((c) => !c.has_manager || !c.has_sales_manager).length
             }}</strong>
-            个未指定运营/销售经理（将跳过）
+            个未指定运营/销售经理（提交时将自动跳过对应确认步骤）
           </div>
           <a-table
             :columns="previewColumns"
@@ -460,13 +460,6 @@ const handleSubmitBatch = async () => {
   }
   if (previewCustomers.value.length === 0) {
     Message.error('未匹配到任何客户，请调整筛选条件')
-    return false
-  }
-  const eligibleCount = previewCustomers.value.filter(
-    (c) => c.has_manager && c.has_sales_manager
-  ).length
-  if (eligibleCount === 0) {
-    Message.error('匹配到的客户均未指定运营/销售经理，无法生成')
     return false
   }
   loading.value = true

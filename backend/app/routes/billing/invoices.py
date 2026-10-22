@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
-from typing import Any
+from typing import Any, Dict, List
 from urllib.parse import quote
 
 from openpyxl import Workbook
@@ -90,10 +90,16 @@ async def _trigger_detail_generation(request: Request, invoice_id: int):
     scheduler = get_scheduler()
     scheduler.add_job(
         generate_invoice_detail,
-        args=[session_factory(), external_engine, invoice_id],
+        args=[session_factory(), external_engine, invoice_id, session_factory],
         id=f"invoice_detail_{invoice_id}",
         name=f"结算单明细生成-{invoice_id}",
         replace_existing=True,
+        # 无 trigger 的 add_job 默认 DateTrigger(run_time=now) + misfire_grace_time=1s：
+        # 事件循环繁忙（批量生成尾部连续 add_job）超过 1s 即被 APScheduler
+        # 静默丢弃（EVENT_JOB_MISSED），结算单永久停在 pending。放宽宽限与
+        # coalesce，确保任务最终执行。
+        misfire_grace_time=600,
+        coalesce=True,
     )
 
 
@@ -110,6 +116,10 @@ async def get_invoices(request: Request):
     status = request.args.get("status")
     industry_type = request.args.get("industry_type")
     erp_system = request.args.get("erp_system")
+    manager_id = int(request.args.get("manager_id")) if request.args.get("manager_id") else None
+    sales_manager_id = (
+        int(request.args.get("sales_manager_id")) if request.args.get("sales_manager_id") else None
+    )
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
@@ -132,6 +142,8 @@ async def get_invoices(request: Request):
         sort_order=sort_order,
         industry_type=industry_type,
         erp_system=erp_system,
+        manager_id=manager_id,
+        sales_manager_id=sales_manager_id,
         mine_user_id=scope_user_id,
     )
 
@@ -640,13 +652,16 @@ async def generate_invoices_batch(request: Request):
     )
 
     # 批量触发明细文件异步生成
+    # 注意：service 返回的 generated 项键名为 invoice_id（见 services/billing.py
+    # generate_invoices_batch），早年写成 "id" 导致 inv_id 恒为 None、任务从未
+    # 入队，全部结算单卡在 pending。此处显式取 invoice_id 兜底。
     for inv in result.get("generated", []):
-        inv_id = inv.get("id") if isinstance(inv, dict) else None
+        inv_id = inv.get("invoice_id") if isinstance(inv, dict) else None
         if inv_id:
             try:
                 await _trigger_detail_generation(request, inv_id)
-            except Exception:
-                pass  # 触发失败不阻塞批量生成返回
+            except Exception as e:
+                logger.warning(f"结算单 {inv_id} 明细生成触发失败: {e}")
 
     return json(
         {
@@ -1633,7 +1648,7 @@ async def export_invoices(request: Request):
         "pending_customer": "待客户确认",
         "customer_confirmed": "客户已确认",
         "paid": "已付款",
-        "completed": "已完成",
+        "completed": "已结算",
         "cancelled": "已取消",
     }
 
@@ -2164,6 +2179,210 @@ async def download_invoice_detail(request: Request, invoice_id: int):
     )
 
 
+@billing_bp.post("/invoices/batch-submit")
+@auth_required
+@require_permission("billing:edit")
+async def batch_submit_invoices(request: Request):
+    """批量提交结算单（draft → 按经理配置进入对应确认阶段）"""
+    db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
+    invoice_ids = [int(i) for i in data.get("ids", [])]
+    if not invoice_ids:
+        return json({"code": 40004, "message": "请选择要提交的结算单"}, status=400)
+
+    user = get_current_user(request)
+    user_id = user.get("user_id") if user else None
+    if not user_id:
+        return json({"code": ErrorCodes.UNAUTHORIZED, "message": "未登录"}, status=401)
+
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+    scope_user_id = await customer_scope_user_id(request)
+    result = await invoice_service.batch_submit(invoice_ids, user_id, scope_user_id)
+
+    await cache_service.invalidate_billing_cache()
+    await create_audit_entry(
+        db_session=db,
+        user_id=user_id,
+        action="batch_submit",
+        module="billing",
+        record_id=0,
+        record_type="invoice",
+        changes={
+            "after": {
+                "success_count": result["success_count"],
+                "skipped_count": len(result["skipped"]),
+            }
+        },
+        operation_type="batch",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json(
+        {
+            "code": 0,
+            "message": f"批量提交完成：成功 {result['success_count']} 个，跳过 {len(result['skipped'])} 个",
+            "data": {
+                "success": True,
+                "total": len(invoice_ids),
+                "success_count": result["success_count"],
+                "skipped": result["skipped"],
+            },
+        }
+    )
+
+
+@billing_bp.post("/invoices/batch-cancel")
+@auth_required
+@require_permission("billing:edit")
+async def batch_cancel_invoices(request: Request):
+    """批量取消结算单（draft/pending_* → cancelled）"""
+    db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
+    invoice_ids = [int(i) for i in data.get("ids", [])]
+    if not invoice_ids:
+        return json({"code": 40004, "message": "请选择要取消的结算单"}, status=400)
+
+    user = get_current_user(request)
+    user_id = user.get("user_id") if user else None
+    if not user_id:
+        return json({"code": ErrorCodes.UNAUTHORIZED, "message": "未登录"}, status=401)
+
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+    scope_user_id = await customer_scope_user_id(request)
+    result = await invoice_service.batch_cancel(invoice_ids, user_id, scope_user_id)
+
+    await cache_service.invalidate_billing_cache()
+    await create_audit_entry(
+        db_session=db,
+        user_id=user_id,
+        action="batch_cancel",
+        module="billing",
+        record_id=0,
+        record_type="invoice",
+        changes={
+            "after": {
+                "success_count": result["success_count"],
+                "skipped_count": len(result["skipped"]),
+            }
+        },
+        operation_type="batch",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json(
+        {
+            "code": 0,
+            "message": f"批量取消完成：成功 {result['success_count']} 个，跳过 {len(result['skipped'])} 个",
+            "data": {
+                "success": True,
+                "total": len(invoice_ids),
+                "success_count": result["success_count"],
+                "skipped": result["skipped"],
+            },
+        }
+    )
+
+
+@billing_bp.post("/invoices/batch-delete")
+@auth_required
+@require_permission("billing:delete")
+async def batch_delete_invoices(request: Request):
+    """批量删除结算单（软删除）"""
+    db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
+    invoice_ids = [int(i) for i in data.get("ids", [])]
+    if not invoice_ids:
+        return json({"code": 40004, "message": "请选择要删除的结算单"}, status=400)
+
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+    scope_user_id = await customer_scope_user_id(request)
+    result = await invoice_service.batch_delete(invoice_ids, scope_user_id)
+
+    await cache_service.invalidate_billing_cache()
+    await create_audit_entry(
+        db_session=db,
+        user_id=None,
+        action="batch_delete",
+        module="billing",
+        record_id=0,
+        record_type="invoice",
+        changes={
+            "after": {
+                "success_count": result["success_count"],
+                "skipped_count": len(result["skipped"]),
+            }
+        },
+        operation_type="batch",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json(
+        {
+            "code": 0,
+            "message": f"批量删除完成：成功 {result['success_count']} 个，跳过 {len(result['skipped'])} 个",
+            "data": {
+                "success": True,
+                "total": len(invoice_ids),
+                "success_count": result["success_count"],
+                "skipped": result["skipped"],
+            },
+        }
+    )
+
+
+@billing_bp.post("/invoices/regenerate-detail-batch")
+@auth_required
+@require_permission("billing:edit")
+async def regenerate_invoice_detail_batch(request: Request):
+    """批量重新生成结算单明细 Excel 文件"""
+    db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
+    invoice_ids = [int(i) for i in data.get("ids", [])]
+    if not invoice_ids:
+        return json({"code": 40004, "message": "请选择要重新生成的结算单"}, status=400)
+
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    triggered = 0
+    failed: List[Dict[str, Any]] = []
+    for invoice_id in invoice_ids:
+        invoice = await invoice_service.get_invoice_by_id(invoice_id)
+        if not invoice:
+            failed.append({"id": invoice_id, "reason": "结算单不存在"})
+            continue
+        # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+        denied = await _ensure_invoice_scope(request, invoice)
+        if denied is not None:
+            failed.append({"id": invoice_id, "reason": "无权访问该结算单"})
+            continue
+        try:
+            # 重置状态为 pending 并触发异步生成
+            invoice.detail_file_status = "pending"  # pyright: ignore[reportAttributeAccessIssue]
+            await db.commit()
+            await _trigger_detail_generation(request, invoice_id)
+            triggered += 1
+        except Exception as e:
+            logger.warning(f"结算单 {invoice_id} 明细重新生成触发失败: {e}")
+            failed.append({"id": invoice_id, "reason": "触发失败"})
+
+    return json(
+        {
+            "code": 0,
+            "message": f"已触发 {triggered} 个明细文件重新生成",
+            "data": {"triggered": triggered, "failed": failed},
+        }
+    )
+
+
 @billing_bp.post("/invoices/<invoice_id:int>/regenerate-detail")
 @auth_required
 @require_permission("billing:edit")
@@ -2208,22 +2427,19 @@ async def get_invoice_detail_logs(request: Request):
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
+    from ...models.customers import Customer
+
     # 预加载 customer：序列化时读取 inv.customer.name，而 Invoice.customer 未配置
     # lazy="selectin"，异步会话下懒加载会抛 MissingGreenlet 导致 500。
-    stmt = (
-        select(Invoice)
-        .options(selectinload(Invoice.customer))
-        .where(Invoice.detail_file_status != "pending")
-    )
-    count_stmt = (
-        select(func.count()).select_from(Invoice).where(Invoice.detail_file_status != "pending")
-    )
+    # 默认过滤：待处理/生成中/失败（completed 需 status_filter 显式查看）；
+    # 显式指定 status 时以 status_filter 为准，不再叠加默认过滤。
+    base_where = [] if status_filter else [Invoice.detail_file_status != "completed"]
+    stmt = select(Invoice).options(selectinload(Invoice.customer)).where(*base_where)
+    count_stmt = select(func.count()).select_from(Invoice).where(*base_where)
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责客户的日志
     scope_user_id = await customer_scope_user_id(request)
     if scope_user_id is not None:
-        from ...models.customers import Customer
-
         stmt = stmt.join(Customer, Customer.id == Invoice.customer_id).where(
             or_(
                 Customer.manager_id == scope_user_id,
@@ -2244,6 +2460,22 @@ async def get_invoice_detail_logs(request: Request):
     if customer_id:
         stmt = stmt.where(Invoice.customer_id == int(customer_id))
         count_stmt = count_stmt.where(Invoice.customer_id == int(customer_id))
+
+    # 各状态计数（对当前 scope 全量统计，不受分页/status_filter 影响）
+    counts_stmt = select(Invoice.detail_file_status, func.count()).group_by(
+        Invoice.detail_file_status
+    )
+    if scope_user_id is not None:
+        counts_stmt = counts_stmt.join(Customer, Customer.id == Invoice.customer_id).where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
+    counts_result = await db.execute(counts_stmt)
+    counts = {"pending": 0, "generating": 0, "completed": 0, "failed": 0}
+    for status_value, cnt in counts_result.all():
+        counts[status_value or "pending"] = cnt
 
     # 排序：最近变更在前
     stmt = stmt.order_by(Invoice.updated_at.desc()).offset((page - 1) * page_size).limit(page_size)
@@ -2278,6 +2510,7 @@ async def get_invoice_detail_logs(request: Request):
                 "total": total,
                 "page": page,
                 "page_size": page_size,
+                "counts": counts,
             },
         }
     )

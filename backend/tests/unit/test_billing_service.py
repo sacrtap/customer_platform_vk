@@ -1944,3 +1944,314 @@ class TestInvoiceService_SettlementAccount:
 
         assert success is False
         assert message == "结算账户客户不存在"
+
+
+class TestInvoiceService_ManagerFiltersAndSkip:
+    """结算单经理筛选 / 无经理流程跳过 / 批量操作测试
+
+    核心契约（docs/specs/2026-10-21-settlement-management-page-plan.md）：
+    - get_invoices 支持 manager_id / sales_manager_id 过滤
+    - 批量生成不再跳过未指定经理的客户
+    - submit_invoice 按客户经理配置三分支；confirm_ops 无销售经理直达 pending_customer
+    - batch_submit / batch_cancel / batch_delete 混合状态逐条处理计入 skipped
+    """
+
+    @pytest.fixture
+    def invoice_service(self, mock_db_session):
+        from unittest.mock import MagicMock
+
+        from app.repository import InvoiceRepository, PricingRepository
+
+        mock_invoice_repo = MagicMock(spec=InvoiceRepository)
+        mock_invoice_repo.db = mock_db_session
+        mock_pricing_repo = MagicMock(spec=PricingRepository)
+        mock_pricing_repo.db = mock_db_session
+        return InvoiceService(invoice_repo=mock_invoice_repo, pricing_repo=mock_pricing_repo)
+
+    @staticmethod
+    def _customer(customer_id: int, manager_id=None, sales_manager_id=None) -> Customer:
+        customer = Customer(
+            id=customer_id,
+            company_id=customer_id,
+            name=f"客户{customer_id}",
+        )
+        customer.manager_id = manager_id
+        customer.sales_manager_id = sales_manager_id
+        return customer
+
+    @staticmethod
+    def _invoice(
+        status: str,
+        invoice_id: int,
+        customer_id: int = 100,
+    ) -> Invoice:
+        return Invoice(
+            id=invoice_id,
+            customer_id=customer_id,
+            status=status,
+            total_amount=Decimal("300.00"),
+            discount_amount=Decimal("0.00"),
+        )
+
+    # ===== A. 经理筛选 =====
+
+    @pytest.mark.asyncio
+    async def test_get_invoices_filter_by_manager(self, invoice_service, mock_db_session):
+        """get_invoices(manager_id=X) 的查询条件包含 Customer.manager_id 过滤"""
+        count_result = MagicMock(scalar=MagicMock(return_value=0))
+        list_result = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+        )
+        mock_db_session.execute = AsyncMock(side_effect=[count_result, list_result])
+
+        await invoice_service.get_invoices(manager_id=7)
+
+        stmt = mock_db_session.execute.call_args_list[0].args[0]
+        compiled = str(stmt.compile())
+        assert "customers.manager_id" in compiled
+        assert ":manager_id_1" in compiled or "manager_id = " in compiled
+
+    @pytest.mark.asyncio
+    async def test_get_invoices_filter_by_sales_manager(self, invoice_service, mock_db_session):
+        """get_invoices(sales_manager_id=Y) 的查询条件包含 Customer.sales_manager_id 过滤"""
+        count_result = MagicMock(scalar=MagicMock(return_value=0))
+        list_result = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+        )
+        mock_db_session.execute = AsyncMock(side_effect=[count_result, list_result])
+
+        await invoice_service.get_invoices(sales_manager_id=9)
+
+        stmt = mock_db_session.execute.call_args_list[0].args[0]
+        compiled = str(stmt.compile())
+        assert "customers.sales_manager_id" in compiled
+
+    # ===== B. 无经理流程 =====
+
+    @pytest.mark.asyncio
+    async def test_generate_batch_no_manager_not_skipped(self, invoice_service):
+        """无经理客户不再被 skip，出现在 generated"""
+        customers = [
+            {
+                "id": 100,
+                "name": "无运营经理客户",
+                "manager_id": None,
+                "sales_manager_id": None,
+            }
+        ]
+        with (
+            patch.object(
+                InvoiceService,
+                "get_customers_for_batch",
+                AsyncMock(return_value=customers),
+            ),
+            patch.object(
+                InvoiceService,
+                "calculate_items_from_rules",
+                AsyncMock(return_value=([{"device_type": "L"}], Decimal("100.00"))),
+            ),
+            patch.object(
+                InvoiceService,
+                "generate_invoice",
+                AsyncMock(return_value=MagicMock(id=1, invoice_no="INV-001")),
+            ),
+        ):
+            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+
+        assert result["skipped"] == []
+        assert result["success_count"] == 1
+        assert result["generated"][0]["customer_id"] == 100
+
+    @pytest.mark.asyncio
+    async def test_generate_batch_no_usage_still_skipped(self, invoice_service):
+        """有规则但本周期无用量的客户仍被 skip（无可结算）"""
+        customers = [{"id": 100, "name": "无用量的客户", "manager_id": 1, "sales_manager_id": 2}]
+        with (
+            patch.object(
+                InvoiceService,
+                "get_customers_for_batch",
+                AsyncMock(return_value=customers),
+            ),
+            patch.object(
+                InvoiceService,
+                "calculate_items_from_rules",
+                AsyncMock(return_value=([], Decimal("0"))),
+            ),
+        ):
+            result = await invoice_service.generate_invoices_batch(pricing_type="fixed")
+
+        assert result["success_count"] == 0
+        assert len(result["skipped"]) == 1
+        assert "无用量" in result["skipped"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_submit_both_managers_goes_to_pending_ops(self, invoice_service):
+        """有运营经理：submit → pending_ops"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_ops"
+
+    @pytest.mark.asyncio
+    async def test_submit_sales_only_customer_goes_to_pending_sales(self, invoice_service):
+        """仅销售经理：submit 跳过运营确认直接 pending_sales"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(100, manager_id=None, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_sales"
+
+    @pytest.mark.asyncio
+    async def test_submit_no_manager_goes_to_pending_customer(self, invoice_service):
+        """两者均无：submit 直接 pending_customer"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(100, manager_id=None, sales_manager_id=None)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_customer"
+
+    @pytest.mark.asyncio
+    async def test_confirm_ops_no_sales_jumps_to_customer(self, invoice_service):
+        """有运营无销售：confirm_ops 跳过销售直达 pending_customer"""
+        invoice = self._invoice("pending_ops", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=None)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.confirm_ops(invoice_id=1, user_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_customer"
+
+    @pytest.mark.asyncio
+    async def test_confirm_ops_with_sales_goes_to_pending_sales(self, invoice_service):
+        """有销售经理：confirm_ops → pending_sales（原有流程不变）"""
+        invoice = self._invoice("pending_ops", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.confirm_ops(invoice_id=1, user_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_sales"
+
+    # ===== D. 批量操作 =====
+
+    @pytest.mark.asyncio
+    async def test_batch_submit_partial(self, invoice_service):
+        """混合状态批量提交：[draft, pending_ops, draft] → 2 success + 1 skipped"""
+        invoices = {
+            1: self._invoice("draft", invoice_id=1),
+            2: self._invoice("pending_ops", invoice_id=2),
+            3: self._invoice("draft", invoice_id=3),
+        }
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        async def fake_get(invoice_id):
+            return invoices[invoice_id]
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(side_effect=fake_get)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            result = await invoice_service.batch_submit([1, 2, 3], approver_id=1)
+
+        assert result["success_count"] == 2
+        assert sorted(result["success_ids"]) == [1, 3]
+        assert len(result["skipped"]) == 1
+        assert result["skipped"][0]["id"] == 2
+        assert "不可提交" in result["skipped"][0]["reason"]
+
+    @pytest.mark.asyncio
+    async def test_batch_submit_missing_invoice_skipped(self, invoice_service):
+        """结算单不存在计入 skipped，不影响其余"""
+
+        async def fake_get(invoice_id):
+            return None if invoice_id == 2 else self._invoice("draft", invoice_id=invoice_id)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(side_effect=fake_get)),
+            patch.object(
+                InvoiceService, "_get_customer", AsyncMock(return_value=self._customer(100, 1, 2))
+            ),
+        ):
+            result = await invoice_service.batch_submit([1, 2], approver_id=1)
+
+        assert result["success_count"] == 1
+        assert result["skipped"][0] == {"id": 2, "reason": "结算单不存在"}
+
+    @pytest.mark.asyncio
+    async def test_batch_submit_out_of_scope_skipped(self, invoice_service):
+        """越权单条（非本人负责客户）计入 skipped"""
+        invoice = self._invoice("draft", invoice_id=1)
+        invoice.customer = self._customer(100, manager_id=99, sales_manager_id=98)
+
+        with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)):
+            result = await invoice_service.batch_submit([1], approver_id=1, scope_user_id=7)
+
+        assert result["success_count"] == 0
+        assert result["skipped"][0]["reason"] == "无权访问该结算单"
+
+    @pytest.mark.asyncio
+    async def test_batch_cancel_mixed(self, invoice_service):
+        """混合状态批量取消：可取消的成功，不可取消的 skip"""
+        invoices = {
+            1: self._invoice("draft", invoice_id=1),
+            2: self._invoice("completed", invoice_id=2),
+            3: self._invoice("pending_customer", invoice_id=3),
+        }
+
+        async def fake_get(invoice_id):
+            return invoices[invoice_id]
+
+        with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(side_effect=fake_get)):
+            result = await invoice_service.batch_cancel([1, 2, 3], user_id=1)
+
+        assert result["success_count"] == 2
+        assert sorted(result["success_ids"]) == [1, 3]
+        assert result["skipped"][0]["id"] == 2
+        assert "不可取消" in result["skipped"][0]["reason"]
+        assert invoices[1].status == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_batch_delete(self, invoice_service):
+        """批量软删除：无状态限制，全部成功"""
+        invoices = {
+            1: self._invoice("draft", invoice_id=1),
+            2: self._invoice("completed", invoice_id=2),
+        }
+
+        async def fake_get(invoice_id):
+            return invoices[invoice_id]
+
+        with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(side_effect=fake_get)):
+            result = await invoice_service.batch_delete([1, 2])
+
+        assert result["success_count"] == 2
+        assert result["skipped"] == []
+        assert invoices[1].deleted_at is not None
+        assert invoices[2].deleted_at is not None

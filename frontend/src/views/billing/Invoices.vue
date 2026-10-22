@@ -7,6 +7,9 @@
           导入
         </button>
         <button v-if="can('billing:invoice_export')" class="btn" @click="handleExport">导出</button>
+        <button v-if="can('billing:view')" class="btn" @click="detailStatusVisible = true">
+          明细生成状态
+        </button>
         <button v-if="can('billing:edit')" class="btn primary" @click="generateModalVisible = true">
           生成结算单
         </button>
@@ -18,12 +21,37 @@
       <!-- 筛选器 -->
       <InvoiceFilters v-model:filters="filters" @search="handleSearch" @reset="handleReset" />
 
+      <!-- 批量操作工具栏（跨页保留选中） -->
+      <div v-if="hasSelected" class="batch-toolbar">
+        <span class="batch-info">已选择 {{ selectedInvoiceIds.length }} 项</span>
+        <div class="batch-actions">
+          <button v-if="can('billing:edit')" class="btn btn-primary-sm" @click="onBatchSubmit">
+            批量提交
+          </button>
+          <button v-if="can('billing:edit')" class="btn btn-primary-sm" @click="onBatchCancel">
+            批量取消
+          </button>
+          <button v-if="can('billing:delete')" class="btn btn-danger-sm" @click="onBatchDelete">
+            批量删除
+          </button>
+          <button class="btn btn-sm" @click="clearSelection">取消选择</button>
+        </div>
+      </div>
+
       <!-- 表格 -->
       <div class="table-section">
         <div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
+                <th style="width: 40px">
+                  <input
+                    type="checkbox"
+                    :checked="allChecked"
+                    :indeterminate.prop="someChecked"
+                    @change="onToggleAll"
+                  />
+                </th>
                 <th
                   :class="getThClass('invoice_no')"
                   style="width: 200px"
@@ -71,6 +99,14 @@
                 class="row-clickable"
                 @click="viewInvoice(record)"
               >
+                <!-- 多选 -->
+                <td @click.stop>
+                  <input
+                    type="checkbox"
+                    :checked="selectedInvoiceIds.includes(record.id)"
+                    @change="onSelectRow($event, record.id)"
+                  />
+                </td>
                 <!-- 结算单号 -->
                 <td>
                   <span class="invoice-no">{{ record.invoice_no }}</span>
@@ -117,12 +153,26 @@
                     class="subtle"
                     >⏳</span
                   >
-                  <span
-                    v-else-if="record.detail_file_status === 'failed'"
-                    title="生成失败"
-                    class="text-danger"
-                    >❌</span
-                  >
+                  <template v-else-if="record.detail_file_status === 'failed'">
+                    <span title="生成失败" class="text-danger">❌</span>
+                    <button
+                      v-if="can('billing:edit')"
+                      class="btn btn-primary-sm batch-toolbar-btn"
+                      @click.stop="handleRegenerateDetail(record.id)"
+                    >
+                      重新生成
+                    </button>
+                  </template>
+                  <template v-else-if="record.detail_file_status === 'pending'">
+                    <span title="待生成" class="subtle">⏳</span>
+                    <button
+                      v-if="can('billing:edit')"
+                      class="btn btn-primary-sm batch-toolbar-btn"
+                      @click.stop="handleRegenerateDetail(record.id)"
+                    >
+                      重新生成
+                    </button>
+                  </template>
                   <span v-else class="subtle">-</span>
                 </td>
                 <!-- 状态 -->
@@ -268,13 +318,6 @@
       :current-attachment="currentDetail?.discount_attachment"
       @success="handleDiscountEditSuccess"
     />
-    <!-- 付款弹窗 -->
-    <PayModal
-      v-model:visible="payModalVisible"
-      :invoice-id="selectedInvoiceId"
-      @success="handlePaySuccess"
-    />
-
     <!-- 导入弹窗 -->
     <ImportModal
       v-model:visible="importModalVisible"
@@ -284,6 +327,9 @@
       template-file-name="结算单导入模板.xlsx"
       @success="loadInvoices"
     />
+
+    <!-- 明细文件生成状态抽屉 -->
+    <DetailGenStatusDrawer v-model:visible="detailStatusVisible" @regenerated="loadInvoices" />
   </div>
 </template>
 
@@ -301,14 +347,15 @@ import {
   exportInvoices,
   importInvoices,
   downloadInvoiceTemplate,
+  regenerateInvoiceDetail,
 } from '@/api/billing'
 import InvoiceFilters from './components/InvoiceFilters.vue'
 import ImportModal from './components/ImportModal.vue'
 import InvoiceDetailDrawer from './components/InvoiceDetailDrawer.vue'
+import DetailGenStatusDrawer from './components/DetailGenStatusDrawer.vue'
 import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
 import SubmitModal from './components/SubmitModal.vue'
 import DiscountEditModal from './components/DiscountEditModal.vue'
-import PayModal from './components/PayModal.vue'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 
 const router = useRouter()
@@ -361,14 +408,22 @@ const {
   doCancel,
   doDelete,
   doUpdateSettlementAccount,
+  selectedInvoiceIds,
+  hasSelected,
+  handleBatchSelect,
+  handleBatchSelectAll,
+  clearSelection,
+  doBatchSubmit,
+  doBatchCancel,
+  doBatchDelete,
 } = useInvoice()
 
 const drawerVisible = ref(false)
+const detailStatusVisible = ref(false)
 const generateModalVisible = ref(false)
 const importModalVisible = ref(false)
 const submitModalVisible = ref(false)
 const discountEditVisible = ref(false)
-const payModalVisible = ref(false)
 const selectedInvoiceId = ref<number>(0)
 const retryingId = ref<number | null>(null)
 
@@ -414,6 +469,64 @@ const onPageSizeChange = (size: number) => {
   handlePageSizeChange(size)
 }
 
+// --- 多选 ---
+const allChecked = computed(
+  () => invoices.value.length > 0 && selectedInvoiceIds.value.length === invoices.value.length
+)
+const someChecked = computed(
+  () => !allChecked.value && invoices.value.some((i) => selectedInvoiceIds.value.includes(i.id))
+)
+
+const onSelectRow = (event: Event, id: number) => {
+  handleBatchSelect((event.target as HTMLInputElement).checked, id)
+}
+
+const onToggleAll = (event: Event) => {
+  handleBatchSelectAll((event.target as HTMLInputElement).checked, invoices.value)
+}
+
+const onBatchSubmit = () => {
+  Modal.confirm({
+    title: '确认批量提交',
+    content: `确定要提交所选的 ${selectedInvoiceIds.value.length} 个结算单吗？非草稿状态的结算单将被跳过。`,
+    onOk: async () => {
+      try {
+        await doBatchSubmit()
+      } catch {
+        // 错误消息已由 useInvoice 处理
+      }
+    },
+  })
+}
+
+const onBatchCancel = () => {
+  Modal.confirm({
+    title: '确认批量取消',
+    content: `确定要取消所选的 ${selectedInvoiceIds.value.length} 个结算单吗？不可取消的状态将被跳过。`,
+    onOk: async () => {
+      try {
+        await doBatchCancel()
+      } catch {
+        // 错误消息已由 useInvoice 处理
+      }
+    },
+  })
+}
+
+const onBatchDelete = () => {
+  Modal.confirm({
+    title: '确认批量删除',
+    content: `确定要删除所选的 ${selectedInvoiceIds.value.length} 个结算单吗？此操作不可恢复。`,
+    onOk: async () => {
+      try {
+        await doBatchDelete()
+      } catch {
+        // 错误消息已由 useInvoice 处理
+      }
+    },
+  })
+}
+
 // --- 操作 ---
 const viewInvoice = async (record: Invoice) => {
   selectedInvoiceId.value = record.id
@@ -426,7 +539,9 @@ const viewInvoice = async (record: Invoice) => {
 }
 
 const handleRegenerateDetail = async (id: number) => {
-  // 刷新详情获取最新状态（后端会将状态设为 generating/pending）
+  // 重置状态为 pending 并触发异步生成（后端返回即已入队）
+  await regenerateInvoiceDetail(id)
+  // 刷新详情获取最新状态
   await fetchDetail(id)
   // 启动轮询
   startPolling()
@@ -487,10 +602,6 @@ const handleDiscountEditSuccess = async () => {
 const openDiscountEditModal = (record: Invoice) => {
   selectedInvoiceId.value = record.id
   discountEditVisible.value = true
-}
-
-const handlePaySuccess = () => {
-  payModalVisible.value = false
 }
 
 const openSubmitModal = (record: Invoice) => {
@@ -655,6 +766,43 @@ onMounted(async () => {
 .table-section {
   display: flex;
   flex-direction: column;
+}
+
+/* 批量操作工具栏 */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+.batch-toolbar .batch-info {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.batch-toolbar .batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.batch-toolbar .btn-danger-sm {
+  color: var(--red);
+  border-color: #fecaca;
+}
+.batch-toolbar .btn-danger-sm:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.batch-toolbar-btn {
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 .table-wrap {
   overflow: auto;

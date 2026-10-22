@@ -6,8 +6,10 @@
 模板参照: 安溪如是VR房源模型消费2026年7月结算单.xlsx
 """
 
+import asyncio
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -22,6 +24,10 @@ from ..config import settings
 from ..utils.timezone import utc_to_cst_date_str
 
 logger = logging.getLogger(__name__)
+
+# Excel 单元格（XML 1.0）不允许的控制字符：openpyxl 写入时抛 IllegalCharacterError。
+# 合法范围：\\t(0x09) \\n(0x0A) \\r(0x0D) 及 0x20 以上；剔除其余 C0 控制符。
+_ILLEGAL_XML_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 # ============================================================
 # 明细 Sheet 表头（29 列，与模板完全对齐）
@@ -151,9 +157,14 @@ class InvoiceExcelService:
         self,
         db: AsyncSession,
         external_engine: Optional[AsyncEngine] = None,
+        session_factory: Optional[Any] = None,
     ):
         self.db = db
         self.external_engine = external_engine
+        # 可选会话工厂：提供时余额查询改用短会话（查完即还），
+        # 调用方可在构建 Excel 前提前关闭长事务会话（见
+        # tasks/invoice_detail_generator.py 的事务缩短）。
+        self.session_factory = session_factory
 
     async def generate_detail_file(
         self,
@@ -196,7 +207,14 @@ class InvoiceExcelService:
         )
 
         # 3. 生成 Excel
-        file_path = self._build_and_save_excel(
+        # _build_and_save_excel 是纯同步函数（openpyxl 逐格写样式 + wb.save zip
+        # 序列化，零 await 点），其输入 order_details/balance_info 均为已取回的
+        # 纯内存数据、函数内不碰 DB，线程安全。明细 job 跑在 AsyncIOScheduler
+        # 的 AsyncIOExecutor 上（与 Web 服务同一事件循环），直接同步调用会独占
+        # 循环数秒，导致批量生成期间列表/轮询/详情请求全部排队（实测详情 13ms
+        # 被阻塞到 17s）。故丢默认线程池执行，事件循环保持响应。
+        file_path = await asyncio.to_thread(
+            self._build_and_save_excel,
             invoice_id=invoice_id,
             customer_name=customer_name,
             period_start=period_start,
@@ -266,6 +284,41 @@ class InvoiceExcelService:
         当月充值 = 结算周期内充值记录总和
         结算后余额 = 期初余额 + 当月充值 - 最终结算金额
         """
+        # 有会话工厂时用短会话查完即还：调用方（明细任务）在查询计费项后
+        # 即关闭长事务会话，余额查询不应再依赖它
+        if self.session_factory is not None:
+            async with self.session_factory() as short_session:
+                return await self._query_balance_info(
+                    short_session,
+                    customer_id,
+                    period_start,
+                    period_end,
+                    total_amount,
+                    discount_amount,
+                    invoice_status,
+                )
+
+        return await self._query_balance_info(
+            self.db,
+            customer_id,
+            period_start,
+            period_end,
+            total_amount,
+            discount_amount,
+            invoice_status,
+        )
+
+    async def _query_balance_info(
+        self,
+        db: AsyncSession,
+        customer_id: int,
+        period_start: datetime,
+        period_end: datetime,
+        total_amount: Decimal,
+        discount_amount: Decimal,
+        invoice_status: str,
+    ) -> Dict[str, Any]:
+        """余额/充值查询实现（db 为调用方提供的会话，由 _fetch_balance_info 分流）"""
         from sqlalchemy import func, select
 
         from ..models.billing import CustomerBalance, RechargeRecord
@@ -278,7 +331,7 @@ class InvoiceExcelService:
 
         try:
             # 查询当前余额
-            balance = await self.db.execute(
+            balance = await db.execute(
                 select(CustomerBalance).where(CustomerBalance.customer_id == customer_id)
             )
             bal = balance.scalars().first()
@@ -293,9 +346,14 @@ class InvoiceExcelService:
                 opening_balance = current_balance
 
             # 查询当月充值记录总额
-            start_dt = period_start
-            end_dt = period_end + timedelta(seconds=1)  # 包含结束时刻
-            recharge_result = await self.db.execute(
+            # recharge_records.created_at 是 timestamp WITHOUT TIME ZONE（naive），
+            # 而 period_start/end 来自 timestamptz 列的 aware UTC datetime。直接比较
+            # asyncpg 抛 DataError（can't subtract offset-naive and offset-aware），
+            # 该异常曾被 except 吞掉仅记 error，导致「当月充值」恒为 0。
+            # 此处显式剥离 tzinfo（UTC 墙钟值不变）以匹配 naive 列语义。
+            start_dt = period_start.replace(tzinfo=None)
+            end_dt = (period_end + timedelta(seconds=1)).replace(tzinfo=None)  # 包含结束时刻
+            recharge_result = await db.execute(
                 select(
                     func.coalesce(func.sum(RechargeRecord.real_amount), 0),
                     func.coalesce(func.sum(RechargeRecord.bonus_amount), 0),
@@ -323,8 +381,13 @@ class InvoiceExcelService:
         return result
 
     def _row_to_dict(self, row) -> Dict[str, Any]:
-        """将查询结果行转换为字典"""
-        return {
+        """将查询结果行转换为字典
+
+        所有字符串字段经 _clean_cell_text 清洗：外部 MySQL 数据可能含控制字符
+        （如项目名 "景发-怡景-12C\x0c"），openpyxl 写入时抛 IllegalCharacterError
+        导致整个明细生成失败。datetime/数值字段原样返回。
+        """
+        raw = {
             "project_name": row[0] or "",
             "custom_code": row[1] or "",
             "city": row[2] or "",
@@ -352,6 +415,22 @@ class InvoiceExcelService:
             "publisher_name": row[24] or "",
             "model_fix_status": row[25],
         }
+        return {
+            key: self._clean_cell_text(val) if isinstance(val, str) else val
+            for key, val in raw.items()
+        }
+
+    @staticmethod
+    def _clean_cell_text(val: Any) -> Any:
+        """清洗单元格文本：移除 openpyxl 拒绝的控制字符（IllegalCharacterError）
+
+        Excel 单元格合法字符为 XML 1.0 允许范围（含 \\t \\n \\r）；外部数据里的
+        \\x00-\\x08 / \\x0b / \\x0c / \\x0e-\\x1f 等控制字符会让 openpyxl 在写入时
+        抛 IllegalCharacterError，整个明细文件生成失败。此处统一剔除，其余原样保留。
+        """
+        if not isinstance(val, str):
+            return val
+        return _ILLEGAL_XML_CHARS_RE.sub("", val)
 
     @staticmethod
     def _fmt_dt(val: Any) -> str:
@@ -421,7 +500,7 @@ class InvoiceExcelService:
         ws1.cell(
             row=1,
             column=1,
-            value=f"{customer_name}VR房源模型消费结算汇总",
+            value=f"{self._clean_cell_text(customer_name)}VR房源模型消费结算汇总",
         )
         ws1.cell(row=1, column=1).font = Font(bold=True, size=14)
         ws1.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
@@ -526,7 +605,10 @@ class InvoiceExcelService:
             ]
 
             for col, val in enumerate(row_data, 1):
-                cell = ws2.cell(row=row_idx, column=col, value=val)
+                # 兜底清洗：即使调用方传入未清洗的 order dict（含控制字符），
+                # openpyxl 也不会抛 IllegalCharacterError。正常链路 _row_to_dict
+                # 出口已清洗，这里防御其他构造来源。
+                cell = ws2.cell(row=row_idx, column=col, value=self._clean_cell_text(val))
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical="center")
 
