@@ -361,30 +361,6 @@ export function useCustomerDetail() {
     router.back()
   }
 
-  const getStatusClass = (status: string) => {
-    const map: Record<string, string> = {
-      draft: 'warning',
-      pending_customer: 'warning',
-      customer_confirmed: 'success',
-      paid: 'success',
-      completed: 'success',
-      cancelled: 'danger',
-    }
-    return map[status] || 'warning'
-  }
-
-  const getStatusText = (status: string) => {
-    const map: Record<string, string> = {
-      draft: '草稿',
-      pending_customer: '待客户确认',
-      customer_confirmed: '客户已确认',
-      paid: '已付款',
-      completed: '已完成',
-      cancelled: '已取消',
-    }
-    return map[status] || status
-  }
-
   onMounted(() => {
     loadDetail()
     dict.loadAllDictData()
@@ -445,8 +421,6 @@ export function useCustomerDetail() {
 
     // 结算单操作
     viewInvoice,
-    getStatusClass,
-    getStatusText,
 
     // 字典数据
     managers: dict.managers,

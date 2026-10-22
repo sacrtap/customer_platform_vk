@@ -69,42 +69,6 @@ export const CONSUME_LEVEL_OPTIONS = [
   { label: 'C6 - 6万以下', value: 'C6' },
 ] as const
 
-/** 结算单状态选项（含多角色协作流程） */
-export const INVOICE_STATUS_OPTIONS = [
-  { label: '草稿', value: 'draft' },
-  { label: '待运营经理确认', value: 'pending_ops' },
-  { label: '待销售经理确认', value: 'pending_sales' },
-  { label: '待客户确认', value: 'pending_customer' },
-  { label: '客户已确认', value: 'customer_confirmed' },
-  { label: '已付款', value: 'paid' },
-  { label: '已完成', value: 'completed' },
-  { label: '已取消', value: 'cancelled' },
-] as const
-
-/** 结算单状态值 → 中文显示 映射 */
-export const INVOICE_STATUS_MAP: Record<string, string> = {
-  draft: '草稿',
-  pending_ops: '待运营经理确认',
-  pending_sales: '待销售经理确认',
-  pending_customer: '待客户确认',
-  customer_confirmed: '客户已确认',
-  paid: '已付款',
-  completed: '已完成',
-  cancelled: '已取消',
-}
-
-/** 结算单状态值 → 标签 CSS 类 映射 */
-export const INVOICE_STATUS_CLASS_MAP: Record<string, string> = {
-  draft: 'gray',
-  pending_ops: 'amber',
-  pending_sales: 'amber',
-  pending_customer: 'orange',
-  customer_confirmed: 'blue',
-  paid: 'green',
-  completed: 'green',
-  cancelled: 'red',
-}
-
 /** 布尔筛选项（是/否，供 FilterDropdown 使用，值为 string） */
 export const BOOLEAN_FILTER_OPTIONS = [
   { label: '是', value: 'true' },
