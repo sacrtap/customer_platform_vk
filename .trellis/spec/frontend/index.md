@@ -13,7 +13,7 @@ Before writing frontend code, read and follow:
 - [ ] [Hook Guidelines](./hook-guidelines.md) — Composable patterns, naming, page-level logic extraction
 - [ ] [State Management](./state-management.md) — Pinia stores, page state, localStorage, caching
 - [ ] [Type Safety](./type-safety.md) — Type organization, nullable fields, generics, forbidden `any`
-- [ ] [Quality Guidelines](./quality-guidelines.md) — API layer, error handling, linting, testing
+- [ ] [Quality Guidelines](./quality-guidelines.md) — API layer, error handling, linting, testing, pre-commit gotchas
 
 ---
 

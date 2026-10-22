@@ -26,11 +26,11 @@
         <div class="drawer-kpi-grid">
           <div class="drawer-kpi">
             <span>{{ customer.is_package ? '套餐剩余额度' : '当前余额' }}</span>
-            <b>¥{{ formatNumber(customer.balance) }}</b>
+            <b>{{ formatCurrency(customer.balance) }}</b>
           </div>
           <div class="drawer-kpi">
             <span>30天消耗</span>
-            <b>¥{{ formatNumber(customer.usage_30d_amount || 0) }}</b>
+            <b>{{ formatCurrency(customer.usage_30d_amount || 0) }}</b>
           </div>
           <div class="drawer-kpi">
             <span>健康度</span>
@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import type { Customer } from '@/types'
-import { toDate } from '@/utils/formatters'
+import { formatCurrency, toDate } from '@/utils/formatters'
 
 defineProps<{
   visible: boolean
@@ -105,12 +105,6 @@ const emit = defineEmits<{
 const getInitials = (name: string) => {
   if (!name) return '?'
   return name.charAt(0).toUpperCase()
-}
-
-const formatNumber = (num: number | string | null) => {
-  const n = typeof num === 'string' ? parseFloat(num) : num
-  if (n == null || isNaN(n)) return '0'
-  return n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 const formatDate = (date: string | null) => {
