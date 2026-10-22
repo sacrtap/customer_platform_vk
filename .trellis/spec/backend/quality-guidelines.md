@@ -360,3 +360,37 @@ run: |
 - affected 是**补充**不是替换：smoke 子集、nightly 全量（`backend-integration-full` + 合并覆盖率 50%）兜底保持不变；动态依赖漏边由夜间全量兜底。
 - 前端 vitest 全量已足够快，不加 affected；unit 层用 affected 会拉低覆盖率导致 `--cov-fail-under=34` 误杀，也不加。
 - 分层串行约束不变：受影响列表同时含 e2e/integration 时不得并行执行（共库伪失败约定，见 Testing Architecture）。
+
+---
+
+## 枚举/状态废弃的标准清理面
+
+[来源: 2026-10-23 结算单 `paid` 旧流程废弃 — `InvoiceStatus.PAID`、`pay`/`complete` 路由、`billing:pay` 权限整体移除]
+
+废弃一个枚举值（状态、类型码）时，仅删枚举成员会留下**四处静默失效面**。
+标准清理清单（按此顺序执行，每步都有可 grep 的锚点）：
+
+| # | 面 | 位置 | 清理动作 |
+|---|---|---|---|
+| 1 | 后端枚举 | `app/models/*.py` | 删成员 + 删 docstring 中对应的流程说明 |
+| 2 | 路由与服务 | `app/routes/**`、`app/services/**` | 删整段路由函数/服务方法；状态文本映射（导出 `status_map`）删对应行 |
+| 3 | 前端常量与类型 | `src/constants/<x>Status.ts`、`src/api/*.ts` 联合类型 | 从 map/class map/联合类型删除；`OPTIONS` 若由 `Object.entries(MAP)` 派生则自动生效 |
+| 4 | 前端时间线节点 | `src/components/**Timeline.vue` 的 `allNodes` 数组 | 删节点 + 从 `TimeField` 联合类型删除对应字段名 |
+
+**容易被漏的三处**（本次实测漏点）：
+
+- **前端 `Invoice.status` 联合类型**（`src/api/billing.ts`）—— 删常量后类型仍含旧值，`vue-tsc` 不会报错（宽联合），但后续 `includes()` 判断会带死分支。
+- **前端时间线节点**（`InvoiceTimeline.vue`）—— 与状态枚举解耦，删枚举不会让它报错，只是永远渲染不出该节点。
+- **审计中间件动作映射**（`app/middleware/audit.py::map_method_to_action` 的 `action_patterns`）—— 路由删除后 `/pay`、`/complete` 成为死分支，需连带删除 `tests/unit/test_audit_middleware.py` 中的对应断言。
+
+**权限废弃要登记到 seed 的 `LEGACY_TO_NEW_PERMISSIONS`**：从 `ALL_PERMISSIONS` 删除权限码只是停止新建授予，运行库里的旧 `permissions` 行与角色绑定仍在（角色权限页会显示僵尸权限）。在该字典登记旧码（无等价新码时给空列表 `[]`），seed 步骤 2.7 会解绑并删除记录。
+
+**存量数据迁移**：新增 alembic revision 用 `UPDATE ... WHERE status = '<old>'` 迁移，并在同一条语句里 `COALESCE` 回填新状态的时间戳/操作人字段；`downgrade` 留空并注释「迁移后无法区分原始值与迁移值，不可逆」。历史凭证列（如 `paid_at`）保留不删。
+
+**验证锚点**：
+```bash
+cd backend && grep -rn '"paid"\|InvoiceStatus.PAID\|billing:pay' app/ scripts/ tests/   # 应无输出
+cd frontend && grep -rn "'paid'\|\"paid\"" src/                                        # 应无输出
+```
+
+**回款金额字段名 ≠ 状态**：`analytics.py` 的 `data["total_paid"]`、`item.get("paid", 0)` 是金额字段名，与状态枚举无关，不要顺手改。
