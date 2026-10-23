@@ -100,9 +100,9 @@ class PricingRule(BaseModel):
     multi_floor_pricing_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # 其他层单价（递增模式下，每多一层的额外计费价格）
     additional_floor_price: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
-    tiers: Mapped[Any] = mapped_column(JSON)  # 阶梯配置
+    tiers: Mapped[Any] = mapped_column(JSON, default=list)  # 阶梯配置（NOT NULL，固定价填空列表）
     package_type: Mapped[str | None] = mapped_column(String(20))  # A/B/C/D
-    package_limits: Mapped[Any] = mapped_column(JSON)
+    package_limits: Mapped[Any] = mapped_column(JSON, default=list)  # 包年上限（NOT NULL）
     effective_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
