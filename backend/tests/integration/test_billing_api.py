@@ -652,68 +652,6 @@ async def test_get_balances_filter_erp_system_and_cooperation_status(
 
 
 @pytest.mark.asyncio
-async def test_get_balances_filter_auto_initiate_null_compat(test_client, auth_token, db_session):
-    """测试余额列表筛选 — auto_initiate_settlement 历史 NULL 视为「是」"""
-    headers = {"Authorization": f"Bearer {auth_token}"}
-
-    cid_true = _unique_customer_id(97000)
-    cid_null = _unique_customer_id(97500)
-    cid_false = _unique_customer_id(97800)
-
-    for cid, val in [(cid_true, True), (cid_null, None), (cid_false, False)]:
-        db_session.execute(
-            text("""
-            INSERT INTO customers (id, company_id, name, account_type,
-                                   settlement_cycle, settlement_type,
-                                   auto_initiate_settlement, created_at, updated_at)
-            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid',
-                    :val, NOW(), NOW())
-            """),
-            {"id": cid, "company_id": cid, "name": f"自动结算_{cid}", "val": val},
-        )
-        db_session.execute(
-            text("""
-            INSERT INTO customer_balances
-                (customer_id, total_amount, real_amount, bonus_amount,
-                 used_total, used_real, used_bonus, created_at, updated_at)
-            VALUES (:cid, 100.0, 100.0, 0, 0, 0, 0, NOW(), NOW())
-            """),
-            {"cid": cid},
-        )
-    db_session.commit()
-
-    # 「是」→ True 与 NULL 都命中
-    request, response = await test_client.get(
-        "/api/v1/billing/balances?auto_initiate_settlement=true",
-        headers=headers,
-    )
-    assert response.status == 200
-    customer_ids = [item["customer_id"] for item in response.json["data"]["list"]]
-    assert cid_true in customer_ids
-    assert cid_null in customer_ids
-    assert cid_false not in customer_ids
-
-    # 「否」→ 仅 False 命中
-    request, response = await test_client.get(
-        "/api/v1/billing/balances?auto_initiate_settlement=false",
-        headers=headers,
-    )
-    assert response.status == 200
-    customer_ids = [item["customer_id"] for item in response.json["data"]["list"]]
-    assert cid_false in customer_ids
-    assert cid_true not in customer_ids
-    assert cid_null not in customer_ids
-
-    # 非法取值返回 400
-    request, response = await test_client.get(
-        "/api/v1/billing/balances?auto_initiate_settlement=maybe",
-        headers=headers,
-    )
-    assert response.status == 400
-    assert "auto_initiate_settlement" in response.json["message"]
-
-
-@pytest.mark.asyncio
 async def test_get_balances_filter_is_disabled_null_compat(test_client, auth_token, db_session):
     """测试余额列表筛选 — is_disabled 历史 NULL 视为未停用"""
     headers = {"Authorization": f"Bearer {auth_token}"}

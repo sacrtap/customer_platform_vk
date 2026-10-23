@@ -1915,7 +1915,8 @@ class TestInvoiceService_ManagerFiltersAndSkip:
     核心契约（docs/specs/2026-10-21-settlement-management-page-plan.md）：
     - get_invoices 支持 manager_id / sales_manager_id 过滤
     - 批量生成不再跳过未指定经理的客户
-    - submit_invoice 按客户经理配置三分支；confirm_ops 无销售经理直达 pending_customer
+    - submit_invoice 按客户「是否对账」开关分流：不对账（默认）直达 pending_customer；
+      对账=是走完整流程（有运营经理→pending_ops，仅销售→pending_sales）
     - batch_submit / batch_cancel / batch_delete 混合状态逐条处理计入 skipped
     """
 
@@ -1932,11 +1933,17 @@ class TestInvoiceService_ManagerFiltersAndSkip:
         return InvoiceService(invoice_repo=mock_invoice_repo, pricing_repo=mock_pricing_repo)
 
     @staticmethod
-    def _customer(customer_id: int, manager_id=None, sales_manager_id=None) -> Customer:
+    def _customer(
+        customer_id: int,
+        manager_id=None,
+        sales_manager_id=None,
+        require_reconciliation=False,
+    ) -> Customer:
         customer = Customer(
             id=customer_id,
             company_id=customer_id,
             name=f"客户{customer_id}",
+            require_reconciliation=require_reconciliation,
         )
         customer.manager_id = manager_id
         customer.sales_manager_id = sales_manager_id
@@ -2219,9 +2226,11 @@ class TestInvoiceService_ManagerFiltersAndSkip:
 
     @pytest.mark.asyncio
     async def test_submit_both_managers_goes_to_pending_ops(self, invoice_service):
-        """有运营经理：submit → pending_ops"""
+        """有运营经理：submit → pending_ops（对账=是，走完整流程）"""
         invoice = self._invoice("draft", invoice_id=1)
-        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+        customer = self._customer(
+            100, manager_id=1, sales_manager_id=2, require_reconciliation=True
+        )
 
         with (
             patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
@@ -2234,9 +2243,11 @@ class TestInvoiceService_ManagerFiltersAndSkip:
 
     @pytest.mark.asyncio
     async def test_submit_sales_only_customer_goes_to_pending_sales(self, invoice_service):
-        """仅销售经理：submit 跳过运营确认直接 pending_sales"""
+        """仅销售经理：对账=是时 submit 跳过运营确认直接 pending_sales"""
         invoice = self._invoice("draft", invoice_id=1)
-        customer = self._customer(100, manager_id=None, sales_manager_id=2)
+        customer = self._customer(
+            100, manager_id=None, sales_manager_id=2, require_reconciliation=True
+        )
 
         with (
             patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
@@ -2261,6 +2272,57 @@ class TestInvoiceService_ManagerFiltersAndSkip:
 
         assert success is True
         assert invoice.status == "pending_customer"
+
+    @pytest.mark.asyncio
+    async def test_submit_no_reconciliation_skips_managers(self, invoice_service):
+        """不对账（默认否）：即使有经理，submit 也直接 pending_customer"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(
+            100, manager_id=1, sales_manager_id=2, require_reconciliation=False
+        )
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_customer"
+
+    @pytest.mark.asyncio
+    async def test_submit_reconciliation_goes_to_pending_ops(self, invoice_service):
+        """对账=是 + 有运营经理：submit → pending_ops（完整流程）"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(
+            100, manager_id=1, sales_manager_id=2, require_reconciliation=True
+        )
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_ops"
+
+    @pytest.mark.asyncio
+    async def test_submit_reconciliation_sales_only_goes_to_pending_sales(self, invoice_service):
+        """对账=是 + 仅销售经理：submit → pending_sales"""
+        invoice = self._invoice("draft", invoice_id=1)
+        customer = self._customer(
+            100, manager_id=None, sales_manager_id=2, require_reconciliation=True
+        )
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.submit_invoice(invoice_id=1, approver_id=1)
+
+        assert success is True
+        assert invoice.status == "pending_sales"
 
     @pytest.mark.asyncio
     async def test_confirm_ops_no_sales_jumps_to_customer(self, invoice_service):

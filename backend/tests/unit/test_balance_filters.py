@@ -5,8 +5,8 @@
 但覆盖度量在部分路径不完整；此文件直接调用解析/条件构建的纯函数，
 并借 Mock session 覆盖新筛选条件的 WHERE 组装分支（不连真实 DB）。
 
-覆盖范围（对齐客户管理页新增的 4 项筛选）:
-- _parse_balance_filters: auto_initiate_settlement / is_disabled 布尔校验、
+覆盖范围（对齐客户管理页新增的筛选）:
+- _parse_balance_filters: is_disabled 布尔校验、
   erp_system / cooperation_status 空串归一、settlement_group 枚举校验
 - _bool_filter_condition: 历史 NULL 兼容语义的 4 个分支
 - _settlement_group_condition: prepaid / postpaid 分组条件
@@ -66,13 +66,11 @@ def test_parse_new_filters_valid_values():
     """合法的布尔/字符串筛选被正确解析"""
     filters = _parse_balance_filters(
         _req(
-            auto_initiate_settlement="true",
             is_disabled="false",
             erp_system="yonyou",
             cooperation_status="合作中",
         )
     )
-    assert filters["auto_initiate_settlement"] is True
     assert filters["is_disabled"] is False
     assert filters["erp_system"] == "yonyou"
     assert filters["cooperation_status"] == "合作中"
@@ -81,20 +79,19 @@ def test_parse_new_filters_valid_values():
 def test_parse_new_filters_absent_are_none():
     """未传新增参数 → None（保持改动前行为）"""
     filters = _parse_balance_filters(_req())
-    assert filters["auto_initiate_settlement"] is None
     assert filters["is_disabled"] is None
     assert filters["erp_system"] is None
     assert filters["cooperation_status"] is None
 
 
-@pytest.mark.parametrize("field", ["auto_initiate_settlement", "is_disabled"])
+@pytest.mark.parametrize("field", ["is_disabled"])
 def test_parse_bool_invalid_raises(field):
     """布尔字段非法值 → ValueError（调用方转 400）"""
     with pytest.raises(ValueError, match=field):
         _parse_balance_filters(_req(**{field: "yes"}))
 
 
-@pytest.mark.parametrize("field", ["auto_initiate_settlement", "is_disabled"])
+@pytest.mark.parametrize("field", ["is_disabled"])
 def test_parse_bool_empty_string_is_none(field):
     """布尔字段空串 → None（视为未传，不报错）"""
     filters = _parse_balance_filters(_req(**{field: "   "}))
@@ -127,13 +124,13 @@ def test_parse_settlement_group_invalid_raises():
 
 def test_bool_filter_condition_matrix():
     """4 个分支的 NULL 兼容语义（对齐客户管理页 services/customers.py）"""
-    col = column("auto_initiate_settlement")
+    col = column("is_disabled")
 
-    # 自动发起结算（默认值=是）: True → IS TRUE OR IS NULL
+    # 默认值=是（示例）: True → IS TRUE OR IS NULL
     sql = _compile(_bool_filter_condition(col, True, null_as_true=True))
     assert "IS 1" in sql and "IS NULL" in sql
 
-    # 自动发起结算: False → IS FALSE
+    # 默认值=是: False → IS FALSE
     sql = _compile(_bool_filter_condition(col, False, null_as_true=True))
     assert "IS 0" in sql and "IS NULL" not in sql
 
@@ -196,13 +193,12 @@ async def _run_query(filters: dict) -> list[str]:
 
 @pytest.mark.asyncio
 async def test_query_applies_new_filters():
-    """新增 4 项筛选同时作用于 base_stmt 与 count_stmt
+    """新增筛选同时作用于 base_stmt 与 count_stmt
 
     注意：主查询以 Customer 为驱动表（select(Customer)），SELECT 列表始终包含
     Customer 全列，故断言用「列名 + 运算符」的条件形态，避免 SELECT 列表造成虚真。
     """
     filters = _full_filters(
-        auto_initiate_settlement="true",
         is_disabled="false",
         erp_system="yonyou",
         cooperation_status="合作中",
@@ -211,7 +207,6 @@ async def test_query_applies_new_filters():
     assert len(captured) == 2  # count_stmt + 主查询
 
     for sql in captured:
-        assert "customers.auto_initiate_settlement IS" in sql
         assert "customers.is_disabled IS" in sql
         assert "customers.erp_system =" in sql
         assert "customers.cooperation_status =" in sql
@@ -224,7 +219,6 @@ async def test_query_without_new_filters_omits_conditions():
     assert len(captured) == 2
 
     for sql in captured:
-        assert "customers.auto_initiate_settlement IS" not in sql
         assert "customers.is_disabled IS" not in sql
         assert "customers.erp_system =" not in sql
         assert "customers.cooperation_status =" not in sql
@@ -232,10 +226,9 @@ async def test_query_without_new_filters_omits_conditions():
 
 @pytest.mark.asyncio
 async def test_query_bool_filter_null_semantics_in_sql():
-    """自动发起结算=true（默认是）与 是否停用=false（默认否）在 SQL 中均含 IS NULL 兜底"""
-    filters = _full_filters(auto_initiate_settlement="true", is_disabled="false")
+    """是否停用=false（默认否）在 SQL 中含 IS NULL 兜底"""
+    filters = _full_filters(is_disabled="false")
     captured = await _run_query(filters)
     sql = str(captured[-1])
-    # auto_initiate_settlement: IS TRUE OR IS NULL；is_disabled: IS FALSE OR IS NULL
-    assert "customers.auto_initiate_settlement IS NULL" in sql
+    # is_disabled: IS FALSE OR IS NULL
     assert "customers.is_disabled IS NULL" in sql
