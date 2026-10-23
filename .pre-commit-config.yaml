@@ -15,8 +15,15 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
+      # exclude ^\.trellis/：该目录是 Trellis 工具的自有产物（workspace journal、
+      # tasks 元数据、scripts），格式由 Trellis 脚本全权管理。add_session.py /
+      # task.py archive 的自动 git commit 会因这两个 hook 改写文件而与暂存内容
+      # 冲突，导致 pre-commit failed + commit 回滚（journal 已写但提交不上）。
+      # 详见 .trellis/spec/ 的质量准则。
       - id: trailing-whitespace
+        exclude: ^\.trellis/
       - id: end-of-file-fixer
+        exclude: ^\.trellis/
       - id: check-yaml
       - id: check-json
       - id: check-merge-conflict

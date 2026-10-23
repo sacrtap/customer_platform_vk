@@ -1092,3 +1092,48 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 45: 结算单导出时间列按 CST 墙钟输出
+<!-- trellis-session: v=2 fp=fb7f06b439dcf776 -->
+
+**Date**: 2026-10-23
+**Task**: 结算单导出时间列按 CST 墙钟输出
+**Branch**: `main`
+
+### Summary
+
+修复结算单/包年套餐/余额导出 Excel 的时间列格式：timestamptz 列（period_start/end）原裸 isoformat 输出 UTC 时刻导致日期少一天，改用 utc_to_cst_date_str；naive 墙钟列（created_at）输出 ISO T 分隔+微秒不可读，新增 naive_cst_datetime_str（纯 strftime，不可误用 utc_to_cst_* 否则 +8 小时）。顺手补齐 status_map 的 pending_ops/pending_sales，Excel 组装移入 asyncio.to_thread。新增 5 个单元测试 + 2 个集成测试（真实下载 xlsx 断言 strptime 可解析且 microsecond==0），单元 684 passed、集成 371 passed。spec 沉淀两类时间列的选型表。已通过 PR #65 合入 main（squash 7f9ddad）并删除分支。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `248387a` | fix(billing): 导出的时间列按 CST 墙钟输出，不再裸 isoformat |
+| `fbd5550` | docs(spec): 沉淀 Excel 导出时间列的时区语义选型规则 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 46: 定位 pre-commit 与 Trellis journal 自动提交的冲突并修复
+<!-- trellis-session: v=2 fp=98496fd503da3f79 -->
+
+**Date**: 2026-10-23
+**Task**: 定位 pre-commit 与 Trellis journal 自动提交的冲突并修复
+**Branch**: `main`
+
+### Summary
+
+trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit 阻断。定位为两层原因：(1) add_session.py 的 append journal（existing + session_content）与 update_index（join(splitlines())）都不保证文件以单换行结尾，end-of-file-fixer/trailing-whitespace 改写后与暂存内容冲突导致 commit 回滚；(2) 更深层是 pre-commit 框架限制：pathspec 提交时 git 构建仅含指定文件的临时 index，若 .pre-commit-config.yaml 本身有改动则报 configuration is unstaged（已在 /tmp 最小仓库复现，确认非 Trellis bug）。修复：给两个 universal hook 加 exclude: ^\.trellis/，验证 hook 对 .trellis/ 跳过、对仓库其他路径仍生效。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6330ac2` | fix(trellis): pre-commit 的格式 hook 排除 .trellis/，修复 journal 自动提交失败 |
+
+### Status
+
+[OK] **Completed**
