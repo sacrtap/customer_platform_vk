@@ -550,3 +550,4 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 - ❌ **Passing Python `False` or `True` to `.where()`** — see "Impossible" WHERE Conditions above
 - ❌ **Orphan column: adding ORM fields without applying the migration to the running DB** — 「有迁移文件」≠「库已升级」；改模型后必须 `alembic upgrade head` 并用 `scripts/check_schema_drift.py` 验证，见上方 Schema Drift 一节
 - ❌ **Manually maintaining `ALTER TABLE ... ADD COLUMN` lists in test conftest** — 已废止，改用 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步；新增字段勿再手写清单
+- ❌ **把字段校验放在 `setattr` 赋值之后** — 校验抛 `ValueError` 时 ORM 对象已被改脏，而 session 未 rollback，后续任一请求的 flush 会把非法值落库（例：开对账校验放在赋值后，导致「无经理开对账」被 400 拦截后 `require_reconciliation=True` 仍落库）。凡是抛错前不能留脏对象的校验，必须先于赋值；只依赖 `data` 与 `customer` 现值的校验天然可前置
