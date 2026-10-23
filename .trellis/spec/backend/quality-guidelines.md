@@ -394,3 +394,34 @@ cd frontend && grep -rn "'paid'\|\"paid\"" src/                                 
 ```
 
 **回款金额字段名 ≠ 状态**：`analytics.py` 的 `data["total_paid"]`、`item.get("paid", 0)` 是金额字段名，与状态枚举无关，不要顺手改。
+
+---
+
+## Excel 导出的时间列必须显式选格式化函数（naive 墙钟 vs UTC 时刻）
+
+[来源: 2026-10-23 结算单导出时间显示不正确 — `period_start/end` 输出 `2026-08-31T16:00:00+00:00`、`created_at` 输出 `2026-10-22T17:13:20.535487`]
+
+导出/报表里写时间列时，**先确认列的时区语义，再选函数**。本项目有两类时间列，
+混用会分别导致「日期少一天」和「再偏 8 小时」两种相反方向的错误：
+
+| 列类型 | 存储 | 值的真实语义 | 正确函数 | 误用后果 |
+|---|---|---|---|---|
+| `DateTime(timezone=True)`（timestamptz） | UTC 时刻 | 绝对时刻 | `utc_to_cst_date_str` / `utc_to_cst_datetime_str`（内部 `astimezone(CST)`） | 裸 `isoformat()` → 输出 UTC 日期，**比 CST 少一天**（`2026-08-31T16:00:00+00:00` 应为 `2026-09-01`） |
+| `DateTime`（timestamp without time zone） | PG 会话时区（Asia/Shanghai）的墙钟 | CST 墙钟 | `naive_cst_datetime_str`（纯 `strftime`，不转时区） | 误用 `utc_to_cst_*` → 内部 `replace(tzinfo=UTC)` 把墙钟当 UTC，**再 +8 小时** |
+
+典型涉及列：`TimestampMixin.created_at/updated_at`（naive，`server_default=now()`）、
+`RechargeRecord.created_at`（naive）、String 型流程字段（`approved_at` 等，`datetime.now().isoformat()` 写入的裸本地时间）；
+vs `Invoice.period_start/period_end`、`PricingRule.effective_date/expiry_date`（timestamptz）。
+
+**规则**：
+1. 导出列一律输出 `YYYY-MM-DD`（日期列）或 `YYYY-MM-DD HH:MM:SS`（时间列）字符串，
+   **禁止裸 `isoformat()`**——它输出 ISO `T` 分隔 + `+00:00` 时区后缀 + 微秒，用户不可读。
+2. 新增时间列前先查 `information_schema.columns.data_type` 或模型注解是否含 `timezone=True`。
+3. 纯 CPU 的 Excel 组装（含时间格式化）应放入 `asyncio.to_thread`，与 pricing/balances 导出一致。
+
+**守护测试**：`tests/unit/test_timezone_utils.py::test_naive_cst_datetime_str_does_not_equal_utc_to_cst`
+（两个函数结果相差 8 小时，防止互相误用）+ `tests/integration/test_billing_import_export_api.py`
+的 `test_export_invoices_time_columns_use_cst_wallclock` / `test_export_package_plans_time_columns_use_cst_wallclock`
+（真实下载 xlsx，断言单元格可被 `datetime.strptime(value, "%Y-%m-%d %H:%M:%S")` 解析且 `microsecond == 0`）。
+
+**相关**：`app/main.py::_force_cst_timezone`（进程级 TZ 兜底）、`utils/timezone.py` 模块 docstring 的时间流转图。
