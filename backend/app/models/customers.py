@@ -53,9 +53,9 @@ class Customer(BaseModel):
     is_settlement_enabled: Mapped[bool | None] = mapped_column(
         Boolean, nullable=True, default=True
     )  # 是否启用结算
-    auto_initiate_settlement: Mapped[bool | None] = mapped_column(
-        Boolean, nullable=True, default=True
-    )  # 是否自动发起结算（NULL 视为是，与 is_settlement_enabled 同语义）
+    require_reconciliation: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=False
+    )  # 是否对账（NULL 视为否）；是→走完整结算确认流程并强制经理非空，否→跳过经理确认
     is_disabled: Mapped[bool | None] = mapped_column(
         Boolean, nullable=True, default=False, index=True
     )  # 是否停用
