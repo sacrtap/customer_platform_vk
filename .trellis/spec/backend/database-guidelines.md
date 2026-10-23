@@ -526,6 +526,8 @@ cd backend && python -m alembic current && python -m alembic heads
 # 模型与库是否存在漂移（本 bug 的精确探测手段）
 cd backend && python scripts/check_schema_drift.py
 #   会自动忽略 22 个遗留对象/索引差异；关注「运行库缺少列/表」的 ❌ FAILED。
+#   2026-10-23 起同时比对**可空性**（modify_nullable）：列两侧都存在但 nullable 不一致
+#   同样 FAILED——那会让同一条 INSERT 在测试库与生产库行为分叉（见下节）。
 #   等价底层手段（噪声较多）：python -m alembic check —— 手工备份表
 #   customer_balances_backup_20260812 会报 remove_table，属预期。
 
@@ -535,6 +537,36 @@ cd backend && pytest tests/integration/test_migrations.py::TestModelMigrationPar
 # 直接比对该表实际列
 python -c "import asyncio,asyncpg; ..."  # information_schema.columns where table_name='customers'
 ```
+
+---
+
+## 可空性漂移：列存在 ≠ nullable 一致（Schema Drift 第二维）
+
+[来源: 2026-10-23 — `check_schema_drift.py` 增 `modify_nullable` 比对，一次检出 8 处存量漂移]
+
+**症状**：同一条 INSERT 在两侧行为分叉。测试库由 `tests/_test_data.py::sync_test_schema`
+按 **metadata** 建表；生产库由**历史迁移链**建。当模型的可空性推断与迁移链不一致时，
+测试库里合法的写法在生产库炸（或反之），而两边的测试都可能是绿的。
+
+**根因（两类）**：
+1. `Mapped[Any]` 的 JSON 列——SQLAlchemy 对 `Any` 推断 `nullable=False`，
+   而初始迁移写的是 `nullable=True`（如 `pricing_rules.tiers`、`audit_logs.changes`）。
+2. 注解 `Mapped[int | None]` 但迁移是 `nullable=False`（如 `sync_tasks.success_count`、
+   `invoice_discount_histories.invoice_id`）——模型比库宽松。
+
+**修复基准**：**迁移链是唯一事实来源**（`alembic/versions/*.py` 里该列最终的 `nullable=`）。
+模型向迁移对齐，不要反过来改库——除非业务确实要改约束（那要先写迁移）。
+
+**已修复的 8 处（2026-10-23）**：
+`audit_logs.changes`、`pricing_rules.tiers`、`pricing_rules.package_limits` → 模型加 `nullable=True`；
+`invoice_discount_histories.invoice_id`、`sync_tasks.completed_days/skipped_days/success_count/failed_count`
+→ 模型加 `nullable=False`。
+
+### Checklist: 新增/修改 JSON 或 int 列时
+
+- [ ] 迁移里的 `nullable=` 与模型注解一致（`Mapped[Any]` 必须显式写 `nullable=True`，别依赖推断）
+- [ ] 跑 `python scripts/check_schema_drift.py`，确认「可空性一致」也是 ✅
+- [ ] 测试库与生产库的行为分叉问题：优先怀疑可空性/默认值漂移
 
 ---
 
@@ -550,3 +582,7 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 - ❌ **Passing Python `False` or `True` to `.where()`** — see "Impossible" WHERE Conditions above
 - ❌ **Orphan column: adding ORM fields without applying the migration to the running DB** — 「有迁移文件」≠「库已升级」；改模型后必须 `alembic upgrade head` 并用 `scripts/check_schema_drift.py` 验证，见上方 Schema Drift 一节
 - ❌ **Manually maintaining `ALTER TABLE ... ADD COLUMN` lists in test conftest** — 已废止，改用 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步；新增字段勿再手写清单
+- ❌ **把字段校验放在 `setattr` 赋值之后** — 校验抛 `ValueError` 时 ORM 对象已被改脏，而 session 未 rollback，后续任一请求的 flush 会把非法值落库（例：开对账校验放在赋值后，导致「无经理开对账」被 400 拦截后 `require_reconciliation=True` 仍落库）。凡是抛错前不能留脏对象的校验，必须先于赋值；只依赖 `data` 与 `customer` 现值的校验天然可前置
+- ❌ **NOT NULL 的 JSON 列不在 ORM 侧给 `default`** — `mapped_column(JSON)` 无默认时，任何未显式传值的构造都会 INSERT NULL 触发 NotNullViolationError；生产路径普遍用 `data.get("tiers")`（API 不带字段即 None），必须靠 ORM `default=list`/`default=dict` 兜底。新增 JSON 列时先确认 NOT NULL 约束与默认值配对
+- ❌ **Mock 数据库 helper 只定义 `.all()` 不定义 `.scalars().first()`** — MagicMock 的链式属性自动生成假对象，被测代码读到 MagicMock 属性而不报错，症状是下游 `TypeError: '<' not supported between MagicMock and int`，根因离现场很远。helper 必须显式定义被测代码用到的每条链（`.first()` / `.scalars().first()` / `.scalar()`）
+- ❌ **`side_effect` 列表与被测方法的 execute 次数/顺序不匹配** — 服务方法若有「先查客户资格再查数据」的前置 execute，测试列表漏掉第一项会导致整体错位一位：customer_stmt 拿到用量行、pricing_stmt 拿到余额行。症状同样表现为下游字段是 MagicMock。加/改服务层 execute 时必须同步测试列表长度

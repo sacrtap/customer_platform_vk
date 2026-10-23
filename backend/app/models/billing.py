@@ -100,9 +100,13 @@ class PricingRule(BaseModel):
     multi_floor_pricing_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # 其他层单价（递增模式下，每多一层的额外计费价格）
     additional_floor_price: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
-    tiers: Mapped[Any] = mapped_column(JSON)  # 阶梯配置
+    tiers: Mapped[Any | None] = mapped_column(
+        JSON, nullable=True, default=list
+    )  # 阶梯配置（迁移链 nullable=True；default 兜底 None → []）
     package_type: Mapped[str | None] = mapped_column(String(20))  # A/B/C/D
-    package_limits: Mapped[Any] = mapped_column(JSON)
+    package_limits: Mapped[Any | None] = mapped_column(
+        JSON, nullable=True, default=list
+    )  # 包年上限（迁移链 nullable=True；default 兜底 None → []）
     effective_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
@@ -203,8 +207,8 @@ class InvoiceDiscountHistory(BaseModel):
 
     __tablename__ = "invoice_discount_histories"
 
-    invoice_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True
+    invoice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True, nullable=False
     )
     discount_amount: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), nullable=False)
     discount_reason: Mapped[str | None] = mapped_column(Text)
@@ -407,7 +411,9 @@ class AuditLog(BaseModel):
     module: Mapped[str] = mapped_column(String(50), nullable=False)
     record_id: Mapped[int | None] = mapped_column(Integer)
     record_type: Mapped[str | None] = mapped_column(String(50))
-    changes: Mapped[Any] = mapped_column(JSON)  # {"before": {...}, "after": {...}}
+    changes: Mapped[Any | None] = mapped_column(
+        JSON, nullable=True
+    )  # {"before": {...}, "after": {...}}
     ip_address: Mapped[str | None] = mapped_column(String(45))
     operation_type: Mapped[str | None] = mapped_column(
         String(20),

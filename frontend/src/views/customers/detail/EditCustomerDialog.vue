@@ -140,15 +140,15 @@
               <a-form-item field="is_settlement_enabled" label="启用结算">
                 <a-switch v-model="editForm.is_settlement_enabled" />
               </a-form-item>
-              <a-form-item field="auto_initiate_settlement" label="自动发起结算">
-                <a-switch v-model="editForm.auto_initiate_settlement" />
+              <a-form-item field="require_reconciliation" label="是否对账">
+                <a-switch v-model="editForm.require_reconciliation" />
               </a-form-item>
             </div>
 
             <!-- ===== 列三：人员与状态（6项） ===== -->
             <div class="form-col">
               <div class="section-title">人员与状态</div>
-              <a-form-item field="sales_manager_id" label="商务经理">
+              <a-form-item field="sales_manager_id" label="商务经理" :rules="salesManagerRules">
                 <a-select
                   v-model="editForm.sales_manager_id"
                   placeholder="请选择"
@@ -160,7 +160,7 @@
                   </a-option>
                 </a-select>
               </a-form-item>
-              <a-form-item field="manager_id" label="运营经理">
+              <a-form-item field="manager_id" label="运营经理" :rules="managerRules">
                 <a-select
                   v-model="editForm.manager_id"
                   placeholder="请选择"
@@ -291,7 +291,7 @@ interface EditForm {
   sales_manager_id: number | null
   cooperation_status?: string
   is_settlement_enabled: boolean
-  auto_initiate_settlement: boolean
+  require_reconciliation: boolean
   is_disabled: boolean
   notes?: string
   is_real_estate: boolean | null
@@ -320,7 +320,7 @@ const createDefaultForm = (): EditForm => ({
   sales_manager_id: null,
   cooperation_status: undefined,
   is_settlement_enabled: true,
-  auto_initiate_settlement: true,
+  require_reconciliation: false,
   is_disabled: false,
   notes: undefined,
   is_real_estate: null,
@@ -331,6 +331,15 @@ const createDefaultForm = (): EditForm => ({
 })
 
 const editForm = reactive<EditForm>(createDefaultForm())
+
+// 开启对账后运营/商务经理必填
+const managerRules = computed(() =>
+  editForm.require_reconciliation ? [{ required: true, message: '开启对账后必填' }] : []
+)
+
+const salesManagerRules = computed(() =>
+  editForm.require_reconciliation ? [{ required: true, message: '开启对账后必填' }] : []
+)
 
 const editFormRules: Record<string, FieldRule[]> = {
   name: [{ required: true, message: '请输入客户名称' }],
@@ -426,7 +435,7 @@ const fetchAndInitForm = async () => {
       sales_manager_id: c.sales_manager_id ?? undefined,
       cooperation_status: c.cooperation_status || undefined,
       is_settlement_enabled: c.is_settlement_enabled ?? true,
-      auto_initiate_settlement: c.auto_initiate_settlement ?? true,
+      require_reconciliation: c.require_reconciliation ?? false,
       is_disabled: c.is_disabled ?? false,
       notes: c.notes || undefined,
       is_real_estate: c.is_real_estate ?? null,
@@ -480,7 +489,7 @@ const handleSubmit = async () => {
       onboarding_date: form.onboarding_date || undefined,
       cooperation_status: form.cooperation_status || undefined,
       is_settlement_enabled: form.is_settlement_enabled,
-      auto_initiate_settlement: form.auto_initiate_settlement,
+      require_reconciliation: form.require_reconciliation,
       is_disabled: form.is_disabled,
       notes: form.notes || undefined,
       is_real_estate: form.is_real_estate,

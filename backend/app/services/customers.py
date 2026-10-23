@@ -338,18 +338,6 @@ class CustomerService:
             else:
                 conditions.append(Customer.is_settlement_enabled.is_(False))
 
-        # 自动发起结算筛选：默认值为「是」，历史 NULL 视为是，筛「是」兼容 NULL
-        if (auto_initiate := filters.get("auto_initiate_settlement")) is not None:
-            if auto_initiate:
-                conditions.append(
-                    or_(
-                        Customer.auto_initiate_settlement.is_(True),
-                        Customer.auto_initiate_settlement.is_(None),
-                    )
-                )
-            else:
-                conditions.append(Customer.auto_initiate_settlement.is_(False))
-
         # 是否停用筛选：is_disabled 字段存在历史 NULL 值，False 需兼容 NULL（视为未停用）
         if (is_disabled := filters.get("is_disabled")) is not None:
             if is_disabled:
@@ -648,6 +636,12 @@ class CustomerService:
         if existing.scalar_one_or_none() is not None:
             raise ValueError(f"公司 ID '{company_id}' 已存在")
 
+        if data.get("require_reconciliation") is True:
+            if not data.get("manager_id"):
+                raise ValueError("开启对账后必须指定运营经理")
+            if not data.get("sales_manager_id"):
+                raise ValueError("开启对账后必须指定商务经理")
+
         customer = Customer(
             company_id=company_id,
             name=data["name"],
@@ -666,7 +660,7 @@ class CustomerService:
             onboarding_date=data.get("onboarding_date"),
             cooperation_status=data.get("cooperation_status", "active"),
             is_settlement_enabled=data.get("is_settlement_enabled", True),
-            auto_initiate_settlement=data.get("auto_initiate_settlement", True),
+            require_reconciliation=data.get("require_reconciliation", False),
             is_disabled=data.get("is_disabled", False),
             notes=data.get("notes"),
             settlement_account_id=data.get("settlement_account_id"),
@@ -739,7 +733,7 @@ class CustomerService:
             "sales_manager_id",
             "cooperation_status",
             "is_settlement_enabled",
-            "auto_initiate_settlement",
+            "require_reconciliation",
             "is_disabled",
             "notes",
             "settlement_account_id",
@@ -765,6 +759,26 @@ class CustomerService:
         for field in date_fields:
             if field in data and data[field]:
                 data[field] = parse_date_to_object(data[field])
+
+        # 开启对账后强制运营/商务经理非空（综合本次传入值与客户现有值判断；
+        # manager_id/sales_manager_id 显式传 None 清空同样视为未指定）。
+        # 必须先于字段赋值：赋值后抛错会使脏对象留在 session 中，被后续请求 flush 落库。
+        final_recon = (
+            data["require_reconciliation"]
+            if "require_reconciliation" in data
+            else customer.require_reconciliation
+        )
+        if final_recon is True:
+            final_manager = data["manager_id"] if "manager_id" in data else customer.manager_id
+            final_sales = (
+                data["sales_manager_id"]
+                if "sales_manager_id" in data
+                else customer.sales_manager_id
+            )
+            if not final_manager:
+                raise ValueError("开启对账后必须指定运营经理")
+            if not final_sales:
+                raise ValueError("开启对账后必须指定商务经理")
 
         for field in updatable_fields:
             if field in data:
@@ -841,7 +855,7 @@ class CustomerService:
             "sales_manager_id",
             "cooperation_status",
             "is_settlement_enabled",
-            "auto_initiate_settlement",
+            "require_reconciliation",
             "is_disabled",
             "notes",
             "industry_type_id",
@@ -1206,7 +1220,7 @@ class CustomerService:
                     # 新增字段
                     "cooperation_status",
                     "is_settlement_enabled",
-                    "auto_initiate_settlement",
+                    "require_reconciliation",
                     "is_disabled",
                     "first_payment_date",
                     "onboarding_date",
@@ -1333,9 +1347,9 @@ class CustomerService:
                         continue
                     data["settlement_type"] = storage_settlement_type
 
-                # 转换 auto_initiate_settlement（导出/模板为「是/否」或 true/false）
-                data["auto_initiate_settlement"] = convert_bool_field(
-                    data.get("auto_initiate_settlement")
+                # 转换 require_reconciliation（导出/模板为「是/否」或 true/false）
+                data["require_reconciliation"] = convert_bool_field(
+                    data.get("require_reconciliation")
                 )
 
                 # 数值字段清洗（月均拍摄量等）
@@ -1403,7 +1417,7 @@ class CustomerService:
                     onboarding_date=data.get("onboarding_date"),
                     cooperation_status=data.get("cooperation_status"),
                     is_settlement_enabled=data.get("is_settlement_enabled"),
-                    auto_initiate_settlement=data.get("auto_initiate_settlement"),
+                    require_reconciliation=data.get("require_reconciliation", False),
                     is_disabled=data.get("is_disabled"),
                     notes=data.get("notes"),
                 )

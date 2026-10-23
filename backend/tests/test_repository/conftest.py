@@ -138,6 +138,7 @@ async def sample_pricing_rule(db_session: AsyncSession, sample_customer: Custome
         layer_type="single",
         pricing_type="fixed",
         unit_price=Decimal("100.00"),
+        tiers=[],  # NOT NULL JSON 列；fixed 定价无阶梯配置
         effective_date=date(2026, 1, 1),
     )
     db_session.add(pricing_rule)

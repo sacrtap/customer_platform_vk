@@ -158,9 +158,9 @@ class TestCustomerService_CreateCustomer:
         assert result.name == "最小化测试公司"
         # 验证默认值
         assert result.is_key_customer is False
-        # 自动发起结算默认「是」（校验 add 传入的真实对象，而非 mock flush 替换的对象）
+        # 是否对账默认「否」（校验 add 传入的真实对象，而非 mock flush 替换的对象）
         added_customer = mock_db_session.add.call_args_list[0][0][0]
-        assert added_customer.auto_initiate_settlement is True
+        assert added_customer.require_reconciliation is False
 
     @pytest.mark.asyncio
     async def test_create_customer_creates_balance(self, customer_service, mock_db_session):
@@ -325,17 +325,15 @@ class TestCustomerService_UpdateCustomer:
         assert result.name == "原名称"
 
     @pytest.mark.asyncio
-    async def test_update_customer_auto_initiate_settlement(
-        self, customer_service, mock_db_session
-    ):
-        """测试更新自动发起结算字段"""
+    async def test_update_customer_require_reconciliation(self, customer_service, mock_db_session):
+        """测试更新是否对账字段"""
         customer_id = 1
 
         existing_customer = Customer(
             id=customer_id,
             company_id=1001,
             name="原名称",
-            auto_initiate_settlement=True,
+            require_reconciliation=False,
             deleted_at=None,
         )
 
@@ -343,15 +341,109 @@ class TestCustomerService_UpdateCustomer:
         mock_result.scalar_one_or_none.return_value = existing_customer
         mock_db_session.execute.return_value = mock_result
 
-        update_data = {"auto_initiate_settlement": False}
+        update_data = {"require_reconciliation": False}
 
         result = await customer_service.update_customer(customer_id, update_data)
 
         # 验证结果
         assert result is not None
-        assert result.auto_initiate_settlement is False
+        assert result.require_reconciliation is False
         # 验证数据库操作
         mock_db_session.commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_update_customer_require_reconciliation_requires_managers(
+        self, customer_service, mock_db_session
+    ):
+        """开启对账但无运营/商务经理 → ValueError"""
+        customer_id = 1
+
+        existing_customer = Customer(
+            id=customer_id,
+            company_id=1001,
+            name="原名称",
+            require_reconciliation=False,
+            deleted_at=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_customer
+        mock_db_session.execute.return_value = mock_result
+
+        # 无经理开对账 → 报运营经理缺失
+        with pytest.raises(ValueError, match="运营经理"):
+            await customer_service.update_customer(customer_id, {"require_reconciliation": True})
+
+        # 补齐运营经理但缺商务经理 → 报商务经理缺失
+        with pytest.raises(ValueError, match="商务经理"):
+            await customer_service.update_customer(
+                customer_id,
+                {"require_reconciliation": True, "manager_id": 10},
+            )
+
+        # 两个经理齐全 → 成功
+        result = await customer_service.update_customer(
+            customer_id,
+            {"require_reconciliation": True, "manager_id": 10, "sales_manager_id": 20},
+        )
+        assert result is not None
+        assert result.require_reconciliation is True
+
+    @pytest.mark.asyncio
+    async def test_update_customer_clear_manager_when_recon_on(
+        self, customer_service, mock_db_session
+    ):
+        """开对账状态下清空运营经理（显式传 None）→ ValueError"""
+        customer_id = 1
+
+        existing_customer = Customer(
+            id=customer_id,
+            company_id=1001,
+            name="原名称",
+            require_reconciliation=True,
+            manager_id=10,
+            sales_manager_id=20,
+            deleted_at=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_customer
+        mock_db_session.execute.return_value = mock_result
+
+        with pytest.raises(ValueError, match="运营经理"):
+            await customer_service.update_customer(customer_id, {"manager_id": None})
+
+    @pytest.mark.asyncio
+    async def test_update_customer_validation_failure_leaves_no_dirty_state(
+        self, customer_service, mock_db_session
+    ):
+        """校验失败时不得把脏值写进 ORM 对象
+
+        回归防护：曾把对账校验放在字段赋值之后，ValueError 抛出时对象已被
+        setattr 改脏且 session 未 rollback，后续请求 flush 会把 require_reconciliation
+        落库（无经理开对账被绕过）。
+        """
+        customer_id = 1
+
+        existing_customer = Customer(
+            id=customer_id,
+            company_id=1001,
+            name="原名称",
+            require_reconciliation=False,
+            manager_id=None,
+            sales_manager_id=None,
+            deleted_at=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_customer
+        mock_db_session.execute.return_value = mock_result
+
+        with pytest.raises(ValueError, match="运营经理"):
+            await customer_service.update_customer(customer_id, {"require_reconciliation": True})
+
+        # 校验失败后对象不得被改脏（否则脏值会被后续请求 flush 落库）
+        assert existing_customer.require_reconciliation is False
 
 
 # ==================== Test Delete Customer ====================
@@ -903,46 +995,6 @@ class TestCustomerService_BooleanFilters:
         sql = self._capture_count_stmt(mock_db_session)
         assert "is_disabled IS false" in sql
         assert "is_disabled IS NULL" in sql
-
-    @pytest.mark.asyncio
-    async def test_filter_auto_initiate_settlement_true(self, mock_db_session):
-        """筛选 auto_initiate_settlement=True：NULL 视为是，条件含 IS NULL 兼容"""
-        from sqlalchemy.ext.asyncio import AsyncSession
-
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_result.scalar.return_value = 0
-        mock_db_session.execute = AsyncMock(return_value=mock_result)
-        mock_db_session.__class__ = AsyncSession
-
-        service = CustomerService(db_session=mock_db_session)
-        await service.get_all_customers(
-            page=1, page_size=20, filters={"auto_initiate_settlement": True}
-        )
-
-        sql = self._capture_count_stmt(mock_db_session)
-        assert "auto_initiate_settlement IS true" in sql
-        assert "auto_initiate_settlement IS NULL" in sql
-
-    @pytest.mark.asyncio
-    async def test_filter_auto_initiate_settlement_false(self, mock_db_session):
-        """筛选 auto_initiate_settlement=False：条件为 IS false，不含 NULL 兼容"""
-        from sqlalchemy.ext.asyncio import AsyncSession
-
-        mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_result.scalar.return_value = 0
-        mock_db_session.execute = AsyncMock(return_value=mock_result)
-        mock_db_session.__class__ = AsyncSession
-
-        service = CustomerService(db_session=mock_db_session)
-        await service.get_all_customers(
-            page=1, page_size=20, filters={"auto_initiate_settlement": False}
-        )
-
-        sql = self._capture_count_stmt(mock_db_session)
-        assert "auto_initiate_settlement IS false" in sql
-        assert "auto_initiate_settlement IS NULL" not in sql
 
 
 # ==================== Test Customer Service - Settlement Account (代扣余额) ====================

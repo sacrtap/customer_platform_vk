@@ -551,31 +551,27 @@ describe('useBalance - 默认筛选与客户管理页对齐', () => {
     expect(filters.is_settlement_enabled).toBeNull()
   })
 
-  it('新增筛选项（自动发起结算/是否停用/ERP系统/合作状态）默认值为空', () => {
+  it('新增筛选项（是否停用/ERP系统/合作状态）默认值为空', () => {
     const { filters } = useBalance()
-    expect(filters.auto_initiate_settlement).toBeNull()
     expect(filters.is_disabled).toBeNull()
     expect(filters.erp_system).toBe('')
     expect(filters.cooperation_status).toBe('')
   })
 
-  it('自动发起结算 / 是否停用 / ERP系统 / 合作状态 传入列表与统计请求', async () => {
+  it('是否停用 / ERP系统 / 合作状态 传入列表与统计请求', async () => {
     const { loadBalances, loadStats, filters } = useBalance()
-    filters.auto_initiate_settlement = true
     filters.is_disabled = false
     filters.erp_system = 'yonyou'
     filters.cooperation_status = 'active'
 
     await loadBalances()
     const listParams = mockGetBalances.mock.calls[0][0] as Record<string, unknown>
-    expect(listParams.auto_initiate_settlement).toBe(true)
     expect(listParams.is_disabled).toBe(false)
     expect(listParams.erp_system).toBe('yonyou')
     expect(listParams.cooperation_status).toBe('active')
 
     await loadStats()
     const statsParams = mockGetBalanceStats.mock.calls[0][0] as Record<string, unknown>
-    expect(statsParams.auto_initiate_settlement).toBe(true)
     expect(statsParams.is_disabled).toBe(false)
     expect(statsParams.erp_system).toBe('yonyou')
     expect(statsParams.cooperation_status).toBe('active')
@@ -583,13 +579,11 @@ describe('useBalance - 默认筛选与客户管理页对齐', () => {
 
   it('导出参数包含新增筛选项（布尔值序列化为字符串）', () => {
     const { buildExportParams, filters } = useBalance()
-    filters.auto_initiate_settlement = false
     filters.is_disabled = true
     filters.erp_system = 'kingdee'
     filters.cooperation_status = 'paused'
 
     const params = buildExportParams()
-    expect(params.auto_initiate_settlement).toBe('false')
     expect(params.is_disabled).toBe('true')
     expect(params.erp_system).toBe('kingdee')
     expect(params.cooperation_status).toBe('paused')
@@ -597,14 +591,12 @@ describe('useBalance - 默认筛选与客户管理页对齐', () => {
 
   it('handleReset 清空新增筛选项', () => {
     const { handleReset, filters } = useBalance()
-    filters.auto_initiate_settlement = true
     filters.is_disabled = true
     filters.erp_system = 'yonyou'
     filters.cooperation_status = 'active'
 
     handleReset()
 
-    expect(filters.auto_initiate_settlement).toBeNull()
     expect(filters.is_disabled).toBeNull()
     expect(filters.erp_system).toBe('')
     expect(filters.cooperation_status).toBe('')

@@ -130,18 +130,16 @@
           </a-switch>
         </div>
 
-        <!-- 9. 自动发起结算 -->
+        <!-- 9. 是否对账 -->
         <div class="batch-field-item">
-          <a-checkbox v-model="batchFieldsSelected.auto_initiate_settlement"
-            >自动发起结算</a-checkbox
-          >
+          <a-checkbox v-model="batchFieldsSelected.require_reconciliation">是否对账</a-checkbox>
           <a-switch
-            v-model="batchForm.auto_initiate_settlement"
-            :disabled="!batchFieldsSelected.auto_initiate_settlement"
+            v-model="batchForm.require_reconciliation"
+            :disabled="!batchFieldsSelected.require_reconciliation"
             type="round"
           >
-            <template #checked>自动</template>
-            <template #unchecked>手动</template>
+            <template #checked>是</template>
+            <template #unchecked>否</template>
           </a-switch>
         </div>
 
@@ -362,7 +360,7 @@ const batchForm = reactive({
   settlement_type: '',
   settlement_cycle: '',
   is_settlement_enabled: false,
-  auto_initiate_settlement: false,
+  require_reconciliation: false,
   is_disabled: false,
   account_type: '',
   price_policy: '',
@@ -381,7 +379,7 @@ const batchFieldsSelected = reactive({
   settlement_type: false,
   settlement_cycle: false,
   is_settlement_enabled: false,
-  auto_initiate_settlement: false,
+  require_reconciliation: false,
   is_disabled: false,
   account_type: false,
   price_policy: false,
@@ -400,7 +398,7 @@ const fieldNames: Record<string, string> = {
   settlement_type: '结算方式',
   settlement_cycle: '结算周期',
   is_settlement_enabled: '是否启用结算',
-  auto_initiate_settlement: '自动发起结算',
+  require_reconciliation: '是否对账',
   is_disabled: '停用',
   account_type: '账号类型',
   price_policy: '计费策略',
@@ -521,7 +519,7 @@ const resetForm = () => {
   batchForm.settlement_type = ''
   batchForm.settlement_cycle = ''
   batchForm.is_settlement_enabled = false
-  batchForm.auto_initiate_settlement = false
+  batchForm.require_reconciliation = false
   batchForm.is_disabled = false
   batchForm.account_type = ''
   batchForm.price_policy = ''

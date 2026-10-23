@@ -117,8 +117,8 @@
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item field="auto_initiate_settlement" label="自动发起结算">
-            <a-select v-model="customerForm.auto_initiate_settlement" placeholder="请选择">
+          <a-form-item field="require_reconciliation" label="是否对账">
+            <a-select v-model="customerForm.require_reconciliation" placeholder="请选择">
               <a-option :value="true">是</a-option>
               <a-option :value="false">否</a-option>
             </a-select>
@@ -126,7 +126,7 @@
         </a-col>
       </a-row>
 
-      <a-form-item field="manager_id" label="运营经理">
+      <a-form-item field="manager_id" label="运营经理" :rules="managerRules">
         <a-select
           v-model="customerForm.manager_id"
           placeholder="请选择运营经理"
@@ -139,7 +139,7 @@
         </a-select>
       </a-form-item>
 
-      <a-form-item field="sales_manager_id" label="商务经理">
+      <a-form-item field="sales_manager_id" label="商务经理" :rules="salesManagerRules">
         <a-select
           v-model="customerForm.sales_manager_id"
           placeholder="请选择商务经理"
@@ -174,7 +174,7 @@ interface CustomerForm {
   settlement_cycle: string | null | undefined
   is_key_customer: boolean
   is_real_estate: boolean | null
-  auto_initiate_settlement: boolean
+  require_reconciliation: boolean
   manager_id: number | null
   sales_manager_id: number | null
   /** 结算账户客户 ID（代扣余额），null=用自身余额 */
@@ -213,7 +213,7 @@ const customerForm = reactive<CustomerForm>({
   settlement_cycle: undefined,
   is_key_customer: false,
   is_real_estate: null,
-  auto_initiate_settlement: true,
+  require_reconciliation: false,
   manager_id: null,
   sales_manager_id: null,
   settlement_account_id: null,
@@ -231,6 +231,19 @@ const customerFormRules = {
   ],
 }
 
+// 开启对账后运营/商务经理必填
+const managerRules = computed(() =>
+  customerForm.require_reconciliation
+    ? [{ required: true, message: '开启对账后必填', trigger: ['blur', 'change'] as const }]
+    : []
+)
+
+const salesManagerRules = computed(() =>
+  customerForm.require_reconciliation
+    ? [{ required: true, message: '开启对账后必填', trigger: ['blur', 'change'] as const }]
+    : []
+)
+
 // Watch for modal opening to initialize form
 const initFormForCreate = () => {
   customerForm.company_id = undefined
@@ -242,7 +255,7 @@ const initFormForCreate = () => {
   customerForm.settlement_cycle = undefined
   customerForm.is_key_customer = false
   customerForm.is_real_estate = null
-  customerForm.auto_initiate_settlement = true
+  customerForm.require_reconciliation = false
   customerForm.manager_id = null
   customerForm.sales_manager_id = null
   customerForm.settlement_account_id = null
@@ -258,7 +271,7 @@ const initFormForEdit = (record: Customer) => {
   customerForm.settlement_cycle = record.settlement_cycle
   customerForm.is_key_customer = record.is_key_customer
   customerForm.is_real_estate = record.is_real_estate ?? null
-  customerForm.auto_initiate_settlement = record.auto_initiate_settlement ?? true
+  customerForm.require_reconciliation = record.require_reconciliation ?? false
   customerForm.manager_id = record.manager_id || null
   customerForm.sales_manager_id = record.sales_manager_id || null
   customerForm.settlement_account_id = record.settlement_account_id ?? null
@@ -300,7 +313,7 @@ const handleCustomerSubmit = async () => {
       settlement_cycle: customerForm.settlement_cycle || undefined,
       is_key_customer: customerForm.is_key_customer,
       is_real_estate: customerForm.is_real_estate ?? undefined,
-      auto_initiate_settlement: customerForm.auto_initiate_settlement,
+      require_reconciliation: customerForm.require_reconciliation,
       // 经理字段直接传值：null（清空）必须送达后端以置 NULL，
       // 后端按「字段是否出现在 data 中」决定是否更新（见 update_customer）
       manager_id: customerForm.manager_id,

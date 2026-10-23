@@ -267,6 +267,10 @@ def make_mock_execute_result(rows, scalar_value=None):
     scalars_result = MagicMock()
     scalars_result.all = MagicMock(return_value=mock_rows)
     scalars_result.unique = MagicMock(return_value=scalars_result)
+    # .scalars().first() 链：未定义 first 会返回自动 MagicMock 而非目标行，
+    # 导致被测代码读到假的 tiers/avg_amount 等（曾致健康度 5 例全挂）
+    scalars_result.first = MagicMock(return_value=mock_rows[0] if mock_rows else None)
+    scalars_result.scalar_one_or_none = MagicMock(return_value=mock_rows[0] if mock_rows else None)
     result.scalars.return_value = scalars_result
     return result
 
@@ -1401,11 +1405,17 @@ class TestCustomerHealthScoreService:
             total_invoices_row = MagicMock()
             total_invoices_row.total_count = 10
 
-            # 6. 按时付款结算单数
+            # 6. 按时付款结算单单数
             paid_invoices_row = MagicMock()
             paid_invoices_row.paid_count = 8
 
+            # get_customer_health_score 首个 execute 是 customer_stmt（存在性+资格校验）
+            customer_row = MagicMock()
+            customer_row.is_settlement_enabled = True
+            customer_row.account_type = "正式客户"
+
             mock_db.execute.side_effect = [
+                make_mock_execute_result([customer_row]),  # 客户存在性与资格
                 make_mock_execute_result([usage_row]),  # 实际用量
                 make_mock_execute_result([pricing_row]),  # 定价规则
                 make_mock_execute_result([balance_row]),  # 当前余额
@@ -1464,7 +1474,13 @@ class TestCustomerHealthScoreService:
             avg_consumption_row = MagicMock()
             avg_consumption_row.avg_amount = Decimal("5000.00")
 
+            # get_customer_health_score 首个 execute 是 customer_stmt（存在性+资格校验）
+            customer_row = MagicMock()
+            customer_row.is_settlement_enabled = True
+            customer_row.account_type = "正式客户"
+
             mock_db.execute.side_effect = [
+                make_mock_execute_result([customer_row]),  # 客户存在性与资格
                 make_mock_execute_result([usage_row]),  # 实际用量
                 make_mock_execute_result([pricing_row]),  # 定价规则
                 make_mock_execute_result([balance_row]),  # 当前余额
@@ -1518,7 +1534,13 @@ class TestCustomerHealthScoreService:
             avg_consumption_row = MagicMock()
             avg_consumption_row.avg_amount = Decimal("5000.00")
 
+            # get_customer_health_score 首个 execute 是 customer_stmt（存在性+资格校验）
+            customer_row = MagicMock()
+            customer_row.is_settlement_enabled = True
+            customer_row.account_type = "正式客户"
+
             mock_db.execute.side_effect = [
+                make_mock_execute_result([customer_row]),  # 客户存在性与资格
                 make_mock_execute_result([usage_row]),  # 实际用量
                 make_mock_execute_result([pricing_row]),  # 定价规则
                 make_mock_execute_result([baseline_row]),  # 历史基线
@@ -1569,7 +1591,13 @@ class TestCustomerHealthScoreService:
             avg_consumption_row = MagicMock()
             avg_consumption_row.avg_amount = Decimal("5000.00")
 
+            # get_customer_health_score 首个 execute 是 customer_stmt（存在性+资格校验）
+            customer_row = MagicMock()
+            customer_row.is_settlement_enabled = True
+            customer_row.account_type = "正式客户"
+
             mock_db.execute.side_effect = [
+                make_mock_execute_result([customer_row]),
                 make_mock_execute_result([usage_row]),
                 make_mock_execute_result([pricing_row]),
                 make_mock_execute_result([baseline_row]),
@@ -1595,7 +1623,13 @@ class TestCustomerHealthScoreService:
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
             # 所有查询返回 None/0
+            # get_customer_health_score 首个 execute 是 customer_stmt（存在性+资格校验）
+            customer_row = MagicMock()
+            customer_row.is_settlement_enabled = True
+            customer_row.account_type = "正式客户"
+
             mock_db.execute.side_effect = [
+                make_mock_execute_result([customer_row]),
                 make_mock_execute_result([MagicMock(total_quantity=None)]),
                 make_mock_execute_result([MagicMock(expected_quantity=None)]),
                 # 无有效阈值参照时新增的历史基线查询（无历史数据 → 预期用量仍为 0）

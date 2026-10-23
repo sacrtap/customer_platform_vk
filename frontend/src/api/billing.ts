@@ -106,7 +106,6 @@ export interface BalanceQueryParams {
   is_key_customer?: string
   is_real_estate?: string
   is_settlement_enabled?: string
-  auto_initiate_settlement?: string
   is_disabled?: string
   settlement_type?: string
   erp_system?: string
@@ -137,7 +136,6 @@ export function getBalanceStats(params?: {
   is_key_customer?: boolean
   is_real_estate?: boolean
   is_settlement_enabled?: boolean
-  auto_initiate_settlement?: boolean
   is_disabled?: boolean
   settlement_type?: string
   erp_system?: string

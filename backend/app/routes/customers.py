@@ -125,11 +125,6 @@ async def list_customers(request: Request):
     if is_settlement_enabled is not None:
         filters["is_settlement_enabled"] = is_settlement_enabled.lower() == "true"
 
-    # 自动发起结算
-    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
-    if auto_initiate_settlement is not None:
-        filters["auto_initiate_settlement"] = auto_initiate_settlement.lower() == "true"
-
     # 是否停用
     is_disabled = request.args.get("is_disabled")
     if is_disabled is not None:
@@ -259,7 +254,7 @@ async def list_customers(request: Request):
                     "is_key_customer": c.is_key_customer,
                     "is_real_estate": c.is_real_estate,
                     "is_settlement_enabled": c.is_settlement_enabled,
-                    "auto_initiate_settlement": c.auto_initiate_settlement,
+                    "require_reconciliation": c.require_reconciliation,
                     "email": c.email,
                     "created_at": c.created_at.isoformat() if c.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     # === 客户列表页新增字段 ===
@@ -478,7 +473,7 @@ async def get_customer(request: Request, customer_id: int):
         "sales_manager_id": customer.sales_manager_id,
         "cooperation_status": customer.cooperation_status,
         "is_settlement_enabled": customer.is_settlement_enabled,
-        "auto_initiate_settlement": customer.auto_initiate_settlement,
+        "require_reconciliation": customer.require_reconciliation,
         "is_disabled": customer.is_disabled,
         "is_real_estate": customer.is_real_estate,
         "notes": customer.notes,
@@ -1257,7 +1252,7 @@ async def download_import_template(request: Request):
         "onboarding_date",
         "cooperation_status",
         "is_settlement_enabled",
-        "auto_initiate_settlement",
+        "require_reconciliation",
         "is_disabled",
         "notes",
         "scale_level",
@@ -1412,11 +1407,6 @@ async def export_customers(request: Request):
     if is_settlement_enabled is not None:
         filters["is_settlement_enabled"] = is_settlement_enabled.lower() == "true"
 
-    # 自动发起结算
-    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
-    if auto_initiate_settlement is not None:
-        filters["auto_initiate_settlement"] = auto_initiate_settlement.lower() == "true"
-
     # 是否停用
     is_disabled = request.args.get("is_disabled")
     if is_disabled is not None:
@@ -1505,8 +1495,8 @@ async def export_customers(request: Request):
                 "is_settlement_enabled": ("是" if c.is_settlement_enabled else "否")  # pyright: ignore[reportGeneralTypeIssues]
                 if c.is_settlement_enabled is not None
                 else None,
-                "auto_initiate_settlement": ("是" if c.auto_initiate_settlement else "否")  # pyright: ignore[reportGeneralTypeIssues]
-                if c.auto_initiate_settlement is not None
+                "require_reconciliation": ("是" if c.require_reconciliation else "否")  # pyright: ignore[reportGeneralTypeIssues]
+                if c.require_reconciliation is not None
                 else None,
                 "is_disabled": ("是" if c.is_disabled else "否")  # pyright: ignore[reportGeneralTypeIssues]
                 if c.is_disabled is not None

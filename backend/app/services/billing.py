@@ -656,9 +656,9 @@ class PricingService:
                 unit_price=unit_price,
                 multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
                 additional_floor_price=data.get("additional_floor_price"),
-                tiers=data.get("tiers"),
+                tiers=data.get("tiers") or [],  # NOT NULL JSON 列：None → 空列表
                 package_type=package_type,
-                package_limits=package_limits,
+                package_limits=package_limits or [],
                 effective_date=effective_date,
                 expiry_date=expiry_date,
                 created_by=data.get("created_by"),
@@ -692,9 +692,9 @@ class PricingService:
                 "device_type": device_type,
                 "pricing_type": pricing_type,
                 "unit_price": data.get("unit_price"),
-                "tiers": data.get("tiers"),
+                "tiers": data.get("tiers") or [],  # NOT NULL JSON 列：None → 空列表
                 "package_type": data.get("package_type"),
-                "package_limits": data.get("package_limits"),
+                "package_limits": data.get("package_limits") or [],
                 "effective_date": effective_date,
                 "expiry_date": expiry_date,
                 "created_by": data.get("created_by"),
@@ -741,9 +741,9 @@ class PricingService:
             unit_price=data.get("unit_price"),
             multi_floor_pricing_type=data.get("multi_floor_pricing_type"),
             additional_floor_price=data.get("additional_floor_price"),
-            tiers=data.get("tiers"),
+            tiers=data.get("tiers") or [],  # NOT NULL JSON 列：None → 空列表
             package_type=data.get("package_type"),
-            package_limits=data.get("package_limits"),
+            package_limits=data.get("package_limits") or [],
             effective_date=effective_date,
             expiry_date=expiry_date,
             created_by=data.get("created_by"),
@@ -1635,12 +1635,15 @@ class InvoiceService:
         return True, "结算账户修改成功"
 
     async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
-        """提交结算单（进入经理确认阶段）
+        """提交结算单（进入确认阶段）
 
-        新流程（按客户经理配置自动跳过缺失的确认步骤）：
-        - 有运营经理：draft → pending_ops
-        - 无运营经理但有销售经理：draft → pending_sales（跳过运营确认）
-        - 两者均无：draft → pending_customer（直接待客户确认）
+        新流程（按客户「是否对账」开关分流）：
+        - 对账（require_reconciliation=True）：走完整确认流程
+          - 有运营经理：draft → pending_ops
+          - 无运营经理但有销售经理：draft → pending_sales（跳过运营确认）
+          - 两者均无（防御，保存客户时已拦截）：draft → pending_customer
+        - 不对账（NULL/False，默认）：跳过运营/商务经理确认，
+          draft → pending_customer（直接待客户确认）
         """
         invoice = await self.get_invoice_by_id(invoice_id)
 
@@ -1650,15 +1653,23 @@ class InvoiceService:
         if invoice.status != "draft":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态不能提交：{invoice.status}"
 
-        # 查询客户的经理配置，自动跳过缺失的确认步骤
+        # 查询客户的「是否对账」配置，作为跳过经理确认的显式开关
         customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
-        if customer and customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
-            invoice.status = "pending_ops"  # pyright: ignore[reportAttributeAccessIssue]
-        elif customer and customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
-            # 未指定运营经理，跳过运营确认直接待销售经理确认
-            invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+        require_recon = (  # pyright: ignore[reportGeneralTypeIssues]
+            customer is not None and customer.require_reconciliation is True
+        )
+        if require_recon:
+            # 走完整确认流程（开对账时经理非空已由客户保存校验保证）
+            if customer and customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                invoice.status = "pending_ops"  # pyright: ignore[reportAttributeAccessIssue]
+            elif customer and customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                # 未指定运营经理，跳过运营确认直接待销售经理确认
+                invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
+            else:
+                # 防御：开对账但经理被清空（不应发生，保存时已拦截）→ 降级直接待客户确认
+                invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            # 未指定任何经理，直接待客户确认
+            # 不对账：跳过运营/商务经理确认，直接待客户确认
             invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
 
         invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]

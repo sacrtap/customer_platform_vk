@@ -16,7 +16,7 @@ export interface UpdateCustomerData {
   sales_manager_id?: number
   cooperation_status?: string
   is_settlement_enabled?: boolean
-  auto_initiate_settlement?: boolean
+  require_reconciliation?: boolean
   is_disabled?: boolean
   notes?: string
 }

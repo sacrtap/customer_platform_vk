@@ -274,15 +274,7 @@ def _parse_balance_filters(request: Request) -> dict:
     else:
         is_settlement_enabled = None
 
-    # 自动发起结算 / 是否停用（与客户管理页筛选项对齐）
-    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
-    if auto_initiate_settlement is not None and auto_initiate_settlement.strip() != "":
-        if auto_initiate_settlement.lower() not in ("true", "false"):
-            raise ValueError("auto_initiate_settlement 参数必须为 'true' 或 'false'")
-        auto_initiate_settlement = auto_initiate_settlement.lower() == "true"
-    else:
-        auto_initiate_settlement = None
-
+    # 是否停用（与客户管理页筛选项对齐）
     is_disabled = request.args.get("is_disabled")
     if is_disabled is not None and is_disabled.strip() != "":
         if is_disabled.lower() not in ("true", "false"):
@@ -330,7 +322,6 @@ def _parse_balance_filters(request: Request) -> dict:
         "is_key_customer": is_key_customer,
         "is_real_estate": is_real_estate,
         "is_settlement_enabled": is_settlement_enabled,
-        "auto_initiate_settlement": auto_initiate_settlement,
         "is_disabled": is_disabled,
         "settlement_type": settlement_type,
         "erp_system": erp_system,
@@ -383,7 +374,6 @@ async def _query_balance_rows_raw(
     is_key_customer = filters["is_key_customer"]
     is_real_estate = filters["is_real_estate"]
     is_settlement_enabled = filters["is_settlement_enabled"]
-    auto_initiate_settlement = filters.get("auto_initiate_settlement")
     is_disabled = filters.get("is_disabled")
     settlement_type = filters["settlement_type"]
     erp_system = filters.get("erp_system")
@@ -467,16 +457,6 @@ async def _query_balance_rows_raw(
 
     if is_settlement_enabled is not None:
         base_stmt = base_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
-
-    if auto_initiate_settlement is not None:
-        # 「自动发起结算」默认值为「是」，历史 NULL 视为是（语义对齐客户管理页）
-        base_stmt = base_stmt.where(
-            _bool_filter_condition(
-                Customer.auto_initiate_settlement,
-                auto_initiate_settlement,
-                null_as_true=True,
-            )
-        )
 
     if is_disabled is not None:
         # 「是否停用」历史 NULL 视为未停用（语义对齐客户管理页）
@@ -577,15 +557,6 @@ async def _query_balance_rows_raw(
 
     if is_settlement_enabled is not None:
         count_stmt = count_stmt.where(Customer.is_settlement_enabled == is_settlement_enabled)
-
-    if auto_initiate_settlement is not None:
-        count_stmt = count_stmt.where(
-            _bool_filter_condition(
-                Customer.auto_initiate_settlement,
-                auto_initiate_settlement,
-                null_as_true=True,
-            )
-        )
 
     if is_disabled is not None:
         count_stmt = count_stmt.where(
@@ -1127,21 +1098,7 @@ async def get_balance_stats(request: Request):
     else:
         is_settlement_enabled = None
 
-    # 自动发起结算 / 是否停用（与列表页及客户管理页筛选项对齐）
-    auto_initiate_settlement = request.args.get("auto_initiate_settlement")
-    if auto_initiate_settlement is not None and auto_initiate_settlement.strip() != "":
-        if auto_initiate_settlement.lower() not in ("true", "false"):
-            return json(
-                {
-                    "code": 40001,
-                    "message": "auto_initiate_settlement 参数必须为 'true' 或 'false'",
-                },
-                status=400,
-            )
-        auto_initiate_settlement = auto_initiate_settlement.lower() == "true"
-    else:
-        auto_initiate_settlement = None
-
+    # 是否停用（与列表页及客户管理页筛选项对齐）
     is_disabled = request.args.get("is_disabled")
     if is_disabled is not None and is_disabled.strip() != "":
         if is_disabled.lower() not in ("true", "false"):
@@ -1193,14 +1150,6 @@ async def get_balance_stats(request: Request):
         customer_filters.append(Customer.is_real_estate == is_real_estate)
     if is_settlement_enabled is not None:
         customer_filters.append(Customer.is_settlement_enabled == is_settlement_enabled)
-    if auto_initiate_settlement is not None:
-        customer_filters.append(
-            _bool_filter_condition(
-                Customer.auto_initiate_settlement,
-                auto_initiate_settlement,
-                null_as_true=True,
-            )
-        )
     if is_disabled is not None:
         customer_filters.append(
             _bool_filter_condition(Customer.is_disabled, is_disabled, null_as_true=False)
