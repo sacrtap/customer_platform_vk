@@ -28,7 +28,7 @@ from ...services.package_balance import (
     build_package_remaining_cte as _build_package_remaining_cte,
 )
 from ...utils.audit_helpers import create_audit_entry
-from ...utils.timezone import CST, cst_today
+from ...utils.timezone import CST, cst_today, naive_cst_datetime_str
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -829,7 +829,9 @@ def _assemble_balance_rows(
                     else None
                 ),
                 "last_recharge_at": (
-                    last_recharge_map[c.id].isoformat()
+                    # created_at 是 timestamp without time zone（CST 墙钟），
+                    # 按墙钟格式化；astimezone 会再偏 8 小时
+                    naive_cst_datetime_str(last_recharge_map[c.id])
                     if c.id in last_recharge_map and last_recharge_map[c.id]
                     else None
                 ),

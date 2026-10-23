@@ -16,6 +16,7 @@ from ...cache.base import cache_service
 from ...middleware.auth import auth_required, get_current_user, require_permission
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
 from ...utils.excel_import import read_import_dataframe
+from ...utils.timezone import naive_cst_datetime_str
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,10 @@ def _package_plan_to_dict(plan):
         ),  # pyright: ignore[reportAttributeAccessIssue]
         "description": plan.description,
         "status": plan.status,
-        "created_at": plan.created_at.isoformat() if plan.created_at else None,
-        "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+        # created_at/updated_at 是 timestamp without time zone（PG 会话时区写入的
+        # CST 墙钟），按 CST 墙钟格式化；astimezone 会再偏 8 小时
+        "created_at": naive_cst_datetime_str(plan.created_at),
+        "updated_at": naive_cst_datetime_str(plan.updated_at),
     }
 
 

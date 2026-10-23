@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 from urllib.parse import quote
 
 from openpyxl import Workbook
@@ -33,7 +33,12 @@ from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.excel_import import read_import_dataframe
 from ...utils.tiers import TierFormatError
-from ...utils.timezone import cst_today, local_date_range_to_utc
+from ...utils.timezone import (
+    cst_today,
+    local_date_range_to_utc,
+    naive_cst_datetime_str,
+    utc_to_cst_date_str,
+)
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -1386,6 +1391,114 @@ async def delete_invoice(request: Request, invoice_id: int):
     return json({"code": 0, "message": "删除成功"})
 
 
+def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
+    """在独立线程中完成结算单导出的 Excel 组装（纯 CPU，避免阻塞事件循环）。
+
+    时间列一律按 CST 墙钟输出，不做裸 isoformat：
+    - period_start / period_end 是 timestamptz（DB 存 UTC）→ utc_to_cst_date_str
+    - created_at 是 timestamp without time zone（PG 会话时区写入的 CST 墙钟）
+      → naive_cst_datetime_str，不能再 astimezone（否则再偏 8 小时）
+    """
+    wb = Workbook()
+    ws = wb.active
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.title = "结算单导出"
+
+    # 定义样式
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    cell_alignment = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    # 表头
+    headers = [
+        "结算单号",
+        "客户名称",
+        "周期开始",
+        "周期结束",
+        "总金额",
+        "减免金额",
+        "最终金额",
+        "状态",
+        "创建时间",
+    ]
+
+    # 写入表头
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num, value=header)  # pyright: ignore[reportOptionalMemberAccess]
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    # 设置列宽
+    column_widths = [20, 30, 12, 12, 12, 12, 12, 18, 20]
+    for col_num, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col_num)].width = width  # pyright: ignore[reportOptionalMemberAccess]
+
+    # 写入数据
+    status_map = {
+        "draft": "草稿",
+        "pending_ops": "待运营经理确认",
+        "pending_sales": "待销售经理确认",
+        "pending_customer": "待客户确认",
+        "customer_confirmed": "客户已确认",
+        "completed": "已结算",
+        "cancelled": "已取消",
+    }
+
+    for row_num, invoice in enumerate(invoices, 2):
+        # 获取客户名称（通过关联或查询）
+        customer_name = (
+            invoice.customer.name if hasattr(invoice, "customer") and invoice.customer else "未知"
+        )
+
+        row_data = [
+            invoice.invoice_no,
+            customer_name,
+            utc_to_cst_date_str(invoice.period_start) or "",
+            utc_to_cst_date_str(invoice.period_end) or "",
+            float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
+            float(invoice.discount_amount) if invoice.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
+            float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
+            status_map.get(invoice.status, invoice.status),  # pyright: ignore[reportCallIssue, reportArgumentType]
+            naive_cst_datetime_str(invoice.created_at) or "",
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)  # pyright: ignore[reportOptionalMemberAccess]
+            # 防御公式注入：invoice_no / customer_name 等文本字段若以 = + - @ 开头，
+            # 会被 openpyxl 当作公式存储，导出文件在 Excel 打开时可能执行恶意公式。
+            _write_cell_text_safe(cell, value)
+            cell.alignment = cell_alignment
+            cell.border = thin_border
+
+    # 添加统计信息行
+    total_row = len(invoices) + 2
+    ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")  # pyright: ignore[reportOptionalMemberAccess]
+    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
+        row=total_row,
+        column=5,
+        value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
+    )
+    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
+        row=total_row,
+        column=7,
+        value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
+    )
+
+    # 保存到内存
+    output = BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
+
 @billing_bp.get("/invoices/export")
 @auth_required
 @require_permission("billing:invoice_export")
@@ -1485,111 +1598,16 @@ async def export_invoices(request: Request):
             status=400,
         )
 
-    # 创建 Excel 工作簿
-    wb = Workbook()
-    ws = wb.active
-    assert ws is not None  # 新建 Workbook 必有活动工作表
-    ws.title = "结算单导出"
+    # Excel 组装是纯 CPU 工作，全量导出（无分页上限）下会阻塞事件循环，
+    # 与 pricing/balances 导出一致移入线程；只访问 selectinload 预加载的 customer 属性。
+    output = await asyncio.to_thread(_build_invoices_excel, invoices)
 
-    # 定义样式
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
-    cell_alignment = Alignment(horizontal="left", vertical="center")
-    thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
-    )
-
-    # 表头
-    headers = [
-        "结算单号",
-        "客户名称",
-        "周期开始",
-        "周期结束",
-        "总金额",
-        "减免金额",
-        "最终金额",
-        "状态",
-        "创建时间",
-    ]
-
-    # 写入表头
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)  # pyright: ignore[reportOptionalMemberAccess]
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
-        cell.border = thin_border
-
-    # 设置列宽
-    column_widths = [20, 30, 12, 12, 12, 12, 12, 18, 20]
-    for col_num, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col_num)].width = width  # pyright: ignore[reportOptionalMemberAccess]
-
-    # 写入数据
-    status_map = {
-        "draft": "草稿",
-        "pending_customer": "待客户确认",
-        "customer_confirmed": "客户已确认",
-        "completed": "已结算",
-        "cancelled": "已取消",
-    }
-
-    for row_num, invoice in enumerate(invoices, 2):
-        # 获取客户名称（通过关联或查询）
-        customer_name = (
-            invoice.customer.name if hasattr(invoice, "customer") and invoice.customer else "未知"
-        )
-
-        row_data = [
-            invoice.invoice_no,
-            customer_name,
-            invoice.period_start.isoformat() if invoice.period_start else "",  # pyright: ignore[reportGeneralTypeIssues]
-            invoice.period_end.isoformat() if invoice.period_end else "",  # pyright: ignore[reportGeneralTypeIssues]
-            float(invoice.total_amount),  # pyright: ignore[reportArgumentType]
-            float(invoice.discount_amount) if invoice.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
-            float(invoice.total_amount - (invoice.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
-            status_map.get(invoice.status, invoice.status),  # pyright: ignore[reportCallIssue, reportArgumentType]
-            invoice.created_at.isoformat() if invoice.created_at else "",  # pyright: ignore[reportGeneralTypeIssues]
-        ]
-
-        for col_num, value in enumerate(row_data, 1):
-            cell = ws.cell(row=row_num, column=col_num)  # pyright: ignore[reportOptionalMemberAccess]
-            # 防御公式注入：invoice_no / customer_name 等文本字段若以 = + - @ 开头，
-            # 会被 openpyxl 当作公式存储，导出文件在 Excel 打开时可能执行恶意公式。
-            _write_cell_text_safe(cell, value)
-            cell.alignment = cell_alignment
-            cell.border = thin_border
-
-    # 添加统计信息行
-    total_row = len(invoices) + 2
-    ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")  # pyright: ignore[reportOptionalMemberAccess]
-    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
-        row=total_row,
-        column=5,
-        value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
-    )
-    ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
-        row=total_row,
-        column=7,
-        value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
-    )
-
-    # 保存到内存
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    # 生成文件名
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"结算单导出_{timestamp}.xlsx"
 
     # 返回文件
     return raw(
-        output.read(),
+        output,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": _content_disposition(filename),
