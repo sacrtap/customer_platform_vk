@@ -11,7 +11,7 @@ export interface CustomerCreate {
   is_real_estate?: boolean
   settlement_cycle?: string
   is_key_customer?: boolean
-  auto_initiate_settlement?: boolean
+  require_reconciliation?: boolean
   manager_id?: number
   sales_manager_id?: number
 }
@@ -31,7 +31,6 @@ export function getCustomers(params?: {
   is_key_customer?: boolean | string
   is_real_estate?: boolean | string
   is_settlement_enabled?: boolean | string
-  auto_initiate_settlement?: boolean | string
   is_disabled?: boolean | string
   incomplete_profile?: string
   mine?: string
@@ -60,7 +59,7 @@ export function createCustomer(data: {
   settlement_cycle?: string
   settlement_type?: string
   is_key_customer?: boolean
-  auto_initiate_settlement?: boolean
+  require_reconciliation?: boolean
   is_real_estate?: boolean | null
   email?: string
   /** 结算账户客户 ID（代扣余额），null=用自身余额 */
@@ -90,7 +89,7 @@ export function updateCustomer(
     sales_manager_id?: number | null
     cooperation_status?: string
     is_settlement_enabled?: boolean
-    auto_initiate_settlement?: boolean
+    require_reconciliation?: boolean
     is_disabled?: boolean
     notes?: string
     /** 结算账户客户 ID（代扣余额），null=用自身余额，不能为自身 */

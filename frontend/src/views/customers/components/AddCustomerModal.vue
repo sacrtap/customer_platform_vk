@@ -106,10 +106,10 @@
             <a-switch v-model="form.is_key_customer" />
           </a-form-item>
         </a-col>
-        <!-- 自动发起结算 -->
+        <!-- 是否对账 -->
         <a-col :span="12">
-          <a-form-item field="auto_initiate_settlement" label="自动发起结算">
-            <a-select v-model="form.auto_initiate_settlement" placeholder="请选择">
+          <a-form-item field="require_reconciliation" label="是否对账">
+            <a-select v-model="form.require_reconciliation" placeholder="请选择">
               <a-option :value="true">是</a-option>
               <a-option :value="false">否</a-option>
             </a-select>
@@ -117,7 +117,7 @@
         </a-col>
         <!-- 运营经理 -->
         <a-col :span="12">
-          <a-form-item field="manager_id" label="运营经理">
+          <a-form-item field="manager_id" label="运营经理" :rules="managerRules">
             <a-select
               v-model="form.manager_id"
               placeholder="请选择"
@@ -132,7 +132,7 @@
         </a-col>
         <!-- 销售经理 -->
         <a-col :span="12">
-          <a-form-item field="sales_manager_id" label="商务经理">
+          <a-form-item field="sales_manager_id" label="商务经理" :rules="salesManagerRules">
             <a-select
               v-model="form.sales_manager_id"
               placeholder="请选择"
@@ -228,7 +228,7 @@ interface CreateForm {
   is_real_estate: boolean | null
   settlement_cycle: string
   is_key_customer: boolean
-  auto_initiate_settlement: boolean
+  require_reconciliation: boolean
   manager_id: number | undefined
   sales_manager_id: number | undefined
   cooperation_status: string
@@ -249,7 +249,7 @@ const createDefaultForm = (): CreateForm => ({
   is_real_estate: true,
   settlement_cycle: 'monthly',
   is_key_customer: false,
-  auto_initiate_settlement: true,
+  require_reconciliation: false,
   manager_id: undefined,
   sales_manager_id: undefined,
   cooperation_status: '',
@@ -259,6 +259,15 @@ const createDefaultForm = (): CreateForm => ({
 })
 
 const form = reactive<CreateForm>(createDefaultForm())
+
+// 开启对账后运营/商务经理必填
+const managerRules = computed(() =>
+  form.require_reconciliation ? [{ required: true, message: '开启对账后必填' }] : []
+)
+
+const salesManagerRules = computed(() =>
+  form.require_reconciliation ? [{ required: true, message: '开启对账后必填' }] : []
+)
 
 const rules: Record<string, FieldRule[]> = {
   company_id: [{ required: true, message: '请输入客户ID' }],
@@ -305,7 +314,7 @@ const handleConfirm = async () => {
     if (form.is_real_estate !== null) payload.is_real_estate = form.is_real_estate
     if (form.settlement_cycle) payload.settlement_cycle = form.settlement_cycle
     payload.is_key_customer = form.is_key_customer
-    payload.auto_initiate_settlement = form.auto_initiate_settlement
+    payload.require_reconciliation = form.require_reconciliation
     if (form.manager_id) payload.manager_id = form.manager_id
     if (form.sales_manager_id) payload.sales_manager_id = form.sales_manager_id
     if (form.cooperation_status) payload.cooperation_status = form.cooperation_status

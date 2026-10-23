@@ -20,7 +20,6 @@ const defaultFilters = () => ({
   is_key_customer: null as boolean | null,
   is_real_estate: null as boolean | null,
   is_settlement_enabled: null as boolean | null,
-  auto_initiate_settlement: null as boolean | null,
   is_disabled: null as boolean | null,
   settlement_type: '',
   erp_system: '',
@@ -139,14 +138,6 @@ export function useBalance() {
       params.is_settlement_enabled = stringifyBooleans
         ? String(filters.is_settlement_enabled)
         : filters.is_settlement_enabled
-    }
-    if (
-      filters.auto_initiate_settlement !== null &&
-      filters.auto_initiate_settlement !== undefined
-    ) {
-      params.auto_initiate_settlement = stringifyBooleans
-        ? String(filters.auto_initiate_settlement)
-        : filters.auto_initiate_settlement
     }
     if (filters.is_disabled !== null && filters.is_disabled !== undefined) {
       params.is_disabled = stringifyBooleans ? String(filters.is_disabled) : filters.is_disabled

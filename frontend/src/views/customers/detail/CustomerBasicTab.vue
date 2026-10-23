@@ -99,10 +99,10 @@
       </span>
     </div>
     <div class="info-item">
-      <span class="label">自动发起结算</span>
+      <span class="label">是否对账</span>
       <span class="value">
-        <a-tag :color="(customer.auto_initiate_settlement ?? true) ? 'green' : 'gray'">
-          {{ (customer.auto_initiate_settlement ?? true) ? '是' : '否' }}
+        <a-tag :color="customer.require_reconciliation ? 'green' : 'gray'">
+          {{ customer.require_reconciliation ? '是' : '否' }}
         </a-tag>
       </span>
     </div>
