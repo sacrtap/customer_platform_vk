@@ -47,12 +47,26 @@ describe('计费明细节用量总计行', () => {
     expect(w.find('tfoot').exists()).toBe(false)
   })
 
-  it('有明细时渲染汇总行，值 = 各明细 quantity 之和', async () => {
+  it('有明细时渲染汇总行，值 = 各明细 order_count 之和', async () => {
     const w = mountDrawer({
       ...baseInvoice,
       items: [
-        { id: 1, pricing_type: 'fixed', quantity: 432, unit_price: 8, subtotal: 3456 },
-        { id: 2, pricing_type: 'fixed', quantity: 15, unit_price: 8, subtotal: 120 },
+        {
+          id: 1,
+          pricing_type: 'fixed',
+          quantity: 432,
+          order_count: 432,
+          unit_price: 8,
+          subtotal: 3456,
+        },
+        {
+          id: 2,
+          pricing_type: 'fixed',
+          quantity: 15,
+          order_count: 15,
+          unit_price: 8,
+          subtotal: 120,
+        },
       ],
     })
     await nextTick()
@@ -66,11 +80,71 @@ describe('计费明细节用量总计行', () => {
     const w = mountDrawer({
       ...baseInvoice,
       items: [
-        { id: 1, pricing_type: 'fixed', quantity: 1.5, unit_price: 8, subtotal: 12 },
-        { id: 2, pricing_type: 'fixed', quantity: 1, unit_price: 8, subtotal: 8 },
+        {
+          id: 1,
+          pricing_type: 'fixed',
+          quantity: 1.5,
+          order_count: 1.5,
+          unit_price: 8,
+          subtotal: 12,
+        },
+        { id: 2, pricing_type: 'fixed', quantity: 1, order_count: 1, unit_price: 8, subtotal: 8 },
       ],
     })
     await nextTick()
     expect(w.find('tfoot').text()).toContain('2.5')
+  })
+
+  it('混合计费类型按单数（order_count）汇总，不含楼层数', async () => {
+    const w = mountDrawer({
+      ...baseInvoice,
+      items: [
+        // fixed 多层递增：100 层 / 80 单
+        {
+          id: 1,
+          pricing_type: 'fixed',
+          multi_floor_pricing_type: 'incremental',
+          quantity: 100,
+          order_count: 80,
+          unit_price: 8,
+          subtotal: 800,
+        },
+        // tiered：200 层 / 150 单
+        {
+          id: 2,
+          pricing_type: 'tiered',
+          quantity: 200,
+          order_count: 150,
+          unit_price: 9,
+          subtotal: 1350,
+        },
+        // package-unlimited：50 层 / 30 单
+        {
+          id: 3,
+          pricing_type: 'package',
+          package_type: 'unlimited',
+          quantity: 50,
+          order_count: 30,
+          unit_price: 10,
+          subtotal: 1000,
+        },
+      ],
+    })
+    await nextTick()
+    const text = w.find('tfoot').text()
+    expect(text).toContain('260') // 80 + 150 + 30，单数
+    expect(text).not.toContain('350') // 100 + 200 + 50，楼层数和
+  })
+
+  it('order_count 缺失时回退 quantity（防御历史数据）', async () => {
+    const w = mountDrawer({
+      ...baseInvoice,
+      items: [
+        { id: 1, pricing_type: 'fixed', quantity: 100, unit_price: 8, subtotal: 800 },
+        { id: 2, pricing_type: 'fixed', quantity: 50, unit_price: 8, subtotal: 400 },
+      ],
+    })
+    await nextTick()
+    expect(w.find('tfoot').text()).toContain('150')
   })
 })
