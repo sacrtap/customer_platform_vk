@@ -526,6 +526,8 @@ cd backend && python -m alembic current && python -m alembic heads
 # 模型与库是否存在漂移（本 bug 的精确探测手段）
 cd backend && python scripts/check_schema_drift.py
 #   会自动忽略 22 个遗留对象/索引差异；关注「运行库缺少列/表」的 ❌ FAILED。
+#   2026-10-23 起同时比对**可空性**（modify_nullable）：列两侧都存在但 nullable 不一致
+#   同样 FAILED——那会让同一条 INSERT 在测试库与生产库行为分叉（见下节）。
 #   等价底层手段（噪声较多）：python -m alembic check —— 手工备份表
 #   customer_balances_backup_20260812 会报 remove_table，属预期。
 
@@ -535,6 +537,36 @@ cd backend && pytest tests/integration/test_migrations.py::TestModelMigrationPar
 # 直接比对该表实际列
 python -c "import asyncio,asyncpg; ..."  # information_schema.columns where table_name='customers'
 ```
+
+---
+
+## 可空性漂移：列存在 ≠ nullable 一致（Schema Drift 第二维）
+
+[来源: 2026-10-23 — `check_schema_drift.py` 增 `modify_nullable` 比对，一次检出 8 处存量漂移]
+
+**症状**：同一条 INSERT 在两侧行为分叉。测试库由 `tests/_test_data.py::sync_test_schema`
+按 **metadata** 建表；生产库由**历史迁移链**建。当模型的可空性推断与迁移链不一致时，
+测试库里合法的写法在生产库炸（或反之），而两边的测试都可能是绿的。
+
+**根因（两类）**：
+1. `Mapped[Any]` 的 JSON 列——SQLAlchemy 对 `Any` 推断 `nullable=False`，
+   而初始迁移写的是 `nullable=True`（如 `pricing_rules.tiers`、`audit_logs.changes`）。
+2. 注解 `Mapped[int | None]` 但迁移是 `nullable=False`（如 `sync_tasks.success_count`、
+   `invoice_discount_histories.invoice_id`）——模型比库宽松。
+
+**修复基准**：**迁移链是唯一事实来源**（`alembic/versions/*.py` 里该列最终的 `nullable=`）。
+模型向迁移对齐，不要反过来改库——除非业务确实要改约束（那要先写迁移）。
+
+**已修复的 8 处（2026-10-23）**：
+`audit_logs.changes`、`pricing_rules.tiers`、`pricing_rules.package_limits` → 模型加 `nullable=True`；
+`invoice_discount_histories.invoice_id`、`sync_tasks.completed_days/skipped_days/success_count/failed_count`
+→ 模型加 `nullable=False`。
+
+### Checklist: 新增/修改 JSON 或 int 列时
+
+- [ ] 迁移里的 `nullable=` 与模型注解一致（`Mapped[Any]` 必须显式写 `nullable=True`，别依赖推断）
+- [ ] 跑 `python scripts/check_schema_drift.py`，确认「可空性一致」也是 ✅
+- [ ] 测试库与生产库的行为分叉问题：优先怀疑可空性/默认值漂移
 
 ---
 

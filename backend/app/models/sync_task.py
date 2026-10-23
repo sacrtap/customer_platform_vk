@@ -27,11 +27,19 @@ class SyncTask(Base, TimestampMixin):
         String(20), nullable=False, default="pending", comment="任务状态"
     )
     total_days: Mapped[int] = mapped_column(Integer, nullable=False, comment="总天数")
-    completed_days: Mapped[int | None] = mapped_column(Integer, default=0, comment="已完成天数")
-    skipped_days: Mapped[int | None] = mapped_column(Integer, default=0, comment="跳过天数")
+    completed_days: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="已完成天数"
+    )
+    skipped_days: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="跳过天数"
+    )
     current_date: Mapped[date | None] = mapped_column(Date, nullable=True, comment="当前处理日期")
-    success_count: Mapped[int | None] = mapped_column(Integer, default=0, comment="成功同步条数")
-    failed_count: Mapped[int | None] = mapped_column(Integer, default=0, comment="失败条数")
+    success_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="成功同步条数"
+    )
+    failed_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False, comment="失败条数"
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="失败原因")
     operator_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True, comment="操作人（定时任务为NULL）"
