@@ -551,3 +551,6 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 - ❌ **Orphan column: adding ORM fields without applying the migration to the running DB** — 「有迁移文件」≠「库已升级」；改模型后必须 `alembic upgrade head` 并用 `scripts/check_schema_drift.py` 验证，见上方 Schema Drift 一节
 - ❌ **Manually maintaining `ALTER TABLE ... ADD COLUMN` lists in test conftest** — 已废止，改用 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步；新增字段勿再手写清单
 - ❌ **把字段校验放在 `setattr` 赋值之后** — 校验抛 `ValueError` 时 ORM 对象已被改脏，而 session 未 rollback，后续任一请求的 flush 会把非法值落库（例：开对账校验放在赋值后，导致「无经理开对账」被 400 拦截后 `require_reconciliation=True` 仍落库）。凡是抛错前不能留脏对象的校验，必须先于赋值；只依赖 `data` 与 `customer` 现值的校验天然可前置
+- ❌ **NOT NULL 的 JSON 列不在 ORM 侧给 `default`** — `mapped_column(JSON)` 无默认时，任何未显式传值的构造都会 INSERT NULL 触发 NotNullViolationError；生产路径普遍用 `data.get("tiers")`（API 不带字段即 None），必须靠 ORM `default=list`/`default=dict` 兜底。新增 JSON 列时先确认 NOT NULL 约束与默认值配对
+- ❌ **Mock 数据库 helper 只定义 `.all()` 不定义 `.scalars().first()`** — MagicMock 的链式属性自动生成假对象，被测代码读到 MagicMock 属性而不报错，症状是下游 `TypeError: '<' not supported between MagicMock and int`，根因离现场很远。helper 必须显式定义被测代码用到的每条链（`.first()` / `.scalars().first()` / `.scalar()`）
+- ❌ **`side_effect` 列表与被测方法的 execute 次数/顺序不匹配** — 服务方法若有「先查客户资格再查数据」的前置 execute，测试列表漏掉第一项会导致整体错位一位：customer_stmt 拿到用量行、pricing_stmt 拿到余额行。症状同样表现为下游字段是 MagicMock。加/改服务层 execute 时必须同步测试列表长度

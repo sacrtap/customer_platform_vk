@@ -793,3 +793,39 @@ admin 名下客户（≈0）。此前测试只覆盖「受限用户无 mine」�
 `remark_provided = "remark" in data` 判定；`service.update(..., remark_provided=...)`
 仅在提供时写 `record.remark`。前端清空备注提交 `null`。
 若误用 `data.get("remark")`，则「只改余额不改备注」的旧调用会静默清空备注。
+
+## Mock 层缺陷伪装成业务层 Bug（测试替身的链式属性陷阱）
+
+**跨层类型：B（测试替身 ↔ 被测代码的隐式契约）**。症状与根因严重分离：业务代码
+`expected_usage == 0` 走进兜底分支，现场报的是
+`TypeError: '<' not supported between instances of 'MagicMock' and 'int'`，
+而真正的缺陷在测试 helper 少定义了一条链。
+
+### MagicMock 的三个静默陷阱
+
+| 陷阱 | 机制 | 症状 |
+|---|---|---|
+| 未定义的链式属性 | `result.scalars().first()` 中 `scalars_result` 只设了 `.all`/`.unique`，`.first` 自动生成新 MagicMock | 被测代码读到「假行对象」，其任意属性都是 MagicMock，不报错直到下游比较/运算 |
+| `side_effect` 列表错位 | 服务方法有前置 execute（如先查客户资格），测试列表漏第一项 | 整体错位一位：customer_stmt 拿到用量行、pricing_stmt 拿到余额行；下游字段是 MagicMock |
+| Mock 行缺校验字段 | `normalize_tiers` 要求每档有 `price`，mock 数据只给 `min`/`max` | 校验抛 `TierFormatError` 被降级处理，业务流程静默走兜底分支，断言值与预期不符 |
+
+### Checklist: 写/改 Mock DB helper 与 side_effect 时
+
+- [ ] helper 显式定义被测代码用到的**每一条链**：`.first()` / `.scalars().first()` / `.scalar()` / `.scalar_one_or_none()`
+- [ ] `side_effect` 列表长度 = 该方法（含私有 helper）全部 `await self.db.execute(...)` 次数，顺序逐一对应
+- [ ] 服务方法新增/删除 execute 时，同步检查依赖它的全部测试列表
+- [ ] mock 行对象的字段值遵守与被测代码相同的校验契约（如 tiers 每档必含 `price`）
+- [ ] 症状是「下游 MagicMock 比较/运算 TypeError」时，先怀疑测试替身，再怀疑业务代码
+- [ ] 判别手段：把测试数据搬进独立脚本直接调用被测方法——脚本过而 pytest 不过，说明差异在 pytest 环境（fixture/顺序/污染），不在数据本身
+
+### Real-world example (2026-10-23, analytics 健康度 5 例全挂)
+
+`tests/test_analytics_service.py` 的 `make_mock_execute_result` 只定义 `scalars_result.all/unique`，
+未定义 `.first`；且 5 个 `TestCustomerHealthScoreService` 用例的 `side_effect` 列表都漏了
+首个 `customer_stmt` 结果（该 execute 是后加的资格校验）。两者叠加使 `pricing_result`
+成为 MagicMock → `tiers` 非法 → `expected_usage=0` → 走历史基线分支 →
+`earliest` 也是 MagicMock → `min(90, ...)` TypeError。修复：helper 补链 + 5 个用例补 customer 行。
+
+判别过程的关键实验：把同一份 mock 数据搬进独立 Python 脚本调用
+`service.get_customer_health_score()` —— 脚本直接返回 `score=86.0`（与断言一致），
+证明数据本身无误，问题在 pytest 加载路径；随后逐行比对才发现 helper 缺链。
