@@ -1092,3 +1092,26 @@ OCR（v1.12.10，bifrost 网关）审查分支全部 10 个代码文件：首轮
 ### Status
 
 [OK] **Completed**
+
+
+## Session 45: 结算单导出时间列按 CST 墙钟输出
+<!-- trellis-session: v=2 fp=fb7f06b439dcf776 -->
+
+**Date**: 2026-10-23
+**Task**: 结算单导出时间列按 CST 墙钟输出
+**Branch**: `main`
+
+### Summary
+
+修复结算单/包年套餐/余额导出 Excel 的时间列格式：timestamptz 列（period_start/end）原裸 isoformat 输出 UTC 时刻导致日期少一天，改用 utc_to_cst_date_str；naive 墙钟列（created_at）输出 ISO T 分隔+微秒不可读，新增 naive_cst_datetime_str（纯 strftime，不可误用 utc_to_cst_* 否则 +8 小时）。顺手补齐 status_map 的 pending_ops/pending_sales，Excel 组装移入 asyncio.to_thread。新增 5 个单元测试 + 2 个集成测试（真实下载 xlsx 断言 strptime 可解析且 microsecond==0），单元 684 passed、集成 371 passed。spec 沉淀两类时间列的选型表。已通过 PR #65 合入 main（squash 7f9ddad）并删除分支。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `248387a` | fix(billing): 导出的时间列按 CST 墙钟输出，不再裸 isoformat |
+| `fbd5550` | docs(spec): 沉淀 Excel 导出时间列的时区语义选型规则 |
+
+### Status
+
+[OK] **Completed**
