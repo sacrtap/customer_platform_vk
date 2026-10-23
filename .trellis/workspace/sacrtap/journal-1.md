@@ -1137,3 +1137,31 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+
+## Session 47: 客户「是否对账」属性改造 + 存量测试与 schema 漂移修复
+<!-- trellis-session: v=2 fp=e2c5d51ec51d00cb -->
+
+**Date**: 2026-10-23
+**Task**: 客户「是否对账」属性改造 + 存量测试与 schema 漂移修复
+**Branch**: `main`
+
+### Summary
+
+交付客户 require_reconciliation 属性（默认否跳过经理确认直达 pending_customer；是走完整流程并强制经理非空），全链路移除死字段 auto_initiate_settlement。顺带修复三类存量问题：①update_customer 校验置于 setattr 之后导致 400 拦截后脏值仍落库（已前置）；②8 个测试失败（pricing fixture tiers NOT NULL、mock helper 缺 .first 链、side_effect 漏 customer_stmt 错位一位）；③check_schema_drift 增可空性比对，检出并修复 8 处模型/迁移链 nullable 漂移。沉淀 3 条 Forbidden Patterns + 跨层 mock 陷阱专题。PR #67 已合并，全量 1264 passed、覆盖率 63%、CI 全绿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e780377` | feat(customers): 新增「是否对账」属性并移除死字段 auto_initiate_settlement |
+| `e085ad6` | test(customers): 对账属性测试改写 + 脏写回归防护 |
+| `542a17b` | feat(frontend): 客户表单「是否对账」替换「自动发起结算」 |
+| `e91ac1d` | docs: 对账属性方案归档 + 校验时序经验沉淀 |
+| `b28f399` | fix(billing): 修复存量测试失败——pricing tiers NOT NULL 与 analytics mock 链缺陷 |
+| `5566fab` | docs(spec): 沉淀 NOT NULL JSON 默认值与 mock 链缺陷两条教训 |
+| `dbc6ee4` | feat(drift): check_schema_drift 增可空性比对，检出并修复 8 处存量 nullable 漂移 |
+
+### Status
+
+[OK] **Completed**
