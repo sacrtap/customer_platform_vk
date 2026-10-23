@@ -68,7 +68,8 @@ ALL_PERMISSIONS = [
     ("billing:invoice_import", "导入结算单", "批量导入外部结算单", "billing"),
     ("billing:invoice_export", "导出结算单", "导出结算单数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
-    ("billing:pay", "结算付款", "标记付款和完成结算", "billing"),
+    ("billing:detail_status_view", "明细生成状态查看", "查看结算单明细文件生成状态", "billing"),
+    ("billing:detail_regenerate", "明细重新生成", "重新生成结算单明细文件", "billing"),
     ("billing:ops_approve", "运营经理确认", "运营经理确认结算单（第一步）", "billing"),
     ("billing:sales_approve", "销售经理确认", "销售经理确认结算单（第二步）", "billing"),
     # ============================================================
@@ -157,6 +158,8 @@ PRESET_ROLES = {
             "billing:recharge",
             "billing:ops_approve",
             "billing:confirm",
+            "billing:detail_status_view",
+            "billing:detail_regenerate",
             "analytics:view",
             "tags:view",
         ],
@@ -171,6 +174,7 @@ PRESET_ROLES = {
             "billing:package_export",
             "billing:invoice_export",
             "billing:sales_approve",
+            "billing:detail_status_view",
             "analytics:view",
         ],
     ),
@@ -290,6 +294,9 @@ def seed(reset: bool = False):
             "billing:import": [
                 "billing:balance_import",
             ],
+            # billing:pay 随 paid 旧流程整体废弃（pay/complete 路由已删、存量数据
+            # 已迁移为 completed），无等价新码：仅清理绑定与记录，不做等价授予
+            "billing:pay": [],
         }
         migrated_count = 0
         all_roles = session.execute(select(Role)).scalars().all()

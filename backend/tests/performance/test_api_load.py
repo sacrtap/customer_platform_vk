@@ -222,9 +222,7 @@ class CustomerPlatformUser(HttpUser):
             params["customer_id"] = random.randint(1, 100)
 
         if random.random() > 0.8:
-            params["status"] = random.choice(
-                ["draft", "submitted", "confirmed", "paid", "completed"]
-            )
+            params["status"] = random.choice(["draft", "submitted", "confirmed", "completed"])
 
         self.client.get(
             "/api/v1/billing/invoices",

@@ -62,7 +62,7 @@
         </template>
         <template #operations="{ record }">
           <a-button
-            v-if="canRegenerate(record) && can('billing:edit')"
+            v-if="canRegenerate(record) && can('billing:detail_regenerate')"
             type="text"
             size="mini"
             @click="onRegenerate([record.id])"
@@ -89,7 +89,7 @@
       <div class="footer-actions">
         <span class="subtle">提示：重新生成会重置为待处理并异步执行，可刷新查看最新状态。</span>
         <a-button
-          v-if="can('billing:edit')"
+          v-if="can('billing:detail_regenerate')"
           type="primary"
           size="small"
           :disabled="counts.failed + counts.pending === 0"

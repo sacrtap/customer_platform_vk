@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端分层与蓝图组织约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端测试与禁项约定"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移与 schema 应用要求"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "前端组件与 script setup 约定"}

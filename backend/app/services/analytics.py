@@ -742,7 +742,7 @@ class AnalyticsService:
                 and_(
                     Invoice.period_start >= start_date,
                     Invoice.period_end <= end_date,
-                    Invoice.status.in_(["paid", "completed"]),
+                    Invoice.status.in_(["completed"]),
                     Customer.deleted_at.is_(None),
                 )
             )
@@ -1605,7 +1605,7 @@ class AnalyticsService:
                 and_(
                     Invoice.period_start >= period_start,
                     Invoice.period_end <= period_end,
-                    Invoice.status.in_(["paid", "completed"]),
+                    Invoice.status.in_(["completed"]),
                     Customer.deleted_at.is_(None),
                 )
             )
@@ -2288,7 +2288,7 @@ class AnalyticsService:
                 .where(
                     Invoice.period_start >= month_start,
                     Invoice.period_end <= month_end,
-                    Invoice.status.in_(["paid", "completed"]),
+                    Invoice.status.in_(["completed"]),
                     Customer.deleted_at.is_(None),
                 )
             )
@@ -2730,7 +2730,7 @@ class AnalyticsService:
         paid_stmt = select(func.count(Invoice.id)).where(
             and_(
                 Invoice.customer_id == customer_id,
-                Invoice.status.in_(["paid", "completed"]),
+                Invoice.status.in_(["completed"]),
             )
         )
         paid_count = (await self.db.execute(paid_stmt)).scalar() or 0

@@ -11,7 +11,15 @@ from datetime import date, datetime, timedelta
 
 from freezegun import freeze_time
 
-from app.utils.timezone import CST, UTC, cst_today, utc_now
+from app.utils.timezone import (
+    CST,
+    UTC,
+    cst_today,
+    naive_cst_datetime_str,
+    utc_now,
+    utc_to_cst_date_str,
+    utc_to_cst_datetime_str,
+)
 
 CST_OFFSET = timedelta(hours=8)
 
@@ -65,3 +73,42 @@ def test_cst_constant_is_utc_plus_8():
     """CST 常量保持 UTC+8（业务硬约定）"""
     probe = datetime(2026, 6, 1, 0, 0, tzinfo=UTC)
     assert probe.astimezone(CST).utcoffset() == CST_OFFSET
+
+
+# ==================== naive 墙钟时间格式化（Excel 导出口径） ====================
+#
+# 背景：`TimestampMixin.created_at/updated_at` 是 timestamp without time zone，
+# 由 PG server_default=now() 在会话时区（Asia/Shanghai）写入，值本身即 CST 墙钟。
+# 导出曾直接 isoformat()，得到 "2026-10-22T17:13:20.535487"（ISO T 分隔 + 微秒），
+# 用户不可读；若误用 utc_to_cst_datetime_str（内部 replace(tzinfo=UTC)）则再偏 8 小时。
+
+
+def test_naive_cst_datetime_str_formats_without_shifting():
+    """naive 墙钟时间按原值格式化，不做时区偏移"""
+    dt = datetime(2026, 10, 22, 17, 13, 20, 535487)
+    assert naive_cst_datetime_str(dt) == "2026-10-22 17:13:20"
+
+
+def test_naive_cst_datetime_str_none_returns_none():
+    """None 原样返回（导出列空值）"""
+    assert naive_cst_datetime_str(None) is None
+
+
+def test_naive_cst_datetime_str_does_not_equal_utc_to_cst():
+    """与 utc_to_cst_datetime_str 结果相差 8 小时（防止误用）"""
+    dt = datetime(2026, 10, 22, 17, 13, 20)
+    assert naive_cst_datetime_str(dt) == "2026-10-22 17:13:20"
+    # 误用路径：把墙钟当 UTC 再转 CST 会 +8 小时变成次日凌晨
+    assert utc_to_cst_datetime_str(dt) == "2026-10-23 01:13:20"
+
+
+def test_utc_to_cst_date_str_shifts_timestamptz_to_local_date():
+    """timestamptz 列（period_start 等）必须转 CST 后取日期"""
+    # DB 存 UTC 2026-08-31 16:00 = CST 2026-09-01 00:00
+    dt = datetime(2026, 8, 31, 16, 0, tzinfo=UTC)
+    assert utc_to_cst_date_str(dt) == "2026-09-01"
+
+
+def test_utc_to_cst_date_str_none_returns_none():
+    """None 原样返回"""
+    assert utc_to_cst_date_str(None) is None

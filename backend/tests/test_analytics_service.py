@@ -104,7 +104,6 @@ def make_mock_row(data):
         elif isinstance(data[0], str) and data[0] in [
             "draft",
             "pending_customer",
-            "paid",
             "completed",
             "cancelled",
         ]:
@@ -134,7 +133,6 @@ def make_mock_row(data):
             elif data[0] in [
                 "draft",
                 "pending_customer",
-                "paid",
                 "completed",
                 "cancelled",
             ]:
@@ -488,8 +486,8 @@ class TestGetInvoiceStatusStats:
         mock_rows = [
             ("draft", 5, Decimal("5000.00")),
             ("pending_customer", 3, Decimal("3000.00")),
-            ("paid", 10, Decimal("10000.00")),
-            ("completed", 8, Decimal("8000.00")),
+            ("completed", 10, Decimal("10000.00")),
+            ("cancelled", 2, Decimal("1000.00")),
         ]
         mock_db.execute.return_value = make_mock_execute_result(mock_rows)
 
@@ -502,7 +500,7 @@ class TestGetInvoiceStatusStats:
         assert result[0]["count"] == 5
         assert result[0]["total_amount"] == 5000.00
         assert result[1]["name"] == "pending_customer"
-        assert result[2]["name"] == "paid"
+        assert result[2]["name"] == "completed"
 
     async def test_get_invoice_status_stats_empty(self, analytics_service):
         """测试空结果"""

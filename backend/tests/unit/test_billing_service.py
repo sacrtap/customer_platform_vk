@@ -1672,23 +1672,6 @@ class TestInvoiceService_DeductionFailureDowngrade:
         assert message == "扣款失败：数据库繁忙，请稍后重试"
         assert invoice.status == "customer_confirmed"
 
-    @pytest.mark.asyncio
-    async def test_complete_invoice_downgrades_and_keeps_paid(
-        self, invoice_service, mock_db_session
-    ):
-        """完成结算：重试耗尽时返回业务错误码，状态停在 paid 可再次完成"""
-        invoice = self._invoice("paid")
-
-        with (
-            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
-            patch.object(BalanceService, "consume", AsyncMock(side_effect=self._exhausted_retry())),
-        ):
-            success, message = await invoice_service.complete_invoice(invoice_id=1, user_id=7)
-
-        assert success is False
-        assert message == "扣款失败：数据库繁忙，请稍后重试"
-        assert invoice.status == "paid"  # 未被推进为 completed
-
 
 # ==================== Test InvoiceService - Settlement Account (代扣余额) ====================
 
@@ -1801,26 +1784,6 @@ class TestInvoiceService_SettlementAccount:
         assert consume_mock.await_args.kwargs["customer_id"] == 200
 
     @pytest.mark.asyncio
-    async def test_complete_invoice_consumes_settlement_account_balance(
-        self, invoice_service, mock_db_session
-    ):
-        """完成结算（旧流程 paid→completed）：同样按结算账户快照扣款"""
-        invoice = self._invoice("paid", customer_id=100, settlement_account_id=200)
-        account = self._customer(customer_id=200)
-
-        consume_mock = AsyncMock(return_value=(True, "ok"))
-        with (
-            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
-            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=account)),
-            patch.object(BalanceService, "consume", consume_mock),
-        ):
-            success, _ = await invoice_service.complete_invoice(invoice_id=1, user_id=7)
-
-        assert success is True
-        assert invoice.status == "completed"
-        assert consume_mock.await_args.kwargs["customer_id"] == 200
-
-    @pytest.mark.asyncio
     async def test_deduction_without_settlement_account_uses_customer_self(
         self, invoice_service, mock_db_session
     ):
@@ -1892,7 +1855,7 @@ class TestInvoiceService_SettlementAccount:
         assert invoice.settlement_account_id is None
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("status", ["customer_confirmed", "paid", "completed", "cancelled"])
+    @pytest.mark.parametrize("status", ["customer_confirmed", "completed", "cancelled"])
     async def test_update_settlement_account_locked_after_customer_confirmed(
         self, invoice_service, mock_db_session, status
     ):

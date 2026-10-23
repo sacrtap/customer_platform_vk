@@ -7,7 +7,11 @@
           导入
         </button>
         <button v-if="can('billing:invoice_export')" class="btn" @click="handleExport">导出</button>
-        <button v-if="can('billing:view')" class="btn" @click="detailStatusVisible = true">
+        <button
+          v-if="can('billing:detail_status_view')"
+          class="btn"
+          @click="detailStatusVisible = true"
+        >
           明细生成状态
         </button>
         <button v-if="can('billing:edit')" class="btn primary" @click="generateModalVisible = true">

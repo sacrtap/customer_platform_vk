@@ -14,7 +14,6 @@ Billing API 集成测试
 """
 
 import uuid
-from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
@@ -1612,101 +1611,6 @@ async def test_confirm_invoice_invalid_state(test_client, auth_token, test_custo
 
 
 @pytest.mark.asyncio
-async def test_pay_invoice_invalid_state(test_client, auth_token, test_customer):
-    """测试付款 - 状态不允许"""
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    customer_id = test_customer["id"]
-
-    # 生成结算单后直接付款
-    gen_req, gen_res = await test_client.post(
-        "/api/v1/billing/invoices/generate",
-        json={
-            "customer_id": customer_id,
-            "period_start": "2026-03-01",
-            "period_end": "2026-03-31",
-            "items": [
-                {
-                    "device_type": "X",
-                    "layer_type": "single",
-                    "quantity": 10,
-                    "unit_price": 10.00,
-                }
-            ],
-        },
-        headers=headers,
-    )
-    invoice_id = gen_res.json["data"]["id"]
-
-    # 直接付款（应该失败）
-    pay_req, pay_res = await test_client.post(
-        f"/api/v1/billing/invoices/{invoice_id}/pay",
-        json={"payment_proof": "/uploads/proof.png"},
-        headers=headers,
-    )
-    assert pay_res.status == 400
-    assert pay_res.json["code"] == 40001
-
-
-@pytest.mark.asyncio
-@pytest.mark.smoke
-async def test_complete_invoice_insufficient_balance(
-    test_client, auth_token, test_customer_with_balance
-):
-    """测试完成结算 - 余额不足时按欠费模式扣款（real_amount 变负）
-
-    业务契约：consume 允许余额不足强制扣款（欠费模式），confirm 自动扣款
-    后状态直接变为 completed，不再有独立的 complete 扣款失败路径。
-    """
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    customer_id = test_customer_with_balance["id"]
-
-    # 生成一个金额很大的结算单（远超客户余额 45000）
-    gen_req, gen_res = await test_client.post(
-        "/api/v1/billing/invoices/generate",
-        json={
-            "customer_id": customer_id,
-            "period_start": "2026-03-01",
-            "period_end": "2026-03-31",
-            "items": [
-                {
-                    "device_type": "X",
-                    "layer_type": "single",
-                    "quantity": 100000,
-                    "unit_price": 10.00,
-                }
-            ],
-        },
-        headers=headers,
-    )
-    invoice_id = gen_res.json["data"]["id"]
-
-    # 提交 → 客户确认（无运营经理时 submit 直接到 pending_customer）
-    await test_client.post(f"/api/v1/billing/invoices/{invoice_id}/submit", headers=headers)
-    confirm_req, confirm_res = await test_client.post(
-        f"/api/v1/billing/invoices/{invoice_id}/confirm",
-        headers=headers,
-    )
-    assert confirm_res.json["code"] == 0
-    assert "扣款" in confirm_res.json["message"]
-
-    # 状态应为 completed（confirm 自动扣款完成）
-    detail_req, detail_res = await test_client.get(
-        f"/api/v1/billing/invoices/{invoice_id}",
-        headers=headers,
-    )
-    assert detail_res.json["data"]["status"] == "completed"
-
-    # 余额应为负（欠费模式：100 万扣款远超 45000 可用余额，real_amount 变负）
-    balance_req, balance_res = await test_client.get(
-        f"/api/v1/billing/customers/{customer_id}/balance",
-        headers=headers,
-    )
-    assert balance_res.json["code"] == 0
-    final_total = Decimal(str(balance_res.json["data"]["total_amount"]))
-    assert final_total < 0, f"欠费模式下余额应为负，实际 {final_total}"
-
-
-@pytest.mark.asyncio
 async def test_get_invoice_detail(test_client, auth_token, test_customer):
     """测试获取结算单详情 API"""
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -1754,7 +1658,6 @@ async def test_get_invoice_detail(test_client, auth_token, test_customer):
         "pending_ops",
         "pending_sales",
         "pending_customer",
-        "paid",
         "completed",
     )
 

@@ -166,3 +166,25 @@ def utc_to_cst_datetime_str(dt: Optional[datetime]) -> Optional[str]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(CST).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def naive_cst_datetime_str(dt: Optional[datetime]) -> Optional[str]:
+    """naive 墙钟 datetime → 展示字符串（用于 Excel 格式化等）。
+
+    `TimestampMixin.created_at` / `updated_at` 等列是 `timestamp without time zone`，
+    由 PG `server_default=now()` 在会话时区（Asia/Shanghai）写入，值本身就是 CST 墙钟；
+    String 型流程字段（approved_at 等）由 `datetime.now().isoformat()` 写入，同样是
+    CST 墙钟。这类值**不能**再 `astimezone`（会把正确时间再偏移 8 小时），只需格式化：
+
+    输入: datetime(2026, 10, 22, 17, 13, 20, 535487)
+    输出: "2026-10-22 17:13:20"
+
+    Args:
+        dt: 不带时区的 datetime（CST 墙钟），或 None
+
+    Returns:
+        "YYYY-MM-DD HH:MM:SS" 格式字符串（去掉微秒），或 None
+    """
+    if dt is None:
+        return None
+    return dt.strftime("%Y-%m-%d %H:%M:%S")

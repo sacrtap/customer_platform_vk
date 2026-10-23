@@ -1822,67 +1822,6 @@ class InvoiceService:
         )
         return result.scalar_one_or_none()
 
-    async def pay_invoice(
-        self, invoice_id: int, payment_proof: Optional[str] = None
-    ) -> Tuple[bool, str]:
-        """确认付款"""
-        invoice = await self.get_invoice_by_id(invoice_id)
-
-        if not invoice:
-            return False, "结算单不存在"
-
-        if invoice.status != "customer_confirmed":  # pyright: ignore[reportGeneralTypeIssues]
-            return False, f"当前状态不能付款：{invoice.status}"
-
-        invoice.status = "paid"  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.paid_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.payment_proof = payment_proof  # pyright: ignore[reportAttributeAccessIssue]
-
-        await self.db.commit()
-
-        return True, "付款成功"
-
-    async def complete_invoice(self, invoice_id: int, user_id: int = 1) -> Tuple[bool, str]:
-        """完成结算（扣款）"""
-        invoice = await self.get_invoice_by_id(invoice_id)
-
-        if not invoice:
-            return False, "结算单不存在"
-
-        if invoice.status != "paid":  # pyright: ignore[reportGeneralTypeIssues]
-            return False, f"当前状态不能完成：{invoice.status}"
-
-        # 执行扣款（事务边界由 consume 自行收敛，无需预先提交）
-        final_amount = invoice.total_amount - (invoice.discount_amount or 0)
-        # 结算账户快照：空=用自身余额；非空=用结算账户客户余额
-        deduct_customer_id = invoice.settlement_account_id or invoice.customer_id
-        if invoice.settlement_account_id is not None:
-            account = await self._get_customer(invoice.settlement_account_id)
-            if not account:
-                return False, "结算账户客户不存在"
-        balance_service = BalanceService(BalanceRepository(self.db))
-        try:
-            success, message = await balance_service.consume(
-                customer_id=deduct_customer_id,  # pyright: ignore[reportArgumentType]
-                amount=final_amount,  # pyright: ignore[reportArgumentType]
-                invoice_id=invoice_id,
-            )
-        except OperationalError:
-            # 重试耗尽：consume 已记录诊断日志。降级为业务错误码，发票状态保持 paid，
-            # 可再次调用 complete_invoice 重试
-            return False, f"扣款失败：{_DB_BUSY_MESSAGE}"
-
-        if not success:
-            return False, message
-
-        invoice.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.completed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.completed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
-
-        await self.db.commit()
-
-        return True, "结算完成"
-
     async def cancel_invoice(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
         """取消结算单"""
         invoice = await self.get_invoice_by_id(invoice_id)

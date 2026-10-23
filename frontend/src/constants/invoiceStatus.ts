@@ -9,7 +9,6 @@ export const INVOICE_STATUS_MAP: Record<string, string> = {
   pending_sales: '待销售经理确认',
   pending_customer: '待客户确认',
   customer_confirmed: '客户已确认',
-  paid: '已付款',
   completed: '已结算',
   cancelled: '已取消',
 }
@@ -20,7 +19,6 @@ export const INVOICE_STATUS_CLASS_MAP: Record<string, string> = {
   pending_sales: 'amber',
   pending_customer: 'orange',
   customer_confirmed: 'blue',
-  paid: 'green',
   completed: 'green',
   cancelled: 'red',
 }

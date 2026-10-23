@@ -81,7 +81,7 @@ vi.mock('@/api/billing', () => ({
           period_start: '2024-01-01',
           period_end: '2024-01-31',
           total_amount: 50000,
-          status: 'paid',
+          status: 'completed',
           created_at: '2024-01-01',
         },
       ],

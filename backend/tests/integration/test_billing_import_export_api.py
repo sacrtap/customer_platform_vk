@@ -17,6 +17,7 @@ Billing 导入导出 API 集成测试
 import contextlib
 import io
 import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -1725,4 +1726,129 @@ async def test_balances_list_excludes_customer_without_archive(test_client, auth
             "DELETE FROM customers WHERE id = :cid",
         ):
             db_session.execute(text(stmt), {"cid": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_export_invoices_time_columns_use_cst_wallclock(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导出：时间列必须是 CST 墙钟，不得出现 ISO/UTC 形式
+
+    回归：导出曾直接 ``isoformat()``——
+    - ``period_start/end``（timestamptz，DB 存 UTC）输出
+      ``2026-08-31T16:00:00+00:00``，用户看到的日期比 CST 少一天；
+    - ``created_at``（timestamp without time zone，PG 会话时区写入的 CST 墙钟）
+      输出 ``2026-10-22T17:13:20.535487``（ISO T 分隔 + 微秒），不可读。
+    """
+    # 通过导入端点造一条周期确定的结算单（period 按 CST 日期落库为 UTC 时刻）
+    headers = [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ]
+    rows = [[import_customer["company_id"], "2026-04-01", "2026-04-30", 100.0, 0, None]]
+    _request, imported = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows, ["必填"] * 6)),
+    )
+    assert imported.status == 200
+    assert imported.json["data"]["success_count"] == 1
+
+    _request, response = await test_client.get(
+        "/api/v1/billing/invoices/export",
+        params={"customer_id": import_customer["id"]},
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status == 200
+
+    ws = load_workbook(io.BytesIO(response.body)).active
+    columns = [cell.value for cell in ws[1]]
+    assert columns == [
+        "结算单号",
+        "客户名称",
+        "周期开始",
+        "周期结束",
+        "总金额",
+        "减免金额",
+        "最终金额",
+        "状态",
+        "创建时间",
+    ]
+    # 导入的结算单是唯一一条（customer 维度隔离），取第 2 行数据
+    period_start = ws.cell(row=2, column=columns.index("周期开始") + 1).value
+    period_end = ws.cell(row=2, column=columns.index("周期结束") + 1).value
+    created_at = ws.cell(row=2, column=columns.index("创建时间") + 1).value
+
+    # 周期即用户导入的 CST 日期本身，不带时间/时区后缀
+    assert period_start == "2026-04-01"
+    assert period_end == "2026-04-30"
+
+    # 创建时间是 CST 墙钟的秒级字符串：可解析、无微秒、无 T 分隔
+    assert isinstance(created_at, str)
+    parsed = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+    assert parsed.microsecond == 0
+    assert created_at == parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+
+@pytest.mark.asyncio
+async def test_export_package_plans_time_columns_use_cst_wallclock(
+    test_client, auth_token, db_session
+):
+    """包年套餐导出：created_at/updated_at 是 CST 墙钟的秒级字符串
+
+    ``created_at`` 由 PG server_default=now() 在会话时区（Asia/Shanghai）写入，
+    值本身即 CST 墙钟；若按 UTC 解释再转 CST 会整体 +8 小时。
+    """
+    suffix = uuid.uuid4().hex[:6].upper()
+    ptype = f"EXP{suffix}"
+    headers = [
+        "name",
+        "package_type",
+        "base_fee",
+        "device_type",
+        "layer_type",
+        "is_unlimited",
+        "limit_count",
+        "over_limit_unit_price",
+        "description",
+        "status",
+    ]
+    rows = [
+        [f"导出测试套餐_{suffix}", ptype, 30000.0, "X", "single", "否", 5000, 6.0, "测试", "active"]
+    ]
+
+    try:
+        _request, imported = await test_client.post(
+            "/api/v1/billing/package-plans/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows, ["必填"] * 10)),
+        )
+        assert imported.status == 200
+        assert imported.json["data"]["success_count"] == 1
+
+        _request, response = await test_client.get(
+            "/api/v1/billing/package-plans/export",
+            params={"keyword": ptype},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+        assert response.status == 200
+
+        ws = load_workbook(io.BytesIO(response.body)).active
+        columns = [cell.value for cell in ws[1]]
+        created_at = ws.cell(row=2, column=columns.index("created_at") + 1).value
+        updated_at = ws.cell(row=2, column=columns.index("updated_at") + 1).value
+
+        for value in (created_at, updated_at):
+            assert isinstance(value, str)
+            parsed = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            assert parsed.microsecond == 0
+    finally:
+        db_session.execute(
+            text("DELETE FROM package_plans WHERE package_type = :pt"), {"pt": ptype}
+        )
         db_session.commit()

@@ -30,9 +30,6 @@ class InvoiceStatus(str, Enum):
     新流程（多角色协作）：
         draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
 
-    旧流程（兼容历史数据）：
-        draft → pending_customer → customer_confirmed → paid → completed
-
     任意非 completed 状态均可 → cancelled
     """
 
@@ -41,7 +38,6 @@ class InvoiceStatus(str, Enum):
     PENDING_SALES = "pending_sales"  # 待销售经理确认
     PENDING_CUSTOMER = "pending_customer"  # 待客户确认（线下）
     CUSTOMER_CONFIRMED = "customer_confirmed"  # 客户已确认（自动扣款中/扣款失败可重试）
-    PAID = "paid"  # 已付款（旧流程兼容）
     COMPLETED = "completed"  # 已完成（扣款成功）
     CANCELLED = "cancelled"  # 已取消
 
