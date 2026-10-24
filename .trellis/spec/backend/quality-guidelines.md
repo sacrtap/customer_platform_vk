@@ -452,3 +452,56 @@ vs `Invoice.period_start/period_end`、`PricingRule.effective_date/expiry_date`�
 （真实下载 xlsx，断言单元格可被 `datetime.strptime(value, "%Y-%m-%d %H:%M:%S")` 解析且 `microsecond == 0`）。
 
 **相关**：`app/main.py::_force_cst_timezone`（进程级 TZ 兜底）、`utils/timezone.py` 模块 docstring 的时间流转图。
+
+---
+
+## 外部 HTTP 客户端（httpx）新增约定：类 + 单例 + 工厂，异常吞掉返回 None/空
+
+[来源: 2026-10-24 系统升级公告 — `services/github_updates.py` 新建]
+
+新增调用外部 HTTP API 的客户端时，**仿 `services/external_api.py` 的 `ExternalAPIClient` 模式**，
+不要自造风格：
+
+```python
+class XxxClient:
+    def __init__(self):
+        self.base_url = settings.xxx_base_url
+        self.token = settings.xxx_token or None
+        self.timeout = 15.0
+
+    def _headers(self) -> Dict[str, str]: ...          # 同步方法，无 token 时省略 Authorization
+    async def _get(self, path: str) -> Optional[dict]: # 统一入口：404 → warning + None；httpx.HTTPError → error + None
+    async def get_xxx(self) -> List[Dict[str, Any]]: ...  # 业务方法，失败一律返回 [] / None（不抛）
+
+xxx_client = XxxClient()                              # 模块级单例
+def get_xxx_client() -> XxxClient:                    # 工厂函数（路由层经它取实例，便于测试 patch）
+    return xxx_client
+```
+
+**要点**：
+- 每次请求 `async with httpx.AsyncClient(timeout=...) as client:`（项目无共享 client 池，勿引连接池）。
+- **降级不抛异常**：外部服务不可用/限流时返回 `None`/`[]`，由路由层决定是否缓存/兜底；
+  配 `logger.error` 便于排查，用户侧静默。
+- 配置走 `Settings` 字段（pydantic-settings 自动映射 `XXX_` 环境变量），默认值即本仓库，
+  无需 `.env` 即可运行；`.env.example` 同步注释块。
+- 缓存类只读端点：`cache_service.get(prefix)` 命中直接返回；**仅非空结果 `set`**，
+  空结果（外部故障）不落缓存，下次请求可重试；TTL 登记进 `CacheService._ttl_config`。
+
+## 陷阱：本地集成测试并发跑会互相污染，失败集合不可信
+
+[来源: 2026-10-24 系统升级公告验收 — 同时跑多个 `pytest tests/integration` 进程]
+
+集成/e2e 测试共享**同一个本地 Postgres/Redis 测试库**（`customer_platform_test` / DB 1）。
+并行启动多个 pytest 进程会互相踩踏：用户表 Token 状态、白名单记录、缓存前缀内容被对方
+清/改，产生**与本次改动无关**的失败（典型症状：`401 Unauthorized`、`KeyError: 'data'`、
+`assert 404 == 200`）。
+
+**规则**：
+1. 同一时刻**只跑一个** pytest 进程；多 job 并发验证时其余 job 必须 `wait` 到前者结束。
+2. 判定「改动是否引入回归」必须用**无并发窗口**的运行结果做对照：
+   干净树（`git stash`）基线全过 + 带改动全过 = 无回归；两次都失败且失败集合相同 = 存量脆弱。
+3. 存量顺序依赖模块（如 `tests/integration/test_balance_whitelist_routes.py` 单独跑会
+   12 failed、随全套跑反而通过）**单独跑的结果同样不可信**——对照基线跑法必须一致
+   （同样范围、同样顺序）。
+4. 冒烟服务（`backend8000`/`frontend5173` 等）与 pytest 共用本地库/端口时同理，验证
+   接口前先确认无并发测试在跑。
