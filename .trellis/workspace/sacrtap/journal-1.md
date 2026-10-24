@@ -1202,3 +1202,26 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+
+## Session 48: 减免审批节点（PR #71/#72 已合并）
+<!-- trellis-session: v=2 fp=9eaebada4392f432 -->
+
+**Date**: 2026-10-24
+**Task**: 减免审批节点（PR #71/#72 已合并）
+**Branch**: `main`
+
+### Summary
+
+实现减免审批节点：有减免（discount_amount≠0）的结算单经销售确认后进入 pending_discount_approval，由具备 billing:discount_approve 权限的用户审批；通过才能到客户确认，驳回必填理由并退回销售/运营确认阶段重新走流程。后端 Invoice 加三字段（discount_approver_id/approved_at/approval_comment）+ status 列宽 String(20)→30；_route_to_approval_or_customer 分流复用于 submit/confirm_ops/confirm_sales/batch_submit 四处；_discount_reject_revert_status 与正向分流对称推断退回点；apply_discount 收紧至 draft/pending_ops/pending_sales 防绕过审批；analytics 未结清状态列表补新状态。前端新建 DiscountApprovalModal（通过可选/驳回必填），列表/抽屉/时间线/图表全链路同步。执行中发现并修正方案文档 3 处错误假设：①status 列宽不足（25字符超20，集成测试才暴露，单测 MagicMock 测不出）②测试侧权限清单与 seed 漂移导致 403（fixture 用 _test_data.py 不读 seed.py）③方案未提及的联动点（analytics 统计、cancel/update_settlement_account 状态、Payment 图表）。删除死代码 useInvoice 的 doApproveDiscount/doRejectDiscount（弹窗自调 API，无调用方）及对应 4 个测试。验证：CI 两轮全绿含 PR Quality Gate、单测 717、billing 集成 70（含 3 新增端到端）、前端 133、ruff+pyright 0、真实浏览器端到端冒烟全通。沉淀 3 条经验到 .trellis/spec/backend/（列宽漂移、权限码漂移、analytics 状态机）。会话内另归档方案原文至 docs/specs/。PR #71/#72 已 squash 合并入 main。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a087a81` | feat(billing): 新增减免审批节点 (#71) |
+| `4bbcac4` | docs: 归档减免审批节点方案原文 (#72) |
+
+### Status
+
+[OK] **Completed**

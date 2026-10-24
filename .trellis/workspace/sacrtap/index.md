@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 47
-- **Last Active**: 2026-10-23
+- **Total Sessions**: 48
+- **Last Active**: 2026-10-24
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1167 | Active |
+| `journal-1.md` | ~1227 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 48 | 2026-10-24 | 减免审批节点（PR #71/#72 已合并） | `a087a81`, `4bbcac4` | `main` |
 | 47 | 2026-10-23 | 客户「是否对账」属性改造 + 存量测试与 schema 漂移修复 | `e780377`, `e085ad6`, `542a17b`, `e91ac1d`, `b28f399`, `5566fab`, `dbc6ee4` | `main` |
 | 46 | 2026-10-23 | 定位 pre-commit 与 Trellis journal 自动提交的冲突并修复 | `6330ac2` | `main` |
 | 45 | 2026-10-23 | 结算单导出时间列按 CST 墙钟输出 | `248387a`, `fbd5550` | `main` |
