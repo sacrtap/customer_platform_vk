@@ -300,7 +300,7 @@ async def invoice_confirmation(request):
                     "invoice_id": invoice.id,
                     "invoice_no": invoice.invoice_no,
                     "status": invoice.status.value,
-                    "confirmed_at": invoice.customer_confirmed_at.isoformat(),
+                    "confirmed_at": invoice.customer_confirmed_at,
                 },
             }
         )
