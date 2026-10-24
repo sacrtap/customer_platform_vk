@@ -45,7 +45,6 @@ class TestGetSystemUpdates:
                 "deployed_at": "2026-10-20T03:00:00Z",
                 "head_sha": "aaaaaaa",
                 "status": "success",
-                "html_url": "https://github.com/o/r/actions/runs/1",
                 "commits": [
                     {
                         "sha": "2222222",
@@ -82,7 +81,6 @@ class TestGetSystemUpdates:
                 "deployed_at": "2026-10-20T03:00:00Z",
                 "head_sha": "aaaaaaa",
                 "status": "success",
-                "html_url": "",
                 "commits": [],
             }
         ]

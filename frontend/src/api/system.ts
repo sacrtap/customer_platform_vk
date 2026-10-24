@@ -15,8 +15,6 @@ export interface DeployUpdate {
   /** 部署提交短 sha（7 位） */
   head_sha: string
   status: string
-  /** GitHub 上该次 workflow 运行链接 */
-  html_url: string
   /** 本次部署相对上一次部署的新增提交 */
   commits: DeployCommit[]
 }

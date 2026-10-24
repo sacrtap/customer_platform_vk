@@ -15,7 +15,6 @@ def make_run(head_sha: str, created_at: str, conclusion: str = "success") -> dic
     return {
         "head_sha": head_sha,
         "created_at": created_at,
-        "html_url": f"https://github.com/o/r/actions/runs/{head_sha[:7]}",
         "status": "completed",
         "conclusion": conclusion,
         "head_commit": {
@@ -123,7 +122,6 @@ class TestGetRecentUpdates:
         assert latest["deployed_at"] == "2026-10-20T03:00:00Z"
         assert latest["head_sha"] == "aaaaaaa"
         assert latest["status"] == "success"
-        assert latest["html_url"] == "https://github.com/o/r/actions/runs/aaaaaaa"
         assert latest["commits"] == [
             {
                 "sha": "2222222",

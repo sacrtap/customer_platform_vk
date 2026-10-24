@@ -118,7 +118,6 @@ class GitHubUpdatesClient:
                     "deployed_at": run["created_at"],  # ISO UTC，前端按词法比较已读
                     "head_sha": run["head_sha"][:7],
                     "status": "success",
-                    "html_url": run.get("html_url", ""),
                     "commits": commits,
                 }
             )
