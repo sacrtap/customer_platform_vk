@@ -293,6 +293,33 @@ admin.roles.append(super_admin_role)
 
 **预防**：脚本/长函数中，先声明的「主对象」变量与后续遍历变量**禁止同名**；断言「分配成功」的日志/断言应打印**实际变量内容**而非常量。
 
+### 陷阱：新增权限码只改 seed，测试侧清单不同步 → 集成测试 403
+
+[来源: 2026-10-24 — 减免审批节点新增 `billing:discount_approve`]
+
+**症状**：新权限路由的集成测试断言 `400`（业务校验失败）却拿到 `403 权限不足`；
+单测（MagicMock 绕过权限）与 type-check 全绿，本地 seed 后库里有权限。
+
+**根因**：集成测试的 `test_user` fixture 用 `tests/_test_data.py::PERMISSION_ROWS`
+（测试侧裁剪副本，45 条）建权限，**不读** `scripts/seed.py::ALL_PERMISSIONS`。
+seed 加了新权限 ≠ 测试 fixture 的 admin 有该权限。守护测试
+`test_test_data_consistency.py` 只断言「测试权限 ⊆ seed 权限」单向子集——
+seed 新增的权限不会让测试失败，所以漂移无声通过。
+
+**附带发现**：该清单还缺 `billing:ops_approve` / `billing:sales_approve`（存量遗漏，
+只因没有测试覆盖这两个路由才未暴露）。
+
+**修复**：`_test_data.py` 的 `PERMISSION_ROWS` 补三条；`ALL_PERMISSIONS` 与
+`PERMISSION_ROWS` 的计数注释同步更新。
+
+**预防 checklist：新增 `module:action` 权限码时**
+- [ ] `scripts/seed.py::ALL_PERMISSIONS` 加一行
+- [ ] `tests/_test_data.py::PERMISSION_ROWS` 同步加一行（否则集成测试 403）
+- [ ] 两处段注释的计数同步更新
+- [ ] 跑 `tests/unit/test_test_data_consistency.py` 确认子集关系仍成立
+- [ ] 若该权限有路由级集成测试：本地库里 `test_user` 是 session 级 fixture，
+      admin 已存在时**不会重建**；需手工补 `role_permissions` 绑定或删库重建
+
 ---
 
 ## Forbidden Patterns

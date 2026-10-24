@@ -49,6 +49,9 @@ const props = defineProps<{
     discount_history?: DiscountHistory[]
     approved_at?: string
     approver_name?: string | null
+    discount_approved_at?: string | null
+    discount_approver_name?: string | null
+    discount_approval_comment?: string | null
     ops_confirmed_at?: string
     ops_confirmed_name?: string | null
     sales_confirmed_at?: string
@@ -72,6 +75,7 @@ const timelineEvents = computed(() => {
   type TimeField =
     | 'created_at'
     | 'approved_at'
+    | 'discount_approved_at'
     | 'ops_confirmed_at'
     | 'sales_confirmed_at'
     | 'customer_confirmed_at'
@@ -79,6 +83,7 @@ const timelineEvents = computed(() => {
   type OperatorField =
     | 'created_by_name'
     | 'approver_name'
+    | 'discount_approver_name'
     | 'ops_confirmed_name'
     | 'sales_confirmed_name'
     | 'customer_confirmed_name'
@@ -103,6 +108,16 @@ const timelineEvents = computed(() => {
       label: '提交结算单',
       statusKey: 'pending_ops',
       operatorField: 'approver_name',
+    },
+    {
+      field: 'discount_approved_at',
+      label: '减免审批',
+      statusKey: 'pending_discount_approval',
+      operatorField: 'discount_approver_name',
+      detailParts: () =>
+        props.invoice.discount_approval_comment
+          ? [{ type: 'text', text: `审批意见：${props.invoice.discount_approval_comment}` }]
+          : undefined,
     },
     {
       field: 'ops_confirmed_at',

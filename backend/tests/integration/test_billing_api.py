@@ -1651,10 +1651,208 @@ async def test_apply_discount(test_client, auth_token, test_customer):
         },
         headers=headers,
     )
-
     assert discount_res.status == 200
     assert discount_res.json["code"] == 0
     assert discount_res.json["message"] == "减免应用成功"
+
+
+@pytest.mark.asyncio
+async def test_discount_approval_workflow(test_client, auth_token, test_customer_with_balance):
+    """减免审批全流程：有减免单提交后进入待减免审批 → 审批通过 → 客户确认 → completed"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer_with_balance["id"]
+
+    # 1. 生成结算单（无经理配置，不进经理确认环节）
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": "2026-03-01",
+            "period_end": "2026-03-31",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 100, "unit_price": 10.00}
+            ],
+        },
+        headers=headers,
+    )
+    assert gen_res.status == 201
+    invoice_id = gen_res.json["data"]["id"]
+
+    # 2. 设置减免（draft 状态允许）
+    discount_req, discount_res = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/discount",
+        json={"discount_amount": 100.00, "discount_reason": "大客户优惠"},
+        headers=headers,
+    )
+    assert discount_res.status == 200
+
+    # 3. 提交：有减免 → pending_discount_approval（而非 pending_customer）
+    submit_req, submit_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+    assert submit_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "pending_discount_approval"
+
+    # 4. 审批节点不允许再改减免（防止绕过审批）
+    discount2_req, discount2_res = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/discount",
+        json={"discount_amount": 50.00, "discount_reason": "改申请"},
+        headers=headers,
+    )
+    assert discount2_res.status == 400
+
+    # 5. 审批通过（超管拥有 billing:discount_approve）→ pending_customer
+    approve_req, approve_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/approve-discount",
+        json={"comment": "同意减免"},
+        headers=headers,
+    )
+    assert approve_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "pending_customer"
+    assert detail_res.json["data"]["discount_approval_comment"] == "同意减免"
+    assert detail_res.json["data"]["discount_approved_at"] is not None
+
+    # 6. 审批通过后不允许再改减免
+    discount3_req, discount3_res = await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/discount",
+        json={"discount_amount": 50.00, "discount_reason": "绕过审批"},
+        headers=headers,
+    )
+    assert discount3_res.status == 400
+
+    # 7. 客户确认 → 自动扣款 → completed
+    confirm_req, confirm_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/confirm",
+        headers=headers,
+    )
+    assert confirm_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_discount_reject_requires_comment_and_reverts(test_client, auth_token, test_customer):
+    """减免审批驳回：理由必填；驳回后回到 draft 可重新提交"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    # 1. 生成 + 设置减免 + 提交 → pending_discount_approval
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": "2026-04-01",
+            "period_end": "2026-04-30",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 50, "unit_price": 10.00}
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = gen_res.json["data"]["id"]
+
+    await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/discount",
+        json={"discount_amount": 100.00, "discount_reason": "大客户优惠"},
+        headers=headers,
+    )
+    await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+
+    # 2. 无理由驳回 → 400
+    reject_no_req, reject_no_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/reject-discount",
+        json={},
+        headers=headers,
+    )
+    assert reject_no_res.status == 400
+    assert "驳回必须填写理由" in reject_no_res.json["message"]
+
+    # 3. 带理由驳回 → 退回 draft（测试客户无经理、不对账）
+    reject_req, reject_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/reject-discount",
+        json={"comment": "减免幅度超出授权范围"},
+        headers=headers,
+    )
+    assert reject_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "draft"
+    assert detail_res.json["data"]["discount_approval_comment"] == "减免幅度超出授权范围"
+
+    # 4. 驳回后仍可改减免并重新提交
+    await test_client.put(
+        f"/api/v1/billing/invoices/{invoice_id}/discount",
+        json={"discount_amount": 50.00, "discount_reason": "调整幅度"},
+        headers=headers,
+    )
+    resubmit_req, resubmit_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+    assert resubmit_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "pending_discount_approval"
+
+
+@pytest.mark.asyncio
+async def test_no_discount_submit_skips_approval(test_client, auth_token, test_customer):
+    """无减免单：提交后直接 pending_customer（不进审批节点）"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": "2026-05-01",
+            "period_end": "2026-05-31",
+            "items": [
+                {"device_type": "X", "layer_type": "single", "quantity": 50, "unit_price": 10.00}
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = gen_res.json["data"]["id"]
+
+    submit_req, submit_res = await test_client.post(
+        f"/api/v1/billing/invoices/{invoice_id}/submit",
+        headers=headers,
+    )
+    assert submit_res.status == 200
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "pending_customer"
+
+    # 无减免单不应出现审批时间
+    assert detail_res.json["data"]["discount_approved_at"] is None
 
 
 @pytest.mark.asyncio

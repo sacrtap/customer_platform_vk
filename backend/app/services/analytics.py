@@ -2850,6 +2850,7 @@ class AnalyticsService:
         outstanding_status = [
             "pending_ops",
             "pending_sales",
+            "pending_discount_approval",
             "pending_customer",
             "customer_confirmed",
         ]
@@ -3152,6 +3153,7 @@ class AnalyticsService:
         unsettled_status = [
             "pending_ops",
             "pending_sales",
+            "pending_discount_approval",
             "pending_customer",
             "customer_confirmed",
         ]

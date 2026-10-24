@@ -326,6 +326,7 @@ export interface Invoice {
     | 'draft'
     | 'pending_ops'
     | 'pending_sales'
+    | 'pending_discount_approval'
     | 'pending_customer'
     | 'customer_confirmed'
     | 'completed'
@@ -336,6 +337,10 @@ export interface Invoice {
   approver_name?: string | null
   approved_at?: string
   discount_applied_at?: string
+  discount_approver_id?: number | null
+  discount_approver_name?: string | null
+  discount_approved_at?: string | null
+  discount_approval_comment?: string | null
   ops_confirmed_by?: number | null
   ops_confirmed_name?: string | null
   ops_confirmed_at?: string
@@ -485,6 +490,16 @@ export function confirmOps(invoiceId: number) {
 
 export function confirmSales(invoiceId: number) {
   return api.post(`/billing/invoices/${invoiceId}/confirm-sales`)
+}
+
+/** 减免审批通过（审批意见可选） */
+export function approveDiscount(invoiceId: number, comment?: string) {
+  return api.post(`/billing/invoices/${invoiceId}/approve-discount`, comment ? { comment } : {})
+}
+
+/** 减免审批驳回（驳回理由必填） */
+export function rejectDiscount(invoiceId: number, comment: string) {
+  return api.post(`/billing/invoices/${invoiceId}/reject-discount`, { comment })
 }
 
 export function retryDeduction(invoiceId: number) {

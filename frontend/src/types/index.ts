@@ -217,6 +217,10 @@ export interface Invoice {
   status: string
   approver_id: number | null
   approved_at: string | null
+  discount_approver_id?: number | null
+  discount_approver_name?: string | null
+  discount_approved_at?: string | null
+  discount_approval_comment?: string | null
   customer_confirmed_at: string | null
   customer_confirmed_by?: number | null
   customer_confirmed_name?: string | null

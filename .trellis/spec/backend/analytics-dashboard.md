@@ -100,7 +100,7 @@ GET /api/v1/analytics/dashboard/trend   (@auth_required)   # 既有，未改动
 ## Common Mistakes（经验）
 
 - **Plan/需求中的权限码语义必须对照 seed.py 核实**：`billing:confirm`（第三步，商务/运营经理）、`billing:ops_approve`（第一步，运营经理独有）、`billing:sales_approve`（第二步，销售经理独有）。seed.py `PRESET_ROLES` 与 `ALL_PERMISSIONS` 注释是唯一权威。
-- invoice 状态机：draft →(submit)→ pending_ops →(ops_approve)→ pending_sales →(sales_approve)→ pending_customer →(confirm 扣款)→ completed；paid/completed=已回款。
+- invoice 状态机：draft →(submit)→ pending_ops →(ops_approve)→ pending_sales →(sales_approve)→ pending_discount_approval（有减免单）→(discount_approve)→ pending_customer →(confirm 扣款)→ completed；paid/completed=已回款。**统计「未结清」的状态列表必须含 `pending_discount_approval`**（2026-10-24 新增该状态时同步修正 `analytics.py` 的 `outstanding_status`/`unsettled_status`，否则待回款金额少算、逾期待办漏单）。
 - 低余额统一用 `total_amount < 1000`（total_amount 为维护字段，与 real+bonus 同步）；不要混用 `real_amount+bonus_amount` 口径。
 - **指标的业务口径（聚合域）要先从用户可见参照物确认**：2026-10-16 第二次修复——工作台"同步状态栏"曾统计全部 `SyncTaskLog` 任务（把 check_balance_warning 余额检查的失败算成同步异常），而同步日志页只展示 SyncTask（消费同步）且 100% 成功，两页矛盾引发二次返工。**"数据同步"= consumption_sync**：check_balance_warning/send_overdue_emails/generate_monthly_invoices 是业务检查/通知任务，不入同步健康统计。定义聚合指标前，先确认"参与聚合的任务集合"与用户参照页面一致。
 - **`SyncTaskLog` 的 count 字段跨任务单位不一致，禁止跨任务混合汇总**：`consumption_sync` 的 success_count=成功同步天数（可上万）、`check_balance_warning` 的 success_count=正常客户数、failed_count=**严重预警客户数**（不是失败！）、skipped_count=普通预警客户数、`email/invoice` 的 count=条数。唯一跨任务通用口径是 **status 任务级**（success/failed/partial 终值，partial 按 0.5 计）。

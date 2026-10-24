@@ -30,12 +30,17 @@ class InvoiceStatus(str, Enum):
     新流程（多角色协作）：
         draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
 
+    有减免申请（discount_amount ≠ 0）时，进入客户确认前需先经减免审批：
+        draft → pending_ops → pending_sales → pending_discount_approval → pending_customer
+        → customer_confirmed → completed
+
     任意非 completed 状态均可 → cancelled
     """
 
     DRAFT = "draft"  # 草稿（生成）
     PENDING_OPS = "pending_ops"  # 待运营经理确认
     PENDING_SALES = "pending_sales"  # 待销售经理确认
+    PENDING_DISCOUNT_APPROVAL = "pending_discount_approval"  # 待减免审批（有减免申请时进入）
     PENDING_CUSTOMER = "pending_customer"  # 待客户确认（线下）
     CUSTOMER_CONFIRMED = "customer_confirmed"  # 客户已确认（自动扣款中/扣款失败可重试）
     COMPLETED = "completed"  # 已完成（扣款成功）
@@ -137,11 +142,20 @@ class Invoice(BaseModel):
     discount_attachment: Mapped[str | None] = mapped_column(String(255))
     # final_amount = total_amount - discount_amount
     status: Mapped[str | None] = mapped_column(
-        String(20), default="draft", index=True
-    )  # draft/pending_ops/pending_sales/pending_customer/customer_confirmed/paid/completed/cancelled
+        String(30), default="draft", index=True
+    )  # draft/pending_ops/pending_sales/pending_discount_approval/pending_customer/customer_confirmed/completed/cancelled
     approver_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
     approved_at: Mapped[str | None] = mapped_column(String(50))
     discount_applied_at: Mapped[str | None] = mapped_column(String(50))  # 减免申请时间
+    discount_approver_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )  # 减免审批人
+    discount_approved_at: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 减免审批时间
+    discount_approval_comment: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # 审批意见/驳回理由
     customer_confirmed_at: Mapped[str | None] = mapped_column(String(50))
     customer_confirmed_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
