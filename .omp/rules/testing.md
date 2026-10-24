@@ -6,7 +6,7 @@
 
 - **框架**: pytest + pytest-asyncio (auto mode)
 - **插件**: pytest-cov (覆盖率), pytest-xdist (并行), pytest-testmon (增量测试)
-- **配置**: `pyproject.toml` 中 `asyncio_mode = "auto"`, `testpaths = ["tests"]`
+- **配置**: `pyproject.toml` 中 `asyncio_mode = "auto"`, `testpaths = ["tests"]`, `addopts = "--ignore=tests/e2e"`（backend e2e 依赖外部同步服务，默认不收集）
 - **Fixture**: `conftest.py` 设置环境变量（DATABASE_URL/REDIS_URL/JWT_SECRET）
 
 #### 前端
@@ -22,7 +22,7 @@
 | **单元测试** | `backend/tests/unit/` | 不依赖数据库，测试纯逻辑 | `test_billing_service.py`, `test_cache.py` |
 | **集成测试** | `backend/tests/integration/` | 依赖真实数据库，测试 API 端点 | `test_customers_api.py`, `test_billing_api.py` |
 | **服务层测试** | `backend/tests/services/` | 测试 Service 层业务逻辑 | `test_sync_task_service.py` |
-| **E2E 测试** | `frontend/e2e/` | Playwright 端到端测试 | `test_login.spec.ts` |
+| **E2E 测试** | `frontend/tests/e2e/` | Playwright 端到端测试 | `test_login.spec.ts` |
 | **性能测试** | `backend/tests/performance/` | 负载测试 | `test_api_load.py` |
 
 ### 覆盖率要求
@@ -72,6 +72,13 @@ cd frontend && npx playwright test
 # 自动 E2E 测试（启停前后端）
 ./scripts/run-e2e-tests.sh
 ```
+
+### 本地 vs CI 测试分工
+
+- **本地只跑**：单元测试（`make test-fast`）、集成 smoke 子集（`pytest tests/integration/ -m smoke`）、本次 PR 相关的 affected 集成测试、前端单元（`npx vitest`）、前端 E2E smoke（`npm run test:smoke`）、手动/浏览器冒烟。
+- **本地覆盖率**：`make test-cov` 跑 `tests/unit/ + tests/integration/`（排除 e2e），作为 50% 全量口径的本地参考值；本地不卡门禁，最终以 CI nightly 判定为准。
+- **放 CI 执行**：全量集成 + 50% 覆盖率门禁（nightly `backend-integration-full`）、全量 E2E（`e2e-full.yml` weekly/手动）、`backend/tests/e2e/`（依赖外部同步服务，本地收集即卡死）。
+- PR 门禁只跑 smoke 子集 + affected，控制在分钟级；全量回归由 nightly/weekly 守护，不阻塞每次合并。
 
 ### CI/CD 流程
 
