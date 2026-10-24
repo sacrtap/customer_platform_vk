@@ -1567,13 +1567,17 @@ class InvoiceService:
         减免金额为正数时从总额中扣除，为负数时为加价。
         每次修改都会更新 discount_applied_at 为当前时间（精确到秒），
         同时在 invoice_discount_histories 表中插入一条历史记录。
+
+        允许状态：draft / pending_ops / pending_sales。
+        审批通过后（pending_customer）不允许再改减免，否则会绕过减免审批；
+        审批节点本身（pending_discount_approval）也不允许修改申请。
         """
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status not in ["draft", "pending_ops", "pending_sales", "pending_customer"]:
+        if invoice.status not in ["draft", "pending_ops", "pending_sales"]:
             return False, f"当前状态不能修改减免：{invoice.status}"
 
         if discount_amount == 0:  # pyright: ignore[reportGeneralTypeIssues]
@@ -1609,8 +1613,8 @@ class InvoiceService:
     ) -> Tuple[bool, str]:
         """修改结算单的结算账户（代扣余额对象）
 
-        仅审批流中（draft/pending_ops/pending_sales/pending_customer）可修改；
-        客户确认后锁定（扣款以快照为准）。传 None 表示清空=用客户自身余额。
+        仅审批流中（draft/pending_ops/pending_sales/pending_discount_approval/
+        pending_customer）可修改；客户确认后锁定（扣款以快照为准）。传 None 表示清空=用客户自身余额。
 
         Returns:
             (success, message)
@@ -1620,7 +1624,13 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status not in ("draft", "pending_ops", "pending_sales", "pending_customer"):
+        if invoice.status not in (
+            "draft",
+            "pending_ops",
+            "pending_sales",
+            "pending_discount_approval",
+            "pending_customer",
+        ):
             return False, "客户确认后不可修改结算账户"
 
         # 自引用校验：结算账户不能为结算单所属客户自身（等价 null 但易误操作）
@@ -1636,6 +1646,84 @@ class InvoiceService:
 
         return True, "结算账户修改成功"
 
+    def _route_to_approval_or_customer(self, invoice: Invoice) -> None:
+        """即将进入客户确认阶段：有减免申请则先进审批节点，否则直接待客户确认。"""
+        target = (
+            "pending_discount_approval"
+            if invoice.discount_amount and invoice.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
+            else "pending_customer"
+        )
+        invoice.status = target  # pyright: ignore[reportAttributeAccessIssue]
+
+    def _discount_reject_revert_status(self, customer: Optional[Customer]) -> str:
+        """驳回退回点：与 submit_invoice 正向分流对称。
+
+        对账+有销售经理→pending_sales；对账仅有运营经理→pending_ops；
+        其余（不对账/防御）→draft。
+        """
+        if customer is not None and customer.require_reconciliation is True:  # pyright: ignore[reportGeneralTypeIssues]
+            if customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                return "pending_sales"
+            if customer.manager_id:  # pyright: ignore[reportGeneralTypeIssues]
+                return "pending_ops"
+        return "draft"
+
+    async def approve_discount(
+        self, invoice_id: int, user_id: int, comment: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """减免审批通过：pending_discount_approval → pending_customer。
+
+        审批意见可选。审批通过后不再允许修改减免（apply_discount 收紧状态）。
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status != "pending_discount_approval":  # pyright: ignore[reportGeneralTypeIssues]
+            return False, f"当前状态不能审批：{invoice.status}"
+
+        invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        if comment is not None:
+            invoice.discount_approval_comment = comment  # pyright: ignore[reportAttributeAccessIssue]
+
+        await self.db.commit()
+        return True, "减免审批通过"
+
+    async def reject_discount(
+        self, invoice_id: int, user_id: int, comment: str
+    ) -> Tuple[bool, str]:
+        """减免审批驳回：pending_discount_approval → 退回点（默认 pending_sales）。
+
+        驳回理由必填。退回点与 submit_invoice 正向分流对称：
+        对账+有销售经理→pending_sales；对账仅有运营经理→pending_ops；其余→draft。
+        """
+        if not comment or not comment.strip():
+            return False, "驳回必须填写理由"
+
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        if invoice.status != "pending_discount_approval":  # pyright: ignore[reportGeneralTypeIssues]
+            return False, f"当前状态不能驳回：{invoice.status}"
+
+        customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
+        revert = self._discount_reject_revert_status(customer)
+        invoice.status = revert  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approval_comment = comment.strip()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await self.db.commit()
+        return (
+            True,
+            f"减免已驳回，退回至{ {'pending_sales': '销售确认', 'pending_ops': '运营确认', 'draft': '草稿'}[revert] }",
+        )
+
     async def submit_invoice(self, invoice_id: int, approver_id: int) -> Tuple[bool, str]:
         """提交结算单（进入确认阶段）
 
@@ -1643,9 +1731,11 @@ class InvoiceService:
         - 对账（require_reconciliation=True）：走完整确认流程
           - 有运营经理：draft → pending_ops
           - 无运营经理但有销售经理：draft → pending_sales（跳过运营确认）
-          - 两者均无（防御，保存客户时已拦截）：draft → pending_customer
+          - 两者均无（防御，保存客户时已拦截）：draft → 客户确认前分流
         - 不对账（NULL/False，默认）：跳过运营/商务经理确认，
-          draft → pending_customer（直接待客户确认）
+          draft → 客户确认前分流
+        - 客户确认前分流（_route_to_approval_or_customer）：有减免申请
+          （discount_amount ≠ 0）→ pending_discount_approval，否则 → pending_customer
         """
         invoice = await self.get_invoice_by_id(invoice_id)
 
@@ -1669,10 +1759,10 @@ class InvoiceService:
                 invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
             else:
                 # 防御：开对账但经理被清空（不应发生，保存时已拦截）→ 降级直接待客户确认
-                invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+                self._route_to_approval_or_customer(invoice)
         else:
             # 不对账：跳过运营/商务经理确认，直接待客户确认
-            invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+            self._route_to_approval_or_customer(invoice)
 
         invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
         invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
@@ -1707,7 +1797,7 @@ class InvoiceService:
         if customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
             invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+            self._route_to_approval_or_customer(invoice)
         invoice.ops_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         invoice.ops_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -1718,7 +1808,8 @@ class InvoiceService:
     async def confirm_sales(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
         """销售经理确认（第二步）
 
-        pending_sales → pending_customer
+        pending_sales → pending_customer（无减免申请）
+        pending_sales → pending_discount_approval（有减免申请，需先经减免审批）
         校验：操作人必须为该客户指定的销售经理（customer.sales_manager_id）
         """
         invoice = await self.get_invoice_by_id(invoice_id)
@@ -1736,7 +1827,7 @@ class InvoiceService:
         if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
             return False, "您不是该客户指定的销售经理，无权确认"
 
-        invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+        self._route_to_approval_or_customer(invoice)
         invoice.sales_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         invoice.sales_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -1842,8 +1933,14 @@ class InvoiceService:
         if not invoice:
             return False, "结算单不存在"
 
-        # 草稿、待运营经理确认、待销售经理确认、待客户确认状态可以取消
-        if invoice.status not in ("draft", "pending_ops", "pending_sales", "pending_customer"):
+        # 草稿、待运营经理确认、待销售经理确认、待减免审批、待客户确认状态可以取消
+        if invoice.status not in (
+            "draft",
+            "pending_ops",
+            "pending_sales",
+            "pending_discount_approval",
+            "pending_customer",
+        ):
             return False, f"当前状态不能取消：{invoice.status}"
 
         invoice.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
@@ -1917,7 +2014,7 @@ class InvoiceService:
                 elif customer and customer.sales_manager_id:  # pyright: ignore[reportGeneralTypeIssues]
                     invoice.status = "pending_sales"  # pyright: ignore[reportAttributeAccessIssue]
                 else:
-                    invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
+                    self._route_to_approval_or_customer(invoice)
 
                 invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
                 invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
@@ -1934,8 +2031,8 @@ class InvoiceService:
     ) -> Dict[str, Any]:
         """批量取消结算单（draft/pending_* → cancelled）
 
-        仅 draft/pending_ops/pending_sales/pending_customer 状态可取消，其余计入
-        skipped。单次事务提交，逐条 try/except 不中断。
+        仅 draft/pending_ops/pending_sales/pending_discount_approval/pending_customer
+        状态可取消，其余计入 skipped。单次事务提交，逐条 try/except 不中断。
         """
         success_ids: List[int] = []
         skipped: List[Dict[str, Any]] = []
@@ -1963,6 +2060,7 @@ class InvoiceService:
                     "draft",
                     "pending_ops",
                     "pending_sales",
+                    "pending_discount_approval",
                     "pending_customer",
                 ):
                     skipped.append(

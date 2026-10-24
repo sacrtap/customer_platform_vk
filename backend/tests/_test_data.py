@@ -6,8 +6,8 @@
 设计要点：PERMISSION_CODES 由 PERMISSION_ROWS 派生，使
 「插入 DB 用的行数据」与「mock 权限缓存用的 code 集合」在结构上不可能漂移。
 
-与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、48 条；
-此处为测试侧裁剪形态 3 元组、42 条）。两者的漂移由
+与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、53 条；
+此处为测试侧裁剪形态 3 元组、45 条）。两者的漂移由
 tests/unit/test_test_data_consistency.py 守护。
 """
 
@@ -33,6 +33,9 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("billing:invoice_export", "导出结算单", "billing"),
     ("billing:delete", "结算删除", "billing"),
     ("billing:confirm", "结算确认", "billing"),
+    ("billing:ops_approve", "运营经理确认", "billing"),
+    ("billing:sales_approve", "销售经理确认", "billing"),
+    ("billing:discount_approve", "减免审批", "billing"),
     ("billing:detail_status_view", "明细生成状态查看", "billing"),
     ("billing:detail_regenerate", "明细重新生成", "billing"),
     ("files:view", "查看文件", "files"),
@@ -77,6 +80,10 @@ def sync_test_schema(engine) -> list[str]:
     本函数以 **SQLAlchemy metadata 为唯一真相**：
       - 缺失的表：交给调用方 `create_all`（此处只处理已存在表的新增列）
       - 缺失的列：按 metadata 自动 `ALTER TABLE ... ADD COLUMN`（类型从列定义推导）
+      - 已存在但类型不匹配的列（如 String(20) → String(30) 列宽变更）：
+        按 metadata 自动 `ALTER COLUMN ... TYPE`（2026-10-24 减免审批节点：
+        status 值 pending_discount_approval 为 25 字符，超原 String(20)，
+        仅 ADD COLUMN 无法覆盖，运行库/测试库均报 StringDataRightTruncationError）
 
     返回实际补齐的 `table.column` 列表（便于测试断言/日志）。
     """
@@ -93,16 +100,39 @@ def sync_test_schema(engine) -> list[str]:
         for table in BaseModel.metadata.sorted_tables:
             if table.name not in existing_tables:
                 continue  # 新表由 create_all 负责
-            have = {c["name"] for c in inspector.get_columns(table.name)}
+            have = {c["name"]: c for c in inspector.get_columns(table.name)}
             for column in table.columns:
-                if column.name in have:
-                    continue
-                # 用 CreateColumn 渲染列定义（含类型、可空等），去掉前导列名
-                col_ddl = str(CreateColumn(column).compile(dialect=dialect))
-                # col_ddl 形如 "name INTEGER NOT NULL"；取其类型/约束部分
-                definition = col_ddl[len(column.name) :].strip()
-                conn.execute(
-                    text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {definition}')
-                )
-                added.append(f"{table.name}.{column.name}")
+                if column.name not in have:
+                    # 用 CreateColumn 渲染列定义（含类型、可空等），去掉前导列名
+                    col_ddl = str(CreateColumn(column).compile(dialect=dialect))
+                    # col_ddl 形如 "name INTEGER NOT NULL"；取其类型/约束部分
+                    definition = col_ddl[len(column.name) :].strip()
+                    conn.execute(
+                        text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {definition}')
+                    )
+                    added.append(f"{table.name}.{column.name}")
+                else:
+                    # 长度不匹配的字符串列（列宽变更）：按 metadata 修正。
+                    # 2026-10-24 减免审批节点：status 值 pending_discount_approval
+                    # 为 25 字符，超原 String(20)，仅 ADD COLUMN 无法覆盖，
+                    # 运行库/测试库均报 StringDataRightTruncationError。
+                    #
+                    # 刻意只处理「字符串列长度」这一类变更，不做通用类型比较：
+                    # DECIMAL/NUMERIC、DATETIME/TIMESTAMP 在 SQLAlchemy 与
+                    # information_schema 间存在别名表示差异，逐字比较会把全库
+                    # 金额/日期列误报为不一致，每次会话触发无谓 ALTER。长度是
+                    # 语义明确、无双义表示的维度，按它修正足够覆盖列宽变更场景。
+                    model_type = column.type
+                    db_type = have[column.name]["type"]
+                    model_len = getattr(model_type, "length", None)
+                    db_len = getattr(db_type, "length", None)
+                    if model_len is not None and db_len is not None and model_len != db_len:
+                        type_ddl = model_type.compile(dialect=dialect)
+                        conn.execute(
+                            text(
+                                f'ALTER TABLE "{table.name}" '
+                                f'ALTER COLUMN "{column.name}" TYPE {type_ddl}'
+                            )
+                        )
+                        added.append(f"{table.name}.{column.name} (varchar {db_len} → {model_len})")
     return added

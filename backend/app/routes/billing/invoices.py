@@ -183,6 +183,9 @@ async def get_invoices(request: Request):
                         "discount_amount": float(i.discount_amount) if i.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "final_amount": float(i.total_amount - (i.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                         "status": i.status,
+                        "discount_approver_id": i.discount_approver_id,
+                        "discount_approved_at": i.discount_approved_at,
+                        "discount_approval_comment": i.discount_approval_comment,
                         "is_auto_generated": i.is_auto_generated,
                         "detail_file_status": i.detail_file_status or "pending",  # pyright: ignore[reportGeneralTypeIssues]
                         "created_at": i.created_at.isoformat() if i.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
@@ -230,6 +233,7 @@ async def get_invoice(request: Request, invoice_id: int):
     operator_ids = {
         invoice.created_by,
         invoice.approver_id,
+        invoice.discount_approver_id,
         invoice.ops_confirmed_by,
         invoice.sales_confirmed_by,
         invoice.customer_confirmed_by,
@@ -347,6 +351,10 @@ async def get_invoice(request: Request, invoice_id: int):
                 "approver_name": resolve_name(invoice.approver_id),
                 "approved_at": invoice.approved_at,
                 "discount_applied_at": invoice.discount_applied_at,
+                "discount_approver_id": invoice.discount_approver_id,
+                "discount_approver_name": resolve_name(invoice.discount_approver_id),
+                "discount_approved_at": invoice.discount_approved_at,
+                "discount_approval_comment": invoice.discount_approval_comment,
                 "ops_confirmed_by": invoice.ops_confirmed_by,
                 "ops_confirmed_name": resolve_name(invoice.ops_confirmed_by),
                 "ops_confirmed_at": invoice.ops_confirmed_at,
@@ -816,7 +824,8 @@ async def apply_discount(request: Request, invoice_id: int):
         "discount_attachment": "/uploads/proof.xlsx"
     }
 
-    允许在 draft / pending_ops / pending_sales / pending_customer 状态下修改。
+    允许在 draft / pending_ops / pending_sales 状态下修改。
+    （审批通过后 pending_customer 及审批节点 pending_discount_approval 均不可改，避免绕过审批）
     """
     db: AsyncSession = request.ctx.db_session
     data = request.json
@@ -923,7 +932,8 @@ async def update_settlement_account(request: Request, invoice_id: int):
         "settlement_account_id": 123  // null=清空（用客户自身余额）
     }
 
-    仅允许在 draft / pending_ops / pending_sales / pending_customer 状态下修改；
+    仅允许在 draft / pending_ops / pending_sales / pending_discount_approval /
+    pending_customer 状态下修改；
     客户确认后锁定（扣款以结算单上标记的结算账户为准）。
     """
     db: AsyncSession = request.ctx.db_session
@@ -1255,6 +1265,126 @@ async def confirm_sales(request: Request, invoice_id: int):
     return json({"code": 0, "message": message})
 
 
+@billing_bp.post("/invoices/<invoice_id:int>/approve-discount")
+@auth_required
+@require_permission("billing:discount_approve")
+async def approve_discount(request: Request, invoice_id: int):
+    """减免审批通过
+
+    仅 pending_discount_approval 状态可审批；审批意见（comment）可选。
+
+    Body:
+    {
+        "comment": "同意减免"  // 可选
+    }
+    """
+    db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
+    data = request.json or {}
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    status_before = invoice_before.status
+
+    comment = data.get("comment")
+    success, message = await invoice_service.approve_discount(
+        invoice_id=invoice_id,
+        user_id=user["user_id"] if user else 1,
+        comment=comment,
+    )
+
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+    await cache_service.invalidate_billing_cache()
+
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="approve_discount",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before, "comment": comment},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json({"code": 0, "message": message})
+
+
+@billing_bp.post("/invoices/<invoice_id:int>/reject-discount")
+@auth_required
+@require_permission("billing:discount_approve")
+async def reject_discount(request: Request, invoice_id: int):
+    """减免审批驳回
+
+    仅 pending_discount_approval 状态可驳回；驳回理由（comment）必填。
+    驳回后退回销售/运营确认阶段重新走流程。
+
+    Body:
+    {
+        "comment": "减免幅度超出授权范围"  // 必填
+    }
+    """
+    db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
+    data = request.json or {}
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    comment = (data.get("comment") or "").strip()
+    if not comment:
+        return json({"code": 40001, "message": "驳回必须填写理由"}, status=400)
+
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": 40401, "message": "结算单不存在"}, status=404)
+
+    status_before = invoice_before.status
+
+    success, message = await invoice_service.reject_discount(
+        invoice_id=invoice_id,
+        user_id=user["user_id"] if user else 1,
+        comment=comment,
+    )
+
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+    await cache_service.invalidate_billing_cache()
+
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="reject_discount",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": status_before, "comment": comment},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json({"code": 0, "message": message})
+
+
 @billing_bp.post("/invoices/<invoice_id:int>/retry-deduction")
 @auth_required
 @require_permission("billing:confirm")
@@ -1447,6 +1577,7 @@ def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
         "draft": "草稿",
         "pending_ops": "待运营经理确认",
         "pending_sales": "待销售经理确认",
+        "pending_discount_approval": "待减免审批",
         "pending_customer": "待客户确认",
         "customer_confirmed": "客户已确认",
         "completed": "已结算",
