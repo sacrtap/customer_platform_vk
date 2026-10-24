@@ -333,9 +333,10 @@ const emit = defineEmits<InvoiceDrawerEmits>()
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
 
-// 计费明细用量总计（表格底部汇总行）
+// 计费明细用量总计（表格底部汇总行）：按单数（order_count）汇总，
+// order_count 缺失时回退 quantity（防御历史/异常数据）
 const totalUsage = computed(() =>
-  (props.invoice?.items || []).reduce((s, i) => s + (Number(i.quantity) || 0), 0)
+  (props.invoice?.items || []).reduce((s, i) => s + (Number(i.order_count ?? i.quantity) || 0), 0)
 )
 
 // ===== 结算账户（代扣余额）编辑 =====

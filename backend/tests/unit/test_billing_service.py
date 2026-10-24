@@ -1301,6 +1301,8 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert item["unit_price"] == Decimal("5")
         assert item["additional_floor_price"] == Decimal("6")
         assert item["subtotal"] == Decimal("17")
+        assert item["quantity"] == Decimal("3")  # 楼层数（计价基准）
+        assert item["order_count"] == Decimal("1")  # 单数
         assert total_amount == Decimal("17")
 
     @pytest.mark.asyncio
@@ -1342,7 +1344,52 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert len(items) == 1
         assert items[0]["subtotal"] == Decimal("20")
         assert items[0]["quantity"] == Decimal("2")  # 按订单数
+        assert items[0]["order_count"] == Decimal("2")  # 统一模式 quantity 即单数
         assert total_amount == Decimal("20")
+
+    @pytest.mark.asyncio
+    async def test_calculate_items_tiered_has_order_count(self, invoice_service, mock_db_session):
+        """测试结算明细计算 - 阶梯模式 item 同时带 order_count（单数）与 quantity（楼层数）
+
+        order_count=150（单数），total_floor_count=200（楼层数，计价基准）
+        tiers: 0-100 → 10, 101+ → 8 → 101×10 + 99×8 = 1802
+        """
+        usage_row = MagicMock()
+        usage_row.device_type = "L"
+        usage_row.layer_type = "multi"
+        usage_row.total_quantity = 150  # order_count
+        usage_row.total_floor_count = 200
+
+        usage_result = MagicMock()
+        usage_result.all.return_value = [usage_row]
+
+        mock_rule = MagicMock(spec=PricingRule)
+        mock_rule.id = 1
+        mock_rule.device_type = "L"
+        mock_rule.layer_type = "multi"
+        mock_rule.pricing_type = "tiered"
+        mock_rule.tiers = [
+            {"min": 0, "max": 100, "price": 10},
+            {"min": 101, "max": None, "price": 8},
+        ]
+
+        rules_result = MagicMock()
+        rules_result.scalars.return_value.all.return_value = [mock_rule]
+
+        mock_db_session.execute.side_effect = [usage_result, rules_result]
+
+        items, total_amount = await invoice_service.calculate_items_from_rules(
+            customer_id=100,
+            period_start=local_date_range_to_utc("2026-01-01", "2026-01-31")[0],
+            period_end=local_date_range_to_utc("2026-01-01", "2026-01-31")[1],
+        )
+
+        assert len(items) == 1
+        item = items[0]
+        assert item["order_count"] == Decimal("150")  # 单数
+        assert item["quantity"] == Decimal("200")  # 楼层数（计价基准不变）
+        assert item["subtotal"] == Decimal("1802")
+        assert total_amount == Decimal("1802")
 
     @pytest.mark.asyncio
     async def test_calculate_items_package_rule(self, invoice_service, mock_db_session):
