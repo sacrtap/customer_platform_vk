@@ -38,7 +38,7 @@ from ..repository import (
     PricingRepositoryProtocol,
 )
 from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
-from ..utils.timezone import cst_today
+from ..utils.timezone import cst_now, cst_today
 
 logger = logging.getLogger(__name__)
 
@@ -1586,7 +1586,7 @@ class InvoiceService:
         # 减免金额允许为负值（加价），不校验上限
 
         # 精确到秒的时间戳
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = cst_now().strftime("%Y-%m-%d %H:%M:%S")
 
         invoice.discount_amount = discount_amount  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_reason = discount_reason  # pyright: ignore[reportAttributeAccessIssue]
@@ -1685,7 +1685,7 @@ class InvoiceService:
 
         invoice.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.discount_approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approved_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
         if comment is not None:
             invoice.discount_approval_comment = comment  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -1715,7 +1715,7 @@ class InvoiceService:
         revert = self._discount_reject_revert_status(customer)
         invoice.status = revert  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.discount_approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approved_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_approval_comment = comment.strip()  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
@@ -1765,7 +1765,7 @@ class InvoiceService:
             self._route_to_approval_or_customer(invoice)
 
         invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.approved_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1799,7 +1799,7 @@ class InvoiceService:
         else:
             self._route_to_approval_or_customer(invoice)
         invoice.ops_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.ops_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.ops_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1829,7 +1829,7 @@ class InvoiceService:
 
         self._route_to_approval_or_customer(invoice)
         invoice.sales_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.sales_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.sales_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
@@ -1850,7 +1850,7 @@ class InvoiceService:
             return False, f"当前状态不能确认：{invoice.status}"
 
         invoice.status = "customer_confirmed"  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.customer_confirmed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.customer_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
         invoice.customer_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         # 先落库「客户已确认」再尝试扣款：扣款失败时该状态保留，可由 retry_deduction 重试
         await self.db.commit()
@@ -1913,7 +1913,7 @@ class InvoiceService:
             return False, f"客户确认成功，但扣款失败：{message}"
 
         invoice.status = "completed"  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.completed_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.completed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
         invoice.completed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         await self.db.commit()
 
@@ -1944,7 +1944,7 @@ class InvoiceService:
             return False, f"当前状态不能取消：{invoice.status}"
 
         invoice.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
-        invoice.cancelled_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.cancelled_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
         invoice.cancelled_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
@@ -2017,7 +2017,7 @@ class InvoiceService:
                     self._route_to_approval_or_customer(invoice)
 
                 invoice.approver_id = approver_id  # pyright: ignore[reportAttributeAccessIssue]
-                invoice.approved_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+                invoice.approved_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
                 success_ids.append(invoice_id)
 
         return {
@@ -2069,7 +2069,7 @@ class InvoiceService:
                     continue
 
                 invoice.status = "cancelled"  # pyright: ignore[reportAttributeAccessIssue]
-                invoice.cancelled_at = datetime.now().isoformat()  # pyright: ignore[reportAttributeAccessIssue]
+                invoice.cancelled_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
                 invoice.cancelled_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
                 success_ids.append(invoice_id)
 

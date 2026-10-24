@@ -53,6 +53,20 @@ def _force_cst_timezone() -> None:
             current_tz or "(系统默认)",
             desired_tz,
         )
+    # 校验 tzset 真正生效（2026-10-23 executed_at 17:00 复发根因）：
+    # 无 tzdata 的精简容器（Alpine/slim）设 TZ 后 time.tzset() 会静默
+    # 回退 UTC，datetime.now()/date.today() 随之退化，依赖它们的 *_at
+    # 时间字段偏 8h。代码层已用 cst_now() 兜底，此处仅告警不阻断启动。
+    _gmtoff = time.localtime().tm_gmtoff
+    if _gmtoff != 28800:
+        logger.critical(
+            "⚠️ 进程时区强制 CST 失败：TZ=%s 但 localtime gmtoff=%ds（应为 28800）。"
+            "通常因容器未安装 tzdata（time.tzset 无法解析 Asia/Shanghai）。"
+            "datetime.now()/date.today() 将返回 UTC，依赖它们的 *_at 字段会偏 8h。"
+            "修复：容器加装 tzdata，或代码改用 utils.timezone.cst_now()/cst_today()。",
+            os.environ.get("TZ"),
+            _gmtoff,
+        )
 
 
 _force_cst_timezone()

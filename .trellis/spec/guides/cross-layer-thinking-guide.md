@@ -122,8 +122,12 @@ Rendering code may format fields, but it must not redefine the payload contract.
 
 - 每个写入端各 count 字段的**单位**（天数/条数/客户数），禁止混合汇总
 - 参与聚合的**业务域**（哪些 task 算"同步"）先与用户可见的参照页面对齐——2026-10-16 工作台同步状态栏曾把余额检查任务算成同步异常，与同步日志页（仅消费同步、100% 成功）矛盾引发二次返工
-- `*_at` 时间字段的**写入基准**（统一 naive 本地时间，与 `func.now()` 同基准；禁止 utcnow 混用）
+- `*_at` 时间字段的**写入基准**：统一用 `cst_now()`（显式 CST，不依赖进程本地时区），禁止 `datetime.now()`/`datetime.utcnow()`——前者依赖进程 TZ，后者偏 8h
 - 历史脏数据按写入端区分一次性修正（`to_char(executed_at::timestamp + interval '8 hours', ...)`）
+
+> **复发复盘（2026-10-23，break-loop）**：Mistake 5 首轮"修复"把 `datetime.utcnow()` 统一成 `datetime.now()`（naive 本地时间）并写进本规则，只消除"任务间时区混用"，却把"进程本地时区==CST"的**隐式假设**固化成规则。生产容器（无 tzdata，`main.py::_force_cst_timezone` 的 `time.tzset()` 静默回退 UTC）下 `datetime.now()` 退化为 UTC，CST 01:00 触发的同步任务 `executed_at` 被记成前一天 17:00。**教训**：修时区 bug 时"统一到本地时间"仍是隐式假设——必须统一到**显式时区函数**（`cst_now()`），且别把依赖进程状态的方案写进 spec 当规则。`utils/timezone.py` 早有 `cst_now()`、`analytics.py` 多处已用，但 `sync_task_service.py:159/958` 漏改——典型 **C. Change Propagation Failure**（改了规则没改全调用点）。
+
+> **同类扩展修复（2026-10-24）**：复发复盘预警的 `billing.py` invoice.*_at 同类潜伏地已修复——14 处写入点（`services/billing.py` 10 处 `datetime.now().isoformat()` + `now_str` 驱动 `discount_applied_at`/`applied_at`，`routes/webhooks.py` 3 处 `datetime.utcnow()`）统一改 `cst_now().strftime("%Y-%m-%d %H:%M:%S")`。`webhooks.py` 此前用 `datetime.utcnow()` 与 `billing.py` 的 `datetime.now()` 混用（同 2026-10-16 `executed_at` 同款问题），一并统一。回归测试 `test_cancel_invoice_cancelled_at_uses_cst`（freeze UTC 17:00 断言 `cancelled_at == CST 01:00`）守护。
 
 ---
 
