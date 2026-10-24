@@ -27,9 +27,10 @@ test-all:
 test-last-failed:
 	source .venv/bin/activate && pytest tests/ --lf -v --tb=short
 
-# 覆盖率：运行测试并生成覆盖率报告（门禁与 CI 一致：全量口径 ≥50%，unit+integration 合并）
+# 覆盖率：本地口径 = 单元 + 集成（排除 tests/e2e，与 CI nightly 的 50% 全量口径一致）。
+# tests/e2e 依赖外部同步服务，本地跑会卡死；全量 E2E 由 e2e-full.yml 在 CI 执行。
 test-cov:
-	source .venv/bin/activate && pytest tests/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
+	source .venv/bin/activate && pytest tests/unit/ tests/integration/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
 
 # 仅单元测试 + 覆盖率
 test-unit:
