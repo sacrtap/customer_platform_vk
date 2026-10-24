@@ -26,7 +26,6 @@
     </div>
     <template #footer>
       <div class="upgrade-footer">
-        <a-button @click="openGitHub">在 GitHub 查看完整记录</a-button>
         <a-button type="primary" @click="handleClose">我知道了</a-button>
       </div>
     </template>
@@ -56,11 +55,6 @@ const isVisible = computed({
 /** ISO UTC → 北京时间展示串（后端返回 UTC，公告按 CST 阅读） */
 const fmtCST = (iso: string) =>
   new Date(iso).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
-
-const openGitHub = () => {
-  const url = props.updates[0]?.html_url
-  if (url) window.open(url, '_blank')
-}
 
 const handleClose = () => {
   emit('update:visible', false)
