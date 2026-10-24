@@ -15,7 +15,7 @@ from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
 from app.services.dto import SyncDetail, SyncResult
 from app.services.order_sync import OrderSyncService
-from app.utils.timezone import local_date_to_utc_start
+from app.utils.timezone import cst_now, local_date_to_utc_start
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class SyncTaskService:
                 start_date=start_date,
                 end_date=end_date,
                 sync_mode=sync_mode,
-                executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                executed_at=cst_now().strftime("%Y-%m-%d %H:%M:%S"),
             )
             self.db.add(audit_log)
             await self.db.commit()
@@ -955,6 +955,6 @@ class SyncTaskService:
                 failed_count=task.failed_count,
                 skipped_count=task.skipped_days,
                 error_message=error,
-                executed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                executed_at=cst_now().strftime("%Y-%m-%d %H:%M:%S"),
             )
         )

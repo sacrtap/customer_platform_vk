@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sync_task import SyncTask
@@ -75,6 +76,49 @@ class TestCreateTask:
         assert result.operator_id == operator_id
         mock_db.add.assert_called()
         assert mock_db.add.call_count == 2  # SyncTask + SyncTaskLog
+
+    async def test_create_task_executed_at_uses_cst_not_process_tz(
+        self, service, mock_db, mock_redis
+    ):
+        """executed_at 写入用 cst_now()，记 CST 墙钟而非 UTC/进程时刻
+
+        2026-10-23 复发根因守护：定时同步在 CST 01:00 触发（= UTC 前一天 17:00），
+        datetime.now() 会记成 UTC 17:00，cst_now() 记成 CST 01:00。本测试冻结到
+        UTC 17:00（bug 现象时刻），断言 executed_at == CST 次日 01:00。
+        """
+        from app.models.billing import SyncTaskLog
+
+        start_date = date(2026, 10, 22)
+        end_date = date(2026, 10, 22)
+
+        captured = []
+
+        def _capture(obj):
+            if isinstance(obj, SyncTaskLog):
+                captured.append(obj)
+
+        mock_db.add = MagicMock(side_effect=_capture)
+        mock_db.commit = AsyncMock()
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        # 冻结到 UTC 17:00（= CST 次日 01:00）—— 正是 bug 现象时刻
+        with freeze_time("2026-10-23 17:00:00"):
+            with patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock):
+                await service.create_task(
+                    start_date=start_date,
+                    end_date=end_date,
+                    sync_mode="skip_existing",
+                    operator_id=1,
+                )
+
+        assert len(captured) == 1
+        # cst_now() → CST 墙钟 01:00；若退回 datetime.now() 则为 UTC 17:00（bug 复发）
+        assert captured[0].executed_at == "2026-10-24 01:00:00", (
+            "executed_at 应记 CST 墙钟 01:00；若为 17:00 说明又退回 datetime.now()"
+        )
 
     async def test_create_task_date_range_exceeded(self, service):
         """测试日期跨度超过31天"""
