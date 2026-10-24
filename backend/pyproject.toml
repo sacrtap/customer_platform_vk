@@ -14,3 +14,7 @@ indent-style = "space"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# 默认排除 backend/tests/e2e（依赖外部同步服务，本地/CI 均不在此跑；
+# 全量 E2E 由 frontend Playwright 套件经 e2e-full.yml 在 CI 执行）。
+# 如需显式跑 backend e2e：pytest tests/e2e --no-ignore
+addopts = "--ignore=tests/e2e"

@@ -77,8 +77,9 @@ cd frontend
 # Vitest 单元测试
 npx vitest
 
-# Playwright E2E 测试
-npx playwright test
+# Playwright E2E smoke 子集（与 PR 门禁一致，本地快速对齐）
+npx playwright test --grep=@smoke   # 或 npm run test:smoke
+
 
 # 自动启停前后端的 E2E 测试脚本
 ./scripts/run-e2e-tests.sh
