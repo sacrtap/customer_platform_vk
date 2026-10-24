@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     external_api_base_url: str = "https://business-api.company.com"
     external_api_token: str = ""
 
+    # GitHub 部署公告配置（读取 Deploy workflow 成功运行生成系统升级公告）
+    github_repo: str = "sacrtap/customer_platform_vk"  # 读取部署更新的仓库
+    github_token: str = ""  # 可选；留空走匿名请求（60/h，靠 Redis 缓存兜底）
+    github_workflow_file: str = "deploy.yml"  # 部署 workflow 文件名
+
     # Webhook 配置 - 生产环境必须从环境变量读取
     webhook_secret: str = Field(
         default_factory=lambda: os.getenv("WEBHOOK_SECRET") or secrets.token_urlsafe(32),
