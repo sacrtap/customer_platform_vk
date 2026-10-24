@@ -16,6 +16,7 @@ from ..config import settings
 from ..constants import ErrorCodes
 from ..models.billing import Invoice, InvoiceStatus
 from ..models.webhooks import WebhookSignature
+from ..utils.timezone import cst_now
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +276,7 @@ async def invoice_confirmation(request):
 
         # 更新结算单状态
         invoice.status = InvoiceStatus.CUSTOMER_CONFIRMED
-        invoice.customer_confirmed_at = datetime.utcnow()
+        invoice.customer_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")
         invoice.confirmation_method = confirmation_method
         invoice.confirmation_remarks = remarks
 
@@ -430,8 +431,8 @@ async def payment_notify(request):
         # 更新结算单状态：外部支付通知即视为结算完成（paid 旧流程已废弃）。
         # paid_at 保留为外部支付时间凭证；completed_by 留空（外部回调无操作人）。
         invoice.status = InvoiceStatus.COMPLETED
-        invoice.paid_at = datetime.utcnow()
-        invoice.completed_at = datetime.utcnow().isoformat()
+        invoice.paid_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")
+        invoice.completed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")
         invoice.completed_by = None
         invoice.payment_method = payment_method
         invoice.transaction_id = transaction_id

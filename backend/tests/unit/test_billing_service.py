@@ -7,6 +7,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from freezegun import freeze_time
 from sqlalchemy.exc import OperationalError
 
 from app.models.billing import (
@@ -2851,3 +2852,24 @@ class TestInvoiceService_DiscountApproval:
             )
 
         assert success is True
+
+    @pytest.mark.asyncio
+    @freeze_time("2026-10-23 17:00:00")  # UTC 17:00 = CST 次日 01:00
+    async def test_cancel_invoice_cancelled_at_uses_cst(self, invoice_service):
+        """cancel_invoice 写 cancelled_at 用 cst_now，记 CST 墙钟而非 UTC
+
+        invoice.*_at 全为 String(50) 列，是 executed_at(2026-10-23) 修复的同类隐患：
+        datetime.now() 在 UTC 进程下退化为 UTC。freeze 到 UTC 17:00（bug 现象时刻），
+        断言 cancelled_at == CST 次日 01:00。
+        """
+        invoice = self._invoice("pending_discount_approval", invoice_id=1)
+
+        with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)):
+            success, _ = await invoice_service.cancel_invoice(invoice_id=1, user_id=1)
+
+        assert success is True
+        assert invoice.status == "cancelled"
+        # cst_now() → CST 01:00；若退回 datetime.now() 则为 UTC 17:00（bug 复发）
+        assert invoice.cancelled_at == "2026-10-24 01:00:00", (
+            "cancelled_at 应记 CST 墙钟 01:00；若为 17:00 说明又退回 datetime.now()"
+        )
