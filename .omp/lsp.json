@@ -1,0 +1,49 @@
+{
+  "$comment": "项目级 LSP 覆盖。cwd 为仓库根，而 backend/ 与 frontend/ 才是各自的工程根；omp 的 rootMarkers 与 binary 解析均为 cwd-only（不递归子目录），故用 .git 作统一 rootMarker，binary 走 PATH。",
+  "servers": {
+    "clangd": {
+      "disabled": true,
+      "$comment": "本仓库无 C/C++ 代码，仅因仓库根有 Makefile 被误命中。"
+    },
+    "pyright": {
+      "command": "/Users/sacrtap/.local/bin/pyright-langserver",
+      "rootMarkers": [".git"],
+      "$comment": "omp 进程 PATH 不含 ~/.local/bin，$which 解析不到 pyright-langserver → loadConfig 过滤掉 → .py 请求全落到 ruff(返回 -32601)。显式给绝对路径绕过。rootMarker 用 .git：仓库根有 pyrightconfig.json 但 cwd-only 规则下 omp 不递归子目录，统一用 .git 命中。"
+    },
+    "ruff": {
+      "command": "/Users/sacrtap/.pyenv/shims/ruff",
+      "rootMarkers": [".git"]
+    },
+    "typescript-language-server": {
+      "rootMarkers": [".git"]
+    },
+    "vue-language-server": {
+      "rootMarkers": [".git"],
+      "initOptions": {
+        "typescript": {
+          "tsdk": "frontend/node_modules/typescript/lib"
+        },
+        "vue": {
+          "hybridMode": false
+        }
+      },
+      "$comment": "2.x 需客户端经 initializationOptions.typescript.tsdk 指定 TS SDK；hybridMode=false 走自建 ts project(3.x 起改为客户端转发 tsserver/request,omp 未实现该转发,故锁定 2.x)。"
+    },
+    "eslint": {
+      "rootMarkers": [".git"],
+      "settings": {
+        "": {
+          "validate": "on",
+          "run": "onType",
+          "nodePath": "frontend/node_modules",
+          "workingDirectory": { "mode": "location" },
+          "experimental": { "useFlatConfig": true }
+        }
+      },
+      "$comment": "eslint ls 用 connection.workspace.getConfiguration({section:''}) 拉配置，omp 应答 settings[''] ?? null。settings 必须放在 '' 键下，否则返回 null 并在 reading 'workingDirectory' 处崩溃。nodePath 指向 frontend/node_modules（cwd 是仓库根，从根解析不到 eslint 库）；workingDirectory.mode=location + useFlatConfig 让它在 frontend/ 定位 eslint.config.js。"
+    },
+    "vscode-json-language-server": {
+      "rootMarkers": [".git"]
+    }
+  }
+}

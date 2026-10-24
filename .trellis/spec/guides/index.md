@@ -24,6 +24,7 @@ These guides help you **ask the right questions before coding**.
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 | [VitePress 文档站 + CI 路径过滤](./vitepress-docs-ci-guide.md) | VitePress 独立文档站工程约定（config 位置/base/nginx 配合）与重型 CI 测试 paths-filter 模式 | 新增 VitePress 文档站、修改 nginx 静态托管、调整 PR checks |
+| [omp LSP 在 monorepo 子工程下的配置](./omp-lsp-monorepo-guide.md) | cwd-only rootMarkers、binary PATH 过滤、eslint `""` 键、vue ls 锁 2.x 等 omp LSP 配置踩坑 | 配置 `.omp/lsp.json`、LSP server 不出现 / `-32601` / eslint `workingDirectory` null 崩溃时 |
 | [Code Review Guide（OCR 执行策略）](./code-review-guide.md) | `ocr review` 在网关不稳定（HTTP 524/530/502/503）环境下的分组小批量并行 + resume 补审策略、报告规范、修复连带检查 | 运行 open-code-review 审查分支/提交时 |
 
 ---
