@@ -570,6 +570,40 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 
 ---
 
+## 列宽漂移：String(N) 长度不足（Schema Drift 第三维）
+
+[来源: 2026-10-24 — 减免审批节点 `pending_discount_approval`（25 字符）写入 `invoices.status VARCHAR(20)`]
+
+**症状**：单元测试全绿（MagicMock 不校验长度），集成/生产环境写入报
+`asyncpg.exceptions.StringDataRightTruncationError: value too long for type character varying(20)`
+→ 路由 500。`submit_invoice` 设置新状态值时炸，而同一方法的其他分支测试是绿的——
+**只有覆盖到新枚举值的那条路径会暴露**。
+
+**根因**：状态/枚举类 String 列加新成员时，先查新值的字符数是否超出现有列宽。
+`pending_discount_approval` 25 字符 > `String(20)`。方案文档里写「status 列为 String(20)
+无 DB 级枚举约束，无需 DDL 变更」是错误推断——**无枚举约束 ≠ 无长度约束**。
+
+**修复基准**：模型改 `String(30)` + 迁移写 `op.alter_column(..., type_=sa.String(30))`
++ **对运行库与全部测试库执行同一条 ALTER**。`sync_test_schema` 已扩展为
+「按 metadata 修正字符串列长度」（`_test_data.py`），新克隆的测试库会自动补齐。
+
+**类型比较的坑（为什么只比长度）**：SQLAlchemy 通用类型表示与 information_schema
+返回的方言表示存在别名差异——`str(column.type)` 给 `DATETIME`/`DECIMAL`，
+inspector 给 `TIMESTAMP`/`NUMERIC`；连 `compile(dialect=...)` 都统一不了
+（`DECIMAL` 编译后仍是 `DECIMAL`，库里是 `NUMERIC`）。逐字/编译后比较会把全库
+金额日期列误报为不一致，每次会话触发 20+ 次无谓 ALTER。**只对 `length` 属性
+做比较**：长度是无双义表示的维度，足够覆盖列宽变更，且零误报。
+
+### Checklist: 给状态/枚举 String 列加新成员时
+
+- [ ] 数新值的字符数，与列的 `String(N)` 比较；超了必须扩列（模型 + 迁移 + 运行库/测试库）
+- [ ] 扩列迁移写 `op.alter_column("table", "col", existing_type=sa.String(旧), type_=sa.String(新), existing_nullable=...)`
+- [ ] 迁移已 apply 过的库：直接对运行库执行 ALTER（`alembic` 不会重跑已 apply 的 revision）
+- [ ] 测试库由 `sync_test_schema` 自动修正，无需手工 ALTER；验证：临时还原列宽跑一次 sync 应自动修回
+- [ ] 集成测试覆盖「写入新枚举值」的路径——单测的 MagicMock 永远测不出长度问题
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)
@@ -581,6 +615,8 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 - ❌ **`asyncio.gather()` with multiple `session.execute()` on the same AsyncSession** — see AsyncSession Concurrency Constraint above
 - ❌ **Passing Python `False` or `True` to `.where()`** — see "Impossible" WHERE Conditions above
 - ❌ **Orphan column: adding ORM fields without applying the migration to the running DB** — 「有迁移文件」≠「库已升级」；改模型后必须 `alembic upgrade head` 并用 `scripts/check_schema_drift.py` 验证，见上方 Schema Drift 一节
+- ❌ **给状态/枚举 String 列加新成员不查字符数** — `pending_discount_approval`（25 字符）写进 `VARCHAR(20)` 直接 500；「无枚举约束」≠「无长度约束」。加成员前数长度，超了必须扩列（模型 + 迁移 `alter_column` + 运行库/测试库 ALTER），见「列宽漂移」一节
+- ❌ **在 `sync_test_schema` 里做通用类型字符串比较** — SQLAlchemy 与 information_schema 的类型表示有别名差异（DATETIME/TIMESTAMP、DECIMAL/NUMERIC），逐字或编译后比较都会误报，每次会话触发无谓 ALTER；只比较 `length` 属性
 - ❌ **Manually maintaining `ALTER TABLE ... ADD COLUMN` lists in test conftest** — 已废止，改用 `tests/_test_data.py::sync_test_schema` 按 metadata 自动同步；新增字段勿再手写清单
 - ❌ **把字段校验放在 `setattr` 赋值之后** — 校验抛 `ValueError` 时 ORM 对象已被改脏，而 session 未 rollback，后续任一请求的 flush 会把非法值落库（例：开对账校验放在赋值后，导致「无经理开对账」被 400 拦截后 `require_reconciliation=True` 仍落库）。凡是抛错前不能留脏对象的校验，必须先于赋值；只依赖 `data` 与 `customer` 现值的校验天然可前置
 - ❌ **NOT NULL 的 JSON 列不在 ORM 侧给 `default`** — `mapped_column(JSON)` 无默认时，任何未显式传值的构造都会 INSERT NULL 触发 NotNullViolationError；生产路径普遍用 `data.get("tiers")`（API 不带字段即 None），必须靠 ORM `default=list`/`default=dict` 兜底。新增 JSON 列时先确认 NOT NULL 约束与默认值配对

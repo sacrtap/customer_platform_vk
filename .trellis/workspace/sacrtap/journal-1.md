@@ -1165,3 +1165,40 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+---
+
+## 2026-10-24 减免审批节点（任务 10-24-discount-approval）
+
+### Context
+
+需求：结算单在「客户确认前」增加减免审批节点。仅 `discount_amount ≠ 0` 的单进入；具备 `billing:discount_approve` 权限的用户审批；通过才能到客户确认；驳回必填理由并退回销售确认阶段重新走流程。
+
+### 关键发现（方案文档的三处错误假设，均已修正）
+
+1. **status 列宽不足**：方案称「String(20) 无枚举约束，无需 DDL 变更」。`pending_discount_approval` 是 25 字符，写入即 `StringDataRightTruncationError` → 500。单测（MagicMock）测不出，只有集成测试暴露。已扩 `String(30)` + 迁移 `alter_column` + 运行库/测试库 ALTER。
+2. **测试侧权限清单漂移**：集成测试 fixture 用 `tests/_test_data.py::PERMISSION_ROWS`（不读 seed.py），新权限不在其中 → 路由 403。守护测试只断言「测试 ⊆ seed」单向子集，seed 新增不会失败，漂移无声通过。顺带补回存量遗漏的 `billing:ops_approve`/`billing:sales_approve`。
+3. **方案未提及的联动点**：`analytics.py` 两处「未结清」状态列表、`cancel_invoice`/`batch_cancel` 可取消状态、`update_settlement_account` 允许状态、`Payment.vue` 图表色映射——均需含新状态，否则统计少算/按钮不可用/图表显示原始键名。
+
+### 实现要点
+
+- 后端：`_route_to_approval_or_customer()` 内部分流复用于 submit_invoice/confirm_ops/confirm_sales/batch_submit 四处；`_discount_reject_revert_status()` 与正向分流对称推断退回点（对账+销售→pending_sales；对账仅运营→pending_ops；不对账→draft）。
+- `apply_discount` 收紧至 draft/pending_ops/pending_sales——审批通过后不可改，防绕过审批。
+- 前端：统一审批弹窗 `DiscountApprovalModal`（通过可选理由/驳回必填），详情抽屉、时间线（减免审批节点+审批意见）、流程步骤条同步。
+- 删除死代码：`useInvoice` 的 `doApproveDiscount`/`doRejectDiscount` 无调用方（弹窗自调 API + success 回调刷新），连同 4 个对应测试一并删除。
+
+### 沉淀
+
+- `database-guidelines.md` 新增「列宽漂移（Schema Drift 第三维）」：String(N) 加新枚举成员前必须数字符；`sync_test_schema` 扩展为按 metadata 修正字符串列长度（只比 `length`——SQLAlchemy 与 information_schema 的类型别名差异 DECIMAL/NUMERIC、DATETIME/TIMESTAMP 会让通用类型比较产生 22 处误报）。
+- `quality-guidelines.md` 新增「新增权限码只改 seed，测试侧清单不同步 → 集成测试 403」陷阱 + 5 步 checklist。
+- `analytics-dashboard.md` 状态机说明更新，标注「未结清状态列表必须含 pending_discount_approval」。
+
+### Verification
+
+- 后端：单元 717 passed；billing 集成 73 passed（含 3 个新增端到端用例：审批全流程/驳回退回重走/无减免直通）；ruff + pyright 0 error。
+- 前端：type-check 0 error；ESLint 0 issue；全量 133 passed。
+- 冒烟（curl + 真实浏览器）：有减免单提交→`pending_discount_approval`→无理由驳回 400→带理由驳回退 draft→重提交→审批通过→`pending_customer`→通过后改减免 400；UI 验证徽章 violet 色、审批弹窗必填校验、时间线审批意见展示。
+
+### Status
+
+[OK] **Completed**
