@@ -230,6 +230,17 @@
                     销售确认
                   </button>
                   <button
+                    v-if="
+                      can('billing:discount_approve') &&
+                      record.status === 'pending_discount_approval'
+                    "
+                    class="btn btn-primary-sm"
+                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+                    @click="handleSingleAction(record, 'approve-discount')"
+                  >
+                    审批通过
+                  </button>
+                  <button
                     v-if="record.status === 'pending_customer'"
                     class="btn btn-primary-sm"
                     style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
@@ -248,9 +259,13 @@
                   </button>
                   <button
                     v-if="
-                      ['draft', 'pending_ops', 'pending_sales', 'pending_customer'].includes(
-                        record.status
-                      )
+                      [
+                        'draft',
+                        'pending_ops',
+                        'pending_sales',
+                        'pending_discount_approval',
+                        'pending_customer',
+                      ].includes(record.status)
                     "
                     class="btn"
                     style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
@@ -299,6 +314,8 @@
       @edit-discount="openDiscountEditModal(currentDetail!)"
       @confirm-ops="handleSingleAction(currentDetail!, 'confirm-ops')"
       @confirm-sales="handleSingleAction(currentDetail!, 'confirm-sales')"
+      @approve-discount="handleSingleAction(currentDetail!, 'approve-discount')"
+      @reject-discount="handleSingleAction(currentDetail!, 'reject-discount')"
       @confirm="handleSingleAction(currentDetail!, 'confirm')"
       @retry-deduction="handleSingleAction(currentDetail!, 'retry-deduction')"
       @cancel="handleSingleAction(currentDetail!, 'cancel')"
@@ -321,6 +338,13 @@
       :current-reason="currentDetail?.discount_reason"
       :current-attachment="currentDetail?.discount_attachment"
       @success="handleDiscountEditSuccess"
+    />
+    <!-- 减免审批弹窗（通过可选理由 / 驳回必填理由） -->
+    <DiscountApprovalModal
+      v-model:visible="approvalModalVisible"
+      :invoice-id="approvalInvoiceId"
+      :mode="approvalMode"
+      @success="handleApprovalSuccess"
     />
     <!-- 导入弹窗 -->
     <ImportModal
@@ -360,6 +384,7 @@ import DetailGenStatusDrawer from './components/DetailGenStatusDrawer.vue'
 import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
 import SubmitModal from './components/SubmitModal.vue'
 import DiscountEditModal from './components/DiscountEditModal.vue'
+import DiscountApprovalModal from './components/DiscountApprovalModal.vue'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 
 const router = useRouter()
@@ -608,6 +633,25 @@ const openDiscountEditModal = (record: Invoice) => {
   discountEditVisible.value = true
 }
 
+// ===== 减免审批弹窗 =====
+const approvalModalVisible = ref(false)
+const approvalMode = ref<'approve' | 'reject'>('approve')
+const approvalInvoiceId = ref<number>(0)
+
+const openApprovalModal = (record: Invoice, mode: 'approve' | 'reject') => {
+  approvalMode.value = mode
+  approvalInvoiceId.value = record.id
+  approvalModalVisible.value = true
+}
+
+const handleApprovalSuccess = async () => {
+  approvalModalVisible.value = false
+  loadInvoices()
+  if (drawerVisible.value && currentDetail.value) {
+    await fetchDetail(currentDetail.value.id)
+  }
+}
+
 const openSubmitModal = (record: Invoice) => {
   selectedInvoiceId.value = record.id
   submitModalVisible.value = true
@@ -619,6 +663,8 @@ const handleSingleAction = async (
     | 'submit'
     | 'confirm-ops'
     | 'confirm-sales'
+    | 'approve-discount'
+    | 'reject-discount'
     | 'confirm'
     | 'retry-deduction'
     | 'cancel'
@@ -643,6 +689,12 @@ const handleSingleAction = async (
     'confirm-sales': async () => {
       await doConfirmSales(record.id)
       await refreshDetailIfOpen()
+    },
+    'approve-discount': () => {
+      openApprovalModal(record, 'approve')
+    },
+    'reject-discount': () => {
+      openApprovalModal(record, 'reject')
     },
     confirm: async () => {
       await doConfirm(record.id)

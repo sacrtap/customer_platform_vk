@@ -237,6 +237,17 @@
               <span class="btn primary disabled">销售经理确认</span>
             </a-tooltip>
           </template>
+          <!-- 减免审批：仅 pending_discount_approval 状态可操作 -->
+          <template
+            v-if="can('billing:discount_approve') && invoice.status === 'pending_discount_approval'"
+          >
+            <button class="btn primary" @click="emit('approve-discount', invoice.id)">
+              审批通过
+            </button>
+            <button class="btn btn-danger" @click="emit('reject-discount', invoice.id)">
+              审批驳回
+            </button>
+          </template>
           <button
             v-if="can('billing:confirm') && invoice.status === 'pending_customer'"
             class="btn primary"
@@ -320,6 +331,8 @@ interface InvoiceDrawerEmits {
   (e: 'edit-discount', id: number): void
   (e: 'confirm-ops', id: number): void
   (e: 'confirm-sales', id: number): void
+  (e: 'approve-discount', id: number): void
+  (e: 'reject-discount', id: number): void
   (e: 'confirm', id: number): void
   (e: 'retry-deduction', id: number): void
   (e: 'cancel', id: number): void
@@ -345,13 +358,18 @@ const accountForm = reactive<{ settlement_account_id: number | null | undefined 
   settlement_account_id: undefined,
 })
 
-// 审批流中（draft/pending_ops/pending_sales/pending_customer）且具备编辑权限才可修改
+// 审批流中（draft/pending_ops/pending_sales/pending_discount_approval/pending_customer）
+// 且具备编辑权限才可修改
 const canEditSettlementAccount = computed(() => {
   if (!props.invoice) return false
   if (!can('billing:edit')) return false
-  return ['draft', 'pending_ops', 'pending_sales', 'pending_customer'].includes(
-    props.invoice.status
-  )
+  return [
+    'draft',
+    'pending_ops',
+    'pending_sales',
+    'pending_discount_approval',
+    'pending_customer',
+  ].includes(props.invoice.status)
 })
 
 // 打开弹窗时回填当前值
@@ -424,6 +442,7 @@ const STATUS_TO_STEP: Record<string, number> = {
   draft: 1,
   pending_ops: 2,
   pending_sales: 3,
+  pending_discount_approval: 4,
   pending_customer: 4,
   customer_confirmed: 5,
   paid: 5,
