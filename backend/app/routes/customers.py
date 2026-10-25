@@ -1129,6 +1129,57 @@ async def import_customers(request: Request):
             filtered_rows.append(row)
         valid_rows = filtered_rows
 
+        # 处理 settlement_account_id 列：结算账户客户编号（company_id）→ customer.id。
+        # 导出侧输出的是 company_id（用户可读主键，与 company_id 列同一命名空间），
+        # 因此两侧互逆；DB 内部主键 id 不出现在 Excel 语境中。
+        # 校验语义与 CustomerService.update_customer 一致：自引用拒绝、目标必须存在
+        # 且未软删；填了但无法解析的行整行剔除（不静默留空——用户以为设了结算账户，
+        # 实际数据不完整，扣款会走错余额）。
+        if any("settlement_account_id" in row for row in valid_rows):
+            from ..models.customers import Customer as _Customer
+
+            account_result = await db_session.execute(
+                select(_Customer.id, _Customer.company_id).where(_Customer.deleted_at.is_(None))
+            )
+            account_by_company_id = {row[1]: row[0] for row in account_result.all()}
+
+            account_rows: list[dict] = []
+            for row in valid_rows:
+                if "settlement_account_id" not in row:
+                    account_rows.append(row)
+                    continue
+                raw_account = row.get("settlement_account_id")
+                # pandas 空单元格为 NaN；bool(NaN)=True，必须先归一化
+                if isinstance(raw_account, float) and math.isnan(raw_account):
+                    raw_account = None
+                if raw_account is None or (
+                    isinstance(raw_account, str) and not raw_account.strip()
+                ):
+                    row["settlement_account_id"] = None
+                    account_rows.append(row)
+                    continue
+                try:
+                    if isinstance(raw_account, float) and not raw_account.is_integer():
+                        raise ValueError
+                    account_company_id = int(str(raw_account).strip())
+                except (ValueError, TypeError):
+                    manager_errors.append(
+                        f"行{row['_row_num']}: 结算账户客户编号 '{raw_account}' 不是有效整数"
+                    )
+                    continue
+                if account_company_id == row.get("company_id"):
+                    manager_errors.append(f"行{row['_row_num']}: 结算账户不能为客户自身")
+                    continue
+                account_id = account_by_company_id.get(account_company_id)
+                if account_id is None:
+                    manager_errors.append(
+                        f"行{row['_row_num']}: 结算账户客户编号 {account_company_id} 不存在"
+                    )
+                    continue
+                row["settlement_account_id"] = account_id
+                account_rows.append(row)
+            valid_rows = account_rows
+
         # 处理 is_key_customer 列
         for row in customers_data:
             if "is_key_customer" in row:
@@ -1255,6 +1306,7 @@ async def download_import_template(request: Request):
         "require_reconciliation",
         "is_disabled",
         "notes",
+        "settlement_account_id",
         "scale_level",
         "consume_level",
         "monthly_avg_shots",
@@ -1297,6 +1349,7 @@ async def download_import_template(request: Request):
         "可选：true/false",
         "可选：true/false",
         "可选：备注信息",
+        "可选：结算账户客户编号（company_id），留空=用自身余额，不能为自身",
         "可选：S/A/B/C/D/E",
         "可选：C1/C2/C3/C4/C5/C6",
         "可选：整数",
@@ -1332,6 +1385,7 @@ async def download_import_template(request: Request):
         "false",
         "false",
         "备注示例",
+        None,
         "C",
         "C2",
         500,
@@ -1502,6 +1556,13 @@ async def export_customers(request: Request):
                 if c.is_disabled is not None
                 else None,
                 "notes": c.notes,
+                # 结算账户（代扣余额）：输出 company_id（用户可读主键），导入端解析回
+                # customer.id。导出此前完全缺该列，导致「结算账户」配置在文件链路
+                # 中静默丢失（导出→回灌后所有客户退回「用自身余额」）。
+                # Customer.settlement_account 已 lazy="selectin"，不触发懒加载。
+                "settlement_account_id": (
+                    c.settlement_account.company_id if c.settlement_account else None
+                ),
                 "scale_level": c.profile.scale_level if c.profile else None,
                 "consume_level": c.profile.consume_level if c.profile else None,
                 "monthly_avg_shots": c.profile.monthly_avg_shots if c.profile else None,

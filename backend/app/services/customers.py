@@ -1217,6 +1217,8 @@ class CustomerService:
                     "erp_system",
                     "is_real_estate",
                     "notes",
+                    # 结算账户（路由已把 company_id 解析为 customer.id）
+                    "settlement_account_id",
                     # 新增字段
                     "cooperation_status",
                     "is_settlement_enabled",
@@ -1420,6 +1422,7 @@ class CustomerService:
                     require_reconciliation=data.get("require_reconciliation", False),
                     is_disabled=data.get("is_disabled"),
                     notes=data.get("notes"),
+                    settlement_account_id=data.get("settlement_account_id"),
                 )
                 # dry_run 仅做校验，不构造 ORM 对象、不落库
                 if not dry_run:
