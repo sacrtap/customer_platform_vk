@@ -2625,3 +2625,66 @@ async def get_invoice_file_status(request: Request):
             },
         }
     )
+
+
+@billing_bp.post("/invoices/batch-download-detail")
+@auth_required
+@require_permission("billing:view")
+async def batch_download_detail_meta(request: Request):
+    """批量下载明细文件元数据：返回选中结算单的命名与状态信息，供前端预检与命名。
+
+    实际文件下载复用 GET /invoices/<id>/download-detail（逐个 blob 请求），
+    本接口只提供「哪些可下载、哪些未完成、文件叫什么」。
+    """
+    from sqlalchemy import select as sa_select
+
+    from ...models.billing import Invoice
+    from ...models.customers import Customer
+
+    db: AsyncSession = request.ctx.db_session
+    data = request.json or {}
+    invoice_ids = [int(i) for i in data.get("ids", [])]
+    if not invoice_ids:
+        return json({"code": 40004, "message": "请选择要下载的结算单"}, status=400)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可下载自己负责客户的结算单
+    scope_user_id = await customer_scope_user_id(request)
+    stmt = (
+        sa_select(
+            Invoice.id,
+            Invoice.invoice_no,
+            Invoice.customer_id,
+            Customer.name.label("customer_name"),
+            Invoice.detail_file_status,
+        )
+        .outerjoin(Customer, Customer.id == Invoice.customer_id)
+        .where(Invoice.id.in_(invoice_ids), Invoice.deleted_at.is_(None))
+    )
+    if scope_user_id is not None:
+        stmt = stmt.where(
+            or_(
+                Customer.manager_id == scope_user_id,
+                Customer.sales_manager_id == scope_user_id,
+            )
+        )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return json(
+        {
+            "code": 0,
+            "message": "success",
+            "data": {
+                "list": [
+                    {
+                        "id": row.id,
+                        "invoice_no": row.invoice_no,
+                        "customer_id": row.customer_id,
+                        "customer_name": row.customer_name,
+                        "detail_file_status": row.detail_file_status or "pending",
+                    }
+                    for row in rows
+                ]
+            },
+        }
+    )

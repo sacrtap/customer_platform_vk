@@ -38,6 +38,9 @@
           <button v-if="can('billing:delete')" class="btn btn-danger-sm" @click="onBatchDelete">
             批量删除
           </button>
+          <button v-if="can('billing:view')" class="btn btn-sm" @click="onBatchDownloadDetail">
+            批量下载明细
+          </button>
           <button class="btn btn-sm" @click="clearSelection">取消选择</button>
         </div>
       </div>
@@ -358,6 +361,9 @@
 
     <!-- 明细文件生成状态抽屉 -->
     <DetailGenStatusDrawer v-model:visible="detailStatusVisible" @regenerated="loadInvoices" />
+
+    <!-- 批量下载明细文件弹窗 -->
+    <BatchDownloadDetailModal v-model:visible="batchDownloadVisible" :ids="selectedInvoiceIds" />
   </div>
 </template>
 
@@ -381,6 +387,7 @@ import InvoiceFilters from './components/InvoiceFilters.vue'
 import ImportModal from './components/ImportModal.vue'
 import InvoiceDetailDrawer from './components/InvoiceDetailDrawer.vue'
 import DetailGenStatusDrawer from './components/DetailGenStatusDrawer.vue'
+import BatchDownloadDetailModal from './components/BatchDownloadDetailModal.vue'
 import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
 import SubmitModal from './components/SubmitModal.vue'
 import DiscountEditModal from './components/DiscountEditModal.vue'
@@ -449,6 +456,7 @@ const {
 
 const drawerVisible = ref(false)
 const detailStatusVisible = ref(false)
+const batchDownloadVisible = ref(false)
 const generateModalVisible = ref(false)
 const importModalVisible = ref(false)
 const submitModalVisible = ref(false)
@@ -554,6 +562,10 @@ const onBatchDelete = () => {
       }
     },
   })
+}
+
+const onBatchDownloadDetail = () => {
+  batchDownloadVisible.value = true
 }
 
 // --- 操作 ---

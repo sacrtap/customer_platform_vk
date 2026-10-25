@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "后端路由/蓝图组织约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误码常量与响应格式"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端测试与禁项约定"}
+{"file": ".trellis/spec/backend/file-storage.md", "reason": "明细文件路径与状态语义"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Vue 组件与 script setup 约定"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端 API 层、错误处理与测试约定"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TS 严格模式与 any 禁用规则"}
