@@ -71,23 +71,92 @@
           >
         </template>
       </a-modal>
+
+      <!-- 系统升级公告弹窗（存在未读部署时自动弹出） -->
+      <UpgradeAnnouncementModal
+        v-model:visible="upgradeVisible"
+        :updates="upgradeUpdates"
+        @close="handleUpgradeClose"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 import { changePassword } from '@/api/users'
+import { getSystemUpdates, type DeployUpdate } from '@/api/system'
+import { useUserStore } from '@/stores/user'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import UpgradeAnnouncementModal from '@/components/system/UpgradeAnnouncementModal.vue'
 import { useAppLayout } from '@/composables/useAppLayout'
 
 const router = useRouter()
 const { sidebarCollapsed, mobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useAppLayout()
+const userStore = useUserStore()
+
+// ─── 系统升级公告 ─────────────────────────────────────────────────
+// 已读按「用户 × 浏览器」维度记录最近一次展示的部署时间（ISO UTC 词法可比较），
+// 避免每次登录重复打扰；关闭弹框即写入。
+const upgradeReadKey = () => `upgrade_announcement_last_read_${userStore.userInfo?.id}`
+const upgradeVisible = ref(false)
+const upgradeUpdates = ref<DeployUpdate[]>([])
+// 组件卸载后 onMounted 的出站请求可能才返回：此时再置 visible 会打开一个已随
+// Dashboard 卸载的弹窗（Arco modal Teleport 到 body，不随路由切换销毁），
+// 其全屏遮罩会拦截目标页面的全部指针事件。故用标记在回调里守住。
+let upgradeUnmounted = false
+let upgradeLoadHandler: (() => void) | null = null
+onBeforeUnmount(() => {
+  upgradeUnmounted = true
+  if (upgradeLoadHandler) {
+    window.removeEventListener('load', upgradeLoadHandler)
+    upgradeLoadHandler = null
+  }
+})
+
+onMounted(() => {
+  const uid = userStore.userInfo?.id
+  if (!uid) return
+  // 公告是增强信息，不得拖慢首屏：等到浏览器 load 事件后再发起出站请求。
+  // 在 onMounted 里直接 await 会占用首屏加载期，使首页 load 事件被外部 API
+  // 往返（GitHub 匿名请求可达数秒）拖住，连带所有以 load 为等待条件的流程。
+  const start = () => {
+    void (async () => {
+      try {
+        const res = await getSystemUpdates()
+        if (upgradeUnmounted) return
+        const updates: DeployUpdate[] = res.data?.updates || []
+        if (!updates.length) return
+        const lastRead = localStorage.getItem(upgradeReadKey())
+        const latest = updates[0].deployed_at
+        if (!lastRead || latest > lastRead) {
+          upgradeUpdates.value = updates
+          upgradeVisible.value = true
+        }
+      } catch {
+        // 接口失败静默降级：不打扰用户
+      }
+    })()
+  }
+  if (document.readyState === 'complete') {
+    start()
+  } else {
+    upgradeLoadHandler = start
+    window.addEventListener('load', start, { once: true })
+  }
+})
+
+const handleUpgradeClose = () => {
+  if (userStore.userInfo?.id && upgradeUpdates.value.length) {
+    localStorage.setItem(upgradeReadKey(), upgradeUpdates.value[0].deployed_at)
+  }
+  upgradeVisible.value = false
+}
 
 // ─── 修改密码 ───────────────────────────────────────────────────
 const changePasswordVisible = ref(false)

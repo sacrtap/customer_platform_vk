@@ -284,10 +284,51 @@ export async function uiLogin(page: Page): Promise<void> {
     await page.waitForURL(/\/$|\/customers/, { timeout: 30000, waitUntil: 'domcontentloaded' })
   }
 
+  // 预写公告「已读」键：Dashboard 是 `/` 布局父组件，所有业务路由都会触发其公告
+  // 请求，弹窗的全屏遮罩会拦截后续所有点击
+  await suppressUpgradeAnnouncement(page)
+
   // 等待应用外壳渲染完成（替代原先登录后的固定 1s 等待，更快且更稳）
   await page
     .waitForSelector('nav[role="navigation"], header, .arco-layout', { timeout: 15000 })
     .catch(() => {})
+}
+
+/**
+ * 阻止系统升级公告弹窗出现
+ *
+ * Dashboard 是 `/` 布局父组件，customers / billing 等所有需登录路由都是它的
+ * children，故其 onMounted 的公告请求在每个页面都会触发。公告弹窗
+ * mask-closable=false 的全屏遮罩会拦截页面所有指针事件，使依赖点击的业务用例
+ * 超时。E2E 不关心公告本身，故按组件的「用户 × 浏览器」已读口径预写
+ * localStorage 键（取一个远未来的 ISO UTC 串，词法比较必然 ≥ 最新部署时间），
+ * 使弹窗不再弹出——比「等弹窗出现再点关闭」更快且无时序窗口。
+ *
+ * 时序至关重要：必须在「公告接口返回之前」写键——一旦请求返回并发现 lastRead
+ * 为空就会弹窗，弹窗出现后写键无法关闭它。故应在导航到目标页（waitForURL 达成）
+ * 之后、waitForLoadState('networkidle') 之前调用：waitForURL 达成时 Dashboard
+ * 已 onMounted 且已发起出站请求（GitHub 匿名请求可达数秒），此时立即写键仍赶在
+ * 请求返回之前。切勿放在 networkidle 之后——networkidle 本就要等该请求结束才达成，
+ * 此时弹窗早已弹出。
+ */
+export async function suppressUpgradeAnnouncement(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('user_info')
+    if (!raw) return
+    let uid: number | undefined
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (parsed !== null && typeof parsed === 'object' && 'id' in parsed) {
+        const id: unknown = parsed.id
+        if (typeof id === 'number') uid = id
+      }
+    } catch {
+      return
+    }
+    if (uid === undefined) return
+    // 9999 年：任何真实部署时间词法上都小于它
+    localStorage.setItem(`upgrade_announcement_last_read_${uid}`, '9999-12-31T23:59:59Z')
+  })
 }
 
 /** 等待 Arco Design 消息提示出现并验证 */

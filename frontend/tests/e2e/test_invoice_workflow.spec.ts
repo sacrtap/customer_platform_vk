@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { getVisibleModal, waitForModal } from './test-helpers'
+import { suppressUpgradeAnnouncement, getVisibleModal, waitForModal } from './test-helpers'
 
 /**
  * 结算单工作流 E2E 测试
@@ -24,6 +24,8 @@ test.describe('结算单工作流 @smoke', () => {
       await page.waitForURL('/', { timeout: 60000, waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1000)
     }
+    // 系统升级公告弹窗带全屏遮罩，不关闭会拦截后续断言/点击
+    await suppressUpgradeAnnouncement(page)
   })
 
   test('访问结算单列表页面', async ({ page }) => {

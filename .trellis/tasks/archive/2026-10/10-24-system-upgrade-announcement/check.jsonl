@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端测试/质量门禁约定"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端类型检查/lint/测试约定"}

@@ -18,6 +18,12 @@ import { fileURLToPath } from 'node:url'
  *   `test.use({ storageState: { cookies: [], origins: [] } })` 显式覆盖为空状态；
  * - 若 storageState 失效，test-helpers.uiLogin() 会自动回退到完整登录流程。
  *
+ * 公告弹窗隔离：Dashboard 是 `/` 布局父组件，customers / billing 等所有需登录路由
+ * 都是它的 children，故其 onMounted 的公告请求在每个页面都会触发。公告弹窗
+ * mask-closable=false 的全屏遮罩会拦截页面所有指针事件。E2E 只关心业务链路，故
+ * 按组件的「用户 × 浏览器」已读口径预写 localStorage 键并随 storageState 一并复用，
+ * 使各用例从源头不再被公告遮挡（比「等弹窗出现再点关闭」更快且无时序窗口）。
+ *
  * 注意：frontend/package.json 为 `"type": "module"`，故用 fileURLToPath 取目录
  * （ESM 下没有 __dirname）。
  */
@@ -37,6 +43,29 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   await page.fill('input[field="password"], input[type="password"]', 'admin123')
   await page.click('button[type="submit"], button:has-text("登录")')
   await page.waitForURL(/\/$|\/customers/, { timeout: 30000, waitUntil: 'domcontentloaded' })
+
+  // 预写公告「已读」键：Dashboard 是 `/` 布局父组件，所有需登录路由都会触发其公告
+  // 请求；弹窗 mask-closable=false 的全屏遮罩会拦截页面所有指针事件。E2E 不关心
+  // 公告本身，故在此写入「已读」localStorage 并随 storageState 一并复用，使各用例
+  // 从源头不再弹窗（比「等弹窗出现再点关闭」更快且无时序窗口）。
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('user_info')
+    if (!raw) return
+    let uid: number | undefined
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (parsed !== null && typeof parsed === 'object' && 'id' in parsed) {
+        const id: unknown = parsed.id
+        if (typeof id === 'number') uid = id
+      }
+    } catch {
+      return
+    }
+    if (uid === undefined) return
+    // 9999 年：任何真实部署时间词法上都小于它
+    localStorage.setItem(`upgrade_announcement_last_read_${uid}`, '9999-12-31T23:59:59Z')
+  })
+  console.log('✅ 已预写公告已读键（抑制系统升级公告弹窗）')
 
   fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
   await context.storageState({ path: AUTH_FILE })

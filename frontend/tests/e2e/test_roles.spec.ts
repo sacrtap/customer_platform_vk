@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { getVisibleModal } from './test-helpers'
+import { suppressUpgradeAnnouncement, getVisibleModal } from './test-helpers'
 
 /**
  * 角色管理 E2E 测试
@@ -14,6 +14,8 @@ test.describe('角色管理', () => {
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/')
     }
+    // 系统升级公告弹窗带全屏遮罩，不关闭会拦截后续断言/点击
+    await suppressUpgradeAnnouncement(page)
   })
 
   test('访问角色管理页面', async ({ page }) => {

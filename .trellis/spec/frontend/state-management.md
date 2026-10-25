@@ -176,6 +176,7 @@ try {
 | `user_permissions` | `useUserStore` | Serialized permission array | `stores/user.ts:35` |
 | `prototype-sidebar-collapsed` | `useAppLayout` | Sidebar collapse state | `composables/useAppLayout.ts:145` |
 | `dashboard_<key>_<userId>` | `useCachedRequest` | Per-user cached data | `composables/useCachedRequest.ts:11` |
+| `upgrade_announcement_last_read_<userId>` | `Dashboard.vue` | 系统升级公告已读标记（值 = 最近一次展示的部署时间 ISO UTC，词法可比较） | `views/Dashboard.vue` |
 
 **Convention**: localStorage keys are string-scoped with a prefix to avoid collisions. User-scoped keys include `userId`.
 

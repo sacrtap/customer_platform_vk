@@ -288,6 +288,7 @@ def create_app(
     from .routes.sync_logs import sync_logs_bp
     from .routes.sync_schedule import sync_schedule_bp
     from .routes.sync_tasks import sync_tasks_bp
+    from .routes.system import system_bp
     from .routes.tags import customer_tags_bp, profile_tags_bp, tags_bp
     from .routes.users import users_bp
 
@@ -315,6 +316,7 @@ def create_app(
     app.blueprint(api_keys_bp)
     app.blueprint(openapi_bp)
     app.blueprint(openapi_customer_bp)
+    app.blueprint(system_bp)
 
     # 创建外部 MySQL 引擎（订单同步用）
 

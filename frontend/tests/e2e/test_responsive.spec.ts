@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { suppressUpgradeAnnouncement } from './test-helpers'
 
 /**
  * 响应式断点测试
@@ -23,6 +24,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 验证侧边栏 position: fixed
@@ -50,6 +52,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 验证侧边栏 transform 包含 translateX
@@ -80,6 +83,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 点击移动端菜单按钮
@@ -109,6 +113,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 验证 .grid-4 使用单列
@@ -139,6 +144,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 验证 .desktop-only 元素隐藏
@@ -170,6 +176,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 点击移动菜单按钮打开侧边栏
@@ -197,6 +204,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 打开移动端侧边栏
@@ -234,6 +242,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 打开移动端侧边栏
@@ -264,6 +273,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 打开移动端侧边栏
@@ -302,6 +312,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       // 模拟桌面端折叠过侧边栏（持久化到 localStorage）
@@ -440,6 +451,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       const pagePadding = await page.evaluate(() => {
@@ -468,6 +480,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       const searchStyles = await page.evaluate(() => {
@@ -500,6 +513,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       const kpiStyles = await page.evaluate(() => {
@@ -531,6 +545,7 @@ test.describe('响应式断点测试', () => {
       await page.fill('input[field="password"], input[type="password"]', 'admin123')
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/', { timeout: 60000 })
+      await suppressUpgradeAnnouncement(page)
       await page.waitForLoadState('networkidle')
 
       const navHintDisplay = await page.evaluate(() => {
