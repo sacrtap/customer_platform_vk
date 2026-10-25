@@ -574,6 +574,11 @@ export function regenerateDetailBatch(ids: number[]) {
   return api.post('/billing/invoices/regenerate-detail-batch', { ids })
 }
 
+/** 批量下载明细文件元数据：返回选中结算单的命名与状态，供前端预检跳过 + 文件命名 */
+export function getBatchDownloadDetailMeta(ids: number[]) {
+  return api.post('/billing/invoices/batch-download-detail', { ids })
+}
+
 export function confirmInvoice(invoiceId: number) {
   return api.post(`/billing/invoices/${invoiceId}/confirm`)
 }

@@ -15,6 +15,7 @@ Billing API 集成测试
 
 import uuid
 
+import bcrypt
 import pytest
 from sqlalchemy import text
 
@@ -3229,6 +3230,214 @@ async def test_regenerate_detail_batch(test_client, auth_token, db_session):
     finally:
         db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
         db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_download_detail_meta(test_client, auth_token, db_session):
+    """测试批量下载明细元数据端点：字段完整 + 未完成/不存在 id 不在结果中"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    cid = _unique_customer_id(99100)
+    db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type,
+                               settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+        """),
+        {"id": cid, "company_id": cid, "name": f"批量下载元数据_{cid}"},
+    )
+    db_session.commit()
+
+    try:
+        invoice_ids: list[int] = []
+        for i, fs in enumerate(["completed", "pending", "failed"]):
+            result = db_session.execute(
+                text("""
+                INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                      total_amount, discount_amount, status, is_auto_generated,
+                                      detail_file_status, created_at, updated_at)
+                VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                        :fs, NOW(), NOW())
+                RETURNING id
+                """),
+                {"no": f"INV-DLMETA-{i}-{uuid.uuid4().hex[:6]}", "cid": cid, "fs": fs},
+            )
+            invoice_ids.append(result.scalar())
+        db_session.commit()
+
+        # admin 有 customers:view_all，可见范围内全部返回（含未完成），仅过滤不存在的 id
+        missing_id = invoice_ids[0] + 100000
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-download-detail",
+            json={"ids": invoice_ids + [missing_id]},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert resp.json["code"] == 0
+        rows = resp.json["data"]["list"]
+        by_id = {row["id"]: row for row in rows}
+        assert set(by_id) == set(invoice_ids)
+        assert missing_id not in by_id
+
+        # 字段完整：命名所需 invoice_no / customer_name + 状态回退
+        completed_row = by_id[invoice_ids[0]]
+        assert completed_row["invoice_no"].startswith("INV-DLMETA-0-")
+        assert completed_row["customer_name"] == f"批量下载元数据_{cid}"
+        assert completed_row["customer_id"] == cid
+        assert completed_row["detail_file_status"] == "completed"
+        assert by_id[invoice_ids[1]]["detail_file_status"] == "pending"
+        assert by_id[invoice_ids[2]]["detail_file_status"] == "failed"
+
+        # 空 ids → 400
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-download-detail",
+            json={"ids": []},
+            headers=headers,
+        )
+        assert resp.status == 400
+        assert resp.json["code"] == 40004
+
+        # 已软删的结算单不出现在结果中
+        db_session.execute(
+            text("UPDATE invoices SET deleted_at = NOW() WHERE id = :id"), {"id": invoice_ids[0]}
+        )
+        db_session.commit()
+        _req, resp = await test_client.post(
+            "/api/v1/billing/invoices/batch-download-detail",
+            json={"ids": invoice_ids},
+            headers=headers,
+        )
+        assert resp.status == 200
+        assert invoice_ids[0] not in {row["id"] for row in resp.json["data"]["list"]}
+    finally:
+        db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
+        db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_batch_download_detail_meta_scope(test_client, db_session):
+    """无 customers:view_all 的经理只能下载自己负责客户的结算单元数据"""
+    from unittest.mock import AsyncMock
+
+    from app.cache import permissions as perm_module
+    from app.services.auth import AuthService
+
+    password = "scope123456"
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+    uid_mine = None
+    uid_other = None
+    cid_mine = _unique_customer_id(99200)
+    cid_other = _unique_customer_id(99300)
+    db_session.execute(
+        text("DELETE FROM invoices WHERE customer_id IN (:a, :b)"), {"a": cid_mine, "b": cid_other}
+    )
+    db_session.execute(
+        text("DELETE FROM customers WHERE id IN (:a, :b)"), {"a": cid_mine, "b": cid_other}
+    )
+    for username in ("scope_dl_mine", "scope_dl_other"):
+        db_session.execute(text("DELETE FROM users WHERE username = :u"), {"u": username})
+    db_session.commit()
+
+    try:
+        for username, email in (
+            ("scope_dl_mine", "dl_mine@example.com"),
+            ("scope_dl_other", "dl_other@example.com"),
+        ):
+            db_session.execute(
+                text("""
+                INSERT INTO users (username, password_hash, email, is_active, created_at)
+                VALUES (:username, :password_hash, :email, :is_active, NOW())
+                """),
+                {
+                    "username": username,
+                    "password_hash": password_hash,
+                    "email": email,
+                    "is_active": True,
+                },
+            )
+        db_session.commit()
+        uid_mine = db_session.execute(
+            text("SELECT id FROM users WHERE username = 'scope_dl_mine'")
+        ).scalar_one()
+        uid_other = db_session.execute(
+            text("SELECT id FROM users WHERE username = 'scope_dl_other'")
+        ).scalar_one()
+
+        for cid, uid in ((cid_mine, uid_mine), (cid_other, uid_other)):
+            db_session.execute(
+                text("""
+                INSERT INTO customers (id, company_id, name, account_type,
+                                       settlement_cycle, settlement_type, manager_id,
+                                       created_at, updated_at)
+                VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid',
+                        :mgr, NOW(), NOW())
+                """),
+                {"id": cid, "company_id": cid, "name": f"下载范围_{cid}", "mgr": uid},
+            )
+        db_session.commit()
+
+        invoice_ids: list[int] = []
+        for cid in (cid_mine, cid_other):
+            result = db_session.execute(
+                text("""
+                INSERT INTO invoices (invoice_no, customer_id, period_start, period_end,
+                                      total_amount, discount_amount, status, is_auto_generated,
+                                      detail_file_status, created_at, updated_at)
+                VALUES (:no, :cid, '2026-01-01', '2026-01-31', 100, 0, 'draft', FALSE,
+                        'completed', NOW(), NOW())
+                RETURNING id
+                """),
+                {"no": f"INV-DLSCOPE-{uuid.uuid4().hex[:8]}", "cid": cid},
+            )
+            invoice_ids.append(result.scalar())
+        db_session.commit()
+
+        token = AuthService.create_access_token(
+            user_id=uid_mine, username="scope_dl_mine", roles=[]
+        )
+
+        # patch 权限缓存：仅有 billing:view + customers:view，无 customers:view_all
+        original_get = perm_module.permission_cache.get_permissions
+        perm_module.permission_cache.get_permissions = AsyncMock(
+            return_value={"customers:view", "billing:view"}
+        )
+        try:
+            _req, resp = await test_client.post(
+                "/api/v1/billing/invoices/batch-download-detail",
+                json={"ids": invoice_ids},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert resp.status == 200
+            rows = resp.json["data"]["list"]
+            # 只能看到自己负责客户的结算单（含客户名，outerjoin 生效）
+            assert [row["id"] for row in rows] == [invoice_ids[0]]
+            assert rows[0]["customer_name"] == f"下载范围_{cid_mine}"
+            assert rows[0]["detail_file_status"] == "completed"
+        finally:
+            perm_module.permission_cache.get_permissions = original_get
+    finally:
+        db_session.execute(
+            text("DELETE FROM invoices WHERE customer_id IN (:a, :b)"),
+            {"a": cid_mine, "b": cid_other},
+        )
+        db_session.execute(
+            text("DELETE FROM customers WHERE id IN (:a, :b)"), {"a": cid_mine, "b": cid_other}
+        )
+        # 审计中间件会按 user_id 记录访问日志，先清引用再删用户（外键约束）
+        db_session.execute(
+            text("DELETE FROM audit_logs WHERE user_id IN (:a, :b)"),
+            {"a": uid_mine, "b": uid_other},
+        )
+        db_session.execute(
+            text("DELETE FROM users WHERE username IN (:a, :b)"),
+            {"a": "scope_dl_mine", "b": "scope_dl_other"},
+        )
         db_session.commit()
 
 
