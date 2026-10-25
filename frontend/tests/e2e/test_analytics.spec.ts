@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { suppressUpgradeAnnouncement } from './test-helpers'
 
 /**
  * 数据分析 E2E 测试
@@ -13,6 +14,8 @@ test.describe('数据分析', () => {
       await page.click('button[type="submit"], button:has-text("登录")')
       await page.waitForURL('/')
     }
+    // 系统升级公告弹窗带全屏遮罩，不关闭会拦截后续断言/点击
+    await suppressUpgradeAnnouncement(page)
   })
 
   test('访问首页仪表盘', async ({ page }) => {

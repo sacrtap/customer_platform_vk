@@ -3,6 +3,7 @@ import {
   apiLogin,
   apiCreateCustomer,
   apiRecharge,
+  suppressUpgradeAnnouncement,
   generateTestCompanyId,
   generateTestCustomerName,
 } from './test-helpers'
@@ -45,6 +46,8 @@ test.describe('余额充值 @smoke', () => {
       await page.waitForURL('/', { timeout: 30000, waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1000)
     }
+    // 系统升级公告弹窗带全屏遮罩，不关闭会拦截后续断言/点击
+    await suppressUpgradeAnnouncement(page)
   })
 
   test('访问余额管理页面', async ({ page }) => {

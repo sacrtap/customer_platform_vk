@@ -48,6 +48,12 @@ test.describe('视觉回归测试', () => {
   test('A01: 登录页截图对比', async ({ page }) => {
     // 本用例需以「未登录」状态访问登录页截图；先清空 global-setup 注入的登录态，
     // 否则 goto('/login') 会被路由守卫重定向到首页。
+    // 登录页根容器 min-height: 100vh，fullPage 截图会捕获整页内容高度，而 100vh
+    // 在不同平台（本地 macOS vs CI Linux）因浏览器 chrome/滚动条差异计算为
+    // 760 vs 720，导致 fullPage 基线跨平台不一致。改为视口截图（fullPage:false），
+    // 截图高度恒为视口高度（Desktop Chrome 默认 1280x720），消除该平台差异。
+    // 不用 page.setViewportSize：本文件为 serial 模式共享 context，setViewportSize
+    // 会污染后续 A02+ 用例的视口重算，致其 fullPage 长截图高度异常。
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.evaluate(() => localStorage.clear())
     await page.goto('/login', { waitUntil: 'domcontentloaded' })
@@ -55,6 +61,7 @@ test.describe('视觉回归测试', () => {
     await page.waitForTimeout(500)
     await expect(page).toHaveScreenshot('login.png', {
       ...SCREENSHOT_OPTIONS,
+      fullPage: false,
       mask: [page.locator('.arco-input-wrapper input')],
     })
   })

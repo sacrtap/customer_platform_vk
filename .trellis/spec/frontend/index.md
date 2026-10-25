@@ -14,6 +14,7 @@ Before writing frontend code, read and follow:
 - [ ] [State Management](./state-management.md) — Pinia stores, page state, localStorage, caching
 - [ ] [Type Safety](./type-safety.md) — Type organization, nullable fields, generics, forbidden `any`
 - [ ] [Quality Guidelines](./quality-guidelines.md) — API layer, error handling, linting, testing, pre-commit gotchas
+- [ ] [E2E Testing](./e2e-testing.md) — Layout-parent-component modal trap, suppress-before-return timing
 
 ---
 

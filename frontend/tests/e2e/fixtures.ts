@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { suppressUpgradeAnnouncement } from './test-helpers'
 
 /**
  * Playwright 测试夹具
@@ -39,6 +40,9 @@ export const test = base.extend<{
       // 额外等待确保页面完全加载
       await page.waitForTimeout(1000)
     }
+
+    // 系统升级公告弹窗带全屏遮罩（mask-closable=false），不关闭会拦截后续所有点击
+    await suppressUpgradeAnnouncement(page)
 
     // 等待应用外壳渲染完成（替代原先登录后的固定 1s 等待，更快且更稳）
     await page
