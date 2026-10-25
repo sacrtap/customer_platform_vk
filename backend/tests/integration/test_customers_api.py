@@ -766,7 +766,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
 
     assert ws.title == "客户导入模板"
 
-    # 验证第 1 行：表头字段（26 个字段）
+    # 验证第 1 行：表头字段（27 个字段）
     headers = [cell.value for cell in ws[1]]
     expected_headers = [
         "company_id",
@@ -789,6 +789,7 @@ async def test_download_import_template_field_structure(test_client, auth_header
         "require_reconciliation",
         "is_disabled",
         "notes",
+        "settlement_account_id",
         "scale_level",
         "consume_level",
         "monthly_avg_shots",
@@ -822,13 +823,14 @@ async def test_download_import_template_field_structure(test_client, auth_header
     # 验证新增字段
     assert example[13] == "2024-01-15"  # first_payment_date
     assert example[15] == "active"  # cooperation_status
-    assert example[20] == "C"  # scale_level
-    assert example[21] == "C2"  # consume_level
+    assert example[20] is None  # settlement_account_id 示例（留空=用自身余额）
+    assert example[21] == "C"  # scale_level
+    assert example[22] == "C2"  # consume_level
 
 
 @pytest.mark.asyncio
 async def test_download_import_template_header_count(test_client, auth_headers):
-    """测试下载导入模板 - 验证表头数量为 26 个字段（含 manager/sales_manager 经理列与 is_real_estate）"""
+    """测试下载导入模板 - 验证表头数量为 27 个字段（含经理列、is_real_estate、settlement_account_id）"""
     from openpyxl import load_workbook
 
     request, response = await test_client.get(
@@ -842,7 +844,7 @@ async def test_download_import_template_header_count(test_client, auth_headers):
     ws = wb.active
 
     header_count = sum(1 for cell in ws[1] if cell.value is not None)
-    assert header_count == 26, f"期望 26 个表头，实际 {header_count} 个"
+    assert header_count == 27, f"期望 27 个表头，实际 {header_count} 个"
 
 
 @pytest.mark.asyncio
@@ -1905,6 +1907,7 @@ async def test_export_customers_field_consistency(test_client, auth_headers, cus
         "is_settlement_enabled",
         "is_disabled",
         "notes",
+        "settlement_account_id",
         "scale_level",
         "consume_level",
         "monthly_avg_shots",
@@ -3331,3 +3334,166 @@ async def test_update_customer_settlement_account_roundtrip(
     # 清理
     db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": account_id})
     db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_export_customers_contains_settlement_account_column(
+    test_client, auth_headers, db_session
+):
+    """客户导出必须含 settlement_account_id 列，且值为结算账户客户的 company_id
+
+    回归防护 —— 导出 26 列里完全没有「结算账户」列，导致该配置在文件链路中
+    静默丢失：导出→回灌后所有客户退回「用自身余额」，用户无从察觉。
+    """
+    from openpyxl import load_workbook
+
+    main_cid = 1000080
+    account_cid = 1000081
+    for stmt in (
+        "DELETE FROM customers WHERE company_id IN (:a, :b)",
+        "DELETE FROM customers WHERE company_id = :imp",
+    ):
+        db_session.execute(text(stmt), {"a": main_cid, "b": account_cid, "imp": 1000082})
+    db_session.commit()
+
+    # 结算账户客户 + 引用它的主客户
+    db_session.execute(
+        text(
+            "INSERT INTO customers (company_id, name, account_type, settlement_cycle, "
+            "settlement_type, created_at, updated_at) "
+            "VALUES (:cid, '导出结算账户客户', 'enterprise', 'monthly', 'prepaid', NOW(), NOW())"
+        ),
+        {"cid": account_cid},
+    )
+    db_session.commit()
+    account_pk = db_session.execute(
+        text("SELECT id FROM customers WHERE company_id = :cid"), {"cid": account_cid}
+    ).scalar()
+    db_session.execute(
+        text(
+            "INSERT INTO customers (company_id, name, account_type, settlement_cycle, "
+            "settlement_type, settlement_account_id, created_at, updated_at) "
+            "VALUES (:cid, '导出主客户', 'enterprise', 'monthly', 'prepaid', :acc, NOW(), NOW())"
+        ),
+        {"cid": main_cid, "acc": account_pk},
+    )
+    db_session.commit()
+
+    try:
+        _request, response = await test_client.get(
+            "/api/v1/customers/export",
+            params={"keyword": "导出"},
+            headers=auth_headers,
+        )
+        assert response.status == 200
+
+        ws = load_workbook(io.BytesIO(response.body)).active
+        columns = [cell.value for cell in ws[1]]
+        assert "settlement_account_id" in columns, f"导出缺 settlement_account_id 列：{columns}"
+
+        col_idx = columns.index("settlement_account_id") + 1
+        values = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] is not None:
+                values[row[0]] = row[col_idx - 1]
+        # 主客户输出结算账户的 company_id（用户可读主键），未配置的客户为空
+        assert values.get(main_cid) == account_cid, values
+        assert values.get(account_cid) is None, values
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id IN (:a, :b, :c)"),
+            {"a": main_cid, "b": account_cid, "c": 1000082},
+        )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_settlement_account_roundtrip(test_client, auth_headers, db_session):
+    """客户导入支持 settlement_account_id：company_id → customer.id 解析落库
+
+    回归防护 —— 批量导入此前不读写该字段（PRD 明确「导入不支持」），而导出已
+    输出该列，回灌即静默丢配置。解析语义与 update_customer 一致：自引用拒绝、
+    目标必须存在，填错整行剔除而非静默留空。
+    """
+    from openpyxl import Workbook
+
+    main_cid = 1000082
+    account_cid = 1000083
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id IN (:a, :b)"),
+        {"a": main_cid, "b": account_cid},
+    )
+    db_session.execute(
+        text(
+            "INSERT INTO customers (company_id, name, account_type, settlement_cycle, "
+            "settlement_type, created_at, updated_at) "
+            "VALUES (:cid, '导入结算账户客户', 'enterprise', 'monthly', 'prepaid', NOW(), NOW())"
+        ),
+        {"cid": account_cid},
+    )
+    db_session.commit()
+
+    headers = [
+        "company_id",
+        "name",
+        "account_type",
+        "settlement_type",
+        "settlement_cycle",
+        "settlement_account_id",
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(headers)
+    ws.append(["必填", "必填", "可选", "可选", "可选", "可选：结算账户客户编号"])
+    # 正常行：结算账户指向已存在客户
+    ws.append([main_cid, "导入主客户", "正式账号", "预付费", "月结", account_cid])
+    # 自引用行：结算账户 = 自身 → 整行剔除
+    ws.append([1000084, "自引用客户", "正式账号", "预付费", "月结", 1000084])
+    # 不存在行：结算账户编号不存在 → 整行剔除
+    ws.append([1000085, "悬空客户", "正式账号", "预付费", "月结", 999999999])
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    try:
+        request, response = await test_client.post(
+            "/api/v1/customers/import",
+            headers=auth_headers,
+            files={
+                "file": (
+                    "settlement.xlsx",
+                    output.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["success_count"] == 1, data
+        assert data["error_count"] == 2, data
+        assert any("不能为客户自身" in e for e in data["errors"]), data["errors"]
+        assert any("结算账户客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
+
+        account_pk = db_session.execute(
+            text("SELECT id FROM customers WHERE company_id = :cid"), {"cid": account_cid}
+        ).scalar()
+        stored = db_session.execute(
+            text("SELECT settlement_account_id FROM customers WHERE company_id = :cid"),
+            {"cid": main_cid},
+        ).scalar()
+        assert stored == account_pk, f"结算账户未正确落库：{stored} != {account_pk}"
+
+        # 被剔除的两行不得落库
+        for cid in (1000084, 1000085):
+            assert (
+                db_session.execute(
+                    text("SELECT COUNT(*) FROM customers WHERE company_id = :cid"), {"cid": cid}
+                ).scalar()
+                == 0
+            )
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id IN (:a, :b, :c, :d)"),
+            {"a": main_cid, "b": account_cid, "c": 1000084, "d": 1000085},
+        )
+        db_session.commit()

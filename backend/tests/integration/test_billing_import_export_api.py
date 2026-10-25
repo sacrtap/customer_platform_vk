@@ -1770,6 +1770,7 @@ async def test_export_invoices_time_columns_use_cst_wallclock(
     columns = [cell.value for cell in ws[1]]
     assert columns == [
         "结算单号",
+        "company_id",
         "客户名称",
         "周期开始",
         "周期结束",
@@ -1851,4 +1852,235 @@ async def test_export_package_plans_time_columns_use_cst_wallclock(
         db_session.execute(
             text("DELETE FROM package_plans WHERE package_type = :pt"), {"pt": ptype}
         )
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_export_invoices_contains_company_id_column(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导出必须含 company_id 列（回灌主键列）
+
+    回归防护 —— 导出曾只有中文列（结算单号/客户名称/…），用户拿导出文件回灌
+    必然报「缺少必填列：company_id, period_start, period_end, total_amount」，
+    文件其实没问题却让用户以为损坏。company_id 与 balances/pricing-rules
+    导出的约定保持一致。
+    """
+    headers = [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ]
+    rows = [[import_customer["company_id"], "2026-04-01", "2026-04-30", 100.0, 0, None]]
+    _request, imported = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows, ["必填"] * 6)),
+    )
+    assert imported.json["data"]["success_count"] == 1
+
+    _request, response = await test_client.get(
+        "/api/v1/billing/invoices/export",
+        params={"customer_id": import_customer["id"]},
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status == 200
+
+    ws = load_workbook(io.BytesIO(response.body)).active
+    columns = [cell.value for cell in ws[1]]
+    assert "company_id" in columns, f"导出缺 company_id 列：{columns}"
+
+    # company_id 值必须是该客户的编号（导入主键），且数据行可取到
+    col_idx = columns.index("company_id") + 1
+    assert ws.cell(row=2, column=col_idx).value == import_customer["company_id"]
+
+    # 统计行列号须随新列右移：总金额/最终总额仍落在 总金额/最终金额 列下
+    assert columns.index("总金额") + 1 == 6
+    assert columns.index("最终金额") + 1 == 8
+
+
+@pytest.mark.asyncio
+async def test_import_invoices_accepts_export_file_columns(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导出文件（中文展示列）可直接回灌导入，不再报「缺少必填列」
+
+    回归防护 —— 导出列是中文展示名（周期开始/周期结束/总金额/减免金额），
+    导入期待英文存储列（period_start/period_end/total_amount/discount_amount）。
+    修复后列名自动归一，按同一校验路径处理（状态固定 draft、单号缺省自动生成）。
+    """
+    # 模拟 /billing/invoices/export 的导出文件结构（中文列名 + 统计行）
+    headers = [
+        "结算单号",
+        "company_id",
+        "客户名称",
+        "周期开始",
+        "周期结束",
+        "总金额",
+        "减免金额",
+        "最终金额",
+        "状态",
+        "创建时间",
+    ]
+    rows = [
+        [
+            None,
+            import_customer["company_id"],
+            "测试客户",
+            "2026-04-01",
+            "2026-04-30",
+            12500.50,
+            0,
+            12500.50,
+            "草稿",
+            "2026-10-25 09:00:00",
+        ],
+        [
+            None,
+            999999999,
+            "不存在的客户",
+            "2026-05-01",
+            "2026-05-31",
+            100.0,
+            0,
+            100.0,
+            "草稿",
+            "2026-10-25 09:00:00",
+        ],
+    ]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows)),
+    )
+
+    # 列级错误消失：不再报「缺少必填列」，进入行级校验
+    assert response.status == 200, response.json
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+    assert data["error_count"] == 1, data
+    assert any("客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
+
+    # 落库的结算单：状态 draft、账期/金额与导出文件一致
+    row = db_session.execute(
+        text(
+            "SELECT status, period_start, total_amount FROM invoices "
+            "WHERE customer_id = :cid ORDER BY id"
+        ),
+        {"cid": import_customer["id"]},
+    ).first()
+    assert row is not None
+    assert row[0] == "draft"
+    assert row[2] == 12500.50
+
+
+@pytest.mark.asyncio
+async def test_import_invoices_accepts_legacy_export_file_without_company_id(
+    test_client, auth_token, db_session, import_customer
+):
+    """旧版导出文件（无 company_id 列 + 统计行）仍可回灌
+
+    回归防护 —— 2026-10-25 前的导出文件只有中文列且缺导入主键列 company_id，
+    用户手里已有的文件不能因为升级就被判「缺少必填列」而作废。回灌路径：
+    按「客户名称」解析客户 → 丢弃导出追加的统计行 → 行级校验落库。
+    """
+    # 模拟旧版导出结构（9 中文列，无 company_id，末行统计）
+    headers = [
+        "结算单号",
+        "客户名称",
+        "周期开始",
+        "周期结束",
+        "总金额",
+        "减免金额",
+        "最终金额",
+        "状态",
+        "创建时间",
+    ]
+    rows = [
+        [
+            None,
+            f"导入测试客户_{import_customer['company_id']}",
+            "2026-04-01",
+            "2026-04-30",
+            12500.50,
+            0,
+            12500.50,
+            "草稿",
+            "2026-10-25 09:00:00",
+        ],
+        # 统计行：结算单号列填统计文案、其余 NaN/统计金额
+        [
+            "共 1 条记录",
+            None,
+            None,
+            None,
+            "总金额：12500.50",
+            None,
+            "最终总额：12500.50",
+            None,
+            None,
+        ],
+    ]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows)),
+    )
+
+    # 列级错误消失（company_id 缺列不再拦截），统计行不计入错误
+    assert response.status == 200, response.json
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+    assert data["error_count"] == 0, data["errors"]
+
+    count = db_session.execute(
+        text("SELECT COUNT(*) FROM invoices WHERE customer_id = :cid"),
+        {"cid": import_customer["id"]},
+    ).scalar()
+    assert count == 1, count
+
+
+@pytest.mark.asyncio
+async def test_import_invoices_ambiguous_customer_name_rejected(
+    test_client, auth_token, db_session, import_customer
+):
+    """旧版导出文件按客户名称解析：重名客户报行级错误，不静默挂错人
+
+    回归防护 —— 名称解析若对重名静默取任意一条，会把结算单挂到错误客户名下
+    （扣款/归属全错）。必须报「对应多个客户，请改用 company_id」并整行剔除。
+    """
+    dup_name = f"重名客户_{uuid.uuid4().hex[:6]}"
+    # 造两个同名客户（import_customer 之外）
+    for _ in range(2):
+        db_session.execute(
+            text(
+                "INSERT INTO customers (company_id, name, account_type, settlement_cycle, "
+                "settlement_type, created_at, updated_at) "
+                "VALUES (:cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())"
+            ),
+            {"cid": 960000 + abs(hash(uuid.uuid4().hex[:8])) % 30000, "name": dup_name},
+        )
+    db_session.commit()
+
+    headers = ["结算单号", "客户名称", "周期开始", "周期结束", "总金额", "减免金额"]
+    rows = [[None, dup_name, "2026-04-01", "2026-04-30", 100.0, 0]]
+
+    try:
+        _request, response = await test_client.post(
+            "/api/v1/billing/invoices/import",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            files=_upload(_xlsx(headers, rows)),
+        )
+        assert response.status == 200, response.json
+        data = response.json["data"]
+        assert data["success_count"] == 0, data
+        assert data["error_count"] == 1, data
+        assert "对应多个客户" in data["errors"][0], data["errors"]
+    finally:
+        db_session.execute(text("DELETE FROM customers WHERE name = :n"), {"n": dup_name})
         db_session.commit()

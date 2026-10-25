@@ -66,6 +66,7 @@ class TestCacheServiceInit:
             "analytics_prediction_forecast": 1800,  # 30 分钟
             "billing_consumption": 300,  # 5 分钟
             "default": 300,  # 5 分钟
+            "system_updates": 600,  # 10 分钟
         }
 
     def test_ttl_for_unknown_prefix_falls_back_to_default(self, cache_service: CacheService):

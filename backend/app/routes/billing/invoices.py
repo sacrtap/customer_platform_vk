@@ -1547,8 +1547,14 @@ def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
     )
 
     # 表头
+    # 第 2 列必须是 company_id（客户编号）：导入端以它为主键列解析客户。
+    # 导出若只给「客户名称」，用户拿导出文件回灌必然报
+    # 「缺少必填列：company_id, period_start, period_end, total_amount」——
+    # 文件本身没问题，却让用户以为文件损坏。与 balances/pricing-rules 导出
+    # 的 company_id 约定保持一致（中文展示名仍保留，导入端做列名别名归一）。
     headers = [
         "结算单号",
+        "company_id",
         "客户名称",
         "周期开始",
         "周期结束",
@@ -1568,7 +1574,7 @@ def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
         cell.border = thin_border
 
     # 设置列宽
-    column_widths = [20, 30, 12, 12, 12, 12, 12, 18, 20]
+    column_widths = [20, 12, 30, 12, 12, 12, 12, 12, 18, 20]
     for col_num, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(col_num)].width = width  # pyright: ignore[reportOptionalMemberAccess]
 
@@ -1592,6 +1598,8 @@ def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
 
         row_data = [
             invoice.invoice_no,
+            # 客户编号（导入主键列）：与导入模板的 company_id 对齐，使导出文件可回灌
+            invoice.customer.company_id if invoice.customer else None,
             customer_name,
             utc_to_cst_date_str(invoice.period_start) or "",
             utc_to_cst_date_str(invoice.period_end) or "",
@@ -1615,12 +1623,12 @@ def _build_invoices_excel(invoices: Sequence[Any]) -> bytes:
     ws.cell(row=total_row, column=1, value=f"共 {len(invoices)} 条记录")  # pyright: ignore[reportOptionalMemberAccess]
     ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
         row=total_row,
-        column=5,
+        column=6,
         value=f"总金额：{sum(float(inv.total_amount) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
     )
     ws.cell(  # pyright: ignore[reportOptionalMemberAccess]
         row=total_row,
-        column=7,
+        column=8,
         value=f"最终总额：{sum(float(inv.total_amount - (inv.discount_amount or 0)) for inv in invoices):.2f}",  # pyright: ignore[reportArgumentType]
     )
 
@@ -1822,9 +1830,34 @@ async def import_invoices(request: Request):
                 status=400,
             )
 
+        # 兼容「结算单导出」文件直接回灌：导出是中文展示列（周期开始/周期结束/
+        # 总金额/减免金额），导入期待英文存储列（period_start/period_end/
+        # total_amount/discount_amount）。统一别名后导出文件无需改写即可按同一
+        # 校验路径处理（company_id 自 2026-10-25 起由导出端直接输出英文列名，
+        # 此处仍映射中文列以兼容历史导出文件）。
+        # 无法对齐的展示列（客户名称/最终金额/状态/创建时间）不参与导入：
+        # status 固定 draft、invoice_no 缺省自动生成，属受控字段。
+        df.rename(
+            columns={
+                "客户编号": "company_id",
+                "周期开始": "period_start",
+                "周期结束": "period_end",
+                "总金额": "total_amount",
+                "减免金额": "discount_amount",
+                "结算单号": "invoice_no",
+            },
+            inplace=True,
+        )
+
         # 必填列检查
-        required_columns = ["company_id", "period_start", "period_end", "total_amount"]
+        # company_id 允许缺列：旧版导出文件（2026-10-25 前）只有「客户名称」，
+        # 用户手里已有的文件必须仍能回灌（行级回退按名称解析）。
+        # 但客户标识必须至少有一个，否则无法确定结算单归属。
+        required_columns = ["period_start", "period_end", "total_amount"]
         missing_columns = [col for col in required_columns if col not in df.columns]
+        has_customer_key = "company_id" in df.columns or "客户名称" in df.columns
+        if not has_customer_key:
+            missing_columns = ["company_id"] + missing_columns
         if missing_columns:
             return json(
                 {
@@ -1833,6 +1866,19 @@ async def import_invoices(request: Request):
                 },
                 status=400,
             )
+
+        # 丢弃导出文件的统计行（`_build_invoices_excel` 追加的「共 N 条记录」行：
+        # 结算单号列填统计文案、其余列为 NaN/统计金额）。回灌时它会被当作数据行，
+        # 产生一条「客户名称为空」的虚假行级错误，干扰用户判断。
+        # 判定：客户标识列（company_id/客户名称）为空且首列含「共 … 条记录」。
+        _key_col = "company_id" if "company_id" in df.columns else "客户名称"
+        if _key_col in df.columns and not df.empty:
+            _first_col = df.columns[0]
+
+            def _is_summary_row(r: Any) -> bool:
+                return bool(pd.isna(r.get(_key_col)) and "条记录" in str(r.get(_first_col, "")))
+
+            df = df[~df.apply(_is_summary_row, axis=1)]
 
         # 空文件检查：仅有表头（无数据行）时直接拒绝，避免虚假的导入成功反馈
         if df.empty:
@@ -1869,6 +1915,29 @@ async def import_invoices(request: Request):
             )
         result = await db.execute(company_stmt)
         company_to_customer = {row[1]: row[0] for row in result.all()}
+
+        # 旧版导出文件（2026-10-25 前）没有 company_id 列，只有「客户名称」——
+        # 用户手里已有的导出文件必须仍能回灌。按名称解析 customer.id，
+        # 重名（圣鉴（山东）智能科技有限公司 / 德阳齐家天下 等）按行级错误拒绝，
+        # 不静默挂到任意同名人名下。新导出文件有 company_id，优先走编号。
+        name_stmt = select(Customer.name, Customer.id).where(Customer.deleted_at.is_(None))
+        if scope_user_id is not None:
+            name_stmt = name_stmt.where(
+                or_(
+                    Customer.manager_id == scope_user_id,
+                    Customer.sales_manager_id == scope_user_id,
+                )
+            )
+        name_result = await db.execute(name_stmt)
+        _name_to_customers: dict[str, list[int]] = {}
+        for cname, cid in name_result.all():
+            if cname:
+                _name_to_customers.setdefault(cname, []).append(cid)
+        # 仅保留唯一名称，重名的一律不参与自动映射（报行级错误）
+        name_to_customer = {
+            name: ids[0] for name, ids in _name_to_customers.items() if len(ids) == 1
+        }
+        ambiguous_names = {name for name, ids in _name_to_customers.items() if len(ids) > 1}
 
         # 全量映射：区分「客户不存在」与「无权操作该客户」（无 view_all 时）
         all_company_stmt = select(Customer.id, Customer.company_id).where(
@@ -1916,29 +1985,53 @@ async def import_invoices(request: Request):
             row: Any = row
             row_num = int(str(idx)) + 2  # Excel 行号（含表头）
             try:
-                # company_id
+                # company_id（旧版导出文件无该列时，回退按「客户名称」解析）
                 company_id = row.get("company_id")
-                if bool(pd.isna(company_id)) or company_id is None:
-                    errors.append(f"第 {row_num} 行：客户编号为空")
-                    continue
-                try:
-                    # pandas 会把带小数的数字单元格读成 float（如 100001.9），
-                    # int() 会静默截断为 100001，把结算单挂到错误客户名下；
-                    # 先判定是否为整数值，非整数一律按行级错误拒绝。
-                    if isinstance(company_id, float) and not company_id.is_integer():
-                        raise ValueError
-                    company_id = int(company_id)
-                except (ValueError, TypeError):
-                    errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
-                    continue
-                if company_id not in company_to_customer:
-                    if company_id in all_company_ids:
+                customer_pk: int | None = None
+                if company_id is not None and not bool(pd.isna(company_id)):
+                    try:
+                        # pandas 会把带小数的数字单元格读成 float（如 100001.9），
+                        # int() 会静默截断为 100001，把结算单挂到错误客户名下；
+                        # 先判定是否为整数值，非整数一律按行级错误拒绝。
+                        if isinstance(company_id, float) and not company_id.is_integer():
+                            raise ValueError
+                        company_id = int(company_id)
+                    except (ValueError, TypeError):
+                        errors.append(f"第 {row_num} 行：客户编号 '{company_id}' 不是有效整数")
+                        continue
+                    if company_id not in company_to_customer:
+                        if company_id in all_company_ids:
+                            errors.append(
+                                f"第 {row_num} 行：无权操作客户编号 {company_id}，"
+                                "仅可为自己负责的客户导入结算单"
+                            )
+                        else:
+                            errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
+                        continue
+                    customer_pk = company_to_customer[company_id]
+                else:
+                    customer_name = row.get("客户名称")
+                    if customer_name is None or bool(pd.isna(customer_name)):
+                        errors.append(f"第 {row_num} 行：客户编号为空")
+                        continue
+                    customer_name = str(customer_name).strip()
+                    if customer_name in ambiguous_names:
                         errors.append(
-                            f"第 {row_num} 行：无权操作客户编号 {company_id}，仅可为自己负责的客户导入结算单"
+                            f"第 {row_num} 行：客户名称 '{customer_name}' 对应多个客户，"
+                            "请改用 company_id（客户编号）列"
                         )
-                    else:
-                        errors.append(f"第 {row_num} 行：客户编号 {company_id} 不存在")
-                    continue
+                        continue
+                    customer_pk = name_to_customer.get(customer_name)
+                    if customer_pk is None:
+                        errors.append(f"第 {row_num} 行：客户名称 '{customer_name}' 不存在")
+                        continue
+                    # 无权访问的客户（无 view_all 时不在 company_to_customer 值集中）
+                    if customer_pk not in set(company_to_customer.values()):
+                        errors.append(
+                            f"第 {row_num} 行：无权操作客户 '{customer_name}'，"
+                            "仅可为自己负责的客户导入结算单"
+                        )
+                        continue
 
                 # 账期
                 period_start_raw = row.get("period_start")
@@ -2007,7 +2100,8 @@ async def import_invoices(request: Request):
                         errors.append(f"第 {row_num} 行：结算单号 {invoice_no} 已存在")
                         continue
                 else:
-                    customer_key = company_to_customer[company_id]
+                    # 自动生成单号用 customer.id（与 services/billing.py 一致）
+                    customer_key = customer_pk
                     while True:
                         # 与 services/billing.py 的既有单号规则一致：4 位随机码取自
                         # 大写字母+数字（36^4 命名空间）。原先仅用数字（10^4）会使同
@@ -2020,7 +2114,7 @@ async def import_invoices(request: Request):
 
                 invoice = Invoice(
                     invoice_no=invoice_no,
-                    customer_id=company_to_customer[company_id],
+                    customer_id=customer_pk,
                     period_start=period_start,
                     period_end=period_end,
                     total_amount=total_amount,
