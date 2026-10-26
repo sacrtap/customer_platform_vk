@@ -410,7 +410,7 @@ onMounted(() => {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg, 16px);
   box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
-  padding: 20px 24px;
+  padding: 18px;
   overflow: hidden;
 }
 

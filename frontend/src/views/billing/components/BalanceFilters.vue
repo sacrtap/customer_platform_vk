@@ -42,13 +42,12 @@
         @apply="handleSearch"
       />
 
-      <!-- 按钮组固定在首行右侧 -->
+      <!-- 按钮组固定在首行右侧（与客户管理页一致：更多 + 筛选，共 2 个按钮） -->
       <div class="filters-actions">
         <button type="button" class="btn-more" @click="toggleMore">
           {{ showMore ? '收起' : '更多' }}
           <span class="more-arrow" :class="{ rotated: showMore }">▾</span>
         </button>
-        <button v-if="empty" type="button" class="btn" @click="handleReset">清除筛选条件</button>
         <button type="button" class="btn primary" @click="handleSearch">筛选</button>
       </div>
     </div>
@@ -101,6 +100,12 @@
         {{ activeKpiBadge }}
         <span class="badge-close" @click="emit('clear-kpi')">✕</span>
       </span>
+    </div>
+
+    <!-- 无结果时提示（清除按钮从首行按钮组迁到此处，避免挤占首行） -->
+    <div v-if="empty" class="empty-filter-hint">
+      <span>当前筛选无结果</span>
+      <button type="button" class="btn" @click="handleReset">清除筛选条件</button>
     </div>
   </div>
 </template>
@@ -395,6 +400,20 @@ const handleReset = () => emit('reset')
 }
 .badge-close:hover {
   opacity: 1;
+}
+
+/* 无结果提示行：清除按钮迁到此处（不挤占首行按钮组） */
+.empty-filter-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.empty-filter-hint .btn {
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {
