@@ -58,5 +58,5 @@
 
 ## Notes
 
-- 计划文档：`CREATED_AT_时区锁定修复_PLAN.md`（已归档至 `docs/specs/`）。
+- 计划文档：`docs/specs/2026-10-26-created-at-session-timezone-lock-plan.md`。
 - 本任务为计划文档的 Trellis 化执行，调研阶段补充了计划未覆盖的影响面（见 design.md）。
