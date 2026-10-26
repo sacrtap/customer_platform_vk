@@ -264,8 +264,15 @@ const fetchCalculatedItems = async () => {
         }
         return cleaned as unknown as InvoiceItem
       })
-    } catch {
+    } catch (err: unknown) {
       calculatedItems.value = []
+      // 后端对「无用量/无匹配规则」返回 400 + 精确 message（如「该客户在结算周期内
+      // 无用量数据或无匹配的计费规则」），拦截器已将其提取到 reject 对象的 message，
+      // 此处直接透传，让用户在选完客户/周期时立即看到真实原因
+      const msg = (err as { message?: string })?.message
+      if (msg) {
+        Message.error(msg)
+      }
     }
   } else {
     calculatedItems.value = []
@@ -456,7 +463,8 @@ const handleSubmitSingle = async () => {
     return false
   }
   if (calculatedItems.value.length === 0) {
-    Message.error('暂无计费明细，请先选择客户和结算周期生成预览')
+    // 空明细的具体原因已在 fetchCalculatedItems 的 catch 中通过 Message.error 提示，
+    // 此处仅阻止提交，避免重复弹窗与误导文案
     return false
   }
   loading.value = true

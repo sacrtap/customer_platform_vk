@@ -1309,7 +1309,7 @@ async def test_invoice_import_template_download(test_client, auth_token):
     assert all(str(v).startswith(("必填：", "可选：")) for v in notes if v), notes
     assert len(notes) == len(header), (notes, header)
     # 用户可见文案统一为「减免」，不得回退为「折扣」
-    assert notes[4] == "可选：减免金额（元）", notes
+    assert notes[4] == "可选：减免金额（元），负值为加价", notes
     assert "折扣" not in "".join(str(v) for v in header + notes), (header, notes)
     # 说明行不被当作数据行（导入无虚假行级错误）由 test_import_invoices_from_downloaded_template 覆盖
 
@@ -1383,6 +1383,50 @@ async def test_import_invoices_success_as_draft(
     assert row[1] == "draft"
     assert row[2] is False
     assert row[0].startswith("INV-")
+
+
+@pytest.mark.asyncio
+async def test_import_invoices_negative_discount_allowed(
+    test_client, auth_token, db_session, import_customer
+):
+    """结算单导入：减免金额允许为负值（加价）
+
+    业务语义与 apply_discount / 前端 SubmitModal 一致：正数从总额扣除、负数加价，
+    final_amount = total_amount - discount_amount。导入路径此前单独拒绝负值，
+    导致「负减免=加价」的合法数据被预检查拦下（用户报障：导入提示「减免金额不能为负」）。
+    """
+    headers = [
+        "company_id",
+        "period_start",
+        "period_end",
+        "total_amount",
+        "discount_amount",
+        "invoice_no",
+    ]
+    notes = ["必填"] * 6
+    suffix = uuid.uuid4().hex[:6].upper()
+    invoice_no = f"NEG-DISC-{suffix}"
+    # 负减免（加价 500）：final_amount 应为 10500
+    rows = [[import_customer["company_id"], "2026-04-01", "2026-04-30", 10000, -500, invoice_no]]
+
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/import",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        files=_upload(_xlsx(headers, rows, notes)),
+    )
+
+    assert response.status == 200
+    data = response.json["data"]
+    assert data["success_count"] == 1, data
+    assert data["errors"] == [], data
+
+    row = db_session.execute(
+        text("SELECT total_amount, discount_amount FROM invoices WHERE invoice_no = :no"),
+        {"no": invoice_no},
+    ).first()
+    assert row is not None
+    assert float(row[0]) == 10000
+    assert float(row[1]) == -500
 
 
 @pytest.mark.asyncio

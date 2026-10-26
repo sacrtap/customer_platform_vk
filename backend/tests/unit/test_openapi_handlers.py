@@ -61,7 +61,7 @@ def _make_request_package():
     customer_result.all.return_value = [
         # 包年客户: 现金池为 0，但套餐剩余额度 2880.68 → 应返回 2880.68
         (100, 1625, "新乡暴风雨地产", 0.0, 0.0, 2880.68),
-        # 非包年客户: 无包年列 → 走 total - used
+        # 非包年客户: 无包年列 → 走 total_amount（used_total 不参与计算）
         (101, 200, "预付费客户", 5000.0, 1500.0, None),
         # 包年且无余额行 → 仍取套餐剩余额度
         (102, 300, "包年无余额行客户", None, None, 1000.0),
@@ -113,10 +113,38 @@ async def test_all_balances_success_direct():
 
 @pytest.mark.asyncio
 async def test_all_balances_package_uses_remaining_not_cash_pool():
-    """全量版: 包年客户取套餐剩余额度（现金池为 0 也返回剩余额度），非包年走 total-used"""
+    """全量版: 包年客户取套餐剩余额度（现金池为 0 也返回剩余额度），非包年取 total_amount"""
     response = await get_all_customer_balances(_make_request_package())
     assert response.status == 200
     by_id = {i["customer_id"]: i["balance"] for i in _response_json(response)["data"]}
     assert by_id["1625"] == 2880.68  # 包年：现金池 0 但套餐剩 2880.68
-    assert by_id["200"] == 3500.0  # 非包年：5000 - 1500
+    assert by_id["200"] == 5000.0  # 非包年：total_amount（used_total 1500 不二次扣减）
     assert by_id["300"] == 1000.0  # 包年无余额行：仍取套餐剩余额度
+
+
+@pytest.mark.asyncio
+async def test_all_balances_no_double_deduction_direct():
+    """回归：used_total 不参与余额计算（2026-10-26 双重扣减修复）
+
+    `total_amount = real_amount + bonus_amount` 是扣款后的当前可用余额，
+    `used_total` 仅是累计消耗统计量；相减等于把同一笔消耗扣两遍。
+    客户 1322 实测：total=-83.50 / used=150.30 → 应返回 -83.50，旧口径 -233.80。
+    """
+    request = MagicMock()
+    request.args.get.return_value = None
+    session = AsyncMock()
+    whitelist_result = MagicMock()
+    whitelist_result.all.return_value = []
+    customer_result = MagicMock()
+    customer_result.all.return_value = [
+        (27398, 1322, "德阳齐家天下", -83.50, 150.30, None),
+        (27533, 1528, "沧州瑞德信地产", 3010.00, 0.00, None),
+    ]
+    session.execute = AsyncMock(side_effect=[whitelist_result, customer_result])
+    request.ctx.db_session = session
+
+    response = await get_all_customer_balances(request)
+    assert response.status == 200
+    by_id = {i["customer_id"]: i["balance"] for i in _response_json(response)["data"]}
+    assert by_id["1322"] == -83.50
+    assert by_id["1528"] == 3010.0

@@ -175,6 +175,17 @@ monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
 - 服务层 `batch_create_customers(customers_data, dry_run=True)` 同一校验路径复用，
   保证预检结果与实际入库一致（不出现「预检通过但落库失败」偏差）
 
+**结算单导入 `discount_amount` 允许负值（2026-10-26 起）**：减免金额的业务语义
+与 `apply_discount`、前端 `SubmitModal`/`DiscountEditModal` 完全一致——**正数从
+总额扣除、负数为加价**（`final_amount = total_amount - discount_amount`）。导入端
+此前单独写了一条 `if discount_amount < 0: 行级报错`，与其余三个入口（页面设置减免、
+提交审批、批量导入）脱节，导致「负减免=加价」的合法数据被预检查拦下、报
+「减免金额不能为负」——而用户在 `DiscountEditModal` 的 help 文案里明明看到
+「正值为减免（从总额扣除），负值为加价」。**同一字段的跨入口校验规则必须同源**，
+凡页面/服务层允许的值，导入侧一律放行（导入是补录通道，不是更严的第二套规则）。
+保留的约束只有：非有限值（NaN/Inf）拒绝、`> total_amount` 上限越界拒绝。导入
+模板第 2 行说明同步为「可选：减免金额（元），负值为加价」。
+
 ### 结算单导入受控字段
 
 仅暴露 `company_id` / `period_start` / `period_end` / `total_amount` / `discount_amount` / `invoice_no`（可选）：

@@ -2077,9 +2077,8 @@ async def import_invoices(request: Request):
                         if not discount_amount.is_finite():
                             errors.append(f"第 {row_num} 行：减免金额格式错误")
                             continue
-                        if discount_amount < 0:
-                            errors.append(f"第 {row_num} 行：减免金额不能为负数")
-                            continue
+                        # 减免金额允许为负值（加价），与 apply_discount 的业务语义一致：
+                        # 正数从总额扣除、负数加价。仅拦截 > total_amount 的上限越界。
                     except (InvalidOperation, ValueError, TypeError):
                         errors.append(f"第 {row_num} 行：减免金额格式错误")
                         continue
@@ -2240,7 +2239,7 @@ async def download_invoice_import_template(request: Request):
         "必填：账期开始 YYYY-MM-DD",
         "必填：账期结束 YYYY-MM-DD",
         "必填：结算金额（元）",
-        "可选：减免金额（元）",
+        "可选：减免金额（元），负值为加价",
         "可选：结算单号，缺省自动生成",
     ]
     ws.append(notes)  # pyright: ignore[reportOptionalMemberAccess]

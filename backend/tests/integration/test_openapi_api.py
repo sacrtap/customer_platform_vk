@@ -138,8 +138,32 @@ async def test_all_balances_success(test_client, valid_api_key, db_session):
     assert by_id["300"] == {
         "customer_id": "300",
         "customer_name": "无ERP客户",
-        "balance": 3500.0,
+        # total_amount 即当前可用余额（used_total 是累计消耗统计量，不再二次扣减）
+        "balance": 5000.0,
     }
+
+
+@pytest.mark.asyncio
+async def test_all_balances_no_double_deduction(test_client, valid_api_key, db_session):
+    """回归：余额 = total_amount，不减 used_total（2026-10-26 双重扣减修复）
+
+    实测背景：客户 1322 充值 66.80、扣款 150.30 → total_amount=-83.50（正确余额），
+    旧口径 `total - used` 返回 -233.80（把同一笔消耗扣两遍）。used_total 只是统计量，
+    扣款时已同步体现在 real_amount/total_amount 上。
+    """
+    # total=-83.50, used=150.30：口径正确时应返回 -83.50，旧口径会返回 -233.80
+    _insert_customer(db_session, company_id=1322, name="负余额客户", balance=(-83.50, 150.30))
+    # 正常正值客户：total=3010, used=0 → 两口径相同（旧 bug 被 0 消耗掩盖）
+    _insert_customer(db_session, company_id=1528, name="正常客户", balance=(3010.00, 0.0))
+
+    _request, response = await test_client.get(
+        "/api/v1/balances",
+        headers={"Authorization": f"Bearer {valid_api_key}"},
+    )
+    assert response.status == 200
+    by_id = {i["customer_id"]: i for i in response.json["data"]}
+    assert by_id["1322"]["balance"] == -83.50
+    assert by_id["1528"]["balance"] == 3010.0
 
 
 @pytest.mark.asyncio
@@ -181,20 +205,20 @@ async def test_erp_balances_regression(test_client, valid_api_key, db_session):
 
 @pytest.mark.asyncio
 async def test_all_balances_whitelist_overrides(test_client, valid_api_key, db_session):
-    """余额白名单客户优先返回静态余额，非白名单维持计算余额"""
+    """余额白名单客户优先返回静态余额，非白名单返回 total_amount"""
     whitelist_cid = _insert_customer(
         db_session,
         company_id=1000,
         name="白名单客户",
         erp_system="qiaofang",
-        balance=(100000.0, 60000.0),  # 计算余额 40000，白名单应返回静态值
+        balance=(100000.0, 60000.0),  # 白名单应返回静态值（与 total/used 无关）
     )
     _insert_customer(
         db_session,
         company_id=1001,
         name="普通客户",
         erp_system="qiaofang",
-        balance=(5000.0, 1500.0),  # 计算余额 3500，白名单不应影响
+        balance=(5000.0, 1500.0),  # 非白名单：返回 total_amount 5000
     )
     # 白名单静态余额 2000
     db_session.execute(
@@ -214,17 +238,17 @@ async def test_all_balances_whitelist_overrides(test_client, valid_api_key, db_s
     items = response.json["data"]
     by_id = {i["customer_id"]: i for i in items}
     assert by_id["1000"]["balance"] == 2000.0
-    assert by_id["1001"]["balance"] == 3500.0
+    assert by_id["1001"]["balance"] == 5000.0  # total_amount（不减 used_total）
 
 
 @pytest.mark.asyncio
 async def test_all_balances_whitelist_soft_deleted_ignored(test_client, valid_api_key, db_session):
-    """软删除（已移出）的白名单记录不生效，返回计算余额"""
+    """软删除（已移出）的白名单记录不生效，返回 total_amount"""
     cid = _insert_customer(
         db_session,
         company_id=1100,
         name="移出客户",
-        balance=(10000.0, 4000.0),  # 计算余额 6000
+        balance=(10000.0, 4000.0),  # total_amount 10000
     )
     db_session.execute(
         text("""
@@ -243,7 +267,7 @@ async def test_all_balances_whitelist_soft_deleted_ignored(test_client, valid_ap
     assert response.status == 200
     items = response.json["data"]
     assert items[0]["customer_id"] == "1100"
-    assert items[0]["balance"] == 6000.0
+    assert items[0]["balance"] == 10000.0
 
 
 @pytest.mark.asyncio
@@ -254,7 +278,7 @@ async def test_erp_balances_unaffected_by_whitelist(test_client, valid_api_key, 
         company_id=1200,
         name="渠道客户",
         erp_system="qiaofang",
-        balance=(8000.0, 2000.0),  # 计算余额 6000
+        balance=(8000.0, 2000.0),  # total_amount 8000
     )
     db_session.execute(
         text("""
@@ -271,7 +295,7 @@ async def test_erp_balances_unaffected_by_whitelist(test_client, valid_api_key, 
         headers={"Authorization": f"Bearer {valid_api_key}"},
     )
     assert response.status == 200
-    assert response.json["data"][0]["balance"] == 6000.0
+    assert response.json["data"][0]["balance"] == 8000.0
 
 
 # ==================== 包年客户余额口径 ====================
@@ -375,7 +399,7 @@ async def test_all_balances_package_customer_uses_remaining_amount(
 
 @pytest.mark.asyncio
 async def test_all_balances_non_package_unchanged(test_client, valid_api_key, db_session):
-    """非包年客户口径不变：balance = 总金额 − 已用金额"""
+    """非包年客户口径：balance = CustomerBalance.total_amount（不减 used_total）"""
     _insert_customer(
         db_session,
         company_id=1310,
@@ -389,8 +413,8 @@ async def test_all_balances_non_package_unchanged(test_client, valid_api_key, db
         headers={"Authorization": f"Bearer {valid_api_key}"},
     )
     items = {i["customer_id"]: i for i in response.json["data"]}
-    assert items["1310"]["balance"] == 3500.0  # 非包年：5000 - 1500
-    assert items["1311"]["balance"] == 1000.0  # 包年：1000 - 0
+    assert items["1310"]["balance"] == 5000.0  # 非包年：total_amount（used_total 不二次扣减）
+    assert items["1311"]["balance"] == 1000.0  # 包年：base_fee - 0
 
 
 @pytest.mark.asyncio

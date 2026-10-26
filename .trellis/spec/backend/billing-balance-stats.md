@@ -377,19 +377,21 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
     第 6 列返回 package_remaining.remaining（非包年 → NULL）。"""
 
 def _format_balance_rows(rows, whitelist_map=None) -> list[dict]:
-    """余额优先级：白名单静态值 > 包年剩余额度 > total_amount - used_total。"""
+    """余额优先级：白名单静态值 > 包年剩余额度 > CustomerBalance.total_amount。
+    **禁止 total_amount - used_total**（双重扣减，见 5.3）。"""
 ```
 
 ### 3. Contracts
 
-响应结构不变（`customer_id` / `customer_name` / `balance`），仅 `balance` 取值口径变更：
+响应结构不变（`customer_id` / `customer_name` / `balance`），`balance` 取值口径：
 
 | 客户类型 | `balance` |
 |---|---|
 | 命中余额白名单 | 白名单 `static_balance`（优先级最高，人工覆盖） |
 | 包年客户（有效规则） | 套餐剩余额度 `max(base_fee − 套餐内累计消耗, 0)` |
-| 非包年客户 | `total_amount − used_total`（无余额记录 = `0.0`） |
+| 非包年客户 | `CustomerBalance.total_amount`（无余额记录 = `0.0`） |
 
+- **非包年客户的余额是 `total_amount` 本身，不是 `total_amount − used_total`**（2026-10-26 二次修正，见 5.3）。`total_amount = real_amount + bonus_amount` 即扣款后的当前可用余额；`used_total` 只是累计消耗统计量，两者相减 = 同一笔消耗扣两遍。
 - 包年剩余额度按共享 CTE 计算，**每客户取最新一条生效规则**，与内部页面同口径。
 - 返回全部有效客户（未删除、未停用），按 `company_id` 升序；ERP 渠道接口额外按 `erp_system` 过滤。
 
@@ -406,8 +408,88 @@ def _format_balance_rows(rows, whitelist_map=None) -> list[dict]:
 ### 5. Good/Base/Bad Cases
 
 - Good: 包年客户 `base_fee=2980`、套餐内消耗 `99.32` → 接口返回 `2880.68`，与内部余额管理页一致。
-- Base: 非包年客户 `5000/1500` → `3500.0`，与改动前一致。
-- Bad: 仅用 `total_amount − used_total` → 8 个包年客户全部返回 `0.0`，ERP 下游对账错误。
+- Base: 非包年客户 `total_amount=5000 / used_total=1500` → `5000.0`（`total_amount` 即余额，`used_total` 不参与）。
+- Bad: 非包年客户用 `total_amount − used_total` → 客户 1322 实测返回 `-233.80`，真实余额 `-83.50`（充值 66.80 − 扣款 150.30），同一笔消耗被扣两遍；`used_total=0` 的客户（如 1528）恰好掩盖该 bug。
+
+### 5.1 下游对账核实手法与 `customer_id` 唯一性契约（2026-10-26 实测）
+
+用真实 API-Key 调 `/api/v1/balances` 与业务方对账时（例：核实 1322 德阳齐家天下=-83.50、1528 沧州瑞德信地产=3010.00），**「接口值 == 预期值」只完成一半**，须做三方交叉核验，缺一方都可能漏掉口径分叉：
+
+1. **接口返回值**：`curl -H "Authorization: Bearer vk_..." /api/v1/balances`，按 `customer_id` 精确匹配目标行（**勿按名称匹配**，见下）。
+2. **数据库直查**：`SELECT c.id, c.company_id, cb.total_amount, cb.used_total, cb.real_amount, cb.bonus_amount FROM customers c LEFT JOIN customer_balances cb ON cb.customer_id = c.id WHERE c.company_id IN (...)`，核对 `total_amount == real_amount + bonus_amount`（该等式成立即说明 total 本身已是扣款后余额，**不要再减 used_total**，见 5.3）。
+3. **口径链路确认**：目标客户是否命中白名单（`balance_whitelists`，按 DB 主键 `Customer.id` 匹配）、是否有生效包年规则（`pricing_rules.pricing_type='package'`）——两者都会让接口值 ≠ `total_amount`。实测中两客户均为 `fixed` 规则、无白名单，故接口值 == `total_amount`，链路自洽。
+
+**`customer_id` 唯一性契约（对外字段 = `company_id`，非主键）**：
+
+- 响应中 `customer_id` 取 `Customer.company_id`，**客户名称 `name` 不保证唯一**——生产库实测存在同名客户并存（"德阳齐家天下"：`company_id=1197` 余额 0.00 与 `company_id=1322` 余额 -83.50 并存，均已生效未删除）。接口按 `company_id` 升序逐行返回，不会串位；但下游若按 `customer_name` 匹配做对账，会错配到同名的另一条记录。
+- 与 `import-export.md`「结算单按名称解析重名拒绝」同源：**凡下游可能按名称定位客户的场景，契约上必须以 `company_id` 为唯一键**。对账差异排查时先查是否存在同名客户，再怀疑口径。
+- 排他条件：接口只返回 `deleted_at IS NULL AND is_disabled IS NOT TRUE` 的客户；软删/停用的同名客户不会出现在响应中，但仍在库中——下游拿历史导出文件（含已删客户）对账时，需按这个过滤条件理解"少了哪行"。
+
+### 5.2 跨环境对账：staging 与本地不一致的归因方法（2026-10-26 实测）
+
+**场景**：同一份预期值（1322=-83.50、1528=3010.00）在**本地环境完全匹配**，但 **staging 环境两客户均不匹配**（1322=-83.5 之外的离散值、1528=-1685.0），且 staging 全量 438 家 vs 本地 392 家、96 家余额不一致。
+
+> 注：本节写于口径二次修正之前，当时把 1322 的预期值误记为充值额 66.80（只看了 `recharge_records` 未看扣款）。按 5.3 修正后的正确预期是 **-83.50**（充值 66.80 − 扣款 150.30）；staging 的 1322 值与之不符仍归因于白名单污染，结论不变。
+
+**结论先行**：这不是代码 bug（代码在两环境同源，本地行为正确），而是 **staging 库被白名单批量导入污染 + 数据快照不同**。但排查过程暴露了一个真实的设计缺陷，见下。
+
+**归因三步法（差异面 → 模式识别 → 定位配置/数据源）**：
+
+1. **量化差异面**：两环境各拉一次 `/api/v1/balances`，按 `customer_id` 求差集与交集。实测：`仅 staging 有 46 家`（快照更新）、`仅本地有 0 家`、`余额不一致 96 家`。
+2. **模式识别**：把不一致按「staging 侧取值」聚类。实测发现 **staging 有 49 家恰为 `1000.0`**，而其中 44 家与本地不一致（本地值分散为 0 / 正 / 负），仅 1 家本地也是 1000。**"大量客户恰等于某个整数常量"是白名单/默认值污染的最强信号**——正好对应 `BalanceWhitelistService.DEFAULT_STATIC_BALANCE = Decimal("1000.00")` 与模型层 `static_balance` 列 `default=Decimal("1000.00")`。
+3. **定位来源**：`1000.0` 的两个写入路径都会产生它——
+   - `batch_import_by_erp()`：按 ERP 渠道**批量导入该渠道全部有效客户**，新客户 `static_balance` 一律默认 1000（文档明示「全新客户 → 新建，静态余额默认 1000 元」）；
+   - `add()`：单独添加时不传 `static_balance` → 默认 1000。
+   本地 `balance_whitelists` 表为空（0 条），所以本地接口无一家返回 1000；staging 有 49 条命中，说明有人在 staging 上执行过按 ERP 的批量导入（或逐个添加未填余额）。
+
+**设计缺陷（真实，与 staging 数据问题独立）**：`DEFAULT_STATIC_BALANCE = 1000.00` 是一个**危险的隐式默认值**。它的语义是「人工覆盖的静态余额」，但默认注入的 1000 元既非客户真实充值额、也无任何业务依据，却**优先级高于真实余额**（`_format_balance_rows` 中白名单覆盖在 `total_amount` 之前）。后果：
+
+- 批量导入一次，该 ERP 下**所有**客户的对外余额瞬间变成 1000.0（与真实值可能差几个数量级，实测 staging 上 986 号客户本地 291500 → staging 1000.0）；
+- 该值无审计标记（`remark` 可空），下游无法区分「这是人工确认的 1000」还是「批量导入的默认值」；
+- 对账方拿到 1000.0 会认为「系统说余额就是 1000」，而真实余额可能是 0 或 30 万。
+
+**修法建议（按优先级，均需产品/负责人确认后再动，本次未改代码）**：
+
+| 优先级 | 方案 | 影响 |
+|---|---|---|
+| P0 | staging 上导出 `balance_whitelists` 全表，逐个核对 `static_balance == 1000.00 AND remark IS NULL` 的记录，确认是否为批量导入默认值；非业务确认的一律移出白名单（软删） | 数据修复，不动代码 |
+| P0 | 对账以**生产库**为准，staging 仅作链路联调；预期值来自生产（本次 -83.50/3010.00 即生产数据，1322 的 `recharge_records` 有 `批量导入` 记录 2026-10-25 21:56 落库） | 流程约定 |
+| P1 | 取消 `DEFAULT_STATIC_BALANCE` 隐式默认：`add()`/`batch_import_by_erp()` 要求显式传 `static_balance`，不传则报错而非填 1000 | 契约变更，需同步前端与文档 |
+| P1 | 批量导入的记录自动写 `remark="按ERP批量导入"`，使默认值可被识别与审计 | 小改动，高价值 |
+| P2 | 开放平台接口对白名单客户增补 `balance_source` 字段（`whitelist` / `package` / `computed`），让下游能自证口径 | 对外契约扩展 |
+
+**跨环境对账 Checklist（新增）**：
+
+- [ ] 两环境各拉一次接口，**先求差集再看目标客户**（本次「仅 staging 有 46 家」直接说明快照不同，不是同一份数据）
+- [ ] 目标客户不一致时，先查 `balance_whitelists`（按 `Customer.id` 主键匹配，不是 `company_id`）——白名单优先级最高，最可能造成"本地对、staging 错"
+- [ ] 不一致集合里找**常量聚集**（如 49 家 = 1000.0）——聚集值 = 某处 `default=` 常量，顺常量名反查写入路径
+- [ ] 确认预期值的数据来源环境与时间（本次预期值出自生产 `recharge_records` 2026-10-25 21:56 批量导入）
+- [ ] 区分「代码 bug」与「数据污染」：**本地行为正确 + staging 错误** ⇒ 优先查数据/配置，别改代码
+
+### 5.3 非包年余额口径的二次修正：`total_amount` 而非 `total − used`（2026-10-26）
+
+**用户报障**：用 API-Key 调 `/api/v1/balances` 核实两个客户，1322 德阳齐家天下预期 `-83.50`、1528 沧州瑞德信地产预期 `3010.00`。实测 1322 返回 `-233.80`（不匹配），1528 返回 `3010.0`（匹配）。
+
+**根因（`CustomerBalance` 三列语义混淆）**：
+
+| 列 | 语义 | 写入方 |
+|---|---|---|
+| `real_amount` / `bonus_amount` | 实充 / 赠送**当前剩余** | `consume()` 扣款时扣减、`recharge()` 充值时增加 |
+| `total_amount` | **当前可用余额** = `real + bonus`（可为负） | `consume()` 每次扣款后重算 |
+| `used_total` / `used_real` / `used_bonus` | **累计消耗统计量**（只增不减） | `consume()` 累加 |
+
+`services/billing.py` 的 `consume()` 在扣款时同时做两件事：扣减 `real/bonus` → 重算 `total_amount`；累加 `used_total`。所以 `total_amount` 已经是「扣除消耗后」的余额，再减一次 `used_total` 就是把同一笔消耗扣两遍。
+
+**客户 1322 数据实证**：`recharge_records` 1 笔充值 66.80；扣款累计 `used_real=150.30` → `real_amount = 66.80 − 150.30 = −83.50`，`total_amount = −83.50`（正确余额）。旧口径 `total − used = −83.50 − 150.30 = −233.80`。
+
+**为什么 1528 没暴露**：`used_total = 0`，两口径结果相同。**`used_total=0` 的客户天然掩盖该 bug**——这也解释了为什么线上跑了一年多没人发现：大多数客户没有扣款记录。
+
+**与内部页面的口径分叉**：内部余额管理页 `routes/billing/balances.py` 的 `balance_expr = coalesce(package_remaining, CustomerBalance.total_amount, 0)` 用的正是 `total_amount`，`used_total` 只作为**独立的展示列与排序列**。开放平台接口是唯一算错的地方——这是「同一指标两处实现」的典型分叉（本文件顶部「口径唯一来源」原则的反例）。
+
+**修复**：`_format_balance_rows` 非包年分支改为 `round(total, 2)`；同时更新 5 处测试断言（旧断言 pin 的是错误口径）。
+
+**判别口诀**：看到 `A − B` 形式的余额计算，先问「B 是否已经体现在 A 的扣减里」——若 B 是累计统计量而 A 是当前值，几乎必然是双重扣减。
+
 
 ### 6. Tests Required
 
@@ -416,17 +498,26 @@ def _format_balance_rows(rows, whitelist_map=None) -> list[dict]:
 | 用例 | 断言点 |
 |------|--------|
 | `test_all_balances_package_customer_uses_remaining_amount` | 包年无余额行客户 → `balance = 2880.68` |
-| `test_all_balances_non_package_unchanged` | 非包年 = `total - used`；包年 = 剩余额度（回归基线） |
+| `test_all_balances_non_package_unchanged` | 非包年 = `total_amount`（不减 `used_total`）；包年 = 剩余额度（回归基线） |
+| `test_all_balances_no_double_deduction` | 集成回归：1322 形态（total=-83.50/used=150.30）→ `-83.50`，1528 形态 → `3010.0` |
 | `test_all_balances_package_whitelist_still_wins` | 包年命中白名单 → 静态余额优先 |
 | `test_erp_balances_package_customer_uses_remaining_amount` | 渠道接口同样接入包年口径 |
 | `test_all_balances_success` / `test_all_balances_whitelist_*` / `test_erp_balances_*` | 既有契约无回归 |
+
+单元层（`backend/tests/unit/test_openapi_handlers.py`，直接调 handler 无 DB）：
+
+| 用例 | 断言点 |
+|------|--------|
+| `test_all_balances_package_uses_remaining_not_cash_pool` | 包年取套餐剩余额度；非包年取 `total_amount` |
+| `test_all_balances_no_double_deduction_direct` | `used_total` 不参与计算：1322 → -83.50、1528 → 3010.0 |
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
 ```python
-# 仅算现金池：包年客户恒为 0
+# 双重扣减：total_amount 已扣除消耗，再减 used_total 把同一笔扣两遍
+# 客户 1322（total=-83.50 / used=150.30）→ 返回 -233.80，真实余额 -83.50
 select(CustomerBalance.total_amount, CustomerBalance.used_total)
 balance = round(total - used, 2)
 ```
@@ -434,13 +525,13 @@ balance = round(total - used, 2)
 #### Correct
 
 ```python
-# 复用共享 CTE，包年取剩余额度
+# 复用共享 CTE，包年取剩余额度；非包年直接取 total_amount（当前可用余额）
 package_cte = build_package_remaining_cte()
 stmt = (... .outerjoin(package_cte, Customer.id == package_cte.c.cid))
 if package_remaining is not None:
     balance = round(float(package_remaining), 2)
 else:
-    balance = round(total - used, 2)
+    balance = round(total, 2)
 ```
 
 ---
