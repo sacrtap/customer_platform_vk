@@ -40,6 +40,9 @@ async def db_session():
         TEST_DATABASE_ASYNC_URL,
         echo=False,
         pool_pre_ping=True,
+        # 锁定会话时区为 CST：与生产引擎（app/main.py）一致，保证 func.now()
+        # 写的 created_at 是 CST 墙钟，读出口 naive_cst_datetime_str() 假设成立
+        connect_args={"server_settings": {"TimeZone": "Asia/Shanghai"}},
     )
 
     async with engine.begin() as conn:

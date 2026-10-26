@@ -36,6 +36,81 @@ service = CustomerService(db_session)
 
 ---
 
+## PG 会话时区契约（naive 时间列的墙钟基准）
+
+[来源: 2026-10-26 `created_at` 时区锁定修复；`backend/app/main.py:192`、`backend/app/models/base.py:16`]
+
+### 契约
+
+**所有 PG 会话时区必须锁定为 `Asia/Shanghai`。** 引擎创建处统一带：
+
+```python
+create_async_engine(
+    url,
+    connect_args={"server_settings": {"TimeZone": "Asia/Shanghai"}},
+)
+```
+
+同步引擎（psycopg2）不认 `server_settings`，须用 libpq 的 `options`：
+
+```python
+create_engine(url, connect_args={"options": "-c timezone=Asia/Shanghai"})
+```
+
+### 为什么必须锁
+
+`TimestampMixin.created_at` / `updated_at` 是 `DateTime`（无 `timezone=True`）
+→ PG `timestamp without time zone`，由 `server_default=func.now()` 在
+**会话时区**写墙钟。不锁定时，会话时区跟随 PG 服务端 / 容器 `TZ`：
+
+| 环境 | 会话时区 | naive 列写入 | 读出口 `naive_cst_datetime_str()` |
+|---|---|---|---|
+| 本地（PG 服务端 CST） | Asia/Shanghai | CST 墙钟 ✓ | 正确 |
+| staging（容器 TZ=UTC） | UTC | UTC 墙钟 ✗ | 把 UTC 墙钟当 CST → **少 8 小时** |
+
+timestamptz 列（`completed_at` 等）存绝对 UTC 时刻，不受会话时区影响。
+
+### Python 侧取值规则（与列类型严格对应）
+
+| 场景 | 用法 | 反例 |
+|---|---|---|
+| 与 naive 列比较 / 阈值 | `cst_now().replace(tzinfo=None)` | `datetime.now()`（跟随进程 TZ） |
+| 写 timestamptz 列 | `datetime.now(timezone.utc)` | `datetime.now()`（naive 会被按会话时区解释） |
+| 业务自然日 | `cst_today()` | `date.today()` / `datetime.utcnow().date()` |
+
+aware 与 naive **不可混算**：`cst_now() - task.created_at` 会抛
+`TypeError: can't subtract offset-naive and offset-aware datetimes`
+（2026-10-26 修复时踩过，见 `recover_stuck_tasks`）。
+
+### 新增引擎时的 Checklist
+
+- [ ] 是否与 PG 交互？是 → 按驱动加 `server_settings` / `options`
+- [ ] 测试引擎必须与生产一致，否则「测试通过但生产偏差」
+- [ ] 若该环境 PG 服务端时区非 CST，必须锁定（不能依赖服务端默认值）
+
+### 测试如何证伪（本地无法靠「移除锁定」测出来）
+
+本地 PG 服务端恰好是 `Asia/Shanghai`，无锁定的连接也返回 CST，
+所以「移除 `connect_args` 后测试失败」在本地**不成立**。
+真正能证伪的做法是连到**服务端时区为 UTC 的库**：
+
+```sql
+ALTER DATABASE <probe_db> SET timezone TO 'UTC';
+```
+
+参照 `backend/tests/integration/test_sync_task_timezone.py::test_lock_overrides_utc_server_timezone`。
+
+### 已知边界
+
+1. **容器 tzdata**：`deploy/docker/Containerfile` 基于 `python:3.12-slim` 未装
+   tzdata，`time.tzset()` 解析 `Asia/Shanghai` 会静默回退 UTC
+   （`main.py:_force_cst_timezone()` 有 `tm_gmtoff` 告警兜底）。此时
+   `datetime.now()` 退化，故 Python 侧一律用显式工具函数，不依赖进程 TZ。
+2. **naive datetime 写 timestamptz 列**会被解释为「会话时区的该墙钟」。
+   锁定时区后写 aware UTC 才是等价修复；顺序不能反（先锁时区，再统一口径）。
+
+---
+
 ## Model Pattern
 
 [来源: 项目源码 — `backend/app/models/base.py`, `backend/app/models/customers.py`；2026-09-21 全量迁移至 SQLAlchemy 2.0 typed 声明]

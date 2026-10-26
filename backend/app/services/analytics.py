@@ -2383,8 +2383,10 @@ class AnalyticsService:
         """获取客户余额趋势（按月聚合）"""
         from dateutil.relativedelta import relativedelta
 
-        now = datetime.utcnow()
-        end_date = now.date()
+        # 趋势窗口按 CST 业务日：窗口边界与 RechargeRecord.created_at
+        # （timestamp without time zone，CST 墙钟）比较，datetime.utcnow() 在
+        # UTC 16:00-24:00 会取到 CST 次日，窗口整体多一天。
+        end_date = cst_today()
         start_date = end_date - relativedelta(months=months - 1)
         start_of_period = date(start_date.year, start_date.month, 1)
 
