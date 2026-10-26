@@ -1,0 +1,29 @@
+{
+  "id": "created-at-timezone-lock",
+  "name": "created-at-timezone-lock",
+  "title": "同步任务 created_at 时区锁定修复",
+  "description": "锁定 DB 会话时区为 Asia/Shanghai，修复 staging 同步任务创建时间少 8 小时；同步测试 fixture 引擎；处理计划外 naive 比较风险点",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "sacrtap",
+  "assignee": "sacrtap",
+  "createdAt": "2026-10-26",
+  "completedAt": "2026-10-26",
+  "branch": "fix/created-at-session-timezone-lock",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "commit": "c5d42bc",
+    "commit_docs": "2d7e85e"
+  }
+}

@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "PG 会话时区/naive 列约定与本次根因直接相关"}
+{"file": "docs/specs/2026-10-22-timezone-cst-convention.md", "reason": "既有 CST 时区规范，本次落地其已知边界1"}
