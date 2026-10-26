@@ -35,6 +35,8 @@ def _build_customer_balance_stmt(erp_channel: str | None = None) -> Select:
     响应中的 customer_id 仍取第 2 列 Customer.company_id（对外契约不变）。
     第 6 列返回包年剩余额度（`package_remaining.remaining`，非包年为 NULL）——
     包年客户年费不进 `CustomerBalance`，余额须取套餐剩余额度，否则恒为 0。
+    余额口径统一为 `total_amount`（当前可用余额），**不减 used_total**（见
+    `_format_balance_rows` 的双重扣减说明）。
     """
     package_cte = build_package_remaining_cte()
     stmt = (
@@ -68,19 +70,25 @@ def _format_balance_rows(rows, whitelist_map: dict[int, float] | None = None) ->
 
     1. 白名单命中（按 DB 主键 `Customer.id`）→ 静态余额（人工覆盖，优先级最高）
     2. 包年客户（`package_remaining` 非 NULL）→ 套餐剩余额度
-       （年费为合同式预收，不进 `CustomerBalance`，直接算 `total - used` 恒为 0）
-    3. 其余客户 → 计算余额 `total_amount - used_total`（无余额记录按 0 处理）
+       （年费为合同式预收，不进 `CustomerBalance`，直接取 total 恒为 0）
+    3. 其余客户 → `CustomerBalance.total_amount`（无余额记录按 0 处理）
+
+    **禁止用 `total_amount - used_total` 当余额**（2026-10-26 修复的双重扣减）：
+    `total_amount = real_amount + bonus_amount` 本身就是扣款后的当前可用余额
+    （`consume` 扣款时已同步扣减 real/bonus 并重算 total），而 `used_total` 只是
+    累计消耗统计量——两者相减等于把同一笔消耗扣两遍。实测客户 1322：充值
+    66.80、扣款 150.30 → total=-83.50（正确），旧口径却返回 -233.80。
+    与内部余额管理页 `balances.py` 的 `balance_expr` 保持同一口径。
     """
     data = []
     for row in rows:
         customer_pk, company_id, name, total_amount, used_total, package_remaining = row
         total = float(total_amount) if total_amount else 0.0
-        used = float(used_total) if used_total else 0.0
 
         if package_remaining is not None:
             balance = round(float(package_remaining), 2)
         else:
-            balance = round(total - used, 2)
+            balance = round(total, 2)
 
         if whitelist_map and customer_pk in whitelist_map:
             balance = whitelist_map[customer_pk]
@@ -137,7 +145,8 @@ async def get_all_customer_balances(request: Request):
     含无 ERP / noerp 客户）的客户ID、名称和当前余额。
 
     余额白名单客户（balance_whitelists 表中未软删记录）优先返回静态余额，
-    其余客户返回计算余额（total_amount - used_total）。
+    其余客户返回 `CustomerBalance.total_amount`（= real_amount + bonus_amount，
+    即扣款后的当前可用余额；包年客户取套餐剩余额度）。
 
     Response:
     - data: [{customer_id, customer_name, balance}, ...]
