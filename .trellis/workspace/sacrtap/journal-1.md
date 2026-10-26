@@ -1225,3 +1225,26 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+
+## Session 49: 余额管理筛选项首行对齐客户管理（PR #82 已合并）
+<!-- trellis-session: v=2 fp=fcde52bcc2e8f9f4 -->
+
+**Date**: 2026-10-26
+**Task**: 余额管理筛选项首行对齐客户管理（PR #82 已合并）
+**Branch**: `main`
+
+### Summary
+
+修复余额管理页筛选项首行折行问题。根因两处累积：(1) Balance.vue 的 .main-card 显式 padding:20px 24px 覆盖全局 .card.pad 的 18px，内容区比客户管理少 12px，处于 7 项排满临界点（主因）；(2) BalanceFilters 首行按钮组有 3 个按钮（更多/清除筛选条件/筛选）而客户管理仅 2 个，empty=true 时多出的按钮挤占首行（次因）。修复：main-card padding 统一为 18px；「清除筛选条件」按钮从首行按钮组迁至筛选区底部独立空状态提示行 .empty-filter-hint，首行按钮组恒为 2 个。未动 FilterDropdown min-width 与 flex-wrap，窄屏 @media 兜底不回归。改动 2 文件 +22/-3，纯样式与渲染位置调整，无业务逻辑变更。验证：type-check/eslint/prettier/vite build 全通过；pre-commit 与 pre-push 钩子自然通过（未用 --no-verify）；headed Chromium 1440x900 实测常规与无结果两态首行 8 元素均严格同行（行高 41px，垂直中心偏移 0），与客户管理页 rowTop/rowHeight/rowWidth/子元素数/padding/按钮组完全一致，reset 链路可用，1000px 窄屏兜底未回归；CI 7 check 全 pass（含 11 分钟 E2E）。PR #82 以 merge commit 方式合入 main（遵循仓库 20/20 merge commit 惯例），分支已清理。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2c20d74` | fix(billing): 余额管理筛选项首行对齐客户管理，消除折行 |
+| `9498244` | Merge pull request #82 from sacrtap/fix/balance-filters-first-row-align |
+
+### Status
+
+[OK] **Completed**
