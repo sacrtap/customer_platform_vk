@@ -15,7 +15,12 @@ from app.models.sync_task import SyncTask
 from app.services.cost_calc import CostCalcService
 from app.services.dto import SyncDetail, SyncResult
 from app.services.order_sync import OrderSyncService
-from app.utils.timezone import cst_now, local_date_to_utc_start
+from app.utils.timezone import (
+    cst_now,
+    local_date_to_utc_start,
+    naive_cst_datetime_str,
+    utc_to_cst_datetime_str,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -757,8 +762,12 @@ class SyncTaskService:
             "info_count": info_count,
             "warning_count": warning_count,
             "error_count": error_count,
-            "created_at": task.created_at.isoformat() if task.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+            # created_at 是 timestamp without time zone（PG 会话时区写入的 CST 墙钟），
+            # 按墙钟格式化；completed_at 是 timestamptz（存 UTC 绝对时刻），
+            # 必须转 CST 后再格式化。两者混用裸 isoformat() 会让 completed_at 以
+            # UTC 时刻呈现（比 created_at 早 8 小时），与前端 formatDate 的纯截断叠加。
+            "created_at": naive_cst_datetime_str(task.created_at),
+            "completed_at": utc_to_cst_datetime_str(task.completed_at),
         }
 
     async def _update_redis_progress(self, task: SyncTask) -> None:

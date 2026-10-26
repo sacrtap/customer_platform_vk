@@ -10,6 +10,7 @@ from sanic.response import json
 from app.cache.base import cache_service
 from app.middleware.auth import auth_required
 from app.services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
+from app.utils.timezone import naive_cst_datetime_str, utc_to_cst_datetime_str
 
 logger = logging.getLogger(__name__)
 
@@ -219,8 +220,11 @@ async def get_sync_task(request: Request, task_id: UUID):
                     "success_count": task.success_count,
                     "failed_count": task.failed_count,
                     "operator_id": task.operator_id,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
-                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                    # created_at 是 timestamp without time zone（CST 墙钟），completed_at
+                    # 是 timestamptz（UTC 绝对时刻）——见 _task_to_dict 同款注释。
+                    # 裸 isoformat() 会让 completed_at 以 UTC 时刻呈现，早 8 小时。
+                    "created_at": naive_cst_datetime_str(task.created_at),
+                    "completed_at": utc_to_cst_datetime_str(task.completed_at),
                     "error_message": task.error_message,
                 },
             }

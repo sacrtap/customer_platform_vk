@@ -129,6 +129,13 @@ Rendering code may format fields, but it must not redefine the payload contract.
 
 > **同类扩展修复（2026-10-24）**：复发复盘预警的 `billing.py` invoice.*_at 同类潜伏地已修复——14 处写入点（`services/billing.py` 10 处 `datetime.now().isoformat()` + `now_str` 驱动 `discount_applied_at`/`applied_at`，`routes/webhooks.py` 3 处 `datetime.utcnow()`）统一改 `cst_now().strftime("%Y-%m-%d %H:%M:%S")`。`webhooks.py` 此前用 `datetime.utcnow()` 与 `billing.py` 的 `datetime.now()` 混用（同 2026-10-16 `executed_at` 同款问题），一并统一。回归测试 `test_cancel_invoice_cancelled_at_uses_cst`（freeze UTC 17:00 断言 `cancelled_at == CST 01:00`）守护。
 
+> **第三轮复发（2026-10-26，break-loop）——写入端已统一，读出口仍是漏的**：同步日志页「完成时间」显示 `01:09:21`，而同一任务「创建时间」是 `09:09:00`。这次**写入端完全正确**（`completed_at = datetime.now(timezone.utc)` 写进 timestamptz 列，DB 里就是 `09:09:21+08`），错在**读出口**：`isoformat()` 输出 `2026-10-26T01:09:21+00:00`，前端 `formatDate` 只做纯截断（`replace('T',' ').substring(0,19)`）**不做时区转换**，UTC 时刻被当成 CST 墙钟。三轮下来三条独立路径：
+> 1. 2026-10-16 写入端混用（`now()` vs `utcnow()`）
+> 2. 2026-10-23 「统一到本地时间」仍是隐式假设（依赖进程 TZ）
+> 3. 2026-10-26 写入端统一了，但 **timestamptz 与 naive 两种列类型在同一张表混排，`isoformat()` 对它们的输出语义不同**
+>
+> **教训**：时区口径是**写入 + 读取 + 前端解析**三段链，任何一段单独修好都不够；且「逐列看都对、只有列与列的相对关系错」是最难自查的形态——本次两列单独看都是合法时间，只有 `completed_at < created_at` 这一**关系断言**能抓住。跨层输出多个时间列时，必须断言它们的相对关系（见 `.trellis/spec/backend/quality-guidelines.md`「API JSON 响应的时间字段」）。实测命令：`psql -tAc "SELECT created_at::text, completed_at::text FROM sync_tasks ORDER BY created_at DESC LIMIT 5"`——一列带 `+08`、一列不带，一眼看出列类型不同。
+
 ---
 
 ## Checklist for Cross-Layer Features

@@ -750,3 +750,92 @@ class TestPersistDetails:
         await service._persist_details("123e4567-e89b-12d3-a456-426614174000", details)
 
         mock_db.rollback.assert_called_once()
+
+
+class TestTaskToDictTimezone:
+    """_task_to_dict 时间字段序列化的时区契约
+
+    背景（2026-10-26 修复）：同步日志页「完成时间」比「创建时间」早 8 小时。
+    created_at 是 timestamp without time zone（PG 会话时区 Asia/Shanghai 写入的
+    CST 墙钟），completed_at 是 timestamptz（存 UTC 绝对时刻）。裸 isoformat() 把
+    后者输出成 UTC 时刻（如 01:09:21+00:00），前端 formatDate 只做纯截断、不做
+    时区转换，于是 CST 09:09 完成的任务显示成 01:09。
+    """
+
+    def _make_task(self) -> SyncTask:
+        from datetime import timezone as dt_timezone
+
+        from app.utils.timezone import UTC
+
+        task = SyncTask(
+            id="123e4567-e89b-12d3-a456-426614174000",
+            start_date=date(2026, 10, 25),
+            end_date=date(2026, 10, 26),
+            sync_mode="skip_existing",
+            status="completed",
+            total_days=2,
+            completed_days=2,
+            operator_id=None,
+        )
+        # created_at：timestamp without time zone 读出的是 naive CST 墙钟。
+        # 实测该任务 created_at = 2026-10-26 09:09:00.002931（PG 会话时区 Asia/Shanghai）
+        task.created_at = datetime(2026, 10, 26, 9, 9, 0, 2931)
+        # completed_at：timestamptz 由 asyncpg 读出，一律是 UTC aware
+        # （实测 09:09:21.063551+08 → datetime(2026, 10, 26, 1, 9, 21, tzinfo=UTC)）。
+        # 这是与 created_at 同一绝对时刻在两种列类型下的真实 Python 形态。
+        task.completed_at = datetime(2026, 10, 26, 1, 9, 21, 63551, tzinfo=UTC).astimezone(
+            dt_timezone.utc
+        )
+        return task
+
+    def test_completed_at_serialized_as_cst_wallclock(self, service):
+        """completed_at 必须输出 CST 墙钟，而不是 UTC 时刻
+
+        契约依据：前端 SyncLogs.vue 的 formatDate 只做 replace('T',' ') + 截断，
+        不做时区转换。后端必须给出 CST 墙钟字符串，否则显示比实际早 8 小时。
+        """
+        result = service._task_to_dict(self._make_task())
+
+        assert result["completed_at"] == "2026-10-26 09:09:21"
+
+    def test_created_at_serialized_as_cst_wallclock(self, service):
+        """created_at 是 naive CST 墙钟，按墙钟格式化（不能再 astimezone）"""
+        result = service._task_to_dict(self._make_task())
+
+        assert result["created_at"] == "2026-10-26 09:09:00"
+
+    def test_completed_at_not_shifted_eight_hours_before_created_at(self, service):
+        """回归核心断言：完成时间不得早于创建时间
+
+        任务 09:09:00 创建、21 秒后完成，正常业务语义下 completed_at >= created_at。
+        时区串味会让它显示成 01:09:21（比创建时间早 8 小时），用户看到的是
+        「先完成后创建」的荒谬结果。
+        """
+        result = service._task_to_dict(self._make_task())
+
+        assert result["completed_at"] >= result["created_at"]
+
+    def test_times_are_naive_strings_without_timezone_suffix(self, service):
+        """输出必须是无时区后缀的 'YYYY-MM-DD HH:MM:SS'
+
+        带 +00:00 后缀会让前端 formatDate 的截断结果混入 UTC 语义，且
+        'T' 分隔符虽被 replace 处理，但时区后缀残留仍属契约破坏。
+        """
+        result = service._task_to_dict(self._make_task())
+
+        for key in ("created_at", "completed_at"):
+            value = result[key]
+            assert "T" not in value
+            assert "+" not in value
+            assert "Z" not in value
+            assert len(value) == 19
+
+    def test_null_times_serialize_to_none(self, service):
+        """未完成任务（pending/running）completed_at 为 None"""
+        task = self._make_task()
+        task.completed_at = None
+
+        result = service._task_to_dict(task)
+
+        assert result["created_at"] == "2026-10-26 09:09:00"
+        assert result["completed_at"] is None

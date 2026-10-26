@@ -455,6 +455,60 @@ vs `Invoice.period_start/period_end`、`PricingRule.effective_date/expiry_date`�
 
 ---
 
+## API JSON 响应的时间字段同样必须显式选格式化函数
+
+[来源: 2026-10-26 同步日志页「完成时间」比「创建时间」早 8 小时 — `sync_tasks.completed_at`
+以 `01:09:21` 显示，而同一任务的 `created_at` 是 `09:09:00`]
+
+上一节管的是 Excel 导出，**API JSON 序列化是同一规则的第二个盲区**——而且更危险：
+导出的错日期只在下载的文件里，而 API 的错时间直接显示在页面上，且**同一接口里
+两列会互相矛盾**（见下表实测）。根因是同一张表里混用两种列类型，而 `isoformat()`
+对它们的输出语义完全不同：
+
+| 列 | 类型 | DB 实际值 | `isoformat()` 输出 | 前端 `formatDate` 纯截断后 |
+|---|---|---|---|---|
+| `sync_tasks.created_at` | `timestamp without time zone` | `09:09:00.002931` | `2026-10-26T09:09:00.002931` | `2026-10-26 09:09:00` ✅ |
+| `sync_tasks.completed_at` | `timestamptz` | `09:09:21.063551+08` | `2026-10-26T01:09:21.063551+00:00` | `2026-10-26 01:09:21` ❌ 早 8 小时 |
+
+asyncpg 读 `timestamptz` 时**一律返回 UTC aware**（`tzinfo=timezone.utc`，与 PG 会话
+时区无关），所以 `completed_at` 在 Python 侧就是 `01:09:21+00:00`——与 `created_at`
+（naive CST 墙钟）表示**同一绝对时刻**，但序列化后相差 8 小时。用户在页面上看到
+「先完成后创建」。
+
+**规则**：
+1. API 响应里的 datetime 字段，**先按列的时区语义选函数，再输出**——与 Excel 导出
+   完全同一套决策：timestamptz → `utc_to_cst_datetime_str` / `utc_to_cst_date_str`；
+   naive 墙钟列 → `naive_cst_datetime_str`。**禁止裸 `isoformat()`**。
+2. 输出统一为 `"YYYY-MM-DD HH:MM:SS"`（无 `T`、无 `+00:00`、无微秒）。契约依据：
+   前端多处（如 `views/system/SyncLogs.vue` 的 `formatDate`）只做
+   `replace('T',' ').substring(0,19)` 纯截断，**不做时区转换**——带时区后缀会让
+   UTC 时刻被当成 CST 墙钟显示。
+3. **同一接口/同一实体输出多个时间列时，必须核对它们的相对关系**。可自查的强断言：
+   终态任务的 `completed_at` 不得早于 `created_at`；`period_start <= period_end`。
+   本次 bug 两列都是「对的」，只有相对关系错，单看任何一列都发现不了。
+4. 例外：前端用 `new Date(...)` 解析的字段（`utils/formatters.ts::toDate` → `formatDate`
+   /`formatDateTime`，以及 `UpgradeAnnouncementModal` 的 `toLocaleString` 显式带
+   `timeZone:'Asia/Shanghai'`）**能**正确处理带时区后缀的 ISO 串，此时裸 `isoformat()`
+   可不改。判断依据是**前端怎么解析这个字段**，不是「以前一直这么输出」。
+
+**排查命令**（新增 timestamptz 列或改序列化时跑）：
+```bash
+# 1. 库里的 timestamptz 列全集
+psql -d customer_platform -tAc "SELECT table_name||'.'||column_name FROM information_schema.columns \
+  WHERE table_schema='public' AND data_type='timestamp with time zone' ORDER BY 1;"
+# 2. 这些列的裸 isoformat 输出点（逐个人工判断前端解析方式）
+cd backend && grep -rn "isoformat()" app/routes/ app/services/
+```
+
+**守护测试**：`tests/services/test_sync_task_service.py::TestTaskToDictTimezone`
+（用实测 DB 数据构造：naive CST `created_at` + UTC aware `completed_at`，断言
+`completed_at` 输出 CST 墙钟、且 `completed_at >= created_at`、无 `T`/`+`/`Z` 后缀）。
+
+**相关**：`utils/timezone.py`（三个格式化函数）、`views/system/SyncLogs.vue::formatDate`
+（纯截断，无时区转换）、`utils/formatters.ts::toDate`（`new Date()` 能转时区）。
+
+---
+
 ## 外部 HTTP 客户端（httpx）新增约定：类 + 单例 + 工厂，异常吞掉返回 None/空
 
 [来源: 2026-10-24 系统升级公告 — `services/github_updates.py` 新建]
