@@ -31,6 +31,9 @@ async def async_engine():
         test_db_url,
         echo=False,
         future=True,
+        # 锁定会话时区为 CST：与生产引擎、integration conftest 一致，
+        # 保证 func.now() 写的 created_at 在所有环境都是 CST 墙钟
+        connect_args={"server_settings": {"TimeZone": "Asia/Shanghai"}},
     )
 
     async with engine.begin() as conn:

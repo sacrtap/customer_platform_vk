@@ -76,6 +76,22 @@ TEST_DATABASE_ASYNC_URL = (
     f"postgresql+asyncpg://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
 )
 
+# 测试引擎必须与生产引擎（app/main.py create_async_engine）锁定同一 PG 会话时区：
+# `TimestampMixin.created_at` 是 `timestamp without time zone`，由
+# `server_default=func.now()` 在 **会话时区** 写墙钟。CI 的 postgres:18 容器
+# 默认 UTC，runner 亦可能为 UTC，不锁定时测试库里 created_at 是 UTC 墙钟，
+# 而读出口 `naive_cst_datetime_str()` 假设它是 CST 墙钟 → 测试通过但生产偏差
+# （staging 显示少 8 小时，2026-10-26 事故）。timestamptz 列存绝对 UTC 时刻，
+# 不受此设置影响。
+# 注意两种驱动的传法不同：asyncpg 用 `server_settings`，psycopg2 不认该参数
+# （会报 invalid connection option），须走 libpq 的 `options`。
+TEST_ENGINE_CONNECT_ARGS = {
+    "server_settings": {"TimeZone": "Asia/Shanghai"},
+}
+TEST_SYNC_ENGINE_CONNECT_ARGS = {
+    "options": "-c timezone=Asia/Shanghai",
+}
+
 
 @pytest.fixture(scope="function")
 def mock_scheduler():
@@ -101,7 +117,8 @@ def sync_test_engine():
         TEST_DATABASE_SYNC_URL,
         echo=False,
         pool_pre_ping=True,
-        pool_reset_on_return="rollback",  # 确保连接归还时重置状态
+        pool_reset_on_return="rollback",  # 确保连接归还时重置状态，防止泄漏
+        connect_args=TEST_SYNC_ENGINE_CONNECT_ARGS,  # 锁定会话时区为 CST，与异步引擎一致
     )
 
     # 创建所有表（只在 session 开始时执行一次）
@@ -334,6 +351,7 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         echo=False,
         pool_pre_ping=True,
         pool_reset_on_return="rollback",  # 确保连接归还时重置状态，防止泄漏
+        connect_args=TEST_ENGINE_CONNECT_ARGS,  # 锁定会话时区为 CST，与生产一致
     )
 
     app_instance = create_app(

@@ -85,7 +85,14 @@ class SyncTaskService:
                     # Redis 进度仍存在，任务可能确实在运行
                     # 但再检查运行时间是否超时（超过 30 分钟视为卡死）
                     if t.created_at:
-                        running_minutes = (datetime.now() - t.created_at).total_seconds() / 60
+                        # created_at 是 timestamp without time zone（CST 墙钟，
+                        # 会话时区已锁定 Asia/Shanghai），DB 读出为 naive 值，
+                        # 比较侧必须同取 naive 墙钟；datetime.now() 跟随进程 TZ，
+                        # 容器缺 tzdata 回退 UTC 时会把运行时长少算 8 小时，
+                        # 卡死任务永远不超时。
+                        running_minutes = (
+                            cst_now().replace(tzinfo=None) - t.created_at
+                        ).total_seconds() / 60
                         if running_minutes > 30:
                             logger.warning(
                                 f"活跃任务 {t.id} 运行已超过 30 分钟（{running_minutes:.1f}分钟），"
@@ -496,7 +503,14 @@ class SyncTaskService:
         running_tasks = result.scalars().all()
 
         recovered = 0
-        now = datetime.now()
+        # 两个基准分开取，不可复用同一个变量：
+        # - wallclock_now：created_at 是 timestamp without time zone（CST 墙钟，
+        #   会话时区已锁定 Asia/Shanghai），算运行时长必须用同一墙钟基准。
+        #   datetime.now() 跟随进程 TZ，容器缺 tzdata 回退 UTC 时会把运行时长
+        #   少算 8 小时，卡死任务永远不超时。
+        # - utc_now：completed_at 是 timestamptz（存绝对 UTC 时刻）。
+        wallclock_now = cst_now().replace(tzinfo=None)
+        utc_now = datetime.now(timezone.utc)
 
         for task in running_tasks:
             progress_key = f"sync_progress:{task.id}"
@@ -509,7 +523,7 @@ class SyncTaskService:
                 reason = "任务执行进程异常终止（Redis 进度信息已消失）"
             else:
                 # 检查 2: 任务运行时长是否超过阈值
-                running_duration = now - task.created_at
+                running_duration = wallclock_now - task.created_at
                 running_minutes = running_duration.total_seconds() / 60
 
                 if running_minutes > max_running_minutes:
@@ -519,7 +533,7 @@ class SyncTaskService:
             if should_recover:
                 task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
                 task.error_message = reason  # pyright: ignore[reportAttributeAccessIssue]
-                task.completed_at = now  # pyright: ignore[reportAttributeAccessIssue]
+                task.completed_at = utc_now  # pyright: ignore[reportAttributeAccessIssue]
                 await self.db.commit()
                 recovered += 1
 
@@ -536,7 +550,10 @@ class SyncTaskService:
         Returns:
             标记为 failed 的任务数量
         """
-        threshold = datetime.now() - timedelta(minutes=max_running_minutes)
+        # threshold 与 created_at（timestamp without time zone，CST 墙钟）比较，
+        # 取 cst_now() 的 naive 形态保持同一墙钟基准；容器缺 tzdata 回退 UTC 时
+        # datetime.now() 会让阈值偏移 8 小时，卡死任务漏判。
+        threshold = cst_now().replace(tzinfo=None) - timedelta(minutes=max_running_minutes)
 
         result = await self.db.execute(
             select(SyncTask).where(
@@ -549,7 +566,10 @@ class SyncTaskService:
         for task in stuck_tasks:
             task.status = "failed"  # pyright: ignore[reportAttributeAccessIssue]
             task.error_message = f"任务运行超过 {max_running_minutes} 分钟，疑似卡住"  # pyright: ignore[reportAttributeAccessIssue]
-            task.completed_at = datetime.now()  # pyright: ignore[reportAttributeAccessIssue]
+            # completed_at 是 timestamptz（存绝对 UTC 时刻），必须写 aware UTC；
+            # 写 naive 值会被 PG 按会话时区解释，UTC 环境下存成 UTC 墙钟、
+            # 读出口 utc_to_cst_datetime_str() 再当 UTC 解析 → 显示早 8 小时。
+            task.completed_at = datetime.now(timezone.utc)  # pyright: ignore[reportAttributeAccessIssue]
             await self.db.commit()
 
         return len(stuck_tasks)
@@ -679,7 +699,7 @@ class SyncTaskService:
 
     async def get_stats(self) -> dict:
         """获取任务统计数据"""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         from sqlalchemy import func
 
@@ -696,9 +716,11 @@ class SyncTaskService:
         # 成功率 = 成功完成的任务数 / 总提交任务数 × 100%（PRD 定义）
         success_rate = round((success_count / total_tasks * 100), 1) if total_tasks > 0 else 0
 
-        # 24 小时内统计（使用 naive datetime 匹配数据库）
-        now = datetime.now()
-        last_24h = now - timedelta(hours=24)
+        # 24 小时内统计：created_at 是 timestamp without time zone（CST 墙钟，
+        # 会话时区已锁定 Asia/Shanghai），阈值必须取同一墙钟基准的 naive 值。
+        # 原 datetime.now() 跟随进程 TZ，容器缺 tzdata 回退 UTC 时窗口整体
+        # 偏移 8 小时（把 16 小时前的任务算作 24 小时内）。
+        last_24h = cst_now().replace(tzinfo=None) - timedelta(hours=24)
 
         last_24h_total_result = await self.db.execute(
             select(func.count(SyncTask.id)).where(SyncTask.created_at >= last_24h)

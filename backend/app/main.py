@@ -198,6 +198,18 @@ def create_app(
             # 池容量兜底其他并发请求。
             pool_size=20,
             max_overflow=10,
+            # 锁定 PG 会话时区为 CST：`TimestampMixin.created_at` 等列是
+            # `timestamp without time zone`，由 `server_default=func.now()`
+            # 在 **会话时区** 写墙钟。不锁定时，会话时区跟随容器 TZ——本地
+            # TZ=Asia/Shanghai 写 CST 墙钟（正确），staging 容器 TZ=UTC 写
+            # UTC 墙钟，读出口 `naive_cst_datetime_str()` 再把它当 CST 输出，
+            # 显示少 8 小时（2026-10-26 同步日志「创建时间」事故）。
+            # asyncpg 在每条连接建立时执行 SET TIME ZONE，timestamptz 列存
+            # 绝对 UTC 时刻不受影响。这是 2026-10-22 时区规范「已知边界 1」
+            # 的落地。
+            connect_args={
+                "server_settings": {"TimeZone": "Asia/Shanghai"},
+            },
         )
     elif isinstance(database_engine, AsyncEngine):
         engine = database_engine

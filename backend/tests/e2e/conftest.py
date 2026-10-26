@@ -62,11 +62,30 @@ TEST_DATABASE_ASYNC_URL = (
     f"postgresql+asyncpg://{_TEST_DB_USER}:{_TEST_DB_PASSWORD}@{_TEST_DB_HOST}:5432/{_TEST_DB_NAME}"
 )
 
+# 测试引擎必须与生产引擎（app/main.py create_async_engine）锁定同一 PG 会话时区：
+# `TimestampMixin.created_at` 是 `timestamp without time zone`，由
+# `server_default=func.now()` 在 **会话时区** 写墙钟。e2e job 的 CI runner 未设
+# TZ（UTC）、postgres:18 容器默认 UTC，不锁定时测试库里 created_at 是 UTC 墙钟，
+# 而读出口 `naive_cst_datetime_str()` 假设它是 CST 墙钟 → 测试通过但生产偏差
+# （staging 显示少 8 小时，2026-10-26 事故）。
+# 注意两种驱动的传法不同：asyncpg 用 `server_settings`，psycopg2 不认该参数
+# （会报 invalid connection option），须走 libpq 的 `options`。
+TEST_ENGINE_CONNECT_ARGS = {
+    "server_settings": {"TimeZone": "Asia/Shanghai"},
+}
+TEST_SYNC_ENGINE_CONNECT_ARGS = {
+    "options": "-c timezone=Asia/Shanghai",
+}
+
 
 @pytest.fixture(scope="session")
 def sync_test_engine():
     """创建同步测试数据库引擎（用于建表和创建测试用户）"""
-    engine = create_engine(TEST_DATABASE_SYNC_URL, echo=False)
+    engine = create_engine(
+        TEST_DATABASE_SYNC_URL,
+        echo=False,
+        connect_args=TEST_SYNC_ENGINE_CONNECT_ARGS,  # 锁定会话时区为 CST，与异步引擎一致
+    )
     BaseModel.metadata.create_all(engine)
     # create_all 不修改已存在的表：按 ORM metadata 自动补齐缺失列。
     # 原先是手工 `if "auto_initiate_settlement" not in columns:` 清单，模型加字段时
@@ -285,6 +304,7 @@ async def app(sync_test_engine, mock_cache, mock_scheduler):
         echo=False,
         pool_pre_ping=True,
         pool_reset_on_return="rollback",
+        connect_args=TEST_ENGINE_CONNECT_ARGS,  # 锁定会话时区为 CST，与生产一致
     )
 
     app_instance = create_app(
