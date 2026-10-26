@@ -151,9 +151,34 @@ import 期执行 `os.environ["TZ"]="Asia/Shanghai"; time.tzset()`。
 
 ## 已知边界（未在本次范围）
 
-1. **PG 会话时区不受 `tzset()` 影响**。`func.now()` 写入的 DB 墙钟时间取决于 **PG 服务器的 `TimeZone` 设置**（本地/生产为 `Asia/Shanghai`，CI 的 `postgres:18` 容器默认 UTC）。若要把 DB 侧也钉死，需在 `create_async_engine` 的 `connect_args` 里 `SET timezone='Asia/Shanghai'`，或在 PG 容器加 `TZ`。本次未做，因为：现有集成测试在 CI 的 UTC PG 下全绿（无跨时区断言），且改动会影响所有 `func.now()` 写入值的历史一致性，需单独评估。
+> **2026-10-26 更新**：边界 1 已落地，见「已解决」小节。边界 2/3 仍开放。
+
+### 已解决：边界 1 — PG 会话时区
+
+**2026-10-26 已修复**（`fix/created-at-session-timezone-lock`）。所有引擎
+（`app/main.py` + 4 处测试 fixture）锁定 `TimeZone=Asia/Shanghai`，
+naive 列在所有环境写 CST 墙钟。契约与 Python 侧取值规则已写入
+`.trellis/spec/backend/database-guidelines.md`「PG 会话时区契约」；
+可证伪的回归测试见 `backend/tests/integration/test_sync_task_timezone.py`。
+
+同次修复连带收敛的 Python 侧口径（原本依赖进程 TZ 恰好为 CST）：
+
+| 位置 | 改动 |
+|---|---|
+| `services/sync_task_service.py:88` 卡死判定 | `datetime.now()` → `cst_now().replace(tzinfo=None)` |
+| `services/sync_task_service.py:509` 运行时长基准 | 同上，并拆出独立的 UTC 基准写 `completed_at` |
+| `services/sync_task_service.py:549` 卡死阈值 | 同上 |
+| `services/sync_task_service.py:565` `completed_at` 写入 | `datetime.now()` → `datetime.now(timezone.utc)` |
+| `services/sync_task_service.py:720` 24h 统计窗口 | 同上 naive CST 基准 |
+| `services/analytics.py:2389` 余额趋势窗口 | `datetime.utcnow().date()` → `cst_today()` |
+
+仍开放的边界：
+
+1. ~~**PG 会话时区不受 `tzset()` 影响**~~ → 已解决，见上。
 2. **`approved_at` 等 String 字段的 naive 时间戳歧义**（方案 C，未做）。改为 `datetime.now(CST).isoformat()` 是行为变更：前端 `new Date()` 解析语义变化 + 存量数据是 naive 值，新旧混排会显示跳变 8 小时。需前端配合 + 数据迁移评估，独立 PR。
 3. **`email_tasks.py:70` 的 `due_date` 渲染失败**（与时区无关的既有 bug）。`Invoice` 模型无 `due_date` 字段，模板 `{{ (today - invoice.due_date).days }}` 抛 `UndefinedError`，被 `render_template` 的 `except` 捕获 → 逾期提醒邮件正文实际是「模板渲染失败」。需产品确认逾期口径后单独修。
+4. **容器 tzdata 缺失**（2026-10-26 新记录）。`deploy/docker/Containerfile` 基于 `python:3.12-slim` 未装 tzdata，`time.tzset()` 解析 `Asia/Shanghai` 静默回退 UTC。`_force_cst_timezone()` 已告警兜底、代码层已普遍用显式工具函数，但 `executed_at` 等 String 字段仍走 `datetime.now()`。建议部署面加装 tzdata（需 staging 验证，未在本次范围）。
+5. **`api_key` / `token_blacklist` 的 naive 列口径混乱**（2026-10-26 新记录，预先存在）。`ApiKey.expires_at` 是 `DateTime` naive 列，写入取用户输入 `datetime.fromisoformat(...)`、比较用 `datetime.utcnow()`，两端都不经 `func.now()`，故不受本次锁定影响；但同一列混用「用户输入的本地时间」与「UTC」两种语义，属独立隐患。
 
 ---
 
