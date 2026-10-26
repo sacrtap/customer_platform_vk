@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试分层、mock session 模式、覆盖率门禁与 CI 口径"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移规范、typed 声明、schema drift 校验要求"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误码与响应格式一致性检查"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端 API 层/错误处理/类型安全检查"}

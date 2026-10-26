@@ -401,6 +401,30 @@
           ></span>
           <span class="nav-text">数据清空</span>
         </button>
+        <button
+          v-if="can('system:database_backup')"
+          class="nav-btn"
+          :class="{ active: $route.path === '/system/backup' }"
+          :aria-current="$route.path === '/system/backup' ? 'page' : undefined"
+          @click="goTo('/system/backup')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <ellipse cx="12" cy="5" rx="8" ry="3" />
+              <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+              <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+              />
+            </svg></span
+          >
+          <span class="nav-text">数据备份</span>
+        </button>
       </div>
 
       <!-- 系统工具组 -->

@@ -106,6 +106,12 @@ export function useAppLayout() {
             to: '/system/database-management',
             permission: 'system:database_clear',
           },
+          {
+            key: 'backup',
+            label: '数据备份',
+            to: '/system/backup',
+            permission: 'system:database_backup',
+          },
         ],
       },
       {
@@ -204,7 +210,8 @@ export function useAppLayout() {
         p === '/system/cooperation-statuses' ||
         p === '/system/erp-systems' ||
         p === '/system/api-keys' ||
-        p === '/system/database-management'
+        p === '/system/database-management' ||
+        p === '/system/backup'
       )
     return false
   }
@@ -236,6 +243,7 @@ export function useAppLayout() {
           newPath === '/system/erp-systems' ||
           newPath === '/system/api-keys' ||
           newPath === '/system/database-management' ||
+          newPath === '/system/backup' ||
           newPath === '/system/invoice-logs'
         )
           expandedSubmenu.value = 'system'

@@ -178,6 +178,12 @@ const routes: RouteRecordRaw[] = [
             meta: { requiresPermission: 'system:database_clear' },
           },
           {
+            path: 'backup',
+            name: 'BackupManagement',
+            component: () => import('@/views/system/BackupManagement.vue'),
+            meta: { requiresPermission: 'system:database_backup' },
+          },
+          {
             path: 'invoice-logs',
             name: 'InvoiceLogs',
             component: () => import('@/views/system/InvoiceLogs.vue'),
