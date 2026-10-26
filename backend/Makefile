@@ -29,8 +29,24 @@ test-last-failed:
 
 # 覆盖率：本地口径 = 单元 + 集成（排除 tests/e2e，与 CI nightly 的 50% 全量口径一致）。
 # tests/e2e 依赖外部同步服务，本地跑会卡死；全量 E2E 由 e2e-full.yml 在 CI 执行。
+#
+# 三段式与 CI nightly（.github/workflows/pr-checks.yml 的 backend-integration-full）逐字对齐：
+#   1) 单元测试生成 .coverage
+#   2) 迁移测试单独串行跑（模块级 settings 缓存与 alembic 命令在 xdist 并行下相互污染）
+#   3) 其余集成测试并行跑，--cov-append 合并，最终 --cov-fail-under=50 判定
+# 本地只有单库，故集成段用 -n 1（CI 用 -n auto + gw0-gw3 四个并行库）。
 test-cov:
-	source .venv/bin/activate && pytest tests/unit/ tests/integration/ --cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=50
+	@echo "========== 1/3 单元测试（生成 .coverage） =========="
+	source .venv/bin/activate && pytest tests/unit/ -q --tb=short --cov=app --cov-report=term-missing
+	@echo ""
+	@echo "========== 2/3 迁移测试（串行） =========="
+	source .venv/bin/activate && pytest tests/integration/test_migrations.py -n 1 --timeout=120 \
+		--tb=short --cov=app --cov-append --cov-report=term-missing
+	@echo ""
+	@echo "========== 3/3 其余集成测试（--cov-fail-under=50） =========="
+	source .venv/bin/activate && pytest tests/integration/ --ignore=tests/integration/test_migrations.py \
+		-n 1 --timeout=120 --tb=short --cov=app --cov-append --cov-report=term-missing \
+		--cov-report=html --cov-fail-under=50
 
 # 仅单元测试 + 覆盖率
 test-unit:

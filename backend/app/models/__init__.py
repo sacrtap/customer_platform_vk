@@ -28,6 +28,7 @@ from . import token_blacklist  # noqa: E402
 from . import api_key  # noqa: E402
 from . import forecast_config  # noqa: E402
 from . import balance_whitelist  # noqa: E402
+from . import backup  # noqa: E402
 
 # isort: on
 
@@ -51,4 +52,5 @@ __all__ = [
     "api_key",
     "forecast_config",
     "balance_whitelist",
+    "backup",
 ]

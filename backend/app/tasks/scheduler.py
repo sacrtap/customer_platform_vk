@@ -13,6 +13,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from sanic.response import json
 
+from ..config import settings
 from ..middleware.auth import auth_required, require_permission
 from ..utils.timezone import CST, cst_now, cst_today
 from .monitor import get_task_results, monitored_task
@@ -44,6 +45,12 @@ def init_scheduler(app):
         # 导入任务函数
         from ..cache.base import cache_service
         from ..services.sync_task_service import SyncTaskService
+        from .backup import (
+            CLEANUP_JOB_ID,
+            perform_backup_task,
+            perform_cleanup_task,
+            register_backup_daily,
+        )
         from .balance_check import check_balance_warning
         from .email_tasks import send_overdue_emails
         from .file_cleanup import cleanup_temp_files
@@ -113,6 +120,16 @@ def init_scheduler(app):
                         f"检测到 {n} 个卡住的明细任务（>{DETAIL_STUCK_MINUTES}min），标记为失败"
                     )
                 return {"recovered": n}
+
+        @monitored_task("backup_daily_auto", "每日数据库备份")
+        async def _backup_daily():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await perform_backup_task(session)
+
+        @monitored_task("cleanup_old_backups", "过期备份清理")
+        async def _cleanup_old_backups():
+            async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+                return await perform_cleanup_task(session)
 
         # 添加定时任务 - 使用 lambda 传递 session
 
@@ -205,6 +222,41 @@ def init_scheduler(app):
             id="check_stuck_detail_tasks",
             name="卡住明细任务检测",
             replace_existing=True,
+        )
+
+        # 每日数据库备份：按 backup_schedule_configs 配置注册/不注册，支持页面动态调整
+        from sqlalchemy import select as sa_select
+
+        from ..models.backup import BackupScheduleConfig
+
+        backup_cfg = None
+        try:
+            async with session_factory() as backup_cfg_session:  # pyright: ignore[reportOptionalCall]
+                backup_result = await backup_cfg_session.execute(
+                    sa_select(BackupScheduleConfig).where(
+                        BackupScheduleConfig.task_name == "daily_backup"
+                    )
+                )
+                backup_cfg = backup_result.scalar_one_or_none()
+        except Exception as e:
+            # 配置表未初始化（未迁移）时降级为不注册，不影响其他调度任务
+            logger.warning(f"读取定时备份配置失败，本次不注册每日数据库备份: {e}")
+
+        if backup_cfg and backup_cfg.enabled:
+            logger.info(f"📅 注册每日数据库备份任务: {backup_cfg.backup_time}")
+            register_backup_daily(scheduler, session_factory, True, backup_cfg.backup_time)
+        else:
+            logger.info("📅 每日数据库备份任务未启用（可在数据备份页开启）")
+
+        # 过期备份清理：每 N 天执行一次，首次延后 N 天（避免启动即清理）。
+        # 清理逻辑内含「校验近保留天数内备份有效」保护，重启仅影响清理及时性。
+        scheduler.add_job(
+            _cleanup_old_backups,
+            trigger=IntervalTrigger(days=settings.backup_cleanup_interval_days),
+            id=CLEANUP_JOB_ID,
+            name="过期备份清理",
+            replace_existing=True,
+            next_run_time=cst_now() + timedelta(days=settings.backup_cleanup_interval_days),
         )
 
         # 启动调度器

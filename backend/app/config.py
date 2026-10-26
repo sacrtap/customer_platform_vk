@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     # Redis 配置
     redis_url: str = "redis://localhost:6379/0"
 
+    # 数据备份配置
+    backup_dir: str = "/app/uploads/backups"  # 备份文件目录（挂载于 app_uploads 命名卷）
+    backup_retention_days: int = 5  # 备份保留天数（超过即清理）
+    backup_cleanup_interval_days: int = 5  # 清理任务执行间隔（天）
+
     # 外部 MySQL 配置（用于订单同步）
     external_mysql_url: str = ""
     external_mysql_pool_size: int = 5

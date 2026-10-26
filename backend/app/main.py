@@ -273,6 +273,7 @@ def create_app(
     from .routes.api_keys import api_keys_bp
     from .routes.audit_logs import audit_logs_bp
     from .routes.auth import auth_bp
+    from .routes.backup import backup_bp
     from .routes.balance_whitelist_routes import balance_whitelist_bp
     from .routes.billing import billing_bp
     from .routes.cooperation_status_routes import cooperation_status_bp
@@ -293,6 +294,7 @@ def create_app(
     from .routes.users import users_bp
 
     app.blueprint(auth_bp)
+    app.blueprint(backup_bp)
     app.blueprint(users_bp)
     app.blueprint(customers_bp)
     app.blueprint(billing_bp)

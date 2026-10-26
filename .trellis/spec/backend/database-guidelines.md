@@ -622,3 +622,84 @@ inspector 给 `TIMESTAMP`/`NUMERIC`；连 `compile(dialect=...)` 都统一不了
 - ❌ **NOT NULL 的 JSON 列不在 ORM 侧给 `default`** — `mapped_column(JSON)` 无默认时，任何未显式传值的构造都会 INSERT NULL 触发 NotNullViolationError；生产路径普遍用 `data.get("tiers")`（API 不带字段即 None），必须靠 ORM `default=list`/`default=dict` 兜底。新增 JSON 列时先确认 NOT NULL 约束与默认值配对
 - ❌ **Mock 数据库 helper 只定义 `.all()` 不定义 `.scalars().first()`** — MagicMock 的链式属性自动生成假对象，被测代码读到 MagicMock 属性而不报错，症状是下游 `TypeError: '<' not supported between MagicMock and int`，根因离现场很远。helper 必须显式定义被测代码用到的每条链（`.first()` / `.scalars().first()` / `.scalar()`）
 - ❌ **`side_effect` 列表与被测方法的 execute 次数/顺序不匹配** — 服务方法若有「先查客户资格再查数据」的前置 execute，测试列表漏掉第一项会导致整体错位一位：customer_stmt 拿到用量行、pricing_stmt 拿到余额行。症状同样表现为下游字段是 MagicMock。加/改服务层 execute 时必须同步测试列表长度
+- ❌ **在会 DROP/重建自身表的操作后用同一 session 写终态** — `pg_restore --clean` 后 `self.db` 的 greenlet 上下文已死，`_finalize` 连环抛 `StaleDataError` → `PendingRollbackError` → `greenlet_spawn has not been called`。必须先取字段快照，再用 `session_factory` 新开短会话写终态，见「恢复类操作的留痕写入」一节
+- ❌ **把 aware datetime（`cst_now()`）写给 `TimestampMixin` 的 naive 列** — asyncpg 在 Cython 层抛 `can't subtract offset-naive and offset-aware datetimes`，堆栈无 Python 帧。写 `created_at/updated_at` 前必须 `.replace(tzinfo=None)`，见「TimestampMixin 列是 naive」一节
+
+---
+
+## 恢复类操作（DROP + 重建全库）的留痕写入
+
+[来源: Feature 2026-10-26 — 数据备份在线恢复 `pg_restore --clean --if-exists`]
+
+`pg_restore --clean --if-exists` 会 **DROP 并重建全库对象**，包括留痕表本身。
+在恢复任务里用**同一个 session** 写终态会连环失败，且失败形态极具误导性：
+
+| 现象 | 真实原因 |
+|---|---|
+| `StaleDataError: UPDATE ... expected to update 1 row(s); 0 were matched` | pending 留痕行随表一起被 DROP，ORM UPDATE 匹配 0 行 |
+| `greenlet_spawn has not been called; can't call await_only() here` | 上述异常后 session 进入 `PendingRollbackError`，**该 session 的 greenlet 上下文已死**，再 `await self.db.rollback()` 也救不回来 |
+| `asyncpg DataError: ... (can't subtract offset-naive and offset-aware datetimes)` | 见下节 |
+
+**规则**：凡会 DROP/重建自身所在表（或整个库）的操作，`_mark_running` 之后的写入**必须**改用
+`session_factory` 新开的短会话（新连接），并在写入前取好字段快照：
+
+```python
+# WRONG — 恢复后 self.db 已不可用，finalize 必然连环炸
+ok, err = await self._run_pg_restore(path)
+return await self._finalize(record, success=ok)   # self.db 的 greenlet 已死
+
+# CORRECT — 先快照，再恢复，最后用短会话写终态
+snapshot = self._snapshot(record)          # 在任何 DB 写操作前取完
+await self._mark_running(record)
+ok, err = await self._run_pg_restore(path)  # 此后 self.db 不可信
+await self._write_final_state(snapshot, success=ok, error_message=err if not ok else None)
+
+async def _write_final_state(self, snapshot, *, success, error_message):
+    async def _apply(db):
+        result = await db.execute(update(BackupRecord).where(BackupRecord.id == snapshot["id"]).values(**values))
+        if (result.rowcount or 0) == 0:    # 留痕行已被删 → 按快照重插，保持 id 连续
+            await db.execute(insert(BackupRecord).values(**snapshot, **values, ...))
+        await db.commit()
+    if self.session_factory is not None:
+        async with self.session_factory() as fresh_db:
+            await _apply(fresh_db)         # 新连接，不受原 session 破坏影响
+    else:
+        await _apply(self.db)              # 仅测试兜底
+```
+
+**Tests Required**：`tests/unit/test_backup_service.py::TestExecuteRestore`
+- `test_restore_success` — 断言短会话收到 1 条 `update` 且 `commit`
+- `test_restore_reinserts_record_when_table_dropped` — `rowcount=0` 时断言短会话收到 1 条 `insert`，
+  且 `insert_stmt.compile().params["id"] == 20`、`params["status"] == "success"`
+- 断言必须打在**短会话的 `execute.call_args_list`** 上（`__visit_name__` 筛 insert/update），
+  不能断言 `record.status` —— 终态已不在原 ORM 对象上体现
+
+> **Warning**: `pg_dump` 捕获的是 dump 执行时刻的库快照。备份任务若「先 `_mark_running` 再 `pg_dump`」，
+> dump 里该留痕行恒为 `running`、`completed_at IS NULL`。恢复后列表显示「执行中」是**快照语义的固有正确行为**，
+> 不是 bug —— 排查此类现象时先 `pg_restore --data-only --table=backup_records` 核对 dump 内容再下结论。
+
+---
+
+## TimestampMixin 列是 naive，业务时间列是 aware
+
+[来源: Bug fix 2026-10-26 — 恢复留痕重插时 asyncpg `DataError`]
+
+`TimestampMixin` 的 `created_at/updated_at` 是 `DateTime` **无时区**（PG: `timestamp without time zone`），
+而业务时间列（如 `started_at/completed_at`）常声明为 `DateTime(timezone=True)`（PG: `timestamp with time zone`）。
+`cst_now()` 返回 **aware** datetime。把 aware 值写给 naive 列，asyncpg 在 Cython 层做减法时报错，
+错误信息是 `can't subtract offset-naive and offset-aware datetimes`，**堆栈不含 Python 帧**，极难定位。
+
+```python
+# WRONG — completed_at 是 aware（cst_now()），直接写给 naive 列
+await db.execute(insert(BackupRecord).values(..., created_at=completed_at, updated_at=completed_at))
+
+# CORRECT — 显式剥离时区
+naive_now = completed_at.replace(tzinfo=None)
+await db.execute(insert(BackupRecord).values(..., created_at=naive_now, updated_at=naive_now))
+```
+
+**判定方法**：`SELECT column_name, data_type FROM information_schema.columns WHERE table_name='...'`，
+看是 `timestamp with time zone` 还是 `without time zone`，与 `app/utils/timezone.py` 的 `cst_now()`（aware）对齐。
+
+**Tests Required**：恢复/清理等手写 `insert(...)` 的路径必须覆盖终态落库；
+`tests/unit/test_test_data_consistency.py` 已守住 seed 与模型的权限种子一致性。
