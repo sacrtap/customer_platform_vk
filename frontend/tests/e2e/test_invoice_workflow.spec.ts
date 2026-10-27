@@ -158,4 +158,40 @@ test.describe('结算单工作流 @smoke', () => {
       await page.keyboard.press('Escape').catch(() => {})
     }
   })
+
+  test('导出按钮有「导出中」状态', async ({ page }) => {
+    await page.goto('/billing/invoices')
+    await page.waitForTimeout(2000)
+
+    const exportBtn = page.locator('button:has-text("导出")').first()
+    await expect(exportBtn).toBeVisible()
+
+    // 拦截导出请求并延迟响应，保证能观察到「导出中」中间态
+    let releaseDownload: () => void = () => {}
+    const downloadGate = new Promise<void>((resolve) => {
+      releaseDownload = resolve
+    })
+    await page.route('**/billing/invoices/export', async (route) => {
+      await downloadGate
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        body: 'xlsx-placeholder',
+      })
+    })
+
+    await exportBtn.click()
+
+    // 请求挂起期间按钮应禁用并切换文案
+    const busyBtn = page.locator('button:has-text("导出中")').first()
+    await expect(busyBtn).toBeVisible()
+    await expect(busyBtn).toBeDisabled()
+
+    releaseDownload()
+    await page.waitForTimeout(1500)
+
+    // 完成后恢复可点击状态
+    const restoredBtn = page.locator('button:has-text("导出")').first()
+    await expect(restoredBtn).toBeEnabled()
+  })
 })
