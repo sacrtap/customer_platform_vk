@@ -69,7 +69,7 @@ async function openReady() {
   vi.mocked(getBatchDownloadDetailMeta).mockResolvedValue({
     data: { list: metaList },
   } as never)
-  await w.setProps({ visible: true })
+  await w.setProps({ visible: true } as never)
   await settle()
   return w
 }
@@ -104,7 +104,7 @@ describe('BatchDownloadDetailModal', () => {
     const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => '' as never)
     const w = mountModal()
     vi.mocked(getBatchDownloadDetailMeta).mockRejectedValue(new Error('boom'))
-    await w.setProps({ visible: true })
+    await w.setProps({ visible: true } as never)
     await settle()
     // 拦截器 reject 的对象带 message 时优先展示
     expect(errorSpy).toHaveBeenCalledWith('boom')
@@ -116,7 +116,7 @@ describe('BatchDownloadDetailModal', () => {
     const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => '' as never)
     const w = mountModal()
     vi.mocked(getBatchDownloadDetailMeta).mockRejectedValue(null)
-    await w.setProps({ visible: true })
+    await w.setProps({ visible: true } as never)
     await settle()
     expect(errorSpy).toHaveBeenCalledWith('获取下载信息失败')
     errorSpy.mockRestore()
