@@ -296,7 +296,9 @@ export function useCustomerList() {
   }
 
   // ---------- 导出 ----------
+  const exporting = ref(false)
   const handleExport = async () => {
+    exporting.value = true
     try {
       const params = buildParams()
       delete params.page
@@ -318,6 +320,8 @@ export function useCustomerList() {
       Message.success('导出成功')
     } catch (error: unknown) {
       handleError(error, '导出失败')
+    } finally {
+      exporting.value = false
     }
   }
 
@@ -407,6 +411,7 @@ export function useCustomerList() {
     openBatchEditDialog,
     clearBatchSelection,
     // 导出
+    exporting,
     handleExport,
     // 模态框方法
     openCreateModal,

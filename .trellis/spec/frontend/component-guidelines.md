@@ -85,6 +85,45 @@ interface ImportResult {
 
 ---
 
+## 页面级异步按钮契约（导出/同步类请求）
+
+导出、同步等**同步阻塞型**请求必须给按钮加「进行中」状态。缺了它，用户会重复点击触发多次请求。
+
+```ts
+// composable 内：状态 + try/finally 保证异常路径也复位
+const exporting = ref(false)
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    /* ... await exportXxx(params) ... */
+  } catch (error: unknown) {
+    handleError(error, '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+```
+
+```vue
+<!-- 页面按钮：禁用 + 文案切换，二者缺一不可 -->
+<button class="btn" :disabled="exporting" @click="handleExport">
+  {{ exporting ? '导出中...' : '导出' }}
+</button>
+```
+
+| 要点 | 说明 |
+|---|---|
+| `finally` 复位 | 只写 try 分支的话，请求失败后按钮会**永久卡在「导出中」** |
+| 状态放 composable | 页面级按钮与批量工具栏可能共用同一 handler，状态须从 composable 暴露，两边才能同步 |
+| 批量入口同步禁用 | 同一 action 的第二个入口（如批量工具栏的「批量导出」）必须同步 `:disabled`，否则绕过防护 |
+| 仅禁自身按钮 | 禁用范围限于触发该 action 的按钮，不要连带禁用页面其他操作（如「刷新」） |
+
+> **Warning（一致性陷阱）**：`views/billing/` 的 `Balance.vue` / `PackagePlans.vue` / `PricingRules.vue`
+> 均已实现该契约，但客户管理页（`views/customers/Index.vue`）与结算单页（`views/billing/Invoices.vue`）
+> 曾缺失。新增导出按钮时**先对照这三个 billing 页面**，不要从客户页或结算单页复制。
+
+---
+
 ## 常见陷阱
 
 | 现象 | 原因 | 处理 |

@@ -6,14 +6,16 @@
       >
       <button class="btn" @click="emit('batchAction', 'edit')">批量编辑</button>
       <button class="btn" @click="emit('batchAction', 'assign')">分配负责人</button>
-      <button class="btn" @click="emit('batchAction', 'export')">批量导出</button>
+      <button class="btn" :disabled="exporting" @click="emit('batchAction', 'export')">
+        {{ exporting ? '导出中...' : '批量导出' }}
+      </button>
       <button class="btn" @click="$emit('addTag')">设标签</button>
     </div>
   </transition>
 </template>
 
 <script setup lang="ts">
-defineProps<{ selectedCount: number }>()
+defineProps<{ selectedCount: number; exporting?: boolean }>()
 
 const emit = defineEmits<{
   batchAction: [action: string]
@@ -70,6 +72,11 @@ const emit = defineEmits<{
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {

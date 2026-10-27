@@ -26,4 +26,17 @@ describe('BatchToolbar', () => {
     await buttons[0].trigger('click')
     expect(wrapper.emitted('batchAction')).toBeTruthy()
   })
+
+  it('导出中时批量导出按钮禁用且文案切换', () => {
+    const idle = mount(BatchToolbar, { props: { selectedCount: 2 } })
+    const idleExportBtn = idle.findAll('button').find((b) => b.text() === '批量导出')
+    expect(idleExportBtn?.attributes('disabled')).toBeUndefined()
+
+    const busy = mount(BatchToolbar, { props: { selectedCount: 2, exporting: true } })
+    const busyExportBtn = busy.findAll('button').find((b) => b.text() === '导出中...')
+    expect(busyExportBtn?.attributes('disabled')).toBeDefined()
+    // 其他按钮不受影响
+    const editBtn = busy.findAll('button').find((b) => b.text() === '批量编辑')
+    expect(editBtn?.attributes('disabled')).toBeUndefined()
+  })
 })
