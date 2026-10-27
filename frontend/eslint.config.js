@@ -1,7 +1,8 @@
-import js from '@eslint/js';
-import vue from 'eslint-plugin-vue';
-import tseslint from 'typescript-eslint';
-import prettier from 'eslint-config-prettier';
+import js from '@eslint/js'
+import vue from 'eslint-plugin-vue'
+import tseslint from 'typescript-eslint'
+import prettier from 'eslint-config-prettier'
+import asyncButtonLoading from './eslint-rules/async-button-loading.js'
 
 export default [
   {
@@ -24,6 +25,13 @@ export default [
   // 通用规则
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,vue}'],
+    plugins: {
+      local: {
+        rules: {
+          'async-button-loading': asyncButtonLoading,
+        },
+      },
+    },
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -47,6 +55,8 @@ export default [
       ],
       // Vue 规则
       'vue/multi-word-component-names': 'off',
+      // 异步动作按钮必须绑定禁用态（:disabled / :loading），防止重复点击触发多次请求
+      'local/async-button-loading': 'error',
     },
   },
   // 测试文件：放宽未使用参数规则（Playwright fixture 参数可能未使用）
@@ -65,4 +75,4 @@ export default [
   },
   // Prettier 兼容（关闭与 Prettier 冲突的规则）
   prettier,
-];
+]
