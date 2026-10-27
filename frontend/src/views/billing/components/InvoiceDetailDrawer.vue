@@ -107,6 +107,7 @@
               <button
                 v-if="can('billing:view') && invoice.detail_file_status === 'completed'"
                 class="btn btn-sm"
+                :disabled="downloading"
                 @click="handleDownload"
               >
                 下载明细
@@ -114,6 +115,7 @@
               <button
                 v-if="can('billing:detail_regenerate') && invoice.detail_file_status === 'failed'"
                 class="btn btn-sm"
+                :disabled="regenerating"
                 @click="handleRegenerate"
               >
                 重新生成
@@ -464,8 +466,12 @@ const flowSettledDescription = computed(() =>
 )
 
 // ===== 明细文件下载/重试 =====
+const downloading = ref(false)
+const regenerating = ref(false)
+
 const handleDownload = async () => {
   if (!props.invoice) return
+  downloading.value = true
   try {
     const res = await downloadInvoiceDetail(props.invoice.id)
     const url = window.URL.createObjectURL(new Blob([res.data]))
@@ -476,11 +482,14 @@ const handleDownload = async () => {
     window.URL.revokeObjectURL(url)
   } catch {
     Message.error('下载失败')
+  } finally {
+    downloading.value = false
   }
 }
 
 const handleRegenerate = async () => {
   if (!props.invoice) return
+  regenerating.value = true
   try {
     await regenerateInvoiceDetail(props.invoice.id)
     Message.success('明细文件重新生成中')
@@ -488,6 +497,8 @@ const handleRegenerate = async () => {
     emit('regenerate-detail', props.invoice.id)
   } catch {
     Message.error('操作失败')
+  } finally {
+    regenerating.value = false
   }
 }
 </script>

@@ -4,6 +4,7 @@ import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { useCustomerStore } from '@/stores/customer'
 import { handleError } from '@/utils/errorHandler'
+import { useExportAction } from '@/composables/useExportAction'
 import { getCustomers, deleteCustomer, exportCustomers, getIndustryTypes } from '@/api/customers'
 import { getTags } from '@/api/tags'
 import { getManagers } from '@/api/users'
@@ -296,33 +297,16 @@ export function useCustomerList() {
   }
 
   // ---------- 导出 ----------
-  const exporting = ref(false)
+  // 参数构造与导出一并收进 run()，保证 exporting 覆盖整个请求周期
+  const { exporting, run: runExport } = useExportAction({
+    exportApi: exportCustomers,
+    filename: () => `customers_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  })
   const handleExport = async () => {
-    exporting.value = true
-    try {
-      const params = buildParams()
-      delete params.page
-      delete params.page_size
-
-      const res = await exportCustomers(params)
-      const blob = new Blob([res.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-
-      Message.success('导出成功')
-    } catch (error: unknown) {
-      handleError(error, '导出失败')
-    } finally {
-      exporting.value = false
-    }
+    const params = buildParams()
+    delete params.page
+    delete params.page_size
+    await runExport(params)
   }
 
   // ---------- 模态框操作 ----------

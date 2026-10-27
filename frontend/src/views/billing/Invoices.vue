@@ -36,16 +36,36 @@
       <div v-if="hasSelected" class="batch-toolbar">
         <span class="batch-info">已选择 {{ selectedInvoiceIds.length }} 项</span>
         <div class="batch-actions">
-          <button v-if="can('billing:edit')" class="btn btn-primary-sm" @click="onBatchSubmit">
+          <button
+            v-if="can('billing:edit')"
+            class="btn btn-primary-sm"
+            :disabled="batchLoading"
+            @click="onBatchSubmit"
+          >
             批量提交
           </button>
-          <button v-if="can('billing:edit')" class="btn btn-primary-sm" @click="onBatchCancel">
+          <button
+            v-if="can('billing:edit')"
+            class="btn btn-primary-sm"
+            :disabled="batchLoading"
+            @click="onBatchCancel"
+          >
             批量取消
           </button>
-          <button v-if="can('billing:delete')" class="btn btn-danger-sm" @click="onBatchDelete">
+          <button
+            v-if="can('billing:delete')"
+            class="btn btn-danger-sm"
+            :disabled="batchLoading"
+            @click="onBatchDelete"
+          >
             批量删除
           </button>
-          <button v-if="can('billing:view')" class="btn btn-sm" @click="onBatchDownloadDetail">
+          <button
+            v-if="can('billing:view')"
+            class="btn btn-sm"
+            :disabled="batchLoading"
+            @click="onBatchDownloadDetail"
+          >
             批量下载明细
           </button>
           <button class="btn btn-sm" @click="clearSelection">取消选择</button>
@@ -316,11 +336,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Message, Modal } from '@arco-design/web-vue'
+import { Modal } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { useUserStore } from '@/stores/user'
 import { useInvoice } from '@/composables/useInvoice'
+import { useExportAction } from '@/composables/useExportAction'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
 import {
   type Invoice,
@@ -409,6 +430,8 @@ const submitModalVisible = ref(false)
 const discountEditVisible = ref(false)
 const selectedInvoiceId = ref<number>(0)
 const retryingId = ref<number | null>(null)
+// 批量操作进行中（提交/取消/删除共用，任一进行中即禁用全部批量按钮）
+const batchLoading = ref(false)
 
 // --- 列定义（含操作列固定右侧） ---
 const STORAGE_KEY = 'invoices_table_columns'
@@ -500,10 +523,13 @@ const onBatchSubmit = () => {
     title: '确认批量提交',
     content: `确定要提交所选的 ${selectedInvoiceIds.value.length} 个结算单吗？非草稿状态的结算单将被跳过。`,
     onOk: async () => {
+      batchLoading.value = true
       try {
         await doBatchSubmit()
       } catch {
         // 错误消息已由 useInvoice 处理
+      } finally {
+        batchLoading.value = false
       }
     },
   })
@@ -514,10 +540,13 @@ const onBatchCancel = () => {
     title: '确认批量取消',
     content: `确定要取消所选的 ${selectedInvoiceIds.value.length} 个结算单吗？不可取消的状态将被跳过。`,
     onOk: async () => {
+      batchLoading.value = true
       try {
         await doBatchCancel()
       } catch {
         // 错误消息已由 useInvoice 处理
+      } finally {
+        batchLoading.value = false
       }
     },
   })
@@ -528,6 +557,7 @@ const onBatchDelete = () => {
     title: '确认批量删除',
     content: `确定要删除所选的 ${selectedInvoiceIds.value.length} 个结算单吗？此操作不可恢复。`,
     onOk: async () => {
+      batchLoading.value = true
       try {
         await doBatchDelete()
       } catch {
@@ -574,25 +604,17 @@ const handleUpdateSettlementAccount = async (invoiceId: number, accountId: numbe
 
 const goToCustomer = (id: number) => router.push(`/customers/${id}`)
 
-const exporting = ref(false)
-const handleExport = async () => {
-  exporting.value = true
-  try {
-    const params: Record<string, unknown> = {}
-    if (filters.status) params.status = filters.status
-    const res = await exportInvoices(params)
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement('a')
-    link.href = url
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportInvoices,
+  filename: () => {
     const statusPart = filters.status ? `_${filters.status}` : ''
-    link.download = `结算单${statusPart}_${new Date().toISOString().slice(0, 10)}.xlsx`
-    link.click()
-    window.URL.revokeObjectURL(url)
-  } catch {
-    Message.error('导出失败，请稍后重试')
-  } finally {
-    exporting.value = false
-  }
+    return `结算单${statusPart}_${new Date().toISOString().slice(0, 10)}.xlsx`
+  },
+})
+const handleExport = () => {
+  const params: Record<string, unknown> = {}
+  if (filters.status) params.status = filters.status
+  return runExport(params)
 }
 
 const handleGenerateSuccess = () => {

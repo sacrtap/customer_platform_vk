@@ -89,38 +89,88 @@ interface ImportResult {
 
 导出、同步等**同步阻塞型**请求必须给按钮加「进行中」状态。缺了它，用户会重复点击触发多次请求。
 
+### 首选：`useExportAction` composable
+
+导出类动作（调 `exportXxx` 拿 Blob 再触发下载）**一律用 `useExportAction`**，不要手抄状态与下载代码：
+
 ```ts
-// composable 内：状态 + try/finally 保证异常路径也复位
-const exporting = ref(false)
-const handleExport = async () => {
-  exporting.value = true
-  try {
-    /* ... await exportXxx(params) ... */
-  } catch (error: unknown) {
-    handleError(error, '导出失败')
-  } finally {
-    exporting.value = false
-  }
+import { useExportAction } from '@/composables/useExportAction'
+
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportBalances,
+  // 传函数以依赖当前筛选条件；传字符串则固定
+  filename: () => `balances_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  // 有自定义提示时置为 false，改由 onSuccess 接管
+  successMessage: false,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    } else {
+      Message.success('导出成功')
+    }
+  },
+})
+
+const handleExport = () => runExport(buildExportParams())
+```
+
+该 composable 已统一处理：`exporting` 状态与 `try/finally` 复位、Blob 构造、`<a download>` 点击、**延迟 1s 回收 object URL**（Safari/Firefox 会在下载启动前撤销导致失败）、`handleError` 兜底。
+
+| 选项 | 说明 |
+|---|---|
+| `exportApi` | 导出接口，参数由 `run()` 传入 |
+| `filename` | 字符串或函数（函数可读取当前筛选条件） |
+| `successMessage` | 默认 `'导出成功'`；`false` 表示不提示（交给 `onSuccess`） |
+| `onSuccess(res)` | 收到原始响应，可读 `X-Truncated` 等响应头 |
+| `errorMessage` | 失败兜底文案，默认 `'导出失败'` |
+
+### 非导出类异步动作：手写状态
+
+批量提交/删除、下载明细、重新生成等非导出动作用不到 `useExportAction`，按既有范式手写：
+
+```ts
+const batchLoading = ref(false)
+const onBatchDelete = () => {
+  Modal.confirm({
+    title: '确认批量删除',
+    onOk: async () => {
+      batchLoading.value = true
+      try {
+        await doBatchDelete()
+      } catch {
+        // 错误消息已由上层处理
+      } finally {
+        batchLoading.value = false
+      }
+    },
+  })
 }
 ```
 
 ```vue
 <!-- 页面按钮：禁用 + 文案切换，二者缺一不可 -->
-<button class="btn" :disabled="exporting" @click="handleExport">
-  {{ exporting ? '导出中...' : '导出' }}
-</button>
+<button class="btn" :disabled="batchLoading" @click="onBatchDelete">批量删除</button>
 ```
 
 | 要点 | 说明 |
 |---|---|
-| `finally` 复位 | 只写 try 分支的话，请求失败后按钮会**永久卡在「导出中」** |
+| `finally` 复位 | 只写 try 分支的话，请求失败后按钮会**永久卡在「进行中」** |
 | 状态放 composable | 页面级按钮与批量工具栏可能共用同一 handler，状态须从 composable 暴露，两边才能同步 |
 | 批量入口同步禁用 | 同一 action 的第二个入口（如批量工具栏的「批量导出」）必须同步 `:disabled`，否则绕过防护 |
 | 仅禁自身按钮 | 禁用范围限于触发该 action 的按钮，不要连带禁用页面其他操作（如「刷新」） |
+| 共享 loading 的取舍 | 一组互斥的批量按钮可共用一个 `batchLoading`（任一进行中即全禁），避免用户中途切换动作 |
 
-> **Warning（一致性陷阱）**：`views/billing/` 的 `Balance.vue` / `PackagePlans.vue` / `PricingRules.vue`
-> 均已实现该契约，但客户管理页（`views/customers/Index.vue`）与结算单页（`views/billing/Invoices.vue`）
-> 曾缺失。新增导出按钮时**先对照这三个 billing 页面**，不要从客户页或结算单页复制。
+### ESLint 护栏：`local/async-button-loading`
+
+`eslint-rules/async-button-loading.js` 会检查 `<button @click="handleXxx">` 是否绑定了 `:disabled` / `disabled` / `:loading`，命中即报错（CI 阻断）。
+
+- 判据：`@click` 为裸标识符或 `identifier(...)` 调用，且标识符匹配 `^(handle\|on\|run\|do)[A-Z]`
+- 白名单 `SYNC_HANDLERS`：确属同步的 handler（打开弹窗、分页、纯前端提示）加进去即可豁免
+- **不要把规则关掉了事**——它是这类 bug 的静态防线
+
+> **Warning（一致性陷阱）**：本契约曾被 5 个页面手抄，其中 2 个抄漏（客户管理页、结算单页），
+> 另有 9 处其他异步按钮从未实现。新增异步按钮前先跑 `npx eslint .`，确认不触发
+> `local/async-button-loading` 再提交。
 
 ---
 

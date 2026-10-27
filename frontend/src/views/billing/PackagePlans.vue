@@ -255,6 +255,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
+import { useExportAction } from '@/composables/useExportAction'
 import PageHeader from '@/components/PageHeader.vue'
 import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
@@ -311,38 +312,18 @@ const isEdit = ref(false)
 
 // --- 导入 / 导出 ---
 const importModalVisible = ref(false)
-const exporting = ref(false)
 
 // 导出包年套餐：按当前筛选条件导出全部匹配数据
-const handleExport = async () => {
-  exporting.value = true
-  try {
-    const res = await billingApi.exportPackagePlans({
-      keyword: filters.keyword || undefined,
-      status: filters.status || undefined,
-      is_unlimited: filters.is_unlimited || undefined,
-    })
-    const blob = new Blob([res.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `package_plans_${new Date().toISOString().slice(0, 10)}.xlsx`
-    document.body.appendChild(link)
-    link.click()
-    // 延迟回收：Safari/Firefox 可能在下载启动前撤销 object URL 导致下载失败
-    setTimeout(() => {
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    }, 1000)
-    Message.success('导出成功')
-  } catch (err: unknown) {
-    Message.error((err as Error)?.message || '导出失败')
-  } finally {
-    exporting.value = false
-  }
-}
+const { exporting, run: runExport } = useExportAction({
+  exportApi: billingApi.exportPackagePlans,
+  filename: () => `package_plans_${new Date().toISOString().slice(0, 10)}.xlsx`,
+})
+const handleExport = () =>
+  runExport({
+    keyword: filters.keyword || undefined,
+    status: filters.status || undefined,
+    is_unlimited: filters.is_unlimited || undefined,
+  })
 
 const formData = reactive({
   id: null as number | null,
