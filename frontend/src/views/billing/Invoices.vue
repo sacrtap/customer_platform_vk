@@ -6,7 +6,14 @@
         <button v-if="can('billing:invoice_import')" class="btn" @click="importModalVisible = true">
           导入
         </button>
-        <button v-if="can('billing:invoice_export')" class="btn" @click="handleExport">导出</button>
+        <button
+          v-if="can('billing:invoice_export')"
+          class="btn"
+          :disabled="exporting"
+          @click="handleExport"
+        >
+          {{ exporting ? '导出中...' : '导出' }}
+        </button>
         <button
           v-if="can('billing:detail_status_view')"
           class="btn"
@@ -567,7 +574,9 @@ const handleUpdateSettlementAccount = async (invoiceId: number, accountId: numbe
 
 const goToCustomer = (id: number) => router.push(`/customers/${id}`)
 
+const exporting = ref(false)
 const handleExport = async () => {
+  exporting.value = true
   try {
     const params: Record<string, unknown> = {}
     if (filters.status) params.status = filters.status
@@ -581,6 +590,8 @@ const handleExport = async () => {
     window.URL.revokeObjectURL(url)
   } catch {
     Message.error('导出失败，请稍后重试')
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -770,6 +781,10 @@ onMounted(async () => {
 .btn:hover {
   border-color: #93c5fd;
   background: #eff6ff;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .btn.primary {
   background: var(--primary);
