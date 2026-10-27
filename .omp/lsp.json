@@ -1,5 +1,5 @@
 {
-  "$comment": "项目级 LSP 覆盖。cwd 为仓库根，而 backend/ 与 frontend/ 才是各自的工程根；omp 的 rootMarkers 与 binary 解析均为 cwd-only（不递归子目录），故用 .git 作统一 rootMarker，binary 走 PATH。",
+  "$comment": "项目级 LSP 覆盖。cwd 为仓库根，而 backend/ 与 frontend/ 才是各自的工程根；omp 的 rootMarkers 与 binary 解析均为 cwd-only（不递归子目录），故用 .git 作统一 rootMarker。pyright/ruff 给绝对路径作为跨启动方式（GUI/launchd 等精简 PATH）的保险，交互式启动下走 $PATH 亦能解析。",
   "servers": {
     "clangd": {
       "disabled": true,
@@ -8,7 +8,7 @@
     "pyright": {
       "command": "/Users/sacrtap/.local/bin/pyright-langserver",
       "rootMarkers": [".git"],
-      "$comment": "omp 进程 PATH 不含 ~/.local/bin，$which 解析不到 pyright-langserver → loadConfig 过滤掉 → .py 请求全落到 ruff(返回 -32601)。显式给绝对路径绕过。rootMarker 用 .git：仓库根有 pyrightconfig.json 但 cwd-only 规则下 omp 不递归子目录，统一用 .git 命中。"
+      "$comment": "绝对路径作为跨启动方式保险：交互式启动下 $PATH 含 ~/.local/bin 能解析，但 GUI/launchd 等精简 PATH 启动时可能解析不到 → 显式给绝对路径兜底。rootMarker 用 .git：仓库根有 pyrightconfig.json 但 cwd-only 规则下 omp 不递归子目录，统一用 .git 命中。"
     },
     "ruff": {
       "command": "/Users/sacrtap/.pyenv/shims/ruff",
