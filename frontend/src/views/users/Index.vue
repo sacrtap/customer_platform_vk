@@ -17,78 +17,77 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="users"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        :scroll="{ x: 'max-content' }"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
-      >
-        <template #status="{ record }">
-          <span :class="['status-badge', record.is_active ? 'success' : 'danger']">
-            <span class="status-dot"></span>
-            {{ record.is_active ? '启用' : '禁用' }}
+    <DataTable
+      :columns="columns"
+      :data="users"
+      :loading="loading"
+      row-key="id"
+      :pagination="pagination"
+      :scroll="{ x: 1018 }"
+      :storage-key="'users_table_columns'"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <template #status="{ record }">
+        <span :class="['status-badge', record.is_active ? 'success' : 'danger']">
+          <span class="status-dot"></span>
+          {{ record.is_active ? '启用' : '禁用' }}
+        </span>
+      </template>
+      <template #roles="{ record }">
+        <a-tooltip
+          v-if="record.roles && record.roles.length > 0"
+          :content="record.roles?.map((r: { name: string }) => r.name).join(', ') || '-'"
+        >
+          <span>
+            <a-tag
+              v-for="(role, index) in record.roles"
+              v-show="index === 0"
+              :key="role.id"
+              size="small"
+              style="margin-right: 4px"
+            >
+              {{ role.name }}
+              <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8"
+                >+{{ record.roles.length - 1 }}</span
+              >
+            </a-tag>
           </span>
-        </template>
-        <template #roles="{ record }">
-          <a-tooltip
-            v-if="record.roles && record.roles.length > 0"
-            :content="record.roles?.map((r: { name: string }) => r.name).join(', ') || '-'"
+        </a-tooltip>
+        <span v-else>-</span>
+      </template>
+      <template #created_at="{ record }">
+        <a-tooltip :content="formatDateTime(record.created_at)">
+          <span>{{ formatDateTime(record.created_at) }}</span>
+        </a-tooltip>
+      </template>
+      <template #action="{ record }">
+        <a-space>
+          <a-button v-if="can('users:edit')" type="text" size="small" @click="handleEdit(record)"
+            >编辑</a-button
           >
-            <span>
-              <a-tag
-                v-for="(role, index) in record.roles"
-                v-show="index === 0"
-                :key="role.id"
-                size="small"
-                style="margin-right: 4px"
-              >
-                {{ role.name }}
-                <span v-if="record.roles.length > 1" style="font-size: 10px; opacity: 0.8"
-                  >+{{ record.roles.length - 1 }}</span
-                >
-              </a-tag>
-            </span>
-          </a-tooltip>
-          <span v-else>-</span>
-        </template>
-        <template #created_at="{ record }">
-          <a-tooltip :content="formatDateTime(record.created_at)">
-            <span>{{ formatDateTime(record.created_at) }}</span>
-          </a-tooltip>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button v-if="can('users:edit')" type="text" size="small" @click="handleEdit(record)"
-              >编辑</a-button
+          <a-button type="text" size="small" @click="handleResetPassword(record)">
+            重置密码
+          </a-button>
+          <a-popconfirm
+            v-if="can('users:delete')"
+            content="确认删除该用户？删除后无法恢复。"
+            @ok="handleDelete(record.id)"
+          >
+            <a-button type="text" size="small" status="danger" class="delete-btn">删除</a-button>
+          </a-popconfirm>
+        </a-space>
+      </template>
+      <template #empty>
+        <EmptyState title="暂无用户数据" description="点击「新建用户」添加第一个用户">
+          <template #action>
+            <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
+              >新建用户</a-button
             >
-            <a-button type="text" size="small" @click="handleResetPassword(record)">
-              重置密码
-            </a-button>
-            <a-popconfirm
-              v-if="can('users:delete')"
-              content="确认删除该用户？删除后无法恢复。"
-              @ok="handleDelete(record.id)"
-            >
-              <a-button type="text" size="small" status="danger" class="delete-btn">删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-        <template #empty>
-          <EmptyState title="暂无用户数据" description="点击「新建用户」添加第一个用户">
-            <template #action>
-              <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
-                >新建用户</a-button
-              >
-            </template>
-          </EmptyState>
-        </template>
-      </a-table>
-    </div>
+          </template>
+        </EmptyState>
+      </template>
+    </DataTable>
 
     <!-- 用户编辑对话框 -->
     <a-modal
@@ -159,6 +158,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -213,15 +213,58 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 60, align: 'right' as const },
-  { title: '用户名', dataIndex: 'username', width: 100, ellipsis: true, tooltip: true },
-  { title: '邮箱', dataIndex: 'email', width: 200, ellipsis: true, tooltip: true },
-  { title: '真实姓名', dataIndex: 'real_name', width: 90, ellipsis: true, tooltip: true },
-  { title: '角色', slotName: 'roles', width: 120 },
-  { title: '状态', slotName: 'status', width: 90, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 170 },
-  { title: '操作', slotName: 'action', width: 190, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  {
+    key: 'username',
+    title: '用户名',
+    dataIndex: 'username',
+    width: 110,
+    ellipsis: true,
+    tooltip: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'email',
+    title: '邮箱',
+    dataIndex: 'email',
+    ellipsis: true,
+    tooltip: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'real_name',
+    title: '真实姓名',
+    dataIndex: 'real_name',
+    width: 94,
+    ellipsis: true,
+    tooltip: true,
+    defaultVisible: true,
+  },
+  { key: 'roles', title: '角色', slotName: 'roles', width: 110, defaultVisible: true },
+  {
+    key: 'status',
+    title: '状态',
+    slotName: 'status',
+    width: 80,
+    align: 'center',
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 158,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 206,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 用户表单 ==========
@@ -554,14 +597,6 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.table-section {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
 }
 
 :deep(.arco-table) {

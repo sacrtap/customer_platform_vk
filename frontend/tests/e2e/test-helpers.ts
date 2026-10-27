@@ -429,18 +429,16 @@ export async function waitForTableLoaded(page: Page, timeout: number = 15000): P
     })
     .catch(() => {})
 
-  // 等待自定义表格的 loading 状态消失
+  // 等待自定义表格的 loading 状态消失（DataTable 迁移后由 .arco-spin 承载）
   await page
-    .waitForSelector('.loading-state', {
+    .waitForSelector('.loading-state, .arco-spin-loading', {
       state: 'hidden',
       timeout,
     })
     .catch(() => {})
 
   // 等待表格 body 存在（Arco 表格 或 自定义表格）
-  await page
-    .waitForSelector('.arco-table tbody, .table-section tbody, table.table tbody', { timeout })
-    .catch(() => {})
+  await page.waitForSelector('.arco-table tbody, .table-section tbody', { timeout }).catch(() => {})
 
   // 额外等待，确保数据渲染完成
   await page.waitForTimeout(500).catch(() => {})
@@ -460,10 +458,9 @@ export async function expectTableRowContains(
   timeout: number = 15000
 ): Promise<void> {
   await waitForTableLoaded(page)
-  const matchingRows = page.locator(
-    '.arco-table tbody tr, .table-section tbody tr, table tbody tr',
-    { hasText: text }
-  )
+  const matchingRows = page.locator('.arco-table tbody tr, .table-section tbody tr', {
+    hasText: text,
+  })
   await expect(matchingRows.first()).toBeVisible({ timeout })
 }
 

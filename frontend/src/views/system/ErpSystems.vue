@@ -8,13 +8,15 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
+    <div class="table-card">
+      <DataTable
         :columns="columns"
-        :data="erpSystems"
+        :data="erpSystems as unknown as Record<string, unknown>[]"
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        :scroll="{ x: 660 }"
+        :storage-key="STORAGE_KEY"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
@@ -52,7 +54,7 @@
         <template #created_at="{ record }">
           {{ formatDateTime(record.created_at) }}
         </template>
-      </a-table>
+      </DataTable>
     </div>
 
     <!-- 新增/编辑对话框 -->
@@ -83,6 +85,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -112,13 +115,48 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: 'ERP 系统名称', dataIndex: 'name', width: 200 },
-  { title: '存储值', dataIndex: 'value', width: 160 },
-  { title: '排序号', dataIndex: 'sort_order', width: 100, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
+const STORAGE_KEY = 'erp_systems_table_columns'
+const columns: DataTableColumn[] = [
+  {
+    key: 'id',
+    title: 'ID',
+    dataIndex: 'id',
+    width: 56,
+    align: 'right' as const,
+    defaultVisible: true,
+  },
+  {
+    key: 'name',
+    title: 'ERP 系统名称',
+    dataIndex: 'name',
+    width: 104,
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  { key: 'value', title: '存储值', dataIndex: 'value', width: 130, defaultVisible: true },
+  {
+    key: 'sort_order',
+    title: '排序号',
+    dataIndex: 'sort_order',
+    width: 64,
+    align: 'center' as const,
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 158,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 表单 ==========
@@ -237,32 +275,5 @@ onMounted(() => {
 <style scoped>
 .erp-systems-page {
   padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
-}
-
-.table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-:deep(.arco-table) {
-  font-size: 14px;
-}
-
-:deep(.arco-table th) {
-  background: var(--bg);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-:deep(.arco-table td) {
-  color: #334155;
-}
-
-:deep(.arco-table tr:hover td) {
-  background: var(--bg);
 }
 </style>

@@ -66,100 +66,74 @@
       </div>
 
       <!-- 表格 -->
-      <div class="table-section">
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width: 200px">套餐名称</th>
-                <th style="width: 120px">套餐类型</th>
-                <th style="width: 120px">限量类型</th>
-                <th style="width: 120px">限量数量</th>
-                <th style="width: 140px">基础费用（年）</th>
-                <th style="width: 140px">超额单价</th>
-                <th style="width: 100px">状态</th>
-                <th style="width: 150px">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in data" :key="record.id">
-                <!-- 套餐名称 -->
-                <td>
-                  <span class="cust-name">{{ record.name }}</span>
-                </td>
-                <!-- 套餐类型 -->
-                <td>
-                  <span class="tag violet">{{ record.package_type }}</span>
-                </td>
-                <!-- 限量类型 -->
-                <td>
-                  <span v-if="record.is_unlimited" class="tag green">不限量</span>
-                  <span v-else class="tag amber">限量</span>
-                </td>
-                <!-- 限量数量 -->
-                <td>
-                  <span v-if="record.is_unlimited" class="subtle">-</span>
-                  <span v-else-if="record.limit_count != null" class="amount">{{
-                    record.limit_count.toLocaleString()
-                  }}</span>
-                  <span v-else class="subtle">未设置</span>
-                </td>
-                <!-- 基础费用 -->
-                <td>
-                  <span class="amount">¥{{ record.base_fee.toFixed(2) }}</span>
-                </td>
-                <!-- 超额单价 -->
-                <td>
-                  <span v-if="record.is_unlimited" class="subtle">-</span>
-                  <span v-else-if="record.over_limit_unit_price != null" class="amount"
-                    >¥{{ record.over_limit_unit_price.toFixed(2) }}</span
-                  >
-                  <span v-else class="subtle">自动</span>
-                </td>
-                <!-- 状态 -->
-                <td>
-                  <span v-if="record.status === 'active'" class="tag green">启用</span>
-                  <span v-else class="tag gray">停用</span>
-                </td>
-                <!-- 操作 -->
-                <td style="white-space: nowrap">
-                  <button
-                    v-if="can('billing:edit')"
-                    class="btn"
-                    style="padding: 4px 10px; font-size: 12px"
-                    @click="showEditModal(record)"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    v-if="can('billing:delete')"
-                    class="btn btn-danger"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleDelete(record)"
-                  >
-                    删除
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="data.length === 0 && !loading">
-                <td :colspan="8" class="empty-state">暂无包年套餐数据</td>
-              </tr>
-              <tr v-if="loading">
-                <td :colspan="8" class="loading-state">加载中...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <DataTable
+        :columns="tableColumns"
+        :data="data as unknown as Record<string, unknown>[]"
+        :loading="loading"
+        :pagination="paginationConfig"
+        :row-key="'id'"
+        :scroll="{ x: 812 }"
+        :storage-key="STORAGE_KEY"
+        @page-change="onPageChange"
+        @page-size-change="onPageSizeChange"
+      >
+        <template #name="{ record }">
+          <span class="cust-name">{{ (record as PackagePlan).name }}</span>
+        </template>
 
-        <!-- 分页 -->
-        <Pagination
-          :current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="pagination.total"
-          @page-change="onPageChange"
-          @page-size-change="onPageSizeChange"
-        />
-      </div>
+        <template #package_type="{ record }">
+          <span class="tag violet">{{ (record as PackagePlan).package_type }}</span>
+        </template>
+
+        <template #is_unlimited="{ record }">
+          <span v-if="(record as PackagePlan).is_unlimited" class="tag green">不限量</span>
+          <span v-else class="tag amber">限量</span>
+        </template>
+
+        <template #limit_count="{ record }">
+          <span v-if="(record as PackagePlan).is_unlimited" class="subtle">-</span>
+          <span v-else-if="(record as PackagePlan).limit_count != null" class="amount">{{
+            (record as PackagePlan).limit_count!.toLocaleString()
+          }}</span>
+          <span v-else class="subtle">未设置</span>
+        </template>
+
+        <template #base_fee="{ record }">
+          <span class="amount">¥{{ (record as PackagePlan).base_fee.toFixed(2) }}</span>
+        </template>
+
+        <template #over_limit_unit_price="{ record }">
+          <span v-if="(record as PackagePlan).is_unlimited" class="subtle">-</span>
+          <span v-else-if="(record as PackagePlan).over_limit_unit_price != null" class="amount"
+            >¥{{ (record as PackagePlan).over_limit_unit_price!.toFixed(2) }}</span
+          >
+          <span v-else class="subtle">自动</span>
+        </template>
+
+        <template #status="{ record }">
+          <span v-if="(record as PackagePlan).status === 'active'" class="tag green">启用</span>
+          <span v-else class="tag gray">停用</span>
+        </template>
+
+        <template #action="{ record }">
+          <button
+            v-if="can('billing:edit')"
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px"
+            @click.stop="showEditModal(record as PackagePlan)"
+          >
+            编辑
+          </button>
+          <button
+            v-if="can('billing:delete')"
+            class="btn btn-danger"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleDelete(record as PackagePlan)"
+          >
+            删除
+          </button>
+        </template>
+      </DataTable>
     </div>
 
     <!-- 创建/编辑套餐弹窗 -->
@@ -277,14 +251,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import ImportModal from './components/ImportModal.vue'
-import Pagination from '@/components/ui/Pagination.vue'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -382,7 +356,48 @@ const formData = reactive({
   status: 'active' as 'active' | 'inactive',
 })
 
-// --- 分页计算 ---
+// --- 列定义（含操作列固定右侧） ---
+const STORAGE_KEY = 'package_plans_table_columns'
+
+interface ColumnDef {
+  key: string
+  title: string
+  width?: number
+  align?: 'left' | 'center' | 'right'
+}
+
+const columnDefs: ColumnDef[] = [
+  { key: 'name', title: '套餐名称' },
+  { key: 'package_type', title: '套餐类型', width: 122, align: 'center' },
+  { key: 'is_unlimited', title: '限量类型', width: 80, align: 'center' },
+  { key: 'limit_count', title: '限量数量', width: 76, align: 'right' },
+  { key: 'base_fee', title: '基础费用（年）', width: 112, align: 'right' },
+  { key: 'over_limit_unit_price', title: '超额单价', width: 76, align: 'right' },
+  { key: 'status', title: '状态', width: 68, align: 'center' },
+]
+
+const tableColumns = computed<DataTableColumn[]>(() => [
+  ...columnDefs.map((col) => ({
+    key: col.key,
+    title: col.title,
+    width: col.width,
+    align: col.align,
+  })),
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 124 },
+])
+
+// --- 分页配置：透传给 a-table 内置分页 ---
+const paginationConfig = computed(() => ({
+  current: pagination.current,
+  pageSize: pagination.pageSize,
+  total: pagination.total,
+  showTotal: true,
+  showPageSize: true,
+  showJumper: true,
+  pageSizeOptions: [10, 20, 50, 100],
+}))
+
+// --- 分页 ---
 const onPageChange = (page: number) => {
   pagination.current = page
   fetchData()
@@ -649,47 +664,6 @@ onMounted(() => {
   align-items: center;
 }
 
-/* 表格容器 */
-.table-section {
-  display: flex;
-  flex-direction: column;
-}
-.table-wrap {
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-}
-
-/* 表格 */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  table-layout: auto;
-}
-.table th,
-.table td {
-  padding: 10px 10px;
-  border-bottom: 1px solid #edf2f7;
-  text-align: left;
-  white-space: nowrap;
-}
-.table th {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.table tbody tr {
-  transition: background 0.15s;
-}
-.table tbody tr:hover td {
-  background: #f8fbff;
-}
-
 /* 客户名称 */
 .cust-name {
   font-weight: 600;
@@ -701,27 +675,6 @@ onMounted(() => {
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-}
-
-/* 空状态 / 加载状态 */
-.empty-state,
-.loading-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-/* 分页 */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #edf2f7;
 }
 
 @media (max-width: 1100px) {

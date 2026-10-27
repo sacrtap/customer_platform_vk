@@ -46,265 +46,204 @@
       </div>
 
       <!-- 表格 -->
-      <div class="table-section">
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width: 40px">
-                  <input
-                    type="checkbox"
-                    :checked="allChecked"
-                    :indeterminate.prop="someChecked"
-                    @change="onToggleAll"
-                  />
-                </th>
-                <th
-                  :class="getThClass('invoice_no')"
-                  style="width: 200px"
-                  @click="toggleSort('invoice_no')"
-                >
-                  <span>结算单号</span>
-                  <span class="th-sort-indicator"></span>
-                </th>
-                <th style="width: 180px">客户</th>
-                <th style="width: 220px">周期</th>
-                <th
-                  :class="getThClass('total_amount')"
-                  style="width: 120px; text-align: right"
-                  @click="toggleSort('total_amount')"
-                >
-                  <span>总金额</span>
-                  <span class="th-sort-indicator"></span>
-                </th>
-                <th style="width: 90px; text-align: right">减免金额</th>
-                <th
-                  :class="getThClass('final_amount')"
-                  style="width: 120px; text-align: right"
-                  @click="toggleSort('final_amount')"
-                >
-                  <span>最终结算金额</span>
-                  <span class="th-sort-indicator"></span>
-                </th>
-                <th style="width: 80px">文件</th>
-                <th style="width: 100px">状态</th>
-                <th
-                  :class="getThClass('created_at')"
-                  style="width: 150px"
-                  @click="toggleSort('created_at')"
-                >
-                  <span>创建时间</span>
-                  <span class="th-sort-indicator"></span>
-                </th>
-                <th style="width: 180px">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="record in invoices"
-                :key="record.id"
-                class="row-clickable"
-                @click="viewInvoice(record)"
-              >
-                <!-- 多选 -->
-                <td @click.stop>
-                  <input
-                    type="checkbox"
-                    :checked="selectedInvoiceIds.includes(record.id)"
-                    @change="onSelectRow($event, record.id)"
-                  />
-                </td>
-                <!-- 结算单号 -->
-                <td>
-                  <span class="invoice-no">{{ record.invoice_no }}</span>
-                </td>
-                <!-- 客户 -->
-                <td>
-                  <span class="cust-name">{{
-                    record.customer_name || `#${record.customer_id}`
-                  }}</span>
-                </td>
-                <!-- 周期 -->
-                <td>
-                  <span class="cell-nowrap"
-                    >{{ formatDate(record.period_start) }} ~
-                    {{ formatDate(record.period_end) }}</span
-                  >
-                </td>
-                <!-- 总金额 -->
-                <td style="text-align: right">
-                  <span class="amount">{{ formatCurrency(record.total_amount) }}</span>
-                </td>
-                <!-- 减免金额 -->
-                <td style="text-align: right">
-                  <span
-                    v-if="record.discount_amount && record.discount_amount !== 0"
-                    :class="['amount', record.discount_amount > 0 ? 'text-danger' : 'text-success']"
-                  >
-                    {{ record.discount_amount > 0 ? '-' : '+'
-                    }}{{ formatCurrency(Math.abs(record.discount_amount)) }}
-                  </span>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 最终结算金额 -->
-                <td style="text-align: right">
-                  <span class="amount-final">{{ formatCurrency(record.final_amount) }}</span>
-                </td>
-                <td style="text-align: center">
-                  <span v-if="record.detail_file_status === 'completed'" title="明细文件已生成"
-                    >📄</span
-                  >
-                  <span
-                    v-else-if="record.detail_file_status === 'generating'"
-                    title="生成中..."
-                    class="subtle"
-                    >⏳</span
-                  >
-                  <template v-else-if="record.detail_file_status === 'failed'">
-                    <span title="生成失败" class="text-danger">❌</span>
-                    <button
-                      v-if="can('billing:edit')"
-                      class="btn btn-primary-sm batch-toolbar-btn"
-                      @click.stop="handleRegenerateDetail(record.id)"
-                    >
-                      重新生成
-                    </button>
-                  </template>
-                  <template v-else-if="record.detail_file_status === 'pending'">
-                    <span title="待生成" class="subtle">⏳</span>
-                    <button
-                      v-if="can('billing:edit')"
-                      class="btn btn-primary-sm batch-toolbar-btn"
-                      @click.stop="handleRegenerateDetail(record.id)"
-                    >
-                      重新生成
-                    </button>
-                  </template>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 状态 -->
-                <td>
-                  <InvoiceStatusBadge :status="record.status" />
-                </td>
-                <!-- 创建时间 -->
-                <td>
-                  <span class="cell-nowrap">{{ formatDateTime(record.created_at) }}</span>
-                </td>
-                <!-- 操作 -->
-                <td style="white-space: nowrap" @click.stop>
-                  <button
-                    v-if="record.status === 'draft'"
-                    class="btn btn-primary-sm"
-                    style="padding: 4px 10px; font-size: 12px"
-                    @click="openSubmitModal(record)"
-                  >
-                    提交
-                  </button>
-                  <button
-                    v-if="can('billing:ops_approve') && record.status === 'pending_ops'"
-                    class="btn btn-primary-sm"
-                    :style="{
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      marginLeft: '4px',
-                      opacity: canConfirmOps(record) ? 1 : 0.5,
-                      cursor: canConfirmOps(record) ? 'pointer' : 'not-allowed',
-                    }"
-                    :disabled="!canConfirmOps(record)"
-                    :title="canConfirmOps(record) ? '' : opsDisabledTip(record)"
-                    @click="canConfirmOps(record) && handleSingleAction(record, 'confirm-ops')"
-                  >
-                    运营确认
-                  </button>
-                  <button
-                    v-if="can('billing:sales_approve') && record.status === 'pending_sales'"
-                    class="btn btn-primary-sm"
-                    :style="{
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      marginLeft: '4px',
-                      opacity: canConfirmSales(record) ? 1 : 0.5,
-                      cursor: canConfirmSales(record) ? 'pointer' : 'not-allowed',
-                    }"
-                    :disabled="!canConfirmSales(record)"
-                    :title="canConfirmSales(record) ? '' : salesDisabledTip(record)"
-                    @click="canConfirmSales(record) && handleSingleAction(record, 'confirm-sales')"
-                  >
-                    销售确认
-                  </button>
-                  <button
-                    v-if="
-                      can('billing:discount_approve') &&
-                      record.status === 'pending_discount_approval'
-                    "
-                    class="btn btn-primary-sm"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleSingleAction(record, 'approve-discount')"
-                  >
-                    审批通过
-                  </button>
-                  <button
-                    v-if="record.status === 'pending_customer'"
-                    class="btn btn-primary-sm"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleSingleAction(record, 'confirm')"
-                  >
-                    客户确认
-                  </button>
-                  <button
-                    v-if="record.status === 'customer_confirmed'"
-                    class="btn btn-primary-sm"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    :disabled="retryingId === record.id"
-                    @click="handleSingleAction(record, 'retry-deduction')"
-                  >
-                    {{ retryingId === record.id ? '扣款中...' : '重试扣款' }}
-                  </button>
-                  <button
-                    v-if="
-                      [
-                        'draft',
-                        'pending_ops',
-                        'pending_sales',
-                        'pending_discount_approval',
-                        'pending_customer',
-                      ].includes(record.status)
-                    "
-                    class="btn"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleSingleAction(record, 'cancel')"
-                  >
-                    取消
-                  </button>
-                  <button
-                    v-if="can('billing:edit') && record.status === 'draft'"
-                    class="btn btn-danger"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleSingleAction(record, 'delete')"
-                  >
-                    删除
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="invoices.length === 0 && !loading">
-                <td :colspan="9" class="empty-state">暂无结算单数据</td>
-              </tr>
-              <tr v-if="loading">
-                <td :colspan="9" class="loading-state">加载中...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <DataTable
+        :columns="tableColumns"
+        :data="invoices as unknown as Record<string, unknown>[]"
+        :loading="loading"
+        :pagination="paginationConfig"
+        :row-key="'id'"
+        :row-selection="rowSelectionConfig"
+        :row-class="'row-clickable'"
+        :scroll="{ x: 1410 }"
+        :storage-key="STORAGE_KEY"
+        @page-change="onPageChange"
+        @page-size-change="onPageSizeChange"
+        @sorter-change="onSorterChange"
+        @row-click="onRowClick"
+        @select="onRowSelect"
+        @select-all="onSelectAll"
+      >
+        <template #invoice_no="{ record }">
+          <span class="invoice-no">{{ (record as Invoice).invoice_no }}</span>
+        </template>
 
-        <!-- 分页 -->
-        <Pagination
-          :current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="total"
-          @page-change="onPageChange"
-          @page-size-change="onPageSizeChange"
-        />
-      </div>
+        <template #customer="{ record }">
+          <span class="cust-name">{{
+            (record as Invoice).customer_name || `#${(record as Invoice).customer_id}`
+          }}</span>
+        </template>
+
+        <template #period="{ record }">
+          <span class="cell-nowrap"
+            >{{ formatDate((record as Invoice).period_start) }} ~
+            {{ formatDate((record as Invoice).period_end) }}</span
+          >
+        </template>
+
+        <template #total_amount="{ record }">
+          <span class="amount">{{ formatCurrency((record as Invoice).total_amount) }}</span>
+        </template>
+
+        <template #discount_amount="{ record }">
+          <span
+            v-if="(record as Invoice).discount_amount && (record as Invoice).discount_amount !== 0"
+            :class="[
+              'amount',
+              ((record as Invoice).discount_amount ?? 0) > 0 ? 'text-danger' : 'text-success',
+            ]"
+          >
+            {{ ((record as Invoice).discount_amount ?? 0) > 0 ? '-' : '+'
+            }}{{ formatCurrency(Math.abs((record as Invoice).discount_amount!)) }}
+          </span>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #final_amount="{ record }">
+          <span class="amount-final">{{ formatCurrency((record as Invoice).final_amount) }}</span>
+        </template>
+
+        <template #detail_file="{ record }">
+          <span v-if="(record as Invoice).detail_file_status === 'completed'" title="明细文件已生成"
+            >📄</span
+          >
+          <span
+            v-else-if="(record as Invoice).detail_file_status === 'generating'"
+            title="生成中..."
+            class="subtle"
+            >⏳</span
+          >
+          <template v-else-if="(record as Invoice).detail_file_status === 'failed'">
+            <span title="生成失败" class="text-danger">❌</span>
+            <button
+              v-if="can('billing:edit')"
+              class="btn btn-primary-sm batch-toolbar-btn"
+              @click.stop="handleRegenerateDetail((record as Invoice).id)"
+            >
+              重新生成
+            </button>
+          </template>
+          <template v-else-if="(record as Invoice).detail_file_status === 'pending'">
+            <span title="待生成" class="subtle">⏳</span>
+            <button
+              v-if="can('billing:edit')"
+              class="btn btn-primary-sm batch-toolbar-btn"
+              @click.stop="handleRegenerateDetail((record as Invoice).id)"
+            >
+              重新生成
+            </button>
+          </template>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #status="{ record }">
+          <InvoiceStatusBadge :status="(record as Invoice).status" />
+        </template>
+
+        <template #created_at="{ record }">
+          <span class="cell-nowrap">{{ formatDateTime((record as Invoice).created_at) }}</span>
+        </template>
+
+        <template #action="{ record }">
+          <button
+            v-if="(record as Invoice).status === 'draft'"
+            class="btn btn-primary-sm"
+            style="padding: 4px 10px; font-size: 12px"
+            @click.stop="openSubmitModal(record as Invoice)"
+          >
+            提交
+          </button>
+          <button
+            v-if="can('billing:ops_approve') && (record as Invoice).status === 'pending_ops'"
+            class="btn btn-primary-sm"
+            :style="{
+              padding: '4px 10px',
+              fontSize: '12px',
+              marginLeft: '4px',
+              opacity: canConfirmOps(record as Invoice) ? 1 : 0.5,
+              cursor: canConfirmOps(record as Invoice) ? 'pointer' : 'not-allowed',
+            }"
+            :disabled="!canConfirmOps(record as Invoice)"
+            :title="canConfirmOps(record as Invoice) ? '' : opsDisabledTip(record as Invoice)"
+            @click.stop="
+              canConfirmOps(record as Invoice) &&
+              handleSingleAction(record as Invoice, 'confirm-ops')
+            "
+          >
+            运营确认
+          </button>
+          <button
+            v-if="can('billing:sales_approve') && (record as Invoice).status === 'pending_sales'"
+            class="btn btn-primary-sm"
+            :style="{
+              padding: '4px 10px',
+              fontSize: '12px',
+              marginLeft: '4px',
+              opacity: canConfirmSales(record as Invoice) ? 1 : 0.5,
+              cursor: canConfirmSales(record as Invoice) ? 'pointer' : 'not-allowed',
+            }"
+            :disabled="!canConfirmSales(record as Invoice)"
+            :title="canConfirmSales(record as Invoice) ? '' : salesDisabledTip(record as Invoice)"
+            @click.stop="
+              canConfirmSales(record as Invoice) &&
+              handleSingleAction(record as Invoice, 'confirm-sales')
+            "
+          >
+            销售确认
+          </button>
+          <button
+            v-if="
+              can('billing:discount_approve') &&
+              (record as Invoice).status === 'pending_discount_approval'
+            "
+            class="btn btn-primary-sm"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'approve-discount')"
+          >
+            审批通过
+          </button>
+          <button
+            v-if="(record as Invoice).status === 'pending_customer'"
+            class="btn btn-primary-sm"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'confirm')"
+          >
+            客户确认
+          </button>
+          <button
+            v-if="(record as Invoice).status === 'customer_confirmed'"
+            class="btn btn-primary-sm"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            :disabled="retryingId === (record as Invoice).id"
+            @click.stop="handleSingleAction(record as Invoice, 'retry-deduction')"
+          >
+            {{ retryingId === (record as Invoice).id ? '扣款中...' : '重试扣款' }}
+          </button>
+          <button
+            v-if="
+              [
+                'draft',
+                'pending_ops',
+                'pending_sales',
+                'pending_discount_approval',
+                'pending_customer',
+              ].includes((record as Invoice).status)
+            "
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'cancel')"
+          >
+            取消
+          </button>
+          <button
+            v-if="can('billing:edit') && (record as Invoice).status === 'draft'"
+            class="btn btn-danger"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'delete')"
+          >
+            删除
+          </button>
+        </template>
+      </DataTable>
     </div>
 
     <!-- 结算单详情抽屉 -->
@@ -372,7 +311,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
-import Pagination from '@/components/ui/Pagination.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { useUserStore } from '@/stores/user'
 import { useInvoice } from '@/composables/useInvoice'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
@@ -464,37 +403,57 @@ const discountEditVisible = ref(false)
 const selectedInvoiceId = ref<number>(0)
 const retryingId = ref<number | null>(null)
 
-// --- 排序 ---
-const sortKey = ref('')
-const sortDir = ref<'asc' | 'desc' | ''>('')
+// --- 列定义（含操作列固定右侧） ---
+const STORAGE_KEY = 'invoices_table_columns'
 
-const sortableColumns = ['invoice_no', 'total_amount', 'final_amount', 'created_at']
-
-const getThClass = (key: string) => {
-  if (!sortableColumns.includes(key)) return ''
-  const classes = ['th-sortable']
-  if (sortKey.value === key) {
-    if (sortDir.value === 'asc') classes.push('sort-asc')
-    else if (sortDir.value === 'desc') classes.push('sort-desc')
-  }
-  return classes.join(' ')
+interface ColumnDef {
+  key: string
+  title: string
+  width?: number
+  align?: 'left' | 'center' | 'right'
+  sortable?: boolean
 }
 
-const toggleSort = (key: string) => {
-  if (!sortableColumns.includes(key)) return
-  if (sortKey.value === key) {
-    if (sortDir.value === 'asc') sortDir.value = 'desc'
-    else if (sortDir.value === 'desc') {
-      sortKey.value = ''
-      sortDir.value = ''
-    } else sortDir.value = 'asc'
-  } else {
-    sortKey.value = key
-    sortDir.value = 'asc'
-  }
-  // 当排序被清除时（第三次点击），sortKey.value 为空字符串，
-  // 需要传递空字符串以便 useInvoice 正确清除排序状态
-  handleSortChange(sortKey.value, sortDir.value)
+const columnDefs: ColumnDef[] = [
+  { key: 'invoice_no', title: '结算单号', width: 214, sortable: true },
+  { key: 'customer', title: '客户' },
+  { key: 'period', title: '周期', width: 190 },
+  { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
+  { key: 'discount_amount', title: '减免金额', width: 76, align: 'right' },
+  { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right', sortable: true },
+  { key: 'detail_file', title: '文件', width: 56, align: 'center' },
+  { key: 'status', title: '状态', width: 78 },
+  { key: 'created_at', title: '创建时间', width: 158, sortable: true },
+]
+
+const tableColumns = computed<DataTableColumn[]>(() => [
+  ...columnDefs.map((col) => ({
+    key: col.key,
+    title: col.title,
+    width: col.width,
+    align: col.align,
+    sortable: col.sortable
+      ? { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] }
+      : undefined,
+  })),
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 174 },
+])
+
+// --- 分页配置：透传给 a-table 内置分页 ---
+const paginationConfig = computed(() => ({
+  current: pagination.current,
+  pageSize: pagination.pageSize,
+  total: total.value,
+  showTotal: true,
+  showPageSize: true,
+  showJumper: true,
+  pageSizeOptions: [10, 20, 50, 100],
+}))
+
+// --- 排序：a-table 三态；清除时 emit 空字符串以便 useInvoice 清除排序状态 ---
+const onSorterChange = (dataIndex: string, direction: string) => {
+  const dir = direction === 'ascend' || direction === 'descend' ? direction : ''
+  handleSortChange(dir ? dataIndex : '', dir)
 }
 
 // --- 分页 ---
@@ -506,20 +465,27 @@ const onPageSizeChange = (size: number) => {
   handlePageSizeChange(size)
 }
 
-// --- 多选 ---
-const allChecked = computed(
-  () => invoices.value.length > 0 && selectedInvoiceIds.value.length === invoices.value.length
-)
-const someChecked = computed(
-  () => !allChecked.value && invoices.value.some((i) => selectedInvoiceIds.value.includes(i.id))
-)
+// --- 多选（跨页保留选中） ---
+const rowSelectionConfig = computed(() => ({
+  type: 'checkbox' as const,
+  showCheckedAll: true,
+  onlyCurrent: false,
+  selectedRowKeys: selectedInvoiceIds.value,
+}))
 
-const onSelectRow = (event: Event, id: number) => {
-  handleBatchSelect((event.target as HTMLInputElement).checked, id)
+const onRowSelect = (rowKeys: unknown[], _rowKey: unknown, record: unknown) => {
+  // arco select 回调签名：(rowKeys, rowKey, record)；转为原 (checked, id)
+  const id = (record as Invoice).id
+  handleBatchSelect((rowKeys as number[]).includes(id), id)
 }
 
-const onToggleAll = (event: Event) => {
-  handleBatchSelectAll((event.target as HTMLInputElement).checked, invoices.value)
+const onSelectAll = (checked: boolean) => {
+  handleBatchSelectAll(checked, invoices.value)
+}
+
+// --- 行点击进详情（原 <tr @click>） ---
+const onRowClick = (record: unknown) => {
+  viewInvoice(record as Invoice)
 }
 
 const onBatchSubmit = () => {
@@ -830,12 +796,6 @@ onMounted(async () => {
   border-color: #fca5a5;
 }
 
-/* 表格容器 */
-.table-section {
-  display: flex;
-  flex-direction: column;
-}
-
 /* 批量操作工具栏 */
 .batch-toolbar {
   display: flex;
@@ -872,85 +832,14 @@ onMounted(async () => {
   font-size: 12px;
   border-radius: 8px;
 }
-.table-wrap {
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-}
-
-/* 表格 */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  table-layout: auto;
-}
-.table th,
-.table td {
-  padding: 10px 10px;
-  border-bottom: 1px solid #edf2f7;
-  text-align: left;
-  white-space: nowrap;
-}
-.table th {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.table tbody tr {
-  transition: background 0.15s;
-}
-.table tbody tr:hover td {
-  background: #f8fbff;
-}
-.table tbody tr.row-clickable {
-  cursor: pointer;
-}
-
-/* 排序表头 */
-.th-sortable {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  padding-right: 20px !important;
-}
-.th-sortable:hover {
-  color: var(--primary);
-}
-.th-sort-indicator {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
-}
-.th-sortable.sort-asc .th-sort-indicator,
-.th-sortable.sort-desc .th-sort-indicator {
-  color: var(--primary);
-}
-.th-sortable.sort-asc .th-sort-indicator::after {
-  content: '▲';
-}
-.th-sortable.sort-desc .th-sort-indicator::after {
-  content: '▼';
-}
-.th-sortable:not(.sort-asc):not(.sort-desc) .th-sort-indicator::after {
-  content: '⇅';
-  opacity: 0.4;
-}
-
 /* 结算单号 */
 .invoice-no {
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   font-weight: 600;
   font-size: 13px;
+  /* 单行显示：tabular-nums 下字符宽度不稳定，禁止换行避免折成两行 */
+  white-space: nowrap;
 }
 
 /* 客户名称 */
@@ -985,24 +874,8 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-/* 空状态 / 加载状态 */
-.empty-state,
-.loading-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-/* 分页 */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #edf2f7;
+/* 行点击进详情：指针样式（DataTable 行高亮由组件内置） */
+:deep(.arco-table-tr.row-clickable) {
+  cursor: pointer;
 }
 </style>

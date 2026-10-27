@@ -5,7 +5,7 @@ import { suppressUpgradeAnnouncement, getVisibleModal, waitForModal } from './te
  * 结算单工作流 E2E 测试
  *
  * 重构后变更：
- * - 表格使用自定义 table.table（非 Arco Table）
+ * - 表格使用共享 DataTable 组件（.table-section 容器，内部 Arco Table）
  * - 状态标签使用 InvoiceStatusBadge（.tag 类，非 .arco-tag）
  * - 状态流程：draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
  * - 行点击打开详情抽屉（InvoiceDetailDrawer），非弹窗
@@ -75,7 +75,7 @@ test.describe('结算单工作流 @smoke', () => {
     await page.waitForTimeout(1000)
 
     // 重构后使用 .tag 类（InvoiceStatusBadge 组件）
-    const draftStatus = page.locator('table.table .tag:has-text("草稿")').first()
+    const draftStatus = page.locator('.table-section .tag:has-text("草稿")').first()
     if (await draftStatus.isVisible({ timeout: 5000 }).catch(() => false)) {
       const row = draftStatus.locator('xpath=ancestor::tr').first()
       const submitBtn = row.locator('button:has-text("提交")').first()
@@ -92,7 +92,7 @@ test.describe('结算单工作流 @smoke', () => {
     await page.waitForTimeout(1000)
 
     // 重构后状态为 "待运营经理确认"
-    const opsStatus = page.locator('table.table .tag:has-text("待运营经理确认")').first()
+    const opsStatus = page.locator('.table-section .tag:has-text("待运营经理确认")').first()
     if (await opsStatus.isVisible({ timeout: 5000 }).catch(() => false)) {
       const row = opsStatus.locator('xpath=ancestor::tr').first()
       const opsBtn = row.locator('button:has-text("运营确认")').first()
@@ -109,7 +109,7 @@ test.describe('结算单工作流 @smoke', () => {
     await page.waitForTimeout(1000)
 
     // 重构后状态为 "待销售经理确认"
-    const salesStatus = page.locator('table.table .tag:has-text("待销售经理确认")').first()
+    const salesStatus = page.locator('.table-section .tag:has-text("待销售经理确认")').first()
     if (await salesStatus.isVisible({ timeout: 5000 }).catch(() => false)) {
       const row = salesStatus.locator('xpath=ancestor::tr').first()
       const salesBtn = row.locator('button:has-text("销售确认")').first()
@@ -126,7 +126,7 @@ test.describe('结算单工作流 @smoke', () => {
     await page.waitForTimeout(1000)
 
     // 重构后状态为 "待客户确认"
-    const pendingStatus = page.locator('table.table .tag:has-text("待客户确认")').first()
+    const pendingStatus = page.locator('.table-section .tag:has-text("待客户确认")').first()
     if (await pendingStatus.isVisible({ timeout: 5000 }).catch(() => false)) {
       const row = pendingStatus.locator('xpath=ancestor::tr').first()
       const confirmBtn = row.locator('button:has-text("客户确认")').first()
@@ -142,8 +142,8 @@ test.describe('结算单工作流 @smoke', () => {
     await page.goto('/billing/invoices')
     await page.waitForTimeout(2000)
 
-    // 重构后使用自定义表格 table.table，行点击打开详情抽屉
-    const firstRow = page.locator('table.table tbody tr').first()
+    // 行点击打开详情抽屉（DataTable 的 @row-click）
+    const firstRow = page.locator('.table-section tbody tr').first()
     const hasRow = (await firstRow.count()) > 0
     test.skip(!hasRow, '结算单列表中无数据')
 

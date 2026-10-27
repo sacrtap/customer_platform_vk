@@ -80,12 +80,14 @@
         <a-button @click="fetchRecords">刷新</a-button>
       </div>
 
-      <a-table
+      <DataTable
         :columns="columns"
-        :data="records"
+        :data="records as unknown as Record<string, unknown>[]"
         :loading="loading"
         :pagination="pagination"
         row-key="id"
+        :scroll="{ x: 1038 }"
+        :storage-key="'backups_table_columns'"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
@@ -128,7 +130,7 @@
         <template #created_at="{ record }">
           {{ record.created_at || '-' }}
         </template>
-        <template #actions="{ record }">
+        <template #action="{ record }">
           <a-space v-if="isRestorable(record)">
             <a-button type="text" size="small" @click="handleDownload(record)">下载</a-button>
             <a-button
@@ -142,7 +144,7 @@
           </a-space>
           <span v-else>-</span>
         </template>
-      </a-table>
+      </DataTable>
     </a-card>
   </div>
 </template>
@@ -150,6 +152,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { Message, Modal, Input as AInput } from '@arco-design/web-vue'
 import service from '@/api'
 import { handleError } from '@/utils/errorHandler'
@@ -213,19 +216,74 @@ const STATUS_TEXTS: Record<string, string> = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const POLL_INTERVAL = 3000
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70 },
-  { title: '类型', slotName: 'task_type', width: 100 },
-  { title: '状态', slotName: 'status', width: 90 },
-  { title: '备份日期', slotName: 'backup_date', width: 120 },
-  { title: '文件大小', slotName: 'file_size_bytes', width: 110 },
-  { title: '耗时', slotName: 'duration_seconds', width: 80 },
-  { title: '操作人', slotName: 'operator_id', width: 100 },
-  { title: '清理校验', slotName: 'retention_check_passed', width: 110 },
-  { title: '删除数', slotName: 'deleted_count', width: 90 },
-  { title: '错误信息', slotName: 'error_message', ellipsis: true },
-  { title: '创建时间', slotName: 'created_at', width: 180 },
-  { title: '操作', slotName: 'actions', width: 130, fixed: 'right' },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, defaultVisible: true },
+  { key: 'task_type', title: '类型', slotName: 'task_type', width: 80, defaultVisible: true },
+  { key: 'status', title: '状态', slotName: 'status', width: 82, defaultVisible: true },
+  {
+    key: 'backup_date',
+    title: '备份日期',
+    slotName: 'backup_date',
+    width: 156,
+    defaultVisible: true,
+  },
+  {
+    key: 'file_size_bytes',
+    title: '文件大小',
+    slotName: 'file_size_bytes',
+    width: 80,
+    defaultVisible: true,
+  },
+  {
+    key: 'duration_seconds',
+    title: '耗时',
+    slotName: 'duration_seconds',
+    width: 56,
+    defaultVisible: true,
+  },
+  {
+    key: 'operator_id',
+    title: '操作人',
+    slotName: 'operator_id',
+    width: 80,
+    defaultVisible: true,
+  },
+  {
+    key: 'retention_check_passed',
+    title: '清理校验',
+    slotName: 'retention_check_passed',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'deleted_count',
+    title: '删除数',
+    slotName: 'deleted_count',
+    width: 64,
+    defaultVisible: true,
+  },
+  {
+    key: 'error_message',
+    title: '错误信息',
+    slotName: 'error_message',
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 160,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
+  },
 ]
 
 const loading = ref(false)
@@ -246,6 +304,15 @@ const taskTypeFilter = ref<string | undefined>(undefined)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+
+// a-table 内置分页配置（透传给 DataTable）
+const pagination = computed(() => ({
+  current: currentPage.value,
+  pageSize: pageSize.value,
+  total: total.value,
+  showTotal: true,
+  showPageSize: true,
+}))
 
 let pollTimer: number | undefined
 

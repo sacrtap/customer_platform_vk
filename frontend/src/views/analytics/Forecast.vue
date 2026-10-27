@@ -231,7 +231,7 @@
     </div>
 
     <!-- 预测明细表 -->
-    <div class="table-section">
+    <div class="table-card">
       <div class="table-header">
         <h3>预测明细</h3>
         <a-button type="text" size="small" @click="loadData">
@@ -252,14 +252,19 @@
           刷新
         </a-button>
       </div>
-      <a-table
+      <DataTable
         :columns="columns"
-        :data="forecastList"
+        :data="forecastList as unknown as Record<string, unknown>[]"
         :loading="loading"
         row-key="customer_id"
         :pagination="pagination"
+        :scroll="{ x: 840 }"
+        :storage-key="STORAGE_KEY"
         @page-change="handlePageChange"
       >
+        <template #unit_price="{ record }">
+          <span>¥{{ record.unit_price }}/套</span>
+        </template>
         <template #amount="{ record }">
           <span class="forecast-amount">{{ formatCurrency(record.forecast_amount) }}</span>
         </template>
@@ -277,7 +282,7 @@
             >查看</a-button
           >
         </template>
-      </a-table>
+      </DataTable>
     </div>
   </div>
 </template>
@@ -304,6 +309,7 @@ import {
 } from '@/api/analytics'
 
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { formatCurrency } from '@/utils/formatters'
 
 /** ECharts 统一配色 */
@@ -464,27 +470,56 @@ const handleResetPrices = () => {
   })
 }
 
-const columns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 120 },
-  { title: '客户名称', dataIndex: 'customer_name', width: 200 },
-  { title: '设备类型', dataIndex: 'device_type', width: 90 },
-  { title: '估算用量', dataIndex: 'estimated_usage', width: 100 },
+const STORAGE_KEY = 'forecast_table_columns'
+const columns: DataTableColumn[] = [
+  { key: 'company_id', title: '公司 ID', dataIndex: 'company_id', width: 68, defaultVisible: true },
   {
-    title: '单价',
-    dataIndex: 'unit_price',
-    width: 90,
-    render: ({ record }: { record: ConsumptionForecast }) => `¥${record.unit_price}/套`,
+    key: 'customer_name',
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 200,
+    ellipsis: true,
+    defaultVisible: true,
   },
   {
+    key: 'device_type',
+    title: '设备类型',
+    dataIndex: 'device_type',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'estimated_usage',
+    title: '估算用量',
+    dataIndex: 'estimated_usage',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'unit_price',
+    title: '单价',
+    slotName: 'unit_price',
+    width: 70,
+    defaultVisible: true,
+  },
+  {
+    key: 'forecast_amount',
     title: '预测金额',
     slotName: 'amount',
-    width: 120,
-    sorter: (a: ConsumptionForecast, b: ConsumptionForecast) =>
-      a.forecast_amount - b.forecast_amount,
+    width: 96,
+    sortable: { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] },
+    defaultVisible: true,
   },
-  { title: '方法', slotName: 'method', width: 100 },
-  { title: '状态', slotName: 'active', width: 90 },
-  { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
+  { key: 'method', title: '方法', slotName: 'method', width: 92, defaultVisible: true },
+  { key: 'active', title: '状态', slotName: 'active', width: 68, defaultVisible: true },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 74,
+    defaultVisible: true,
+  },
 ]
 
 const momClass = computed(() => {
@@ -1006,12 +1041,19 @@ onUnmounted(() => {
   height: 320px;
 }
 
-.table-section {
+.table-card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+/* DataTable 自带卡片外观；置于带标题的卡片内时去重，避免双层边框 */
+.table-card :deep(.table-section) {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .table-header {
@@ -1027,14 +1069,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--ink);
   margin: 0;
-}
-
-/* 表头样式 */
-.table-section :deep(.arco-table-th) {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .forecast-amount {

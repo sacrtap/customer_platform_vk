@@ -44,151 +44,129 @@
       </div>
 
       <!-- 表格 -->
-      <div class="table-section">
-        <!-- 规则优先级说明 -->
-        <div class="priority-hint">
-          <span class="hint-icon">ⓘ</span>
-          规则匹配优先级：1) 设备类型精确匹配 2) 有效期最新的规则 3) 创建时间最早的规则
-        </div>
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width: 200px">客户</th>
-                <th style="width: 100px">设备类型</th>
-                <th style="width: 100px">楼层类型</th>
-                <th style="width: 120px">计费类型</th>
-                <th style="width: 100px">单价</th>
-                <th style="width: 100px">套餐类型</th>
-                <th style="width: 200px">有效期</th>
-                <th style="width: 150px">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in data" :key="record.id">
-                <!-- 客户 -->
-                <td>
-                  <span v-if="record.customer_name" class="cust-name">{{
-                    record.customer_name
-                  }}</span>
-                  <span v-else class="subtle">客户{{ record.customer_id }}</span>
-                </td>
-                <!-- 设备类型 -->
-                <td>
-                  <span
-                    v-if="record.device_type"
-                    class="tag"
-                    :class="getDeviceTypeTagClass(record.device_type)"
-                  >
-                    {{ record.device_type }}系列
-                  </span>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 楼层类型 -->
-                <td>
-                  <span
-                    v-if="record.layer_type"
-                    class="tag"
-                    :class="record.layer_type === 'multi' ? 'violet' : 'blue'"
-                  >
-                    {{ record.layer_type === 'multi' ? '多层' : '单层' }}
-                  </span>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 计费类型 -->
-                <td>
-                  <span class="tag" :class="getPricingTypeTagClass(record.pricing_type)">
-                    {{ getPricingTypeText(record.pricing_type) }}
-                  </span>
-                </td>
-                <!-- 单价 -->
-                <td>
-                  <template v-if="record.pricing_type === 'fixed'">
-                    <template v-if="record.unit_price">
-                      <span class="amount">¥{{ record.unit_price.toFixed(2) }}</span>
-                      <span
-                        v-if="
-                          record.multi_floor_pricing_type === 'incremental' &&
-                          record.additional_floor_price
-                        "
-                        class="subtle incremental-price"
-                      >
-                        + 其他层 ¥{{ record.additional_floor_price.toFixed(2) }}
-                      </span>
-                    </template>
-                    <span v-else class="subtle">-</span>
-                  </template>
-                  <template v-else-if="record.pricing_type === 'tiered'">
-                    <span
-                      v-if="record.tiers"
-                      class="tag green has-tooltip"
-                      :data-tooltip="formatTiersTooltip(record.tiers)"
-                    >
-                      阶梯计价
-                    </span>
-                    <span v-else class="subtle">未配置</span>
-                  </template>
-                  <template v-else-if="record.pricing_type === 'package'">
-                    <span class="tag amber">包年计费</span>
-                  </template>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 套餐类型 -->
-                <td>
-                  <span v-if="record.package_type" class="tag violet"
-                    >{{ record.package_type }} 套餐</span
-                  >
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 有效期 -->
-                <td>
-                  <span v-if="record.effective_date && record.expiry_date" class="cell-nowrap">
-                    {{ formatDate(record.effective_date) }} 至 {{ formatDate(record.expiry_date) }}
-                  </span>
-                  <span v-else-if="record.effective_date" class="cell-nowrap">
-                    {{ formatDate(record.effective_date) }} 起
-                  </span>
-                  <span v-else class="subtle">-</span>
-                </td>
-                <!-- 操作 -->
-                <td style="white-space: nowrap">
-                  <button
-                    v-if="can('billing:edit')"
-                    class="btn"
-                    style="padding: 4px 10px; font-size: 12px"
-                    @click="showEditModal(record)"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    v-if="can('billing:delete')"
-                    class="btn btn-danger"
-                    style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                    @click="handleDelete(record)"
-                  >
-                    删除
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="data.length === 0 && !loading">
-                <td :colspan="8" class="empty-state">暂无计费规则数据</td>
-              </tr>
-              <tr v-if="loading">
-                <td :colspan="8" class="loading-state">加载中...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 分页 -->
-        <Pagination
-          :current="pagination.current"
-          :page-size="pagination.pageSize"
-          :total="pagination.total"
-          @page-change="onPageChange"
-          @page-size-change="onPageSizeChange"
-        />
+      <!-- 规则优先级说明 -->
+      <div class="priority-hint">
+        <span class="hint-icon">ⓘ</span>
+        规则匹配优先级：1) 设备类型精确匹配 2) 有效期最新的规则 3) 创建时间最早的规则
       </div>
+      <DataTable
+        :columns="tableColumns"
+        :data="data as unknown as Record<string, unknown>[]"
+        :loading="loading"
+        :pagination="paginationConfig"
+        :row-key="'id'"
+        :scroll="{ x: 786 }"
+        :storage-key="STORAGE_KEY"
+        @page-change="onPageChange"
+        @page-size-change="onPageSizeChange"
+      >
+        <template #customer="{ record }">
+          <span v-if="(record as PricingRule).customer_name" class="cust-name">{{
+            (record as PricingRule).customer_name
+          }}</span>
+          <span v-else class="subtle">客户{{ (record as PricingRule).customer_id }}</span>
+        </template>
+
+        <template #device_type="{ record }">
+          <span
+            v-if="(record as PricingRule).device_type"
+            class="tag"
+            :class="getDeviceTypeTagClass((record as PricingRule).device_type!)"
+          >
+            {{ (record as PricingRule).device_type }}系列
+          </span>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #layer_type="{ record }">
+          <span
+            v-if="(record as PricingRule).layer_type"
+            class="tag"
+            :class="(record as PricingRule).layer_type === 'multi' ? 'violet' : 'blue'"
+          >
+            {{ (record as PricingRule).layer_type === 'multi' ? '多层' : '单层' }}
+          </span>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #pricing_type="{ record }">
+          <span class="tag" :class="getPricingTypeTagClass((record as PricingRule).pricing_type)">
+            {{ getPricingTypeText((record as PricingRule).pricing_type) }}
+          </span>
+        </template>
+
+        <template #unit_price="{ record }">
+          <template v-if="(record as PricingRule).pricing_type === 'fixed'">
+            <template v-if="(record as PricingRule).unit_price">
+              <span class="amount">¥{{ (record as PricingRule).unit_price!.toFixed(2) }}</span>
+              <span
+                v-if="
+                  (record as PricingRule).multi_floor_pricing_type === 'incremental' &&
+                  (record as PricingRule).additional_floor_price
+                "
+                class="subtle incremental-price"
+              >
+                + 其他层 ¥{{ (record as PricingRule).additional_floor_price!.toFixed(2) }}
+              </span>
+            </template>
+            <span v-else class="subtle">-</span>
+          </template>
+          <template v-else-if="(record as PricingRule).pricing_type === 'tiered'">
+            <span
+              v-if="(record as PricingRule).tiers"
+              class="tag green has-tooltip"
+              :data-tooltip="formatTiersTooltip((record as PricingRule).tiers)"
+            >
+              阶梯计价
+            </span>
+            <span v-else class="subtle">未配置</span>
+          </template>
+          <template v-else-if="(record as PricingRule).pricing_type === 'package'">
+            <span class="tag amber">包年计费</span>
+          </template>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #package_type="{ record }">
+          <span v-if="(record as PricingRule).package_type" class="tag violet"
+            >{{ (record as PricingRule).package_type }} 套餐</span
+          >
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #effective_date="{ record }">
+          <span
+            v-if="(record as PricingRule).effective_date && (record as PricingRule).expiry_date"
+            class="cell-nowrap"
+          >
+            {{ formatDate((record as PricingRule).effective_date!) }} 至
+            {{ formatDate((record as PricingRule).expiry_date!) }}
+          </span>
+          <span v-else-if="(record as PricingRule).effective_date" class="cell-nowrap">
+            {{ formatDate((record as PricingRule).effective_date!) }} 起
+          </span>
+          <span v-else class="subtle">-</span>
+        </template>
+
+        <template #action="{ record }">
+          <button
+            v-if="can('billing:edit')"
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px"
+            @click.stop="showEditModal(record as PricingRule)"
+          >
+            编辑
+          </button>
+          <button
+            v-if="can('billing:delete')"
+            class="btn btn-danger"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleDelete(record as PricingRule)"
+          >
+            删除
+          </button>
+        </template>
+      </DataTable>
     </div>
 
     <!-- 创建/编辑规则弹窗 -->
@@ -212,16 +190,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import * as billingApi from '@/api/billing'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import PricingRuleModal from './components/PricingRuleModal.vue'
 import ImportModal from './components/ImportModal.vue'
-import Pagination from '@/components/ui/Pagination.vue'
 import { formatDate } from '@/utils/formatters'
 import { parseTiers } from '@/utils/tiers'
 import type { Tier } from '@/utils/tiers'
@@ -243,6 +221,45 @@ interface PricingRule {
   effective_date?: string
   expiry_date?: string | null
 }
+
+// --- 列定义（含操作列固定右侧） ---
+const STORAGE_KEY = 'pricing_rules_table_columns'
+
+interface ColumnDef {
+  key: string
+  title: string
+  width?: number
+}
+
+const columnDefs: ColumnDef[] = [
+  { key: 'customer', title: '客户' },
+  { key: 'device_type', title: '设备类型', width: 76 },
+  { key: 'layer_type', title: '楼层类型', width: 76 },
+  { key: 'pricing_type', title: '计费类型', width: 92 },
+  { key: 'unit_price', title: '单价', width: 74 },
+  { key: 'package_type', title: '套餐类型', width: 76 },
+  { key: 'effective_date', title: '有效期', width: 116 },
+]
+
+const tableColumns = computed<DataTableColumn[]>(() => [
+  ...columnDefs.map((col) => ({
+    key: col.key,
+    title: col.title,
+    width: col.width,
+  })),
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 124 },
+])
+
+// --- 分页配置：透传给 a-table 内置分页 ---
+const paginationConfig = computed(() => ({
+  current: pagination.current,
+  pageSize: pagination.pageSize,
+  total: pagination.total,
+  showTotal: true,
+  showPageSize: true,
+  showJumper: true,
+  pageSizeOptions: [10, 20, 50, 100],
+}))
 
 // 筛选选项
 const deviceTypeOptions = [
@@ -518,47 +535,6 @@ onMounted(() => {
   align-items: center;
 }
 
-/* 表格容器 */
-.table-section {
-  display: flex;
-  flex-direction: column;
-}
-.table-wrap {
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-}
-
-/* 表格 */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  table-layout: auto;
-}
-.table th,
-.table td {
-  padding: 10px 10px;
-  border-bottom: 1px solid #edf2f7;
-  text-align: left;
-  white-space: nowrap;
-}
-.table th {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.table tbody tr {
-  transition: background 0.15s;
-}
-.table tbody tr:hover td {
-  background: #f8fbff;
-}
-
 /* 客户名称 */
 .cust-name {
   font-weight: 600;
@@ -709,27 +685,6 @@ onMounted(() => {
 
 .cell-nowrap {
   white-space: nowrap;
-}
-
-/* 空状态 / 加载状态 */
-.empty-state,
-.loading-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-/* 分页 */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #edf2f7;
 }
 
 @media (max-width: 1100px) {
