@@ -15,7 +15,14 @@
         <button v-if="can('customers:import')" class="btn" @click="openImportModal">
           导入客户
         </button>
-        <button v-if="can('customers:export')" class="btn" @click="handleExport">导出</button>
+        <button
+          v-if="can('customers:export')"
+          class="btn"
+          :disabled="exporting"
+          @click="handleExport"
+        >
+          {{ exporting ? '导出中...' : '导出' }}
+        </button>
         <button v-if="can('customers:create')" class="btn primary" @click="openCreateModal">
           新增客户
         </button>
@@ -50,6 +57,7 @@
         <BatchToolbar
           v-if="hasSelectedCustomers"
           :selected-count="selectedCustomerIds.length"
+          :exporting="exporting"
           @batch-action="handleBatchAction"
           @add-tag="openTagModal"
         />
@@ -220,6 +228,7 @@ const {
   handleBatchSelect,
   handleBatchSelectAll,
   openBatchEditDialog,
+  exporting,
   handleExport,
   openCreateModal,
   openImportModal,
