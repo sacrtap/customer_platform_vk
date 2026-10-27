@@ -8,57 +8,57 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="apiKeys"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
-      >
-        <template #status="{ record }">
-          <a-tag :color="record.status === 'active' ? 'green' : 'red'">
-            {{ record.status === 'active' ? '启用中' : '已停用' }}
-          </a-tag>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('api_keys:manage')"
-              type="text"
-              size="small"
-              @click="handleToggleStatus(record)"
-            >
-              {{ record.status === 'active' ? '停用' : '启用' }}
+    <DataTable
+      :columns="columns"
+      :data="apiKeys as unknown as Record<string, unknown>[]"
+      :loading="loading"
+      row-key="id"
+      :pagination="pagination"
+      :scroll="{ x: 828 }"
+      :storage-key="'api_keys_table_columns'"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <template #status="{ record }">
+        <a-tag :color="record.status === 'active' ? 'green' : 'red'">
+          {{ record.status === 'active' ? '启用中' : '已停用' }}
+        </a-tag>
+      </template>
+      <template #action="{ record }">
+        <a-space>
+          <a-button
+            v-if="can('api_keys:manage')"
+            type="text"
+            size="small"
+            @click="handleToggleStatus(record)"
+          >
+            {{ record.status === 'active' ? '停用' : '启用' }}
+          </a-button>
+          <a-popconfirm
+            v-if="can('api_keys:manage')"
+            content="确认删除该 API-Key？删除后将无法恢复。"
+            @ok="handleDelete(record.id)"
+          >
+            <a-button type="text" size="small" status="danger">删除</a-button>
+          </a-popconfirm>
+        </a-space>
+      </template>
+      <template #empty>
+        <EmptyState title="暂无 API-Key" description="点击「申请 API-Key」创建第一个密钥">
+          <template #action>
+            <a-button v-if="can('api_keys:manage')" type="primary" @click="handleCreate">
+              申请 API-Key
             </a-button>
-            <a-popconfirm
-              v-if="can('api_keys:manage')"
-              content="确认删除该 API-Key？删除后将无法恢复。"
-              @ok="handleDelete(record.id)"
-            >
-              <a-button type="text" size="small" status="danger">删除</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-        <template #empty>
-          <EmptyState title="暂无 API-Key" description="点击「申请 API-Key」创建第一个密钥">
-            <template #action>
-              <a-button v-if="can('api_keys:manage')" type="primary" @click="handleCreate">
-                申请 API-Key
-              </a-button>
-            </template>
-          </EmptyState>
-        </template>
-        <template #last_used_at="{ record }">
-          {{ record.last_used_at ? formatDateTime(record.last_used_at) : '—' }}
-        </template>
-        <template #created_at="{ record }">
-          {{ formatDateTime(record.created_at) }}
-        </template>
-      </a-table>
-    </div>
+          </template>
+        </EmptyState>
+      </template>
+      <template #last_used_at="{ record }">
+        {{ record.last_used_at ? formatDateTime(record.last_used_at) : '—' }}
+      </template>
+      <template #created_at="{ record }">
+        {{ formatDateTime(record.created_at) }}
+      </template>
+    </DataTable>
 
     <!-- 申请 API-Key 对话框 -->
     <a-modal
@@ -124,6 +124,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -148,15 +149,47 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '名称', dataIndex: 'name', width: 180 },
-  { title: 'Key', dataIndex: 'key_prefix', width: 160 },
-  { title: '状态', slotName: 'status', width: 100, align: 'center' as const },
-  { title: '描述', dataIndex: 'description', ellipsis: true, width: 200 },
-  { title: '最后使用', slotName: 'last_used_at', width: 160 },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 130, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  { key: 'name', title: '名称', dataIndex: 'name', width: 86, defaultVisible: true },
+  { key: 'key_prefix', title: 'Key', dataIndex: 'key_prefix', width: 140, defaultVisible: true },
+  {
+    key: 'status',
+    title: '状态',
+    slotName: 'status',
+    width: 82,
+    align: 'center',
+    defaultVisible: true,
+  },
+  {
+    key: 'description',
+    title: '描述',
+    dataIndex: 'description',
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'last_used_at',
+    title: '最后使用',
+    slotName: 'last_used_at',
+    width: 160,
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 156,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 表单 ==========
@@ -301,32 +334,5 @@ onMounted(() => {
 <style scoped>
 .api-key-page {
   padding: 0;
-}
-
-.table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-:deep(.arco-table) {
-  font-size: 14px;
-}
-
-:deep(.arco-table th) {
-  background: var(--bg);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-:deep(.arco-table td) {
-  color: #334155;
-}
-
-:deep(.arco-table tr:hover td) {
-  background: var(--bg);
 }
 </style>

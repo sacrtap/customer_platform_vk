@@ -8,49 +8,49 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="industryTypes"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
-      >
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('industry_types:manage')"
-              type="text"
-              size="small"
-              @click="handleEdit(record)"
+    <DataTable
+      :columns="columns"
+      :data="industryTypes as unknown as Record<string, unknown>[]"
+      :loading="loading"
+      row-key="id"
+      :pagination="pagination"
+      :scroll="{ x: 614 }"
+      :storage-key="'industry_types_table_columns'"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <template #action="{ record }">
+        <a-space>
+          <a-button
+            v-if="can('industry_types:manage')"
+            type="text"
+            size="small"
+            @click="handleEdit(record)"
+          >
+            编辑
+          </a-button>
+          <a-popconfirm
+            v-if="can('industry_types:manage')"
+            content="确认删除该行业类型？删除后不会影响已关联的客户记录。"
+            @ok="handleDelete(record.id)"
+          >
+            <a-button type="text" size="small" status="danger"> 删除 </a-button>
+          </a-popconfirm>
+        </a-space>
+      </template>
+      <template #empty>
+        <EmptyState title="暂无行业类型数据" description="点击「新增行业类型」添加第一个行业类型">
+          <template #action>
+            <a-button v-if="can('industry_types:manage')" type="primary" @click="handleCreate"
+              >新增行业类型</a-button
             >
-              编辑
-            </a-button>
-            <a-popconfirm
-              v-if="can('industry_types:manage')"
-              content="确认删除该行业类型？删除后不会影响已关联的客户记录。"
-              @ok="handleDelete(record.id)"
-            >
-              <a-button type="text" size="small" status="danger"> 删除 </a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-        <template #empty>
-          <EmptyState title="暂无行业类型数据" description="点击「新增行业类型」添加第一个行业类型">
-            <template #action>
-              <a-button v-if="can('industry_types:manage')" type="primary" @click="handleCreate"
-                >新增行业类型</a-button
-              >
-            </template>
-          </EmptyState>
-        </template>
-        <template #created_at="{ record }">
-          {{ formatDateTime(record.created_at) }}
-        </template>
-      </a-table>
-    </div>
+          </template>
+        </EmptyState>
+      </template>
+      <template #created_at="{ record }">
+        {{ formatDateTime(record.created_at) }}
+      </template>
+    </DataTable>
 
     <!-- 新增/编辑对话框 -->
     <a-modal
@@ -90,6 +90,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -119,12 +120,39 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '行业类型名称', dataIndex: 'name', width: 200 },
-  { title: '排序号', dataIndex: 'sort_order', width: 100, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  {
+    key: 'name',
+    title: '行业类型名称',
+    dataIndex: 'name',
+    width: 188,
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'sort_order',
+    title: '排序号',
+    dataIndex: 'sort_order',
+    width: 64,
+    align: 'center',
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 158,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 表单 ==========
@@ -266,32 +294,5 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 12px;
-}
-
-.table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-:deep(.arco-table) {
-  font-size: 14px;
-}
-
-:deep(.arco-table th) {
-  background: var(--bg);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-:deep(.arco-table td) {
-  color: #334155;
-}
-
-:deep(.arco-table tr:hover td) {
-  background: var(--bg);
 }
 </style>

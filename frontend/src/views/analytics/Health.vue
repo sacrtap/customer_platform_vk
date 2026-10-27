@@ -104,7 +104,7 @@
     </div>
 
     <!-- 预警客户列表 -->
-    <div class="table-section">
+    <div class="table-card">
       <div class="table-header">
         <h3>余额预警客户</h3>
         <a-button type="text" size="small" @click="loadWarningList">
@@ -125,12 +125,14 @@
           刷新
         </a-button>
       </div>
-      <a-table
+      <DataTable
         :columns="warningColumns"
-        :data="warningList"
+        :data="warningList as unknown as Record<string, unknown>[]"
         :loading="loading"
         row-key="customer_id"
         :pagination="warningPagination"
+        :scroll="{ x: 686 }"
+        :storage-key="WARNING_STORAGE_KEY"
         @page-change="handleWarningPageChange"
       >
         <template #balance="{ record }">
@@ -143,11 +145,11 @@
             >查看</a-button
           >
         </template>
-      </a-table>
+      </DataTable>
     </div>
 
     <!-- 长期未消耗客户列表 -->
-    <div class="table-section">
+    <div class="table-card">
       <div class="table-header">
         <h3>长期未消耗客户</h3>
         <a-space>
@@ -181,12 +183,14 @@
           </a-button>
         </a-space>
       </div>
-      <a-table
+      <DataTable
         :columns="inactiveColumns"
-        :data="inactiveList"
+        :data="inactiveList as unknown as Record<string, unknown>[]"
         :loading="loading"
         row-key="customer_id"
         :pagination="inactivePagination"
+        :scroll="{ x: 508 }"
+        :storage-key="INACTIVE_STORAGE_KEY"
         @page-change="handleInactivePageChange"
       >
         <template #lastConsumption="{ record }">
@@ -197,7 +201,7 @@
             >查看</a-button
           >
         </template>
-      </a-table>
+      </DataTable>
     </div>
   </div>
 </template>
@@ -206,6 +210,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { Message } from '@arco-design/web-vue'
 import {
   getHealthStats,
@@ -248,33 +253,91 @@ const inactivePagination = reactive({
   showPageSize: true,
 })
 
-const warningColumns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 120 },
-  { title: '客户名称', dataIndex: 'customer_name', width: 200 },
+const WARNING_STORAGE_KEY = 'health_table_columns'
+const INACTIVE_STORAGE_KEY = 'health_inactive_table_columns'
+
+const warningColumns: DataTableColumn[] = [
+  { key: 'company_id', title: '公司 ID', dataIndex: 'company_id', width: 68, defaultVisible: true },
   {
+    key: 'customer_name',
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 200,
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'total_amount',
     title: '总余额',
     slotName: 'balance',
-    width: 120,
-    sorter: (a: WarningCustomer, b: WarningCustomer) => a.total_amount - b.total_amount,
+    width: 110,
+    sortable: { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] },
+    defaultVisible: true,
   },
-  { title: '实充余额', dataIndex: 'real_amount', width: 100 },
-  { title: '赠送余额', dataIndex: 'bonus_amount', width: 100 },
-  { title: '运营经理', dataIndex: 'manager_name', width: 100 },
-  { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
+  {
+    key: 'real_amount',
+    title: '实充余额',
+    dataIndex: 'real_amount',
+    width: 80,
+    defaultVisible: true,
+  },
+  {
+    key: 'bonus_amount',
+    title: '赠送余额',
+    dataIndex: 'bonus_amount',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'manager_name',
+    title: '运营经理',
+    dataIndex: 'manager_name',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 56,
+    defaultVisible: true,
+  },
 ]
 
-const inactiveColumns = [
-  { title: '公司 ID', dataIndex: 'company_id', width: 120 },
-  { title: '客户名称', dataIndex: 'customer_name', width: 200 },
-  { title: '运营经理', dataIndex: 'manager_name', width: 100 },
+const inactiveColumns: DataTableColumn[] = [
+  { key: 'company_id', title: '公司 ID', dataIndex: 'company_id', width: 68, defaultVisible: true },
   {
+    key: 'customer_name',
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 200,
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'manager_name',
+    title: '运营经理',
+    dataIndex: 'manager_name',
+    width: 76,
+    defaultVisible: true,
+  },
+  {
+    key: 'days_inactive',
     title: '未消耗天数',
     slotName: 'lastConsumption',
-    width: 120,
-    sorter: (a: InactiveCustomer, b: InactiveCustomer) =>
-      (a.days_inactive || 0) - (b.days_inactive || 0),
+    width: 88,
+    sortable: { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] },
+    defaultVisible: true,
   },
-  { title: '操作', slotName: 'action', width: 80, fixed: 'right' as const },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 56,
+    defaultVisible: true,
+  },
 ]
 
 // 加载健康度统计
@@ -443,12 +506,19 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-.table-section {
+.table-card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+/* DataTable 自带卡片外观；置于带标题的卡片内时去重，避免双层边框 */
+.table-card :deep(.table-section) {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .table-header {
@@ -464,14 +534,6 @@ onMounted(() => {
   font-weight: 600;
   color: var(--ink);
   margin: 0;
-}
-
-/* 表头样式 */
-.table-section :deep(.arco-table-th) {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .balance-value {

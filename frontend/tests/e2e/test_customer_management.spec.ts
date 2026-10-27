@@ -30,9 +30,7 @@ test.describe('客户管理', () => {
     ).toBeVisible()
 
     // 检查表格存在（重构后使用自定义表格，非 Arco 表格）
-    await expect(
-      authenticatedPage.locator('.table-section table, table.table').first()
-    ).toBeVisible()
+    await expect(authenticatedPage.locator('.table-section table').first()).toBeVisible()
   })
 
   test('创建新客户', async ({ authenticatedPage }) => {
@@ -112,7 +110,7 @@ test.describe('客户管理', () => {
     await authenticatedPage.waitForTimeout(1000)
 
     // 验证表格仍然可见
-    const table = authenticatedPage.locator('.table-section table, table.table')
+    const table = authenticatedPage.locator('.table-section table')
     await expect(table.first()).toBeVisible()
 
     // 清除搜索内容
@@ -135,9 +133,7 @@ test.describe('客户管理', () => {
     await waitForTableLoaded(authenticatedPage)
 
     // 获取第一行客户数据
-    const firstRow = authenticatedPage
-      .locator('.table-section tbody tr, table.table tbody tr')
-      .first()
+    const firstRow = authenticatedPage.locator('.table-section tbody tr').first()
     await expect(firstRow).toBeVisible({ timeout: 10000 })
 
     // 点击编辑按钮
@@ -229,7 +225,7 @@ test.describe('客户管理', () => {
     await authenticatedPage.waitForTimeout(2000)
 
     // 检查分页组件存在（重构后使用自定义分页，非 Arco 分页）
-    const pagination = authenticatedPage.locator('.pagination')
+    const pagination = authenticatedPage.locator('.arco-pagination')
     await expect(pagination.first()).toBeVisible()
 
     // 获取当前页码（重构后使用 .page-btn.active）
@@ -273,9 +269,7 @@ test.describe('客户管理', () => {
     await waitForTableLoaded(authenticatedPage)
 
     // 获取第一行客户数据
-    const firstRow = authenticatedPage
-      .locator('.table-section tbody tr, table.table tbody tr')
-      .first()
+    const firstRow = authenticatedPage.locator('.table-section tbody tr').first()
     await expect(firstRow).toBeVisible({ timeout: 10000 })
 
     // 点击编辑按钮

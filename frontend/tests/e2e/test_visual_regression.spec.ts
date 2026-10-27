@@ -138,12 +138,13 @@ test.describe('视觉回归测试', () => {
     await expect(page).toHaveScreenshot('balance.png', {
       ...SCREENSHOT_OPTIONS,
       // 余额页全部内容都由数据驱动：KPI 数值、表格行、分页条数会随并行用例造数而变化。
-      // 通用遮罩只覆盖 .arco-table，而本页表格是原生 <table>，故在此显式遮罩动态区域，
+      // 表格行与分页已由 .arco-table tbody / .arco-pagination 遮罩覆盖，
       // 让基线只校验布局与卡片结构（新增/删除卡片、错位等仍会被检出）。
       mask: [
         ...getDynamicMaskSelectors(page),
-        page.locator('.table-wrap tbody'),
-        page.locator('.pagination'),
+        // 余额页已迁移到 a-table（共享 DataTable 组件）：表格行动态由 .arco-table tbody 遮罩，
+        // 分页与 KPI 仍为数据驱动区域，保留显式遮罩让基线只校验布局与卡片结构。
+        page.locator('.arco-pagination'),
         page.locator('.kpi-value'),
         page.locator('.kpi-trend'),
       ],

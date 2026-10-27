@@ -17,7 +17,7 @@ import {
  * 3. 结算单状态流转：提交 → 运营确认 → 销售确认 → 客户确认
  * 4. 结算单筛选功能
  *
- * 注意：重构后结算单列表使用自定义 table.table（非 Arco Table），
+ * 注意：结算单列表使用共享 DataTable 组件（.table-section 容器，内部 Arco Table），
  * 状态标签使用 InvoiceStatusBadge 组件（.tag 类，非 .arco-tag），
  * 筛选器使用自定义 FilterDropdown 组件（.filter-trigger 类，非 .arco-select）。
  * 状态流程：draft → pending_ops → pending_sales → pending_customer → customer_confirmed → completed
@@ -88,7 +88,7 @@ test.describe('结算单管理工作流 @smoke', () => {
     authenticatedPage: page,
   }) => {
     // 查找草稿状态的结算单（重构后使用 .tag 类，非 .arco-tag）
-    const draftStatus = page.locator('table.table .tag:has-text("草稿")').first()
+    const draftStatus = page.locator('.table-section .tag:has-text("草稿")').first()
 
     // 如果存在草稿状态的结算单，测试状态流转
     const hasDraft = await draftStatus.isVisible({ timeout: 5000 }).catch(() => false)

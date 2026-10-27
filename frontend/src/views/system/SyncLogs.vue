@@ -123,15 +123,18 @@
     </div>
 
     <!-- 表格 -->
-    <div class="table-section">
+    <div class="table-card">
       <div class="table-header">
         <h3>任务记录</h3>
       </div>
-      <a-table
+      <DataTable
         :columns="columns"
-        :data="tasks"
+        :data="tasks as unknown as Record<string, unknown>[]"
         :loading="loading"
         :pagination="pagination"
+        row-key="task_id"
+        :scroll="{ x: 1194 }"
+        :storage-key="STORAGE_KEY"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
@@ -194,7 +197,7 @@
             {{ getExecutionText(record) }}
           </a-tag>
         </template>
-        <template #actions="{ record }">
+        <template #action="{ record }">
           <a-button
             v-if="record.status === 'pending' || record.status === 'running'"
             type="text"
@@ -205,7 +208,7 @@
             取消任务
           </a-button>
         </template>
-      </a-table>
+      </DataTable>
     </div>
 
     <!-- 执行信息详情 -->
@@ -216,6 +219,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import { getSyncSchedule, updateSyncSchedule, type SyncSchedule } from '@/api/syncSchedule'
@@ -271,57 +275,77 @@ const pagination = reactive({
   showPageSize: true,
 })
 
-const columns = [
+const STORAGE_KEY = 'sync_logs_table_columns'
+const columns: DataTableColumn[] = [
   {
+    key: 'task_id',
     title: '任务 ID',
     slotName: 'task_id',
-    width: 90,
+    width: 92,
+    defaultVisible: true,
   },
   {
+    key: 'period',
     title: '同步周期',
     slotName: 'period',
     width: 190,
+    defaultVisible: true,
   },
   {
+    key: 'sync_mode',
     title: '同步模式',
     slotName: 'sync_mode',
     width: 100,
+    defaultVisible: true,
   },
   {
+    key: 'status',
     title: '状态',
     slotName: 'status',
     width: 80,
+    defaultVisible: true,
   },
   {
+    key: 'progress',
     title: '进度',
     slotName: 'progress',
-    width: 120,
+    width: 110,
+    defaultVisible: true,
   },
   {
+    key: 'execution_info',
     title: '执行信息',
     slotName: 'execution_info',
-    width: 100,
+    width: 76,
+    defaultVisible: true,
   },
   {
+    key: 'created_at',
     title: '创建时间',
     slotName: 'created_at',
-    width: 150,
+    width: 156,
+    defaultVisible: true,
   },
   {
+    key: 'completed_at',
     title: '完成时间',
     slotName: 'completed_at',
-    width: 150,
+    width: 162,
+    defaultVisible: true,
   },
   {
+    key: 'operator',
     title: '操作人',
     slotName: 'operator',
-    width: 100,
+    defaultVisible: true,
   },
   {
+    key: 'action',
     title: '操作',
-    slotName: 'actions',
-    width: 100,
-    fixed: 'right',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
   },
 ]
 
@@ -670,12 +694,19 @@ onUnmounted(() => {
   flex: 1;
 }
 
-.table-section {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
+.table-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+/* DataTable 自带卡片外观；置于带标题的卡片内时去重，避免双层边框 */
+.table-card :deep(.table-section) {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .table-header {
@@ -683,7 +714,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--soft);
+  border-bottom: 1px solid var(--line);
 }
 
 .table-header h3 {

@@ -15,7 +15,7 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
+    <div class="card">
       <div class="search-bar">
         <CustomerSearchInput v-model="keyword" @search="handleSearch" />
         <div class="search-actions">
@@ -23,12 +23,14 @@
         </div>
       </div>
 
-      <a-table
+      <DataTable
         :columns="columns"
-        :data="items"
+        :data="items as unknown as Record<string, unknown>[]"
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        :scroll="{ x: 726 }"
+        :storage-key="'balance_whitelist_table_columns'"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
       >
@@ -63,7 +65,7 @@
             description="点击「按 ERP 批量导入」或「添加客户」建立余额白名单"
           />
         </template>
-      </a-table>
+      </DataTable>
     </div>
 
     <!-- 按 ERP 批量导入弹窗（两步：预检 → 确认导入） -->
@@ -175,6 +177,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
@@ -207,15 +210,56 @@ const pagination = reactive({
   showPageSize: true,
 })
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '客户ID', dataIndex: 'company_id', width: 100, align: 'right' as const },
-  { title: '客户名称', dataIndex: 'customer_name', width: 200 },
-  { title: 'ERP', dataIndex: 'erp_system', width: 140 },
-  { title: '静态余额', slotName: 'static_balance', width: 130, align: 'right' as const },
-  { title: '备注', dataIndex: 'remark', width: 180, ellipsis: true, tooltip: true },
-  { title: '添加时间', slotName: 'created_at', width: 170 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  {
+    key: 'company_id',
+    title: '客户ID',
+    dataIndex: 'company_id',
+    width: 64,
+    align: 'right',
+    defaultVisible: true,
+  },
+  {
+    key: 'customer_name',
+    title: '客户名称',
+    dataIndex: 'customer_name',
+    width: 120,
+    defaultVisible: true,
+  },
+  { key: 'erp_system', title: 'ERP', dataIndex: 'erp_system', width: 56, defaultVisible: true },
+  {
+    key: 'static_balance',
+    title: '静态余额',
+    slotName: 'static_balance',
+    width: 100,
+    align: 'right',
+    defaultVisible: true,
+  },
+  {
+    key: 'remark',
+    title: '备注',
+    dataIndex: 'remark',
+    width: 140,
+    ellipsis: true,
+    tooltip: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '添加时间',
+    slotName: 'created_at',
+    width: 158,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 152,
+    defaultVisible: true,
+  },
 ]
 
 const formatMoney = (value: number) => value.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
@@ -479,15 +523,6 @@ onMounted(() => {
   padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
 }
 
-.table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
 .search-bar {
   display: flex;
   align-items: center;
@@ -535,23 +570,5 @@ onMounted(() => {
 .edit-customer-info .muted {
   color: var(--muted);
   font-size: 12px;
-}
-
-:deep(.arco-table) {
-  font-size: 14px;
-}
-
-:deep(.arco-table th) {
-  background: var(--bg);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-:deep(.arco-table td) {
-  color: #334155;
-}
-
-:deep(.arco-table tr:hover td) {
-  background: var(--bg);
 }
 </style>

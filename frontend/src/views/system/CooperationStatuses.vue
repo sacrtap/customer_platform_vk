@@ -8,52 +8,49 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="cooperationStatuses"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
-      >
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('cooperation_statuses:manage')"
-              type="text"
-              size="small"
-              @click="handleEdit(record)"
+    <DataTable
+      :columns="columns"
+      :data="cooperationStatuses as unknown as Record<string, unknown>[]"
+      :loading="loading"
+      row-key="id"
+      :pagination="pagination"
+      :scroll="{ x: 690 }"
+      :storage-key="'cooperation_statuses_table_columns'"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <template #action="{ record }">
+        <a-space>
+          <a-button
+            v-if="can('cooperation_statuses:manage')"
+            type="text"
+            size="small"
+            @click="handleEdit(record)"
+          >
+            编辑
+          </a-button>
+          <a-popconfirm
+            v-if="can('cooperation_statuses:manage')"
+            content="确认删除该合作状态？删除后不会影响已关联的客户记录。"
+            @ok="handleDelete(record.id)"
+          >
+            <a-button type="text" size="small" status="danger"> 删除 </a-button>
+          </a-popconfirm>
+        </a-space>
+      </template>
+      <template #empty>
+        <EmptyState title="暂无合作状态数据" description="点击「新增合作状态」添加第一个合作状态">
+          <template #action>
+            <a-button v-if="can('cooperation_statuses:manage')" type="primary" @click="handleCreate"
+              >新增合作状态</a-button
             >
-              编辑
-            </a-button>
-            <a-popconfirm
-              v-if="can('cooperation_statuses:manage')"
-              content="确认删除该合作状态？删除后不会影响已关联的客户记录。"
-              @ok="handleDelete(record.id)"
-            >
-              <a-button type="text" size="small" status="danger"> 删除 </a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-        <template #empty>
-          <EmptyState title="暂无合作状态数据" description="点击「新增合作状态」添加第一个合作状态">
-            <template #action>
-              <a-button
-                v-if="can('cooperation_statuses:manage')"
-                type="primary"
-                @click="handleCreate"
-                >新增合作状态</a-button
-              >
-            </template>
-          </EmptyState>
-        </template>
-        <template #created_at="{ record }">
-          {{ formatDateTime(record.created_at) }}
-        </template>
-      </a-table>
-    </div>
+          </template>
+        </EmptyState>
+      </template>
+      <template #created_at="{ record }">
+        {{ formatDateTime(record.created_at) }}
+      </template>
+    </DataTable>
 
     <!-- 新增/编辑对话框 -->
     <a-modal
@@ -83,6 +80,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -112,13 +110,40 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '合作状态名称', dataIndex: 'name', width: 200 },
-  { title: '存储值', dataIndex: 'value', width: 160 },
-  { title: '排序号', dataIndex: 'sort_order', width: 100, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 150, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  {
+    key: 'name',
+    title: '合作状态名称',
+    dataIndex: 'name',
+    width: 260,
+    ellipsis: true,
+    defaultVisible: true,
+  },
+  { key: 'value', title: '存储值', dataIndex: 'value', defaultVisible: true },
+  {
+    key: 'sort_order',
+    title: '排序号',
+    dataIndex: 'sort_order',
+    width: 64,
+    align: 'center',
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 162,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 128,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 表单 ==========
@@ -237,32 +262,5 @@ onMounted(() => {
 <style scoped>
 .cooperation-statuses-page {
   padding: 0; /* 移除 padding，由 Dashboard 统一提供 */
-}
-
-.table-section {
-  width: 100%;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid var(--soft);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-:deep(.arco-table) {
-  font-size: 14px;
-}
-
-:deep(.arco-table th) {
-  background: var(--bg);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-:deep(.arco-table td) {
-  color: #334155;
-}
-
-:deep(.arco-table tr:hover td) {
-  background: var(--bg);
 }
 </style>

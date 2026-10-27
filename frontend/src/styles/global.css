@@ -49,6 +49,25 @@
 
   /* Font Stack */
   --font-stack: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+
+  /* Table Tokens — 统一列表表格（DataTable 组件引用，保证主题切换一致） */
+  --table-th-bg: #f8fafc;
+  --table-th-color: #334155;
+  --table-row-hover: #f8fbff;
+  --table-fixed-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.15);
+  --table-row-warning-bg: rgba(220, 38, 38, 0.04);
+  --table-row-warn-bg: rgba(245, 158, 11, 0.04);
+  /* 密度 token：cell 内边距与字号（紧凑排布，替代 Arco 默认 9px 16px / 14px） */
+  --table-cell-padding-y: 5px;
+  --table-cell-padding-x: 10px;
+  --table-cell-font-size: 13px;
+  --table-cell-line-height: 20px;
+}
+
+/* 表头文字不折行：arco 默认 white-space:normal + flex-shrink:1，在窄列里被
+   padding 与排序图标挤压，中文逐字断行。统一强制 nowrap，保证表头单行显示。 */
+.arco-table-th-title {
+  white-space: nowrap;
 }
 
 /* ==========================================

@@ -1,179 +1,166 @@
 <template>
-  <div class="table-section">
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th
-              v-for="col in columns"
-              :key="col.key"
-              :class="getThClass(col)"
-              @click="col.sortable && toggleSort(col.key)"
-            >
-              <span>{{ col.title }}</span>
-              <span v-if="col.sortable" class="th-sort-indicator"></span>
-            </th>
-            <th class="th-actions">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="record in balances"
-            :key="record.id"
-            :class="{
-              'row-warning': isBurningSoon(record),
-              'row-warn': isBurningWarn(record),
-            }"
-          >
-            <td>
-              <span class="cust-id">{{ record.company_id }}</span>
-            </td>
-            <td>
-              <div class="customer">
-                <span class="logo">{{ getInitials(record.customer_name) }}</span>
-                <b class="name-text">{{ record.customer_name || '-' }}</b>
-              </div>
-            </td>
-            <td>{{ record.industry_type || '-' }}</td>
-            <td>
-              <div v-if="!record.is_package" class="balance-info">
-                <div class="balance-amount">
-                  <b :class="{ danger: isNegativeBalance(record) }"
-                    >¥{{ formatAmount(record.total_amount) }}</b
-                  >
-                  <span v-if="isNegativeBalance(record)" class="tag red">欠费</span>
-                </div>
-                <div class="balance-detail">
-                  <span class="real">实：{{ formatAmount(record.real_amount) }}</span>
-                  <span class="bonus">赠：{{ formatAmount(record.bonus_amount) }}</span>
-                </div>
-              </div>
-              <!-- 包年客户：套餐剩余额度 + 剩余次数（不限量显示「不限量」） -->
-              <div v-else class="balance-info">
-                <div class="balance-amount">
-                  <b :class="{ danger: record.package_expired }"
-                    >¥{{ formatAmount(record.package_remaining_amount) }}</b
-                  >
-                  <span v-if="record.package_expired" class="tag gray">套餐已过期</span>
-                  <span v-else-if="record.package_is_unlimited" class="tag blue">不限量</span>
-                </div>
-                <div class="balance-detail">
-                  <span class="real"
-                    >额度：¥{{ formatAmount(record.package_remaining_amount) }}</span
-                  >
-                  <span
-                    v-if="!record.package_is_unlimited && record.package_remaining_count != null"
-                    class="bonus"
-                    >次数：{{ formatCount(record.package_remaining_count) }}</span
-                  >
-                </div>
-              </div>
-            </td>
-            <!-- 余额燃尽列：油表进度条 + 剩余天数 -->
-            <td>
-              <span v-if="record.settlement_type === 'postpaid'" class="tag gray">后付费</span>
-              <span v-else-if="record.package_expired" class="tag gray">套餐已过期</span>
-              <a-tooltip v-else-if="record.is_package" :content="getPackageBurnTooltip(record)">
-                <div class="burn-cell">
-                  <div class="burn-bar" :class="getPackageBurnBarClass(record)">
-                    <div
-                      class="burn-fill"
-                      :style="{ width: getPackageBurnFillPct(record) + '%' }"
-                    ></div>
-                  </div>
-                  <span class="burn-text" :class="getPackageBurnBarClass(record)">
-                    {{ getPackageBurnLabel(record) }}
-                  </span>
-                </div>
-              </a-tooltip>
-              <a-tooltip v-else :content="getBurnTooltip(record)">
-                <div class="burn-cell">
-                  <div class="burn-bar" :class="getBurnBarClass(record)">
-                    <div class="burn-fill" :style="{ width: getBurnFillPct(record) + '%' }"></div>
-                  </div>
-                  <span class="burn-text" :class="getBurnTextClass(record)">
-                    {{ getBurnLabel(record) }}
-                  </span>
-                </div>
-              </a-tooltip>
-            </td>
-            <td>
-              <!-- 包年客户：「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径 -->
-              <a-tooltip
-                v-if="record.is_package && record.package_consumed_amount != null"
-                :content="getPackageConsumedTooltip(record)"
-              >
-                <div>
-                  <span>{{ formatAmount(record.package_consumed_amount) }}</span>
-                  <div class="used-detail">
-                    <span class="used-package">套餐内累计消耗（实时）</span>
-                  </div>
-                </div>
-              </a-tooltip>
-              <div v-else>
-                <span>{{ formatAmount(record.used_total) }}</span>
-                <div class="used-detail">
-                  <span class="used-real">实：{{ formatAmount(record.used_real) }}</span>
-                  <span class="used-bonus">赠：{{ formatAmount(record.used_bonus) }}</span>
-                </div>
-              </div>
-            </td>
-            <td>
-              <span v-if="record.last_recharge_at">{{ formatDate(record.last_recharge_at) }}</span>
-              <span v-else class="never-recharge">从未充值</span>
-            </td>
-            <td class="td-actions" @click.stop>
-              <button
-                v-if="can('billing:recharge')"
-                class="btn"
-                style="padding: 4px 10px; font-size: 12px"
-                @click="emit('recharge', record)"
-              >
-                充值
-              </button>
-              <button
-                class="btn"
-                style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                @click="emit('viewRecords', record)"
-              >
-                记录
-              </button>
-              <button
-                v-if="can('billing:recharge')"
-                class="btn btn-recalculate"
-                style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-                @click="emit('recalculate', record)"
-              >
-                重算
-              </button>
-            </td>
-          </tr>
-          <tr v-if="balances.length === 0 && !loading">
-            <td :colspan="columns.length + 1" class="empty-state">暂无余额数据</td>
-          </tr>
-          <tr v-if="loading">
-            <td :colspan="columns.length + 1" class="loading-state">加载中...</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+  <DataTable
+    :columns="tableColumns"
+    :data="balances as unknown as Record<string, unknown>[]"
+    :loading="loading"
+    :pagination="paginationConfig"
+    :row-key="'id'"
+    :row-class="rowClassFn"
+    :scroll="{ x: 1050 }"
+    :storage-key="STORAGE_KEY"
+    @page-change="onPageChange"
+    @page-size-change="onPageSizeChange"
+    @sorter-change="onSorterChange"
+  >
+    <template #company_id="{ record }">
+      <span class="cust-id">{{ (record as Balance).company_id }}</span>
+    </template>
 
-    <!-- 分页 -->
-    <Pagination
-      :current="pagination.current"
-      :page-size="pagination.pageSize"
-      :total="pagination.total"
-      :page-size-options="pagination.pageSizeOptions"
-      @page-change="onPageChange"
-      @page-size-change="onPageSizeChange"
-    />
-  </div>
+    <template #customer_name="{ record }">
+      <div class="customer">
+        <span class="logo">{{ getInitials((record as Balance).customer_name) }}</span>
+        <b class="name-text">{{ (record as Balance).customer_name || '-' }}</b>
+      </div>
+    </template>
+
+    <template #industry_type="{ record }">
+      {{ (record as Balance).industry_type || '-' }}
+    </template>
+
+    <template #total_amount="{ record }">
+      <!-- 非包年：实收/赠送拆分 -->
+      <div v-if="!(record as Balance).is_package" class="balance-info">
+        <div class="balance-amount">
+          <b :class="{ danger: isNegativeBalance(record as Balance) }"
+            >¥{{ formatAmount((record as Balance).total_amount) }}</b
+          >
+          <span v-if="isNegativeBalance(record as Balance)" class="tag red">欠费</span>
+        </div>
+        <div class="balance-detail">
+          <span class="real">实：{{ formatAmount((record as Balance).real_amount) }}</span>
+          <span class="bonus">赠：{{ formatAmount((record as Balance).bonus_amount) }}</span>
+        </div>
+      </div>
+      <!-- 包年客户：套餐剩余额度 + 剩余次数（不限量显示「不限量」） -->
+      <div v-else class="balance-info">
+        <div class="balance-amount">
+          <b :class="{ danger: (record as Balance).package_expired }"
+            >¥{{ formatAmount((record as Balance).package_remaining_amount) }}</b
+          >
+          <span v-if="(record as Balance).package_expired" class="tag gray">套餐已过期</span>
+          <span v-else-if="(record as Balance).package_is_unlimited" class="tag blue">不限量</span>
+        </div>
+        <div class="balance-detail">
+          <span class="real"
+            >额度：¥{{ formatAmount((record as Balance).package_remaining_amount) }}</span
+          >
+          <span
+            v-if="
+              !(record as Balance).package_is_unlimited &&
+              (record as Balance).package_remaining_count != null
+            "
+            class="bonus"
+            >次数：{{ formatCount((record as Balance).package_remaining_count) }}</span
+          >
+        </div>
+      </div>
+    </template>
+
+    <template #burn_down="{ record }">
+      <span v-if="(record as Balance).settlement_type === 'postpaid'" class="tag gray">后付费</span>
+      <span v-else-if="(record as Balance).package_expired" class="tag gray">套餐已过期</span>
+      <a-tooltip
+        v-else-if="(record as Balance).is_package"
+        :content="getPackageBurnTooltip(record as Balance)"
+      >
+        <div class="burn-cell">
+          <div class="burn-bar" :class="getPackageBurnBarClass(record as Balance)">
+            <div
+              class="burn-fill"
+              :style="{ width: getPackageBurnFillPct(record as Balance) + '%' }"
+            ></div>
+          </div>
+          <span class="burn-text" :class="getPackageBurnBarClass(record as Balance)">
+            {{ getPackageBurnLabel(record as Balance) }}
+          </span>
+        </div>
+      </a-tooltip>
+      <a-tooltip v-else :content="getBurnTooltip(record as Balance)">
+        <div class="burn-cell">
+          <div class="burn-bar" :class="getBurnBarClass(record as Balance)">
+            <div
+              class="burn-fill"
+              :style="{ width: getBurnFillPct(record as Balance) + '%' }"
+            ></div>
+          </div>
+          <span class="burn-text" :class="getBurnTextClass(record as Balance)">
+            {{ getBurnLabel(record as Balance) }}
+          </span>
+        </div>
+      </a-tooltip>
+    </template>
+
+    <template #used_total="{ record }">
+      <!-- 包年客户：「已消耗」= 套餐内累计消耗（实时，含未结算），与余额列同口径 -->
+      <a-tooltip
+        v-if="(record as Balance).is_package && (record as Balance).package_consumed_amount != null"
+        :content="getPackageConsumedTooltip(record as Balance)"
+      >
+        <div>
+          <span>{{ formatAmount((record as Balance).package_consumed_amount) }}</span>
+          <div class="used-detail">
+            <span class="used-package">套餐内累计消耗（实时）</span>
+          </div>
+        </div>
+      </a-tooltip>
+      <div v-else>
+        <span>{{ formatAmount((record as Balance).used_total) }}</span>
+        <div class="used-detail">
+          <span class="used-real">实：{{ formatAmount((record as Balance).used_real) }}</span>
+          <span class="used-bonus">赠：{{ formatAmount((record as Balance).used_bonus) }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template #last_recharge_at="{ record }">
+      <span v-if="(record as Balance).last_recharge_at">{{
+        formatDate((record as Balance).last_recharge_at!)
+      }}</span>
+      <span v-else class="never-recharge">从未充值</span>
+    </template>
+
+    <template #action="{ record }">
+      <button
+        v-if="can('billing:recharge')"
+        class="btn"
+        style="padding: 4px 10px; font-size: 12px"
+        @click.stop="emit('recharge', record as Balance)"
+      >
+        充值
+      </button>
+      <button
+        class="btn"
+        style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+        @click.stop="emit('viewRecords', record as Balance)"
+      >
+        记录
+      </button>
+      <button
+        v-if="can('billing:recharge')"
+        class="btn btn-recalculate"
+        style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+        @click.stop="emit('recalculate', record as Balance)"
+      >
+        重算
+      </button>
+    </template>
+  </DataTable>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { formatDate } from '@/utils/formatters'
-import Pagination from '@/components/ui/Pagination.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import type { Balance } from '@/api/billing'
 
 interface Props {
@@ -191,7 +178,7 @@ interface Props {
   can: (permission: string) => boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'pageChange', page: number): void
@@ -202,56 +189,63 @@ const emit = defineEmits<{
   (e: 'recalculate', record: Balance): void
 }>()
 
-// --- 列定义 ---
+// --- 列定义（原 columns + 操作列固定右侧） ---
 interface ColumnDef {
   key: string
   title: string
   sortable?: boolean
+  width?: number
 }
 
-const columns: ColumnDef[] = [
-  { key: 'company_id', title: '客户ID', sortable: true },
-  { key: 'customer_name', title: '客户名称', sortable: true },
-  { key: 'industry_type', title: '行业' },
-  { key: 'total_amount', title: '余额', sortable: true },
-  { key: 'burn_down', title: '余额燃尽', sortable: true },
-  { key: 'used_total', title: '已消耗', sortable: true },
-  { key: 'last_recharge_at', title: '最新充值', sortable: true },
+const columnDefs: ColumnDef[] = [
+  { key: 'company_id', title: '客户ID', sortable: true, width: 64 },
+  { key: 'customer_name', title: '客户名称', sortable: true, width: 200 },
+  { key: 'industry_type', title: '行业', width: 100 },
+  { key: 'total_amount', title: '余额', sortable: true, width: 138 },
+  { key: 'burn_down', title: '余额燃尽', sortable: true, width: 118 },
+  { key: 'used_total', title: '已消耗', sortable: true, width: 138 },
+  { key: 'last_recharge_at', title: '最新充值', sortable: true, width: 102 },
 ]
+
+// 列设置持久化 key
+const STORAGE_KEY = 'balance_table_columns'
+
+const tableColumns = computed<DataTableColumn[]>(() => [
+  ...columnDefs.map((col) => ({
+    key: col.key,
+    title: col.title,
+    width: col.width,
+    sortable: col.sortable
+      ? { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] }
+      : undefined,
+  })),
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 170 },
+])
+
+// --- 分页配置：透传给 a-table 内置分页 ---
+const paginationConfig = computed(() => ({
+  current: props.pagination.current,
+  pageSize: props.pagination.pageSize,
+  total: props.pagination.total,
+  showTotal: props.pagination.showTotal ?? true,
+  showPageSize: props.pagination.showPageSize ?? true,
+  showJumper: props.pagination.showJumper ?? true,
+  pageSizeOptions: props.pagination.pageSizeOptions ?? [10, 20, 50, 100],
+}))
 
 // 前端列 key → 后端 sort_by 字段名映射
 const sortFieldMap: Record<string, string> = {
   burn_down: 'days_remaining',
 }
 
-// --- 排序 ---
-const sortKey = ref('')
-const sortDir = ref<'asc' | 'desc' | ''>('')
-
-const getThClass = (col: ColumnDef) => {
-  if (!col.sortable) return ''
-  const classes = ['th-sortable']
-  if (sortKey.value === col.key) {
-    if (sortDir.value === 'asc') classes.push('sort-asc')
-    else if (sortDir.value === 'desc') classes.push('sort-desc')
+// --- 排序：a-table 三态 ascend/descend，清除时 emit 空字符串 ---
+const onSorterChange = (dataIndex: string, direction: string) => {
+  if (direction !== 'ascend' && direction !== 'descend') {
+    emit('sortChange', '', '')
+    return
   }
-  return classes.join(' ')
-}
-
-const toggleSort = (key: string) => {
-  if (sortKey.value === key) {
-    if (sortDir.value === 'asc') sortDir.value = 'desc'
-    else if (sortDir.value === 'desc') {
-      sortKey.value = ''
-      sortDir.value = ''
-    } else sortDir.value = 'asc'
-  } else {
-    sortKey.value = key
-    sortDir.value = 'asc'
-  }
-  // 映射到后端字段名
-  const backendField = sortFieldMap[sortKey.value] || sortKey.value
-  emit('sortChange', backendField, sortDir.value)
+  const backendField = sortFieldMap[dataIndex] || dataIndex
+  emit('sortChange', backendField, direction)
 }
 
 // --- 分页 ---
@@ -261,6 +255,14 @@ const onPageChange = (page: number) => {
 
 const onPageSizeChange = (size: number) => {
   emit('pageSizeChange', size)
+}
+
+// --- 行高亮：即将耗尽红色 / 余额偏低黄色（样式由 DataTable 内置） ---
+const rowClassFn = (record: unknown) => {
+  const r = record as Balance
+  if (isBurningSoon(r)) return 'row-warning'
+  if (isBurningWarn(r)) return 'row-warn'
+  return ''
 }
 
 // --- 辅助方法 ---
@@ -442,92 +444,8 @@ const getPackageConsumedTooltip = (record: Balance): string => {
 </script>
 
 <style scoped>
-.table-section {
-  display: flex;
-  flex-direction: column;
-}
-
-/* 表格容器 */
-.table-wrap {
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 15px;
-}
-
-/* 表格 */
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  table-layout: auto;
-}
-.table th,
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #edf2f7;
-  text-align: left;
-  white-space: nowrap;
-}
-.table th {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-/* 操作列固定在右侧：表格宽度超出容器时按钮不会被裁出视口。
-   sticky 单元格必须不透明，否则滚动内容会透出；行高亮用叠加背景还原底色。 */
-.table th.th-actions,
-.table td.td-actions {
-  position: sticky;
-  right: 0;
-  white-space: nowrap;
-  box-shadow: -8px 0 8px -8px rgba(15, 23, 42, 0.15);
-}
-.table th.th-actions {
-  z-index: 3;
-}
-.table td.td-actions {
-  z-index: 1;
-  background: #fff;
-}
-.table tbody tr:hover td.td-actions {
-  background: #f8fbff;
-}
-.table tbody tr.row-warning td.td-actions {
-  background: linear-gradient(rgba(220, 38, 38, 0.04), rgba(220, 38, 38, 0.04)), #fff;
-}
-.table tbody tr.row-warn td.td-actions {
-  background: linear-gradient(rgba(245, 158, 11, 0.04), rgba(245, 158, 11, 0.04)), #fff;
-}
-.table tbody tr {
-  transition: background 0.15s;
-}
-.table tbody tr:hover td {
-  background: #f8fbff;
-}
-
-/* 行高亮：即将耗尽（≤7天）红色 */
-.table tbody tr.row-warning td {
-  background: rgba(220, 38, 38, 0.04);
-}
-.table tbody tr.row-warning:hover td {
-  background: rgba(220, 38, 38, 0.07);
-}
-
-/* 行高亮：余额偏低（8-30天）浅黄色 */
-.table tbody tr.row-warn td {
-  background: rgba(245, 158, 11, 0.04);
-}
-.table tbody tr.row-warn:hover td {
-  background: rgba(245, 158, 11, 0.07);
-}
-/* row-warning 优先级高于 row-warn */
-.table tbody tr.row-warning.row-warn td {
-  background: rgba(220, 38, 38, 0.04);
-}
+/* 表格骨架、表头、固定列阴影、行高亮由 DataTable 提供；
+   此处仅保留余额管理页独有的单元格样式。 */
 
 /* 客户ID */
 .cust-id {
@@ -618,9 +536,12 @@ const getPackageConsumedTooltip = (record: Balance): string => {
 .balance-detail {
   font-size: 11px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 .balance-detail .real {
   color: var(--primary);
@@ -633,9 +554,10 @@ const getPackageConsumedTooltip = (record: Balance): string => {
 .burn-cell {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 110px;
   cursor: help;
+  justify-content: center;
 }
 .burn-bar {
   height: 6px;
@@ -688,9 +610,12 @@ const getPackageConsumedTooltip = (record: Balance): string => {
 .used-detail {
   font-size: 11px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 .used-detail .used-real {
   color: #dc2626;
@@ -701,42 +626,6 @@ const getPackageConsumedTooltip = (record: Balance): string => {
 /* 包年客户已消耗：实时口径提示文案 */
 .used-detail .used-package {
   color: var(--muted);
-}
-
-/* 排序表头 */
-.th-sortable {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  padding-right: 20px !important;
-}
-.th-sortable:hover {
-  color: var(--primary);
-}
-.th-sort-indicator {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  color: var(--muted);
-  line-height: 1;
-}
-.th-sortable.sort-asc .th-sort-indicator {
-  color: var(--primary);
-}
-.th-sortable.sort-desc .th-sort-indicator {
-  color: var(--primary);
-}
-.th-sortable.sort-asc .th-sort-indicator::after {
-  content: '▲';
-}
-.th-sortable.sort-desc .th-sort-indicator::after {
-  content: '▼';
-}
-.th-sortable:not(.sort-asc):not(.sort-desc) .th-sort-indicator::after {
-  content: '⇅';
-  opacity: 0.4;
 }
 
 /* 按钮 */
@@ -768,29 +657,8 @@ const getPackageConsumedTooltip = (record: Balance): string => {
   color: #4338ca;
 }
 
-/* 空状态 */
-.empty-state,
-.loading-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
 /* 从未充值 */
 .never-recharge {
   color: var(--muted);
-}
-
-/* 分页 */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #edf2f7;
 }
 </style>

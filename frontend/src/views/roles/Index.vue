@@ -17,66 +17,66 @@
       </template>
     </PageHeader>
 
-    <div class="table-section">
-      <a-table
-        :columns="columns"
-        :data="roles"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @page-change="handlePageChange"
-        @page-size-change="handlePageSizeChange"
-      >
-        <template #is_system="{ record }">
-          <a-tag :color="record.isSystem ? 'blue' : 'gray'" size="small">
-            {{ record.isSystem ? '系统角色' : '自定义角色' }}
-          </a-tag>
-        </template>
-        <template #action="{ record }">
-          <a-space>
-            <a-button
-              v-if="can('roles:assign')"
-              type="text"
-              size="small"
-              @click="handlePermissionConfig(record)"
-            >
-              权限配置
+    <DataTable
+      :columns="columns"
+      :data="roles"
+      :loading="loading"
+      row-key="id"
+      :pagination="pagination"
+      :scroll="{ x: 900 }"
+      :storage-key="'roles_table_columns'"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+    >
+      <template #is_system="{ record }">
+        <a-tag :color="record.isSystem ? 'blue' : 'gray'" size="small">
+          {{ record.isSystem ? '系统角色' : '自定义角色' }}
+        </a-tag>
+      </template>
+      <template #action="{ record }">
+        <a-space>
+          <a-button
+            v-if="can('roles:assign')"
+            type="text"
+            size="small"
+            @click="handlePermissionConfig(record)"
+          >
+            权限配置
+          </a-button>
+          <a-button
+            v-if="can('roles:edit')"
+            type="text"
+            size="small"
+            :disabled="record.isSystem"
+            @click="handleEdit(record)"
+          >
+            编辑
+          </a-button>
+          <a-popconfirm
+            v-if="can('roles:delete')"
+            content="确认删除该角色？删除后无法恢复。"
+            :disabled="record.isSystem"
+            @ok="handleDelete(record.id)"
+          >
+            <a-button type="text" size="small" status="danger" :disabled="record.isSystem">
+              删除
             </a-button>
-            <a-button
-              v-if="can('roles:edit')"
-              type="text"
-              size="small"
-              :disabled="record.isSystem"
-              @click="handleEdit(record)"
+          </a-popconfirm>
+        </a-space>
+      </template>
+      <template #empty>
+        <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
+          <template #action>
+            <a-button v-if="can('roles:create')" type="primary" @click="handleCreate"
+              >新建角色</a-button
             >
-              编辑
-            </a-button>
-            <a-popconfirm
-              v-if="can('roles:delete')"
-              content="确认删除该角色？删除后无法恢复。"
-              :disabled="record.isSystem"
-              @ok="handleDelete(record.id)"
-            >
-              <a-button type="text" size="small" status="danger" :disabled="record.isSystem">
-                删除
-              </a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-        <template #empty>
-          <EmptyState title="暂无角色数据" description="点击「新建角色」创建第一个角色">
-            <template #action>
-              <a-button v-if="can('roles:create')" type="primary" @click="handleCreate"
-                >新建角色</a-button
-              >
-            </template>
-          </EmptyState>
-        </template>
-        <template #created_at="{ record }">
-          {{ formatDateTime(record.created_at) }}
-        </template>
-      </a-table>
-    </div>
+          </template>
+        </EmptyState>
+      </template>
+      <template #created_at="{ record }">
+        {{ formatDateTime(record.created_at) }}
+      </template>
+    </DataTable>
 
     <!-- 角色编辑对话框 -->
     <a-modal
@@ -163,6 +163,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
@@ -217,13 +218,46 @@ const pagination = reactive({
 })
 
 // 表格列定义
-const columns = [
-  { title: 'ID', dataIndex: 'id', width: 70, align: 'right' as const },
-  { title: '角色名称', dataIndex: 'name', width: 140 },
-  { title: '描述', dataIndex: 'description', width: 280, ellipsis: true, tooltip: true },
-  { title: '类型', slotName: 'is_system', width: 100, align: 'center' as const },
-  { title: '创建时间', slotName: 'created_at', width: 160 },
-  { title: '操作', slotName: 'action', width: 220, fixed: 'right' as const },
+const columns: DataTableColumn[] = [
+  { key: 'id', title: 'ID', dataIndex: 'id', width: 56, align: 'right', defaultVisible: true },
+  {
+    key: 'name',
+    title: '角色名称',
+    dataIndex: 'name',
+    width: 94,
+    defaultVisible: true,
+  },
+  {
+    key: 'description',
+    title: '描述',
+    dataIndex: 'description',
+    ellipsis: true,
+    tooltip: true,
+    defaultVisible: true,
+  },
+  {
+    key: 'is_system',
+    title: '类型',
+    slotName: 'is_system',
+    width: 106,
+    align: 'center',
+    defaultVisible: true,
+  },
+  {
+    key: 'created_at',
+    title: '创建时间',
+    slotName: 'created_at',
+    width: 156,
+    defaultVisible: true,
+  },
+  {
+    key: 'action',
+    title: '操作',
+    slotName: 'action',
+    fixed: 'right' as const,
+    width: 206,
+    defaultVisible: true,
+  },
 ]
 
 // ========== 角色表单 ==========
@@ -469,14 +503,6 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.table-section {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
 }
 
 .permission-config {
