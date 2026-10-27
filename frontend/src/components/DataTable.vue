@@ -247,14 +247,6 @@ const visibleColumns = computed(() => {
 :deep(.arco-table-tr.row-warn .arco-table-td) {
   background-color: var(--table-row-warn-bg, rgba(245, 158, 11, 0.04));
 }
-/* 行高亮 + 固定列背景叠加（a-table 固定列背景由内部管理，显式覆盖避免底色丢失） */
-:deep(.arco-table-tr.row-warning .arco-table-td.arco-table-col-fixed-right) {
-  background-color: var(--table-row-warning-bg, rgba(220, 38, 38, 0.04));
-}
-:deep(.arco-table-tr.row-warn .arco-table-td.arco-table-col-fixed-right) {
-  background-color: var(--table-row-warn-bg, rgba(245, 158, 11, 0.04));
-}
-
 /* 多选列（fixed-left）背景：横向滑动时不透出后部内容。
    行高亮用不透明等效色（rgba 半透明叠白底的合成结果），避免 fixed 列透出滚动内容。 */
 :deep(.arco-table-th.arco-table-col-fixed-left) {
@@ -270,6 +262,24 @@ const visibleColumns = computed(() => {
   background-color: #fef6f6;
 }
 :deep(.arco-table-tr.row-warn .arco-table-td.arco-table-col-fixed-left) {
+  background-color: #fefbf5;
+}
+
+/* 操作列（fixed-right）背景：与 fixed-left（多选列）方案一致，横向滑动时不透出后部内容。
+   行高亮用不透明等效色（rgba 半透明叠白底的合成结果），避免 fixed 列透出滚动内容。 */
+:deep(.arco-table-th.arco-table-col-fixed-right) {
+  background-color: var(--table-th-bg, #f8fafc);
+}
+:deep(.arco-table-td.arco-table-col-fixed-right) {
+  background-color: #fff;
+}
+:deep(.arco-table-tr:hover .arco-table-td.arco-table-col-fixed-right) {
+  background-color: var(--table-row-hover, #f8fbff);
+}
+:deep(.arco-table-tr.row-warning .arco-table-td.arco-table-col-fixed-right) {
+  background-color: #fef6f6;
+}
+:deep(.arco-table-tr.row-warn .arco-table-td.arco-table-col-fixed-right) {
   background-color: #fefbf5;
 }
 
