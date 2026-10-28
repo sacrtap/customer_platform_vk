@@ -89,8 +89,9 @@
     <template #health="{ record }">
       <span
         v-if="(record as Customer).health"
-        class="tag"
+        class="tag has-tooltip"
         :class="getHealthTagClass((record as Customer).health)"
+        :data-tooltip="healthTooltip(record as Customer)"
       >
         {{ getHealthLabel((record as Customer).health) }}
       </span>
@@ -318,6 +319,24 @@ const getHealthLabel = (health: string) => {
   return map[health] || health
 }
 
+// 列表「简易健康度」判定口径说明（与详情页「健康度评分」是两套口径，tooltip 标注差异）：
+// - inactive：近 30 天无消耗（先判用量，后判余额）
+// - 后付费客户不参与余额判定（有消耗即健康，欠款属应收款范畴）
+// - 预付费/未设置：有效余额 < 500 → 高风险，< 1000 → 关注，否则健康
+const healthTooltip = (record: Customer): string => {
+  const h = record.health
+  const base = '列表简易估算：'
+  if (h === 'inactive') return `${base}近 30 天无消耗`
+  if (h === 'high_risk') return `${base}有效余额低于 500 元（预付口径）`
+  if (h === 'attention') return `${base}有效余额低于 1000 元（预付口径）`
+  if (h === 'healthy') {
+    return record.settlement_type === 'postpaid'
+      ? `${base}后付费客户有消耗（不按余额判定，欠款属应收款）`
+      : `${base}有效余额充足且有消耗`
+  }
+  return base
+}
+
 // --- 分页事件 ---
 const onPageChange = (page: number) => {
   emit('pageChange', page)
@@ -425,6 +444,16 @@ const onPageSizeChange = (pageSize: number) => {
   text-overflow: ellipsis;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
+/* 健康度标签 tooltip：文案较长，允许换行并放宽宽度（覆盖通用 has-tooltip 的 nowrap/320px） */
+.tag.has-tooltip::before {
+  white-space: normal;
+  max-width: 260px;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: left;
+  width: max-content;
+}
 .has-tooltip::after {
   content: '';
   bottom: calc(100% + 3px);
@@ -454,7 +483,6 @@ const onPageSizeChange = (pageSize: number) => {
 .tag.blue {
   background: #dbeafe;
   color: #1d4ed8;
-  margin-left: 6px;
 }
 .tag.green {
   background: #dcfce7;

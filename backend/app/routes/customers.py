@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache.base import cache_service
 from ..constants import ErrorCodes
+from ..constants.balance import BALANCE_CRITICAL_THRESHOLD, BALANCE_WARNING_THRESHOLD
 from ..middleware.auth import (
     auth_required,
     customer_scope_user_id,
@@ -56,6 +57,37 @@ def _customer_effective_balance(customer, package_info_map: dict) -> float:
         balance_total, package_info_map.get(customer.id)
     )
     return effective_balance
+
+
+def _classify_customer_health(customer, package_info_map: dict, usage_30d: int) -> str:
+    """客户列表「简易健康度」分类（high_risk/attention/inactive/healthy）
+
+    判定顺序（2026-10-28 优化：先用量后余额，后付费不参与余额判定）：
+      1. 近 30 天无消耗 → inactive（不活跃），无论余额高低。
+         余额充足但零消耗的客户业务上更应标「不活跃」，而非「健康」。
+      2. 有消耗时按结算方式分流：
+         - 后付费(postpaid)：按周期结算，无「预付余额」概念，余额不参与判定 → healthy。
+           （后付费欠款属应收款范畴，余额为 0 不代表风险，旧逻辑会误判 high_risk。）
+         - 预付费/未设置：按有效余额阈值判定
+           (< CRITICAL → high_risk, < WARNING → attention, 否则 healthy)。
+
+    阈值与 tasks/balance_check.py 同源（app/constants/balance.py），避免口径漂移。
+    注：这是列表轻量估算，与详情页「健康度评分」(用量50%+余额30%+回款20%) 是两套口径，
+    前端已标注差异，不强行统一。
+    """
+    # 1. 先判用量：近 30 天无消耗 → 不活跃
+    if usage_30d == 0:
+        return "inactive"
+    # 2. 后付费不参与余额判定
+    if customer.settlement_type == "postpaid":
+        return "healthy"
+    # 3. 预付费/未设置：按余额阈值判定
+    effective_balance = _customer_effective_balance(customer, package_info_map)
+    if effective_balance < BALANCE_CRITICAL_THRESHOLD:
+        return "high_risk"
+    if effective_balance < BALANCE_WARNING_THRESHOLD:
+        return "attention"
+    return "healthy"
 
 
 @customers_bp.get("")
@@ -276,16 +308,12 @@ async def list_customers(request: Request):
                     # 近30天消耗（来自 DailyConsumption 表）
                     "usage_30d": usage_map.get(c.id, {}).get("order_count", 0),  # pyright: ignore[reportArgumentType, reportCallIssue]
                     "usage_30d_amount": usage_map.get(c.id, {}).get("total_cost", 0.0),  # pyright: ignore[reportArgumentType, reportCallIssue]
-                    # 简易健康度估算（基于有效余额与用量，包年客户按套餐剩余额度判定，
-                    # 避免年费不入 CustomerBalance 导致的 0 余额「高风险」误判）
-                    "health": (
-                        "high_risk"
-                        if _customer_effective_balance(c, package_info_map) < 500
-                        else "attention"
-                        if _customer_effective_balance(c, package_info_map) < 1000
-                        else "inactive"
-                        if usage_map.get(c.id, {}).get("order_count", 0) == 0  # pyright: ignore[reportArgumentType, reportCallIssue]
-                        else "healthy"
+                    # 简易健康度估算（列表轻量口径；判定顺序/后付费豁免见
+                    # _classify_customer_health，与余额预警任务同源阈值）
+                    "health": _classify_customer_health(
+                        c,
+                        package_info_map,
+                        usage_map.get(c.id, {}).get("order_count", 0),  # pyright: ignore[reportArgumentType, reportCallIssue]
                     ),
                 }
                 for c in customers

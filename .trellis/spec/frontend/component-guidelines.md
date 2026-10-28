@@ -301,3 +301,31 @@ loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
 > 拦截延迟响应制造加载窗口再量 `getBoundingClientRect()` 与 body/内容区中心对比；
 > 断言 `dy<2px` 且图标中心 ≈ 内容区中心。模态容器 padding 左右可能不对称
 > （`paddingRight` 被 body-style 覆盖过），水平对比应参照内容区中心而非 border-box 中心。
+
+## 标签类样式不得按颜色变体单独加 margin（列内左对齐）
+
+[来源: 2026-10-28 — 客户列表「结算方式」列标签未左对齐]
+
+**现象**：客户列表「结算方式」列，预付费（`.tag.green`）标签紧贴单元格左缘，
+后付费（`.tag.blue`）标签却向右偏移 6px，两行不对齐。
+
+**根因**：`.tag.blue` 规则里单独写了 `margin-left: 6px`，而 `.tag.green`/
+`.tag.amber`/`.tag.red`/`.tag.gray` 都没有——同一组「标签」的视觉变体
+（颜色类）被赋予了**不对称的外边距**。这条 `margin-left` 原是为「行业单元格」
+里行业名与「重点」蓝标签之间隔而加，但该单元格已用 flex `gap: 6px` 控制间距，
+且 `.industry-cell .tag { margin-left: 0 }` 覆盖了它——所以行业单元格内实际不生效，
+真正受影响的只有行业单元格**之外**、直接渲染在单元格里的蓝标签（即结算方式列）。
+
+**修复**：删除 `.tag.blue` 上的 `margin-left: 6px`（颜色变体只管配色，不管定位）。
+元素间间距一律交给**布局容器**（flex `gap` / grid `gap`）或**局部规则**
+（`.industry-cell .tag`），不要写在全局颜色类上。
+
+**规则**：
+- 颜色变体类（`.tag.blue/green/...`）只承载 `background`/`color`，**不承载
+  `margin`/`padding`/`position` 等布局属性**——否则同一 `.tag` 在不同列里
+  因为颜色不同而错位。
+- 元素间距用容器 `gap`（flex/grid）统一控制，避免「某颜色标签多一块 margin」
+  的隐式偏移；`.industry-cell .tag` 这类局部覆盖若已存在，全局 `margin` 就是
+  死代码 + 陷阱。
+- 新增一列复用现有 `.tag` 体系时，先 grep 该颜色的全局规则有无布局副作用
+  （`grep -n "tag\." *.vue`），再决定是否需要为该列单独加容器。

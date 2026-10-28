@@ -414,6 +414,38 @@ class TestCustomerService_UpdateCustomer:
             await customer_service.update_customer(customer_id, {"manager_id": None})
 
     @pytest.mark.asyncio
+    async def test_update_customer_normalizes_empty_string_manager_to_none(
+        self, customer_service, mock_db_session
+    ):
+        """Arco a-select allow-clear emit 空字符串 ""，后端须归一为 None 置空（防 500）
+
+        回归：manager_id 是 Integer 外键列，setattr(int 列, "") 在 commit 时
+        报 DataError → 500。前端虽已 || null 归一，后端须对任意客户端兜底。
+        """
+        customer_id = 1
+        existing = Customer(
+            id=customer_id,
+            company_id=1001,
+            name="测试",
+            require_reconciliation=False,
+            manager_id=10,
+            sales_manager_id=20,
+            deleted_at=None,
+        )
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing
+        mock_db_session.execute.return_value = mock_result
+
+        result = await customer_service.update_customer(
+            customer_id, {"manager_id": "", "sales_manager_id": ""}
+        )
+
+        assert result is not None
+        # 空字符串必须被归一为 None（清空），而非落库成字符串
+        assert existing.manager_id is None
+        assert existing.sales_manager_id is None
+
+    @pytest.mark.asyncio
     async def test_update_customer_validation_failure_leaves_no_dirty_state(
         self, customer_service, mock_db_session
     ):

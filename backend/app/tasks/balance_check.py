@@ -9,14 +9,15 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..constants.balance import BALANCE_CRITICAL_THRESHOLD, BALANCE_WARNING_THRESHOLD
 from ..models.billing import CustomerBalance
 from ..models.customers import Customer
 
 logger = logging.getLogger(__name__)
 
-# 预警阈值配置
-WARNING_THRESHOLD = 1000  # 余额低于 1000 元预警
-CRITICAL_THRESHOLD = 500  # 余额低于 500 元严重预警
+# 预警阈值（与客户列表「简易健康度」同源，见 app/constants/balance.py）
+WARNING_THRESHOLD = BALANCE_WARNING_THRESHOLD  # 余额低于此值预警
+CRITICAL_THRESHOLD = BALANCE_CRITICAL_THRESHOLD  # 余额低于此值严重预警
 
 
 async def check_balance_warning(session: AsyncSession):

@@ -481,9 +481,13 @@ const handleSubmit = async () => {
       settlement_type: form.settlement_type,
       settlement_cycle: form.settlement_cycle || undefined,
       is_key_customer: form.is_key_customer,
-      // 经理字段直接传值：null（清空）必须送达后端置 NULL
-      manager_id: form.manager_id,
-      sales_manager_id: form.sales_manager_id,
+      // 经理字段：清空必须送达后端置 NULL（manager_id 是 Integer 外键列）。
+      // Arco a-select allow-clear 实测 emit 的是「空字符串 ""」（不是 undefined/null，
+      // 见 select.js getValueFromValueKeys：无空串 option 时返回 ""）。
+      // 用 ?? null 捕获不到 ""（"" ?? null === ""）→ 后端 setattr(int 列, "")→ 500。
+      // 用 || null 把任意 falsy（""/undefined/null/0）归一为 null，后端据此置 NULL。
+      manager_id: form.manager_id || null,
+      sales_manager_id: form.sales_manager_id || null,
       erp_system: form.erp_system || undefined,
       first_payment_date: form.first_payment_date || undefined,
       onboarding_date: form.onboarding_date || undefined,
