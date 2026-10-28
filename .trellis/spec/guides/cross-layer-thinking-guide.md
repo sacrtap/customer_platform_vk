@@ -838,6 +838,46 @@ admin 名下客户（≈0）。此前测试只覆盖「受限用户无 mine」�
 仅在提供时写 `record.remark`。前端清空备注提交 `null`。
 若误用 `data.get("remark")`，则「只改余额不改备注」的旧调用会静默清空备注。
 
+### Real-world example (2026-10-28, 客户编辑删除运营/销售经理无法保存)
+
+客户编辑弹窗（`EditCustomerDialog.vue`）删除「运营经理/销售经理」后保存，报错
+「更新失败」或经理值未被清空。
+
+**根因链（Arco allow-clear emit 空字符串 "" → 后端 setattr(int 列, "") → 500）**：
+
+1. Arco `a-select` `allow-clear` 清空选中后，**实测 emit 的是空字符串 `""`**，
+   不是 `undefined`/`null`。依据 `select.js::getValueFromValueKeys`：
+   单选清空时 `valueKeys=[]` → `optionInfoMap.get(undefined)?.value ?? (hasEmptyStringKey ? undefined : "")`。
+   manager 选项 value 是正整数、无空串 option → `hasEmptyStringKey` 为 false → 返回 `""`。
+   （Arco 文档曾写「set value to undefined when empty」，**与实现不符**——别信文档，读源码。）
+2. `handleSubmit` 把 `""` 直传给 `manager_id`。`"" ?? null` 仍是 `""`（空值合并只捕
+   `null`/`undefined`），所以首轮 `?? null` 修复**无效**——这正是「修了又复发」的原因。
+3. 后端 `update_customer` 用 `if "manager_id" in data:` 判定键存在（`""` 在）→
+   `setattr(customer, "manager_id", "")`。`manager_id` 是 `Integer` 外键列，
+   commit 时把 `""` 写进 int 列 → Postgres `DataError` → 500「更新失败」。
+   （若开启对账，前端 `required` 校验先拦截，表现为「无法保存」。）
+
+**修复（前后端两层）**：
+- 前端：用 `|| null`（不是 `?? null`）把任意 falsy（`""`/`undefined`/`null`/`0`）
+  归一为 `null`：`manager_id: form.manager_id || null`。`null` 被 JSON 保留为键，
+  后端 `setattr(int 列, None)` 正常置空。
+- 后端兜底（防任意客户端）：`update_customer`/`batch_update` 对 FK int 字段
+  （`manager_id`/`sales_manager_id`/`settlement_account_id`）在赋值前归一——
+  非正整数一律转 `None`，避免 `setattr(int 列, "")` 500。
+
+**教训（「修了又复发」的复盘）**：
+- **首轮修复错在信文档而非读源码**：Arco 文档写「clear → undefined」，但
+  `select.js` 实现是「clear → `""`」（单选无空串 option 时）。`?? null` 捕获不到 `""`，
+  bug 原样复发。**对组件库的隐式行为，用 `console.log`/断点/读 `node_modules` 源码
+  验证实际 emit 值，不要据文档推断**——文档与实现脱节是常见的二次返工源。
+- **`??` vs `||` 的语义差是本 bug 的断点**：`??` 只捕 `null`/`undefined`，
+  `""` 是 falsy 但不是 nullish → `"" ?? null === ""`；`||` 捕所有 falsy →
+  `"" || null === null`。清空归一要用 `||`，除非你确定组件只 emit nullish 值。
+- **后端对 FK int 列必须防 `""`/字符串**：前端归一是第一道，后端归一是兜底
+  （批量/导入/直调都可能传 `""`）。两层都做，单层失效不致 500。
+- **回归测试必须模拟组件的真实 emit 值**（本例是 `""`，不是 `undefined`），
+  否则测试绿但 bug 在。判别手段：临时回退修复跑测试，应红。
+
 ## Mock 层缺陷伪装成业务层 Bug（测试替身的链式属性陷阱）
 
 **跨层类型：B（测试替身 ↔ 被测代码的隐式契约）**。症状与根因严重分离：业务代码

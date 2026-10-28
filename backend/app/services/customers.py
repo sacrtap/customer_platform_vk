@@ -740,8 +740,12 @@ class CustomerService:
         ]
 
         # 结算账户校验：禁止自引用；非空时目标客户必须存在且未删除
+        # 兼容 Arco allow-clear emit 的空字符串 "" / 其他 falsy → 归一为 None（用自身余额）
         if "settlement_account_id" in data:
             account_id = data.get("settlement_account_id")
+            if not isinstance(account_id, int) or account_id <= 0:
+                account_id = None
+                data["settlement_account_id"] = None
             if account_id is not None:
                 if account_id == customer_id:
                     raise ValueError("结算账户不能为客户自身")
@@ -760,6 +764,14 @@ class CustomerService:
             if field in data and data[field]:
                 data[field] = parse_date_to_object(data[field])
 
+        # 经理外键字段归一化：Arco a-select allow-clear 实测 emit 空字符串 ""，
+        # 前端虽已用 || null 归一，但后端须对任意客户端（批量/导入/直调）兜底——
+        # 把非正整数（"" / None / 0 / 字符串）统一为 None，否则 setattr(int 列, "")→ 500。
+        # settlement_account_id / industry_type_id 各有专属校验块，单独处理。
+        for field in ("manager_id", "sales_manager_id"):
+            if field in data:
+                v = data[field]
+                data[field] = v if (isinstance(v, int) and v > 0) else None
         # 开启对账后强制运营/商务经理非空（综合本次传入值与客户现有值判断；
         # manager_id/sales_manager_id 显式传 None 清空同样视为未指定）。
         # 必须先于字段赋值：赋值后抛错会使脏对象留在 session 中，被后续请求 flush 落库。
@@ -921,6 +933,12 @@ class CustomerService:
                 for field in date_fields:
                     if field in fields_to_apply and fields_to_apply[field] is not None:
                         fields_to_apply[field] = parse_date_to_object(fields_to_apply[field])
+
+                # 整数外键归一化（同 update_customer）：非正整数 → None，防 setattr(int 列, "")→ 500
+                for fk in ("manager_id", "sales_manager_id", "settlement_account_id"):
+                    if fk in fields_to_apply:
+                        fv = fields_to_apply[fk]
+                        fields_to_apply[fk] = fv if (isinstance(fv, int) and fv > 0) else None
 
                 # 执行更新
                 for field, value in fields_to_apply.items():
