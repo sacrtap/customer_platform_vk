@@ -631,6 +631,121 @@ if industry_type:
 
 ---
 
+## Scenario: 客户列表「简易健康度」分类口径（先用量后余额 + 后付费豁免）
+
+### 1. Scope / Trigger
+
+- Trigger: 客户管理页健康度列判定标准优化（2026-10-28）。原内联表达式有两个缺陷：①先余额后用量——余额 ≥1000 但近 30 天零消耗的客户被判 `healthy`（业务上应「不活跃」）；②后付费(postpaid)客户无「预付余额」概念，余额为 0 却被按 500/1000 阈值误判 `high_risk`。
+- 用户确认的 4 项决策：后付费不参与余额判定、先用量后余额、提取共享阈值、标注两套口径差异但不强行统一。
+
+### 2. Signatures
+
+[来源: `backend/app/routes/customers.py`]
+
+```python
+from ..constants.balance import BALANCE_CRITICAL_THRESHOLD, BALANCE_WARNING_THRESHOLD  # 500.0 / 1000.0
+
+def _classify_customer_health(customer, package_info_map: dict, usage_30d: int) -> str:
+    """返回 high_risk / attention / inactive / healthy"""
+```
+
+[来源: `backend/app/constants/balance.py`（共享常量唯一 owner）]
+
+```python
+BALANCE_CRITICAL_THRESHOLD: float = 500.0   # 低于 → 高风险 / 严重预警
+BALANCE_WARNING_THRESHOLD: float = 1000.0   # 低于 → 关注 / 预警
+```
+
+`backend/app/tasks/balance_check.py` 的 `WARNING_THRESHOLD`/`CRITICAL_THRESHOLD` 改为从共享模块导入（保留原名为别名，不破坏既有 import）。
+
+### 3. Contracts
+
+判定顺序（`_classify_customer_health`）：
+
+| 顺序 | 条件 | 结果 |
+|------|------|------|
+| 1 | `usage_30d == 0` | `inactive`（先判用量，余额再高也是不活跃） |
+| 2 | `settlement_type == "postpaid"` | `healthy`（后付费不参与余额判定，欠款属应收款范畴） |
+| 3 | 有效余额 `< BALANCE_CRITICAL_THRESHOLD` | `high_risk` |
+| 4 | 有效余额 `< BALANCE_WARNING_THRESHOLD` | `attention` |
+| 5 | 其余 | `healthy` |
+
+关键约束：
+
+- **阈值单一来源**：列表 health 与余额预警任务必须同源引用 `app/constants/balance.py`；历史两处各自硬编码 500/1000 数值相同但无引用关系，改一处必漏另一处。
+- **后付费精确匹配**：`settlement_type == "postpaid"` 是字符串精确匹配；未设置（`None`）走预付费同款余额判定，不误入豁免。
+- **有效余额**：包年客户按套餐剩余额度（`_customer_effective_balance` → `resolve_effective_balance`），其余取 `CustomerBalance.total_amount`。
+- **与详情页评分是两套口径**：列表是轻量估算（余额+用量）；详情 `get_customer_health_score()` 是完整评分（用量 50% + 余额 30% + 回款 20%，四态 `healthy/normal/unhealthy/not_applicable`）。不强行统一（列表接口逐客户算分会变慢），仅在列表侧 tooltip 标注差异。
+- **前端 tooltip**：`CustomerTable.vue` health 标签挂 `has-tooltip` + `data-tooltip`，`.tag.has-tooltip::before` 覆盖通用样式的 `nowrap/320px`（允许换行、`max-width: 260px`）。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 结果 |
+|------|------|
+| 近 30 天零消耗（任意结算方式/余额） | `inactive` |
+| 后付费 + 有消耗 + 余额 0 | `healthy`（旧逻辑误判 `high_risk`） |
+| 后付费 + 零消耗 | `inactive`（用量优先于结算方式） |
+| 预付费 + 有消耗 + 余额 < 500 | `high_risk` |
+| 预付费 + 有消耗 + 500 ≤ 余额 < 1000 | `attention` |
+| 预付费 + 有消耗 + 余额 ≥ 1000 | `healthy` |
+| `settlement_type=None` + 有消耗 + 低余额 | 按预付费阈值判定（不走豁免） |
+| 余额恰好 == 500 | `attention`（判定为 `<`，不含等于） |
+| 余额恰好 == 1000 | `healthy`（同上） |
+| 包年 + 有消耗 + 套餐剩余 0 | `high_risk`（剩余额度参与阈值判定） |
+
+### 5. Good/Base/Bad Cases
+
+- Good: 后付费客户余额 0、近 30 天 10 单 → `healthy`；预付费客户余额 800、有消耗 → `attention`；预付费客户余额 5000、零消耗 → `inactive`。
+- Base: 非包年预付客户余额 5000、有消耗 → `healthy`（与改动前一致）。
+- Bad: 余额 5000 零消耗仍标 `healthy`（旧「先余额后用量」）；后付费余额 0 标 `high_risk`（旧「无结算方式分流」）；列表与预警任务阈值各自硬编码。
+
+### 6. Tests Required
+
+[来源: `backend/tests/unit/test_customer_health_classify.py`]
+
+| 用例 | 断言点 |
+|------|--------|
+| `test_zero_usage_beats_high_balance` | 零消耗 + 高余额 → `inactive` |
+| `test_postpaid_with_usage_zero_balance_is_healthy` | 后付费 + 有消耗 + 余额 0 → `healthy` |
+| `test_unset_settlement_type_uses_balance` | `settlement_type=None` + 低余额 → `high_risk` |
+| `test_boundary_exactly_critical_is_attention` | 余额 == 500 → `attention` |
+| `test_boundary_exactly_warning_is_healthy` | 余额 == 1000 → `healthy` |
+| `test_package_customer_zero_remaining_is_high_risk` | 包年剩余 0 + 有消耗 → `high_risk` |
+| `test_matches_balance_check_task` | 共享常量与 `balance_check` 阈值相等（防漂移） |
+
+前端 `CustomerTable.vue` health 标签 tooltip 由既有组件测试覆盖渲染（`vitest` 全量 182 passed）。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 先余额后用量 + 无结算方式分流 + 硬编码阈值
+"health": (
+    "high_risk" if _customer_effective_balance(c, package_info_map) < 500
+    else "attention" if _customer_effective_balance(c, package_info_map) < 1000
+    else "inactive" if usage == 0
+    else "healthy"
+)
+```
+
+#### Correct
+
+```python
+if usage_30d == 0:
+    return "inactive"          # 先判用量
+if customer.settlement_type == "postpaid":
+    return "healthy"           # 后付费不参与余额判定
+balance = _customer_effective_balance(customer, package_info_map)
+if balance < BALANCE_CRITICAL_THRESHOLD:
+    return "high_risk"
+if balance < BALANCE_WARNING_THRESHOLD:
+    return "attention"
+return "healthy"
+```
+
+---
+
 ## 相关约定
 
 - 余额范围档位（前端 `BALANCE_RANGE_OPTIONS`）中「1万以下」的 `min` 有意为 `null`（含欠费与零余额），与 `low_balance_count` 口径保持一致；「欠费」是其中只看负余额的窄档，重叠属预期。
