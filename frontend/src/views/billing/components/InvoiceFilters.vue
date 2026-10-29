@@ -86,7 +86,10 @@ onMounted(async () => {
   }
   try {
     const res = await getManagers()
-    managers.value = (res.data?.data || res.data || []) as Array<{
+    // /users/options 的响应是 { data: { list, total, page, page_size } }，
+    // 列表在 res.data.list（与 industryTypes/erpSystems 的 res.data.data 不同）。
+    // 误用 res.data?.data 会拿到 undefined 再回退到整个分页对象，.map 直接崩。
+    managers.value = (res.data?.list || []) as Array<{
       id: number
       real_name: string | null
     }>
