@@ -329,3 +329,38 @@ loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
   死代码 + 陷阱。
 - 新增一列复用现有 `.tag` 体系时，先 grep 该颜色的全局规则有无布局副作用
   （`grep -n "tag\." *.vue`），再决定是否需要为该列单独加容器。
+
+## 列表页客户列：客户ID + 客户名称双列约定
+
+[来源: 2026-10-30 — 计费规则页「客户」列过宽且缺客户ID，对齐余额管理页]
+
+**约定**：凡需展示「客户」的列表页，一律拆成 **客户ID（`company_id`）+ 客户名称** 两列，
+不要用单个宽列把两者挤在一起。已对齐页面：余额管理（`BalanceTable.vue`）、
+客户管理（`CustomerTable.vue`）、计费规则（`PricingRules.vue`）。
+
+| 列 | key | width | 样式 |
+|---|---|---|---|
+| 客户ID | `company_id` | 64 | `.cust-id`：`font-variant-numeric: tabular-nums` + `--muted` 色 + 13px |
+| 客户名称 | `customer_name` | 200 | `.cust-name`：`font-weight: 600` + `--ink` 色 |
+
+**要点**：
+- **客户ID 列只展示 `company_id`（客户编号），绝不以 DB 内部主键 `customer_id` 兜底**。
+  两个字段语义不同：`company_id` 是对外可读编号（导入/导出/搜索的主键列），
+  `customer_id` 是 DB 自增主键（用户不可见）。`company_id` 为空就显示空，
+  详见 `BalanceTable.test.ts` 的「客户ID 列只展示 company_id，不回退 customer_id」用例。
+- 后端列表接口必须显式序列化 `company_id`。计费规则页曾只返回 `customer_id`，
+  前端只能拿 DB 主键凑数，误导用户。新增/改造客户相关列表接口时，
+  先确认 `company_id` 在响应里（参照 `pricing.py` 列表与 `balances.py`）。
+- `customer_name` 为空时显示 `-`（`.subtle`），**不要**拼「客户123」这类
+  含 DB 主键的兜底文案（客户ID 已独立成列，再拼一次是冗余且误导）。
+
+### DataTable 列宽陷阱：`scroll.x` 要略大于容器宽度
+
+`DataTable` 底层 `a-table` 用 `table-layout: fixed`，当 `scroll.x` **小于**表格容器
+实际宽度时，各列会被**等比拉伸**（例：916px 内容铺进 1086px 容器 → 全部 ×1.185，
+配置 64px 的客户ID 实际显示 78px），与参照页面对不齐。
+
+- 设 `scroll.x` 时**量一下页面表格容器宽度**（`.arco-table` 的
+  `getBoundingClientRect().width`），让 `scroll.x ≥ 容器宽度`。
+- 列宽对齐不要只看 `columnDefs` 的配置值——配置 64/200 但显示 78/243 是拉伸，
+  不是配置生效。验证必须读 `.arco-table-th` 的实际 `getBoundingClientRect().width`。
