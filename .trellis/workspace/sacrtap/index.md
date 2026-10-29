@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 49
-- **Last Active**: 2026-10-26
+- **Total Sessions**: 50
+- **Last Active**: 2026-10-30
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1250 | Active |
+| `journal-1.md` | ~1272 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 50 | 2026-10-30 | 消耗分析页新增 ERP 系统筛选项 | `7d888f5` | `main` |
 | 49 | 2026-10-26 | 余额管理筛选项首行对齐客户管理（PR #82 已合并） | `2c20d74`, `9498244` | `main` |
 | 48 | 2026-10-24 | 减免审批节点（PR #71/#72 已合并） | `a087a81`, `4bbcac4` | `main` |
 | 47 | 2026-10-23 | 客户「是否对账」属性改造 + 存量测试与 schema 漂移修复 | `e780377`, `e085ad6`, `542a17b`, `e91ac1d`, `b28f399`, `5566fab`, `dbc6ee4` | `main` |

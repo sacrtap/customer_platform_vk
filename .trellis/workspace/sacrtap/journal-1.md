@@ -1248,3 +1248,25 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+
+## Session 50: 消耗分析页新增 ERP 系统筛选项
+<!-- trellis-session: v=2 fp=edaa609046e6ff4d -->
+
+**Date**: 2026-10-30
+**Task**: 消耗分析页新增 ERP 系统筛选项
+**Branch**: `main`
+
+### Summary
+
+在消耗分析页筛选器新增「ERP系统」下拉，贯通趋势图/客户排行/设备分布三个共用端点。关键正确性点：三端点的 900s Redis cache_key 均纳入 erp_system，避免切换 ERP 后命中上一次筛选的缓存（UI 显示新值但数据不变的假生效 bug）。契约沿用仓库既有口径：Customer.erp_system 存 ErpSystem.value，字典经 GET /erp-systems 加载，与客户管理页/余额管理页/结算单页一致。三 service 查询均已 join Customer，仅追加 where。顺带修复 test_analytics_api.py 既有缺陷：auth_token fixture 用 os.environ.get('JWT_SECRET') 自签 JWT 与中间件 settings.jwt_secret 验签不一致，导致任何显式请求 db_session 的测试 401，改为 AuthService.create_access_token。验证：后端全量 1392 passed；ruff/pyright/type-check/eslint 全绿；API 端到端 trend 599,520.81→24,664.00、不存在值→[]；真实 Redis 缓存隔离 yiao 24,664/dingjian 12,410/fangxin 0 无串味；浏览器实测选「易遨」后总消耗/活跃客户/最高客户同步变化，重置恢复全量。新增 4 个集成测试，缓存隔离测试经注入 bug 实证可捕获 cache_key 漏参（单跑与全量均 FAILED，还原后 32 passed）。CI 11 jobs 全绿，squash 合并为 7d888f5，分支已删。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7d888f5` | feat(analytics): 消耗分析页新增 ERP 系统筛选项 (#92) |
+
+### Status
+
+[OK] **Completed**
