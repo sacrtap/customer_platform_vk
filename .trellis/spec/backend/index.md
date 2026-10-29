@@ -14,6 +14,7 @@ Before writing backend code, read and follow:
 - [ ] [Database Guidelines](./database-guidelines.md) — `request.ctx.db_session`, soft delete, cache invalidation, **PG 会话时区契约（naive 列墙钟基准）**
 - [ ] [Quality Guidelines](./quality-guidelines.md) — testing (unit/integration), forbidden patterns
 - [ ] [Analytics Forecast](./analytics-forecast.md) — 预测消费接口/算法/数据字段契约
+- [ ] [Analytics Consumption Filters](./analytics-consumption-filters.md) — 消耗分析页多维度筛选跨层契约（四处同步、cache_key 陷阱、ERP 口径、缓存隔离测试写法）
 - [ ] [Analytics Dashboard](./analytics-dashboard.md) — 运营工作台 stats/todos/trend 字段契约、待办口径、权限角色与 scope 规则
 - [ ] [Billing Balance Stats](./billing-balance-stats.md) — 余额统计响应字段、结算类型分组（未设置结算类型 = 预付费）口径、列表 `settlement_group` 契约与结算单列表行业/ERP 筛选契约
 - [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单

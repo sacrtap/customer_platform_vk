@@ -198,6 +198,7 @@ class AnalyticsService:
         industry: Optional[str] = None,
         scale_level: Optional[str] = None,
         consume_level: Optional[str] = None,
+        erp_system: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
         mine_user_id: Optional[int] = None,
@@ -247,15 +248,18 @@ class AnalyticsService:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             if scale_level:
                 stmt = stmt.where(CustomerProfile.scale_level == scale_level)
-            if consume_level:
-                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
-            if industry:
-                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
-                if industry_names:
-                    stmt = stmt.outerjoin(
-                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
-                    )
-                    stmt = stmt.where(IndustryType.name.in_(industry_names))
+        if consume_level:
+            stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+        if erp_system:
+            # ERP 系统筛选：Customer.erp_system 存 ErpSystem.value，精确匹配（Customer 已 join）
+            stmt = stmt.where(Customer.erp_system == erp_system)
+        if industry:
+            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+            if industry_names:
+                stmt = stmt.outerjoin(
+                    IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                )
+                stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(DailyConsumption.consumption_date).order_by(
             DailyConsumption.consumption_date
@@ -299,6 +303,7 @@ class AnalyticsService:
         industry: Optional[str] = None,
         scale_level: Optional[str] = None,
         consume_level: Optional[str] = None,
+        erp_system: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
         mine_user_id: Optional[int] = None,
@@ -347,15 +352,18 @@ class AnalyticsService:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             if scale_level:
                 stmt = stmt.where(CustomerProfile.scale_level == scale_level)
-            if consume_level:
-                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
-            if industry:
-                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
-                if industry_names:
-                    stmt = stmt.outerjoin(
-                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
-                    )
-                    stmt = stmt.where(IndustryType.name.in_(industry_names))
+        if consume_level:
+            stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+        if erp_system:
+            # ERP 系统筛选：Customer.erp_system 存 ErpSystem.value，精确匹配（Customer 已 join）
+            stmt = stmt.where(Customer.erp_system == erp_system)
+        if industry:
+            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+            if industry_names:
+                stmt = stmt.outerjoin(
+                    IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                )
+                stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(DailyConsumption.device_type)
 
@@ -462,6 +470,7 @@ class AnalyticsService:
         industry: Optional[str] = None,
         scale_level: Optional[str] = None,
         consume_level: Optional[str] = None,
+        erp_system: Optional[str] = None,
         manager_id: Optional[int] = None,
         sales_manager_id: Optional[int] = None,
         mine_user_id: Optional[int] = None,
@@ -510,15 +519,18 @@ class AnalyticsService:
             stmt = stmt.outerjoin(CustomerProfile, Customer.id == CustomerProfile.customer_id)
             if scale_level:
                 stmt = stmt.where(CustomerProfile.scale_level == scale_level)
-            if consume_level:
-                stmt = stmt.where(CustomerProfile.consume_level == consume_level)
-            if industry:
-                industry_names = [n.strip() for n in industry.split(",") if n.strip()]
-                if industry_names:
-                    stmt = stmt.outerjoin(
-                        IndustryType, CustomerProfile.industry_type_id == IndustryType.id
-                    )
-                    stmt = stmt.where(IndustryType.name.in_(industry_names))
+        if consume_level:
+            stmt = stmt.where(CustomerProfile.consume_level == consume_level)
+        if erp_system:
+            # ERP 系统筛选：Customer.erp_system 存 ErpSystem.value，精确匹配（Customer 已 join）
+            stmt = stmt.where(Customer.erp_system == erp_system)
+        if industry:
+            industry_names = [n.strip() for n in industry.split(",") if n.strip()]
+            if industry_names:
+                stmt = stmt.outerjoin(
+                    IndustryType, CustomerProfile.industry_type_id == IndustryType.id
+                )
+                stmt = stmt.where(IndustryType.name.in_(industry_names))
 
         stmt = stmt.group_by(Customer.id, Customer.name, Customer.company_id)
 

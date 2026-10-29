@@ -40,6 +40,7 @@ async def get_consumption_trend(request: Request):
     industry = request.args.get("industry")
     scale_level = request.args.get("scale_level")
     consume_level = request.args.get("consume_level")
+    erp_system = request.args.get("erp_system")
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
     force_refresh_raw = request.args.get("force_refresh", "")
@@ -61,7 +62,7 @@ async def get_consumption_trend(request: Request):
     # 数据可见性（服务端强制）：无 customers:view_all 时仅统计当前用户负责的客户，
     # 同时将 scope 并入缓存 key，防止不同可见性用户复用彼此缓存。
     scope_user_id = await customer_scope_user_id(request)
-    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
+    cache_key = f"{start_date}:{end_date}:{cid}:{account_type}:{industry}:{scale_level}:{consume_level}:{erp_system}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_consumption_trend", cache_key)
         if not force_refresh
@@ -85,6 +86,7 @@ async def get_consumption_trend(request: Request):
             industry=industry,
             scale_level=scale_level,
             consume_level=consume_level,
+            erp_system=erp_system,
             manager_id=int(manager_id) if manager_id else None,
             sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
             mine_user_id=scope_user_id,
@@ -125,12 +127,13 @@ async def get_top_customers(request: Request):
     industry = request.args.get("industry")
     scale_level = request.args.get("scale_level")
     consume_level = request.args.get("consume_level")
+    erp_system = request.args.get("erp_system")
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
     scope_user_id = await customer_scope_user_id(request)
-    cache_key = f"{start_date}:{end_date}:{limit}:{metric}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
+    cache_key = f"{start_date}:{end_date}:{limit}:{metric}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{erp_system}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_top_customers", cache_key) if not force_refresh else None
     )
@@ -150,6 +153,7 @@ async def get_top_customers(request: Request):
         industry=industry,
         scale_level=scale_level,
         consume_level=consume_level,
+        erp_system=erp_system,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
         mine_user_id=scope_user_id,
@@ -172,6 +176,7 @@ async def get_device_distribution(request: Request):
     industry = request.args.get("industry")
     scale_level = request.args.get("scale_level")
     consume_level = request.args.get("consume_level")
+    erp_system = request.args.get("erp_system")
     manager_id = request.args.get("manager_id")
     sales_manager_id = request.args.get("sales_manager_id")
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -187,7 +192,7 @@ async def get_device_distribution(request: Request):
     cid = customer_id or "all"
     # 数据可见性（服务端强制）：无 customers:view_all 时仅返回当前用户负责的客户
     scope_user_id = await customer_scope_user_id(request)
-    cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
+    cache_key = f"{start_date}:{end_date}:{cid}:{keyword}:{account_type}:{industry}:{scale_level}:{consume_level}:{erp_system}:{manager_id}:{sales_manager_id}:scope:{scope_user_id or 'all'}"
     cached = (
         await cache_service.get("analytics_device_distribution", cache_key)
         if not force_refresh
@@ -211,6 +216,7 @@ async def get_device_distribution(request: Request):
         industry=industry,
         scale_level=scale_level,
         consume_level=consume_level,
+        erp_system=erp_system,
         manager_id=int(manager_id) if manager_id else None,
         sales_manager_id=int(sales_manager_id) if sales_manager_id else None,
         mine_user_id=scope_user_id,

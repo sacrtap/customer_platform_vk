@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "FilterDropdown 组件用法与 props 契约"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "字典加载与 filters 状态管理约定"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "routes -> services 分层与筛选追加位置"}
