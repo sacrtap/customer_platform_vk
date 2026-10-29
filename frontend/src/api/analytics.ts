@@ -22,6 +22,7 @@ export function getConsumptionTrend(params?: {
   industry?: string
   scale_level?: string
   consume_level?: string
+  erp_system?: string
   manager_id?: number
   sales_manager_id?: number
   force_refresh?: boolean
@@ -48,6 +49,7 @@ export function getTopCustomers(params?: {
   industry?: string
   scale_level?: string
   consume_level?: string
+  erp_system?: string
   manager_id?: number
   sales_manager_id?: number
   force_refresh?: boolean
@@ -75,6 +77,7 @@ export function getDeviceDistribution(params?: {
   industry?: string
   scale_level?: string
   consume_level?: string
+  erp_system?: string
   manager_id?: number
   sales_manager_id?: number
   force_refresh?: boolean

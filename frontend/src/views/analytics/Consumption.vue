@@ -116,6 +116,12 @@
           @apply="() => loadData()"
         />
         <FilterDropdown
+          v-model="filters.erp_system"
+          label="ERP系统"
+          :options="erpSystemOptions"
+          @apply="() => loadData()"
+        />
+        <FilterDropdown
           v-model="managerValue"
           label="运营经理"
           :options="managerOptions"
@@ -328,7 +334,8 @@ import {
 import { formatCurrency, formatNumber } from '@/utils/formatters'
 import { getIndustryTypes } from '@/api/customers'
 import { getManagers } from '@/api/users'
-import type { IndustryType } from '@/types'
+import { getErpSystemsList } from '@/api/erpSystems'
+import type { IndustryType, ErpSystem } from '@/types'
 
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import SyncDialog from './components/SyncDialog.vue'
@@ -351,6 +358,7 @@ const createDefaultFilters = () => ({
   industry: [] as string[],
   scale_level: '',
   consume_level: '',
+  erp_system: '',
   manager_id: null as number | null,
   sales_manager_id: null as number | null,
 })
@@ -381,6 +389,7 @@ const salesValue = computed({
 
 // 字典数据
 const industryTypes = ref<IndustryType[]>([])
+const erpSystems = ref<ErpSystem[]>([])
 const managers = ref<Array<{ id: number; real_name: string | null }>>([])
 // 筛选选项
 const accountTypeOptions = [
@@ -407,6 +416,11 @@ const consumeOptions = [
   { label: 'C5 - 6万', value: 'C5' },
   { label: 'C6 - 6万以下', value: 'C6' },
 ]
+// ERP 系统选项：label 取展示名，value 取存储值（与客户管理页/余额管理页同口径，
+// 后端按 Customer.erp_system 精确匹配 ErpSystem.value）
+const erpSystemOptions = computed(() =>
+  erpSystems.value.map((es) => ({ label: es.name, value: es.value }))
+)
 const timeRangeOptions = [
   { label: '最近 1 月', value: '1month' },
   { label: '最近 3 月', value: '3month' },
@@ -590,6 +604,7 @@ const handleReset = () => {
   filters.industry = []
   filters.scale_level = ''
   filters.consume_level = ''
+  filters.erp_system = ''
   filters.manager_id = null
   filters.sales_manager_id = null
   pagination.current = 1
@@ -638,6 +653,7 @@ const loadTrendData = async (forceRefresh = false) => {
     industry: filters.industry.length > 0 ? filters.industry.join(',') : undefined,
     scale_level: filters.scale_level || undefined,
     consume_level: filters.consume_level || undefined,
+    erp_system: filters.erp_system || undefined,
     manager_id: filters.manager_id || undefined,
     sales_manager_id: filters.sales_manager_id || undefined,
     force_refresh: forceRefresh || undefined,
@@ -657,6 +673,7 @@ const loadTopCustomersData = async (forceRefresh = false) => {
     industry: filters.industry.length > 0 ? filters.industry.join(',') : undefined,
     scale_level: filters.scale_level || undefined,
     consume_level: filters.consume_level || undefined,
+    erp_system: filters.erp_system || undefined,
     manager_id: filters.manager_id || undefined,
     sales_manager_id: filters.sales_manager_id || undefined,
     force_refresh: forceRefresh || undefined,
@@ -677,6 +694,7 @@ const loadDeviceData = async (forceRefresh = false) => {
     industry: filters.industry.length > 0 ? filters.industry.join(',') : undefined,
     scale_level: filters.scale_level || undefined,
     consume_level: filters.consume_level || undefined,
+    erp_system: filters.erp_system || undefined,
     manager_id: filters.manager_id || undefined,
     sales_manager_id: filters.sales_manager_id || undefined,
     force_refresh: forceRefresh || undefined,
@@ -879,9 +897,19 @@ const loadManagersData = async () => {
   }
 }
 
+const loadErpSystemsData = async () => {
+  try {
+    const res = await getErpSystemsList()
+    erpSystems.value = (res.data?.data || res.data || []) as ErpSystem[]
+  } catch (error) {
+    console.error('加载 ERP 系统失败:', error)
+  }
+}
+
 onMounted(() => {
   handleTimeRangeChange()
   loadIndustryTypesData()
+  loadErpSystemsData()
   loadManagersData()
   window.addEventListener('resize', handleResize)
 })

@@ -112,21 +112,14 @@ def auth_token(test_client, db_session: Session, app):
 
     try:
         # 直接生成 JWT token
-        import os
+        # 必须走 AuthService.create_access_token（内部用 settings.jwt_secret）：
+        # 中间件同样按 settings.jwt_secret 验签，自签时若另取 JWT_SECRET 环境变量，
+        # 会与 conftest setdefault 的 "test-secret-key" 不一致 → 401 Token 无效。
+        from app.services.auth import AuthService
 
-        jwt_secret = os.environ.get("JWT_SECRET", "test-secret")
-        jwt_algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
-
-        now = datetime.now(timezone.utc)
-        payload = {
-            "user_id": user_id,
-            "username": username,
-            "roles": ["超级管理员"],
-            "exp": now.timestamp() + 86400,  # 24 小时
-            "iat": now.timestamp(),
-            "type": "access",
-        }
-        token = jwt.encode(payload, jwt_secret, algorithm=jwt_algorithm)
+        token = AuthService.create_access_token(
+            user_id=user_id, username=username, roles=["超级管理员"]
+        )
 
         yield {"Authorization": f"Bearer {token}"}
     finally:
@@ -443,6 +436,250 @@ async def test_device_distribution_success(test_client, auth_token, mock_cache):
     assert data["message"] == "success"
     assert "data" in data
     assert isinstance(data["data"], list)
+
+
+def _seed_erp_consumption(db_session, suffix: str):
+    """造两个客户 + 每日消耗，用于 ERP 系统筛选测试
+
+    客户A: erp_system=yonyou，客户B: erp_system=kingdee
+    消耗日期取测试当日，落在默认查询窗口内。
+    """
+    import uuid
+
+    cid_a = 97000 + int(suffix)
+    cid_b = 97100 + int(suffix)
+    consume_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    for cid, erp in [(cid_a, "yonyou"), (cid_b, "kingdee")]:
+        db_session.execute(
+            text("""
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   erp_system, created_at, updated_at)
+            VALUES (:id, :company_id, :name, 'enterprise', 'monthly', 'prepaid',
+                    :erp, NOW(), NOW())
+            """),
+            {
+                "id": cid,
+                "company_id": cid,
+                "name": f"ERP筛选_{uuid.uuid4().hex[:6]}_{erp}",
+                "erp": erp,
+            },
+        )
+        db_session.execute(
+            text("""
+            INSERT INTO daily_consumptions (customer_id, consumption_date, device_type,
+                                            layer_type, order_count, total_cost,
+                                            created_at)
+            VALUES (:cid, :d, 'camera', 'default', 2, 500.00, NOW())
+            """),
+            {"cid": cid, "d": consume_date},
+        )
+    db_session.commit()
+    return cid_a, cid_b
+
+
+@pytest.mark.asyncio
+async def test_consumption_trend_filter_erp_system(test_client, auth_token, db_session, mock_cache):
+    """测试消耗趋势 ERP 系统筛选 — 按 Customer.erp_system 精确匹配"""
+    headers = auth_token
+    cid_a, cid_b = _seed_erp_consumption(db_session, "01")
+
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=7)
+
+    async def _fetch(**params):
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        _request, response = await test_client.get(
+            f"/api/v1/analytics/consumption/trend?{query}",
+            headers=headers,
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        return response.json["data"]
+
+    # ERP 筛选：仅命中 yonyou 客户（1000 = 2天×500，取决于窗口内天数）
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="yonyou"
+    )
+    assert data, "yonyou 筛选应有数据"
+    assert all(row["cost"] > 0 for row in data)
+
+    # kingdee 筛选同样有数据
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="kingdee"
+    )
+    assert data, "kingdee 筛选应有数据"
+
+    # 互斥/不存在的 ERP value：结果为空，非报错
+    data = await _fetch(
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        erp_system="nonexistent_erp",
+    )
+    assert data == []
+
+    # 无筛选：两个客户的消耗都在（全量 >= 单个 ERP）
+    all_data = await _fetch(start_date=start_date.isoformat(), end_date=end_date.isoformat())
+    yonyou_data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="yonyou"
+    )
+    assert sum(r["cost"] for r in all_data) > sum(r["cost"] for r in yonyou_data)
+
+
+@pytest.mark.asyncio
+async def test_top_customers_filter_erp_system(test_client, auth_token, db_session, mock_cache):
+    """测试 Top 客户 ERP 系统筛选 — 仅命中目标 ERP 客户"""
+    headers = auth_token
+    cid_a, cid_b = _seed_erp_consumption(db_session, "02")
+
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=7)
+
+    async def _fetch(**params):
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        _request, response = await test_client.get(
+            f"/api/v1/analytics/consumption/top?{query}",
+            headers=headers,
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        return response.json["data"]
+
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="yonyou"
+    )
+    customer_ids = {item["customer_id"] for item in data}
+    assert cid_a in customer_ids
+    assert cid_b not in customer_ids
+
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="kingdee"
+    )
+    customer_ids = {item["customer_id"] for item in data}
+    assert cid_b in customer_ids
+    assert cid_a not in customer_ids
+
+
+@pytest.mark.asyncio
+async def test_device_distribution_filter_erp_system(
+    test_client, auth_token, db_session, mock_cache
+):
+    """测试设备类型分布 ERP 系统筛选 — 仅命中目标 ERP 客户"""
+    headers = auth_token
+    cid_a, cid_b = _seed_erp_consumption(db_session, "03")
+
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=7)
+
+    async def _fetch(**params):
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        _request, response = await test_client.get(
+            f"/api/v1/analytics/consumption/device-distribution?{query}",
+            headers=headers,
+        )
+        assert response.status == 200
+        assert response.json["code"] == 0
+        return response.json["data"]
+
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="yonyou"
+    )
+    assert data, "yonyou 筛选应有设备分布数据"
+    assert all(row["cost"] > 0 for row in data)
+
+    data = await _fetch(
+        start_date=start_date.isoformat(), end_date=end_date.isoformat(), erp_system="kingdee"
+    )
+    assert data, "kingdee 筛选应有设备分布数据"
+
+    # 不存在的 ERP value：空列表
+    data = await _fetch(
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        erp_system="nonexistent_erp",
+    )
+    assert data == []
+
+
+@pytest.mark.asyncio
+async def test_consumption_trend_erp_system_cache_isolation(test_client, auth_token, db_session):
+    """测试 ERP 筛选纳入缓存 key — 不同 ERP 必须产生不同缓存键
+
+    两个关键点：
+    1. 不用端到端命中断言：测试环境无 Redis，真实 cache_service.get() 遇连接
+       异常会静默返回 None，永远"未命中"，无法暴露 cache_key 漏参缺陷。
+    2. 在测试内 patch `app.routes.analytics.cache_service`（而非依赖 mock_cache
+       fixture 替换全局 base.cache_service）：routes/analytics.py 是
+       `from ..cache.base import cache_service` 的模块级绑定，若该模块在 fixture
+       替换全局之后被重新导入，请求会打到未 mock 的真实实例，导致捕获不到调用。
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    import app.routes.analytics as analytics_routes
+
+    headers = auth_token
+    cid_a, cid_b = _seed_erp_consumption(db_session, "04")
+
+    end_date = datetime.now(timezone.utc).date()
+    start_date = end_date - timedelta(days=7)
+    params = {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
+
+    async def _fetch(**extra):
+        query = "&".join(f"{k}={v}" for k, v in {**params, **extra}.items())
+        _request, response = await test_client.get(
+            f"/api/v1/analytics/consumption/trend?{query}",
+            headers=headers,
+        )
+        assert response.status == 200
+        return response.json["data"]
+
+    spy_cache = MagicMock()
+    spy_cache.get = AsyncMock(return_value=None)  # 永不命中，确保每次都写缓存
+    spy_cache.set = AsyncMock(return_value=True)
+
+    original = analytics_routes.cache_service
+    analytics_routes.cache_service = spy_cache
+    try:
+        yonyou_data = await _fetch(erp_system="yonyou")
+        assert yonyou_data, "yonyou 筛选应有数据"
+
+        # cache_service.set(prefix, data, key) → key 是第三个位置参数
+        trend_keys = [
+            call.args
+            for call in spy_cache.set.call_args_list
+            if call.args and call.args[0] == "analytics_consumption_trend"
+        ]
+        assert trend_keys, "应写入 analytics_consumption_trend 缓存"
+        yonyou_key = trend_keys[-1]
+        assert any("yonyou" in str(a) for a in yonyou_key[2:]), (
+            f"cache_key 必须包含 ERP 筛选值，实际 key={yonyou_key!r}"
+        )
+
+        kingdee_data = await _fetch(erp_system="kingdee")
+        assert kingdee_data, "kingdee 筛选应有数据"
+
+        trend_keys = [
+            call.args
+            for call in spy_cache.set.call_args_list
+            if call.args and call.args[0] == "analytics_consumption_trend"
+        ]
+        kingdee_key = trend_keys[-1]
+        assert yonyou_key != kingdee_key, (
+            f"不同 ERP 筛选值必须产生不同缓存键，实际相同：{yonyou_key!r}"
+        )
+        assert any("kingdee" in str(a) for a in kingdee_key[2:])
+
+        # 无筛选的 key 也必须与带筛选的不同（否则筛选态会串到全量态）
+        await _fetch()
+        trend_keys = [
+            call.args
+            for call in spy_cache.set.call_args_list
+            if call.args and call.args[0] == "analytics_consumption_trend"
+        ]
+        assert trend_keys[-1] not in (yonyou_key, kingdee_key)
+    finally:
+        analytics_routes.cache_service = original
 
 
 @pytest.mark.asyncio
