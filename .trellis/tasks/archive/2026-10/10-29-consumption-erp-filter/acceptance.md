@@ -41,6 +41,19 @@
 
 还原后单跑与全量均 **32 passed**。证明该测试确实能捕获 cache_key 漏参缺陷。
 
+## 后端全量测试（含澄清）
+
+```
+cd backend && .venv/bin/python -m pytest tests/ -q
+================ 1392 passed, 456 warnings in 444.40s (0:07:24) ================
+```
+
+> 过程中曾出现一次 `16 failed, 276 errors` 的结果，根因是**两个 pytest 全量套件并行
+> 争用同一个测试库**（`test_roles_api.py` 报 `auth_token: 用户 admin 无角色关联`，
+> 即一个套件 TRUNCATE 掉 users 表、另一个套件的 session 级 fixture 读不到角色）。
+> 与本次 ERP 改动无关。串行重跑后 1392 passed 0 failed，结论以此为准。
+> **教训：本项目测试库不支持并行跑多份全量套件。**
+
 ## 顺带修复的既有缺陷
 
 `test_analytics_api.py` 的 function 级 `auth_token` fixture 用
