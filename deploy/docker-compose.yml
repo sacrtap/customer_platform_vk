@@ -24,7 +24,8 @@ services:
   # 生产环境建议使用 PostgreSQL 16 或 17（经过更充分验证的稳定版本）
   # 升级时需测试扩展兼容性和备份恢复工具
   db:
-    image: postgres:18-alpine
+    # 基础镜像由 CI 同步到 GHCR（部署服务器无法直连 Docker Hub）
+    image: ${POSTGRES_IMAGE:-ghcr.io/sacrtap/customer_platform_vk-base-postgres:18-alpine}
     container_name: customer-platform-db
     restart: unless-stopped
     environment:
@@ -47,7 +48,8 @@ services:
 
   # Redis 缓存
   redis:
-    image: redis:7-alpine
+    # 基础镜像由 CI 同步到 GHCR（部署服务器无法直连 Docker Hub）
+    image: ${REDIS_IMAGE:-ghcr.io/sacrtap/customer_platform_vk-base-redis:7-alpine}
     container_name: customer-platform-redis
     restart: unless-stopped
     volumes:
