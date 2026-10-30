@@ -364,3 +364,51 @@ loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
   `getBoundingClientRect().width`），让 `scroll.x ≥ 容器宽度`。
 - 列宽对齐不要只看 `columnDefs` 的配置值——配置 64/200 但显示 78/243 是拉伸，
   不是配置生效。验证必须读 `.arco-table-th` 的实际 `getBoundingClientRect().width`。
+
+## a-table 排序词表映射：Arco `ascend/descend` → 后端 `asc/desc`
+
+[来源: 2026-10-31 — 客户管理页点击表头排序报 `Invalid sort order: ascend`]
+
+**现象**：客户管理列表点击任意可排序列头，请求报错 `Invalid sort order: ascend`，列表无法排序。
+
+**根因**：Arco `a-table` 三态排序词表是 `'ascend' | 'descend' | ''`，`DataTable.vue`
+把 `sorter-change(dataIndex, direction)` **原样透传**给页面组件（见 `DataTable.test.ts`
+的「sorter-change 冒泡到宿主组件监听器」用例，透传的就是 `'ascend'`）。若页面组件
+把 `direction` 原样 emit 出去，下游 `useCustomerList.handleSort` 会用
+`direction as 'asc' | 'desc'` 断言把 `'ascend'` 当真存进 `sortOrder`，`buildParams`
+遂发出 `sort_order=ascend`；后端 `services/customers.py` 严格校验
+`sort_order in {"asc","desc"}`（`VALID_SORT_ORDERS`）直接抛 `ValueError`，
+路由转 `{code:40001}`。
+
+**约定**：**排序词表映射必须在组件 emit 出口完成**（页面组件的 `onSorterChange`），
+不要把 Arco 词表透传进 composable / 请求层。composable 的
+`sortOrder: ref<'asc'|'desc'>` 与 `handleSort` 都按后端词表设计，`as` 断言只是掩盖类型错配。
+
+```ts
+// CustomerTable.vue onSorterChange（正确）
+const onSorterChange = (dataIndex: string, direction: string) => {
+  if (direction !== 'ascend' && direction !== 'descend') {
+    emit('sortChange', '', '') // 清除排序，见下方陷阱
+    return
+  }
+  const order = direction === 'ascend' ? 'asc' : 'desc'
+  emit('sortChange', dataIndex, order)
+}
+```
+
+> **Warning（取消排序回传列 key，不是空串）**：实测 a-table 第三态（取消排序）回调的
+> `direction` 是 `''`，但 **`dataIndex` 仍回传列 key**（如 `('company_id', '')`），
+> **并非** `('', '')`。若把 `dataIndex` 直接透传，取消排序时会 emit `('company_id', '')`——
+> 语义矛盾（有字段却无方向）。必须在取消分支显式 `emit('sortChange', '', '')`，
+> 与 `BalanceTable.vue#242-249` 的既有契约保持一致。`handleSort` 只据 `direction`
+> 判空恢复默认排序、忽略 `dataIndex`，故两种写法都不会把非法值发给后端，但 `('', '')`
+> 才是干净且跨组件一致的契约。
+
+**为什么仅客户页报错**：`balances.py#890` 与 `invoices.py#139` 在路由层把无效 `sort_order`
+归一化回 `asc`/`desc`，掩盖了前端词表不一致；`customers.py#124` **不归一化**，直接交给
+service 严格校验才暴露。**新增排序列表时，即使后端会兜底，也应在组件出口映射词表**，
+不要依赖后端归一化——否则换个不归一化的后端就复现同类 bug。
+
+**回归测试**：`views/customers/components/__tests__/CustomerTable.test.ts` 点击「客户ID」
+表头三次，依次断言 emit `['company_id','asc']` / `['company_id','desc']` / `['','']`。
+新增可排序列表一律补这套三态断言，锁死词表映射。
