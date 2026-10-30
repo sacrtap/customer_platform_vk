@@ -3,7 +3,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
 
@@ -84,6 +84,9 @@ class BackupRecord(Base, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="完成时间"
     )
+
+    # 关联
+    operator = relationship("User", backref="backup_records")
 
     def __repr__(self):
         return f"<BackupRecord {self.id} [{self.task_type}/{self.status}]>"

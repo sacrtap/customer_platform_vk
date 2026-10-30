@@ -270,6 +270,7 @@ class TestPerformBackup:
     async def test_perform_returns_pending_record(self, mock_request):
         """测试立即返回 pending 记录并后台异步执行"""
         from app.models.backup import BackupRecord
+        from app.models.users import User
 
         record = BackupRecord(
             id=11,
@@ -278,6 +279,7 @@ class TestPerformBackup:
             operator_id=1,
             backup_date=date(2026, 10, 26),
         )
+        record.operator = User(id=1, username="zhangsan", real_name="张三")
         with (
             patch_permissions({"system:database_backup"}),
             patch(
@@ -296,6 +298,8 @@ class TestPerformBackup:
         assert body["code"] == 0
         assert body["data"]["task_type"] == "manual_backup"
         assert body["data"]["status"] == "pending"
+        # 操作人需返回姓名而非裸 ID（前端「操作人」列渲染 operator_name）
+        assert body["data"]["operator_name"] == "张三"
 
     async def test_perform_permission_denied(self, mock_request):
         """测试无 system:database_backup 权限 → 403"""

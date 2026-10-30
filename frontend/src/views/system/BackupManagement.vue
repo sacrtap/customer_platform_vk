@@ -109,7 +109,8 @@
           {{ record.duration_seconds === null ? '-' : `${record.duration_seconds}s` }}
         </template>
         <template #operator_id="{ record }">
-          {{ record.operator_id === null ? '系统自动' : `用户 ${record.operator_id}` }}
+          <span v-if="record.operator_id === null">系统自动</span>
+          <span v-else>{{ record.operator_name || '-' }}</span>
         </template>
         <template #retention_check_passed="{ record }">
           <span v-if="record.task_type !== 'cleanup'">-</span>
@@ -179,6 +180,7 @@ interface BackupRecord {
   duration_seconds: number | null
   error_message: string | null
   operator_id: number | null
+  operator_name: string | null
   started_at: string | null
   completed_at: string | null
   created_at: string | null

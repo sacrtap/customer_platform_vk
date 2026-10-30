@@ -498,3 +498,54 @@ class TestListRecords:
         count_stmt = mock_db_session.execute.call_args_list[0][0][0]
         sql = str(count_stmt.compile(dialect=postgresql.dialect()))
         assert "backup_records.task_type = " in sql
+
+    async def test_list_serializes_operator_name(self, backup_service, mock_db_session):
+        """列表序列化带出 operator_name（real_name 优先，username 兜底）"""
+        from app.models.users import User
+
+        record = make_record(id=3, task_type="manual_backup", operator_id=1)
+        record.operator = User(id=1, username="zhangsan", real_name="张三")
+
+        count_result = MagicMock()
+        count_result.scalar.return_value = 1
+        data_result = MagicMock()
+        data_result.scalars.return_value.all.return_value = [record]
+        mock_db_session.execute = AsyncMock(side_effect=[count_result, data_result])
+
+        result = await backup_service.list_records(page=1, page_size=20)
+
+        assert result["list"][0]["operator_name"] == "张三"
+
+
+class TestRecordToDict:
+    """_record_to_dict：操作人姓名序列化"""
+
+    def test_operator_name_uses_real_name(self):
+        from app.models.users import User
+
+        record = make_record(id=5, operator_id=1)
+        record.operator = User(id=1, username="zhangsan", real_name="张三")
+
+        data = BackupService._record_to_dict(record)
+
+        assert data["operator_id"] == 1
+        assert data["operator_name"] == "张三"
+
+    def test_operator_name_falls_back_to_username(self):
+        """real_name 为空时回退 username"""
+        from app.models.users import User
+
+        record = make_record(id=6, operator_id=2)
+        record.operator = User(id=2, username="lisi", real_name=None)
+
+        data = BackupService._record_to_dict(record)
+
+        assert data["operator_name"] == "lisi"
+
+    def test_operator_name_none_for_system_task(self):
+        """定时任务 operator_id 为 None → operator_name 为 None（前端显示「系统自动」）"""
+        record = make_record(id=7, operator_id=None)
+
+        data = BackupService._record_to_dict(record)
+
+        assert data["operator_name"] is None
