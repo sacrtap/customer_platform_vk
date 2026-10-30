@@ -186,6 +186,29 @@ monthly_avg_shots_estimated, estimated_annual_spend, actual_annual_spend_2025
 保留的约束只有：非有限值（NaN/Inf）拒绝、`> total_amount` 上限越界拒绝。导入
 模板第 2 行说明同步为「可选：减免金额（元），负值为加价」。
 
+### 数值列解析：pandas float64 提升陷阱（2026-10-30 起）
+
+**基线问题**：用户用全量导出备份 `customers_2026-10-27.xlsx`（1450 行）做导入预检查，
+`settlement_account_id` 列 15 个非空行全部误报「结算账户客户编号 '547.0' 不是有效整数」、
+被整行剔除——而用户在 Excel 里看到的就是整数 `547`。
+
+**根因**：该列既有整数又有空单元格，`pd.read_excel` 把整列提升为 **float64**
+（`547 → 547.0`，空单元格为 NaN）。解析处写成 `int(str(raw).strip())`：
+`str(547.0)` = `"547.0"`，`int("547.0")` 抛 ValueError。同处上方的
+`is_integer()` 守卫虽通过却无意义——真正执行转换的是先字符串化再 int 的那一步。
+
+**修复**（`customers.py` 路由层 settlement_account_id 解析）：按值类型分支——
+float 先过 `is_integer()` 守卫（拒绝 `547.9`，语义不变）再直接 `int(raw)`；
+int 原样透传；字符串才走 `str().strip()` + `int()`（兼容手填 `"547"`）。
+回归测试 `test_import_customers_settlement_account_float_column`：构造该列
+「20 行空 + 少量整数」的 xlsx 强制 float64，断言合法行落库、小数行仍被拒。
+
+**约定（全仓导入端点适用）**：凡解析 Excel 数值列，**禁止 `int(str(x))`**——
+混合空单元格的整数列必被 pandas 提升为 float64，字符串化中转必炸。必须按
+`isinstance` 分支：float→守卫后 `int(x)`、int→透传、str→strip 后 `int()`。
+同理注意：模板第 2 行说明行若在某列填了中文，会把该列拖成 object dtype
+（数值保持 int，不触发本 bug 但也不复现它）——写回归测试时说明行的目标列必须留空。
+
 ### 结算单导入受控字段
 
 仅暴露 `company_id` / `period_start` / `period_end` / `total_amount` / `discount_amount` / `invoice_no`（可选）：

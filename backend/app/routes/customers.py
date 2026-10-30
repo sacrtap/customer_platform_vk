@@ -1187,9 +1187,17 @@ async def import_customers(request: Request):
                     account_rows.append(row)
                     continue
                 try:
-                    if isinstance(raw_account, float) and not raw_account.is_integer():
-                        raise ValueError
-                    account_company_id = int(str(raw_account).strip())
+                    if isinstance(raw_account, float):
+                        # pandas 读 Excel 时，整数列混入空单元格会整列提升为 float64
+                        # （547 → 547.0），int(str(547.0)) 会 ValueError，必须直接 int(float)
+                        if not raw_account.is_integer():
+                            raise ValueError
+                        account_company_id = int(raw_account)
+                    elif isinstance(raw_account, int):
+                        account_company_id = int(raw_account)
+                    else:
+                        # 字符串：strip 后 int，兼容用户手填 "547"
+                        account_company_id = int(str(raw_account).strip())
                 except (ValueError, TypeError):
                     manager_errors.append(
                         f"行{row['_row_num']}: 结算账户客户编号 '{raw_account}' 不是有效整数"

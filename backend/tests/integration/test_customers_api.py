@@ -3497,3 +3497,136 @@ async def test_import_customers_settlement_account_roundtrip(test_client, auth_h
             {"a": main_cid, "b": account_cid, "c": 1000084, "d": 1000085},
         )
         db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_settlement_account_float_column(
+    test_client, auth_headers, db_session
+):
+    """settlement_account_id 列含空单元格时 pandas 提升为 float64 的解析回归
+
+    真实导出/备份文件中该列既有整数又有空单元格，pandas 读 Excel 后整列提升为
+    float64（547 → 547.0）。旧实现 `int(str(547.0))` 抛 ValueError，导致所有
+    填了合法整数的行被误报「不是有效整数」并整行剔除。修复后 float 分支直接
+    `int(raw)`；非整小数（如 547.9）仍按原语义拒绝。
+    """
+    import pandas as pd
+    from openpyxl import Workbook
+
+    main_cid = 1000082
+    account_cid = 1000083
+    filler_cids = list(range(1000084, 1000104))  # 20 行空结算账户，强制整列 float64
+    decimal_cid = 1000104
+
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id BETWEEN :a AND :b"),
+        {"a": main_cid, "b": decimal_cid},
+    )
+    db_session.execute(
+        text(
+            "INSERT INTO customers (company_id, name, account_type, settlement_cycle, "
+            "settlement_type, created_at, updated_at) "
+            "VALUES (:cid, '浮动列结算账户客户', 'enterprise', 'monthly', 'prepaid', NOW(), NOW())"
+        ),
+        {"cid": account_cid},
+    )
+    db_session.commit()
+
+    headers = [
+        "company_id",
+        "name",
+        "account_type",
+        "settlement_type",
+        "settlement_cycle",
+        "settlement_account_id",
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(headers)
+    # 说明行该列必须留空：填入中文说明会把整列拖成 object dtype（数值保持 int），
+    # 无法复现真实备份文件「整数 + 空单元格 → float64」的列形态
+    ws.append(["必填", "必填", "可选", "可选", "可选", None])
+    # 正常行：结算账户指向已存在客户
+    ws.append([main_cid, "浮动列主客户", "正式账号", "预付费", "月结", account_cid])
+    # 大量空单元格：使 pandas 把 settlement_account_id 整列读成 float64（真实文件形态）
+    for cid in filler_cids:
+        ws.append([cid, f"填充客户{cid}", "正式账号", "预付费", "月结", None])
+    # 非整小数：is_integer() 守卫仍应拒绝，行为不变
+    ws.append([decimal_cid, "小数客户", "正式账号", "预付费", "月结", 547.9])
+    output = io.BytesIO()
+    wb.save(output)
+    body = output.getvalue()
+
+    # 前提自检：该列确为 float64（空单元格 NaN + 整数混合），否则测试失去回归意义
+    df = pd.read_excel(io.BytesIO(body), engine="openpyxl")
+    assert df["settlement_account_id"].dtype == "float64", df["settlement_account_id"].dtype
+
+    files = {
+        "file": (
+            "settlement_float.xlsx",
+            body,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    try:
+        # 预检查：float64 列的合法整数行不得误报「不是有效整数」，且不落库
+        request, response = await test_client.post(
+            "/api/v1/customers/import?dry_run=true",
+            headers=auth_headers,
+            files=files,
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["dry_run"] is True
+        assert data["success_count"] == 1 + len(filler_cids), data
+        assert data["errors"] == ["行24: 结算账户客户编号 '547.9' 不是有效整数"], data["errors"]
+        assert (
+            db_session.execute(
+                text("SELECT COUNT(*) FROM customers WHERE company_id = :cid"), {"cid": main_cid}
+            ).scalar()
+            == 0
+        )
+
+        # 真实导入：合法整数行落库，settlement_account_id 解析为 account 客户主键
+        request, response = await test_client.post(
+            "/api/v1/customers/import",
+            headers=auth_headers,
+            files=files,
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["success_count"] == 1 + len(filler_cids), data
+        assert data["error_count"] == 1, data
+
+        account_pk = db_session.execute(
+            text("SELECT id FROM customers WHERE company_id = :cid"), {"cid": account_cid}
+        ).scalar()
+        stored = db_session.execute(
+            text("SELECT settlement_account_id FROM customers WHERE company_id = :cid"),
+            {"cid": main_cid},
+        ).scalar()
+        assert stored == account_pk, f"结算账户未正确落库：{stored} != {account_pk}"
+
+        # 空结算账户的填充行正常落库且该列为 NULL
+        assert db_session.execute(
+            text(
+                "SELECT COUNT(*) FROM customers WHERE company_id BETWEEN :a AND :b "
+                "AND settlement_account_id IS NULL"
+            ),
+            {"a": filler_cids[0], "b": filler_cids[-1]},
+        ).scalar() == len(filler_cids)
+        # 小数行被剔除，不得落库
+        assert (
+            db_session.execute(
+                text("SELECT COUNT(*) FROM customers WHERE company_id = :cid"),
+                {"cid": decimal_cid},
+            ).scalar()
+            == 0
+        )
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id BETWEEN :a AND :b"),
+            {"a": main_cid, "b": decimal_cid},
+        )
+        db_session.commit()
