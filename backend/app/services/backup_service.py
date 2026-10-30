@@ -16,6 +16,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.backup import BackupRecord, BackupScheduleConfig
@@ -101,6 +102,8 @@ class BackupService:
         self.db.add(record)
         await self.db.commit()
         await self.db.refresh(record)
+        # 序列化前显式加载 operator：async 会话中 relationship 懒加载会抛 MissingGreenlet
+        await self.db.refresh(record, attribute_names=["operator"])
         return record
 
     async def _mark_running(self, record: BackupRecord) -> None:
@@ -456,7 +459,7 @@ class BackupService:
         """获取备份任务记录列表（分页）"""
         from sqlalchemy import desc as sa_desc
 
-        query = select(BackupRecord)
+        query = select(BackupRecord).options(selectinload(BackupRecord.operator))
         count_query = select(func.count(BackupRecord.id))
 
         if task_type:
@@ -479,7 +482,12 @@ class BackupService:
 
     async def get_record(self, record_id: int) -> BackupRecord:
         """获取单条任务记录"""
-        record = await self.db.get(BackupRecord, record_id)
+        result = await self.db.execute(
+            select(BackupRecord)
+            .options(selectinload(BackupRecord.operator))
+            .where(BackupRecord.id == record_id)
+        )
+        record = result.scalar_one_or_none()
         if record is None:
             raise ValueError(f"记录不存在: {record_id}")
         return record
@@ -501,6 +509,9 @@ class BackupService:
             "duration_seconds": record.duration_seconds,
             "error_message": record.error_message,
             "operator_id": record.operator_id,
+            "operator_name": (
+                (record.operator.real_name or record.operator.username) if record.operator else None
+            ),
             "started_at": utc_to_cst_datetime_str(record.started_at),
             "completed_at": utc_to_cst_datetime_str(record.completed_at),
             "created_at": utc_to_cst_datetime_str(record.created_at),

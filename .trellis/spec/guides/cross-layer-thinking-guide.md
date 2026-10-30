@@ -959,3 +959,59 @@ placeholder 甚至写着「请输入减免金额（可为负值）」、`Invoice
 模板说明改为「可选：减免金额（元），负值为加价」，补回归测试
 `test_import_invoices_negative_discount_allowed`（total 10000 / discount -500
 导入成功并落库）。
+
+## User FK Display Chain（用户外键展示链：复制了 schema，漏了展示）
+
+**跨层类型：B（API 序列化 ↔ 前端渲染契约）+ C（新功能复制旧模式时漏环）**。
+症状：列表页「操作人 / 创建人 / 审批人」列显示裸 ID（如「用户 3277」）或空白。
+根因不是算错，而是**新表复制了旧表的 `operator_id` 外键，却没有复制
+「外键 → 姓名」的完整展示链**——模式在 `SyncTask` 是完整的，在
+`BackupRecord` 只搬了 schema 一层。
+
+### 展示链的四个环节（缺一即断）
+
+```
+模型 relationship("User")          ← backup.py: operator = relationship("User", backref="backup_records")
+        ↓
+查询显式加载（async 必须）          ← selectinload(BackupRecord.operator)
+        ↓
+序列化输出 operator_name           ← _record_to_dict: real_name or username
+        ↓
+前端渲染姓名，null → 「系统自动」    ← {{ record.operator_name || '-' }}
+```
+
+只复制第一环（甚至只复制列定义）时，上游全通、类型全绿，只有最终展示退化。
+
+### Checklist: 新表带 users.id 外键时（operator_id / created_by / approver_id / updated_by）
+
+- [ ] 模型定义 relationship（字符串 `"User"` 引用，避免 models 循环 import；
+      backref 名全局唯一，勿撞 `sync_tasks` 等既有名）
+- [ ] **每一条查询路径**都显式加载关系，不能只加在 list：
+      list 查询 `selectinload(...)`、单条 get 改 `select(...).options(selectinload(...))`、
+      **create 后立即序列化的路径**在返回前 `await db.refresh(record, attribute_names=["operator"])`
+- [ ] `_xxx_to_dict` 输出 `operator_name`，取值 `real_name or username`
+      （real_name 可空，仅取 real_name 会出现「有 ID 无姓名」的半断链）
+- [ ] 前端 interface 补 `operator_name: string | null`；模板渲染 `operator_name || '-'`，
+      `operator_id === null` 渲染「系统自动」（定时任务语义）
+- [ ] 测试锚定契约：序列化对「有 real_name / 仅 username / operator_id 为 null」
+      三种态各断言一次——缺这条，整条链少环永远不会红
+
+### async 专属坑：create/refresh 后访问 relationship
+
+async session 中访问**未加载**的 relationship 会触发 lazy load →
+`MissingGreenlet`（500）。`create_record` 里 `commit + refresh(record)` 之后
+`record.operator` 仍未加载，直接 `_record_to_dict(record)` 即踩雷；
+测试里用 transient 实例（未入 session）反而不炸——**单测绿、线上 500** 的典型形态。
+凡「创建后立即把 ORM 对象序列化进响应」的路径，必须在返回前显式加载关系。
+
+### Real-world example (2026-10-31, 备份任务记录操作人显示裸 ID)
+
+`BackupRecord`（数据备份功能，`docs/specs/2026-10-26-data-backup-plan.md`）
+复制了 `SyncTask` 的 `operator_id` 外键与「定时任务为 NULL」注释，但四环全缺：
+模型无 relationship、`list_records` 无 selectinload、`_record_to_dict` 只输出
+`operator_id`，前端 `BackupManagement.vue` 只能渲染 `用户 ${operator_id}`。
+修复对齐 `SyncTask` 既有模式（models/backup.py 补 relationship、
+service 三处加载点、序列化补 `operator_name`、前端渲染姓名），
+并在 `test_backup_service.py` 补三种态断言 + 路由测试锁 `perform` 响应。
+排查确认 `SyncTaskLog.operator_id` 无前端展示消费方、`invoices.py` 已有
+`operator_names` 批量字典模式，同族缺口仅此一处。
