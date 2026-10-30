@@ -197,6 +197,33 @@ db: AsyncSession = request.ctx.db_session
 invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 ```
 
+### relationship 必须显式加载（async 无隐式懒加载）
+
+[来源: 2026-10-31 — 备份记录 operator_name 缺失修复]
+
+async session 中访问**未加载**的 relationship 属性会触发 lazy load，在
+greenlet 上下文外抛 `MissingGreenlet` → HTTP 500。凡序列化会触达的关系
+（如 `record.operator`），必须在查询/创建路径上显式加载：
+
+```python
+# 列表/单条查询：selectinload
+select(BackupRecord).options(selectinload(BackupRecord.operator))
+
+# create 后立即序列化（create_record → _record_to_dict）：refresh 指定属性
+await self.db.refresh(record)
+await self.db.refresh(record, attribute_names=["operator"])
+```
+
+两个易漏点：
+
+1. **`db.get()` / `refresh()` 不加载 relationship**——单条查询要么改
+   `select(...).options(selectinload(...))`，要么 refresh 时带上属性名。
+2. **transient 实例（未入 session）访问关系返回 None 而不报错**——单测里
+   mock/构造的 ORM 对象不会暴露这个坑，必须真实落库或集成测试才能证伪。
+
+用户外键展示的完整约定（relationship → 加载 → `operator_name` → 前端渲染）
+见 `guides/cross-layer-thinking-guide.md` 的 User FK Display Chain 一节。
+
 ---
 
 ## JSON 列不能出现在 GROUP BY / DISTINCT
