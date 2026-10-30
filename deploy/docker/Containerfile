@@ -20,8 +20,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
     curl \
-    postgresql-client \
+    ca-certificates \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 PostgreSQL 18 客户端工具（pg_dump / pg_restore）
+# db 服务器为 postgres:18-alpine（server 18.x），pg_dump major 必须 >= server major；
+# Debian trixie 默认 postgresql-client=17 会因版本不匹配拒绝 dump 18 server，
+# 故改用 PostgreSQL 官方 apt 仓库（PGDG）安装 postgresql-client-18。
+RUN . /etc/os-release && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /etc/apt/keyrings/pgdg.asc && \
+    chmod 0644 /etc/apt/keyrings/pgdg.asc && \
+    echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-18 && \
+    rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
 COPY requirements.txt .
