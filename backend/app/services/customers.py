@@ -1,5 +1,6 @@
 """客户管理服务"""
 
+import logging
 import math
 import re
 from datetime import date, datetime
@@ -15,6 +16,8 @@ from ..models.customers import Customer, CustomerProfile
 from ..models.industry_type import IndustryType
 from ..repository import CustomerRepositoryProtocol
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+
+logger = logging.getLogger(__name__)
 
 # 允许排序的字段白名单
 # Customer 表原生字段
@@ -1206,6 +1209,9 @@ class CustomerService:
         status_allowed_hint = ", ".join(f"{cs.value}/{cs.name}" for cs in _cooperation_statuses)
 
         pending_profiles: list[dict] = []
+        # 结算账户引用同批次客户的行：路由层已保留 company_id 语义并打标记，
+        # flush 后按 company_id → customer.id 映射回填（见下方解析块）
+        pending_settlement: list[tuple[Customer, int]] = []
         new_customers: list[Customer] = []
         success_count = 0
         errors = []
@@ -1454,6 +1460,11 @@ class CustomerService:
                                 "company_id": company_id,
                             }
                         )
+                    # 同批次结算账户引用：目标 customer.id 要等 flush 后才有，
+                    # 收集待解析（标记由路由层写入）
+                    pending_account_cid = data.pop("_settlement_account_pending_company_id", None)
+                    if pending_account_cid is not None:
+                        pending_settlement.append((customer, pending_account_cid))
                 existing_company_ids.add(company_id)  # 防止同批次重复
 
                 success_count += 1
@@ -1464,12 +1475,29 @@ class CustomerService:
         if not dry_run and success_count > 0:
             # flush 后 customer.id 可用
             await self.db.flush()  # pyright: ignore[reportGeneralTypeIssues]
+
+            # 同批次内 settlement_account_id 引用：路由层因目标尚未 flush 无法解析为
+            # customer.id，此处新客户已 flush 有 id，按 company_id → id 映射回填。
+            # 该映射同时供下方 profile 创建复用。
+            company_id_to_id = {c.company_id: c.id for c in new_customers}
+            if pending_settlement:
+                for customer_obj, account_company_id in pending_settlement:
+                    resolved_id = company_id_to_id.get(account_company_id)
+                    if resolved_id is not None:
+                        customer_obj.settlement_account_id = resolved_id
+                    else:
+                        # 理论上不应发生：路由层已校验目标在本批次内且未被剔除；
+                        # 兜底记录警告，保持原值不阻塞正常批次
+                        logger.warning(
+                            "同批次结算账户引用解析失败：company_id=%s 未在本批次新客户中找到",
+                            account_company_id,
+                        )
+
             balances = [CustomerBalance(customer_id=c.id) for c in new_customers]
             self.db.add_all(balances)
 
             # 创建 profile 记录
             if pending_profiles:
-                company_id_to_id = {c.company_id: c.id for c in new_customers}
                 for p_info in pending_profiles:
                     customer_id = company_id_to_id.get(p_info["company_id"])
                     if customer_id:  # pyright: ignore[reportGeneralTypeIssues]

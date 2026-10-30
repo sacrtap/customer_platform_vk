@@ -1163,6 +1163,8 @@ async def import_customers(request: Request):
         # 校验语义与 CustomerService.update_customer 一致：自引用拒绝、目标必须存在
         # 且未软删；填了但无法解析的行整行剔除（不静默留空——用户以为设了结算账户，
         # 实际数据不完整，扣款会走错余额）。
+        # 存在性判定为「DB 已有 或 本批次导入数据中」：全量回灌场景下结算账户客户
+        # 可能就在本次 Excel 里、尚未 flush，DB 查不到但引用合法。
         if any("settlement_account_id" in row for row in valid_rows):
             from ..models.customers import Customer as _Customer
 
@@ -1170,6 +1172,26 @@ async def import_customers(request: Request):
                 select(_Customer.id, _Customer.company_id).where(_Customer.deleted_at.is_(None))
             )
             account_by_company_id = {row[1]: row[0] for row in account_result.all()}
+
+            # 本批次正在导入的 company_id 集合。必须在 settlement 校验循环之前收集，
+            # 且覆盖全部行（含前向引用：目标行可出现在引用行之后）。
+            batch_company_ids: set[int] = set()
+            for row in valid_rows:
+                raw_cid = row.get("company_id")
+                if raw_cid is None:
+                    continue
+                if isinstance(raw_cid, float):
+                    # pandas 空单元格为 NaN；company_id 列混入空单元格会提升为 float64
+                    if math.isnan(raw_cid):
+                        continue
+                    batch_company_ids.add(int(raw_cid))
+                elif isinstance(raw_cid, int):
+                    batch_company_ids.add(raw_cid)
+                else:
+                    try:
+                        batch_company_ids.add(int(str(raw_cid).strip()))
+                    except ValueError:
+                        continue
 
             account_rows: list[dict] = []
             for row in valid_rows:
@@ -1206,13 +1228,19 @@ async def import_customers(request: Request):
                 if account_company_id == row.get("company_id"):
                     manager_errors.append(f"行{row['_row_num']}: 结算账户不能为客户自身")
                     continue
-                account_id = account_by_company_id.get(account_company_id)
-                if account_id is None:
+                if account_company_id in account_by_company_id:
+                    # DB 已有客户：直接解析为 customer.id
+                    row["settlement_account_id"] = account_by_company_id[account_company_id]
+                elif account_company_id in batch_company_ids:
+                    # 目标在本批次导入数据中但尚未 flush（无 customer.id）：保留
+                    # company_id 语义并打标记，由 service 层 flush 后解析为 customer.id
+                    row["settlement_account_id"] = account_company_id
+                    row["_settlement_account_pending_company_id"] = account_company_id
+                else:
                     manager_errors.append(
                         f"行{row['_row_num']}: 结算账户客户编号 {account_company_id} 不存在"
                     )
                     continue
-                row["settlement_account_id"] = account_id
                 account_rows.append(row)
             valid_rows = account_rows
 
