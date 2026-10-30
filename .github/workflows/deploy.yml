@@ -115,7 +115,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' }}
     environment:
       name: staging
-      url: https://staging.jiazoushi.com
+      url: https://customer-staging.jiazoushi.com
 
     steps:
       - name: Checkout code
@@ -191,9 +191,11 @@ jobs:
                 'bash -s'; then
               echo "✅ Staging 部署完成"
               exit 0
+            else
+              SSH_EXIT=$?
+              echo "⚠️ 部署尝试 ${RETRY_COUNT} 失败 (exit code: ${SSH_EXIT})"
             fi
 
-            echo "⚠️ 部署尝试 ${RETRY_COUNT} 失败 (exit code: $?)"
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
               echo "⏳ 等待 15 秒后重试..."
               sleep 15
@@ -319,14 +321,15 @@ jobs:
 
           # 根据部署的环境选择检查 URL
           if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
-            HEALTH_URL="https://staging.jiazoushi.com/health"
+            HEALTH_URL="https://customer-staging.jiazoushi.com/health"
           else
             HEALTH_URL="https://production.jiazoushi.com/health"
           fi
 
           echo "检查地址: ${HEALTH_URL}"
 
-          response=$(curl -s -o /dev/null -w "%{http_code}" ${HEALTH_URL})
+          # 部署刚完成时应用可能仍在启动，允许短暂重试
+          response=$(curl -s -o /dev/null -w "%{http_code}" --retry 6 --retry-delay 5 --retry-all-errors ${HEALTH_URL})
           if [ "$response" == "200" ]; then
             echo "✅ 健康检查通过"
           else
