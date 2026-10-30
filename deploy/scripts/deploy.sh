@@ -381,6 +381,52 @@ pull_images() {
     log_info "基础镜像拉取完成"
 }
 
+# 等待容器健康检查通过
+wait_for_healthy() {
+    local container_name=$1
+    local timeout=${2:-120}
+    local waited=0
+    local status
+
+    while true; do
+        status=$($CONTAINER_RUNTIME inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_name" 2>/dev/null || echo "missing")
+        case "$status" in
+            healthy|none)
+                return 0
+                ;;
+            missing)
+                log_error "未找到容器 ${container_name}"
+                return 1
+                ;;
+        esac
+        if [ "$waited" -ge "$timeout" ]; then
+            log_error "容器 ${container_name} 健康检查超时（${timeout}s，当前状态：${status}）"
+            $CONTAINER_RUNTIME logs --tail 50 "$container_name" 2>&1 || true
+            return 1
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+}
+
+# 运行一次性任务容器（migrate / seed / cleanup）
+# 注意：不能使用 `compose up <service>`（前台模式会对依赖服务执行 `podman start -a`，
+# 永久附加到 db 等长期运行的容器上，导致部署卡死）。
+# 也不能用 `compose up -d <service>`：podman-compose 会给容器加 `--requires=<依赖容器>`，
+# 而 podman 4.9 在启动已退出依赖链上的容器时会报 "not found in input list"。
+# 因此使用 `run --rm --no-deps`：创建临时容器、直接继承 stdout、退出码透传、结束后自动删除。
+run_one_shot_service() {
+    local service=$1
+
+    log_info "执行一次性任务 ${service}..."
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE run --rm --no-deps "$service"; then
+        log_error "一次性任务 ${service} 执行失败"
+        return 1
+    fi
+    log_info "一次性任务 ${service} 执行成功"
+    return 0
+}
+
 # 运行数据库迁移
 run_migrations() {
     log_step "运行数据库迁移..."
@@ -435,8 +481,22 @@ run_migrations() {
     fi
 
 
+    # 一次性任务使用 --no-deps 运行，需要先手动启动并等待依赖服务就绪
+    log_info "启动依赖服务（db、redis）..."
+    if ! $COMPOSE_CMD -f $COMPOSE_FILE up -d db redis; then
+        log_error "启动依赖服务失败！"
+        return 1
+    fi
+    if ! wait_for_healthy customer-platform-db 180; then
+        return 1
+    fi
+    if ! wait_for_healthy customer-platform-redis 180; then
+        return 1
+    fi
+    log_info "依赖服务已就绪"
+
     # 运行迁移服务（compose 会自动启动依赖的 db 服务并等待 healthcheck）
-    if ! $COMPOSE_CMD -f $COMPOSE_FILE up migrate; then
+    if ! run_one_shot_service migrate; then
         log_error "数据库迁移失败！"
         return 1
     fi
@@ -445,7 +505,7 @@ run_migrations() {
 
     # 运行种子数据（幂等，已存在则跳过）
     log_step "初始化种子数据..."
-    if ! $COMPOSE_CMD -f $COMPOSE_FILE up seed; then
+    if ! run_one_shot_service seed; then
         log_error "种子数据初始化失败！"
         return 1
     fi
@@ -453,7 +513,7 @@ run_migrations() {
 
     # 运行弃用权限清理（幂等；删除前校验代码引用，仍被引用则跳过）
     log_step "清理弃用权限..."
-    if ! $COMPOSE_CMD -f $COMPOSE_FILE up cleanup; then
+    if ! run_one_shot_service cleanup; then
         log_error "弃用权限清理失败！"
         return 1
     fi
