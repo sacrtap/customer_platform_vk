@@ -9,6 +9,12 @@ echo "🚀 开始部署客户运营中台..."
 COMPOSE_FILE="deploy/docker-compose.yml"
 VERSION=${1:-latest}
 
+# 基础镜像（由 CI 同步到 GHCR，避免部署时依赖 Docker Hub）
+REGISTRY_OWNER="${GITHUB_REPOSITORY:-sacrtap/customer_platform_vk}"
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-ghcr.io/${REGISTRY_OWNER}-base-postgres:18-alpine}"
+REDIS_IMAGE="${REDIS_IMAGE:-ghcr.io/${REGISTRY_OWNER}-base-redis:7-alpine}"
+export POSTGRES_IMAGE REDIS_IMAGE
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -333,6 +339,28 @@ build_images() {
     log_info "镜像构建完成"
 }
 
+# 确保镜像可用：本地存在则直接复用，缺失时才拉取
+# 说明：部署服务器无法直连 Docker Hub，基础镜像由 CI 同步到 GHCR；
+#       本地优先可减少部署耗时，并在网络异常时复用缓存。
+#       设置 FORCE_PULL_BASE_IMAGES=true 可强制刷新基础镜像。
+ensure_image() {
+    local image=$1
+
+    if [ "${FORCE_PULL_BASE_IMAGES:-false}" != "true" ] && $CONTAINER_RUNTIME image exists "$image"; then
+        log_info "使用本地镜像: ${image}"
+        return 0
+    fi
+
+    log_info "拉取镜像: ${image}"
+    if ! $CONTAINER_RUNTIME pull --quiet "$image"; then
+        log_error "拉取镜像失败: ${image}"
+        log_error "请检查 GHCR 连通性；若基础镜像尚未同步，请先运行 Deploy workflow 的构建任务"
+        return 1
+    fi
+    log_info "已拉取镜像: ${image}"
+    return 0
+}
+
 # 拉取远程镜像
 pull_remote_image() {
     local image_tag=$1
@@ -362,23 +390,26 @@ pull_remote_image() {
     log_info "前端镜像已拉取并标记为 customer_platform_frontend:latest"
 
      # 预拉取 compose 依赖的基础镜像（postgres、redis）
-     # 直接使用 podman pull 而非 podman compose pull，
+     # 镜像由 CI 同步到 GHCR，部署端只依赖 GHCR（Docker Hub 在部分网络下无法直连）。
+     # 本地已有缓存则跳过，缺失时才拉取；拉取失败直接终止，避免后续启动容器时报错难以定位。
+     # 注意：这里直接使用 podman pull 而非 podman compose pull，
      # 因为 podman compose 底层调用 docker-compose，会读取 ~/.docker/config.json 的
      # credsStore 触发 macOS Keychain，在 SSH 非交互式会话中报 "keychain cannot be accessed"。
      # podman pull 使用 REGISTRY_AUTH_FILE（文件式认证），不依赖 Keychain。
-     log_step "预拉取基础镜像（postgres、redis）..."
-     $CONTAINER_RUNTIME pull postgres:18-alpine || log_warn "拉取 postgres:18-alpine 失败"
-     $CONTAINER_RUNTIME pull redis:7-alpine || log_warn "拉取 redis:7-alpine 失败"
-     log_info "基础镜像预拉取完成"
+     log_step "准备基础镜像（postgres、redis）..."
+     ensure_image "$POSTGRES_IMAGE" || exit 1
+     ensure_image "$REDIS_IMAGE" || exit 1
+     log_info "基础镜像准备完成"
 }
 
 # 拉取基础镜像
 pull_images() {
-    log_info "拉取基础镜像..."
+    log_info "准备基础镜像..."
 
-    $COMPOSE_CMD -f $COMPOSE_FILE pull db redis
+    ensure_image "$POSTGRES_IMAGE" || exit 1
+    ensure_image "$REDIS_IMAGE" || exit 1
 
-    log_info "基础镜像拉取完成"
+    log_info "基础镜像准备完成"
 }
 
 # 等待容器健康检查通过

@@ -71,6 +71,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 基础镜像（postgres/redis）同步到 GHCR：
+      # 部署服务器无法直连 Docker Hub，改为统一从 GHCR 拉取。
+      # 使用 buildx imagetools 复制多架构清单（amd64/arm64），避免只同步当前 runner 架构。
+      - name: Mirror base images to GHCR
+        run: |
+          set -euo pipefail
+          for spec in postgres:18-alpine redis:7-alpine; do
+            name="${spec%%:*}"; tag="${spec##*:}"
+            dst="ghcr.io/${{ github.repository }}-base-${name}:${tag}"
+            echo "同步 docker.io/library/${spec} -> ${dst}"
+            docker buildx imagetools create --tag "${dst}" "docker.io/library/${spec}"
+          done
+
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
