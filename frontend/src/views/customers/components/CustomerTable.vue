@@ -255,9 +255,16 @@ const onSelectAll = (checked: boolean) => {
   emit('selectAll', checked)
 }
 
-// --- 排序：a-table 三态，映射为原 toggleSort 的 (dataIndex, direction) ---
+// --- 排序：Arco a-table 三态 ascend/descend/'' → 后端 asc/desc/'' 词表映射 ---
 const onSorterChange = (dataIndex: string, direction: string) => {
-  emit('sortChange', dataIndex, direction === 'ascend' || direction === 'descend' ? direction : '')
+  // 清除排序（第三态）统一 emit ('', '')：与 BalanceTable 契约一致，
+  // 且不依赖 a-table 取消时回传的 dataIndex（实测取消时仍回传列 key）
+  if (direction !== 'ascend' && direction !== 'descend') {
+    emit('sortChange', '', '')
+    return
+  }
+  const order = direction === 'ascend' ? 'asc' : 'desc'
+  emit('sortChange', dataIndex, order)
 }
 
 // --- 行点击进详情（原 <tr @click>） ---
