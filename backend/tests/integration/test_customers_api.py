@@ -3630,3 +3630,118 @@ async def test_import_customers_settlement_account_float_column(
             {"a": main_cid, "b": decimal_cid},
         )
         db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_import_customers_settlement_account_intra_batch_reference(
+    test_client, auth_headers, db_session
+):
+    """settlement_account_id 引用本批次内（尚未落库）客户的回归测试
+
+    全量回灌场景：用整库导出备份导入时，结算账户引用的 company_id 就在同一份
+    Excel 里，DB 中尚不存在。旧实现只查 DB 已有映射，把这类合法引用误报
+    「结算账户客户编号 X 不存在」并整行剔除。修复后「DB 已有 或 本批次内」
+    均视为有效引用，service 层 flush 后按 company_id → customer.id 回填。
+    """
+    import pandas as pd
+    from openpyxl import Workbook
+
+    main_cid = 1000200
+    account_cid = 1000201
+    dangling_cid = 1000202
+    db_session.execute(
+        text("DELETE FROM customers WHERE company_id BETWEEN :a AND :b"),
+        {"a": main_cid, "b": dangling_cid},
+    )
+    db_session.commit()
+
+    headers = [
+        "company_id",
+        "name",
+        "account_type",
+        "settlement_type",
+        "settlement_cycle",
+        "settlement_account_id",
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(headers)
+    # 说明行该列必须留空：填入中文说明会把整列拖成 object dtype，
+    # 无法复现真实备份文件「整数 + 空单元格 → float64」的列形态
+    ws.append(["必填", "必填", "可选", "可选", "可选", None])
+    # 前向引用：主客户行在前，其结算账户客户行在后，两者均不在 DB 中
+    ws.append([main_cid, "同批次主客户", "正式账号", "预付费", "月结", account_cid])
+    ws.append([account_cid, "同批次账户客户", "正式账号", "预付费", "月结", None])
+    # 悬空引用：DB 与本批次均不存在 → 仍整行剔除
+    ws.append([dangling_cid, "悬空引用客户", "正式账号", "预付费", "月结", 999999999])
+    output = io.BytesIO()
+    wb.save(output)
+    body = output.getvalue()
+
+    # 前提自检：account 行空单元格使该列提升为 float64（真实备份文件形态）
+    df = pd.read_excel(io.BytesIO(body), engine="openpyxl")
+    assert df["settlement_account_id"].dtype == "float64", df["settlement_account_id"].dtype
+
+    files = {
+        "file": (
+            "settlement_intra_batch.xlsx",
+            body,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+
+    try:
+        # 预检查：同批次引用不再误报「不存在」，仅悬空行被剔除
+        request, response = await test_client.post(
+            "/api/v1/customers/import?dry_run=true",
+            headers=auth_headers,
+            files=files,
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["dry_run"] is True
+        assert data["success_count"] == 2, data
+        assert data["error_count"] == 1, data
+        assert any("结算账户客户编号 999999999 不存在" in e for e in data["errors"]), data["errors"]
+
+        # 真实导入：同批次引用解析为账户客户的 customer.id
+        request, response = await test_client.post(
+            "/api/v1/customers/import",
+            headers=auth_headers,
+            files=files,
+        )
+        assert response.status == 200
+        data = response.json["data"]
+        assert data["success_count"] == 2, data
+        assert data["error_count"] == 1, data
+
+        account_pk = db_session.execute(
+            text("SELECT id FROM customers WHERE company_id = :cid"), {"cid": account_cid}
+        ).scalar()
+        stored = db_session.execute(
+            text("SELECT settlement_account_id FROM customers WHERE company_id = :cid"),
+            {"cid": main_cid},
+        ).scalar()
+        assert stored == account_pk, f"同批次结算账户未解析为 customer.id：{stored} != {account_pk}"
+        # 账户客户自身未配置结算账户
+        assert (
+            db_session.execute(
+                text("SELECT settlement_account_id FROM customers WHERE company_id = :cid"),
+                {"cid": account_cid},
+            ).scalar()
+            is None
+        )
+        # 悬空行被剔除，不得落库
+        assert (
+            db_session.execute(
+                text("SELECT COUNT(*) FROM customers WHERE company_id = :cid"),
+                {"cid": dangling_cid},
+            ).scalar()
+            == 0
+        )
+    finally:
+        db_session.execute(
+            text("DELETE FROM customers WHERE company_id BETWEEN :a AND :b"),
+            {"a": main_cid, "b": dangling_cid},
+        )
+        db_session.commit()
