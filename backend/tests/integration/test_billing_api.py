@@ -2274,6 +2274,51 @@ async def test_pricing_rule_list_dates_round_trip_to_edit(
 
 
 @pytest.mark.asyncio
+async def test_pricing_rule_list_returns_company_id(
+    test_client, auth_token, db_session, pricing_rule_customer
+):
+    """列表必须返回 company_id（客户编号）供前端客户ID列展示
+
+    前端客户ID列展示 company_id 而非 DB 内部主键 customer_id（与余额列表口径一致）。
+    该 fixture 的 customers 行 id 与 company_id 故意取同值，无法区分两者——
+    故此处显式改写 company_id，确保断言真在校验「客户编号」字段本身。
+    """
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    company_id = pricing_rule_customer + 500000
+    db_session.execute(
+        text("UPDATE customers SET company_id = :cid WHERE id = :id"),
+        {"cid": company_id, "id": pricing_rule_customer},
+    )
+    db_session.commit()
+
+    _request, created = await test_client.post(
+        "/api/v1/billing/pricing-rules",
+        json={
+            "customer_id": pricing_rule_customer,
+            "device_type": "X",
+            "layer_type": "single",
+            "pricing_type": "fixed",
+            "unit_price": 10.0,
+            "effective_date": "2026-04-01",
+        },
+        headers=headers,
+    )
+    assert created.status == 201, created.json
+    rule_id = created.json["data"]["id"]
+
+    _request, listed = await test_client.get(
+        "/api/v1/billing/pricing-rules",
+        params={"customer_id": pricing_rule_customer},
+        headers=headers,
+    )
+    assert listed.status == 200
+    rule = next(r for r in listed.json["data"]["list"] if r["id"] == rule_id)
+    assert rule["company_id"] == company_id  # 客户编号，非 DB 主键 customer_id
+    assert rule["customer_id"] == pricing_rule_customer
+    assert rule["customer_name"] == f"首档校验客户_{pricing_rule_customer}"
+
+
+@pytest.mark.asyncio
 async def test_unauthorized_access(test_client):
     """测试未授权访问"""
     request, response = await test_client.get("/api/v1/billing/balances")

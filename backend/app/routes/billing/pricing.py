@@ -79,6 +79,9 @@ async def get_pricing_rules(request: Request):
                     {
                         "id": r.id,
                         "customer_id": r.customer_id,
+                        # 客户编号（对外可读主键）：与导出 Excel / 余额列表口径一致，
+                        # 前端客户ID列展示此值而非 DB 内部主键 customer_id
+                        "company_id": r.customer.company_id if r.customer else None,
                         "customer_name": r.customer.name if r.customer else None,
                         "device_type": r.device_type,
                         "layer_type": r.layer_type or "single",

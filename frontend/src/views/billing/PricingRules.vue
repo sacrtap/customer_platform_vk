@@ -55,16 +55,20 @@
         :loading="loading"
         :pagination="paginationConfig"
         :row-key="'id'"
-        :scroll="{ x: 786 }"
+        :scroll="{ x: 1090 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
       >
-        <template #customer="{ record }">
+        <template #company_id="{ record }">
+          <span class="cust-id">{{ (record as PricingRule).company_id }}</span>
+        </template>
+
+        <template #customer_name="{ record }">
           <span v-if="(record as PricingRule).customer_name" class="cust-name">{{
             (record as PricingRule).customer_name
           }}</span>
-          <span v-else class="subtle">客户{{ (record as PricingRule).customer_id }}</span>
+          <span v-else class="subtle">-</span>
         </template>
 
         <template #device_type="{ record }">
@@ -233,7 +237,8 @@ interface ColumnDef {
 }
 
 const columnDefs: ColumnDef[] = [
-  { key: 'customer', title: '客户' },
+  { key: 'company_id', title: '客户ID', width: 64 },
+  { key: 'customer_name', title: '客户名称', width: 200 },
   { key: 'device_type', title: '设备类型', width: 76 },
   { key: 'layer_type', title: '楼层类型', width: 76 },
   { key: 'pricing_type', title: '计费类型', width: 92 },
@@ -514,6 +519,13 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+/* 客户ID */
+.cust-id {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 /* 客户名称 */

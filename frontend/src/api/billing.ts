@@ -215,6 +215,8 @@ export function getConsumptionRecords(params?: {
 export interface PricingRule {
   id: number
   customer_id?: number
+  /** 客户编号（对外可读主键），与余额列表口径一致；列表接口自 2026-10-30 起返回 */
+  company_id?: number
   customer_name?: string
   device_type?: string
   layer_type?: string

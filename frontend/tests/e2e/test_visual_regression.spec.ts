@@ -43,7 +43,11 @@ function getDynamicMaskSelectors(page: import('@playwright/test').Page) {
 }
 
 test.describe('视觉回归测试', () => {
-  test.describe.configure({ mode: 'serial' })
+  // 不设 serial：各用例相互独立（A22 的侧边栏折叠点击只作用于自身 context，
+  // Playwright 每个 test 都会新建 context/page，不会污染其他用例）。
+  // serial 的代价是「一个用例失败 → 后续全部 SKIPPED」，把 21 个真实失败
+  // 掩盖成「1 failed / 20 did not run」，失去回归信号。此处按 config 的
+  // fullyParallel 并行执行，失败用例各自独立报告。
 
   test('A01: 登录页截图对比', async ({ page }) => {
     // 本用例需以「未登录」状态访问登录页截图；先清空 global-setup 注入的登录态，
