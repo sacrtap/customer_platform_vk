@@ -147,9 +147,15 @@ ALL_PERMISSIONS = [
     ("api_keys:manage", "管理API-Key", "申请/查看/停用/删除API-Key", "system"),
     ("api_keys:export", "导出API-Key", "导出API-Key列表", "api_keys"),
     # ============================================================
-    # 定时同步配置 (1)
+    # 定时同步配置 (2)
     # ============================================================
     ("system:sync_schedule", "配置定时同步", "配置每日自动同步（开启/关闭/时间/模式）", "system"),
+    (
+        "sync_tasks:manage",
+        "管理同步任务",
+        "创建/取消数据同步任务（破坏性运维操作，不预授给预置业务角色）",
+        "system",
+    ),
     # ============================================================
     # 数据备份 (1)
     # ============================================================
@@ -228,6 +234,94 @@ def get_or_create_permission(session: Session, code: str, name: str, description
     else:
         print(f"  ⏭️  权限已存在: {code}")
     return perm
+
+
+def _invalidate_permission_cache():
+    """失效 Redis 权限缓存（同步脚本内用 asyncio.run 驱动 async cache_service）。
+
+    权限码/角色→权限绑定变更后，PermissionCache（key `cache:permissions:{user_id}`，
+    TTL 600s）仍缓存旧权限集合：若不失效，变更前已登录用户在最长 10 分钟内会因
+    命中旧码集合持续 403。故提交成功后全量失效权限缓存。
+    """
+    try:
+        # cache_service 是 async（底层 redis.asyncio），而本脚本是同步脚本：
+        # 用 asyncio.run 临时起一个事件循环执行失效即可，进程随后退出。
+        # 延迟导入，避免在测试收集期（import seed.py）引入额外应用栈副作用。
+        from app.cache.base import cache_service
+
+        asyncio.run(cache_service.invalidate_pattern("cache:permissions:*"))
+        print("  ✅ 已失效权限缓存 cache:permissions:*")
+    except Exception as e:
+        # Redis 不可用不应阻断种子初始化，仅提示运维手动失效。
+        print(
+            "  ⚠️  权限缓存失效失败，请手动清理 cache:permissions:* "
+            f"（redis-cli --scan --pattern 'cache:permissions:*' | xargs redis-cli DEL）：{e}"
+        )
+
+
+def sync_permissions():
+    """增量同步权限清单到数据库（新权限码上线的唯一入口，替代 fix 脚本模式）。
+
+    行为：
+    - ALL_PERMISSIONS 逐条 upsert：按 code 查询，存在则更新 name/description/module，
+      不存在则插入；
+    - 将「超级管理员」角色关联至全部权限（幂等：已关联跳过）；
+    - 不做任何删除，不触碰预置业务角色关联；
+    - 提交后失效 Redis 权限缓存（与 seed() 相同方式）。
+    """
+    print(f"连接到数据库：{DATABASE_URL}")
+
+    engine = create_engine(DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://"))
+
+    with Session(engine) as session:
+        print("📋 同步权限定义（upsert）...")
+        permissions = {}
+        created, updated = 0, 0
+        for code, name, description, module in ALL_PERMISSIONS:
+            result = session.execute(select(Permission).where(Permission.code == code))
+            perm = result.scalar_one_or_none()
+            if perm is None:
+                perm = Permission(code=code, name=name, description=description, module=module)
+                session.add(perm)
+                created += 1
+                print(f"  ✅ 创建权限: {code} ({name})")
+            else:
+                # 同步 name/description/module 的后续修订（如描述文案调整、模块归类变化）
+                if (perm.name, perm.description, perm.module) != (name, description, module):
+                    perm.name = name
+                    perm.description = description
+                    perm.module = module
+                    updated += 1
+                    print(f"  🔄 更新权限: {code} ({name})")
+            permissions[code] = perm
+        session.flush()
+
+        # ---- 超级管理员角色关联全部权限（幂等）----
+        result = session.execute(select(Role).where(Role.name == SUPER_ADMIN_ROLE_NAME))
+        super_admin_role = result.scalar_one_or_none()
+        if super_admin_role is None:
+            super_admin_role = Role(
+                name=SUPER_ADMIN_ROLE_NAME,
+                description="拥有系统所有权限，可管理账号和角色配置",
+                is_system=True,
+            )
+            session.add(super_admin_role)
+            session.flush()
+            print(f"  ✅ 创建角色: {SUPER_ADMIN_ROLE_NAME}")
+
+        linked = 0
+        for perm in permissions.values():
+            if perm not in super_admin_role.permissions:
+                super_admin_role.permissions.append(perm)
+                linked += 1
+        session.commit()
+
+        print(
+            f"\n✅ 权限同步完成: 共 {len(permissions)} 项"
+            f"（新建 {created}，更新 {updated}，新关联超管 {linked}）"
+        )
+
+        _invalidate_permission_cache()
 
 
 def seed(reset: bool = False):
@@ -413,20 +507,7 @@ def seed(reset: bool = False):
         # PermissionCache（key `cache:permissions:{user_id}`，TTL 600s）仍缓存旧权限
         # 集合：若不失效，迁移前已登录用户在最长 10 分钟内访问结算导入/导出端点会因
         # 命中旧码集合持续 403。故提交成功后全量失效权限缓存。
-        try:
-            # cache_service 是 async（底层 redis.asyncio），而本脚本是同步脚本：
-            # 用 asyncio.run 临时起一个事件循环执行失效即可，进程随后退出。
-            # 延迟导入，避免在测试收集期（import seed.py）引入额外应用栈副作用。
-            from app.cache.base import cache_service
-
-            asyncio.run(cache_service.invalidate_pattern("cache:permissions:*"))
-            print("  ✅ 已失效权限缓存 cache:permissions:*")
-        except Exception as e:
-            # Redis 不可用不应阻断种子初始化，仅提示运维手动失效。
-            print(
-                "  ⚠️  权限缓存失效失败，请手动清理 cache:permissions:* "
-                f"（redis-cli --scan --pattern 'cache:permissions:*' | xargs redis-cli DEL）：{e}"
-            )
+        _invalidate_permission_cache()
 
         print("\n✅ 种子数据初始化完成!")
         print("   登录账号: admin")
@@ -438,10 +519,18 @@ def seed(reset: bool = False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="初始化种子数据")
     parser.add_argument("--reset", action="store_true", help="清空已有种子数据后重新创建")
+    parser.add_argument(
+        "--sync-permissions",
+        action="store_true",
+        help="仅增量同步 ALL_PERMISSIONS 到数据库并关联超级管理员（新权限码上线入口，不删数据）",
+    )
     args = parser.parse_args()
 
     try:
-        seed(reset=args.reset)
+        if args.sync_permissions:
+            sync_permissions()
+        else:
+            seed(reset=args.reset)
     except Exception as e:
         print(f"❌ 错误：{e}")
         import traceback

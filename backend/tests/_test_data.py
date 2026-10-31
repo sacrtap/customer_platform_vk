@@ -55,6 +55,7 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("roles:import", "导入角色", "roles"),
     ("roles:export", "导出角色", "roles"),
     ("system:view", "查看系统", "system"),
+    ("sync_tasks:manage", "管理同步任务", "system"),
     ("analytics:view", "查看分析", "analytics"),
     ("analytics:export", "导出报表", "analytics"),
     ("analytics:profile_tag_edit", "编辑画像标签", "analytics"),
