@@ -155,9 +155,12 @@ async def update_role(request: Request, role_id: int):
     Body:
     {
         "name": "string (optional)",
-        "description": "string (optional)",
-        "permission_ids": [1, 2, 3] (optional)
+        "description": "string (optional)"
     }
+
+    注意：权限分配不支持经此入口——唯一入口为 POST /<role_id>/permissions
+    （该入口会失效角色下所有用户的权限缓存）。双入口必漏失效，故此处不接
+    受 permission_ids。
     """
     data = request.json
 
@@ -169,7 +172,6 @@ async def update_role(request: Request, role_id: int):
             role_id=role_id,
             name=data.get("name"),
             description=data.get("description"),
-            permission_ids=data.get("permission_ids"),
         )
     except ValueError as e:
         return json({"code": 40001, "message": str(e)}, status=400)

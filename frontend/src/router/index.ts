@@ -187,7 +187,7 @@ const routes: RouteRecordRaw[] = [
             path: 'invoice-logs',
             name: 'InvoiceLogs',
             component: () => import('@/views/system/InvoiceLogs.vue'),
-            meta: { requiresPermission: 'billing:view' },
+            meta: { requiresPermission: 'billing:detail_status_view' },
           },
         ],
       },

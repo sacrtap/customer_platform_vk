@@ -27,6 +27,13 @@ def mock_request():
     return request
 
 
+def patch_permissions(permissions):
+    """Mock 权限缓存返回指定权限集合（端点已加 system:view 权限码）"""
+    perm_mock = MagicMock()
+    perm_mock.get_permissions = AsyncMock(return_value=set(permissions))
+    return patch("app.cache.permissions.permission_cache", perm_mock)
+
+
 def make_detail(detail_id, level, category="order_save", customer_id=None, customer_name=None):
     """构造明细 mock 对象"""
     d = MagicMock()
@@ -50,6 +57,7 @@ def make_detail(detail_id, level, category="order_save", customer_id=None, custo
 class TestGetSyncTaskDetails:
     """执行明细接口测试"""
 
+    @patch_permissions({"system:view"})
     async def test_get_details_full(self, mock_request):
         """测试明细查询（无 level 过滤）"""
         task_id = "123e4567-e89b-12d3-a456-426614174000"
@@ -106,6 +114,7 @@ class TestGetSyncTaskDetails:
         # 分页
         assert data["pagination"] == {"page": 1, "page_size": 20, "total": 4}
 
+    @patch_permissions({"system:view"})
     async def test_get_details_with_level_filter(self, mock_request):
         """测试按 level 过滤"""
         task_id = "123e4567-e89b-12d3-a456-426614174000"
@@ -133,6 +142,7 @@ class TestGetSyncTaskDetails:
         assert data["list"][0]["level"] == "warning"
         assert data["pagination"]["total"] == 1
 
+    @patch_permissions({"system:view"})
     async def test_get_details_no_records(self, mock_request):
         """测试无明细记录（历史任务）"""
         task_id = "123e4567-e89b-12d3-a456-426614174000"
@@ -158,6 +168,7 @@ class TestGetSyncTaskDetails:
         assert data["list"] == []
         assert data["pagination"]["total"] == 0
 
+    @patch_permissions({"system:view"})
     async def test_get_details_error(self, mock_request):
         """测试异常返回 500"""
         task_id = "123e4567-e89b-12d3-a456-426614174000"

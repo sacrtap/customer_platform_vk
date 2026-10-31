@@ -14,6 +14,7 @@ erp_system_bp = Blueprint("erp_systems", url_prefix="/api/v1/erp-systems")
 
 @erp_system_bp.get("")
 @auth_required
+@require_permission("erp_systems:manage")
 async def get_erp_systems(request: Request):
     """
     获取 ERP 系统列表

@@ -27,6 +27,7 @@ cooperation_status_bp = Blueprint("cooperation_statuses", url_prefix="/api/v1/co
 
 @cooperation_status_bp.get("")
 @auth_required
+@require_permission("cooperation_statuses:manage")
 async def get_cooperation_statuses(request: Request):
     """
     获取合作状态列表

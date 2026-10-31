@@ -25,6 +25,7 @@ analytics = Blueprint("analytics", url_prefix="/api/v1/analytics")
 
 @analytics.route("/consumption/trend", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_consumption_trend(request: Request):
     """获取消耗趋势（支持订单数量和结算费用切换）"""
     import logging
@@ -106,6 +107,7 @@ async def get_consumption_trend(request: Request):
 
 @analytics.route("/consumption/top", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_top_customers(request: Request):
     """获取 Top 消耗客户"""
     start_date_str = request.args.get("start_date")
@@ -166,6 +168,7 @@ async def get_top_customers(request: Request):
 
 @analytics.route("/consumption/device-distribution", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_device_distribution(request: Request):
     """获取设备类型分布"""
     start_date_str = request.args.get("start_date")
@@ -229,6 +232,7 @@ async def get_device_distribution(request: Request):
 
 @analytics.route("/consumption/sync", methods=["POST"])
 @auth_required
+@require_permission("sync_tasks:manage")
 async def manual_sync_consumption(request: Request):
     """手动触发消耗数据同步（同步昨日数据）
 
@@ -329,6 +333,7 @@ async def manual_sync_consumption(request: Request):
 
 @analytics.route("/payment/analysis", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_payment_analysis(request: Request):
     """获取回款分析"""
     start_date_str = request.args.get("start_date")
@@ -387,6 +392,7 @@ async def get_payment_analysis(request: Request):
 
 @analytics.route("/payment/trend", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_payment_trend(request: Request):
     """获取月度回款趋势"""
     months = int(request.args.get("months", 6))
@@ -442,6 +448,7 @@ async def get_payment_trend(request: Request):
 
 @analytics.route("/payment/invoice-status", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_invoice_status(request: Request):
     """获取结算单状态统计"""
     start_date_str = request.args.get("start_date")
@@ -500,6 +507,7 @@ async def get_invoice_status(request: Request):
 
 @analytics.route("/health/stats", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_health_stats(request: Request):
     """获取健康度统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -524,6 +532,7 @@ async def get_health_stats(request: Request):
 
 @analytics.route("/health/warning-list", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_warning_list(request: Request):
     """获取余额预警客户列表"""
     threshold = float(request.args.get("threshold", 1000))
@@ -552,6 +561,7 @@ async def get_warning_list(request: Request):
 
 @analytics.route("/health/inactive-list", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_inactive_list(request: Request):
     """获取长期未消耗客户列表"""
     days = int(request.args.get("days", 30))
@@ -580,6 +590,7 @@ async def get_inactive_list(request: Request):
 
 @analytics.route("/health/customers/<customer_id:int>/score", methods=["GET"])
 @auth_required
+@require_permission("customers:view")
 async def get_customer_health_score(request: Request, customer_id: int):
     """获取客户健康度评分"""
     from sqlalchemy import select as sa_select
@@ -618,6 +629,7 @@ async def get_customer_health_score(request: Request, customer_id: int):
 
 @analytics.route("/profile/industry", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_industry_distribution(request: Request):
     """获取行业分布"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -643,6 +655,7 @@ async def get_industry_distribution(request: Request):
 
 @analytics.route("/profile/scale", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_scale_stats(request: Request):
     """获取客户规模等级统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -668,6 +681,7 @@ async def get_scale_stats(request: Request):
 
 @analytics.route("/profile/consume-level", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_consume_level_stats(request: Request):
     """获取客户消费等级统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -693,6 +707,7 @@ async def get_consume_level_stats(request: Request):
 
 @analytics.route("/profile/real-estate", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_real_estate_stats(request: Request):
     """获取房产客户统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -718,6 +733,7 @@ async def get_real_estate_stats(request: Request):
 
 @analytics.route("/profile/real-estate-industry", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_real_estate_industry_stats(request: Request):
     """获取房产客户行业子分类统计"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -743,6 +759,7 @@ async def get_real_estate_industry_stats(request: Request):
 
 @analytics.route("/prediction/monthly", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def predict_monthly_payment(request: Request):
     """预测月度回款
 
@@ -788,6 +805,7 @@ async def predict_monthly_payment(request: Request):
 
 @analytics.route("/prediction/trend", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_prediction_trend(request: Request):
     """获取全年 12 个月预测 vs 实际回款趋势"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -815,6 +833,7 @@ async def get_prediction_trend(request: Request):
 
 @analytics.route("/consumption/forecast", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def forecast_consumption(request: Request):
     """预测消费（MVP 版）
 
@@ -887,6 +906,7 @@ async def forecast_consumption(request: Request):
 
 @analytics.route("/consumption/forecast-trend", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_consumption_forecast_trend(request: Request):
     """获取全年 12 个月预测 vs 实际消费趋势"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -928,6 +948,7 @@ async def get_consumption_forecast_trend(request: Request):
 
 @analytics.route("/consumption/data-readiness", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_consumption_data_readiness(request: Request):
     """获取数据就绪度信息（横幅+置信度用）"""
     db_session = request.ctx.db_session
@@ -959,6 +980,7 @@ async def record_consumption_accuracy(request: Request):
 
 @analytics.route("/consumption/price-config", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_price_config(request: Request):
     """获取消费预测单价配置"""
     db_session = request.ctx.db_session
@@ -1151,6 +1173,7 @@ async def get_dashboard_trend(request: Request):
 
 @analytics.route("/billing/trend/<customer_id:int>", methods=["GET"])
 @auth_required
+@require_permission("customers:view")
 async def get_balance_trend(request: Request, customer_id: int):
     """获取客户余额趋势"""
     months = int(request.args.get("months", 6))
@@ -1187,6 +1210,7 @@ async def get_balance_trend(request: Request, customer_id: int):
 
 @analytics.route("/usage/daily", methods=["GET"])
 @auth_required
+@require_permission("customers:view")
 async def get_daily_usage(request: Request):
     """获取客户每日用量数据（分页）"""
     from datetime import timedelta
@@ -1276,6 +1300,7 @@ async def get_daily_usage(request: Request):
 
 @analytics.route("/profile/cross-dimension", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_cross_dimension(request: Request):
     """获取行业×规模交叉维度热力图数据"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -1313,6 +1338,7 @@ async def get_cross_dimension(request: Request):
 
 @analytics.route("/profile/tag-usage", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_tag_usage(request: Request):
     """获取标签使用排行（Top 10）"""
     force_refresh = request.args.get("force_refresh", "").lower() == "true"
@@ -1344,6 +1370,7 @@ async def get_tag_usage(request: Request):
 
 @analytics.route("/health/risk-trend", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_health_risk_trend(request: Request):
     """获取风险趋势（30天风险客户数变化）"""
     days = int(request.args.get("days", 30))
@@ -1422,6 +1449,7 @@ async def export_health_report(request: Request):
 
 @analytics.route("/payment/forecast-vs-actual", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_forecast_vs_actual(request: Request):
     """获取预测 vs 实际回款对比"""
     year = int(request.args.get("year", datetime.utcnow().year))
@@ -1446,6 +1474,7 @@ async def get_forecast_vs_actual(request: Request):
 
 @analytics.route("/payment/top-customers", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_payment_top_customers(request: Request):
     """获取回款排行 Top 客户"""
     limit = int(request.args.get("limit", 10))
@@ -1476,6 +1505,7 @@ async def get_payment_top_customers(request: Request):
 
 @analytics.route("/forecast/monthly-compare", methods=["GET"])
 @auth_required
+@require_permission("analytics:view")
 async def get_monthly_compare(request: Request):
     """获取月度对比数据（本月 vs 上月 vs 去年同期）"""
     year = int(request.args.get("year", datetime.utcnow().year))

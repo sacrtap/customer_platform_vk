@@ -368,6 +368,10 @@ async def assign_roles(request: Request, user_id: int):
     if not success:
         return json({"code": 40401, "message": "用户不存在"}, status=404)
 
+    # 失效该用户的权限缓存，使角色变更立即生效
+    # （PermissionCache TTL=600s，不失效则已登录用户最长 10 分钟才看到新角色权限）
+    await permission_cache.invalidate(user_id)
+
     # 记录审计日志
     await create_audit_entry(
         db_session=db_session,

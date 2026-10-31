@@ -74,9 +74,13 @@ class RoleService:
         role_id: int,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        permission_ids: Optional[List[int]] = None,
     ) -> Optional[Role]:
-        """更新角色"""
+        """更新角色（仅名称/描述）
+
+        权限分配的唯一入口是 assign_permissions（经 POST /roles/{id}/permissions，
+        route 层会失效角色下所有用户的权限缓存）。此处不提供 permission_ids
+        参数，避免出现不失效缓存的第二写入路径。
+        """
         role = await self.get_role_by_id(role_id)
         if not role:
             return None
@@ -94,18 +98,6 @@ class RoleService:
 
         if description is not None:
             role.description = description  # pyright: ignore[reportAttributeAccessIssue]
-
-        # 更新权限
-        if permission_ids is not None:
-            # 先删除现有权限关联
-            await self.db_session.execute(
-                delete(role_permissions).where(role_permissions.c.role_id == role_id)
-            )
-            # 添加新权限
-            for perm_id in permission_ids:
-                await self.db_session.execute(
-                    role_permissions.insert().values(role_id=role_id, permission_id=perm_id)
-                )
 
         await self.db_session.commit()
         await self.db_session.refresh(role)

@@ -119,6 +119,12 @@
       <div class="permission-config">
         <div class="permission-header">
           <span class="permission-count"> 已选择 {{ selectedPermissionIds.length }} 项权限 </span>
+          <a-input
+            v-model="permissionKeyword"
+            placeholder="搜索权限名称/编码"
+            allow-clear
+            style="width: 240px"
+          />
           <a-button size="small" @click="toggleAllPermissions">
             {{ isAllPermissionsSelected ? '取消全选' : '全选' }}
           </a-button>
@@ -142,19 +148,25 @@
             </header>
 
             <a-checkbox-group v-model="selectedPermissionIds" class="permission-list">
-              <a-checkbox
+              <a-tooltip
                 v-for="permission in group.permissions"
                 :key="permission.id"
-                :value="permission.id"
-                class="permission-item"
+                :content="permissionTooltip(group, permission)"
+                position="top"
               >
-                <div class="permission-item-content">
-                  <span class="permission-name">{{ permission.name }}</span>
-                  <span v-if="permission.description" class="permission-description">
-                    {{ permission.description }}
-                  </span>
-                </div>
-              </a-checkbox>
+                <a-checkbox
+                  :value="permission.id"
+                  :class="[
+                    'permission-item',
+                    { 'permission-item--dangerous': isDangerousPermission(permission) },
+                  ]"
+                >
+                  <div class="permission-item-content">
+                    <span class="permission-name">{{ permission.name }}</span>
+                    <span class="permission-code">{{ permission.code }}</span>
+                  </div>
+                </a-checkbox>
+              </a-tooltip>
             </a-checkbox-group>
           </section>
         </div>
@@ -195,7 +207,11 @@ import {
   exportRoles,
   type Role as ApiRole,
 } from '@/api/roles'
-import { buildPermissionGroups, type PermissionGroup } from './permissionGroups'
+import {
+  buildPermissionGroups,
+  filterPermissionsByKeyword,
+  type PermissionGroup,
+} from './permissionGroups'
 import EmptyState from '@/components/EmptyState.vue'
 import ImportModal from '@/views/billing/components/ImportModal.vue'
 import { useExportAction } from '@/composables/useExportAction'
@@ -300,8 +316,39 @@ const permissionModalVisible = ref(false)
 const savingPermissions = ref(false)
 const currentRole = ref<Role | null>(null)
 const selectedPermissionIds = ref<number[]>([])
+const permissionKeyword = ref('')
 
-const permissionGroups = computed(() => buildPermissionGroups(allPermissions.value))
+/** 高危权限：授予前需确认业务必要性（删除/清空/同步管理等破坏性或全局性操作） */
+const DANGEROUS_PERMISSION_CODES = [
+  'system:database_clear',
+  'system:database_backup',
+  'sync_tasks:manage',
+  'customers:delete',
+  'users:delete',
+  'roles:delete',
+  'files:delete',
+  'billing:delete',
+  'erp_systems:manage',
+  'api_keys:manage',
+]
+
+const isDangerousPermission = (perm: Permission) => DANGEROUS_PERMISSION_CODES.includes(perm.code)
+
+/** 权限项 hover 提示：分组路径 + 权限码 + 描述；高危权限追加警告前缀 */
+const permissionTooltip = (group: PermissionGroup, permission: Permission): string => {
+  const base = `${group.title} · ${permission.name}（${permission.code}）`
+  const desc = permission.description ? `：${permission.description}` : ''
+  return isDangerousPermission(permission)
+    ? `高危权限，请谨慎授予 — ${base}${desc}`
+    : `${base}${desc}`
+}
+
+/** 搜索关键词过滤后的权限（全选/计数均基于当前可见集合） */
+const filteredPermissions = computed(() =>
+  filterPermissionsByKeyword(allPermissions.value, permissionKeyword.value)
+)
+
+const permissionGroups = computed(() => buildPermissionGroups(filteredPermissions.value))
 
 const isGroupAllSelected = (group: PermissionGroup<Permission>) =>
   group.permissions.length > 0 &&
@@ -316,8 +363,8 @@ const togglePermissionGroup = (group: PermissionGroup<Permission>) => {
   }
 }
 const isAllPermissionsSelected = computed(() => {
-  const allPermIds = allPermissions.value.map((p) => p.id)
-  return allPermIds.length > 0 && allPermIds.every((id) => selectedPermissionIds.value.includes(id))
+  const visibleIds = filteredPermissions.value.map((p) => p.id)
+  return visibleIds.length > 0 && visibleIds.every((id) => selectedPermissionIds.value.includes(id))
 })
 
 // ========== 数据加载 ==========
@@ -471,6 +518,7 @@ const handlePermissionModalCancel = () => {
   permissionModalVisible.value = false
   currentRole.value = null
   selectedPermissionIds.value = []
+  permissionKeyword.value = ''
 }
 
 const handlePermissionSubmit = async () => {
@@ -496,10 +544,16 @@ const handlePermissionSubmit = async () => {
 }
 
 const toggleAllPermissions = () => {
+  const visibleIds = filteredPermissions.value.map((p) => p.id)
   if (isAllPermissionsSelected.value) {
-    selectedPermissionIds.value = []
+    // 取消全选：仅移除当前可见（过滤后）集合，保留搜索外的既有选择
+    selectedPermissionIds.value = selectedPermissionIds.value.filter(
+      (id) => !visibleIds.includes(id)
+    )
   } else {
-    selectedPermissionIds.value = allPermissions.value.map((p) => p.id)
+    selectedPermissionIds.value = Array.from(
+      new Set([...selectedPermissionIds.value, ...visibleIds])
+    )
   }
 }
 
@@ -603,13 +657,15 @@ onMounted(() => {
 }
 
 .permission-item {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .permission-item-content {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .permission-name {
@@ -618,9 +674,17 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-.permission-description {
+.permission-code {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 高危权限：warning 色左边框标识（如删除、清空数据、同步管理等破坏性操作） */
+.permission-item--dangerous {
+  border-left: 3px solid var(--red);
+  padding-left: 8px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 </style>

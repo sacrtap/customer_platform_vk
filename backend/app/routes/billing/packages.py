@@ -786,6 +786,7 @@ async def import_package_plans(request: Request):
 
 @billing_bp.get("/package-plans/import-template")
 @auth_required
+@require_permission("billing:package_import")
 async def download_package_plan_import_template(request: Request):
     """下载包年套餐导入 Excel 模板"""
     from openpyxl import Workbook

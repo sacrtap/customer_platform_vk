@@ -159,6 +159,44 @@ After implementation:
 
 ---
 
+## 页面门控 ↔ API 权限码契约（权限口径必须前后端同源）
+
+[来源: 权限加固 2026-10-31 — 行业类型/合作状态/ERP 系统 GET 端点「页面隐藏但 API 登录即可读」]
+
+这是**跨层契约（B 类）+ 变更传播失败（C 类）**的混合体：前端门控（路由
+`meta.requiresPermission` / `v-if="can(...)"`）与后端 `@require_permission` 是同一条
+权限口令的两个执行点。历史上 seed 的白名单表格把「共享字典数据源」登记为有意豁免，
+但**只记录了后端决策，没有核对前端页面门控**——三个管理页全部挂 `:manage`，于是形成
+「页面说没权限、API 说随便看」的口径分裂。同类问题还有 module 归属漂移：初始 seed 把
+5 个 `:manage` 码归到 `system` 组，批量导入导出改造新增 `:import`/`:export` 时按模块
+命名，同一模块的码散落在两张分组卡片，配置角色时漏勾 manage 直接进不去页面。
+
+### 关键盲区：三类「证据」都不可靠
+
+| 证据 | 为什么不可靠 |
+|---|---|
+| 规划/PRD 文档 | PLAN 写「首页 SyncStatusBar 全员调用 GET /sync-tasks/status」，实测 SyncStatusBar 是纯 props 组件、前端从未调用——端点是死代码，文档描述的是**意图不是事实** |
+| 「seed 白名单里有这条」 | 白名单只证明「当初有人决定不挂码」，不证明「这个决定与前端门控仍然自洽」 |
+| 页面看不到数据 | 页面隐藏 ≠ API 层拦截。无码端点对任何登录角色（含只读观察员）开放 |
+
+### Checklist: 新增/修改任何端点或页面门控后
+
+- [ ] 页面门控码与端点 `require_permission` 码**逐条对齐**（同一口令，两侧同码）
+- [ ] 端点无权限码时，**先查调用方**（前端 API 层 + 组件 props 链），确认是「全员基础交互」还是死代码，再决定豁免或删除——不许以文档记载为由直接继承旧决策
+- [ ] 同业务模块的权限码归属同一 `module`（前端分组卡片按 module 渲染，跨组 = 配置时漏勾）
+- [ ] `pytest backend/tests/unit/test_permission_drift.py` 通过（正向：引用 ⊆ seed；反向：裸端点必须在豁免清单登记理由）
+- [ ] 删端点时全仓搜索调用方（含测试、文档、外部集成），文档里的「调用关系」描述以代码为准修正
+
+### Real-world example (2026-10-31, 字典端点裸奔)
+
+`GET /industry-types`、`/cooperation-statuses`、`/erp-systems` 只有 `@auth_required`。
+数据是低敏感字典，所以长期无感；但性质上任何登录角色可调 API 读取管理员专属页面
+的全量数据。修复即补 `@require_permission(xxx:manage)`（与同文件写操作、前端路由
+门控一致），零行为回退——能用这些页面的本来就有 manage。同时把 drift 测试从单向
+（引用 ⊆ seed）扩展为双向（裸端点必须显式登记），把「疏漏」变成「必须写理由的决策」。
+
+---
+
 ## ORM 模型 ↔ 数据库 Schema 契约（模型改了，库必须同源升级）
 
 [来源: Bug fix 2026-10-13 — 客户管理页 `GET /api/v1/customers` 恒 500，`column customers.balance_warning_level does not exist`]

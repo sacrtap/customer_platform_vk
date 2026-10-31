@@ -1336,6 +1336,7 @@ async def import_customers(request: Request):
 
 @customers_bp.get("/import-template")
 @auth_required
+@require_permission("customers:import")
 async def download_import_template(request: Request):
     """下载 Excel 导入模板"""
     from openpyxl import Workbook
@@ -1643,6 +1644,7 @@ async def export_customers(request: Request):
 
 @customers_bp.get("/<customer_id:int>/summary")
 @auth_required
+@require_permission("customers:view")
 async def get_customer_summary(request: Request, customer_id: int):
     """获取客户 360 预览摘要数据"""
 
@@ -1698,6 +1700,7 @@ async def get_customer_summary(request: Request, customer_id: int):
 
 @customers_bp.get("/<customer_id:int>/related")
 @auth_required
+@require_permission("customers:view")
 async def get_related_customers(request: Request, customer_id: int):
     """获取关联客户推荐（同行业同规模）"""
 
@@ -1748,6 +1751,7 @@ async def get_related_customers(request: Request, customer_id: int):
 
 @customers_bp.get("/<customer_id:int>/balance-forecast")
 @auth_required
+@require_permission("customers:view")
 async def get_balance_forecast(request: Request, customer_id: int):
     """余额耗尽预测"""
 
@@ -1802,6 +1806,7 @@ async def get_balance_forecast(request: Request, customer_id: int):
 
 @customers_bp.post("/<customer_id:int>/follow-up")
 @auth_required
+@require_permission("customers:edit")
 async def create_follow_up(request: Request, customer_id: int):
     """创建客户跟进记录"""
 

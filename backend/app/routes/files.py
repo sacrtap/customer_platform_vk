@@ -125,6 +125,7 @@ def generate_secure_filename(original_filename: str) -> tuple[str, str]:
 
 @files_bp.post("/upload")
 @auth_required
+@require_permission("files:upload")
 async def upload_file(request):
     """
     上传文件（安全增强版）
