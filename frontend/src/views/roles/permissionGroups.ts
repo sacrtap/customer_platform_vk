@@ -35,6 +35,7 @@ export const MODULE_NAME_MAP: Record<string, string> = {
   cooperation_statuses: '合作状态',
   balance_whitelist: '余额白名单',
   api_keys: 'API-Key',
+  erp_systems: 'ERP系统',
   other: '其他权限',
 }
 
@@ -50,6 +51,7 @@ export const MODULE_ORDER: string[] = [
   'files',
   'industry_types',
   'cooperation_statuses',
+  'erp_systems',
   'balance_whitelist',
   'api_keys',
 ]
