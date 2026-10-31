@@ -164,9 +164,6 @@
                   <div class="permission-item-content">
                     <span class="permission-name">{{ permission.name }}</span>
                     <span class="permission-code">{{ permission.code }}</span>
-                    <span v-if="permission.description" class="permission-description">
-                      {{ permission.description }}
-                    </span>
                   </div>
                 </a-checkbox>
               </a-tooltip>
@@ -660,25 +657,21 @@ onMounted(() => {
 }
 
 .permission-item {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .permission-item-content {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .permission-name {
   font-size: 14px;
   color: var(--ink);
   line-height: 1.5;
-}
-
-.permission-description {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.4;
 }
 
 .permission-code {
