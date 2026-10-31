@@ -151,7 +151,7 @@
               <a-tooltip
                 v-for="permission in group.permissions"
                 :key="permission.id"
-                :content="isDangerousPermission(permission) ? '高危权限，请谨慎授予' : ''"
+                :content="permissionTooltip(group, permission)"
                 position="top"
               >
                 <a-checkbox
@@ -336,6 +336,15 @@ const DANGEROUS_PERMISSION_CODES = [
 ]
 
 const isDangerousPermission = (perm: Permission) => DANGEROUS_PERMISSION_CODES.includes(perm.code)
+
+/** 权限项 hover 提示：分组路径 + 权限码 + 描述；高危权限追加警告前缀 */
+const permissionTooltip = (group: PermissionGroup, permission: Permission): string => {
+  const base = `${group.title} · ${permission.name}（${permission.code}）`
+  const desc = permission.description ? `：${permission.description}` : ''
+  return isDangerousPermission(permission)
+    ? `高危权限，请谨慎授予 — ${base}${desc}`
+    : `${base}${desc}`
+}
 
 /** 搜索关键词过滤后的权限（全选/计数均基于当前可见集合） */
 const filteredPermissions = computed(() =>
