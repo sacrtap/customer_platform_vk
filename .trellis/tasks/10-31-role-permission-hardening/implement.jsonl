@@ -1,0 +1,4 @@
+{"file": "docs/specs/角色权限页面权限配置排查与加固计划_PLAN.md", "reason": "本任务来源计划：22 步加固方案与缺口清单"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量约定：测试/lint/缓存失效"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "缓存失效与事务约定"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端 API 层/测试/pre-commit 约定"}

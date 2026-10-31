@@ -19,6 +19,7 @@ Before writing backend code, read and follow:
 - [ ] [Billing Balance Stats](./billing-balance-stats.md) — 余额统计响应字段、结算类型分组（未设置结算类型 = 预付费）口径、列表 `settlement_group` 契约与结算单列表行业/ERP 筛选契约
 - [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单
 - [ ] [File Storage](./file-storage.md) — `FILE_STORAGE_PATH` 解析规则、相对路径语义、DB 状态与磁盘实体一致性
+- [ ] [Permission Model](./permission-model.md) — 权限码单一事实源（seed.py）、三层引用、`--sync-permissions` 上线入口、通配语义、共享端点白名单、高危清单
 
 ---
 
