@@ -1427,37 +1427,9 @@ async def download_import_template(request: Request):
     for col_num in range(1, len(headers) + 1):
         ws.column_dimensions[get_column_letter(col_num)].width = 25
 
-    # 添加示例数据
-    example_data = [
-        100001,
-        "示例公司",
-        "张三",
-        "李四",
-        "正式账号",
-        "房产经纪",
-        "定价",
-        "prepaid",
-        "monthly",
-        "true",
-        "false",
-        "example@company.com",
-        "易遨",
-        "2024-01-15",
-        "2024-02-01",
-        "active",
-        "true",
-        "false",
-        "false",
-        "备注示例",
-        None,
-        "C",
-        "C2",
-        500,
-        450,
-        50000.00,
-        45000.00,
-    ]
-    ws.append(example_data)  # pyright: ignore[reportOptionalMemberAccess]
+    # 不写示例数据行：read_import_dataframe 只丢弃第 2 行中文说明行，第 3 行
+    # 示例数据会被当作真实客户导入（示例客户编号 100001 若已存在会整行报错，
+    # 干扰用户判断）。示例值已并入第 2 行说明文字。
 
     # 生成文件
     output = io.BytesIO()
