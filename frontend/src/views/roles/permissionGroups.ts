@@ -31,6 +31,10 @@ export const MODULE_NAME_MAP: Record<string, string> = {
   files: '文件管理',
   webhooks: 'Webhook 管理',
   profiles: '客户画像',
+  industry_types: '行业类型',
+  cooperation_statuses: '合作状态',
+  balance_whitelist: '余额白名单',
+  api_keys: 'API-Key',
   other: '其他权限',
 }
 
@@ -44,6 +48,10 @@ export const MODULE_ORDER: string[] = [
   'roles',
   'system',
   'files',
+  'industry_types',
+  'cooperation_statuses',
+  'balance_whitelist',
+  'api_keys',
 ]
 
 /**

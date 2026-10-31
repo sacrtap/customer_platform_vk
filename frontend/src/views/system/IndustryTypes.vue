@@ -2,6 +2,10 @@
   <div class="industry-types-page">
     <PageHeader eyebrow="System" title="行业类型" subtitle="管理系统行业类型字典">
       <template #actions>
+        <a-button v-if="can('industry_types:import')" @click="importVisible = true">导入</a-button>
+        <a-button v-if="can('industry_types:export')" :loading="exporting" @click="handleExport">{{
+          exporting ? '导出中...' : '导出'
+        }}</a-button>
         <a-button v-if="can('industry_types:manage')" type="primary" @click="handleCreate"
           >新增行业类型</a-button
         >
@@ -83,6 +87,16 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 批量导入弹窗 -->
+    <ImportModal
+      v-model:visible="importVisible"
+      title="批量导入行业类型"
+      :import-api="importIndustryTypes"
+      :template-api="fetchIndustryTypeTemplate"
+      template-file-name="行业类型导入模板.xlsx"
+      @success="loadIndustryTypes"
+    />
   </div>
 </template>
 
@@ -93,14 +107,19 @@ import PageHeader from '@/components/PageHeader.vue'
 import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
+import { useExportAction } from '@/composables/useExportAction'
 import {
   getIndustryTypesList,
   createIndustryType,
   updateIndustryType,
   deleteIndustryType,
+  exportIndustryTypes,
+  fetchIndustryTypeTemplate,
+  importIndustryTypes,
 } from '@/api/industryTypes'
 import type { IndustryType } from '@/types'
 import EmptyState from '@/components/EmptyState.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
 import { formatDateTime } from '@/utils/formatters'
 
 const userStore = useUserStore()
@@ -110,6 +129,15 @@ const can = (permission: string) => userStore.hasPermission(permission)
 const loading = ref(false)
 const industryTypes = ref<IndustryType[]>([])
 
+// 导入弹窗可见性
+const importVisible = ref(false)
+
+// 导出：行业类型列表无筛选参数，直接 run(undefined) 全量导出
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportIndustryTypes,
+  filename: () => `industry_types_${new Date().toISOString().slice(0, 10)}.xlsx`,
+})
+const handleExport = () => runExport(undefined)
 // 分页
 const pagination = reactive({
   current: 1,

@@ -1,4 +1,5 @@
 import api from './index'
+import { fetchExport, fetchImportTemplate, importFile } from './_excel'
 
 /** 用户接口类型定义 */
 export interface User {
@@ -186,4 +187,26 @@ export function uploadAvatar(file: File) {
       'Content-Type': 'multipart/form-data',
     },
   })
+}
+
+/**
+ * 批量导入用户（dryRun=true 为预检查，不落库）
+ */
+export function importUsers(file: File, dryRun = false) {
+  return importFile(`/users/import${dryRun ? '?dry_run=true' : ''}`, file)
+}
+
+/** 下载用户导入模板 */
+export function fetchUserTemplate() {
+  return fetchImportTemplate('/users/import-template')
+}
+
+/** 导出用户列表请求参数（按当前筛选条件；分页参数由后端固定为全量上限 5 万条） */
+export interface ExportUsersParams {
+  keyword?: string
+}
+
+/** 导出用户列表（按当前筛选条件，后端剔除分页参数，上限 5 万条） */
+export function exportUsers(params?: ExportUsersParams) {
+  return fetchExport('/users/export', params)
 }

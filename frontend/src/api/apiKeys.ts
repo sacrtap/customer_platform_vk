@@ -1,4 +1,5 @@
 import api from './index'
+import { fetchExport } from './_excel'
 import type { ApiKey } from '@/types'
 
 /** 获取 API-Key 列表 */
@@ -22,4 +23,9 @@ export function toggleApiKeyStatus(id: number) {
 /** 删除 API-Key */
 export function deleteApiKey(id: number) {
   return api.delete(`/api-keys/${id}`)
+}
+
+/** 导出 API-Key 列表（blob 响应；仅导出，不支持导入） */
+export function exportApiKeys() {
+  return fetchExport('/api-keys/export')
 }

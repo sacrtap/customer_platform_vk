@@ -1,4 +1,5 @@
 import api from './index'
+import { fetchExport, fetchImportTemplate, importFile } from './_excel'
 
 // ========== 角色管理 ==========
 
@@ -111,4 +112,25 @@ export function updateRolePermissions(id: number, permissionIds: number[]) {
  */
 export function getPermissions() {
   return api.get<Permission[]>('/permissions')
+}
+
+// ========== 角色导入导出 ==========
+
+/**
+ * 批量导入角色（dryRun=true 为预检查，不落库）
+ * @param file - Excel 文件
+ * @param dryRun - 是否仅预检查
+ */
+export function importRoles(file: File, dryRun = false) {
+  return importFile(`/roles/import${dryRun ? '?dry_run=true' : ''}`, file)
+}
+
+/** 下载角色导入模板 */
+export function fetchRoleTemplate() {
+  return fetchImportTemplate('/roles/import-template')
+}
+
+/** 导出角色列表（全量，上限 5 万条） */
+export function exportRoles() {
+  return fetchExport('/roles/export')
 }

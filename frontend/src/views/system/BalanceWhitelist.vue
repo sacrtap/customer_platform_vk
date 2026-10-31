@@ -6,6 +6,12 @@
       subtitle="白名单客户通过开放平台 /api/v1/balances 接口按静态余额返回"
     >
       <template #actions>
+        <a-button v-if="can('balance_whitelist:export')" :loading="exporting" @click="handleExport"
+          >导出</a-button
+        >
+        <a-button v-if="can('balance_whitelist:import')" @click="importVisible = true"
+          >导入</a-button
+        >
         <a-button v-if="can('balance_whitelist:manage')" @click="handleOpenBatchImport"
           >按 ERP 批量导入</a-button
         >
@@ -169,6 +175,15 @@
         </a-form-item>
       </a-form>
     </a-modal>
+    <!-- 批量导入弹窗（Excel 上传 → 预检查 → 确认导入） -->
+    <ImportModal
+      v-model:visible="importVisible"
+      title="批量导入余额白名单"
+      :import-api="importBalanceWhitelist"
+      :template-api="fetchBalanceWhitelistTemplate"
+      template-file-name="余额白名单导入模板.xlsx"
+      @success="loadList"
+    />
   </div>
 </template>
 
@@ -181,7 +196,9 @@ import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
 import { useUserStore } from '@/stores/user'
+import { useExportAction } from '@/composables/useExportAction'
 import { getErpSystemsList } from '@/api/erpSystems'
 import type { ErpSystem } from '@/types'
 import type { BalanceWhitelistItem } from '@/types'
@@ -191,6 +208,9 @@ import {
   addBalanceWhitelist,
   updateBalanceWhitelist,
   removeBalanceWhitelist,
+  exportBalanceWhitelist,
+  importBalanceWhitelist,
+  fetchBalanceWhitelistTemplate,
 } from '@/api/balanceWhitelist'
 import { formatDateTime } from '@/utils/formatters'
 
@@ -298,6 +318,24 @@ const handlePageSizeChange = (pageSize: number) => {
   pagination.current = 1
   loadList()
 }
+
+// ========== Excel 导入 / 导出 ==========
+// 导出：透传当前关键字，提示由 onSuccess 接管（命中 5 万条截断时给 warning）
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportBalanceWhitelist,
+  filename: () => `balance_whitelist_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  successMessage: false,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    } else {
+      Message.success('导出成功')
+    }
+  },
+})
+const handleExport = () => runExport({ keyword: keyword.value.trim() || undefined })
+
+const importVisible = ref(false)
 
 // ========== 按 ERP 批量导入 ==========
 const batchImportVisible = ref(false)
