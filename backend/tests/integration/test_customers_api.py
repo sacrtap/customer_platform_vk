@@ -809,23 +809,9 @@ async def test_download_import_template_field_structure(test_client, auth_header
     assert "定价" in str(notes[6])  # price_policy
     assert "prepaid" in str(notes[7])  # settlement_type
 
-    # 验证第 3 行：示例数据
-    example = [cell.value for cell in ws[3]]
-    assert example[0] == 100001  # company_id 示例
-    assert "示例公司" in str(example[1])  # name 示例
-    assert example[2] == "张三"  # manager 示例
-    assert example[3] == "李四"  # sales_manager 示例
-    assert example[6] == "定价"  # price_policy 示例
-    assert example[7] == "prepaid"  # settlement_type 示例
-    assert example[9] == "true"  # is_key_customer 示例
-    assert example[10] == "false"  # is_real_estate 示例
-    assert "example@" in str(example[11])  # email 示例
-    # 验证新增字段
-    assert example[13] == "2024-01-15"  # first_payment_date
-    assert example[15] == "active"  # cooperation_status
-    assert example[20] is None  # settlement_account_id 示例（留空=用自身余额）
-    assert example[21] == "C"  # scale_level
-    assert example[22] == "C2"  # consume_level
+    # 验证无示例数据行：第 3 行起应为空（示例数据会被 read_import_dataframe
+    # 当作真实客户导入；示例值已并入第 2 行说明文字）
+    assert ws.max_row == 2
 
 
 @pytest.mark.asyncio
@@ -1098,29 +1084,11 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
     company_id = 1000021
     wb = load_workbook(io.BytesIO(template.body))
     ws = wb.active
+    # 模板无示例数据行：第 3 行起需写完整数据行，必填列 company_id/name 不可留空
     ws.cell(row=3, column=1).value = company_id
+    ws.cell(row=3, column=2).value = "模板回灌公司"
     output = io.BytesIO()
     wb.save(output)
-
-    # 模板示例行的 industry 为「房产经纪」：该行业类型须先存在，否则路由会如实回传
-    # 「行业类型 '房产经纪' 不存在」的行级错误（该错误此前被 service 返回值覆盖而
-    # 静默丢失，故旧断言在「错误被吞掉」的前提下才成立）。
-    db_session.execute(
-        text(
-            "INSERT INTO industry_types (name, sort_order, created_at) "
-            "VALUES ('房产经纪', 2, NOW()) ON CONFLICT (name) DO NOTHING"
-        )
-    )
-    # 模板示例行的运营/销售经理为「张三/李四」：须存在启用用户，否则行级报错
-    db_session.execute(
-        text(
-            "INSERT INTO users (username, real_name, password_hash, is_active, created_at) "
-            "VALUES ('zhangsan', '张三', 'x', TRUE, NOW()), "
-            "('lisi', '李四', 'x', TRUE, NOW()) "
-            "ON CONFLICT (username) DO UPDATE SET real_name = EXCLUDED.real_name, is_active = TRUE"
-        )
-    )
-    db_session.commit()
 
     request, response = await test_client.post(
         "/api/v1/customers/import",
@@ -1143,8 +1111,6 @@ async def test_import_customers_from_downloaded_template(test_client, auth_heade
         db_session.execute(
             text("DELETE FROM customers WHERE company_id = :cid"), {"cid": company_id}
         )
-        db_session.execute(text("DELETE FROM industry_types WHERE name = '房产经纪'"))
-        db_session.execute(text("DELETE FROM users WHERE username IN ('zhangsan', 'lisi')"))
         db_session.commit()
 
 

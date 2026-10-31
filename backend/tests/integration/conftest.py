@@ -13,6 +13,7 @@
 import logging
 import os
 import sys
+import uuid
 
 from tests._test_data import PERMISSION_CODES, PERMISSION_ROWS, sync_test_schema
 
@@ -338,6 +339,54 @@ def db_session(sync_test_engine, test_user):
         session.close()
 
 
+@pytest.fixture
+def import_customer(db_session):
+    """创建导入测试客户，返回 {id, company_id}
+
+    余额导入/白名单导入等需要引用真实客户；raw SQL 造数据需显式补
+    customer_balances 档案，否则该客户在余额列表/导出中不可见。
+    """
+    cid = 950000 + abs(hash(uuid.uuid4().hex[:8])) % 40000
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customers (id, company_id, name, account_type,
+                                   settlement_cycle, settlement_type,
+                                   created_at, updated_at)
+            VALUES (:id, :cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
+            """
+        ),
+        {"id": cid, "cid": cid, "name": f"导入测试客户_{cid}"},
+    )
+    db_session.execute(
+        text(
+            """
+            INSERT INTO customer_balances (customer_id, total_amount, real_amount,
+                                           bonus_amount, used_total, used_real, used_bonus,
+                                           created_at, updated_at)
+            VALUES (:cid, 10000, 8000, 2000, 0, 0, 0, NOW(), NOW())
+            """
+        ),
+        {"cid": cid},
+    )
+    db_session.commit()
+
+    try:
+        yield {"id": cid, "company_id": cid}
+    finally:
+        for stmt in (
+            "DELETE FROM pricing_rules WHERE customer_id = :cid",
+            "DELETE FROM invoices WHERE customer_id = :cid",
+            "DELETE FROM customer_balances WHERE customer_id = :cid",
+            # 余额导入会创建 recharge_records（FK 指向 customers），须先于 customers 删除
+            "DELETE FROM recharge_records WHERE customer_id = :cid",
+            "DELETE FROM customers WHERE id = :cid",
+        ):
+            db_session.execute(text(stmt), {"cid": cid})
+        db_session.commit()
+
+
 @pytest.fixture(scope="function")
 async def app(sync_test_engine, mock_scheduler, mock_cache):
     """创建 Sanic 应用实例（使用异步数据库引擎）"""
@@ -388,6 +437,7 @@ async def mock_cache():
     mock_cache.invalidate_pattern = AsyncMock(return_value=True)
     mock_cache.invalidate_analytics_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_customer_cache = AsyncMock(return_value=True)
+    mock_cache.invalidate_tag_cache = AsyncMock(return_value=True)
     mock_cache.invalidate_billing_cache = AsyncMock(return_value=True)
     # Mock 权限缓存 - 简单方案：所有用户返回完整权限
     # test_customers_missing_permission 测试需要特殊处理
