@@ -283,6 +283,10 @@ class TestPerformBackup:
         with (
             patch_permissions({"system:database_backup"}),
             patch(
+                "app.routes.backup.BackupService.has_active_task",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
                 "app.routes.backup.BackupService.create_record",
                 new=AsyncMock(return_value=record),
             ),
@@ -300,6 +304,24 @@ class TestPerformBackup:
         assert body["data"]["status"] == "pending"
         # 操作人需返回姓名而非裸 ID（前端「操作人」列渲染 operator_name）
         assert body["data"]["operator_name"] == "张三"
+
+    async def test_perform_blocked_by_active_task_returns_409(self, mock_request):
+        """已有进行中任务 → 409 且不创建备份记录"""
+        with (
+            patch_permissions({"system:database_backup"}),
+            patch(
+                "app.routes.backup.BackupService.has_active_task",
+                new=AsyncMock(return_value=True),
+            ),
+            patch("app.routes.backup.BackupService.create_record", new=AsyncMock()) as create_mock,
+        ):
+            response = await perform_backup(mock_request)
+
+        assert response.status == 409
+        body = parse_response_body(response)
+        assert body["code"] == 409
+        assert "正在执行" in body["message"]
+        create_mock.assert_not_called()
 
     async def test_perform_permission_denied(self, mock_request):
         """测试无 system:database_backup 权限 → 403"""
@@ -392,6 +414,10 @@ class TestRestoreBackup:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch(
+                "app.routes.backup.BackupService.has_active_task",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
                 "app.routes.backup.BackupService.create_record",
                 new=AsyncMock(return_value=restore_record),
             ),
@@ -450,6 +476,31 @@ class TestRestoreBackup:
             response = await restore_backup(mock_request, 999)
 
         assert response.status == 404
+
+    async def test_restore_blocked_by_active_task_returns_409(self, mock_request):
+        """已有进行中任务 → 409 且不创建 restore 记录"""
+        mock_request.ctx.db_session.get = AsyncMock(return_value=self.make_source())
+        mock_request.json = {"confirm_date": "2026-10-20"}
+
+        with (
+            patch_permissions({"system:database_backup"}),
+            patch(
+                "app.routes.backup.BackupService.resolve_restorable_source",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.routes.backup.BackupService.has_active_task",
+                new=AsyncMock(return_value=True),
+            ),
+            patch("app.routes.backup.BackupService.create_record", new=AsyncMock()) as create_mock,
+        ):
+            response = await restore_backup(mock_request, 5)
+
+        assert response.status == 409
+        body = parse_response_body(response)
+        assert body["code"] == 409
+        assert "正在执行" in body["message"]
+        create_mock.assert_not_called()
 
     async def test_restore_permission_denied(self, mock_request):
         """测试无 system:database_backup 权限 → 403"""

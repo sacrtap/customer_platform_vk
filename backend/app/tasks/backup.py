@@ -24,6 +24,9 @@ CLEANUP_JOB_ID = "cleanup_old_backups"
 async def perform_backup_task(session: AsyncSession) -> None:
     """执行一次每日自动备份（系统触发，operator_id=None）"""
     service = BackupService(db=session)
+    if await service.has_active_task():
+        logger.info("已有备份任务正在执行，跳过本次每日备份")
+        return
     record = await service.create_record("daily_backup", operator_id=None)
     await service.execute_backup(record.id)
 
@@ -31,6 +34,9 @@ async def perform_backup_task(session: AsyncSession) -> None:
 async def perform_cleanup_task(session: AsyncSession) -> None:
     """执行一次过期备份清理（含保留窗口校验）"""
     service = BackupService(db=session)
+    if await service.has_active_task():
+        logger.info("已有备份任务正在执行，跳过本次过期清理")
+        return
     await service.execute_cleanup()
 
 

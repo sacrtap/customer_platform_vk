@@ -166,6 +166,12 @@ async def perform_backup(request: Request):
         operator_id = request.ctx.user["user_id"]
 
         service = BackupService(db=db_session)
+        if await service.has_active_task():
+            return json(
+                {"code": 409, "message": "已有备份/恢复任务正在执行中，请等待其完成后再操作"},
+                status=409,
+            )
+
         record = await service.create_record("manual_backup", operator_id=operator_id)
 
         # 备份可能耗时数分钟：用独立 session 后台执行，避免 HTTP 超时
@@ -228,6 +234,12 @@ async def restore_backup(request: Request, record_id: int):
             message = str(e)
             status = 404 if "不存在" in message else 400
             return json({"code": status, "message": message}, status=status)
+
+        if await service.has_active_task():
+            return json(
+                {"code": 409, "message": "已有备份/恢复任务正在执行中，请等待其完成后再操作"},
+                status=409,
+            )
 
         record = await service.create_record(
             "restore",

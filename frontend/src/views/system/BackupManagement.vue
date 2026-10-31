@@ -51,7 +51,13 @@
         手动备份为异步任务，点击后立即返回，请在下方「任务记录」中查看执行进度与结果。
       </a-alert>
 
-      <a-button v-if="canManage" type="primary" :loading="performing" @click="handlePerformConfirm">
+      <a-button
+        v-if="canManage"
+        type="primary"
+        :loading="performing"
+        :disabled="hasPendingTask()"
+        @click="handlePerformConfirm"
+      >
         立即备份
       </a-button>
     </a-card>
@@ -135,6 +141,7 @@
           <a-space v-if="isRestorable(record)">
             <a-button type="text" size="small" @click="handleDownload(record)">下载</a-button>
             <a-button
+              v-if="!hasPendingTask()"
               type="text"
               size="small"
               status="danger"

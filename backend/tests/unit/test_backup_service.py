@@ -517,6 +517,34 @@ class TestListRecords:
         assert result["list"][0]["operator_name"] == "张三"
 
 
+class TestHasActiveTask:
+    """has_active_task：pending/running 进行中任务探测"""
+
+    async def test_active_task_returns_true(self, backup_service, mock_db_session):
+        """存在 pending/running 留痕 → True"""
+        count_result = MagicMock()
+        count_result.scalar.return_value = 2
+        mock_db_session.execute = AsyncMock(return_value=count_result)
+
+        assert await backup_service.has_active_task() is True
+
+    async def test_no_active_task_returns_false(self, backup_service, mock_db_session):
+        """无 pending/running 留痕（scalar=0）→ False"""
+        count_result = MagicMock()
+        count_result.scalar.return_value = 0
+        mock_db_session.execute = AsyncMock(return_value=count_result)
+
+        assert await backup_service.has_active_task() is False
+
+    async def test_none_scalar_returns_false(self, backup_service, mock_db_session):
+        """count 返回 None（空表极端情况）→ False"""
+        count_result = MagicMock()
+        count_result.scalar.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=count_result)
+
+        assert await backup_service.has_active_task() is False
+
+
 class TestRecordToDict:
     """_record_to_dict：操作人姓名序列化"""
 
