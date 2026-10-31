@@ -70,7 +70,12 @@
           <a-button v-if="can('users:edit')" type="text" size="small" @click="handleEdit(record)"
             >编辑</a-button
           >
-          <a-button type="text" size="small" @click="handleResetPassword(record)">
+          <a-button
+            v-if="can('users:edit')"
+            type="text"
+            size="small"
+            @click="handleResetPassword(record)"
+          >
             重置密码
           </a-button>
           <a-popconfirm

@@ -85,6 +85,7 @@
         </button>
 
         <div
+          v-if="can('billing:view')"
           class="nav-parent"
           :class="{ active: isParentMenuActive('billing') }"
           :aria-expanded="expandedSubmenu === 'billing'"
@@ -110,6 +111,7 @@
         </div>
         <div v-show="expandedSubmenu === 'billing' && !sidebarCollapsed" class="subnav">
           <button
+            v-if="can('billing:view')"
             class="nav-btn sub"
             :class="{ active: $route.name === 'Balance' }"
             @click="goTo('/billing/balances')"
@@ -117,6 +119,7 @@
             余额管理
           </button>
           <button
+            v-if="can('billing:view')"
             class="nav-btn sub"
             :class="{ active: $route.name === 'PricingRules' }"
             @click="goTo('/billing/pricing-rules')"
@@ -124,6 +127,7 @@
             计费规则
           </button>
           <button
+            v-if="can('billing:view')"
             class="nav-btn sub"
             :class="{ active: $route.name === 'PackagePlans' }"
             @click="goTo('/billing/package-plans')"
@@ -131,6 +135,7 @@
             包年套餐
           </button>
           <button
+            v-if="can('billing:view')"
             class="nav-btn sub"
             :class="{ active: $route.name === 'Invoices' }"
             @click="goTo('/billing/invoices')"
@@ -144,6 +149,7 @@
       <div class="nav-group">
         <div class="nav-title">运营分析</div>
         <div
+          v-if="can('analytics:view')"
           class="nav-parent"
           :class="{ active: isParentMenuActive('analytics') }"
           :aria-expanded="expandedSubmenu === 'analytics'"
@@ -169,6 +175,7 @@
         </div>
         <div v-show="expandedSubmenu === 'analytics' && !sidebarCollapsed" class="subnav">
           <button
+            v-if="can('analytics:view')"
             class="nav-btn sub"
             :class="{ active: $route.path === '/analytics/consumption' }"
             @click="goTo('/analytics/consumption')"
@@ -176,6 +183,7 @@
             消耗分析
           </button>
           <button
+            v-if="can('analytics:view')"
             class="nav-btn sub"
             :class="{ active: $route.path === '/analytics/payment' }"
             @click="goTo('/analytics/payment')"
@@ -183,6 +191,7 @@
             回款分析
           </button>
           <button
+            v-if="can('analytics:view')"
             class="nav-btn sub"
             :class="{ active: $route.path === '/analytics/health' }"
             @click="goTo('/analytics/health')"
@@ -190,6 +199,7 @@
             健康度分析
           </button>
           <button
+            v-if="can('analytics:view')"
             class="nav-btn sub"
             :class="{ active: $route.path === '/analytics/profile' }"
             @click="goTo('/analytics/profile')"
@@ -197,6 +207,7 @@
             画像分析
           </button>
           <button
+            v-if="can('analytics:view')"
             class="nav-btn sub"
             :class="{ active: $route.path === '/analytics/forecast' }"
             @click="goTo('/analytics/forecast')"

@@ -107,23 +107,48 @@
     <div class="table-card">
       <div class="table-header">
         <h3>余额预警客户</h3>
-        <a-button type="text" size="small" @click="loadWarningList">
-          <template #icon>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
-              <path
-                d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"
-              />
-            </svg>
-          </template>
-          刷新
-        </a-button>
+        <a-space>
+          <a-button
+            v-if="can('analytics:export')"
+            type="text"
+            size="small"
+            :loading="exportingWarning"
+            @click="runExportWarning(undefined)"
+          >
+            <template #icon>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M8 1a.5.5 0 0 1 .5.5v8.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 0 1 .708-.708L7.5 10.293V1.5A.5.5 0 0 1 8 1z"
+                />
+                <path d="M2 13.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z" />
+              </svg>
+            </template>
+            导出
+          </a-button>
+          <a-button type="text" size="small" @click="loadWarningList">
+            <template #icon>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path d="M8 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" />
+                <path
+                  d="m5.93 6.704-.847 6.783a1 1 0 0 0 1.094 1.12l1.13-1.13a1 1 0 0 1 1.394 0l1.13 1.13a1 1 0 0 0 1.094-1.12l-.847-6.783a1 1 0 0 0-.996-.876H6.926a1 1 0 0 0-.996.876zM6.002 1.5a2.5 2.5 0 0 1 4.996 0 2.5 2.5 0 0 1-4.996 0z"
+                />
+              </svg>
+            </template>
+            刷新
+          </a-button>
+        </a-space>
       </div>
       <DataTable
         :columns="warningColumns"
@@ -216,11 +241,22 @@ import {
   getHealthStats,
   getWarningList,
   getInactiveList,
+  exportHealthWarningList,
   type WarningCustomer,
   type InactiveCustomer,
 } from '@/api/analytics'
+import { useUserStore } from '@/stores/user'
+import { useExportAction } from '@/composables/useExportAction'
 
 const router = useRouter()
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
+
+// 余额预警清单导出（复用页面级导出动作契约：进行中状态 + Blob 下载 + 错误处理）
+const { exporting: exportingWarning, run: runExportWarning } = useExportAction({
+  exportApi: exportHealthWarningList,
+  filename: () => `health_warning_${new Date().toISOString().slice(0, 10)}.xlsx`,
+})
 
 const loading = ref(false)
 

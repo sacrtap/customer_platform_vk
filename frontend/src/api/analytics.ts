@@ -1,4 +1,5 @@
 import api from './index'
+import { fetchExport } from './_excel'
 
 // ==================== 消耗分析 ====================
 
@@ -508,4 +509,11 @@ export function getDashboardTrend(params?: {
   force_refresh?: boolean
 }) {
   return api.get<DashboardTrendResponse>('/analytics/dashboard/trend', { params })
+}
+
+// ==================== 健康度预警导出 ====================
+
+/** 导出健康度预警清单（后端权限码 analytics:export；数据范围受服务端可见性强制） */
+export function exportHealthWarningList(params?: { threshold?: number }) {
+  return fetchExport('/analytics/health/export', params)
 }

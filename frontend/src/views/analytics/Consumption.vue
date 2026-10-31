@@ -7,7 +7,7 @@
       subtitle="同步状态 + 关键指标 + 趋势/排行 + 设备分布，多维度洞察客户消耗全貌。"
     >
       <template #actions>
-        <button class="btn" @click="handleSyncButtonClick">
+        <button v-if="can('sync_tasks:manage')" class="btn" @click="handleSyncButtonClick">
           <span>⟳</span>
           数据同步
         </button>
@@ -23,7 +23,9 @@
     <!-- 同步状态提示 -->
     <SyncStatusBar status="ok" last-sync="10:00">
       <template #action>
-        <button class="btn-mini" @click="handleSyncButtonClick">手动同步</button>
+        <button v-if="can('sync_tasks:manage')" class="btn-mini" @click="handleSyncButtonClick">
+          手动同步
+        </button>
       </template>
     </SyncStatusBar>
 
@@ -336,9 +338,12 @@ import { getIndustryTypes } from '@/api/customers'
 import { getManagers } from '@/api/users'
 import { getErpSystemsList } from '@/api/erpSystems'
 import type { IndustryType, ErpSystem } from '@/types'
-
 import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import SyncDialog from './components/SyncDialog.vue'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 /** ECharts 统一配色序列 */
 const CHART_COLORS = ['#1D4ED8', '#0891B2', '#059669', '#D97706', '#DC2626', '#7C3AED']

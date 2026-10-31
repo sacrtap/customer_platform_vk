@@ -65,7 +65,7 @@
           <a-space>
             <a-button type="primary" @click="loadData">查询</a-button>
             <a-button @click="handleReset">重置</a-button>
-            <a-button @click="openConfigModal">
+            <a-button v-if="can('analytics:forecast_edit')" @click="openConfigModal">
               <template #icon><icon-settings /></template>
               预测参数
             </a-button>
@@ -311,6 +311,10 @@ import {
 import KeywordAutoComplete from '@/components/KeywordAutoComplete.vue'
 import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import { formatCurrency } from '@/utils/formatters'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const can = (permission: string) => userStore.hasPermission(permission)
 
 /** ECharts 统一配色 */
 const TEXT_MUTED = '#475569'
