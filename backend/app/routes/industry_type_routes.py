@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 @industry_type_bp.get("")
 @auth_required
+@require_permission("industry_types:manage")
 async def get_industry_types(request: Request):
     """
     获取行业类型列表
