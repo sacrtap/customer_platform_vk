@@ -115,36 +115,47 @@ ALL_PERMISSIONS = [
     ("system:view", "查看系统", "查看同步/审计日志", "system"),
     ("system:database_clear", "数据清空", "清空客户及关联数据", "system"),
     # ============================================================
-    # 其他模块 (2)
+    # 文件管理 (3)
     # ============================================================
     ("files:view", "查看文件", "查看和下载文件", "files"),
+    ("files:upload", "上传文件", "上传附件（如结算单减免凭证）", "files"),
     ("files:delete", "删除文件", "删除文件", "files"),
     # ============================================================
     # 行业类型管理 (3)
     # ============================================================
-    ("industry_types:manage", "管理行业类型", "新增/编辑/删除行业类型", "system"),
+    ("industry_types:manage", "管理行业类型", "新增/编辑/删除行业类型", "industry_types"),
     ("industry_types:import", "导入行业类型", "批量导入行业类型", "industry_types"),
     ("industry_types:export", "导出行业类型", "导出行业类型数据", "industry_types"),
     # ============================================================
     # 合作状态管理 (3)
     # ============================================================
-    ("cooperation_statuses:manage", "管理合作状态", "新增/编辑/删除合作状态", "system"),
+    (
+        "cooperation_statuses:manage",
+        "管理合作状态",
+        "新增/编辑/删除合作状态",
+        "cooperation_statuses",
+    ),
     ("cooperation_statuses:import", "导入合作状态", "批量导入合作状态", "cooperation_statuses"),
     ("cooperation_statuses:export", "导出合作状态", "导出合作状态数据", "cooperation_statuses"),
     # ============================================================
     # ERP 系统管理 (1)
     # ============================================================
-    ("erp_systems:manage", "管理ERP系统", "新增/编辑/删除ERP系统", "system"),
+    ("erp_systems:manage", "管理ERP系统", "新增/编辑/删除ERP系统", "erp_systems"),
     # ============================================================
     # 余额白名单管理 (3)
     # ============================================================
-    ("balance_whitelist:manage", "管理余额白名单", "新增/编辑/移除余额白名单客户", "system"),
+    (
+        "balance_whitelist:manage",
+        "管理余额白名单",
+        "新增/编辑/移除余额白名单客户",
+        "balance_whitelist",
+    ),
     ("balance_whitelist:import", "导入余额白名单", "批量导入余额白名单", "balance_whitelist"),
     ("balance_whitelist:export", "导出余额白名单", "导出余额白名单数据", "balance_whitelist"),
     # ============================================================
     # API-Key 管理 (2)
     # ============================================================
-    ("api_keys:manage", "管理API-Key", "申请/查看/停用/删除API-Key", "system"),
+    ("api_keys:manage", "管理API-Key", "申请/查看/停用/删除API-Key", "api_keys"),
     ("api_keys:export", "导出API-Key", "导出API-Key列表", "api_keys"),
     # ============================================================
     # 定时同步配置 (2)
@@ -199,6 +210,8 @@ PRESET_ROLES = {
             "cooperation_statuses:export",
             "balance_whitelist:export",
             "api_keys:export",
+            # 结算单减免附件上传（唯一上传场景）
+            "files:upload",
         ],
     ),
     "销售经理": (
@@ -266,7 +279,9 @@ def sync_permissions():
     - ALL_PERMISSIONS 逐条 upsert：按 code 查询，存在则更新 name/description/module，
       不存在则插入；
     - 将「超级管理员」角色关联至全部权限（幂等：已关联跳过）；
-    - 不做任何删除，不触碰预置业务角色关联；
+    - 同步 PRESET_ROLES 预置业务角色（运营经理/销售经理）的权限关联（幂等：
+      只增不删——运营中管理员可能已手动给预置角色加码，删除会静默降权）；
+    - 不做任何删除，不触碰用户与自定义角色；
     - 提交后失效 Redis 权限缓存（与 seed() 相同方式）。
     """
     print(f"连接到数据库：{DATABASE_URL}")
@@ -314,11 +329,33 @@ def sync_permissions():
             if perm not in super_admin_role.permissions:
                 super_admin_role.permissions.append(perm)
                 linked += 1
+
+        # ---- 预置业务角色关联（幂等：只增不删）----
+        # PRESET_ROLES 与 ALL_PERMISSIONS 同在 seed.py，属「权限定义」的一部分；
+        # 历史上 --sync-permissions 不处理它，导致 spec 上线流程第 4 步
+        # （预置角色加码后跑 --sync-permissions）实际不生效——运营经理的
+        # files:upload 就是踩这个坑发现的。只增不删：管理员可能已手动
+        # 给预置角色追加授权，删除属静默降权。
+        preset_linked = 0
+        for role_name, (_role_desc, perm_codes) in PRESET_ROLES.items():
+            result = session.execute(select(Role).where(Role.name == role_name))
+            biz_role = result.scalar_one_or_none()
+            if biz_role is None:
+                print(f"  ⚠️  预置角色不存在（跳过，请先跑完整 seed）: {role_name}")
+                continue
+            for code in perm_codes:
+                perm = permissions.get(code)
+                if perm is None:
+                    raise ValueError(f"预置角色 {role_name} 引用了未定义的权限码: {code}")
+                if perm not in biz_role.permissions:
+                    biz_role.permissions.append(perm)
+                    preset_linked += 1
+                    print(f"  ➕ {role_name} 关联权限: {code}")
         session.commit()
 
         print(
             f"\n✅ 权限同步完成: 共 {len(permissions)} 项"
-            f"（新建 {created}，更新 {updated}，新关联超管 {linked}）"
+            f"（新建 {created}，更新 {updated}，新关联超管 {linked}，预置角色新关联 {preset_linked}）"
         )
 
         _invalidate_permission_cache()
