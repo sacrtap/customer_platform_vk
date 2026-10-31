@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildPermissionGroups,
+  filterPermissionsByKeyword,
   MODULE_NAME_MAP,
   MODULE_ORDER,
   type PermissionLike,
@@ -79,5 +80,37 @@ describe('buildPermissionGroups', () => {
       if (key === 'other') continue // 'other' has "其他权限" in the map
       expect(MODULE_NAME_MAP[key]).toBeDefined()
     }
+  })
+})
+
+describe('filterPermissionsByKeyword', () => {
+  const permissions: PermissionLike[] = [
+    { id: 1, module: 'customers', code: 'customers:view_all', name: '查看全部客户' },
+    { id: 2, module: 'customers', code: 'customers:view', name: '查看客户' },
+    { id: 3, module: 'system', code: 'system:database_clear', name: '数据清空' },
+  ]
+
+  it('returns all permissions for empty keyword', () => {
+    expect(filterPermissionsByKeyword(permissions, '')).toEqual(permissions)
+    expect(filterPermissionsByKeyword(permissions, '   ')).toEqual(permissions)
+  })
+
+  it('matches code substring', () => {
+    const result = filterPermissionsByKeyword(permissions, 'view_all')
+    expect(result.map((p) => p.id)).toEqual([1])
+  })
+
+  it('matches name', () => {
+    const result = filterPermissionsByKeyword(permissions, '清空')
+    expect(result.map((p) => p.id)).toEqual([3])
+  })
+
+  it('matches case-insensitively', () => {
+    const result = filterPermissionsByKeyword(permissions, 'DATABASE_CLEAR')
+    expect(result.map((p) => p.id)).toEqual([3])
+  })
+
+  it('returns empty array when nothing matches', () => {
+    expect(filterPermissionsByKeyword(permissions, 'nonexistent')).toEqual([])
   })
 })

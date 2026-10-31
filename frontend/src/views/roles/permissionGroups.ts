@@ -55,6 +55,23 @@ export const MODULE_ORDER: string[] = [
 ]
 
 /**
+ * 按关键词过滤权限（角色权限弹窗搜索用）。
+ *
+ * 对 name 与 code 做大小写不敏感的子串匹配；keyword 为空/空白时返回原数组。
+ * 纯函数，无 UI 依赖，可独立单元测试。
+ */
+export function filterPermissionsByKeyword<T extends PermissionLike>(
+  permissions: T[],
+  keyword: string
+): T[] {
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) return permissions
+  return permissions.filter(
+    (perm) => perm.name.toLowerCase().includes(kw) || perm.code.toLowerCase().includes(kw)
+  )
+}
+
+/**
  * 将权限列表按 module 分组为卡片数据。
  * 未指定 module 的权限归入 "其他权限" 分组。
  * 分组顺序按 MODULE_ORDER 排列；未知模块按标题字母序排在已知模块之后。
