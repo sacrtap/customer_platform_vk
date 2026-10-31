@@ -76,7 +76,6 @@ GET  /api/v1/billing/invoices/import-template
 - 导入必须写审计：`create_audit_entry(module="billing", action="batch_create", operation_type="batch")`
 
 ### 预检查（dry_run，二次确认契约）
-
 `POST /import?dry_run=true`：**5 个导入端点全覆盖**（客户/余额/计费规则/套餐/结算单；
 2026-10-13 余额、计费规则、套餐、结算单依次补齐，与客户导入同模式）——**完整行级
 校验但不落库**，返回：
@@ -96,13 +95,41 @@ GET  /api/v1/billing/invoices/import-template
 - 不写库、不写审计、不动缓存；前端两步流程：上传 → **预检查** → 展示
   「可导入 N 条 / 错误 M 条 + 行号明细」→ **确认导入** 才真正落库
 
+### 事务结构：autobegin 陷阱（2026-10-31 起强制）
+
+预检查阶段的只读 `db_session.execute(...)` 会触发 SQLAlchemy 2.0 的 **autobegin**
+隐式事务；此后直接 `async with db_session.begin():` 抛
+`InvalidRequestError: A transaction is already begun on this Session.`（落库 500）。
+单测用 AsyncMock  mock 掉 session 不会暴露，只有集成测试能抓到。
+
+正确结构（预检查询与落库之间显式断开事务）：
+
+```python
+if dry_run:
+    return json(...)  # 预检只读查询后的隐式事务随请求回滚，无副作用
+
+await db_session.commit()  # 断开 autobegin 隐式事务（只读查询无副作用）
+
+async with db_session.begin():
+    ...  # 所有写操作在 begin 块内（硬规则）
+```
+
+替代方案：把预检查询也放进同一个 `async with db_session.begin():` 块。
+禁止用 `begin_nested()` 绕开外层 `begin()`——savepoint 仍要求外层有事务，
+且掩盖了「预检无副作用」的语义。
+
 ### 模板结构（生成规则）
 
 | 行 | 内容 |
 |---|---|
 | 1 | 英文列名（与模型字段对齐，如 `company_id` / `period_start` / `total_amount`） |
 | 2 | 中文说明，**必须以 `必填：` 或 `可选：` 开头**（如 `必填：客户编号（整数）`） |
-| 3 | 示例数据 |
+
+**禁止第 3 行示例数据**（2026-10-31 起强制）：`read_import_dataframe` 只丢弃第 2 行
+中文说明行，第 3 行示例数据会被当作真实数据导入。用户下载模板后通常直接在示例行
+下方续写，示例行会被静默创建成一条记录（示例客户编号不存在时还会整行报错，
+干扰用户判断）。示例值并入第 2 行说明文字（如「必填：用户名（唯一），如 zhangsan」）。
+`template_response` 的 columns 为二元组 `[(英文字段名, 中文说明), ...]`。
 
 第 2 行的前缀契约是 `_is_template_note_row` 的判定依据，不可随意改文案。
 
@@ -362,7 +389,7 @@ int 原样透传；字符串才走 `str().strip()` + `int()`（兼容手填 `"54
 ## Good/Base/Bad Cases
 
 - **Good**：下载模板 → 填 3 行合法数据 → 导入 → `{success_count: 3, error_count: 0}`，列表出现 3 条新记录
-- **Base**：模板原样上传（仅示例行）→ 说明行被跳过，示例行按数据校验（可能 1 条行级错误，绝不出现"说明行"被当成数据的错误）
+- **Base**：模板原样上传（仅表头 + 说明行，无数据行）→ 说明行被跳过，`success_count == 0, error_count == 0`，绝不出现「说明行被当成数据」的虚假错误
 - **Bad**：导入端点自行 `pd.read_excel` 而不调用 `read_import_dataframe` → 说明行被当数据，用户首次导入必然看到虚假错误行
 
 ---
@@ -386,6 +413,8 @@ int 原样透传；字符串才走 `str().strip()` + `int()`（兼容手填 `"54
 | **重名客户名拒绝** | 旧结构按名称解析遇到重名 → 行级错误「对应多个客户」且整行剔除，`success_count == 0`（`test_import_invoices_ambiguous_customer_name_rejected`） |
 | **导出列含新字段** | 客户导出须含 `settlement_account_id`，值为结算账户客户的 `company_id`、未配置为空（`test_export_customers_contains_settlement_account_column`） |
 | **新字段导入往返** | 导入 `settlement_account_id` → 落库为 `customers.id`；自引用/目标不存在 → 行级错误且整行剔除（`test_import_customers_settlement_account_roundtrip`） |
+| **正式导入落库** | 真实导入（非 dry_run）必须走集成测试：单测 mock 掉 session 后 `db.begin()` 不抛错，**autobegin 事务冲突只有集成测试能抓到**（2026-10-31 六个路由集体踩坑，全 500） |
+| **集成测试缓存 mock** | 导入端点调用 `cache_service.invalidate_*_cache()` 时，`tests/integration/conftest.py` 的 `mock_cache` 必须 AsyncMock 对应方法（漏 `invalidate_tag_cache` 会 500） |
 
 ---
 
