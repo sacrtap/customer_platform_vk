@@ -453,6 +453,20 @@ class BackupService:
 
     # ---------- 查询 ----------
 
+    async def has_active_task(self) -> bool:
+        """是否存在进行中（pending/running）的备份类任务
+
+        备份/恢复/清理任一进行中均视为占用：恢复的 pg_restore --clean 会
+        DROP 全库对象，与并发的 pg_dump/清理存在对象消失冲突风险。
+        供各创建入口在写入留痕前做并发互斥。
+        """
+        result = await self.db.execute(
+            select(func.count(BackupRecord.id)).where(
+                BackupRecord.status.in_(("pending", "running"))
+            )
+        )
+        return (result.scalar() or 0) > 0
+
     async def list_records(
         self, page: int = 1, page_size: int = 20, task_type: str | None = None
     ) -> dict:
