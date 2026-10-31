@@ -66,5 +66,5 @@
 
 ## Notes
 
-- 源计划：仓库根 `批量导入导出_PLAN.md`。
+- 源计划：`docs/specs/2026-10-31-batch-import-export-plan.md`（原仓库根 `批量导入导出_PLAN.md`，2026-10-31 归档至 docs/specs）。
 - 调研后对 PLAN 的修正见 `design.md`「与 PLAN 的差异处置」。
