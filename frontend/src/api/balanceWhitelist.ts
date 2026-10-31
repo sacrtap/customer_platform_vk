@@ -1,4 +1,5 @@
 import api from './index'
+import { fetchExport, fetchImportTemplate, importFile } from './_excel'
 import type { BalanceWhitelistItem, BalanceWhitelistListResult } from '@/types'
 
 /** 获取余额白名单列表（分页 + 关键字） */
@@ -32,4 +33,29 @@ export function updateBalanceWhitelist(id: number, static_balance: number, remar
 /** 移出白名单（软删除） */
 export function removeBalanceWhitelist(id: number) {
   return api.delete(`/balance-whitelists/${id}`)
+}
+
+// ==================== Excel 批量导入 / 导出 ====================
+
+/** 导入响应（与 ImportModal 的 ImportResult 契约一致） */
+export interface BalanceWhitelistImportResult {
+  success_count: number
+  error_count: number
+  dry_run?: boolean
+  errors?: string[]
+}
+
+/** 批量导入余额白名单（dryRun=true 仅预检查不落库） */
+export function importBalanceWhitelist(file: File, dryRun = false) {
+  return importFile(`/balance-whitelists/import${dryRun ? '?dry_run=true' : ''}`, file)
+}
+
+/** 下载余额白名单导入模板 */
+export function fetchBalanceWhitelistTemplate() {
+  return fetchImportTemplate('/balance-whitelists/import-template')
+}
+
+/** 导出余额白名单（按 keyword 过滤，上限 5 万条） */
+export function exportBalanceWhitelist(params?: { keyword?: string }) {
+  return fetchExport('/balance-whitelists/export', params)
 }

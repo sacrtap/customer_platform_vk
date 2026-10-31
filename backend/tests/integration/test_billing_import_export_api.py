@@ -87,52 +87,6 @@ def _no_permissions():
         perm_module.permission_cache.get_permissions = original
 
 
-@pytest.fixture
-async def import_customer(db_session):
-    """创建导入测试客户，返回 {id, company_id}"""
-    cid = 950000 + abs(hash(uuid.uuid4().hex[:8])) % 40000
-    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
-    db_session.execute(
-        text(
-            """
-            INSERT INTO customers (id, company_id, name, account_type,
-                                   settlement_cycle, settlement_type,
-                                   created_at, updated_at)
-            VALUES (:id, :cid, :name, 'enterprise', 'monthly', 'prepaid', NOW(), NOW())
-            """
-        ),
-        {"id": cid, "cid": cid, "name": f"导入测试客户_{cid}"},
-    )
-    # 余额档案：真实业务路径（create_customer / batch_create_customers）会自动建档，
-    # 这里用 raw SQL 造数据需显式补上，否则该客户在余额列表/导出中不可见
-    db_session.execute(
-        text(
-            """
-            INSERT INTO customer_balances (customer_id, total_amount, real_amount,
-                                           bonus_amount, used_total, used_real, used_bonus,
-                                           created_at, updated_at)
-            VALUES (:cid, 10000, 8000, 2000, 0, 0, 0, NOW(), NOW())
-            """
-        ),
-        {"cid": cid},
-    )
-    db_session.commit()
-
-    try:
-        yield {"id": cid, "company_id": cid}
-    finally:
-        for stmt in (
-            "DELETE FROM pricing_rules WHERE customer_id = :cid",
-            "DELETE FROM invoices WHERE customer_id = :cid",
-            "DELETE FROM customer_balances WHERE customer_id = :cid",
-            # 余额导入会创建 recharge_records（FK 指向 customers），须先于 customers 删除
-            "DELETE FROM recharge_records WHERE customer_id = :cid",
-            "DELETE FROM customers WHERE id = :cid",
-        ):
-            db_session.execute(text(stmt), {"cid": cid})
-        db_session.commit()
-
-
 # ==================== 余额导出 ====================
 
 

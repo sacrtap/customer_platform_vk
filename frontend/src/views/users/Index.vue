@@ -11,6 +11,10 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
+        <a-button v-if="can('users:export')" :loading="exporting" @click="handleExport"
+          >导出</a-button
+        >
+        <a-button v-if="can('users:import')" @click="importVisible = true">导入</a-button>
         <a-button v-if="can('users:create')" type="primary" @click="handleCreate"
           >新建用户</a-button
         >
@@ -152,6 +156,15 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <ImportModal
+      v-model:visible="importVisible"
+      title="批量导入用户"
+      :import-api="importUsers"
+      :template-api="fetchUserTemplate"
+      template-file-name="用户导入模板.xlsx"
+      @success="loadUsers"
+    />
   </div>
 </template>
 
@@ -170,9 +183,14 @@ import {
   deleteUser,
   resetPassword,
   assignUserRoles,
+  importUsers,
+  fetchUserTemplate,
+  exportUsers,
 } from '@/api/users'
 import { getRoles } from '@/api/roles'
 import EmptyState from '@/components/EmptyState.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
+import { useExportAction } from '@/composables/useExportAction'
 import { formatDateTime } from '@/utils/formatters'
 
 const userStore = useUserStore()
@@ -413,6 +431,23 @@ const loadRoles = async () => {
 const handleSearch = () => {
   pagination.current = 1
   loadUsers()
+}
+
+// ========== 导入/导出 ==========
+const importVisible = ref(false)
+
+const { exporting, run } = useExportAction({
+  exportApi: exportUsers,
+  filename: () => `users_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    }
+  },
+})
+
+const handleExport = () => {
+  run({ keyword: searchKeyword.value || undefined })
 }
 
 const handlePageChange = (page: number) => {

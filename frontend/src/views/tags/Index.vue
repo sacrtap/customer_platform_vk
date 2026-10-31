@@ -2,6 +2,10 @@
   <div class="tag-management-page">
     <PageHeader eyebrow="System" title="标签管理" subtitle="自定义标签分类与管理">
       <template #actions>
+        <a-button v-if="can('tags:import')" @click="importModalVisible = true">导入</a-button>
+        <a-button v-if="can('tags:export')" :disabled="exporting" @click="handleExport">
+          {{ exporting ? '导出中...' : '导出' }}
+        </a-button>
         <a-button v-if="can('tags:create')" type="primary" @click="handleCreate">新建标签</a-button>
       </template>
     </PageHeader>
@@ -95,16 +99,37 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 批量导入弹窗 -->
+    <ImportModal
+      v-model:visible="importModalVisible"
+      title="批量导入标签"
+      :import-api="importTags"
+      :template-api="fetchTagTemplate"
+      template-file-name="标签导入模板.xlsx"
+      @success="loadTags"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
-import PageHeader from '@/components/PageHeader.vue'
 import { Message } from '@arco-design/web-vue'
 import type { FormInstance } from '@arco-design/web-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
+import { useExportAction } from '@/composables/useExportAction'
 import { useUserStore } from '@/stores/user'
-import { getTags, createTag, updateTag, deleteTag, type Tag as ApiTag } from '@/api/tags'
+import {
+  getTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  importTags,
+  fetchTagTemplate,
+  exportTags,
+  type Tag as ApiTag,
+} from '@/api/tags'
 
 const userStore = useUserStore()
 const can = (permission: string) => userStore.hasPermission(permission)
@@ -138,6 +163,9 @@ const isEditMode = ref(false)
 const submitting = ref(false)
 const tagFormRef = ref<FormInstance>()
 const editingTagId = ref<number | null>(null)
+
+// 导入弹窗
+const importModalVisible = ref(false)
 
 const tagForm = reactive({
   name: '',
@@ -174,6 +202,18 @@ const loadTags = async () => {
 }
 
 // ========== 事件处理 ==========
+
+// 导出：按当前 tab 导出对应类型标签
+const { exporting, run } = useExportAction({
+  exportApi: exportTags,
+  filename: () => `tags_${activeTab.value}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条')
+    }
+  },
+})
+const handleExport = () => run({ type: activeTab.value })
 const handleTabChange = (key: string) => {
   activeTab.value = key as 'customer' | 'profile'
   pagination.current = 1

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import auth_required, get_current_user, require_permission
 from ..services.api_key_service import ApiKeyService
+from ..utils.excel_export import excel_response
 
 api_keys_bp = Blueprint("api_keys", url_prefix="/api/v1/api-keys")
 
@@ -180,3 +181,21 @@ async def delete_api_key(request: Request, id: int):
             "message": "success",
         }
     )
+
+
+@api_keys_bp.get("/export")
+@auth_required
+@require_permission("api_keys:export")
+async def export_api_keys(request: Request):
+    """
+    Excel 导出 API-Key 列表（仅导出，密钥服务端生成不可逆，不支持导入）。
+
+    无筛选条件，全量导出（上限 50000 条）。
+    """
+    db_session: AsyncSession = request.ctx.db_session
+    service = ApiKeyService(db_session)
+
+    items, total = await service.get_all(page=1, page_size=50000)
+    records = [_format_api_key(item) for item in items]
+
+    return excel_response(records, "API-Key", "api_keys", total)

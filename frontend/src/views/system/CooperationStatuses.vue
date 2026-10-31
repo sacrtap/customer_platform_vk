@@ -2,6 +2,15 @@
   <div class="cooperation-statuses-page">
     <PageHeader eyebrow="System" title="合作状态" subtitle="管理系统合作状态字典">
       <template #actions>
+        <a-button
+          v-if="can('cooperation_statuses:export')"
+          :loading="exporting"
+          @click="handleExport"
+          >导出</a-button
+        >
+        <a-button v-if="can('cooperation_statuses:import')" @click="importVisible = true"
+          >导入</a-button
+        >
         <a-button v-if="can('cooperation_statuses:manage')" type="primary" @click="handleCreate"
           >新增合作状态</a-button
         >
@@ -73,6 +82,16 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 导入弹窗 -->
+    <ImportModal
+      v-model:visible="importVisible"
+      title="批量导入合作状态"
+      :import-api="importCooperationStatuses"
+      :template-api="fetchCooperationStatusTemplate"
+      template-file-name="合作状态导入模板.xlsx"
+      @success="loadCooperationStatuses"
+    />
   </div>
 </template>
 
@@ -88,9 +107,14 @@ import {
   createCooperationStatus,
   updateCooperationStatus,
   deleteCooperationStatus,
+  exportCooperationStatuses,
+  fetchCooperationStatusTemplate,
+  importCooperationStatuses,
 } from '@/api/cooperationStatuses'
 import type { CooperationStatus } from '@/types'
 import EmptyState from '@/components/EmptyState.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
+import { useExportAction } from '@/composables/useExportAction'
 import { formatDateTime } from '@/utils/formatters'
 
 const userStore = useUserStore()
@@ -99,6 +123,21 @@ const can = (permission: string) => userStore.hasPermission(permission)
 // ========== 状态管理 ==========
 const loading = ref(false)
 const cooperationStatuses = ref<CooperationStatus[]>([])
+
+// ========== 导入 / 导出 ==========
+const importVisible = ref(false)
+
+// 导出合作状态：全量导出
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportCooperationStatuses,
+  filename: () => `cooperation_statuses_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    }
+  },
+})
+const handleExport = () => runExport()
 
 // 分页
 const pagination = reactive({

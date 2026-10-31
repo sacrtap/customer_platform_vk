@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/import-export.md", "reason": "导入导出端点契约、模板结构、行级错误、权限码清单权威规范"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Blueprint 分层与 routes/services 边界"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ErrorCodes 与响应格式"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "事务/软删/缓存失效契约"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与禁止模式"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Vue 组件/弹窗模式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "API 层/错误处理/lint"}

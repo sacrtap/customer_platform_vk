@@ -1,219 +1,415 @@
-"""用户批量导入功能测试"""
+"""用户批量导入/导出端点单元测试（英文表头 + dry_run 预检查模式）
 
-from io import BytesIO
+覆盖 import_users / download_user_import_template / export_users 三个端点的
+真实行为：dry_run 不落库、行级错误不阻塞、同批次/含软删查重、角色解析、
+模板 3 行结构、导出列与内容。
+"""
+
+import io
+import json
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import openpyxl
+import pytest
+
+from app.routes.users import download_user_import_template, export_users, import_users
+
+HEADERS = ["username", "email", "real_name", "role", "initial_password"]
 
 
-class TestUserImportValidation:
-    """测试用户导入验证逻辑"""
+def build_xlsx(rows: list[list], headers: list | None = None, with_note_row: bool = False):
+    """构造上传用 xlsx 字节。
 
-    def test_excel_file_creation(self):
-        """测试创建符合格式的 Excel 文件"""
-        # 创建测试 Excel 文件
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Users"
-
-        # 写入表头
-        headers = ["用户名", "邮箱", "角色", "初始密码"]
-        ws.append(headers)
-
-        # 写入测试数据
-        test_data = [
-            ["user1", "user1@example.com", "admin", "password123"],
-            ["user2", "user2@example.com", "user", "password456"],
-            ["user3", "user3@example.com", "", "password789"],  # 无角色
-        ]
-        for row in test_data:
-            ws.append(row)
-
-        # 保存到内存
-        buffer = BytesIO()
-        wb.save(buffer)
-        buffer.seek(0)
-
-        # 验证文件可以读取
-        wb_read = openpyxl.load_workbook(buffer, read_only=True, data_only=True)
-        sheet = wb_read.active
-
-        # 验证表头
-        headers_read = []
-        for cell in sheet[1]:
-            headers_read.append(str(cell.value).strip() if cell.value else "")
-
-        assert headers_read == headers
-
-        # 验证数据行数
-        row_count = sum(
-            1 for _ in sheet.iter_rows(min_row=2, values_only=True) if any(cell for cell in _)
+    with_note_row=True 时插入模板第 2 行中文说明行（模拟从模板填写后上传）。
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    assert ws is not None  # 新建 Workbook 必有活动工作表
+    ws.append(headers or HEADERS)
+    if with_note_row:
+        ws.append(
+            [
+                "必填：用户名（唯一）",
+                "可选：邮箱",
+                "可选：真实姓名",
+                "可选：角色名",
+                "必填：初始密码（>=6 位）",
+            ]
         )
-        assert row_count == 3
-
-    def test_excel_column_validation(self):
-        """测试 Excel 列验证逻辑"""
-        required_columns = ["用户名", "邮箱", "角色", "初始密码"]
-
-        # 测试缺少列的情况
-        headers_missing = ["用户名", "邮箱", "密码"]
-        missing_columns = [col for col in required_columns if col not in headers_missing]
-        assert "角色" in missing_columns
-        assert "初始密码" in missing_columns
-
-        # 测试列顺序不同的情况
-        headers_different_order = ["邮箱", "用户名", "初始密码", "角色"]
-        missing_columns = [col for col in required_columns if col not in headers_different_order]
-        assert len(missing_columns) == 0
-
-        # 验证可以正确获取列索引
-        col_username = headers_different_order.index("用户名")
-        col_email = headers_different_order.index("邮箱")
-        col_role = headers_different_order.index("角色")
-        col_password = headers_different_order.index("初始密码")
-
-        assert col_username == 1
-        assert col_email == 0
-        assert col_role == 3
-        assert col_password == 2
-
-    def test_username_validation(self):
-        """测试用户名验证逻辑"""
-        test_cases = [
-            ("", False, "空用户名"),
-            ("   ", False, "空白用户名"),
-            ("valid_user", True, "有效用户名"),
-            ("user123", True, "带数字的用户名"),
-            ("user_name", True, "带下划线的用户名"),
-        ]
-
-        for username, should_be_valid, description in test_cases:
-            is_valid = bool(username.strip()) if username else False
-            assert is_valid == should_be_valid, f"失败：{description}"
-
-    def test_password_validation(self):
-        """测试密码验证逻辑"""
-        test_cases = [
-            ("", False, "空密码"),
-            ("12345", False, "密码长度不足 6 位"),
-            ("123456", True, "密码长度正好 6 位"),
-            ("password123", True, "有效密码"),
-        ]
-
-        for password, should_be_valid, description in test_cases:
-            is_valid = bool(password.strip()) and len(password) >= 6 if password else False
-            assert is_valid == should_be_valid, f"失败：{description}"
-
-    def test_email_validation(self):
-        """测试邮箱验证逻辑"""
-        test_cases = [
-            ("", True, "空邮箱（可选）"),
-            ("invalid", False, "无效邮箱格式"),
-            ("user@example.com", True, "有效邮箱"),
-            ("user.name@domain.org", True, "有效邮箱带点"),
-        ]
-
-        for email, should_be_valid, description in test_cases:
-            is_valid = (not email) or ("@" in email)
-            assert is_valid == should_be_valid, f"失败：{description}"
-
-    def test_error_response_format(self):
-        """测试错误响应格式"""
-        errors = [
-            {"row": 3, "username": "test", "error": "用户名已存在"},
-            {"row": 5, "username": "", "error": "用户名不能为空"},
-        ]
-
-        # 验证错误响应格式
-        for error in errors:
-            assert "row" in error
-            assert "username" in error
-            assert "error" in error
-            assert isinstance(error["row"], int)
-            assert isinstance(error["username"], str)
-            assert isinstance(error["error"], str)
-
-    def test_import_result_format(self):
-        """测试导入结果格式"""
-        result = {
-            "code": 0,
-            "message": "成功导入 5 个用户，2 个失败",
-            "data": {
-                "imported_count": 5,
-                "failed_count": 2,
-                "errors": [
-                    {"row": 3, "username": "test", "error": "用户名已存在"},
-                ],
-            },
-        }
-
-        # 验证响应格式
-        assert result["code"] == 0
-        assert "imported_count" in result["data"]
-        assert "failed_count" in result["data"]
-        assert "errors" in result["data"]
-        assert isinstance(result["data"]["imported_count"], int)
-        assert isinstance(result["data"]["failed_count"], int)
-        assert isinstance(result["data"]["errors"], list)
+    for row in rows:
+        ws.append(row)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
 
 
-class TestUserImportEdgeCases:
-    """测试用户导入边界情况"""
+def parse_response(response):
+    """解析 Sanic 响应体"""
+    return json.loads(response.body)
 
-    def test_empty_excel_file(self):
-        """测试空 Excel 文件（只有表头）"""
-        wb = openpyxl.Workbook()
+
+@pytest.fixture
+def mock_request():
+    request = MagicMock()
+    request.ctx = MagicMock()
+    request.ctx.user = {"user_id": 1}
+    request.ip = "127.0.0.1"
+    request.headers = {}
+    return request
+
+
+@pytest.fixture(autouse=True)
+def mock_permission_cache():
+    """mock 权限缓存：端点带 @require_permission，真实装饰器会查 Redis/DB"""
+    with patch("app.cache.permissions.permission_cache") as cache:
+        cache.get_permissions = AsyncMock(
+            return_value={"users:import", "users:export", "users:create"}
+        )
+        cache.set_permissions = AsyncMock(return_value=True)
+        yield cache
+
+
+def make_session(execute_side_effect=None):
+    """构造 mock 的 AsyncSession（含 begin() 异步上下文）"""
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=execute_side_effect or [])
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=None)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    session.begin = MagicMock(return_value=cm)
+    return session, cm
+
+
+def query_result(rows):
+    result = MagicMock()
+    result.all.return_value = rows
+    return result
+
+
+def set_file(request, body, name="users.xlsx"):
+    mock_file = MagicMock()
+    mock_file.name = name
+    mock_file.body = body
+    mock_file.type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    request.files = {"file": [mock_file]}
+
+
+class TestImportUsersDryRun:
+    """dry_run 预检查：完整行级校验但不落库"""
+
+    @pytest.mark.asyncio
+    async def test_valid_row_passes_without_persisting(self, mock_request):
+        """合法行预检查通过；dry_run 不进入事务、不创建用户"""
+        body = build_xlsx(
+            [["zhangsan", "z@a.com", "张三", "运营经理", "Abc12345"]], with_note_row=True
+        )
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, begin_cm = make_session([query_result([]), query_result([(7, "运营经理")])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["code"] == 0
+        assert data["data"]["dry_run"] is True
+        assert data["data"]["success_count"] == 1
+        assert data["data"]["error_count"] == 0
+        assert data["data"]["errors"] == []
+        # 预检查零副作用：不开事务、不落库
+        begin_cm.__aenter__.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_template_note_row_stripped_and_row_number_aligned(self, mock_request):
+        """模板说明行被剥离；行号对齐真实 Excel 行（表头 1 + 说明 2 → 数据从第 3 行起）"""
+        body = build_xlsx([["zhangsan", "", "", "", "Abc12345"]], with_note_row=True)
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([("zhangsan",)]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["error_count"] == 1
+        assert data["data"]["errors"] == ["第 3 行：用户名 'zhangsan' 已存在"]
+
+    @pytest.mark.asyncio
+    async def test_row_errors_do_not_block_valid_rows(self, mock_request):
+        """行级错误不阻塞其他行：1 合法 + 1 非法 → success 1 / error 1"""
+        body = build_xlsx(
+            [
+                ["zhangsan", "", "", "", "Abc12345"],
+                ["", "", "", "", "Abc12345"],  # 用户名为空
+            ]
+        )
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["success_count"] == 1
+        assert data["data"]["error_count"] == 1
+        assert data["data"]["errors"] == ["第 3 行：用户名不能为空"]
+
+    @pytest.mark.asyncio
+    async def test_duplicate_username_in_same_batch_rejected(self, mock_request):
+        """同批次重复用户名：第二行行级报错（落库时 create_user 同样查重，需提前拦截）"""
+        body = build_xlsx(
+            [
+                ["zhangsan", "", "", "", "Abc12345"],
+                ["zhangsan", "", "", "", "Abc12345"],
+            ]
+        )
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["success_count"] == 1
+        assert data["data"]["error_count"] == 1
+        assert data["data"]["errors"] == ["第 3 行：用户名 'zhangsan' 已存在"]
+
+    @pytest.mark.asyncio
+    async def test_short_password_rejected(self, mock_request):
+        body = build_xlsx([["zhangsan", "", "", "", "Ab1"]])
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["error_count"] == 1
+        assert data["data"]["errors"] == ["第 2 行：密码长度不能少于 6 位"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_email_rejected(self, mock_request):
+        body = build_xlsx([["zhangsan", "not-an-email", "", "", "Abc12345"]])
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["errors"] == ["第 2 行：邮箱格式不正确"]
+
+    @pytest.mark.asyncio
+    async def test_unknown_role_rejected(self, mock_request):
+        """角色按 name 解析，不存在 → 行级错误"""
+        body = build_xlsx([["zhangsan", "", "", "不存在的角色", "Abc12345"]])
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["errors"] == ["第 2 行：角色 '不存在的角色' 不存在"]
+
+    @pytest.mark.asyncio
+    async def test_multi_role_comma_separated(self, mock_request):
+        """role 列逗号分隔多角色，全部解析成功才入库"""
+        body = build_xlsx([["zhangsan", "", "", "运营经理,销售经理", "Abc12345"]])
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session(
+            [query_result([]), query_result([(7, "运营经理"), (8, "销售经理")])]
+        )
+        mock_request.ctx.db_session = session
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert data["data"]["success_count"] == 1
+        assert data["data"]["error_count"] == 0
+
+
+class TestImportUsersPersist:
+    """正式导入：落库 + 审计"""
+
+    @pytest.mark.asyncio
+    async def test_import_creates_users_and_assigns_roles(self, mock_request):
+        body = build_xlsx([["zhangsan", "z@a.com", "张三", "运营经理", "Abc12345"]])
+        set_file(mock_request, body)
+        mock_request.args = {}
+        session, begin_cm = make_session([query_result([]), query_result([(7, "运营经理")])])
+        mock_request.ctx.db_session = session
+
+        with (
+            patch("app.routes.users.UserService") as service_cls,
+            patch("app.routes.users.create_audit_entry", new=AsyncMock()) as audit_mock,
+        ):
+            service = service_cls.return_value
+            service.create_user = AsyncMock(return_value=MagicMock(id=99))
+            service.assign_roles = AsyncMock()
+
+            response = await import_users(mock_request)
+            data = parse_response(response)
+
+            assert data["code"] == 0
+            assert data["data"]["success_count"] == 1
+            assert data["data"]["error_count"] == 0
+            # 正式导入不开 dry_run 字段，errors 截断到 10 条以内
+            assert "dry_run" not in data["data"]
+            begin_cm.__aenter__.assert_awaited_once()
+            service.create_user.assert_awaited_once_with(
+                username="zhangsan", password="Abc12345", email="z@a.com", real_name="张三"
+            )
+            service.assign_roles.assert_awaited_once_with(99, [7])
+            audit_mock.assert_awaited_once()
+
+
+class TestImportUsersValidation:
+    """文件与列级校验"""
+
+    @pytest.mark.asyncio
+    async def test_missing_required_columns(self, mock_request):
+        body = build_xlsx([["zhangsan", "Abc12345"]], headers=["username", "password"])
+        set_file(mock_request, body)
+        mock_request.args = {"dry_run": "true"}
+        mock_request.ctx.db_session = AsyncMock()
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert response.status == 400
+        assert data["code"] == 40003
+        assert data["message"] == "Excel 缺少必填列：initial_password"
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_xlsx(self, mock_request):
+        set_file(mock_request, b"not-a-real-xlsx", name="users.xls")
+        mock_request.args = {}
+        mock_request.ctx.db_session = AsyncMock()
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert response.status == 400
+        assert data["code"] == 40002
+
+    @pytest.mark.asyncio
+    async def test_missing_file(self, mock_request):
+        mock_request.files = {}
+        mock_request.args = {}
+        mock_request.ctx.db_session = AsyncMock()
+
+        response = await import_users(mock_request)
+        data = parse_response(response)
+
+        assert response.status == 400
+        assert data["code"] == 40001
+
+
+class TestUserImportTemplate:
+    """模板端点：2 行结构（英文列名 / 中文说明必填-可选前缀），无示例数据行"""
+
+    @pytest.mark.asyncio
+    async def test_template_structure(self, mock_request):
+        response = await download_user_import_template(mock_request)
+        assert response.status == 200
+        assert response.content_type == (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        ws = openpyxl.load_workbook(io.BytesIO(response.body)).active
+        assert ws is not None
+        assert [c.value for c in ws[1]] == HEADERS
+        # 说明行必须以「必填：」/「可选：」开头（read_import_dataframe 的剥离依据）
+        assert str(ws.cell(row=2, column=1).value).startswith("必填：")
+        assert str(ws.cell(row=2, column=2).value).startswith("可选：")
+        # 无示例数据行：第 3 行会被 read_import_dataframe 当真实数据导入
+        assert ws.max_row == 2
+
+    @pytest.mark.asyncio
+    async def test_template_round_trip_through_import(self, mock_request):
+        """下载模板 → 第 3 行起填写真实数据 → dry_run 上传：说明行不产生虚假错误"""
+        template = await download_user_import_template(mock_request)
+        wb = openpyxl.load_workbook(io.BytesIO(template.body))
         ws = wb.active
-        ws.append(["用户名", "邮箱", "角色", "初始密码"])
-
-        buffer = BytesIO()
+        assert ws is not None
+        ws.append(["lisi", "lisi@a.com", "李四", "", "Abc12345"])
+        buffer = io.BytesIO()
         wb.save(buffer)
-        buffer.seek(0)
 
-        wb_read = openpyxl.load_workbook(buffer, read_only=True, data_only=True)
-        sheet = wb_read.active
+        set_file(mock_request, buffer.getvalue())
+        mock_request.args = {"dry_run": "true"}
+        session, _ = make_session([query_result([]), query_result([])])
+        mock_request.ctx.db_session = session
 
-        # 验证没有数据行
-        data_rows = list(sheet.iter_rows(min_row=2, values_only=True))
-        non_empty_rows = [row for row in data_rows if any(cell for cell in row)]
-        assert len(non_empty_rows) == 0
+        response = await import_users(mock_request)
+        data = parse_response(response)
 
-    def test_partial_data_rows(self):
-        """测试部分数据缺失的行"""
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.append(["用户名", "邮箱", "角色", "初始密码"])
-        ws.append(["user1", "user1@example.com", None, "password123"])  # 角色为空
-        ws.append([None, "user2@example.com", "user", "password456"])  # 用户名为空
+        assert data["data"]["success_count"] == 1
+        assert data["data"]["error_count"] == 0
 
-        buffer = BytesIO()
-        wb.save(buffer)
-        buffer.seek(0)
 
-        wb_read = openpyxl.load_workbook(buffer, read_only=True, data_only=True)
-        sheet = wb_read.active
+class TestExportUsers:
+    """导出端点"""
 
-        # 验证可以读取部分缺失的数据
-        data_rows = list(sheet.iter_rows(min_row=2, values_only=True))
-        assert len(data_rows) == 2
+    @pytest.mark.asyncio
+    async def test_export_columns_and_values(self, mock_request):
+        mock_request.args = {}
+        session, _ = make_session()
+        mock_request.ctx.db_session = session
 
-        # 第一行：角色为空
-        row1 = data_rows[0]
-        assert row1[0] == "user1"  # 用户名
-        assert row1[2] is None  # 角色
+        role = MagicMock()
+        role.name = "运营经理"
+        user = MagicMock()
+        user.id = 1
+        user.username = "zhangsan"
+        user.email = "z@a.com"
+        user.real_name = "张三"
+        user.is_active = True
+        user.roles = [role]
+        user.phone = "22644212509"
+        user.created_at = datetime(2026, 10, 31, 12, 0, 0)
 
-        # 第二行：用户名为空
-        row2 = data_rows[1]
-        assert row2[0] is None  # 用户名
+        with patch("app.routes.users.UserService") as service_cls:
+            service_cls.return_value.get_all_users = AsyncMock(return_value=([user], 1))
+            response = await export_users(mock_request)
 
-    def test_whitespace_handling(self):
-        """测试空白字符处理"""
-        test_cases = [
-            ("  user1  ", "user1"),
-            ("user2 ", "user2"),
-            (" user3", "user3"),
-            ("  ", ""),
+        assert response.status == 200
+        assert response.headers["X-Truncated"] == "false"
+        ws = openpyxl.load_workbook(io.BytesIO(response.body)).active
+        headers = [c.value for c in ws[1]]
+        assert headers == [
+            "id",
+            "username",
+            "email",
+            "real_name",
+            "is_active",
+            "roles",
+            "phone",
+            "created_at",
         ]
+        row2 = [c.value for c in ws[2]]
+        assert row2[1] == "zhangsan"
+        assert row2[4] == "是"
+        assert row2[5] == "运营经理"
 
-        for input_val, expected in test_cases:
-            result = input_val.strip() if input_val else ""
-            assert result == expected
+    @pytest.mark.asyncio
+    async def test_export_empty_returns_40002(self, mock_request):
+        mock_request.args = {}
+        session, _ = make_session()
+        mock_request.ctx.db_session = session
+
+        with patch("app.routes.users.UserService") as service_cls:
+            service_cls.return_value.get_all_users = AsyncMock(return_value=([], 0))
+            response = await export_users(mock_request)
+
+        data = parse_response(response)
+        assert response.status == 400
+        assert data["code"] == 40002

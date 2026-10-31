@@ -6,8 +6,8 @@
 设计要点：PERMISSION_CODES 由 PERMISSION_ROWS 派生，使
 「插入 DB 用的行数据」与「mock 权限缓存用的 code 集合」在结构上不可能漂移。
 
-与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、53 条；
-此处为测试侧裁剪形态 3 元组、45 条）。两者的漂移由
+与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、67 条；
+此处为测试侧裁剪形态 3 元组、62 条）。两者的漂移由
 tests/unit/test_test_data_consistency.py 守护。
 """
 
@@ -45,11 +45,15 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("users:edit", "编辑用户", "users"),
     ("users:delete", "删除用户", "users"),
     ("users:role_assign", "分配角色", "users"),
+    ("users:import", "导入用户", "users"),
+    ("users:export", "导出用户", "users"),
     ("roles:view", "查看角色", "roles"),
     ("roles:create", "新建角色", "roles"),
     ("roles:edit", "编辑角色", "roles"),
     ("roles:delete", "删除角色", "roles"),
     ("roles:assign", "分配权限", "roles"),
+    ("roles:import", "导入角色", "roles"),
+    ("roles:export", "导出角色", "roles"),
     ("system:view", "查看系统", "system"),
     ("analytics:view", "查看分析", "analytics"),
     ("analytics:export", "导出报表", "analytics"),
@@ -58,9 +62,18 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("tags:create", "新建标签", "tags"),
     ("tags:edit", "编辑标签", "tags"),
     ("tags:delete", "删除标签", "tags"),
+    ("tags:import", "导入标签", "tags"),
+    ("tags:export", "导出标签", "tags"),
     ("industry_types:manage", "行业类型管理", "system"),
+    ("industry_types:import", "导入行业类型", "industry_types"),
+    ("industry_types:export", "导出行业类型", "industry_types"),
     ("cooperation_statuses:manage", "合作状态管理", "system"),
+    ("cooperation_statuses:import", "导入合作状态", "cooperation_statuses"),
+    ("cooperation_statuses:export", "导出合作状态", "cooperation_statuses"),
     ("balance_whitelist:manage", "余额白名单管理", "system"),
+    ("balance_whitelist:import", "导入余额白名单", "balance_whitelist"),
+    ("balance_whitelist:export", "导出余额白名单", "balance_whitelist"),
+    ("api_keys:export", "导出API-Key", "api_keys"),
     ("system:database_backup", "数据备份", "system"),
 ]
 

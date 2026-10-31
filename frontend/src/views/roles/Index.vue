@@ -11,6 +11,10 @@
           @clear="handleSearch"
           @press-enter="handleSearch"
         />
+        <a-button v-if="can('roles:export')" :loading="exporting" @click="handleExport"
+          >导出</a-button
+        >
+        <a-button v-if="can('roles:import')" @click="importVisible = true">导入</a-button>
         <a-button v-if="can('roles:create')" type="primary" @click="handleCreate"
           >新建角色</a-button
         >
@@ -157,6 +161,16 @@
         <a-empty v-if="permissionGroups.length === 0" description="暂无可用权限" />
       </div>
     </a-modal>
+
+    <!-- 导入弹窗 -->
+    <ImportModal
+      v-model:visible="importVisible"
+      title="批量导入角色"
+      :import-api="importRoles"
+      :template-api="fetchRoleTemplate"
+      template-file-name="角色导入模板.xlsx"
+      @success="loadRoles"
+    />
   </div>
 </template>
 
@@ -176,10 +190,15 @@ import {
   deleteRole,
   getPermissions,
   updateRolePermissions,
+  importRoles,
+  fetchRoleTemplate,
+  exportRoles,
   type Role as ApiRole,
 } from '@/api/roles'
 import { buildPermissionGroups, type PermissionGroup } from './permissionGroups'
 import EmptyState from '@/components/EmptyState.vue'
+import ImportModal from '@/views/billing/components/ImportModal.vue'
+import { useExportAction } from '@/composables/useExportAction'
 import { formatDateTime } from '@/utils/formatters'
 
 const userStore = useUserStore()
@@ -347,6 +366,23 @@ const handlePageSizeChange = (pageSize: number) => {
   pagination.pageSize = pageSize
   pagination.current = 1
   loadRoles()
+}
+
+// ========== 导入/导出 ==========
+const importVisible = ref(false)
+
+const { exporting, run } = useExportAction({
+  exportApi: exportRoles,
+  filename: () => `roles_${new Date().toISOString().slice(0, 10)}.xlsx`,
+  onSuccess: (res) => {
+    if (res.headers?.['x-truncated'] === 'true') {
+      Message.warning('数据超过 5 万条，仅导出了前 5 万条，请缩小筛选范围后再导出')
+    }
+  },
+})
+
+const handleExport = () => {
+  run(undefined)
 }
 
 const handleCreate = () => {

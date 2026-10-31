@@ -36,6 +36,16 @@ class TagService:
         )
         return result.scalar_one_or_none()
 
+    async def get_existing_tag_keys(self) -> set[tuple[str, str]]:
+        """获取全部标签 (name, type) 唯一键集合（含软删记录）。
+
+        用于批量导入查重：tags 表的 uq_tags_name_type 约束未带 deleted_at 条件，
+        软删占用的 (name, type) 仍会触发唯一约束冲突，故查重必须覆盖所有行
+        （含软删），不能复用仅查未软删行的 get_tag_by_name_and_type。
+        """
+        result = await self.db.execute(select(Tag.name, Tag.type))
+        return {(name, tag_type) for name, tag_type in result.all()}
+
     async def get_all_tags(
         self,
         page: int = 1,

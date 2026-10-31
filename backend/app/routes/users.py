@@ -1,12 +1,13 @@
 """用户管理路由"""
 
+import asyncio
 import logging
+import math
 import uuid
 from io import BytesIO
 from pathlib import Path
 
 import magic
-import openpyxl
 from PIL import Image
 from sanic import Blueprint
 from sanic.request import Request
@@ -17,10 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..cache.permissions import permission_cache
 from ..config import settings
 from ..middleware.auth import auth_required, get_current_user, require_permission
-from ..models.billing import AuditLog
 from ..models.users import Role, User
 from ..services.users import UserService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ..utils.excel_export import excel_response
+from ..utils.excel_import import read_import_dataframe
+from ..utils.excel_template import template_response
 
 users_bp = Blueprint("users", url_prefix="/api/v1/users")
 
@@ -406,200 +409,188 @@ async def get_user_roles(request: Request, user_id: int):
 
 @users_bp.post("/import")
 @auth_required
-@require_permission("users:create")
-async def import_users(
-    request: Request,
-    db: AsyncSession = None,  # pyright: ignore[reportArgumentType]
-    current_user: dict = None,  # pyright: ignore[reportArgumentType]
-):
+@require_permission("users:import")
+async def import_users(request: Request):
     """
-    批量导入用户（从 Excel 文件）
+    批量导入用户（从 Excel 文件，英文表头 + dry_run 预检查）
 
     请求:
-    - multipart/form-data
-    - file: Excel 文件
+    - multipart/form-data，字段名 file
+    - ?dry_run=true：完整行级校验但不落库
 
-    Excel 格式:
-    - 列：用户名，邮箱，角色，初始密码
+    Excel 格式（第 1 行英文列名，第 2 行中文说明行由 read_import_dataframe 自动剥离）:
+    - username: 用户名（必填，唯一）
+    - email: 邮箱（可选）
+    - real_name: 真实姓名（可选）
+    - role: 角色名（可选，多个用逗号分隔）
+    - initial_password: 初始密码（必填，>=6 位）
 
-    响应:
+    响应（dry_run 时 data 带 dry_run: true 且 errors 最多 50 条；正式导入 errors 最多 10 条）:
     {
         "code": 0,
-        "message": "成功导入 5 个用户",
+        "message": "导入完成",
         "data": {
-            "imported_count": 5,
-            "failed_count": 2,
-            "errors": [
-                {"row": 3, "username": "test", "error": "用户名已存在"},
-                {"row": 5, "username": "", "error": "用户名不能为空"}
-            ]
+            "success_count": 3,
+            "error_count": 1,
+            "errors": ["第 4 行：用户名 'zhangsan' 已存在"]
         }
     }
     """
-    # 获取数据库会话和当前用户
-    db_session: AsyncSession = request.ctx.db_session
-    current_user = get_current_user(request)  # pyright: ignore[reportAssignmentType]
-
-    # 获取上传的文件
-    file = request.files.get("file")  # pyright: ignore[reportOptionalMemberAccess]
-    if not file:
+    files = request.files
+    if "file" not in files:  # pyright: ignore[reportOperatorIssue]
         return json({"code": 40001, "message": "请上传 Excel 文件"}, status=400)
+    excel_file = files["file"][0]  # pyright: ignore[reportOptionalSubscript]
+    if not excel_file.name.endswith(".xlsx"):
+        return json({"code": 40002, "message": "请上传 .xlsx 格式的文件"}, status=400)
 
-    # 验证文件类型
-    allowed_types = [
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-    ]
-    if file.type not in allowed_types and not file.name.endswith((".xlsx", ".xls")):
-        return json({"code": 40002, "message": "仅支持 Excel 文件 (.xlsx, .xls)"}, status=400)
+    db_session: AsyncSession = request.ctx.db_session
+    current_user = get_current_user(request)
+    service = UserService(db_session)
 
     try:
-        # 读取 Excel 文件
-        workbook = openpyxl.load_workbook(BytesIO(file.body), read_only=True, data_only=True)
-        sheet = workbook.active
-
-        # 读取表头
-        headers = []
-        for cell in sheet[1]:  # pyright: ignore[reportOptionalSubscript]
-            headers.append(str(cell.value).strip() if cell.value else "")
-
-        # 验证必需的列
-        required_columns = ["用户名", "邮箱", "角色", "初始密码"]
-        missing_columns = [col for col in required_columns if col not in headers]
+        df = await asyncio.to_thread(read_import_dataframe, excel_file.body, "username")
+        required_columns = ["username", "initial_password"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
             return json(
-                {
-                    "code": 40003,
-                    "message": f"Excel 缺少必需的列：{', '.join(missing_columns)}",
-                },
+                {"code": 40003, "message": f"Excel 缺少必填列：{', '.join(missing_columns)}"},
                 status=400,
             )
+        records = df.to_dict(orient="records")
+        # read_import_dataframe 保留索引标签（第 i 行数据 = Excel 第 i+2 行），
+        # to_dict 丢弃索引，这里把真实行号写回每条记录供行级错误使用
+        for idx, record in zip(df.index, records):
+            record["_row_num"] = int(idx) + 2
 
-        # 获取列索引
-        col_username = headers.index("用户名")
-        col_email = headers.index("邮箱")
-        col_role = headers.index("角色")
-        col_password = headers.index("初始密码")
+        dry_run = request.args.get("dry_run", "").lower() in ("1", "true", "yes", "on")
 
-        # 导入结果统计
-        imported_count = 0
-        failed_count = 0
-        errors = []
+        def cell(record: dict, key: str) -> str:
+            """取单元格并归一化：NaN/None -> 空串，其余 strip 后转字符串"""
+            value = record.get(key)
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                return ""
+            return str(value).strip()
 
-        # 批量验证和导入
-        service = UserService(db_session)
+        # 批量存在性查询（避免 N+1）：
+        # - 用户名查重含软删记录（唯一索引对软删记录仍生效，漏查会在落库时撞约束 500）
+        # - 角色按 name 解析（仅未删角色）
+        usernames = {cell(r, "username") for r in records} - {""}
+        role_names: set[str] = set()
+        for r in records:
+            role_text = cell(r, "role")
+            if role_text:
+                role_names.update(name.strip() for name in role_text.split(",") if name.strip())
 
-        # 开始事务处理
+        existing_usernames: set[str] = set()
+        if usernames:
+            result = await db_session.execute(
+                select(User.username).where(User.username.in_(usernames))
+            )
+            existing_usernames = {row[0] for row in result.all()}
+
+        existing_roles: dict[str, int] = {}
+        if role_names:
+            result = await db_session.execute(
+                select(Role.id, Role.name).where(
+                    Role.name.in_(role_names), Role.deleted_at.is_(None)
+                )
+            )
+            existing_roles = {name: rid for rid, name in result.all()}
+
+        # 行级预检（只读，事务外）：行级错误不阻塞其他行
+        valid_rows: list[dict] = []
+        errors: list[str] = []
+        seen_usernames: set[str] = set()
+        for record in records:
+            row_num = record["_row_num"]
+            username = cell(record, "username")
+            email = cell(record, "email")
+            real_name = cell(record, "real_name")
+            role_text = cell(record, "role")
+            password = cell(record, "initial_password")
+
+            if not username:
+                errors.append(f"第 {row_num} 行：用户名不能为空")
+                continue
+            if not password:
+                errors.append(f"第 {row_num} 行：初始密码不能为空")
+                continue
+            if len(password) < 6:
+                errors.append(f"第 {row_num} 行：密码长度不能少于 6 位")
+                continue
+            if email and "@" not in email:
+                errors.append(f"第 {row_num} 行：邮箱格式不正确")
+                continue
+            # 查重含软删记录 + 同批次重复（create_user 落库时同样查重，提前行级报错避免整事务回滚）
+            if username in existing_usernames or username in seen_usernames:
+                errors.append(f"第 {row_num} 行：用户名 '{username}' 已存在")
+                continue
+            seen_usernames.add(username)
+
+            # 角色解析：逗号分隔多角色，任一不存在整行报错
+            role_ids: list[int] = []
+            role_error: str | None = None
+            if role_text:
+                for name in (n.strip() for n in role_text.split(",")):
+                    if not name:
+                        continue
+                    if name not in existing_roles:
+                        role_error = f"第 {row_num} 行：角色 '{name}' 不存在"
+                        break
+                    role_ids.append(existing_roles[name])
+            if role_error:
+                errors.append(role_error)
+                continue
+
+            valid_rows.append(
+                {
+                    "username": username,
+                    "password": password,
+                    "email": email or None,
+                    "real_name": real_name or None,
+                    "role_ids": role_ids,
+                }
+            )
+
+        if dry_run:
+            return json(
+                {
+                    "code": 0,
+                    "message": "预检查完成",
+                    "data": {
+                        "dry_run": True,
+                        "success_count": len(valid_rows),
+                        "error_count": len(errors),
+                        "errors": errors[:50],  # 预检阶段展示更多错误便于确认
+                    },
+                }
+            )
+
+        # 预检阶段的只读查询已触发 autobegin 隐式事务，先 commit 断开，
+        # 否则下方 begin() 抛 InvalidRequestError: A transaction is already begun
+        # （SQLAlchemy 2.0 语义：首次 execute 即开启事务）
+        await db_session.commit()
+
+        # 正式落库：create_user/assign_roles 内部仅 flush，由事务统一提交
         async with db_session.begin():
-            for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):  # pyright: ignore[reportOptionalMemberAccess]
-                # 跳过空行
-                if not any(cell for cell in row):
-                    continue
+            for row in valid_rows:
+                user = await service.create_user(
+                    username=row["username"],
+                    password=row["password"],
+                    email=row["email"],
+                    real_name=row["real_name"],
+                )
+                if row["role_ids"]:
+                    await service.assign_roles(user.id, row["role_ids"])
 
-                try:
-                    # 提取数据
-                    username = str(row[col_username]).strip() if row[col_username] else ""
-                    email = str(row[col_email]).strip() if row[col_email] else ""
-                    role_name = str(row[col_role]).strip() if row[col_role] else ""
-                    password = str(row[col_password]).strip() if row[col_password] else ""
-
-                    # 验证数据
-                    if not username:
-                        raise ValueError("用户名不能为空")
-
-                    if not password:
-                        raise ValueError("密码不能为空")
-
-                    if len(password) < 6:
-                        raise ValueError("密码长度不能少于 6 位")
-
-                    if email and "@" not in email:
-                        raise ValueError("邮箱格式不正确")
-
-                    # 检查用户名是否已存在
-                    existing_user = await service.get_user_by_username(username)
-                    if existing_user:
-                        raise ValueError("用户名已存在")
-
-                    # 验证角色是否存在（如果指定了角色）
-                    role_id = None
-                    if role_name:
-                        role_result = await db_session.execute(
-                            select(Role).where(Role.name == role_name, Role.deleted_at.is_(None))
-                        )
-                        role = role_result.scalar_one_or_none()
-                        if not role:
-                            raise ValueError(f"角色 '{role_name}' 不存在")
-                        role_id = role.id
-
-                    # 创建用户
-                    user = await service.create_user(
-                        username=username,
-                        password=password,
-                        email=email,
-                        real_name=None,
-                    )
-
-                    # 分配角色（如果指定了角色）
-                    if role_id:  # pyright: ignore[reportGeneralTypeIssues]
-                        await service.assign_roles(user.id, [role_id])  # pyright: ignore[reportArgumentType]
-
-                    # 记录审计日志
-                    audit_log = AuditLog(
-                        user_id=current_user["user_id"],
-                        action="create",
-                        module="users",
-                        record_id=user.id,
-                        record_type="user",
-                        changes={
-                            "after": {
-                                "username": username,
-                                "email": email,
-                            },
-                        },
-                        ip_address=request.ip,
-                    )
-                    db_session.add(audit_log)
-
-                    imported_count += 1
-
-                except ValueError as e:
-                    # 记录错误
-                    failed_count += 1
-                    username_val = str(row[col_username]).strip() if row[col_username] else "(空)"
-                    errors.append({"row": row_idx, "username": username_val, "error": str(e)})
-                except Exception as e:
-                    # 记录未知错误
-                    failed_count += 1
-                    username_val = str(row[col_username]).strip() if row[col_username] else "(空)"
-                    errors.append(
-                        {
-                            "row": row_idx,
-                            "username": username_val,
-                            "error": f"系统错误：{str(e)}",
-                        }
-                    )
-
-            # 提交事务
-            await db_session.commit()
-
-        # 构建响应消息
-        if imported_count > 0 and failed_count > 0:
-            message = f"成功导入 {imported_count} 个用户，{failed_count} 个失败"
-        elif imported_count > 0:
-            message = f"成功导入 {imported_count} 个用户"
-        else:
-            message = f"导入失败，共 {failed_count} 个用户导入失败"
-
-        # 记录批量导入汇总审计日志（与逐条审计并存）
+        # 批量导入汇总审计（与客户页导入模式一致）
         summary = build_batch_audit_summary(
             operation="user_import",
-            total_count=imported_count + failed_count,
-            success_count=imported_count,
-            failed_count=failed_count,
+            total_count=len(valid_rows) + len(errors),
+            success_count=len(valid_rows),
+            failed_count=len(errors),
             details=errors[:10],
         )
-
         await create_audit_entry(
             db_session=db_session,
             user_id=current_user.get("user_id") if current_user else None,
@@ -607,7 +598,7 @@ async def import_users(
             module="users",
             record_id=None,  # 批量操作
             record_type="user",
-            changes={"after": {"count": imported_count}},
+            changes={"after": {"count": len(valid_rows)}},
             operation_type="batch",
             extra_metadata=summary,
             ip_address=request.headers.get(
@@ -619,21 +610,68 @@ async def import_users(
         return json(
             {
                 "code": 0,
-                "message": message,
+                "message": "导入完成",
                 "data": {
-                    "imported_count": imported_count,
-                    "failed_count": failed_count,
-                    "errors": errors,
+                    "success_count": len(valid_rows),
+                    "error_count": len(errors),
+                    "errors": errors[:10],  # 最多返回 10 条错误信息
                 },
             }
         )
 
-    except openpyxl.utils.exceptions.InvalidFileException:  # pyright: ignore[reportAttributeAccessIssue]
-        return json({"code": 40004, "message": "无效的 Excel 文件格式"}, status=400)
-    except Exception as e:
-        # 回滚事务（如果有的话）
-        await db_session.rollback()
-        return json({"code": 50001, "message": f"导入失败：{str(e)}"}, status=500)
+    except Exception:
+        logger.exception("用户导入失败")
+        return json({"code": 50001, "message": "导入失败，请稍后重试"}, status=500)
+
+
+@users_bp.get("/import-template")
+@auth_required
+@require_permission("users:import")
+async def download_user_import_template(request: Request):
+    """下载用户导入模板（英文表头 + 中文说明行）"""
+    columns = [
+        ("username", "必填：用户名（唯一），如 zhangsan"),
+        ("email", "可选：邮箱"),
+        ("real_name", "可选：真实姓名"),
+        ("role", "可选：角色名（多个用逗号分隔）"),
+        ("initial_password", "必填：初始密码（>=6 位）"),
+    ]
+    return await asyncio.to_thread(template_response, columns, "用户导入模板.xlsx")
+
+
+@users_bp.get("/export")
+@auth_required
+@require_permission("users:export")
+async def export_users(request: Request):
+    """
+    导出用户列表为 Excel
+
+    Query:
+    - keyword: 搜索关键词（可选，匹配用户名/姓名/邮箱）
+
+    按当前筛选条件全量导出（上限 50000 条，与列表页口径一致）。
+    """
+    keyword = request.args.get("keyword")
+
+    db_session: AsyncSession = request.ctx.db_session
+    service = UserService(db_session)
+
+    users, total = await service.get_all_users(page=1, page_size=50000, keyword=keyword)
+
+    records = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "real_name": u.real_name,
+            "is_active": "是" if u.is_active else "否",
+            "roles": ",".join(r.name for r in u.roles),
+            "phone": u.phone,
+            "created_at": u.created_at.isoformat() if u.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+        }
+        for u in users
+    ]
+    return await asyncio.to_thread(excel_response, records, "用户列表", "users", total)
 
 
 @users_bp.get("/profile")

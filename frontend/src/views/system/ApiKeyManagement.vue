@@ -2,6 +2,9 @@
   <div class="api-key-page">
     <PageHeader eyebrow="System" title="API-Key 管理" subtitle="管理开放平台 API 密钥">
       <template #actions>
+        <a-button v-if="can('api_keys:export')" :loading="exporting" @click="handleExport">
+          导出
+        </a-button>
         <a-button v-if="can('api_keys:manage')" type="primary" @click="handleCreate">
           申请 API-Key
         </a-button>
@@ -128,7 +131,14 @@ import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { useUserStore } from '@/stores/user'
-import { getApiKeysList, createApiKey, toggleApiKeyStatus, deleteApiKey } from '@/api/apiKeys'
+import {
+  getApiKeysList,
+  createApiKey,
+  toggleApiKeyStatus,
+  deleteApiKey,
+  exportApiKeys,
+} from '@/api/apiKeys'
+import { useExportAction } from '@/composables/useExportAction'
 import type { ApiKey } from '@/types'
 import { formatDateTime } from '@/utils/formatters'
 
@@ -230,6 +240,14 @@ const loadApiKeys = async () => {
     loading.value = false
   }
 }
+
+// ========== 导出 ==========
+// API-Key 无筛选条件，全量导出（run(undefined)）；密钥服务端生成不可逆，不支持导入。
+const { exporting, run: runExport } = useExportAction({
+  exportApi: exportApiKeys,
+  filename: () => `api_keys_${new Date().toISOString().slice(0, 10)}.xlsx`,
+})
+const handleExport = () => runExport(undefined)
 
 // ========== 事件处理 ==========
 const handleCreate = () => {
