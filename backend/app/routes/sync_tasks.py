@@ -8,7 +8,7 @@ from sanic import Blueprint, Request
 from sanic.response import json
 
 from app.cache.base import cache_service
-from app.middleware.auth import auth_required
+from app.middleware.auth import auth_required, require_permission
 from app.services.sync_task_service import DuplicateSyncTaskError, SyncTaskService
 from app.utils.timezone import naive_cst_datetime_str, utc_to_cst_datetime_str
 
@@ -19,6 +19,7 @@ sync_tasks_bp = Blueprint("sync_tasks", url_prefix="/api/v1/sync-tasks")
 
 @sync_tasks_bp.get("")
 @auth_required
+@require_permission("system:view")
 async def list_sync_tasks(request: Request):
     """获取同步任务列表"""
     try:
@@ -37,6 +38,7 @@ async def list_sync_tasks(request: Request):
 
 @sync_tasks_bp.get("/stats")
 @auth_required
+@require_permission("system:view")
 async def get_sync_task_stats(request: Request):
     """获取同步任务统计数据"""
     try:
@@ -91,6 +93,7 @@ async def get_sync_status(request: Request):
 
 @sync_tasks_bp.post("")
 @auth_required
+@require_permission("sync_tasks:manage")
 async def create_sync_task(request: Request):
     """创建同步任务"""
     try:
@@ -199,6 +202,7 @@ async def create_sync_task(request: Request):
 
 @sync_tasks_bp.get("/<task_id:uuid>")
 @auth_required
+@require_permission("system:view")
 async def get_sync_task(request: Request, task_id: UUID):
     """获取任务详情"""
     try:
@@ -239,6 +243,7 @@ async def get_sync_task(request: Request, task_id: UUID):
 
 @sync_tasks_bp.get("/<task_id:uuid>/progress")
 @auth_required
+@require_permission("system:view")
 async def get_sync_task_progress(request: Request, task_id: UUID):
     """获取任务进度"""
     try:
@@ -264,6 +269,7 @@ async def get_sync_task_progress(request: Request, task_id: UUID):
 
 @sync_tasks_bp.post("/<task_id:uuid>/cancel")
 @auth_required
+@require_permission("sync_tasks:manage")
 async def cancel_sync_task(request: Request, task_id: UUID):
     """取消同步任务"""
     try:
@@ -294,6 +300,7 @@ async def cancel_sync_task(request: Request, task_id: UUID):
 
 @sync_tasks_bp.get("/<task_id:uuid>/details")
 @auth_required
+@require_permission("system:view")
 async def get_sync_task_details(request: Request, task_id: UUID):
     """获取任务执行明细
 

@@ -4,10 +4,10 @@
 
 from sanic import Blueprint
 from sanic.response import json
-from sqlalchemy import desc, func, select
+from sqlalchemy import case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..middleware.auth import auth_required
+from ..middleware.auth import auth_required, require_permission
 from ..models.billing import SyncTaskLog
 
 sync_logs_bp = Blueprint("sync_logs", url_prefix="/api/v1/sync-logs")
@@ -15,6 +15,7 @@ sync_logs_bp = Blueprint("sync_logs", url_prefix="/api/v1/sync-logs")
 
 @sync_logs_bp.get("/")
 @auth_required
+@require_permission("system:view")
 async def get_sync_logs(request):
     """
     获取同步任务日志列表
@@ -116,6 +117,7 @@ async def get_sync_logs(request):
 
 @sync_logs_bp.get("/stats")
 @auth_required
+@require_permission("system:view")
 async def get_sync_stats(request):
     """
     获取同步任务统计
@@ -151,8 +153,8 @@ async def get_sync_stats(request):
         total_result = await session.execute(
             select(
                 func.count(SyncTaskLog.id),
-                func.sum(func.case((SyncTaskLog.status == "success", 1), else_=0)),
-                func.sum(func.case((SyncTaskLog.status == "failed", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "success", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "failed", 1), else_=0)),
             )
         )
         total_row = total_result.one()
@@ -164,8 +166,8 @@ async def get_sync_stats(request):
         last_24h_result = await session.execute(
             select(
                 func.count(SyncTaskLog.id),
-                func.sum(func.case((SyncTaskLog.status == "success", 1), else_=0)),
-                func.sum(func.case((SyncTaskLog.status == "failed", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "success", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "failed", 1), else_=0)),
             ).where(SyncTaskLog.executed_at >= yesterday.strftime("%Y-%m-%d %H:%M:%S"))
         )
         last_24h_row = last_24h_result.one()
@@ -174,8 +176,8 @@ async def get_sync_stats(request):
         by_task_result = await session.execute(
             select(
                 SyncTaskLog.task_name,
-                func.sum(func.case((SyncTaskLog.status == "success", 1), else_=0)),
-                func.sum(func.case((SyncTaskLog.status == "failed", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "success", 1), else_=0)),
+                func.sum(case((SyncTaskLog.status == "failed", 1), else_=0)),
             )
             .group_by(SyncTaskLog.task_name)
             .order_by(desc(func.count(SyncTaskLog.id)))

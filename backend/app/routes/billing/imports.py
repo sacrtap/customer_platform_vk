@@ -276,6 +276,7 @@ async def import_balance(request: Request):
 
 @billing_bp.get("/import-template")
 @auth_required
+@require_permission("billing:balance_import")
 async def download_balance_import_template(request: Request):
     """下载余额导入 Excel 模板"""
     from openpyxl.utils import get_column_letter

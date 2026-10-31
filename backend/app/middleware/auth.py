@@ -215,8 +215,7 @@ def require_permission(permission_code: str):
     """权限校验装饰器
 
     支持权限通配符匹配：
-    - 用户有 'system:view' 权限时，自动拥有 'system:audit_read'
-    - 模块级 `*:manage` 权限自动包含 read/write/delete/create/update 操作
+    - 模块级 `*:manage` 权限自动包含 view/create/edit/delete/read/write/update 操作
     """
 
     def decorator(f):
@@ -279,16 +278,11 @@ def _check_permission(user_permissions: set, required_permission: str) -> bool:
     else:
         module, action = required_permission.split(".", 1)
 
-    # 检查是否有 manage 权限（manage 包含 read/write/delete）
+    # 检查是否有 manage 权限（manage 包含全部细粒度动作）
     manage_permission = f"{module}:manage"
     if manage_permission in user_permissions:
         # manage 权限包含所有操作，除了特定的子权限
-        if action in ["read", "write", "delete", "create", "update"]:
-            return True
-
-    # 特殊映射：system:view 包含 system:audit_read
-    if module == "system" and action == "audit_read":
-        if "system:view" in user_permissions:
+        if action in ["view", "create", "edit", "delete", "read", "write", "update"]:
             return True
 
     return False

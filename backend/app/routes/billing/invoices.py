@@ -2212,6 +2212,7 @@ async def import_invoices(request: Request):
 
 @billing_bp.get("/invoices/import-template")
 @auth_required
+@require_permission("billing:invoice_import")
 async def download_invoice_import_template(request: Request):
     """下载结算单导入 Excel 模板"""
     import io

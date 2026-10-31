@@ -795,6 +795,7 @@ async def import_pricing_rules(request: Request):
 
 @billing_bp.get("/pricing-rules/import-template")
 @auth_required
+@require_permission("billing:pricing_import")
 async def download_pricing_rule_import_template(request: Request):
     """下载计费规则导入 Excel 模板"""
     from openpyxl import Workbook
