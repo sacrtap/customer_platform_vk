@@ -518,31 +518,88 @@ class TestListRecords:
 
 
 class TestHasActiveTask:
-    """has_active_task：pending/running 进行中任务探测"""
+    """has_active_task：pending/running 探测 + 30 分钟卡死判定"""
 
-    async def test_active_task_returns_true(self, backup_service, mock_db_session):
-        """存在 pending/running 留痕 → True"""
-        count_result = MagicMock()
-        count_result.scalar.return_value = 2
-        mock_db_session.execute = AsyncMock(return_value=count_result)
+    FROZEN_NOW = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone(timedelta(hours=8)))
 
-        assert await backup_service.has_active_task() is True
+    def _stub_records(self, mock_db_session, records):
+        """mock db.execute 返回指定 pending/running 记录列表"""
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = records
+        mock_db_session.execute = AsyncMock(return_value=result)
 
-    async def test_no_active_task_returns_false(self, backup_service, mock_db_session):
-        """无 pending/running 留痕（scalar=0）→ False"""
-        count_result = MagicMock()
-        count_result.scalar.return_value = 0
-        mock_db_session.execute = AsyncMock(return_value=count_result)
+    async def test_active_task_within_window_returns_true(self, backup_service, mock_db_session):
+        """窗口内（<30min）的 running → True 且不改状态"""
+        record = make_record(
+            id=1,
+            status="running",
+            started_at=datetime(2026, 10, 20, 11, 45, tzinfo=timezone(timedelta(hours=8))),
+        )
+        self._stub_records(mock_db_session, [record])
+
+        with patch("app.services.backup_service.cst_now", return_value=self.FROZEN_NOW):
+            assert await backup_service.has_active_task() is True
+
+        assert record.status == "running"
+        mock_db_session.commit.assert_not_awaited()
+
+    async def test_stale_task_marked_failed_and_returns_false(
+        self, backup_service, mock_db_session
+    ):
+        """超 30 分钟无终态的 running → False 且顺手标记 failed（防僵尸锁死入口）"""
+        record = make_record(
+            id=2,
+            status="running",
+            started_at=datetime(2026, 10, 20, 11, 0, tzinfo=timezone(timedelta(hours=8))),
+        )
+        self._stub_records(mock_db_session, [record])
+
+        with patch("app.services.backup_service.cst_now", return_value=self.FROZEN_NOW):
+            assert await backup_service.has_active_task() is False
+
+        assert record.status == "failed"
+        assert "卡死" in record.error_message
+        assert record.completed_at == self.FROZEN_NOW
+        mock_db_session.commit.assert_awaited_once()
+
+    async def test_missing_started_at_treated_as_stale(self, backup_service, mock_db_session):
+        """started_at 缺失（脏数据）→ 按僵尸标记 failed"""
+        record = make_record(id=3, status="pending", started_at=None)
+        self._stub_records(mock_db_session, [record])
+
+        with patch("app.services.backup_service.cst_now", return_value=self.FROZEN_NOW):
+            assert await backup_service.has_active_task() is False
+
+        assert record.status == "failed"
+        mock_db_session.commit.assert_awaited_once()
+
+    async def test_no_unfinished_returns_false(self, backup_service, mock_db_session):
+        """无 pending/running → False 且不写库"""
+        self._stub_records(mock_db_session, [])
 
         assert await backup_service.has_active_task() is False
+        mock_db_session.commit.assert_not_awaited()
 
-    async def test_none_scalar_returns_false(self, backup_service, mock_db_session):
-        """count 返回 None（空表极端情况）→ False"""
-        count_result = MagicMock()
-        count_result.scalar.return_value = None
-        mock_db_session.execute = AsyncMock(return_value=count_result)
+    async def test_mixed_keeps_active_and_marks_stale(self, backup_service, mock_db_session):
+        """混合场景：窗口内任务保持占用，超期任务被顺手标记 failed"""
+        active = make_record(
+            id=4,
+            status="running",
+            started_at=datetime(2026, 10, 20, 11, 50, tzinfo=timezone(timedelta(hours=8))),
+        )
+        stale = make_record(
+            id=5,
+            status="pending",
+            started_at=datetime(2026, 10, 20, 10, 0, tzinfo=timezone(timedelta(hours=8))),
+        )
+        self._stub_records(mock_db_session, [active, stale])
 
-        assert await backup_service.has_active_task() is False
+        with patch("app.services.backup_service.cst_now", return_value=self.FROZEN_NOW):
+            assert await backup_service.has_active_task() is True
+
+        assert active.status == "running"
+        assert stale.status == "failed"
+        mock_db_session.commit.assert_awaited_once()
 
 
 class TestRecordToDict:

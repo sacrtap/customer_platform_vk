@@ -377,8 +377,20 @@ const fetchRecords = async () => {
   }
 }
 
-const hasPendingTask = () =>
-  records.value.some((r) => r.status === 'pending' || r.status === 'running')
+// 与后端 BackupService.has_active_task / settings.backup_task_timeout_minutes 对齐：
+// pending/running 启动超过该分钟数视为僵尸任务（服务中断后终态丢失，留痕永久滞留），
+// 不阻塞「立即备份」/「恢复」，由后端检测到时顺手标记 failed
+const ACTIVE_TASK_TIMEOUT_MINUTES = 30
+
+const hasPendingTask = () => {
+  const deadline = Date.now() - ACTIVE_TASK_TIMEOUT_MINUTES * 60 * 1000
+  return records.value.some(
+    (r) =>
+      (r.status === 'pending' || r.status === 'running') &&
+      r.started_at !== null &&
+      new Date(r.started_at).getTime() > deadline
+  )
+}
 
 const startPolling = () => {
   if (pollTimer !== undefined) return

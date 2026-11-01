@@ -30,3 +30,21 @@
 
 - 并发检查为同事务 `select count`，未用行锁（内部系统低并发，TOCTOU 窗口可接受）；若未来出现真实并发误判可升级 `SELECT ... FOR UPDATE`。
 - 409 响应体采用 `{"code": 409, ...}` 数值 code，与 `analytics.py:269` / `sync_tasks.py:146` 既有约定一致，未引入新 ErrorCodes 成员。
+
+---
+
+## 追加修复（2026-11-01）：僵尸任务锁死「立即备份」按钮
+
+**问题**：上线后「立即备份」按钮无法点击。根因：开发库残留 3 条 `running` 僵尸留痕（id=1/3/5，10-26 服务中断后终态丢失，`completed_at` 为 NULL），`has_active_task()` 命中即永久禁用按钮/隐藏恢复按钮。
+
+**修复**（复用 `SyncTaskService.create_task` 既有卡死判定模式）：
+- `config.py` 新增 `backup_task_timeout_minutes: int = 30`
+- `has_active_task()` 仅将启动 30 分钟内的 pending/running 视为活跃；超期僵尸检测到时顺手标记 failed 并放行（写日志）
+- 前端 `hasPendingTask()` 同步加同款 30 分钟时间窗（常量注释互引后端）
+- 开发库 3 条僵尸记录已标记 failed
+
+**复验**（测试库端到端，5 场景全过）：
+- 僵尸 running（60min/45min）+ perform/restore → 201，僵尸记录被顺手标 failed
+- 活跃 running（5min）+ perform → 409，记录保持 running
+- 边界：29m55s → 409 仍互斥；30m5s → 201 放行并标 failed
+- 全量单测 814 passed；ruff / pyright(0 errors) / vue-tsc / eslint / prettier 全过

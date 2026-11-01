@@ -458,14 +458,43 @@ class BackupService:
 
         备份/恢复/清理任一进行中均视为占用：恢复的 pg_restore --clean 会
         DROP 全库对象，与并发的 pg_dump/清理存在对象消失冲突风险。
-        供各创建入口在写入留痕前做并发互斥。
+
+        启动超过 backup_task_timeout_minutes 仍无终态的 pending/running
+        判定为僵尸（服务中断/进程崩溃后终态丢失，留痕永久滞留会锁死所有
+        备份入口），检测到时顺手标记 failed 并放行——与
+        SyncTaskService.create_task 的卡死判定同构。
         """
+        timeout_threshold = cst_now() - timedelta(minutes=settings.backup_task_timeout_minutes)
         result = await self.db.execute(
-            select(func.count(BackupRecord.id)).where(
-                BackupRecord.status.in_(("pending", "running"))
-            )
+            select(BackupRecord).where(BackupRecord.status.in_(("pending", "running")))
         )
-        return (result.scalar() or 0) > 0
+        unfinished = result.scalars().all()
+
+        truly_active = False
+        stale_found = False
+        for rec in unfinished:
+            # started_at 为 aware timestamptz；缺失（极端脏数据）同样按僵尸处理。
+            # 边界与 SyncTaskService 一致：恰好 threshold 分钟仍视为活跃
+            if rec.started_at is not None and rec.started_at >= timeout_threshold:
+                truly_active = True
+            else:
+                stale_found = True
+                rec.status = "failed"
+                rec.error_message = (
+                    f"任务启动超过 {settings.backup_task_timeout_minutes} 分钟无终态，"
+                    f"判定为卡死（服务中断或进程异常终止）并自动标记为失败"
+                )
+                rec.completed_at = cst_now()
+                logger.warning(
+                    "备份任务 %s 启动超过 %s 分钟无终态，标记为 failed",
+                    rec.id,
+                    settings.backup_task_timeout_minutes,
+                )
+
+        if stale_found:
+            await self.db.commit()
+
+        return truly_active
 
     async def list_records(
         self, page: int = 1, page_size: int = 20, task_type: str | None = None
