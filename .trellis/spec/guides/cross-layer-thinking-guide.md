@@ -1053,3 +1053,70 @@ service 三处加载点、序列化补 `operator_name`、前端渲染姓名）�
 并在 `test_backup_service.py` 补三种态断言 + 路由测试锁 `perform` 响应。
 排查确认 `SyncTaskLog.operator_id` 无前端展示消费方、`invoices.py` 已有
 `operator_names` 批量字典模式，同族缺口仅此一处。
+
+---
+
+## UI 组件事件词表 ↔ 后端查询参数契约（表格排序方向映射）
+
+[来源: Bug fix 2026-11-01 — 余额管理页「余额」列点降序实际返回升序；顺带修复发票页同源缺陷、days_remaining/total_amount 排序键口径漂移、翻页重复行]
+
+这是**跨层契约（B 类）+ 变更传播失败（C 类）+ 测试覆盖缺口（D 类）**的三合体。
+用户可感知症状只有一句：「点降序，结果还是升序」。但一条链上断了三处，且每一处
+单独看都"合理"。
+
+### 断链全貌（arco a-table → HTTP → SQL）
+
+```
+用户点表头（第 2 次）
+  → a-table sorter-change(direction='descend')      ← arco 词表：ascend/descend/''
+  → BalanceTable.onSorterChange 原样 emit('descend') ← ❌ 断点 1：漏了 ascend/descend → asc/desc 映射
+  → useBalance.handleSortChange: sortState.sort_order = 'descend'（TS 类型却写着 'asc'|'desc'，as 强转把谎言压住）
+  → backendSortOrder(): 只认 'asc'/'desc' → 兜底 return 'asc'  ← ❌ 断点 2
+  → GET /balances?sort_order=asc
+  → 路由层校验 if sort_order not in ("asc","desc"): sort_order = "asc"  ← ❌ 断点 3（即便前面漏了也被兜底）
+  → SQL ORDER BY ... ASC()                                  ← 用户看到升序
+```
+
+### 关键盲区：两层"防御性兜底"把契约违背静默修正
+
+`backendSortOrder()` 的 `return 'asc'` 与路由层的 `sort_order = "asc"` 看起来都是
+"健壮的参数校验"，实际效果是**把契约违背静默吞掉**：任何未预期值都被修正为 asc，
+不报错、不告警、测试全绿。**兜底是双刃剑——它让"调用方传错词表"从显式故障退化为
+静默错行为**。本次 bug 能存活，两层兜底各自都"觉得"自己在保护系统。
+
+> 规则：**兜底只应用于"确定安全的默认值"场景（如空值→默认页）。当调用方与兜底方
+> 对同一字段有不同词表时，兜底就是掩盖。此类边界要么在唯一入口归一化并让测试钉死，
+> 要么让非法值显式失败。**
+
+### Checklist: 任何「UI 组件回调 → 请求参数」的链路
+
+- [ ] **列出组件库回调的真实词表**（arco sorter 是 `ascend/descend/''`，不是 `asc/desc`），
+      在 emit 边界完成映射—— CustomerTable.vue 是范式：`direction === 'ascend' ? 'asc' : 'desc'`
+- [ ] 从既有正确实现**复制整段**时，逐行核对"看起来像装饰"的映射行是否幸存
+      （BalanceTable 即从 CustomerTable 拆分时丢了这一行）
+- [ ] composable 入口做归一化防御（`normalizeSortOrder` 同时接受两套词表），
+      TS 签名不允许 `as` 强转把谎言压住
+- [ ] 测试必须模拟**组件真实 emit 的值**，不能只测 composable 直传：
+      单测 `handleSortChange('total_amount', 'desc')` 全绿，而真实链路传的是 `'descend'`
+      ——缺口就在"没人测组件 → composable 这一环"
+- [ ] 同类页面全仓排查：`grep -rn "sortChange\|handleSortChange" frontend/src`
+      （本次同源缺陷在 Invoices.vue/useInvoice.ts 潜伏）
+
+### 附带发现：SQL 排序键必须与展示口径同源（本次一并修复）
+
+同一个列表里「排序键」和「展示值」由**两套独立代码**计算（SQL 表达式 vs Python 组装），
+任何一侧的边界分支漏掉，症状都是"排序结果看着不对但说不出哪错"：
+
+| 列 | 排序键（SQL） | 展示值（Python） | 漂移点 |
+|---|---|---|---|
+| total_amount | `coalesce(package_cte.remaining, CustomerBalance.total_amount, 0)` | 包年→剩余额度（过期 0）；其余→CustomerBalance | 过期包年 CTE 不命中退化为旧值，展示却为 0 |
+| days_remaining | case(postpaid→None, CTE命中→到期天数, ...) | 包年优先→到期天数；过期包年→0；postpaid→None | SQL 漏「过期包年→0」分支，且 postpaid 与包年**优先级相反** |
+
+- **规则**：排序表达式与展示计算必须逐分支对齐，把「展示口径」作为唯一事实源，
+  排序表达式引用同一语义（本次抽出共用 `balance_expr` 供筛选与排序复用）。
+- **NULL 语义**：`nulls_last` 是展示层"无数据"的排序投影，语义必须与展示层的
+  None 渲染（「后付费」「从未充值」占位）一致。
+- **翻页稳定性**：`ORDER BY` 相同值的行 PG 不保证顺序，分页边界会重复/漏行。
+  可排序列必须带二级键（`Customer.id.asc()`）——`total_amount=0` 的客户占比极高
+  （实测 1280 行中 1171 行），该场景必然触发。既有 `last_recharge_at` 分支已有
+  二级键并注释了原因，其余分支照抄即可。
