@@ -85,6 +85,7 @@ openapi-docs/docs/.vitepress/cache/
 
 # Backend
 backend/uploads/
+backend/backups/
 backend/static/files/
 backend/media/
 backend/customer_platform.db
