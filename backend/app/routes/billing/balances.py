@@ -356,7 +356,7 @@ async def _query_balance_rows_raw(
     Returns:
         (Customer 对象列表, 匹配总数, 最新充值时间映射, 消费统计映射, 包年套餐信息映射)
     """
-    from sqlalchemy import func, select
+    from sqlalchemy import and_, case, func, literal, select
     from sqlalchemy.orm import selectinload
 
     from ...models.billing import CustomerBalance, RechargeRecord
@@ -385,13 +385,43 @@ async def _query_balance_rows_raw(
     # 包年剩余额度 CTE：供余额范围筛选、total_amount 排序与 KPI 统计复用
     package_cte = _build_package_remaining_cte()
 
+    # 有效余额表达式：余额范围筛选与 total_amount 排序共用，口径必须与展示层
+    # （_assemble_balance_rows / resolve_effective_balance / batch_query_package_info）严格一致：
+    #   1. 命中 CTE（生效中的包年规则）→ 套餐剩余额度 remaining；
+    #   2. 包年客户无生效规则（规则已过期）→ 0，与展示层「过期包年余额记 0」一致；
+    #   3. 其余客户 → CustomerBalance.total_amount（无余额行记 0）。
+    # 曾用 coalesce(remaining, total_amount, 0)：过期包年客户 CTE 不命中会退化为
+    # CustomerBalance 旧值，与展示的 0 矛盾（排序位置和余额范围筛选都会错）。
+    from ...models.billing import PricingRule
+
+    expired_package_exists = and_(
+        Customer.price_policy == "yearly",
+        (
+            select(PricingRule.id)
+            .where(
+                PricingRule.customer_id == Customer.id,
+                PricingRule.pricing_type == "package",
+                PricingRule.deleted_at.is_(None),
+                PricingRule.expiry_date.is_not(None),
+                PricingRule.expiry_date < func.now(),
+            )
+            .correlate(Customer)
+            .exists()
+        ),
+    )
+    balance_expr = case(
+        (package_cte.c.cid.is_not(None), package_cte.c.remaining),
+        (expired_package_exists, literal(0)),
+        else_=func.coalesce(CustomerBalance.total_amount, 0),
+    )
+
     # 排序字段映射（前端字段 -> SQLAlchemy 表达式）
     # 包年客户余额以套餐剩余额度（package_remaining.remaining）为准，非包年客户退化为
     # CustomerBalance 原值（无余额行时为 0）
     sort_field_map = {
         "company_id": Customer.company_id,
         "customer_name": Customer.name,
-        "total_amount": func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0),
+        "total_amount": balance_expr,
         # 「已消耗」列表展示包年客户为套餐内累计消耗（package_remaining.consumed），
         # 排序须用同一口径，否则展示值与排序顺序相互矛盾
         "used_total": func.coalesce(package_cte.c.consumed, CustomerBalance.used_total, 0),
@@ -474,7 +504,7 @@ async def _query_balance_rows_raw(
         base_stmt = base_stmt.where(_settlement_group_condition(settlement_group))
 
     # 余额范围过滤：包年客户按套餐剩余额度参与，非包年客户按 CustomerBalance 余额
-    balance_expr = func.coalesce(package_cte.c.remaining, CustomerBalance.total_amount, 0)
+    # （复用上方与 total_amount 排序同一的 balance_expr，保证筛选口径 = 排序口径）
     if balance_min is not None:
         base_stmt = base_stmt.where(balance_expr >= balance_min)
     if balance_max is not None:
@@ -630,7 +660,7 @@ async def _query_balance_rows_raw(
                 base_stmt = base_stmt.order_by(order_expr.desc().nulls_last(), Customer.id.asc())
         elif field == "days_remaining":
             # 燃尽天数排序：使用 CTE 批量聚合所有匹配客户
-            from sqlalchemy import Date, case
+            from sqlalchemy import Date
 
             from ...models.daily_consumption import DailyConsumption
 
@@ -657,19 +687,30 @@ async def _query_balance_rows_raw(
                 Customer.id == consumption_cte.c.cid,
             )
             # SQL 层计算 days_remaining 用于排序（float）
-            # 包年客户（package_cte 命中）用「套餐到期剩余天数」，其余沿用消耗推算公式
+            # case 分支顺序必须与展示层 _compute_burn_down 逐条对齐，否则排序键与
+            # 展示值矛盾（曾把 postpaid 放在包年之前、且漏掉「过期包年记 0」分支，
+            # 导致过期包年客户展示 0 天却因 NULL/推算值被排到末尾）：
+            #   1. 生效包年规则命中 → 套餐到期剩余天数；
+            #   2. 过期包年（price_policy=yearly 且规则已过期）→ 0；
+            #   3. 后付费 → None（nulls_last）；
+            #   4. 近 30 天无消耗 → None；
+            #   5. 其余 → 余额 / 日均消耗推算。
             # 「今天」显式取 CST 日期：func.current_date() 跟随 PG 会话时区（CI 的
             # postgres 容器为 UTC，会取到 CST 次日），与 Python 侧 cst_today() 差 1 天，
             # 导致排序结果与展示层 days_remaining 不一致
             cst_today_expr = func.cast(func.timezone("Asia/Shanghai", func.now()), Date)
             days_remaining_expr = case(
                 (
-                    Customer.settlement_type == "postpaid",
-                    None,
-                ),
-                (
                     package_cte.c.cid.is_not(None),
                     func.cast(package_cte.c.expiry_date, Date) - cst_today_expr,
+                ),
+                (
+                    expired_package_exists,
+                    literal(0),
+                ),
+                (
+                    Customer.settlement_type == "postpaid",
+                    None,
                 ),
                 (
                     func.coalesce(consumption_cte.c.total_cost_30d, 0) <= 0,
@@ -696,9 +737,13 @@ async def _query_balance_rows_raw(
                 )
         else:
             order_expr = field
-            base_stmt = base_stmt.order_by(
-                order_expr.asc() if sort_order == "asc" else order_expr.desc()
-            )
+            # 二级排序键 Customer.id 保证翻页稳定性：PG 对 ORDER BY 相同值的行
+            # 不保证顺序一致，无二级键时翻页可能重复/漏行（total_amount=0 的客户
+            # 占比极高，该场景必然触发）。与 last_recharge_at 分支保持一致。
+            if sort_order == "asc":
+                base_stmt = base_stmt.order_by(order_expr.asc(), Customer.id.asc())
+            else:
+                base_stmt = base_stmt.order_by(order_expr.desc(), Customer.id.asc())
     else:
         # 默认排序：按客户 ID 升序
         base_stmt = base_stmt.order_by(Customer.id.asc())

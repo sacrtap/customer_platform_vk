@@ -36,6 +36,15 @@ export interface SortState {
   sort_order: 'asc' | 'desc' | ''
 }
 
+// 排序方向归一化：兼容 arco a-table 回调的 ascend/descend 与后端 asc/desc 两种
+// 词表。集中在入口归一，避免调用方各自转换时漏掉方向映射导致降序失效
+// （2026-11-01 修复，与 useBalance 同一处理）。
+const normalizeSortOrder = (direction: string): 'asc' | 'desc' | '' => {
+  if (direction === 'asc' || direction === 'ascend') return 'asc'
+  if (direction === 'desc' || direction === 'descend') return 'desc'
+  return ''
+}
+
 /** 从拦截器 reject 的未知错误中提取用户可读消息（拦截器约定 reject { code, message }） */
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
@@ -229,7 +238,7 @@ export function useInvoice() {
   }
   const handleSortChange = (dataIndex: string, direction: string) => {
     sortState.sort_by = dataIndex
-    sortState.sort_order = direction as 'asc' | 'desc' | ''
+    sortState.sort_order = normalizeSortOrder(direction)
     loadInvoices()
   }
   const handleSearch = () => {

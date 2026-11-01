@@ -152,7 +152,9 @@ describe('BalanceTable - 排序', () => {
 
     const sortEvents = wrapper.emitted('sortChange')
     expect(sortEvents).toBeTruthy()
-    expect(sortEvents![0]).toEqual(['total_amount', 'ascend'])
+    // arco 的 ascend 必须转为后端词表 asc（否则 useBalance.backendSortOrder
+    // 与后端路由校验会把它兜底成 asc 之外的默认值，排序语义丢失）
+    expect(sortEvents![0]).toEqual(['total_amount', 'asc'])
   })
 
   it('第二次点击同一列头时，切换为降序', async () => {
@@ -160,10 +162,12 @@ describe('BalanceTable - 排序', () => {
     const cell = sortableTh(wrapper, '余额')!.find('.arco-table-cell')
 
     await cell.trigger('click')
-    expect(wrapper.emitted('sortChange')![0]).toEqual(['total_amount', 'ascend'])
+    expect(wrapper.emitted('sortChange')![0]).toEqual(['total_amount', 'asc'])
 
     await cell.trigger('click')
-    expect(wrapper.emitted('sortChange')![1]).toEqual(['total_amount', 'descend'])
+    // 回归：arco descend → 后端 desc。曾直接透传 'descend'，被 useBalance
+    // backendSortOrder() 归一为 'asc'，用户点降序实际拿到升序结果
+    expect(wrapper.emitted('sortChange')![1]).toEqual(['total_amount', 'desc'])
   })
 
   it('第三次点击同一列头时，清除排序（emit 空字符串）', async () => {
@@ -184,10 +188,10 @@ describe('BalanceTable - 排序', () => {
     const wrapper = mountTable(defaultProps)
 
     await sortableTh(wrapper, '余额')!.find('.arco-table-cell').trigger('click')
-    expect(wrapper.emitted('sortChange')![0]).toEqual(['total_amount', 'ascend'])
+    expect(wrapper.emitted('sortChange')![0]).toEqual(['total_amount', 'asc'])
 
     await sortableTh(wrapper, '已消耗')!.find('.arco-table-cell').trigger('click')
-    expect(wrapper.emitted('sortChange')![1]).toEqual(['used_total', 'ascend'])
+    expect(wrapper.emitted('sortChange')![1]).toEqual(['used_total', 'asc'])
   })
 
   it('所有可排序列都能正确 emit 排序事件', async () => {
@@ -207,7 +211,7 @@ describe('BalanceTable - 排序', () => {
       const events = wrapper.emitted('sortChange')
       const lastEvent = events![events!.length - 1]
       expect(lastEvent[0]).toBe(col.key)
-      expect(lastEvent[1]).toBe('ascend')
+      expect(lastEvent[1]).toBe('asc')
     }
   })
 })

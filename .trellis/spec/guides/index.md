@@ -41,7 +41,9 @@ These guides help you **ask the right questions before coding**.
 - [ ] UI / command code starts casting raw payload fields directly
 - [ ] **You are renaming a user-facing term (「折扣」→「减免」) — grep BOTH frontend and backend templates/exports**
 - [ ] **You are parsing a structure that another layer also parses — check both parsers' tolerance**
-- [ ] **You are returning a datetime field that a form will prefill & resubmit — read-out must round-trip into the write-in (UTC 存储 → CST 日期串，见「Time Field Cross-Layer Contract」)**
+- [ ] **You are returning a datetime field that a form will prefill & resubmit — read-out must round-trip into the write-in (UTC 存储 → CST 日期串，见「Time Field Cross-Layer Contract」）**
+- [ ] **你在接 UI 组件库回调（arco sorter 的 `ascend/descend`、分页事件）往后端参数透传——先核对两侧词表，映射只能有一个入口（见「UI 组件事件词表 ↔ 后端查询参数契约」）**
+- [ ] **你在写 SQL 排序表达式——确认它与该列的展示值计算逐分支同源，且带二级排序键**
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
 

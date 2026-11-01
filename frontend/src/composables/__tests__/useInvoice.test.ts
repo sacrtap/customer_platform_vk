@@ -83,6 +83,19 @@ describe('useInvoice - 排序逻辑', () => {
     expect(callArgs.sort_order).toBeUndefined()
   })
 
+  // 回归 2026-11-01：Invoices.vue 曾直接把 arco 回调的 'descend' 透传，
+  // backendSortOrder() 兜底成 'asc'，点降序实际拿到升序（与 BalanceTable 同源缺陷）
+  it('兼容 arco 词表：接收 descend 时 API 收到 sort_order=desc', async () => {
+    const { handleSortChange, sortState } = useInvoice()
+    handleSortChange('total_amount', 'descend')
+    await vi.waitFor(() => {
+      expect(mockGetInvoices).toHaveBeenCalled()
+    })
+    expect(sortState.sort_order).toBe('desc')
+    const callArgs = mockGetInvoices.mock.calls[0][0] as Record<string, unknown>
+    expect(callArgs.sort_order).toBe('desc')
+  })
+
   it('切换不同列排序时，sort_by 更新为新列', async () => {
     const { handleSortChange, sortState } = useInvoice()
     handleSortChange('total_amount', 'asc')
