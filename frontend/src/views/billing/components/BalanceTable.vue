@@ -238,14 +238,19 @@ const sortFieldMap: Record<string, string> = {
   burn_down: 'days_remaining',
 }
 
-// --- 排序：a-table 三态 ascend/descend，清除时 emit 空字符串 ---
+// --- 排序：Arco a-table 三态 ascend/descend/'' → 后端 asc/desc/'' 词表映射 ---
+// 方向词表必须在此转换：后端 sort_order 只认 asc/desc，直接透传 'descend' 会被
+// useBalance.backendSortOrder() 与后端路由校验双双兜底成 'asc'，导致「降序」
+// 点击后实际返回升序结果（2026-11-01 修复）。与 CustomerTable.vue 保持一致。
+// 清除排序（第三态）统一 emit ('', '')，不依赖 a-table 取消时回传的 dataIndex。
 const onSorterChange = (dataIndex: string, direction: string) => {
   if (direction !== 'ascend' && direction !== 'descend') {
     emit('sortChange', '', '')
     return
   }
+  const order = direction === 'ascend' ? 'asc' : 'desc'
   const backendField = sortFieldMap[dataIndex] || dataIndex
-  emit('sortChange', backendField, direction)
+  emit('sortChange', backendField, order)
 }
 
 // --- 分页 ---

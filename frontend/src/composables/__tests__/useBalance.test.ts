@@ -157,6 +157,32 @@ describe('useBalance - 排序逻辑', () => {
     expect(sortState.sort_order).toBe('')
   })
 
+  // 回归 2026-11-01：BalanceTable 曾直接把 arco 回调的 'descend' 透传给本函数，
+  // backendSortOrder() 不识别该词表、兜底返回 'asc'，用户点「降序」实际拿到升序。
+  // 此处模拟表格组件的真实 emit 值（ascend/descend）锁定归一化契约。
+  it('兼容 arco 词表：接收 descend 时 API 收到 sort_order=desc', async () => {
+    const { handleSortChange, sortState } = useBalance()
+    handleSortChange('total_amount', 'descend')
+    await vi.waitFor(() => {
+      expect(mockGetBalances).toHaveBeenCalled()
+    })
+    expect(sortState.sort_order).toBe('desc')
+    const callArgs = mockGetBalances.mock.calls[0][0] as Record<string, unknown>
+    expect(callArgs.sort_by).toBe('total_amount')
+    expect(callArgs.sort_order).toBe('desc')
+  })
+
+  it('兼容 arco 词表：接收 ascend 时 API 收到 sort_order=asc', async () => {
+    const { handleSortChange, sortState } = useBalance()
+    handleSortChange('total_amount', 'ascend')
+    await vi.waitFor(() => {
+      expect(mockGetBalances).toHaveBeenCalled()
+    })
+    expect(sortState.sort_order).toBe('asc')
+    const callArgs = mockGetBalances.mock.calls[0][0] as Record<string, unknown>
+    expect(callArgs.sort_order).toBe('asc')
+  })
+
   it('last_recharge_at 列排序时正确传递参数', async () => {
     const { handleSortChange } = useBalance()
     handleSortChange('last_recharge_at', 'desc')

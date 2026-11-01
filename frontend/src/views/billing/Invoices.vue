@@ -481,9 +481,12 @@ const paginationConfig = computed(() => ({
 }))
 
 // --- 排序：a-table 三态；清除时 emit 空字符串以便 useInvoice 清除排序状态 ---
+// 方向词表 ascend/descend → asc/desc 必须在此转换：直接透传 'descend' 会被
+// useInvoice.backendSortOrder() 兜底成 'asc'，导致降序点击后实际返回升序
+// （2026-11-01 修复，与 BalanceTable.vue 同一缺陷模式）。
 const onSorterChange = (dataIndex: string, direction: string) => {
-  const dir = direction === 'ascend' || direction === 'descend' ? direction : ''
-  handleSortChange(dir ? dataIndex : '', dir)
+  const order = direction === 'ascend' ? 'asc' : direction === 'descend' ? 'desc' : ''
+  handleSortChange(order ? dataIndex : '', order)
 }
 
 // --- 分页 ---

@@ -39,6 +39,15 @@ export interface SortState {
   sort_order: 'asc' | 'desc' | ''
 }
 
+// 排序方向归一化：兼容两种词表来源——arco a-table 回调的 ascend/descend 与
+// 后端/本模块契约的 asc/desc（如 Balance.vue 的 KPI 联动直接传 'asc'）。
+// 集中在入口归一，避免各调用方各自转换时再次漏掉（2026-11-01 修复）。
+const normalizeSortOrder = (direction: string): 'asc' | 'desc' | '' => {
+  if (direction === 'asc' || direction === 'ascend') return 'asc'
+  if (direction === 'desc' || direction === 'descend') return 'desc'
+  return ''
+}
+
 // 余额范围预设
 // 注意：max 值使用 -0.01/9999.99/99999.99/999999.99 避免与下一档边界重叠。
 // 「1万以下」的 min 有意为 null（含欠费与零余额），与 KPI「余额不足」卡片的统计口径
@@ -242,7 +251,7 @@ export function useBalance() {
 
   const handleSortChange = (dataIndex: string, direction: string) => {
     sortState.sort_by = dataIndex
-    sortState.sort_order = direction as 'asc' | 'desc' | ''
+    sortState.sort_order = normalizeSortOrder(direction)
     loadBalances()
   }
 
