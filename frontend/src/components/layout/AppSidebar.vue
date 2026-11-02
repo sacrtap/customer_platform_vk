@@ -142,6 +142,14 @@
           >
             结算单管理
           </button>
+          <button
+            v-if="can('vr_settlement:view')"
+            class="nav-btn sub"
+            :class="{ active: $route.name === 'VrSettlements' }"
+            @click="goTo('/billing/vr-settlements')"
+          >
+            VR编辑费用结算
+          </button>
         </div>
       </div>
 

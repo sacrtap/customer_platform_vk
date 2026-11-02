@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/permission-model.md", "reason": "权限码单一事实源（seed.py）、三层引用与 --sync-permissions 上线入口，新增 8 个 vr_settlement 权限码必须遵循"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "新表模型规范、软删除、cache 失效、PG 时区契约与 Schema Drift 验证要求"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ErrorCodes 常量与 json({code,message}) 响应格式，新路由 13 端点统一遵循"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Modal 表单模式（@before-ok 返回 false 阻止关闭、watch visible 重置），4 个新弹窗照抄"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "composable 模式（useVrSettlement 照抄 useInvoice：动作方法内联 Message + re-throw）"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "UTC 存储→CST 展示的时区跨层契约与 arco sorter 词表 ascend/descend↔asc/desc 映射入口"}

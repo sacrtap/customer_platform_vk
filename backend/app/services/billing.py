@@ -224,6 +224,7 @@ class BalanceService:
         customer_id: int,
         amount: Decimal,
         invoice_id: Optional[int] = None,
+        vr_settlement_id: Optional[int] = None,
     ) -> Tuple[bool, str]:
         """消费扣款（先赠后实）- 带事务保护和行级锁
 
@@ -233,6 +234,7 @@ class BalanceService:
             customer_id: 客户 ID
             amount: 消费金额
             invoice_id: 关联发票 ID
+            vr_settlement_id: 关联 VR 结算单 ID（与 invoice_id 互斥，二选一）
 
         Returns:
             (success, message)
@@ -316,6 +318,7 @@ class BalanceService:
                         consumption = ConsumptionRecord(
                             customer_id=customer_id,
                             invoice_id=invoice_id,
+                            vr_settlement_id=vr_settlement_id,
                             amount=amount,
                             bonus_used=bonus_used,
                             real_used=real_used,

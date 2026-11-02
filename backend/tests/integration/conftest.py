@@ -326,6 +326,7 @@ def db_session(sync_test_engine, test_user):
             session.execute(
                 text(
                     "TRUNCATE profile_tags, customer_tags, tags, invoice_items, invoices, "
+                    "vr_settlement_discount_histories, vr_settlements, "
                     "customer_balances, recharge_records, customer_profiles, consumption_records, "
                     "daily_consumptions, daily_orders, files, audit_logs, sync_task_logs, "
                     "sync_tasks, pricing_rules, package_plans, webhook_signatures, "

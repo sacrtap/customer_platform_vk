@@ -263,6 +263,9 @@ class ConsumptionRecord(BaseModel):
 
     customer_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("customers.id"), index=True)
     invoice_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("invoices.id"), index=True)
+    vr_settlement_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("vr_settlements.id"), nullable=True, index=True
+    )
     amount: Mapped[Decimal] = mapped_column(DECIMAL(12, 2), nullable=False)
     bonus_used: Mapped[Decimal | None] = mapped_column(DECIMAL(12, 2), default=0)
     real_used: Mapped[Decimal | None] = mapped_column(DECIMAL(12, 2), default=0)

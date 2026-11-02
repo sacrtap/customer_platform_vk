@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/permission-model.md", "reason": "三层引用一致性核验：seed ALL_PERMISSIONS / 路由 require_permission / 前端 can() 与 routes meta，新码必须三层对齐"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试质量红线：可观测断言、禁 merely-not-throw、集成测试 fixture 与 TRUNCATE 约定"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "check_schema_drift 验证迁移已应用到运行库；漏应用会导致查询 500 而 CI 全绿"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量检查：type-check、禁 any、API 层模式、pre-commit gotchas"}
+{"file": ".trellis/spec/guides/code-review-guide.md", "reason": "分支完成后 open-code-review 审查的 OCR 执行策略与修复连带检查"}

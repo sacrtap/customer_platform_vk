@@ -14,6 +14,7 @@ class Base(DeclarativeBase):
 from . import users  # noqa: E402
 from . import customers  # noqa: E402
 from . import billing  # noqa: E402
+from . import vr_settlement  # noqa: E402
 from . import tags  # noqa: E402
 from . import webhooks  # noqa: E402
 from . import files  # noqa: E402
@@ -38,6 +39,7 @@ __all__ = [
     "users",
     "customers",
     "billing",
+    "vr_settlement",
     "tags",
     "webhooks",
     "files",
