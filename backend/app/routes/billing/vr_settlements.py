@@ -476,7 +476,7 @@ async def confirm_cs_supervisor(request: Request, settlement_id: int):
 @billing_bp.post("/vr-settlements/<settlement_id:int>/confirm-sales")
 @auth_required
 @require_permission("vr_settlement:sales_approve")
-async def confirm_sales(request: Request, settlement_id: int):
+async def confirm_vr_sales(request: Request, settlement_id: int):
     """销售审批（第二步）：pending_sales → pending_sales_supervisor"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
