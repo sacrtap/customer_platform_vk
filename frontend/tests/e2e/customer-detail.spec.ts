@@ -67,8 +67,8 @@ test.describe('客户详情页面', () => {
     // 验证页面标题
     await expect(page.locator('h1').first()).toBeVisible()
 
-    // 验证编辑按钮
-    await expect(page.locator('button:has-text("编辑")').first()).toBeVisible()
+    // 验证编辑按钮（限定 .page 主内容区，避免命中侧边栏含"编辑"的菜单项）
+    await expect(page.locator('.page button:has-text("编辑")').first()).toBeVisible()
 
     // 验证设为重点/取消重点按钮
     const keyBtn = page.locator('button:has-text("设为重点"), button:has-text("取消重点")')
@@ -383,8 +383,8 @@ test.describe('客户详情页面', () => {
     await page.goto(`/customers/${testCustomerId}`)
     await page.waitForTimeout(1000)
 
-    // 点击编辑按钮
-    await page.locator('button:has-text("编辑")').first().click()
+    // 点击编辑按钮（限定 .page 主内容区，避免命中侧边栏含"编辑"的菜单项）
+    await page.locator('.page button:has-text("编辑")').first().click()
     await page.waitForTimeout(1000)
 
     // 验证编辑对话框
