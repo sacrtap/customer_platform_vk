@@ -140,6 +140,27 @@ async with db_session.begin():
 - 空数据返回 `40002`（而非空文件）
 - 列顺序与前端表格列对齐
 
+### 回传式导出（数据未落库时，前端回传、后端只组装）
+
+结果仅存在于某次响应的内存中、**未落库**时（例：批量生成结算单的
+generated/skipped 明细），无法按条件重查，只能由前端把本次结果回传，后端只负责
+组装 Excel。契约（2026-11-02 起，`POST /billing/invoices/generate-batch/export`）：
+
+- 路由用 **POST**（GET 无法承载大体量 body），权限码沿用同语义的既有导出码
+  （`billing:invoice_export`），**不新增权限码**——避免 seed/roles/conftest 三处同步
+- 端点**不查库、不写审计**（与 `export_invoices` / `export_roles` 只读导出一致），
+  因此也**不包事务**；`excel_response` 是同步函数，必须
+  `await asyncio.to_thread(excel_response, records, sheet, prefix)` 包裹，避免阻塞事件循环
+- 列序 = dict 键序；缺失字段给 `""` 而非 `None`（pandas 会把 `None` 写成空单元格，
+  与 `""` 视觉一致，但显式 `""` 语义更清晰）
+- 空 records 由 `excel_response` 统一返回 `40002`，端点不另写空数据分支
+- 前端 `api.post(url, data, { responseType: 'blob', timeout: LONG_RUNNING_REQUEST_TIMEOUT })`：
+  后端同步 openpyxl 生成，须放宽超时防前端先断；blob 错误响应已被
+  `api/index.ts` 拦截器解析为真实 message，`useExportAction` 的 `handleError` 可直接展示
+- 前端按钮用 `useExportAction`（统一中状态/下载/错误），权限门控 `v-if="can('<同语义导出码>')"`
+- **测试**：权限用例断言 403；空数据用例断言 400 + `code == 40002`；成功用例用
+  `load_workbook` 校验 sheet 名、表头 6 列、行数 = 成功数 + 跳过数
+
 ### 客户导入/导出字段对称（27 列，禁止单侧增删）
 
 `customers/import` 与 `customers/export`、`customers/import-template` **三处列名与列序必须一致**
