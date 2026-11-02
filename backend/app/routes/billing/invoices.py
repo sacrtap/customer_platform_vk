@@ -31,6 +31,7 @@ from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
+from ...utils.excel_export import excel_response
 from ...utils.excel_import import read_import_dataframe
 from ...utils.tiers import TierFormatError
 from ...utils.timezone import (
@@ -688,6 +689,52 @@ async def generate_invoices_batch(request: Request):
             "data": result,
         }
     )
+
+
+@billing_bp.post("/invoices/generate-batch/export")
+@auth_required
+@require_permission("billing:invoice_export")
+async def export_batch_generate_result(request: Request):
+    """导出批量生成结果明细为 Excel（成功 + 跳过合并一个工作表）
+
+    批量生成结果仅存在于 generate-batch 的响应中、未落库，故由前端回传
+    generated/skipped 两个数组，本端点只负责组装 Excel，不查库。
+
+    Body:
+    {
+        "generated": [{"customer_id": 1, "name": "A", "invoice_id": 10,
+                       "invoice_no": "INV...", "total_amount": 100.0}],
+        "skipped": [{"customer_id": 2, "name": "B", "reason": "无用量数据"}]
+    }
+    """
+    data = request.json or {}
+    generated = data.get("generated") or []
+    skipped = data.get("skipped") or []
+
+    records = [
+        {
+            "生成结果": "成功",
+            "客户ID": item.get("customer_id"),
+            "客户名称": item.get("name"),
+            "结算单号": item.get("invoice_no"),
+            "总金额": item.get("total_amount"),
+            "跳过原因": "",
+        }
+        for item in generated
+    ] + [
+        {
+            "生成结果": "跳过",
+            "客户ID": item.get("customer_id"),
+            "客户名称": item.get("name"),
+            "结算单号": "",
+            "总金额": "",
+            "跳过原因": item.get("reason"),
+        }
+        for item in skipped
+    ]
+    # excel_response 对空 records 返回 40002「没有找到符合条件的数据」，
+    # 前端按钮禁用兜底；本端点不写审计（与 export_invoices / export_roles 只读导出一致）
+    return await asyncio.to_thread(excel_response, records, "批量生成结果", "批量生成结果")
 
 
 @billing_bp.post("/invoices/generate")

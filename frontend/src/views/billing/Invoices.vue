@@ -81,7 +81,7 @@
         :row-key="'id'"
         :row-selection="rowSelectionConfig"
         :row-class="'row-clickable'"
-        :scroll="{ x: 1410 }"
+        :scroll="{ x: 1440 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
@@ -136,8 +136,8 @@
           <span
             v-else-if="(record as Invoice).detail_file_status === 'generating'"
             title="生成中..."
-            class="subtle"
-            >⏳</span
+            class="subtle cell-nowrap"
+            >⏳ 生成中</span
           >
           <template v-else-if="(record as Invoice).detail_file_status === 'failed'">
             <span title="生成失败" class="text-danger">❌</span>
@@ -442,16 +442,18 @@ interface ColumnDef {
   width?: number
   align?: 'left' | 'center' | 'right'
   sortable?: boolean
+  ellipsis?: boolean
+  tooltip?: boolean
 }
 
 const columnDefs: ColumnDef[] = [
   { key: 'invoice_no', title: '结算单号', width: 214, sortable: true },
-  { key: 'customer', title: '客户' },
+  { key: 'customer', title: '客户', width: 180, ellipsis: true, tooltip: true },
   { key: 'period', title: '周期', width: 190 },
   { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
   { key: 'discount_amount', title: '减免金额', width: 76, align: 'right' },
   { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right', sortable: true },
-  { key: 'detail_file', title: '文件', width: 56, align: 'center' },
+  { key: 'detail_file', title: '文件', width: 108, align: 'center' },
   { key: 'status', title: '状态', width: 78 },
   { key: 'created_at', title: '创建时间', width: 158, sortable: true },
 ]
@@ -462,6 +464,8 @@ const tableColumns = computed<DataTableColumn[]>(() => [
     title: col.title,
     width: col.width,
     align: col.align,
+    ellipsis: col.ellipsis,
+    tooltip: col.tooltip,
     sortable: col.sortable
       ? { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] }
       : undefined,

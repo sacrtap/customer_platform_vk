@@ -2082,3 +2082,74 @@ async def test_import_invoices_ambiguous_customer_name_rejected(
     finally:
         db_session.execute(text("DELETE FROM customers WHERE name = :n"), {"n": dup_name})
         db_session.commit()
+
+
+# ==================== 批量生成结果导出 ====================
+
+
+@pytest.mark.asyncio
+async def test_export_batch_generate_result_success(test_client, auth_token):
+    """批量生成结果导出：成功+跳过合并导出为 xlsx"""
+    body = {
+        "generated": [
+            {
+                "customer_id": 1,
+                "name": "客户A",
+                "invoice_id": 10,
+                "invoice_no": "INV20261101001",
+                "total_amount": 1234.5,
+            }
+        ],
+        "skipped": [{"customer_id": 2, "name": "客户B", "reason": "结算周期内无用量数据"}],
+    }
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/generate-batch/export",
+        json=body,
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+
+    assert response.status == 200
+    assert "spreadsheetml" in response.headers.get("content-type", "")
+    wb = load_workbook(io.BytesIO(response.body))
+    ws = wb.active
+    assert ws.title == "批量生成结果"
+    assert [ws.cell(row=1, column=c).value for c in range(1, 7)] == [
+        "生成结果",
+        "客户ID",
+        "客户名称",
+        "结算单号",
+        "总金额",
+        "跳过原因",
+    ]
+    assert ws.max_row == 3  # 表头 + 1 成功 + 1 跳过
+    assert ws.cell(row=2, column=1).value == "成功"
+    assert ws.cell(row=2, column=3).value == "客户A"
+    assert ws.cell(row=2, column=4).value == "INV20261101001"
+    assert ws.cell(row=2, column=5).value == 1234.5
+    assert ws.cell(row=3, column=1).value == "跳过"
+    assert ws.cell(row=3, column=3).value == "客户B"
+    assert ws.cell(row=3, column=6).value == "结算周期内无用量数据"
+
+
+@pytest.mark.asyncio
+async def test_export_batch_generate_result_empty(test_client, auth_token):
+    """批量生成结果导出：空数据返回 40002"""
+    _request, response = await test_client.post(
+        "/api/v1/billing/invoices/generate-batch/export",
+        json={"generated": [], "skipped": []},
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert response.status == 400
+    assert response.json["code"] == 40002
+
+
+@pytest.mark.asyncio
+async def test_export_batch_generate_result_forbidden_without_permission(test_client, auth_token):
+    """批量生成结果导出：缺少 billing:invoice_export 权限返回 403"""
+    with _no_permissions():
+        _request, response = await test_client.post(
+            "/api/v1/billing/invoices/generate-batch/export",
+            json={"generated": [], "skipped": []},
+            headers={"Authorization": f"Bearer {auth_token}"},
+        )
+    assert response.status == 403
