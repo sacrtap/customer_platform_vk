@@ -176,9 +176,20 @@
 
   <!-- 批量生成结果：列出被跳过客户及具体原因 -->
   <a-modal v-model:visible="batchResultVisible" title="批量生成结果" width="720px" :footer="false">
-    <div class="preview-summary">
-      成功 <strong>{{ batchSuccessCount }}</strong> 个，跳过
-      <strong class="text-warn">{{ batchSkipped.length }}</strong> 个
+    <div class="batch-result-header">
+      <div class="preview-summary">
+        成功 <strong>{{ batchSuccessCount }}</strong> 个，跳过
+        <strong class="text-warn">{{ batchSkipped.length }}</strong> 个
+      </div>
+      <a-button
+        v-if="can('billing:invoice_export')"
+        size="small"
+        type="primary"
+        :disabled="exportingResult"
+        @click="handleExportResult"
+      >
+        {{ exportingResult ? '导出中...' : '导出明细' }}
+      </a-button>
     </div>
     <a-table
       :columns="skipResultColumns"
@@ -198,8 +209,11 @@ import {
   generateInvoice,
   previewBatchCustomers,
   generateInvoicesBatch,
+  exportBatchGenerateResult,
 } from '@/api/billing'
 import { getIndustryTypesList } from '@/api/industryTypes'
+import { useExportAction } from '@/composables/useExportAction'
+import { useUserStore } from '@/stores/user'
 import { formatCurrency } from '@/utils/formatters'
 import { pricingTypeText, formatQuantity, formatRuleDetail } from '@/utils/invoiceFormatters'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
@@ -439,7 +453,11 @@ watch(
 )
 
 // ===== 批量结果弹框 =====
+const userStore = useUserStore()
+const can = (p: string) => userStore.hasPermission(p)
+
 const batchResultVisible = ref(false)
+const batchGenerated = ref<BatchGenerateResult['generated']>([])
 const batchSkipped = ref<BatchGenerateResult['skipped']>([])
 const batchSuccessCount = ref(0)
 const skipResultColumns = [
@@ -447,6 +465,14 @@ const skipResultColumns = [
   { title: '客户名称', dataIndex: 'name' },
   { title: '跳过原因', dataIndex: 'reason' },
 ]
+
+// 导出本次批量生成结果（成功+跳过）；useExportAction 统一管理中状态/下载/错误
+const { exporting: exportingResult, run: runExportResult } = useExportAction({
+  exportApi: exportBatchGenerateResult,
+  filename: () => `批量生成结果_${new Date().toISOString().slice(0, 10)}.xlsx`,
+})
+const handleExportResult = () =>
+  runExportResult({ generated: batchGenerated.value, skipped: batchSkipped.value })
 
 // ===== 提交 =====
 const handleSubmit = async () => {
@@ -511,6 +537,7 @@ const handleSubmitBatch = async () => {
     const result = res.data
     if (result.skipped.length > 0) {
       batchSuccessCount.value = result.success_count
+      batchGenerated.value = result.generated
       batchSkipped.value = result.skipped
       batchResultVisible.value = true
       if (result.success_count > 0) {
@@ -551,6 +578,14 @@ const handleCancel = () => {
   margin-bottom: 8px;
   font-size: 13px;
   color: #64748b;
+}
+.batch-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.batch-result-header .preview-summary {
+  margin-bottom: 0;
 }
 .text-warn {
   color: #f59e0b;

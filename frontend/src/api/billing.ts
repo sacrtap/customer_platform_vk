@@ -1,6 +1,11 @@
 import api from './index'
 import type { Tier } from '@/utils/tiers'
-import { fetchExport, fetchImportTemplate, importFile } from './_excel'
+import {
+  fetchExport,
+  fetchImportTemplate,
+  importFile,
+  LONG_RUNNING_REQUEST_TIMEOUT,
+} from './_excel'
 
 // 导入/导出请求助手统一下沉至 api/_excel.ts（管理页共用），此处 re-export 保持既有调用方不变
 export { fetchExport, fetchImportTemplate, importFile }
@@ -461,6 +466,21 @@ export interface BatchGenerateResult {
 
 export function generateInvoicesBatch(data: GenerateBatchParams) {
   return api.post<BatchGenerateResult>('/billing/invoices/generate-batch', data)
+}
+
+/**
+ * 导出批量生成结果明细（POST 回传 generated/skipped，后端组装 xlsx）。
+ * 批量生成结果未落库，无法按条件重查，只能由前端回传本次结果。
+ */
+export function exportBatchGenerateResult(data: {
+  generated: BatchGenerateResult['generated']
+  skipped: BatchGenerateResult['skipped']
+}) {
+  return api.post('/billing/invoices/generate-batch/export', data, {
+    responseType: 'blob',
+    // 与 fetchExport 一致：后端同步 openpyxl 生成，放宽超时防前端先断
+    timeout: LONG_RUNNING_REQUEST_TIMEOUT,
+  })
 }
 
 // ==================== 多角色确认流程 ====================

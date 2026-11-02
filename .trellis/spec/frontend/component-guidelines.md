@@ -364,6 +364,29 @@ loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
   `getBoundingClientRect().width`），让 `scroll.x ≥ 容器宽度`。
 - 列宽对齐不要只看 `columnDefs` 的配置值——配置 64/200 但显示 78/243 是拉伸，
   不是配置生效。验证必须读 `.arco-table-th` 的实际 `getBoundingClientRect().width`。
+- **`scroll.x` 取「各列 width 之和 + 每列 1px 边框」即精确铺满**，不要拍脑袋给整数。
+  实测（2026-11-02 结算单管理页，9 列 + selection 40 + action 175）：
+  `40 + 214+180+190+104+76+110+108+78+158 + 175 = 1440`，与
+  `.arco-table-th` 实测宽度合计（215/181/191/105/76/111/109/78/159/175，各 +1px）完全吻合。
+  给 1410/1500 这类值会分别造成列被拉伸或尾部空白。
+- **容器宽度远小于列宽总和时横向滚动条必然出现**，这是既有状态而非回归：结算单页
+  容器仅 1325px（1600 视口）/1165px（1440 视口），列总和 1440px。改动前 `scroll.x=1410`
+  同样溢出。要让滚动条消失只能缩减列宽，属产品取舍，不要为「消除滚动条」盲目调大
+  `scroll.x`（那只会增加滚动量）。
+
+### ellipsis + tooltip 对 slot 渲染内容同样生效
+
+`columnDefs` 加 `ellipsis: true, tooltip: true` 后，`tableColumns` 必须把两个字段
+透传给 `DataTableColumn`（`DataTable.vue` 已支持，缺了就静默失效）。对**自定义
+slot 渲染**的列（如客户列）同样生效——Arco `table-td.js` 在
+`ellipsis && tooltip` 时把内容包进 `AutoTooltip`，DOM 表现为
+`<span class="arco-auto-tooltip arco-table-td-content">`（**不是**
+`arco-table-text-ellipsis`，后者只在 `ellipsis` 单独为 true 时出现）。
+
+- 验证方式：给该列造一条超长数据，检查 `.arco-auto-tooltip` 的
+  `overflow:hidden; white-space:nowrap`，且 `scrollWidth > clientWidth`；
+  hover 后 `.arco-tooltip-content` 文本 = 完整值。
+- 不溢出的行不挂 tooltip（AutoTooltip 只在溢出时渲染），这是预期行为。
 
 ## a-table 排序词表映射：Arco `ascend/descend` → 后端 `asc/desc`
 
