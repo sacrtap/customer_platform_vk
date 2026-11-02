@@ -280,7 +280,11 @@ class InvoiceExcelService:
     ) -> Dict[str, Any]:
         """查询客户余额和当月充值信息
 
-        期初余额 = 当前余额 + 本结算单最终金额（如已扣款则需加回）
+        当前余额（CustomerBalance.total_amount）已包含当月充值（充值为即时入账），
+        因此期初余额需先扣除当月充值；结算后余额 = 期初 + 当月充值 - 最终结算金额，
+        保证当月充值只计入一次。
+
+        期初余额 = 当前余额 - 当月充值 + 本结算单最终金额（如已扣款则需加回）
         当月充值 = 结算周期内充值记录总和
         结算后余额 = 期初余额 + 当月充值 - 最终结算金额
         """
@@ -337,13 +341,7 @@ class InvoiceExcelService:
             bal = balance.scalars().first()
 
             current_balance = bal.total_amount if bal and bal.total_amount else Decimal(0)
-
-            # 如果结算单已完成（已扣款），需要加回扣款金额恢复期初余额
             final_amount = total_amount - discount_amount
-            if invoice_status in ("completed",):
-                opening_balance = current_balance + final_amount
-            else:
-                opening_balance = current_balance
 
             # 查询当月充值记录总额
             # recharge_records.created_at 是 timestamp WITHOUT TIME ZONE（naive），
@@ -368,7 +366,16 @@ class InvoiceExcelService:
             if recharge_row:
                 monthly_recharge = (recharge_row[0] or 0) + (recharge_row[1] or 0)
 
+            # 期初余额：当前余额已包含当月充值（充值为即时入账），需先扣除；
+            # 结算单已完成（已扣款）时再加回最终金额，还原扣款前的期初
+            if invoice_status in ("completed",):
+                opening_balance = current_balance - monthly_recharge + final_amount
+            else:
+                opening_balance = current_balance - monthly_recharge
+
             # 结算后余额 = 期初 + 当月充值 - 最终结算金额
+            # draft/pending: → current_balance - final_amount（充值只算一次）
+            # completed:     → current_balance（扣款已发生，余额即当前值）
             closing_balance = opening_balance + monthly_recharge - final_amount
 
             result["opening_balance"] = opening_balance

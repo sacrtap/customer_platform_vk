@@ -311,6 +311,79 @@ class TestInvoiceExcel_BalanceInfoTimezone:
         assert info["opening_balance"] == Decimal("0")
         assert info["closing_balance"] == Decimal("-100.00")
 
+    @staticmethod
+    def _mock_service_with_balance(current_balance: Decimal, recharge_row):
+        """构造 mock 服务：第一次 execute 返回余额，第二次返回充值合计"""
+        from unittest.mock import AsyncMock, MagicMock
+
+        service = InvoiceExcelService(db=MagicMock(), external_engine=None)
+        service.db = MagicMock()
+
+        async def fake_execute(stmt):
+            result = MagicMock()
+            bal = MagicMock()
+            bal.total_amount = current_balance
+            result.scalars.return_value.first.return_value = bal
+            result.fetchone.return_value = recharge_row
+            return result
+
+        service.db.execute = AsyncMock(side_effect=fake_execute)
+        return service
+
+    @pytest.mark.asyncio
+    async def test_monthly_recharge_not_double_counted_draft(self):
+        """draft：当月充值已含于当前余额，结算后余额 = 当前余额 - 结算金额（充值只算一次）
+
+        旧公式 opening = current_balance 导致充值双计：
+        closing = 100 + 50 - 80 = 70（错误）；修正后 = 100 - 80 = 20。
+        """
+        from datetime import datetime, timezone
+
+        service = self._mock_service_with_balance(
+            current_balance=Decimal("100.00"),
+            recharge_row=(Decimal("50"), Decimal("0")),
+        )
+
+        info = await service._fetch_balance_info(
+            customer_id=1,
+            period_start=datetime(2026, 8, 31, 16, 0, 0, tzinfo=timezone.utc),
+            period_end=datetime(2026, 9, 30, 15, 59, 59, tzinfo=timezone.utc),
+            total_amount=Decimal("80.00"),
+            discount_amount=Decimal("0.00"),
+            invoice_status="draft",
+        )
+
+        assert info["monthly_recharge"] == Decimal("50")
+        assert info["opening_balance"] == Decimal("50.00")  # 100 - 50 = 真实期初
+        assert info["closing_balance"] == Decimal("20.00")  # 100 - 80，充值不重复计入
+
+    @pytest.mark.asyncio
+    async def test_monthly_recharge_not_double_counted_completed(self):
+        """completed：扣款已发生，结算后余额应等于当前余额（充值同样只算一次）
+
+        旧公式 closing = current + final + recharge - final = current + recharge，
+        充值同样被双计；修正后 closing = current_balance。
+        """
+        from datetime import datetime, timezone
+
+        service = self._mock_service_with_balance(
+            current_balance=Decimal("100.00"),
+            recharge_row=(Decimal("50"), Decimal("0")),
+        )
+
+        info = await service._fetch_balance_info(
+            customer_id=1,
+            period_start=datetime(2026, 8, 31, 16, 0, 0, tzinfo=timezone.utc),
+            period_end=datetime(2026, 9, 30, 15, 59, 59, tzinfo=timezone.utc),
+            total_amount=Decimal("80.00"),
+            discount_amount=Decimal("0.00"),
+            invoice_status="completed",
+        )
+
+        assert info["monthly_recharge"] == Decimal("50")
+        assert info["opening_balance"] == Decimal("130.00")  # 100 - 50 + 80 = 扣款前期初
+        assert info["closing_balance"] == Decimal("100.00")  # 扣款后余额 = 当前余额
+
 
 class TestInvoiceExcel_IllegalCharacters:
     """外部数据控制字符清洗测试
