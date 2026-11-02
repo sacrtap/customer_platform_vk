@@ -803,5 +803,13 @@ await db.execute(insert(BackupRecord).values(..., created_at=naive_now, updated_
 **判定方法**：`SELECT column_name, data_type FROM information_schema.columns WHERE table_name='...'`，
 看是 `timestamp with time zone` 还是 `without time zone`，与 `app/utils/timezone.py` 的 `cst_now()`（aware）对齐。
 
+**ORM 软删除（`SoftDeleteMixin.deleted_at`）同样是 naive 列**，代码库既有约定是赋
+`func.now()`（服务端在锁定的 CST 会话时区下写墙钟），见 `InvoiceService.delete_invoice`
+（`app/services/billing.py`）与 `CustomerService` 删除路径。直接赋 `cst_now()`（aware）
+会被 asyncpg 拒绝（2026-11-03 VR 结算单 `delete_settlement` 实测 500 定位）。
+反之，字符串时间列（`*_at String(50)`，如 `completed_at`/`cancelled_at`）用
+`cst_now().strftime("%Y-%m-%d %H:%M:%S")` 写 CST 墙钟串，与时区无关。
+
 **Tests Required**：恢复/清理等手写 `insert(...)` 的路径必须覆盖终态落库；
+软删除路径必须覆盖「删除后再查询 404」（如 VR 结算单 `test_cancel_and_delete`）；
 `tests/unit/test_test_data_consistency.py` 已守住 seed 与模型的权限种子一致性。
