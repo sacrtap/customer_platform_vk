@@ -274,9 +274,24 @@ class TestDiscount:
         assert msg == "减免金额不能为 0"
 
     @pytest.mark.asyncio
-    async def test_apply_discount_locked_after_sales_supervisor(self, service, mock_db_session):
-        """销售主管审批节点起锁定"""
+    async def test_apply_discount_allowed_at_sales_supervisor(self, service, mock_db_session):
+        """销售主管审批通过前（pending_sales_supervisor）仍可提交/修改减免"""
         settlement = _settlement(status="pending_sales_supervisor")
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        ok, _ = await service.apply_discount(
+            1,
+            discount_amount=Decimal("100"),
+            discount_reason="x",
+            discount_attachment=None,
+            user_id=1,
+        )
+        assert ok is True
+        assert settlement.discount_amount == Decimal("100")
+
+    @pytest.mark.asyncio
+    async def test_apply_discount_locked_after_customer(self, service, mock_db_session):
+        """销售主管审批通过（pending_customer）起锁定，防止绕过已生效的减免审批"""
+        settlement = _settlement(status="pending_customer")
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
         ok, msg = await service.apply_discount(
             1,

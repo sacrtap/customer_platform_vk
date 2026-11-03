@@ -315,7 +315,7 @@ async def test_discount_approved_together_at_sales_supervisor(
 
 @pytest.mark.asyncio
 async def test_discount_edit_window(test_client, auth_token, test_customer_with_balance):
-    """AC5：pending_sales_supervisor 及之后不可改减免；前三态可改；金额 0 拒绝"""
+    """AC5：销售主管审批通过前（含 pending_sales_supervisor）可改减免；pending_customer 起锁定；金额 0 拒绝"""
     customer_id = test_customer_with_balance["id"]
     settlement_id = await _create_settlement(test_client, auth_token, customer_id)
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -347,16 +347,15 @@ async def test_discount_edit_window(test_client, auth_token, test_customer_with_
     _, response = await put_discount(70)
     assert response.status == 200, response.json
 
-    # 销售审批 → 待销售主管，锁定不可改
+    # 销售审批 → 待销售主管（审批通过前最后节点），仍可改
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
     _, response = await put_discount(80)
-    assert response.status == 400
+    assert response.status == 200, response.json
 
-    # 客户确认后同样不可改
+    # 销售主管审批通过 → 待客户确认，锁定不可改
     await _post_action(
         test_client, auth_token, f"/{settlement_id}/confirm-sales-supervisor", {"comment": "同意"}
     )
-    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm")
     _, response = await put_discount(90)
     assert response.status == 400
 

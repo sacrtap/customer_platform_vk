@@ -20,8 +20,14 @@ from ..utils.timezone import cst_now, cst_today
 
 logger = logging.getLogger(__name__)
 
-# 减免允许提交/修改的状态（销售主管审批节点起锁定，与 InvoiceService.apply_discount 对齐）
-_DISCOUNT_EDITABLE_STATUSES = ("draft", "pending_cs_supervisor", "pending_sales")
+# 减免允许提交/修改的状态：销售主管审批通过前的任意节点（含 pending_sales_supervisor）；
+# pending_customer 起锁定（减免已随销售主管一并审批生效，不可再改，防止绕过审批）
+_DISCOUNT_EDITABLE_STATUSES = (
+    "draft",
+    "pending_cs_supervisor",
+    "pending_sales",
+    "pending_sales_supervisor",
+)
 
 # 可取消的状态（非终态；customer_confirmed/completed/cancelled 不可取消）
 _CANCELLABLE_STATUSES = (
@@ -330,8 +336,9 @@ class VrSettlementService:
     ) -> Tuple[bool, str]:
         """提交/修改减免
 
-        允许状态：draft / pending_cs_supervisor / pending_sales
-        （销售主管审批节点起锁定，防止绕过减免审批）。
+        允许状态：draft / pending_cs_supervisor / pending_sales / pending_sales_supervisor
+        （销售主管审批通过前任意节点可提交/修改；pending_customer 起锁定，
+        防止绕过已生效的减免审批）。
         每次修改插入一条 VrSettlementDiscountHistory。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
