@@ -68,6 +68,8 @@ export interface VrSettlement {
   cancelled_name?: string | null
   detail_file_path: string | null
   detail_file_name: string | null
+  /** 备注说明（创建时填写的多行文本，只读展示） */
+  remark?: string | null
   is_auto_generated?: boolean
   created_by?: number | null
   created_by_name?: string | null
@@ -83,6 +85,7 @@ export interface CreateVrSettlementParams {
   total_amount: number
   detail_file_path: string
   detail_file_name: string
+  remark?: string
 }
 
 // ==================== API 函数 ====================

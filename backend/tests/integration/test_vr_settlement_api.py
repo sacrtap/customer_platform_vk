@@ -104,9 +104,9 @@ async def test_customer_with_balance(db_session, test_customer):
     db_session.commit()
 
 
-def _create_payload(customer_id: int, total_amount=500.0) -> dict:
+def _create_payload(customer_id: int, total_amount=500.0, remark: str | None = None) -> dict:
     """创建接口请求体（明细文件路径为静态 URL，不解析内容）"""
-    return {
+    payload = {
         "customer_id": customer_id,
         "period_start": "2026-11-01",
         "period_end": "2026-11-30",
@@ -114,13 +114,18 @@ def _create_payload(customer_id: int, total_amount=500.0) -> dict:
         "detail_file_path": "/uploads/2026/11/test.xlsx",
         "detail_file_name": "test.xlsx",
     }
+    if remark is not None:
+        payload["remark"] = remark
+    return payload
 
 
-async def _create_settlement(test_client, auth_token, customer_id: int, total_amount=500.0) -> int:
+async def _create_settlement(
+    test_client, auth_token, customer_id: int, total_amount=500.0, remark: str | None = None
+) -> int:
     """创建结算单并返回 id"""
     request, response = await test_client.post(
         "/api/v1/billing/vr-settlements",
-        json=_create_payload(customer_id, total_amount),
+        json=_create_payload(customer_id, total_amount, remark),
         headers={"Authorization": f"Bearer {auth_token}"},
     )
     assert response.status == 201, response.json
@@ -538,6 +543,34 @@ async def test_create_validation_errors(test_client, auth_token, test_customer):
     )
     assert response.status == 400
     assert response.json["message"] == "日期格式错误，应为 YYYY-MM-DD"
+
+
+@pytest.mark.asyncio
+async def test_create_with_remark(test_client, auth_token, test_customer):
+    """备注说明：创建时携带多行备注 → 详情/列表均回显；不传时为 None"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+    remark_text = "第一行备注\n第二行备注\n第三行"
+
+    # 带备注创建
+    settlement_id = await _create_settlement(
+        test_client, auth_token, customer_id, remark=remark_text
+    )
+    detail = await _get_detail(test_client, auth_token, settlement_id)
+    assert detail["remark"] == remark_text
+
+    # 列表同样回显 remark
+    _, response = await test_client.get(
+        f"/api/v1/billing/vr-settlements?keyword={detail['settlement_no']}", headers=headers
+    )
+    assert response.status == 200
+    item = next(i for i in response.json["data"]["list"] if i["id"] == settlement_id)
+    assert item["remark"] == remark_text
+
+    # 不传 remark → None
+    settlement_id_2 = await _create_settlement(test_client, auth_token, customer_id)
+    detail_2 = await _get_detail(test_client, auth_token, settlement_id_2)
+    assert detail_2["remark"] is None
 
 
 @pytest.mark.asyncio

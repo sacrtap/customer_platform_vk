@@ -64,6 +64,7 @@ class VrSettlementService:
         detail_file_path: Optional[str],
         detail_file_name: Optional[str],
         created_by: int,
+        remark: Optional[str] = None,
     ) -> VrSettlement:
         """手动创建 VR 结算单（草稿）
 
@@ -84,6 +85,7 @@ class VrSettlementService:
             is_auto_generated=False,
             detail_file_path=detail_file_path,
             detail_file_name=detail_file_name,
+            remark=remark or None,
             created_by=created_by,
         )
         self.db.add(settlement)

@@ -116,6 +116,9 @@
             </a>
             <span v-else class="subtle">—</span>
           </a-descriptions-item>
+          <a-descriptions-item v-if="settlement.remark" label="备注说明" :span="2">
+            <span class="remark-text">{{ settlement.remark }}</span>
+          </a-descriptions-item>
         </a-descriptions>
 
         <!-- 减免修改历史 -->
@@ -403,6 +406,11 @@ const flowSettledDescription = computed(() =>
 
 .attachment-link {
   color: var(--primary);
+}
+
+.remark-text {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .subtle {

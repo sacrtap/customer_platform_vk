@@ -147,6 +147,7 @@ async def get_vr_settlements(request: Request):
                         "status": s.status,
                         "detail_file_path": s.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
                         "detail_file_name": s.detail_file_name,  # pyright: ignore[reportGeneralTypeIssues]
+                        "remark": s.remark,  # pyright: ignore[reportGeneralTypeIssues]
                         "created_at": s.created_at.isoformat() if s.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for s in settlements
@@ -260,6 +261,7 @@ async def get_vr_settlement(request: Request, settlement_id: int):
                 "is_auto_generated": settlement.is_auto_generated,
                 "detail_file_path": settlement.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
                 "detail_file_name": settlement.detail_file_name,  # pyright: ignore[reportGeneralTypeIssues]
+                "remark": settlement.remark,  # pyright: ignore[reportGeneralTypeIssues]
                 "created_at": settlement.created_at.isoformat()  # pyright: ignore[reportGeneralTypeIssues]
                 if settlement.created_at
                 else None,
@@ -356,6 +358,7 @@ async def create_vr_settlement(request: Request):
         detail_file_path=data.get("detail_file_path"),
         detail_file_name=data.get("detail_file_name"),
         created_by=user["user_id"] if user else 1,
+        remark=data.get("remark"),
     )
 
     # 创建后清除相关缓存

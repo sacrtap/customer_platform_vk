@@ -84,6 +84,8 @@ class VrSettlement(BaseModel):
     # 结算明细文件（创建时用户上传，存 /files/upload 返回路径）
     detail_file_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     detail_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 备注说明（创建时填写，多行文本，仅展示用）
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 创建方式：手动创建=False；自动创建（待开发）上线后为 True
     is_auto_generated: Mapped[bool | None] = mapped_column(Boolean, default=False)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)

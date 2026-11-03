@@ -60,6 +60,16 @@
           </a-upload>
           <div class="form-tip">明细文件仅存档与下载，不解析内容；结算金额请手动填写</div>
         </a-form-item>
+        <a-form-item label="备注说明">
+          <a-textarea
+            v-model="form.remark"
+            placeholder="请输入备注说明（选填）"
+            :max-length="500"
+            :auto-size="{ minRows: 3, maxRows: 6 }"
+            show-word-limit
+            allow-clear
+          />
+        </a-form-item>
       </template>
     </a-form>
   </a-modal>
@@ -96,6 +106,7 @@ const form = reactive({
   period_start: '',
   period_end: '',
   total_amount: undefined as number | undefined,
+  remark: '',
 })
 
 const periodRange = ref<string[]>([])
@@ -117,6 +128,7 @@ watch(
       form.period_start = ''
       form.period_end = ''
       form.total_amount = undefined
+      form.remark = ''
       periodRange.value = []
       fileList.value = []
       customerPickerKey.value += 1
@@ -189,6 +201,7 @@ const handleSubmit = async () => {
       total_amount: form.total_amount,
       detail_file_path: detailFilePath,
       detail_file_name: (fileList.value[0] as { name?: string }).name || '',
+      remark: form.remark.trim() || undefined,
     })
     Message.success('创建成功')
     emit('success')
