@@ -550,3 +550,17 @@ const isCompleted = !!timeValue && !isCurrent
 ```
 
 另：元素截图形状贴近边框时有视觉误判，几何判定（`getBoundingClientRect` 对比）与整弹窗截图才是可靠证据。
+
+### upload 文件条目输入框化的三个内置样式陷阱
+
+`.arco-upload-list-item` 做成输入框外观时，Arco 内置样式会叠出丑陋层叠：
+
+1. **`content` 自带灰底**：`.arco-upload-list-item-content` 内置
+   `background-color: var(--color-fill-1)` + `padding: 8px 0 8px 12px`——
+   在自定义边框内又叠一层「框中框灰条」。必须 `background-color: transparent; padding: 0`。
+2. **无效 fallback 值**：`background: var(--fg) 0a` 这类写法——变量未定义
+   （项目只有 `--primary`，无 `--fg`/`--accent`）时整个声明 invalid，静默变透明。
+   自定义控件对齐 a-input 用 Arco token：背景 `var(--color-fill-2)`、
+   hover 边框 `var(--primary)`（与 arco-theme.css 的 input 规则一致）。
+3. **name-text 的 cursor:pointer**：Arco 内置给链接场景用，手动上传不可点击文件名，
+   改 `cursor: default` 避免误导。

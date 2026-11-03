@@ -233,23 +233,32 @@ const handleSubmit = async () => {
   display: none;
 }
 
-/* 删除按钮红色（text 列表类型 class 为 arco-upload-icon-remove） */
-:deep(.arco-upload-icon-remove) {
-  color: var(--red, #ef4444);
-}
-
-/* 文件条目做成输入框外观：删除按钮收在框内右端 */
+/* 文件条目做成输入框外观：背景/边框对齐表单 a-input */
 :deep(.arco-upload-list-item) {
   height: 32px;
   margin: 0;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: var(--fg) 0a;
+  background-color: var(--color-fill-2);
   align-items: center;
+  transition: border-color 0.2s;
 }
 :deep(.arco-upload-list-item:hover) {
-  border-color: var(--accent, #165dff);
+  border-color: var(--primary);
+}
+/* 去掉 Arco content 内置的文件名底色与内边距（框中框灰条） */
+:deep(.arco-upload-list-item-content) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  background-color: transparent;
+}
+:deep(.arco-upload-list-item-name) {
+  flex: 1;
+  min-width: 0;
+  margin-right: 4px;
 }
 :deep(.arco-upload-list-item-name-text) {
   flex: 1;
@@ -257,15 +266,11 @@ const handleSubmit = async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default;
 }
-/* content/name 容器同样需可收缩，否则 operation 被挤出输入框 */
-:deep(.arco-upload-list-item-content) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-:deep(.arco-upload-list-item-name) {
-  flex: 1;
-  min-width: 0;
+/* 删除按钮红色（text 列表类型 class 为 arco-upload-icon-remove） */
+:deep(.arco-upload-icon-remove) {
+  color: var(--red, #ef4444);
+  font-size: 14px;
 }
 </style>
