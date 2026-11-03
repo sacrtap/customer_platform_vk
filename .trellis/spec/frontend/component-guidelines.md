@@ -435,3 +435,37 @@ service 严格校验才暴露。**新增排序列表时，即使后端会兜底�
 **回归测试**：`views/customers/components/__tests__/CustomerTable.test.ts` 点击「客户ID」
 表头三次，依次断言 emit `['company_id','asc']` / `['company_id','desc']` / `['','']`。
 新增可排序列表一律补这套三态断言，锁死词表映射。
+
+---
+
+## 状态机时间线：共享哑渲染层 + completed 终态判定陷阱
+
+**模式**（2026-11-03 VR 结算单操作记录落地）：结算类单据详情的「操作记录」时间线，
+渲染层与节点推导分离——
+
+- `components/common/StatusTimeline.vue`：**哑渲染**，props 只收 `events: TimelineEvent[]`
+  （label/time/operator/detailParts/dotColor/textClass），不含任何业务判断
+- 业务 wrapper（`components/invoice/InvoiceTimeline.vue`、`components/vr/VrSettlementTimeline.vue`）：
+  各自定义流程节点表（field/label/statusKey/operatorField/detailParts）与三态着色逻辑
+- 新单据类型接时间线 = 新建 wrapper + 节点表，**不要复制整条渲染链**
+
+**completed 终态判定陷阱（已修 VR 侧，Invoice 侧仍存在）**：
+
+```ts
+// 错误（InvoiceTimeline 现有逻辑，继承缺陷）
+const isCompleted = timeValue && index !== currentRemIndex
+// completed 状态下 currentRemIndex 指向末节点（completed_at），
+// 导致「完成结算」节点 isCompleted=false → 渲染成灰色「未到达」
+
+// 正确（VR 侧已修）
+const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
+const isCompleted = !!timeValue && !isCurrent
+```
+
+`InvoiceTimeline.vue` 本次仅做渲染层抽取（computed 零改动），该缺陷**原样保留**——
+修复它属于独立改动，需先补 Invoice 侧时间线回归测试再动（当前无测试守护）。
+VR 侧修复已由 `components/vr/__tests__/VrSettlementTimeline.test.ts`
+「已完成流程：全部节点 completed 绿色」用例锁死。
+
+**测试要求**：新时间线 wrapper 必须覆盖三态——已完成全绿（终态无 current）、
+当前节点蓝色高亮、取消末位红节点；减免历史插在「创建」节点之后（后端倒序返回需反转）。
