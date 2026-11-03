@@ -7,7 +7,7 @@
     @before-ok="handleSubmit"
     @cancel="handleCancel"
   >
-    <a-form layout="vertical">
+    <a-form :model="form" layout="vertical">
       <!-- 生成方式选择 -->
       <a-form-item label="生成方式" required>
         <a-radio-group v-model="mode" @change="handleModeChange">

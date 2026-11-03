@@ -1,4 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+// Mock lifecycle hooks to prevent Vue warnings when composable is called outside component context.
+// useInvoice registers onUnmounted, which requires an active component instance.
+// These tests call the composable directly, so we silence the hook without changing test behavior.
+vi.mock('vue', async () => {
+  const actual = await vi.importActual<typeof import('vue')>('vue')
+  return {
+    ...actual,
+    onUnmounted: vi.fn(),
+  }
+})
+
 import { useInvoice } from '../useInvoice'
 
 // Mock API modules

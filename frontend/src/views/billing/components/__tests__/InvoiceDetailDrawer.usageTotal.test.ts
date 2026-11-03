@@ -1,7 +1,27 @@
-import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { mount, enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import ArcoVue from '@arco-design/web-vue'
 import InvoiceDetailDrawer from '@/views/billing/components/InvoiceDetailDrawer.vue'
+
+// 挂载的 Arco 组件（Timeline 等）在测试环境销毁后可能残留 requestAnimationFrame，
+// 触发 jsdom 未处理异常；enableAutoUnmount 保证每个用例后自动卸载
+enableAutoUnmount(afterEach)
+
+// jsdom 不实现 window.matchMedia，Arco 响应式组件（内部 responsive-observe）挂载时需要
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
 
 vi.mock('@/stores/user', () => ({
   useUserStore: vi.fn(() => ({ hasPermission: () => true })),
@@ -28,6 +48,7 @@ function mountDrawer(invoice: Record<string, unknown>) {
   return mount(InvoiceDetailDrawer, {
     props: { visible: true, invoice: invoice as never },
     global: {
+      plugins: [ArcoVue],
       stubs: {
         'a-drawer': { template: '<div><slot /></div>' },
         'a-modal': { template: '<div><slot /></div>' },
