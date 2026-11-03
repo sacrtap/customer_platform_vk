@@ -85,7 +85,7 @@
         </button>
 
         <div
-          v-if="can('billing:view')"
+          v-if="can('billing:view') || can('vr_settlement:view')"
           class="nav-parent"
           :class="{ active: isParentMenuActive('billing') }"
           :aria-expanded="expandedSubmenu === 'billing'"

@@ -134,20 +134,8 @@
           >
             提交
           </button>
-          <!-- 设置/修改减免（draft/待客服主管/待销售） -->
-          <button
-            v-if="
-              can('vr_settlement:edit') &&
-              ['draft', 'pending_cs_supervisor', 'pending_sales'].includes(
-                (record as VrSettlement).status
-              )
-            "
-            class="btn"
-            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-            @click.stop="openDiscountModal(record as VrSettlement)"
-          >
-            {{ (record as VrSettlement).discount_amount ? '修改减免' : '设置减免' }}
-          </button>
+          <!-- 设置/修改减免入口在详情抽屉（VrSettlementDetailDrawer edit-discount），
+               操作列不再放置，避免与审批按钮争位 -->
           <!-- 客服主管审批 -->
           <button
             v-if="
