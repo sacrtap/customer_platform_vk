@@ -26,6 +26,7 @@ These guides help you **ask the right questions before coding**.
 | [VitePress 文档站 + CI 路径过滤](./vitepress-docs-ci-guide.md) | VitePress 独立文档站工程约定（config 位置/base/nginx 配合）与重型 CI 测试 paths-filter 模式 | 新增 VitePress 文档站、修改 nginx 静态托管、调整 PR checks |
 | [omp LSP 在 monorepo 子工程下的配置](./omp-lsp-monorepo-guide.md) | cwd-only rootMarkers、binary PATH 过滤、eslint `""` 键、vue ls 锁 2.x 等 omp LSP 配置踩坑 | 配置 `.omp/lsp.json`、LSP server 不出现 / `-32601` / eslint `workingDirectory` null 崩溃时 |
 | [Code Review Guide（OCR 执行策略）](./code-review-guide.md) | `ocr review` 在网关不稳定（HTTP 524/530/502/503）环境下的分组小批量并行 + resume 补审策略、报告规范、修复连带检查 | 运行 open-code-review 审查分支/提交时 |
+| [部署韧性规范](./deployment-resilience.md) | 远端 `podman pull` TCP 半开无限等待的根因与三层防护（拉取超时重试 / bash 看门狗三个坑 / 先拉后停 / job `timeout-minutes`）、stub 三场景实测法 | 改 `deploy/` 或 `deploy.yml`、部署卡死或站点 502 排查 |
 
 ---
 
@@ -72,6 +73,16 @@ These guides help you **ask the right questions before coding**.
 3. **Variable misreading**: Not tracing a variable to its actual definition (e.g., Map keyed by path vs name)
 
 **Verification rule**: Every CRITICAL/WARNING finding must be verified against the actual code before prioritizing. Budget ~35% false-positive rate for AI reviews.
+
+### When to Think About Deployment Resilience
+
+- [ ] 你在 `deploy/scripts/` 或 `.github/workflows/deploy.yml` 里新增会连远端的命令
+- [ ] 你在调整 `main()` 的步骤顺序
+- [ ] 你在改健康检查的目标地址
+- [ ] 部署 job 没有显式 `timeout-minutes`
+- [ ] 站点 502 / 部署卡住需要排查
+
+→ Read [Deployment Resilience Guide](./deployment-resilience.md)
 
 ---
 
