@@ -141,6 +141,32 @@ of that replay model.
 - [ ] Constants defined in one place
 - [ ] Similar patterns follow same structure
 - [ ] Reducer/action transitions live in one reducer or command dispatcher
+- [ ] 抽共享组件时**外观/样式随结构一起搬**，父组件不再包裹装饰层（见下方 Gotcha）
+
+---
+
+## Gotcha: 抽组件只搬结构、把样式留在父组件 → 两侧必然漂移
+
+**Problem**: 把一段重复的展示结构抽成共享组件，但容器/标题/边框等**装饰样式仍留在各自的父组件**里。
+组件结构相同，渲染结果却不同——因为父组件的样式作用域不同（在 Vue scoped 中，
+父组件的 scope id 会加到子组件**根元素**上，父组件同名类规则会穿透进来）。
+
+真实案例（2026-11-03，`DiscountHistoryTable.vue`）：共享组件根元素沿用 `.table-wrap`，
+结算单管理侧父组件保留 `.table-wrap { border; border-radius: 15px }`（给别的表格用）→
+穿透生效；VR 侧父组件同规则已删 → 不生效。结果同一个组件在两侧渲染出不同外框。
+
+**Rule**:
+
+1. 抽组件时，**先确认"这段代码的视觉输出由谁负责"**：样式与结构必须归属同一个文件。
+2. 共享组件根元素用**专属类名**，避免与任何父组件的通用类（`.table-wrap`/`.table`/
+   `.detail-section`/`.section-header`）同名。
+3. 父组件模板只保留 `<Child v-if="..." :props="..." />`，不要外层再包
+   `.detail-section`/`.section-header` 装饰 div。
+4. 验收：`getComputedStyle` 结构化对比两侧同一组属性 → 必须 `none — 完全一致`；
+   截图只能辅助，不能作为"一致"的判定依据。
+
+详见 `.trellis/spec/frontend/component-guidelines.md`
+「共享组件外观归属：样式必须随结构一起搬 + 专属根类名」。
 
 ---
 

@@ -7,7 +7,7 @@
 1. 创建时支持「手动创建 / 自动创建」两种模式选择；**自动创建当前禁用并标识「待开发」**（仅前端展示，无后端能力）。
 2. 手动创建：选择指定客户 + 上传结算明细 Excel + 填写结算金额与周期即可创建（状态 `draft`）。
 3. 审批流：创建 → 客服主管审批 → 指定客户的销售审批 → 销售主管审批 → 客户确认 → 完成结算。**客户确认即自动扣减客户余额并写入关联消耗记录**（与现有结算单模块「确认后自动扣款」一致，已与用户确认）。
-4. 减免：在销售主管审批前的任意节点（draft / 待客服主管 / 待销售）可提交/修改减免信息；**销售主管审批时一并审批**（通过=节点通过且减免生效；驳回=整单退回销售节点）。
+4. 减免：在销售主管审批前的任意节点（draft / 待客服主管 / 待销售 / 待销售主管）可提交/修改减免信息；**销售主管审批时一并审批**（通过=节点通过且减免生效；驳回=整单退回销售节点）。
 5. 取消/删除纳入范围（借鉴现有模块，已与用户确认）：任意非终态可取消；软删除。
 
 不做：Excel 明细解析入库（明细文件仅上传存档与下载，不解析行项目）、批量操作、导入导出、自动创建的后端实现、定时任务、待办聚合接入。
@@ -224,7 +224,7 @@ class VrSettlementDiscountHistory(BaseModel):
 | `confirm_sales(settlement_id, user_id)` | `{pending_sales}` | **身份校验** `customer.sales_manager_id != user_id` → `(False, "您不是该客户指定的销售，无权确认")`（照抄 `billing.py:1821-1823`）；写 `sales_confirmed_by/at` → `pending_sales_supervisor` |
 | `confirm_sales_supervisor(settlement_id, user_id, comment=None)` | `{pending_sales_supervisor}` | 写 `sales_supervisor_confirmed_by/at`；**若 `discount_amount != 0`**：写 `discount_approver_id=user_id`、`discount_approved_at`、`discount_approval_comment=comment`（一并审批通过）；→ `pending_customer` |
 | `reject_sales_supervisor(settlement_id, user_id, comment)` | `{pending_sales_supervisor}` | `comment` 空由路由层 400 拦截；退回 `pending_sales`（销售重新确认后可再次提交审批；减免保持待审批状态不变） |
-| `apply_discount(settlement_id, discount_amount, discount_reason, discount_attachment, user_id)` | `{draft, pending_cs_supervisor, pending_sales}` | `discount_amount == 0` → `(False, "减免金额不能为 0")`；写 `discount_amount/discount_reason/discount_attachment/discount_applied_at`；插一条 `VrSettlementDiscountHistory`；commit |
+| `apply_discount(settlement_id, discount_amount, discount_reason, discount_attachment, user_id)` | `{draft, pending_cs_supervisor, pending_sales, pending_sales_supervisor}` | `discount_amount == 0` → `(False, "减免金额不能为 0")`；写 `discount_amount/discount_reason/discount_attachment/discount_applied_at`；插一条 `VrSettlementDiscountHistory`；commit |
 | `confirm_customer(settlement_id, user_id)` | `{pending_customer}` | 先落库 `customer_confirmed` + `customer_confirmed_by/at` 并 commit，再调 `_execute_deduction`（照抄 `billing.py:1838-1860`） |
 | `_execute_deduction(settlement) -> tuple[bool, str]` | 内部 | `final_amount = settlement.total_amount - (settlement.discount_amount or 0)`；调 `BalanceService(self.db).consume(customer_id=settlement.customer_id, amount=final_amount, vr_settlement_id=settlement.id)`；成功 → `status="completed"` + `completed_at/completed_by` + commit，返回 `(True, "客户确认成功，已自动完成扣款")`；失败保持 `customer_confirmed`，返回 `(True, f"客户确认成功，但扣款失败：{msg}")`；`OperationalError` 降级 `(True, "客户确认成功，但扣款失败：数据库繁忙，请稍后重试")`（照抄 `billing.py:1884-1921`） |
 | `retry_deduction(settlement_id, user_id)` | `{customer_confirmed}` | 重新 `_execute_deduction` |
@@ -384,7 +384,7 @@ export const VR_SETTLEMENT_STATUS_OPTIONS  // Object.entries 映射 {label, valu
 | 状态 | 按钮 | 条件 |
 |---|---|---|
 | `draft` | 提交 | `can('vr_settlement:create')` |
-| `draft`/`pending_cs_supervisor`/`pending_sales` | 设置减免/修改减免 | `can('vr_settlement:edit')` → 打开 `VrSettlementDiscountModal` |
+| `draft`/`pending_cs_supervisor`/`pending_sales`/`pending_sales_supervisor` | 设置减免/修改减免 | `can('vr_settlement:edit')` → 打开 `VrSettlementDiscountModal` |
 | `pending_cs_supervisor` | 客服主管审批 | `can('vr_settlement:cs_approve')` |
 | `pending_sales` | 销售审批 | `can('vr_settlement:sales_approve')` 且 `currentUserId === record.customer_sales_manager_id`；不满足时禁用 + tooltip「您不是该客户指定的销售，无法确认」/「该客户尚未指定销售，无法确认」 |
 | `pending_sales_supervisor` | 审批通过 / 审批驳回 | `can('vr_settlement:sales_supervisor_approve')` → 打开 `VrSettlementApprovalModal`（mode approve/reject） |
@@ -412,6 +412,25 @@ export const VR_SETTLEMENT_STATUS_OPTIONS  // Object.entries 映射 {label, valu
 - 减免区：`discount_amount !== 0` 时展示金额/原因/附件链接/审批结果（审批人+时间+意见）；`discount_history` 列表（时间、金额、原因、操作人）。
 - 明细文件下载链接（`detail_file_path` 静态 URL，`detail_file_name` 为显示名）。
 - 操作按钮区：与列表一致的状态×权限×身份规则（`can('vr_settlement:edit')` 包取消/删除/减免，`can('vr_settlement:confirm')` 包确认/重试）。
+
+**步骤 5.8.1 详情抽屉整体样式与「结算单管理」详情保持一致（单一来源）**：
+
+两个详情抽屉（`VrSettlementDetailDrawer` / `InvoiceDetailDrawer`）的抽屉级公共样式**只允许在
+`frontend/src/styles/detail-drawer.css` 定义一次**，各自在 `<style scoped>` 顶部 `@import "@/styles/detail-drawer.css";`。
+公共类清单：`.drawer-content`（gap 24px）、`.detail-title`（gap 12px）+ `h2`（20px/700/var(--ink)）、
+`.flow-steps`（#f8fafc + 1px #e2e8f0 + radius 12px + padding 16px 20px 6px）、`.flow-cancelled`（padding 16px 20px）、
+`.section-header`（flex/space-between + margin-bottom 12px）+ `h3`（16px/600）、`.amount-final`（16px/700）、
+`.text-danger`/`.text-success`、`.attachment-link`（含下划线）、`.subtle`（var(--muted)）、
+`.action-section`（flex-end + gap 8px + padding-top 16px + 1px var(--line)）、`.btn` 全系列（padding 9px 16px + transition）。
+
+- `:deep(.arco-steps*)` 三条（steps padding 4px 0、title 13px、description 12px/100px/ellipsis/nowrap）**不能**放进共享文件
+  （SFC 编译期语法，@import 内联顺序不可靠），各组件内联保留。
+- 组件特有规则留在各自文件：VR 的 `.remark-text`；Invoice 的表格/`.amount`/`.pricing-*`/`.btn.btn-sm` 等。
+- 已实测：Vite 会把 scoped 块内 `@import` 的规则内联并加 scope id（CSSOM 中全部带 `[data-v-*]`，0 条泄漏为全局）。
+- 验收：两抽屉同一组元素 computed style 逐项 diff 输出 `none — 完全一致`（详见
+  `.trellis/spec/frontend/component-guidelines.md`「平行详情页外观一致性」）。
+- 减免历史区使用共享组件 `frontend/src/components/common/DiscountHistoryTable.vue`（自带标题与容器外观），
+  父组件不再包裹 `.detail-section`/`.section-header`。
 
 **步骤 5.9 修改 `frontend/src/router/index.ts`**（billing children，invoices 之后约 71 行处插入）：
 
@@ -453,7 +472,7 @@ export const VR_SETTLEMENT_STATUS_OPTIONS  // Object.entries 映射 {label, valu
 
 1. `test_create_and_full_approval_flow`：`POST /vr-settlements`（带 `detail_file_path="/uploads/2026/11/test.xlsx"`、`total_amount=500`）→ 201 且 `settlement_no` 以 `VR-` 开头；`GET` 详情 `status=draft`、`final_amount=500`；submit → `pending_cs_supervisor`；confirm-cs → `pending_sales`；confirm-sales → `pending_sales_supervisor`；confirm-sales-supervisor（带 comment）→ `pending_customer`；confirm → `completed`。**断言余额**：`customer_balances` 该客户 `used_total=500`、`total_amount=500`（1000-500）；**断言消耗记录**：`consumption_records` 存在一行 `amount=500, vr_settlement_id=<id>, balance_after=500`。
 2. `test_discount_approved_together_at_sales_supervisor`：create(1000) → draft 时 `PUT /discount`（100，「大客户优惠」）→ 201/200 且历史表多一行；submit → confirm-cs → confirm-sales → confirm-sales-supervisor(comment="同意减免") → 详情断言 `discount_approver_id` 非空、`discount_approved_at` 非空、`discount_approval_comment=="同意减免"`、`final_amount=900`；confirm → completed；断言扣款 900、`balance_after=100`。
-3. `test_discount_edit_window`：`pending_sales_supervisor` 及之后状态 `PUT /discount` → 400；`draft`/`pending_cs_supervisor`/`pending_sales` 可改。
+3. `test_discount_edit_window`：`pending_customer` 起 `PUT /discount` → 400；`draft`/`pending_cs_supervisor`/`pending_sales`/`pending_sales_supervisor` 可改。
 4. `test_reject_requires_comment_and_reverts`：走到 `pending_sales_supervisor` → `POST /reject-sales-supervisor` 无 body → 400「驳回必须填写理由」；带 comment → 200 且状态回 `pending_sales`；再次 confirm-sales 可重新进入 `pending_sales_supervisor`。
 5. `test_invalid_state_transitions`：draft 直接 confirm-cs → 400；completed 后 cancel → 400；confirm-sales 在非 pending_sales → 400。
 6. `test_sales_identity_check`：客户 `sales_manager_id=999999`（非当前用户）→ confirm-sales → 400「您不是该客户指定的销售，无权确认」。
