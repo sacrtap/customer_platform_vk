@@ -521,3 +521,15 @@ const isCompleted = !!timeValue && !isCurrent
 **新增上传组件检查单**：受控列表空数组同步、错误走 handleError、测试覆盖
 「移除清空 / 失败透传 / 成功路径」三态（参考
 `views/billing/components/__tests__/VrSettlementCreateModal.upload.test.ts`）。
+
+### 覆盖 `a-upload` 内部样式的 DOM 事实（2026-11-03 选择器误判校准）
+
+直觉命名与真实 DOM 不符，写 `:deep()` 前必须浏览器 computed style 实测：
+
+| 元素 | 真实 class | 易错写法 |
+|---|---|---|
+| 列表/触发器容器 | `.arco-upload-wrapper`（有宽度） | `.arco-upload`（是 **display:none 的隐藏 trigger**，设 width 无效） |
+| 删除图标（text 类型） | `.arco-upload-icon-remove` | `.arco-upload-list-remove-icon`（picture 类型才叫这个，text 类型不存在） |
+| ▶ 开始按钮 + 进度圈 | `.arco-upload-progress`（内含 `arco-upload-icon-start`） | 不存在 `.arco-upload-list-preview-icon`（text 类型无预览按钮） |
+
+`auto-upload="false"` 场景下 `.arco-upload-progress`（进度圈 + ▶ 开始图标）对用户无意义，可直接隐藏。
