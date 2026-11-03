@@ -154,6 +154,12 @@
           </div>
         </div>
 
+        <!-- 操作记录：状态流转时间线（创建→客服主管→销售→销售主管→客户确认→完成/取消） -->
+        <div class="detail-section">
+          <div class="section-header"><h3>操作记录</h3></div>
+          <VrSettlementTimeline :settlement="settlement" />
+        </div>
+
         <div class="action-section">
           <button
             v-if="can('vr_settlement:create') && settlement.status === 'draft'"
@@ -260,6 +266,7 @@ import {
   getVrSettlementStatusLabel,
 } from '@/constants/vrSettlementStatus'
 import type { VrSettlement } from '@/api/vrSettlement'
+import VrSettlementTimeline from '@/components/vr/VrSettlementTimeline.vue'
 
 const props = defineProps<{
   visible: boolean

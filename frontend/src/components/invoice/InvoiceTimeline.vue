@@ -1,41 +1,13 @@
 <template>
-  <a-timeline>
-    <a-timeline-item v-for="(event, index) in timelineEvents" :key="index" :color="event.dotColor">
-      <div :class="['timeline-content', event.textClass]">
-        <strong>{{ event.label }}</strong>
-        <p v-if="event.operator" class="timeline-operator">操作人：{{ event.operator }}</p>
-        <p v-if="event.time" class="timeline-time">{{ event.time }}</p>
-        <p v-if="event.detailParts" class="timeline-detail">
-          <span v-for="(part, i) in event.detailParts" :key="i">
-            <template v-if="part.type === 'link'">
-              {{ part.prefix
-              }}<a :href="part.url" target="_blank" download class="timeline-attachment-link">{{
-                part.label
-              }}</a>
-            </template>
-            <template v-else>
-              {{ part.text }}
-            </template>
-            <span v-if="i < event.detailParts.length - 1"> | </span>
-          </span>
-        </p>
-      </div>
-    </a-timeline-item>
-  </a-timeline>
+  <StatusTimeline :events="timelineEvents" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { toDate } from '@/utils/formatters'
 import type { DiscountHistory } from '@/api/billing'
-
-type DetailPart = {
-  type: 'text' | 'link'
-  text?: string
-  prefix?: string
-  label?: string
-  url?: string
-}
+import StatusTimeline from '@/components/common/StatusTimeline.vue'
+import type { TimelineDetailPart as DetailPart } from '@/components/common/StatusTimeline.vue'
 
 const props = defineProps<{
   invoice: {
@@ -275,60 +247,3 @@ function formatDate(dateStr: string): string {
   })
 }
 </script>
-
-<style scoped>
-.timeline-content {
-  line-height: 1.6;
-}
-
-/* 当前节点：蓝色加粗 */
-.current-event {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-/* 已完成节点：绿色 */
-.completed-event {
-  color: var(--green);
-}
-
-/* 未到达节点：灰色 */
-.pending-event {
-  color: var(--muted);
-}
-
-/* 取消节点：红色 */
-.cancelled-event {
-  color: var(--red);
-  font-weight: 600;
-}
-
-.timeline-time {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 4px 0 0 0;
-}
-
-.timeline-operator {
-  font-size: 12px;
-  color: var(--ink);
-  margin: 2px 0 0 0;
-  font-weight: 500;
-}
-
-.timeline-detail {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 4px 0 0 0;
-}
-
-.timeline-attachment-link {
-  color: var(--primary);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.timeline-attachment-link:hover {
-  opacity: 0.8;
-}
-</style>
