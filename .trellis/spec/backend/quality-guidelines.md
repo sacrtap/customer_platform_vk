@@ -333,6 +333,43 @@ seed 新增的权限不会让测试失败，所以漂移无声通过。
 
 ---
 
+## 活动任务闸门与互斥锁（必须带租约/超时放行）
+
+[来源: 2026-10-31 备份/恢复并发互斥 → 2026-11-01 开发库 3 条 `running` 僵尸留痕让「立即备份」按钮永久禁用、恢复入口被隐藏]
+
+任何以 `pending` / `running` 记录作为**闸门**（互斥、去重、禁用入口）的实现，必须同时声明
+**租约或超时放行**——只判「存在未终态记录」会在进程崩溃、服务中断、取消丢终态时留下永久僵尸，
+闸门再也打不开（用户侧表现为按钮永久禁用、入口消失，且页面上没有可清理的终态记录）。
+
+**强制要求**（每新增一个闸门逐条对齐）：
+
+1. **闸门判定必须带时间窗**：`started_at` / `created_at` 早于阈值（`now - lease_minutes`）的
+   未终态记录视为僵尸，不得计入「活跃」。
+2. **僵尸必须被收敛**：判定为僵尸时在同一事务内标记 `failed`（或 `cancelled`）并写入
+   `completed_at` + `error_message`，避免僵尸记录持续命中闸门。
+3. **阈值单源**：后端以 `app/config.py` 的 settings 为准（如 `settings.backup_task_timeout_minutes`，
+   默认 30）；前端展示层的同款时间窗常量必须在注释里回指该 settings 与本节，改动时同提交修改，
+   禁止前后端各自漂移。
+4. **既有实现参考**：`app/services/sync_task_service.py` 的 `recover_stuck_tasks()`
+   （`running` 超过 `max_running_minutes`，或 Redis 进度 key 消失即恢复为 `failed`）与
+   `create_task` 的卡死判定；备份侧为 `app/services/backup_service.py::has_active_task()`
+   （`pending`/`running` 超过 `backup_task_timeout_minutes` 标记 `failed` 并放行）。
+5. **边界语义显式**：恰好等于阈值视为活跃（备份侧 `started_at >= threshold` 为活跃；
+   同步侧 `running_minutes > max_running_minutes` 才判僵尸），两个方向都要有测试锁死，
+   不得一处 `>` 一处 `>=`。时间基准同样不得混用：naive 墙钟列用 `cst_now()`，
+   timestamptz 用 UTC（见时区规范章节）。
+
+**排查信号**：按钮/入口因「有任务进行中」永久禁用、任务列表存在长时间 `running` 却无进度、
+服务重启后入口仍不可用——先按本节的僵尸放行要求核对，而不是继续叠加禁用条件。
+
+**验证锚点**：
+```bash
+grep -n "活动任务闸门" .trellis/spec/backend/quality-guidelines.md
+cd backend && grep -rn "has_active_task\|recover_stuck_tasks" app/services app/routes app/tasks
+```
+
+---
+
 ## CI Requirements
 
 - Test coverage ≥ 50% (enforced in CI: merged unit + integration coverage, see `.github/workflows/pr-checks.yml`)
