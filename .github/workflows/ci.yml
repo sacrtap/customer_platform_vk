@@ -34,7 +34,7 @@ jobs:
   # ============================================================
   backend-smoke:
     name: Backend Smoke (main)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # 时区对齐生产（CST）：导入期会触发 app.main 的时区兜底
     env:
@@ -66,7 +66,7 @@ jobs:
   # ============================================================
   frontend-build:
     name: Frontend Build (main)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -95,7 +95,7 @@ jobs:
   # ============================================================
   quality-gate:
     name: Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [backend-smoke, frontend-build]
     if: always()
 

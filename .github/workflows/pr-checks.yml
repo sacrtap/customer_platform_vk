@@ -24,7 +24,7 @@ jobs:
   # ============================================================
   changes:
     name: Detect Changed Paths
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       pull-requests: read   # dorny/paths-filter 需要读取 PR 变更文件列表
@@ -50,7 +50,7 @@ jobs:
   # ============================================================
   quick-checks:
     name: Quick Checks (Lint + Format)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -107,7 +107,7 @@ jobs:
   # ============================================================
   backend-tests:
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
     timeout-minutes: 5
@@ -171,7 +171,7 @@ jobs:
   # ============================================================
   backend-integration-tests:
     name: Backend Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 依赖 backend-tests：确保其已上传 pr-backend-coverage（download-artifact 不等待
     # 同 run 内其它 job 的上传，时序竞争会导致 Artifact not found）
     needs: [changes, backend-tests]
@@ -368,7 +368,7 @@ jobs:
   # ============================================================
   backend-integration-full:
     name: Backend Integration Tests (Full)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
     # 时区对齐生产（CST）：nightly 在 UTC 18:00 触发（CST 次日 02:00），
@@ -485,7 +485,7 @@ jobs:
   # ============================================================
   nightly-alert:
     name: Nightly Alert
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [backend-integration-full]
     if: failure() && github.event_name == 'schedule'
     timeout-minutes: 5
@@ -511,7 +511,7 @@ jobs:
   # ============================================================
   frontend-build:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: needs.changes.outputs.frontend == 'true'
     timeout-minutes: 15
@@ -550,7 +550,7 @@ jobs:
   # ============================================================
   e2e-tests:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes]
     if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
     timeout-minutes: 20
@@ -693,7 +693,7 @@ jobs:
   #   已全部清理，观察期结束，纳入阻塞判定。
   static-checks:
     name: Shell & Workflow Static Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -722,7 +722,7 @@ jobs:
   # ============================================================
   migration-gate:
     name: Migration Test Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -759,6 +759,14 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        if: steps.changes.outputs.migrations == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
       - name: Verify migration chain integrity
         if: steps.changes.outputs.migrations == 'true'
         run: |
@@ -779,7 +787,7 @@ jobs:
   # ============================================================
   pr-quality-gate:
     name: PR Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [changes, quick-checks, backend-tests, backend-integration-tests, migration-gate, frontend-build, static-checks, e2e-tests]
     # 仅 PR 触发时判定；schedule/workflow_dispatch 下全量集成由 backend-integration-full 独立判定
     if: always() && github.event_name == 'pull_request'

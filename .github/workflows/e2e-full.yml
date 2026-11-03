@@ -36,7 +36,7 @@ concurrency:
 jobs:
   e2e-full:
     name: Full E2E Suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 35 分钟：历史上出现过 26m11s 的运行（逼近 30 分钟上限）；
     # 若启用视觉回归（+22 用例）更易触顶
     timeout-minutes: 35
@@ -185,7 +185,7 @@ jobs:
 
   notify:
     name: Notify on Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [e2e-full]
     if: failure()
 
