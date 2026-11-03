@@ -77,6 +77,10 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Install frontend dependencies
+        env:
+          # 浏览器由 Playwright 官方容器镜像提供，host 侧 npm ci
+          # 跳过 postinstall 的浏览器下载（省 1-2 分钟且无人使用）
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
           cd frontend
           npm ci
@@ -640,6 +644,10 @@ jobs:
           exit 1
 
       - name: Install frontend dependencies
+        env:
+          # 浏览器由 Playwright 官方容器镜像提供，host 侧 npm ci
+          # 跳过 postinstall 的浏览器下载（省 1-2 分钟且无人使用）
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         run: |
           cd frontend
           npm ci
@@ -655,17 +663,21 @@ jobs:
           npx vite preview --port 5173 --host 0.0.0.0 &
           sleep 3
 
-      - name: Install Playwright browsers
-        run: |
-          cd frontend
-          npx playwright install --with-deps chromium
-
       - name: Run E2E tests (smoke suite only)
         env:
           API_BASE_URL: http://localhost:8000
         run: |
           cd frontend
-          npx playwright test --project=chromium --grep="@smoke" --reporter=list
+          # 浏览器与系统依赖由 Playwright 官方镜像提供（版本与 package.json 对齐），
+          # 不再执行 playwright install：runner 镜像变更（如 ubuntu-latest 迁移）
+          # 不再影响浏览器可用性。--network host 使容器内 localhost 直达
+          # job 内的 PG/Redis services 与 backend/frontend 服务。
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/frontend:/work" \
+            -w /work \
+            -e API_BASE_URL="$API_BASE_URL" \
+            mcr.microsoft.com/playwright:v1.59.1-jammy \
+            npx playwright test --project=chromium --grep="@smoke" --reporter=list
 
       - name: Upload E2E test results
         if: always()
