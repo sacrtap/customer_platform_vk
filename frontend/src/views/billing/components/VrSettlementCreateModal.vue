@@ -150,9 +150,8 @@ const handlePeriodChange = (dates: string[]) => {
 }
 
 const handleFileChange = (list: { file?: File; [key: string]: unknown }[]) => {
-  if (list && list.length > 0) {
-    fileList.value = list
-  }
+  // 必须无条件同步：移除文件后 Arco 回传空数组，若守卫 length>0 则条目残留（移除无效）
+  fileList.value = list || []
 }
 
 const handleCancel = () => {
@@ -185,8 +184,9 @@ const handleSubmit = async () => {
     try {
       const uploadRes = await uploadDiscountAttachment(fileList.value[0].file as File)
       detailFilePath = (uploadRes.data as { file_path?: string })?.file_path || ''
-    } catch {
-      Message.error('文件上传失败')
+    } catch (error) {
+      // 展示后端真实错误（无权限/大小超限/类型不符），避免吞成统一文案后无从排查
+      handleError(error, '文件上传失败')
       return false
     }
     if (!detailFilePath) {
