@@ -237,4 +237,35 @@ const handleSubmit = async () => {
 :deep(.arco-upload-icon-remove) {
   color: var(--red, #ef4444);
 }
+
+/* 文件条目做成输入框外观：删除按钮收在框内右端 */
+:deep(.arco-upload-list-item) {
+  height: 32px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--fg) 0a;
+  align-items: center;
+}
+:deep(.arco-upload-list-item:hover) {
+  border-color: var(--accent, #165dff);
+}
+:deep(.arco-upload-list-item-name-text) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* content/name 容器同样需可收缩，否则 operation 被挤出输入框 */
+:deep(.arco-upload-list-item-content) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+:deep(.arco-upload-list-item-name) {
+  flex: 1;
+  min-width: 0;
+}
 </style>
