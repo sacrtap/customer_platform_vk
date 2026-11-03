@@ -221,4 +221,20 @@ const handleSubmit = async () => {
   color: #64748b;
   line-height: 1.5;
 }
+
+/* 上传区收窄，避免文件条目占满表单全宽 */
+:deep(.arco-upload-wrapper) {
+  width: 320px;
+  max-width: 100%;
+}
+
+/* auto-upload=false 时进度圈与 ▶ 开始按钮（play 样式）无意义，隐藏 */
+:deep(.arco-upload-progress) {
+  display: none;
+}
+
+/* 删除按钮红色（text 列表类型 class 为 arco-upload-icon-remove） */
+:deep(.arco-upload-icon-remove) {
+  color: var(--red, #ef4444);
+}
 </style>
