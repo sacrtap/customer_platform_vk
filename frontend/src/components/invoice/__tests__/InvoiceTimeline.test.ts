@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { mount, enableAutoUnmount, type VueWrapper } from '@vue/test-utils'
 import ArcoVue from '@arco-design/web-vue'
 import InvoiceTimeline from '@/components/invoice/InvoiceTimeline.vue'
+import { expectCompletedTerminalTimeline } from '@/components/common/__tests__/timelineAssertions'
 import type { DiscountHistory } from '@/api/billing'
 
 // 避免挂载的 Arco 组件（Timeline 等）在测试环境销毁后残留 requestAnimationFrame，
@@ -94,10 +95,8 @@ describe('InvoiceTimeline（渲染层抽取回归守护）', () => {
       '客户确认',
       '完成结算',
     ])
-    // 终态无「当前」节点，全部已发生节点均应为绿色
-    expect(wrapper.findAll('.current-event')).toHaveLength(0)
-    expect(wrapper.findAll('.pending-event')).toHaveLength(0)
-    expect(wrapper.findAll('.completed-event')).toHaveLength(6)
+    // 终态无「当前」节点，全部已发生节点均应为绿色（共享断言，与 VR 时间线同源）
+    expectCompletedTerminalTimeline(wrapper, 6)
   })
 
   it('取消状态：末位红色取消节点', () => {

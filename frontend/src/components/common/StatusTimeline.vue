@@ -27,12 +27,10 @@
 <script setup lang="ts">
 /**
  * 状态机时间线哑渲染层：invoice / VR 结算单详情共用。
- * 节点推导逻辑（哪些节点、什么颜色）由各业务 wrapper 组件负责，本组件只渲染。
+ * 节点推导逻辑（哪些节点、什么颜色）由 `common/timelineStatus.ts` 与各业务 wrapper 负责，本组件只渲染。
  */
 
-export type TimelineDetailPart =
-  | { type: 'text'; text: string }
-  | { type: 'link'; prefix?: string; label: string; url: string }
+import type { TimelineDetailPart } from './timelineStatus'
 
 export interface TimelineEvent {
   label: string

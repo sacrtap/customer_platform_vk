@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { mount, enableAutoUnmount, type VueWrapper } from '@vue/test-utils'
 import ArcoVue from '@arco-design/web-vue'
 import VrSettlementTimeline from '@/components/vr/VrSettlementTimeline.vue'
+import { expectCompletedTerminalTimeline } from '@/components/common/__tests__/timelineAssertions'
 import type { VrSettlement } from '@/api/vrSettlement'
 
 // 避免挂载的 Arco 组件（Timeline 等）在测试环境销毁后残留 requestAnimationFrame，
@@ -80,8 +81,7 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
       '客户确认',
       '完成结算',
     ])
-    expect(wrapper.findAll('.current-event')).toHaveLength(0)
-    expect(wrapper.findAll('.completed-event')).toHaveLength(6)
+    expectCompletedTerminalTimeline(wrapper, 6)
     expect(texts[1]).toContain('李四')
     expect(texts[5]).toContain('系统')
   })
