@@ -310,7 +310,7 @@
       @ok="handleSettlementAccountSubmit"
       @cancel="accountDialogVisible = false"
     >
-      <a-form layout="vertical">
+      <a-form :model="accountForm" layout="vertical">
         <a-form-item label="结算账户" extra="留空表示使用客户自身余额结算；客户确认后不可修改">
           <CustomerAutoComplete
             v-model="accountForm.settlement_account_id"
