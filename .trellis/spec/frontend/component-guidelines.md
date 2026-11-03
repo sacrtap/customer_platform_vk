@@ -533,3 +533,20 @@ const isCompleted = !!timeValue && !isCurrent
 | ▶ 开始按钮 + 进度圈 | `.arco-upload-progress`（内含 `arco-upload-icon-start`） | 不存在 `.arco-upload-list-preview-icon`（text 类型无预览按钮） |
 
 `auto-upload="false"` 场景下 `.arco-upload-progress`（进度圈 + ▶ 开始图标）对用户无意义，可直接隐藏。
+
+### 把 Arco upload 操作按钮收进自定义容器的 flex 链要求
+
+给 `.arco-upload-list-item` 做输入框外观后，删除按钮仍被挤出框外——只给最内层
+`.arco-upload-list-item-name-text` 设 `flex:1; min-width:0` **不够**，`content`/`name`
+两级容器默认 `min-width:auto` 不收缩。必须整链设置：
+
+```css
+:deep(.arco-upload-list-item-content),
+:deep(.arco-upload-list-item-name),
+:deep(.arco-upload-list-item-name-text) {
+  flex: 1;
+  min-width: 0;
+}
+```
+
+另：元素截图形状贴近边框时有视觉误判，几何判定（`getBoundingClientRect` 对比）与整弹窗截图才是可靠证据。
