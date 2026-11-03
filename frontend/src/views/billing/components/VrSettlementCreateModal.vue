@@ -222,10 +222,12 @@ const handleSubmit = async () => {
   line-height: 1.5;
 }
 
-/* 上传区收窄，避免文件条目占满表单全宽 */
+/* 上传区收窄，与右侧提示文字保留合理间距 */
 :deep(.arco-upload-wrapper) {
-  width: 320px;
+  width: 260px;
   max-width: 100%;
+  flex-shrink: 0;
+  margin-right: 12px;
 }
 
 /* auto-upload=false 时进度圈与 ▶ 开始按钮（play 样式）无意义，隐藏 */
