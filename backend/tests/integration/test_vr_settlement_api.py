@@ -224,6 +224,22 @@ async def test_create_and_full_approval_flow(
     assert float(record[2]) == 500
     assert record[3] is None  # VR 消耗记录不关联 invoice
 
+    # 接口层断言：消耗记录列表必须下发 vr_settlement_id/vr_settlement_no，
+    # 否则前端「关联结算单」列对 VR 记录显示空（2026-11-03 修复的回归守护）
+    _, cr_response = await test_client.get(
+        f"/api/v1/billing/consumption-records?customer_id={customer_id}",
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert cr_response.status == 200, cr_response.json
+    vr_records = [
+        item
+        for item in cr_response.json["data"]["list"]
+        if item["vr_settlement_id"] == settlement_id
+    ]
+    assert len(vr_records) == 1
+    assert vr_records[0]["vr_settlement_no"] == detail["settlement_no"]
+    assert vr_records[0]["invoice_no"] is None
+
 
 @pytest.mark.asyncio
 async def test_discount_approved_together_at_sales_supervisor(

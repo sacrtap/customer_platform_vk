@@ -1918,6 +1918,19 @@ async def get_consumption_records(request: Request):
         for row in inv_result:
             invoice_no_map[row.id] = row.invoice_no
 
+    # 批量查询关联 VR 结算单号（VR 扣款的消耗记录 invoice_id 为空、vr_settlement_id 有值，
+    # 与 Invoice 二选一；缺失此查询会导致前端「关联结算单」列对 VR 记录显示空）
+    from ...models.vr_settlement import VrSettlement
+
+    vr_ids = [r.vr_settlement_id for r in records if r.vr_settlement_id]
+    vr_no_map: dict[int, str] = {}
+    if vr_ids:
+        vr_result = await db.execute(
+            select(VrSettlement.id, VrSettlement.settlement_no).where(VrSettlement.id.in_(vr_ids))
+        )
+        for row in vr_result:
+            vr_no_map[row.id] = row.settlement_no
+
     # 批量查询实际扣款客户（cr.customer_id，代扣场景为结算账户客户，可能与页面筛选客户不同）
     from ...models.customers import Customer as _Customer
 
@@ -1943,6 +1956,11 @@ async def get_consumption_records(request: Request):
                         "customer_id": r.customer_id,
                         "invoice_id": r.invoice_id,
                         "invoice_no": invoice_no_map.get(r.invoice_id) if r.invoice_id else None,
+                        # VR 结算单关联（与 invoice 二选一）：VR 扣款的记录仅此字段有值
+                        "vr_settlement_id": r.vr_settlement_id,
+                        "vr_settlement_no": vr_no_map.get(r.vr_settlement_id)
+                        if r.vr_settlement_id
+                        else None,
                         # 实际扣款客户（结算账户）：代扣时与页面入口客户不同，供前端展示
                         "actual_customer_name": customer_name_map[r.customer_id][0]
                         if r.customer_id in customer_name_map

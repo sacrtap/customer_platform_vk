@@ -176,6 +176,9 @@ export interface ConsumptionRecord {
   customer_id: number
   invoice_id?: number
   invoice_no?: string | null
+  /** 关联 VR 结算单（与 invoice 二选一）：VR 扣款的记录仅此组字段有值 */
+  vr_settlement_id?: number | null
+  vr_settlement_no?: string | null
   /** 实际扣款客户（代扣场景为结算账户客户，与入口客户可能不同） */
   actual_customer_name?: string | null
   actual_company_id?: number | null
