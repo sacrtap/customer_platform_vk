@@ -39,7 +39,7 @@ jobs:
   # ============================================================
   build-and-push:
     name: Build & Push Image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 上限 30 分钟：历史上曾出现 QEMU 模拟崩溃导致步骤挂起到默认 6 小时超时，
     # 显式限制使构建失败快速暴露而非长时间占用 runner
     timeout-minutes: 30
@@ -123,7 +123,7 @@ jobs:
   # ============================================================
   deploy-staging:
     name: Deploy to Staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-and-push
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' }}
     environment:
@@ -224,7 +224,7 @@ jobs:
   # ============================================================
   deploy-production:
     name: Deploy to Production
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-and-push
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' }}
     environment:
@@ -323,7 +323,7 @@ jobs:
   # ============================================================
   health-check:
     name: Post-Deploy Health Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [deploy-staging, deploy-production]
     if: always() && (needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
 

@@ -200,8 +200,10 @@ test.describe('客户管理权限控制', () => {
       // 验证详情页面可访问
       await expect(page).toHaveURL(`/customers/${customerId}`)
 
-      // 验证详情页面的编辑按钮
-      await expect(page.locator('button:has-text("编辑")').first()).toBeVisible({ timeout: 10000 })
+      // 验证详情页面的编辑按钮（限定 .page 主内容区，避免命中侧边栏含"编辑"的菜单项）
+      await expect(page.locator('.page button:has-text("编辑")').first()).toBeVisible({
+        timeout: 10000,
+      })
 
       // 验证重点客户切换按钮
       const keyBtn = page.locator('button:has-text("设为重点"), button:has-text("取消重点")')

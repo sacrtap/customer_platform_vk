@@ -13,4 +13,4 @@ from sanic import Blueprint
 billing_bp = Blueprint("billing", url_prefix="/api/v1/billing")
 
 # 导入子模块以注册路由
-from . import balances, imports, invoices, packages, pricing  # noqa: E402, F401
+from . import balances, imports, invoices, packages, pricing, vr_settlements  # noqa: E402, F401

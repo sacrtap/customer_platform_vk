@@ -74,6 +74,27 @@ ALL_PERMISSIONS = [
     ("billing:sales_approve", "销售经理确认", "销售经理确认结算单（第二步）", "billing"),
     ("billing:discount_approve", "减免审批", "审批结算单减免申请", "billing"),
     # ============================================================
+    # VR编辑费用结算 (8)
+    # ============================================================
+    ("vr_settlement:view", "查看VR结算", "查看VR编辑费用结算单列表与详情", "vr_settlement"),
+    ("vr_settlement:create", "创建VR结算单", "手动创建VR结算单并提交审批", "vr_settlement"),
+    ("vr_settlement:edit", "编辑VR结算单", "提交/修改减免、取消VR结算单", "vr_settlement"),
+    ("vr_settlement:delete", "删除VR结算单", "删除VR结算单", "vr_settlement"),
+    ("vr_settlement:cs_approve", "客服主管审批", "客服主管审批VR结算单（第一步）", "vr_settlement"),
+    (
+        "vr_settlement:sales_approve",
+        "销售审批",
+        "客户指定销售审批VR结算单（第二步）",
+        "vr_settlement",
+    ),
+    (
+        "vr_settlement:sales_supervisor_approve",
+        "销售主管审批",
+        "销售主管审批VR结算单（第三步，含减免一并审批）",
+        "vr_settlement",
+    ),
+    ("vr_settlement:confirm", "客户确认VR结算单", "客户确认并自动扣款完成结算", "vr_settlement"),
+    # ============================================================
     # 客户分析 (4)
     # ============================================================
     ("analytics:view", "查看分析", "查看所有分析报表", "analytics"),
@@ -212,6 +233,11 @@ PRESET_ROLES = {
             "api_keys:export",
             # 结算单减免附件上传（唯一上传场景）
             "files:upload",
+            # VR编辑费用结算：创建/编辑/客户确认（审批走对应主管角色）
+            "vr_settlement:view",
+            "vr_settlement:create",
+            "vr_settlement:edit",
+            "vr_settlement:confirm",
         ],
     ),
     "销售经理": (
@@ -231,6 +257,23 @@ PRESET_ROLES = {
             "users:export",
             "roles:export",
             "balance_whitelist:export",
+            # VR编辑费用结算：查看 + 销售审批（第二步）
+            "vr_settlement:view",
+            "vr_settlement:sales_approve",
+        ],
+    ),
+    "客服主管": (
+        "负责客服团队，可审批VR编辑费用结算单（第一步）",
+        [
+            "vr_settlement:view",
+            "vr_settlement:cs_approve",
+        ],
+    ),
+    "销售主管": (
+        "负责销售团队，可审批VR编辑费用结算单（第三步，含减免一并审批）",
+        [
+            "vr_settlement:view",
+            "vr_settlement:sales_supervisor_approve",
         ],
     ),
 }

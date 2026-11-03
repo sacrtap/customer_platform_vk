@@ -105,6 +105,38 @@ origins: [] } })` 自建 context 登录，**不吃** global-setup 的 storageSta
 
 ---
 
+## 文本选择器劫持：`has-text` 是子串匹配，`.first()` 会命中侧边栏
+
+`button:has-text("编辑")` 是**子串**匹配：任何按钮文本含「编辑」二字都会命中。
+侧边栏导航按钮（如「VR编辑费用结算」）在 DOM 中位于主内容**之前**，`.first()`
+解析到的会是导航按钮而非页面主按钮——表现为 `toBeVisible` 失败（侧边栏按钮
+`display:none`/`v-show=false`）或断言对象错误。这是 PR #111 首次暴露的问题：
+新增侧边栏菜单项后，3 个客户测试文件共 5 处 `button:has-text("编辑")` 调用被劫持。
+
+**规则**：业务断言的选择器必须限定主内容区根节点（本项目为 `.page`），排除
+侧边栏/导航：`page.locator('.page button:has-text("编辑")')`。新增任何含既有
+按钮文本作子串的菜单项/按钮时，全局排查 `has-text` 选择器的 `.first()` 调用点。
+
+---
+
+## 视觉回归基线：`maxDiffPixelRatio` 容差与「该不该更新基线」的判定
+
+`test_visual_regression.spec.ts` 的截图选项含 `maxDiffPixelRatio: 0.1`
+（10% 像素容差）。`--update-snapshots` 的行为：**仅当对比失败（差异超阈值）时
+才重写基线**；差异在容差内判定通过、不重写。由此：
+
+- **小 UI 增量（如侧边栏新增一个菜单项）不会导致基线更新，也不会导致测试
+  失败**——整页差异通常 <10%（实测新增一个子菜单项致 /invoices 页差异 6.15%），
+  被容差吸收。不要因为「加了菜单项」就重建全部基线。
+- 基线失败先做**归因**：在**功能前提交**上 `git checkout <pre-feature> -- src/`
+  → `npm run build` → 重跑视觉套件。若同样失败 → 既有失败（多为 dev 库数据
+  漂移：KPI 卡数值、表格行数、页高变化），与本改动无关，保持基线不动；把
+  dev 库数据烧进共享基线反而会让 CI 视觉任务（不同种子数据）失败。
+- 用 PIL 量化定位：`ImageChops.difference` 对比旧基线与新渲染的差异像素占比，
+  与 0.1 比较即可预判基线是否需要更新。
+
+---
+
 ## See Also
 
 - [Component Guidelines](./component-guidelines.md) — Arco modal Teleport 行为、

@@ -435,3 +435,240 @@ service 严格校验才暴露。**新增排序列表时，即使后端会兜底�
 **回归测试**：`views/customers/components/__tests__/CustomerTable.test.ts` 点击「客户ID」
 表头三次，依次断言 emit `['company_id','asc']` / `['company_id','desc']` / `['','']`。
 新增可排序列表一律补这套三态断言，锁死词表映射。
+
+---
+
+## 状态机时间线：共享哑渲染层 + completed 终态判定陷阱
+
+**模式**（2026-11-03 VR 结算单操作记录落地）：结算类单据详情的「操作记录」时间线，
+渲染层与节点推导分离——
+
+- `components/common/StatusTimeline.vue`：**哑渲染**，props 只收 `events: TimelineEvent[]`
+  （label/time/operator/detailParts/dotColor/textClass），不含任何业务判断
+- 业务 wrapper（`components/invoice/InvoiceTimeline.vue`、`components/vr/VrSettlementTimeline.vue`）：
+  各自定义流程节点表（field/label/statusKey/operatorField/detailParts）与三态着色逻辑
+- 新单据类型接时间线 = 新建 wrapper + 节点表，**不要复制整条渲染链**
+
+**completed 终态判定陷阱（两侧均已修复）**：
+
+`isCompleted = timeValue && index !== currentRemIndex` 在 completed 终态把末节点误判为未到达。
+**2026-11-03 两侧均已修复**（VR 侧随时间线新建时修，Invoice 侧随后单独修复）：
+
+```ts
+// 错误（两侧修复前的共同缺陷）
+const isCompleted = timeValue && index !== currentRemIndex
+
+// 正确（两侧现状一致）
+const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
+const isCompleted = !!timeValue && !isCurrent
+```
+
+回归测试：`components/invoice/__tests__/InvoiceTimeline.test.ts`「completed 终态：全部节点
+为已完成绿色」用例（修复前 failing：pending-event=1；修复后 passing）与
+`components/vr/__tests__/VrSettlementTimeline.test.ts` 同款用例双向锁死。
+新增时间线 wrapper 必须覆盖该终态场景——旧逻辑的缺陷正是「只有中间态测试、
+缺终态断言」才得以潜伏。
+
+**测试要求**：新时间线 wrapper 必须覆盖三态——已完成全绿（终态无 current）、
+当前节点蓝色高亮、取消末位红节点；减免历史插在「创建」节点之后（后端倒序返回需反转）。
+
+---
+
+## 共享组件外观归属：样式必须随结构一起搬 + 专属根类名（2026-11-03 减免历史样式二次不一致）
+
+**现象**：`DiscountHistoryTable.vue` 抽成共享组件、两个详情抽屉（VR 结算单 / 结算单管理）
+同时接入后，两处渲染仍不一致——结算单管理侧的历史表格**多一圈边框 + 15px 圆角**，
+标题字号也不同（16px/600 vs 14px/700）。用户实测发现，第一轮"统一"只统一了结构。
+
+**根因（Vue 3 scoped 的穿透规则）**：scoped 样式编译后为 `.sel[data-v-parent]`，而
+**子组件的根元素同时带父组件的 scope id**。共享组件的根元素原本叫 `.table-wrap`：
+
+- 结算单管理抽屉父组件保留 `.table-wrap { border: 1px solid var(--line); border-radius: 15px; }`
+  （给「计费明细」表用）→ **穿透命中**共享组件根元素 → 历史表格被"美化"
+- VR 抽屉父组件的 `.table-wrap` 在抽组件时被删掉 → 同一个组件裸奔
+
+组件内部的 `table/th/td` 不是根元素，不带父 scope id，所以父规则不命中——**只有根元素被穿透**，
+这正是"看起来结构一样、外框却不同"的原因。
+
+**契约（抽共享展示组件时逐条执行）**：
+
+1. **外观归属单一**：组件要么自带**全部**外观（标题、外框、边框、圆角、单元格样式），
+   要么完全不带；**禁止**"结构在组件、装饰在父组件"——两侧父组件样式必然漂移。
+2. **根元素用专属类名**（如 `.discount-history`），**不要复用**父组件里已有的通用类
+   （`.table-wrap`/`.table`/`.detail-section`/`.section-header`），否则父 scope id 必然穿透。
+3. **父组件模板不再包裹**：`<DiscountHistoryTable v-if="list.length > 0" :histories="list" />`，
+   不要再套 `<div class="detail-section"><div class="section-header"><h3>…</h3></div>`——
+   区块标题由组件自带，否则标题样式仍是父组件的（字号/字重继续漂移）。
+4. **验收用 computed style 结构化对比**，不能只看截图：
+   取同一组属性（标题 fontSize/fontWeight/color/margin、容器 border*/borderRadius/overflow、
+   单元格 padding/borderBottom/textAlign/whiteSpace、金额色、列宽）逐项比对，
+   输出 `none — 完全一致` 才算通过。注意排除 `getBoundingClientRect` 尺寸项
+   （行数不同导致的差异不是样式差异）。
+
+**修复后基线（两处完全一致）**：标题 `16px/600/var(--ink)` + header `flex/space-between`
+`margin-bottom:12px`；容器 `1px solid var(--line)` + `border-radius:15px` + `overflow:auto`；
+表格 `13px`、`th/td padding 8px 10px`、`border-bottom 1px #e5e7eb`、列宽 `160/110/316/100`。
+
+**同类残留**：抽屉级 `.section-header h3` 也必须两侧一致（本次把 VR 侧 14px/700 对齐为
+16px/600 + `color: var(--ink)`），否则同一抽屉内「操作记录」标题仍与另一侧不同。
+
+---
+
+## 平行详情页外观一致性：抽屉级公共样式必须单源（2026-11-03 VR 结算单 vs 结算单管理整体样式）
+
+**现象**：抽完共享组件后，用户再要求「两个详情抽屉**整体样式**一致」，实测仍有 12 处差异——
+内容区间距 16px/24px、标题 18px/20px（且 VR 未设 `color: var(--ink)`）、
+**VR 状态条完全没有背景/边框/圆角**（模板有 `.flow-steps` 但样式区无该规则）、
+steps 标题 16px/13px、description `maxWidth 140px/clip` vs `100px/ellipsis`、
+「操作记录」标题头 `block` vs `flex/space-between + margin-bottom:12px`、
+最终金额 14px/600 vs 16px/700、`.subtle` `#94a3b8` vs `var(--muted)`、
+附件链接无/有下划线、操作区 `flex-wrap + padding-top:8px + var(--border)` vs
+`flex-end + 16px + var(--line)`、按钮 padding `9px 12px` vs `9px 16px`（且 VR 无 transition、
+`.btn.disabled` 缺 `pointer-events:auto` 与 `:hover` 保持主色）。
+
+**根因**：两个平行抽屉各自维护一份几乎相同的 CSS（C 类：变更传播失败），
+没有单一来源——只修一侧就会再漂移。**只对齐数值不算修复**。
+
+**方案：公共规则抽到 `frontend/src/styles/detail-drawer.css`，两组件在 `<style scoped>` 内 `@import`。**
+
+**已实测的关键事实（勿再试探）**：
+
+1. Vite + `@vitejs/plugin-vue` 会把 `<style scoped>` 里的 `@import` **内联进该 scoped 块**，
+   随后统一加 scope id。CSSOM 验证：共享的 24 条规则**全部**带 `[data-v-*]`，**0 条泄漏为全局**；
+   列表页自有的 `.btn { padding: 9px 12px }` 未被共享的 `9px 16px` 覆盖。
+2. `@import` 必须位于 style 块**最顶部**（仅注释可前置），否则 CSS 规范要求浏览器忽略它。
+3. **`:deep()` 不能放进共享文件**——它是 SFC 编译期语法，@import 内联与 scoped 插件的执行顺序不可依赖。
+   `:deep(.arco-steps*)` 三条仍各组件内联维护（重复但短，且是 Arco 内部结构）。
+4. 组件特有规则留在各自文件：VR 的 `.remark-text`；Invoice 的 `.table-wrap/.table`、
+   `.amount`、`.pricing-*`、`.rule-detail`、`.empty-state` 等。
+
+**明细文件区必须同构**（2026-11-03 补）：两个抽屉都用
+`.detail-file-section`（flex/align-center/gap 8px）+ `.file-status.{completed|generating|failed|pending}`
++ `.btn.btn-sm`（padding 4px 10px / 12px / radius 8px）「下载明细」按钮，三者均在 `detail-drawer.css` 单源。
+**禁止**用裸 `<a>` 链接下载（VR 侧曾如此：`<a :href="detail_file_path" download>{{ detail_file_name }}</a>`，
+既无状态文本也无按钮，与结算单管理的按钮交互不一致）。VR 明细文件是创建时上传的静态文件，
+无生成状态机，只用「✅ 已生成 / — 无明细文件」两态，且无「重新生成」按钮（那是 Invoice 专属）。
+下载实现：`document.createElement('a')` + `href = detail_file_path` + `download = detail_file_name` + `target="_blank"`，
+同源 `/uploads/**` 由 vite proxy 转发后端静态服务。
+
+**契约**：
+
+1. 抽屉级公共类（`.drawer-content`/`.detail-title`/`.flow-steps`/`.flow-cancelled`/
+   `.section-header`/`.amount-final`/`.text-danger`/`.text-success`/`.attachment-link`/
+   `.subtle`/`.action-section`/`.detail-file-section`/`.file-status.*`/`.btn` 系列含 `.btn-sm`）
+   **只允许在 `detail-drawer.css` 定义一次**；
+   组件内不得再出现同选择器（重复定义 = 下次漂移的入口）。
+2. 新增/修改抽屉公共样式，**只改共享文件**；改完必须复测两个抽屉。
+3. 删除某侧不再使用的规则时，先确认另一侧也不依赖（`grep` 类名在模板中的出现）。
+4. **验收两步**，缺一不可：
+   - **一致性**：同一组元素在两抽屉取 computed style 逐项 diff（`drawer width`、`content gap`、
+     `title fontSize/fontWeight/color`、`flow background/border/borderRadius/padding`、
+     `step title/description fontSize+maxWidth+textOverflow`、`section-header display/justifyContent/marginBottom`、
+     `h3 fontSize/fontWeight/color`、`amount-final fontSize/fontWeight/color`、`subtle color`、
+     `action-section justifyContent/paddingTop/borderTopColor`、`btn padding/borderRadius/fontWeight/transitionDuration`、
+     descriptions label/value 的 `padding/backgroundColor/fontSize`），输出 `none — 完全一致`。
+   - **无泄漏**：遍历 `document.styleSheets` 收集匹配 `.btn|.drawer-content|.action-section|.section-header`
+     的规则，断言全部含 `[data-v-`；再抽查一个列表页按钮 padding 未被共享值覆盖。
+5. 数据差异导致的「元素缺失」（如某单据无减免 → 无 `.subtle` 节点）**不是样式差异**，
+   换一个含该元素的单据复测，不要为了对齐往抽屉里塞占位元素。
+
+**修复后基线（两抽屉 computed style 完全一致）**：`drawer 720px`；`content gap 24px`；
+`title 20px/700/rgb(15,23,42)`；`flow bg rgb(248,250,252) + 1px rgb(226,232,240) + radius 12px + padding 16px 20px 6px`；
+`step title 13px`；`step desc 12px/maxWidth 100px/ellipsis/nowrap`；
+`section-header flex/space-between + margin-bottom 12px`；`h3 16px/600`；
+`amount-final 16px/700`；`action-section flex-end + padding-top 16px + 1px var(--line)`；
+`btn padding 9px 16px + radius 12px + transition 0.2s×3`；`desc label/value padding 3px 20px`；
+`detail-file-section flex/gap 8px` + `btn-sm padding 4px 10px/12px/radius 8px`（「下载明细」两侧一致）。
+
+---
+
+## 受控 file-list 与上传错误处理契约（2026-11-03 三弹窗同款缺陷修复）
+
+**Bug 症状**：创建/编辑弹窗选择附件后，「移除」按钮点击无效（文件条目残留）；上传失败时只显示统一文案「附件上传失败」，真实原因（无权限 / 大小超限 / 类型不符）不可见。
+
+**两条契约**（`a-upload` + 手动上传模式）：
+
+1. **`@change` 必须无条件同步受控列表**——Arco 在用户点移除时回传**空数组**，
+   守卫 `if (list.length > 0)` 会把这次清空忽略掉：
+
+   ```ts
+   // 错误（三处同款缺陷）：移除无效
+   const handleFileChange = (list) => {
+     if (list && list.length > 0) form.attachment = list[0].file
+   }
+
+   // 正确：空数组自然落到 undefined，选中/移除语义统一
+   const handleFileChange = (list) => {
+     form.attachment = list?.[0]?.file
+   }
+   ```
+
+2. **上传失败的 catch 必须走 `handleError(error, fallback)`**——禁止
+   `catch { Message.error('统一文案') }`。拦截器已把后端错误归一为
+   `{ code, message }`，`getUserFriendlyMessage` 对 400 类（参数/业务错误）
+   **透传后端 message**；吞掉它等于把「文件大小超过限制 (10MB)」「不支持的文件类型」
+   「您没有执行此操作的权限」降级为无法行动的统一文案：
+
+   ```ts
+   // 正确
+   } catch (error) {
+     handleError(error, '附件上传失败') // fallback 仅在错误形状无法解析时生效
+     return false
+   }
+   ```
+
+**系统性排查结论**（break-loop）：全仓 `catch { Message.error(...) }` 模式 10 余处，
+按场景分类处理——
+
+| 场景 | 位置 | 处置 |
+|---|---|---|
+| 附件上传（3 处） | `VrSettlementCreateModal` / `DiscountEditModal` / `SubmitModal` | **已全部修复**（2026-11-03） |
+| 页面数据加载失败 | `Profile.vue` 等 | 保留 fallback（加载类无更细粒度后端文案可透传） |
+| 下载/导出失败 | `InvoiceDetailDrawer` 等 | 保留 fallback（blob 错误对用户无可读信息） |
+
+**新增上传组件检查单**：受控列表空数组同步、错误走 handleError、测试覆盖
+「移除清空 / 失败透传 / 成功路径」三态（参考
+`views/billing/components/__tests__/VrSettlementCreateModal.upload.test.ts`）。
+
+### 覆盖 `a-upload` 内部样式的 DOM 事实（2026-11-03 选择器误判校准）
+
+直觉命名与真实 DOM 不符，写 `:deep()` 前必须浏览器 computed style 实测：
+
+| 元素 | 真实 class | 易错写法 |
+|---|---|---|
+| 列表/触发器容器 | `.arco-upload-wrapper`（有宽度） | `.arco-upload`（是 **display:none 的隐藏 trigger**，设 width 无效） |
+| 删除图标（text 类型） | `.arco-upload-icon-remove` | `.arco-upload-list-remove-icon`（picture 类型才叫这个，text 类型不存在） |
+| ▶ 开始按钮 + 进度圈 | `.arco-upload-progress`（内含 `arco-upload-icon-start`） | 不存在 `.arco-upload-list-preview-icon`（text 类型无预览按钮） |
+
+`auto-upload="false"` 场景下 `.arco-upload-progress`（进度圈 + ▶ 开始图标）对用户无意义，可直接隐藏。
+
+### 把 Arco upload 操作按钮收进自定义容器的 flex 链要求
+
+给 `.arco-upload-list-item` 做输入框外观后，删除按钮仍被挤出框外——只给最内层
+`.arco-upload-list-item-name-text` 设 `flex:1; min-width:0` **不够**，`content`/`name`
+两级容器默认 `min-width:auto` 不收缩。必须整链设置：
+
+```css
+:deep(.arco-upload-list-item-content),
+:deep(.arco-upload-list-item-name),
+:deep(.arco-upload-list-item-name-text) {
+  flex: 1;
+  min-width: 0;
+}
+```
+
+另：元素截图形状贴近边框时有视觉误判，几何判定（`getBoundingClientRect` 对比）与整弹窗截图才是可靠证据。
+
+### upload 文件条目输入框化的三个内置样式陷阱
+
+`.arco-upload-list-item` 做成输入框外观时，Arco 内置样式会叠出丑陋层叠：
+
+1. **`content` 自带灰底**：`.arco-upload-list-item-content` 内置
+   `background-color: var(--color-fill-1)` + `padding: 8px 0 8px 12px`——
+   在自定义边框内又叠一层「框中框灰条」。必须 `background-color: transparent; padding: 0`。
+2. **无效 fallback 值**：`background: var(--fg) 0a` 这类写法——变量未定义
+   （项目只有 `--primary`，无 `--fg`/`--accent`）时整个声明 invalid，静默变透明。
+   自定义控件对齐 a-input 用 Arco token：背景 `var(--color-fill-2)`、
+   hover 边框 `var(--primary)`（与 arco-theme.css 的 input 规则一致）。
+3. **name-text 的 cursor:pointer**：Arco 内置给链接场景用，手动上传不可点击文件名，
+   改 `cursor: default` 避免误导。

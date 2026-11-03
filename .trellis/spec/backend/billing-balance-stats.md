@@ -746,6 +746,79 @@ return "healthy"
 
 ---
 
+## Scenario: 消耗记录接口的关联结算单契约（Invoice / VR 二选一）
+
+### 1. Scope / Trigger
+
+`GET /billing/consumption-records` 列表的「关联结算单」列。`ConsumptionRecord` 有**两个互斥外键**：`invoice_id`（普通结算单自动扣款）与 `vr_settlement_id`（VR 编辑费用结算单客户确认后扣款），任一记录有且只有一组有值。序列化层若只覆盖 invoice 维度，VR 扣款产生的消耗记录在前端关联列显示 `-`——**DB 已正确关联，纯出口缺陷**。
+
+### 2. Signatures
+
+- Route: `get_consumption_records` — `backend/app/routes/billing/balances.py`
+- Model: `ConsumptionRecord.invoice_id` / `ConsumptionRecord.vr_settlement_id` — `backend/app/models/billing.py`
+- Frontend type: `ConsumptionRecord` — `frontend/src/api/billing.ts`
+- Frontend view: `RechargeRecordModal.vue` 的 `invoice_no` slot（列标题「关联结算单」覆盖两种单）
+
+### 3. Contracts
+
+- 响应同时下发两组字段，互斥时有且只有一组非空：
+  `invoice_id` / `invoice_no` 与 `vr_settlement_id` / `vr_settlement_no`
+- 单号查询走两路批量 map（同页两次 `IN` 查询），禁止 N+1
+- 前端渲染优先级：`invoice_no` → `vr_settlement_no` → 占位 `-`
+- 链接目标：`/billing/invoices?highlight={invoice_id}` / `/billing/vr-settlements?highlight={vr_settlement_id}`
+
+### 4. Validation & Error Matrix
+
+| 校验点 | 要求 |
+|---|---|
+| 新增消耗记录维度时 | grep **全部**序列化出口，不能只改写入点。当前唯一出口是 `balances.py:get_consumption_records`；`database_management.py` 仅 `count` 统计、不下发字段 |
+| DB 层断言 ≠ 契约覆盖 | `vr_settlement_id` 落库正确不代表接口下发正确；AC 验证必须打接口响应 |
+| 数据可见性 | VR 记录 `invoice_id` 为空，scope 过滤依赖 `cr_customer_owned`（扣的是客户自身余额，天然覆盖）；代扣放宽分支只对 invoice 生效 |
+
+### 5. Good/Base/Bad Cases
+
+- Base: 普通结算扣款 → `invoice_no` 有值、`vr_settlement_no` 为 null → 链接发票详情
+- Good: VR 客户确认扣款 → `vr_settlement_no` 有值、`invoice_no` 为 null → 链接 VR 结算单详情
+- Bad: 两组皆空（如早期导入数据）→ 占位 `-`
+
+### 6. Tests Required
+
+- 集成（`tests/integration/test_vr_settlement_api.py`）：全流程走完客户确认后，`GET /billing/consumption-records?customer_id=` 返回行中 `vr_settlement_no == settlement_no` 且 `invoice_no is None`
+- 组件（`RechargeRecordModal.consumption.test.ts`）：三态渲染分支——VR 链接 href、发票链接 href、无关联占位
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+# 只查 invoice：VR 记录的关联列在前端恒为 "-"
+invoice_no_map = {...}
+"invoice_no": invoice_no_map.get(r.invoice_id) if r.invoice_id else None,
+```
+
+```vue
+<!-- 只渲染 invoice_no：VR 记录落入 v-else 显示 "-" -->
+<a v-if="record.invoice_no" ...>{{ record.invoice_no }}</a>
+<span v-else>-</span>
+```
+
+#### Correct
+
+```python
+# 两路 map 并行，两组字段独立下发
+vr_no_map = {...}  # select(VrSettlement.id, VrSettlement.settlement_no)
+"vr_settlement_id": r.vr_settlement_id,
+"vr_settlement_no": vr_no_map.get(r.vr_settlement_id) if r.vr_settlement_id else None,
+```
+
+```vue
+<a v-if="record.invoice_no" :href="`/billing/invoices?highlight=${record.invoice_id}`" ...>
+<a v-else-if="record.vr_settlement_no" :href="`/billing/vr-settlements?highlight=${record.vr_settlement_id}`" ...>
+<span v-else>-</span>
+```
+
+---
+
 ## 相关约定
 
 - 余额范围档位（前端 `BALANCE_RANGE_OPTIONS`）中「1万以下」的 `min` 有意为 `null`（含欠费与零余额），与 `low_balance_count` 口径保持一致；「欠费」是其中只看负余额的窄档，重叠属预期。

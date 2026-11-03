@@ -63,6 +63,12 @@ export function useAppLayout() {
                 permission: 'billing:view',
               },
               {
+                key: 'vr-settlements',
+                label: 'VR编辑费用结算',
+                to: '/billing/vr-settlements',
+                permission: 'vr_settlement:view',
+              },
+              {
                 key: 'package-plans',
                 label: '套餐方案',
                 to: '/billing/package-plans',
@@ -205,6 +211,7 @@ export function useAppLayout() {
       CustomerDetail: '客户详情',
       Balance: '余额管理',
       PricingRules: '计费规则',
+      VrSettlements: 'VR编辑费用结算',
       Tags: '标签管理',
       Users: '用户管理',
       Roles: '角色权限',

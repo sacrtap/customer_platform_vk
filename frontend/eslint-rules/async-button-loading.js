@@ -38,6 +38,8 @@ const SYNC_HANDLERS = new Set([
   // 纯前端提示 / 仅打开弹窗的同步 handler
   'handleSSO',
   'handleSyncButtonClick',
+  // 明细文件下载：VR 侧直链静态文件（创建 a 标签点击），无网络请求、无重复提交风险
+  'handleDownloadDetail',
 ])
 
 const ASYNC_HANDLER_PATTERN = /^(handle|on|run|do)[A-Z]/

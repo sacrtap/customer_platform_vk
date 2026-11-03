@@ -138,9 +138,9 @@ test.describe('客户管理 CRUD @smoke', () => {
     await page.goto(`/customers/${customerId}`)
     await page.waitForLoadState('domcontentloaded')
 
-    // 验证详情页元素
+    // 验证详情页元素（限定 .page 主内容区，避免命中侧边栏含"编辑"的菜单项）
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 })
-    await expect(page.locator('button:has-text("编辑")').first()).toBeVisible()
+    await expect(page.locator('.page button:has-text("编辑")').first()).toBeVisible()
     await expect(page.locator('.arco-tabs').first()).toBeVisible()
 
     // 验证 Tab 存在
@@ -172,8 +172,8 @@ test.describe('客户管理 CRUD @smoke', () => {
     await page.waitForLoadState('domcontentloaded')
     await page.locator('h1').first().waitFor({ state: 'visible', timeout: 15000 })
 
-    // 点击详情页的"编辑"按钮
-    await page.locator('button:has-text("编辑")').first().click()
+    // 点击详情页的"编辑"按钮（限定 .page 主内容区，避免命中侧边栏含"编辑"的菜单项）
+    await page.locator('.page button:has-text("编辑")').first().click()
     await waitForModal(page)
 
     // 等待编辑弹窗数据加载完成

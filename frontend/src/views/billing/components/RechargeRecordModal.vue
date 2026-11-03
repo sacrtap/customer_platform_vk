@@ -63,6 +63,13 @@
               class="invoice-link"
               >{{ record.invoice_no }}</a
             >
+            <a
+              v-else-if="record.vr_settlement_no"
+              :href="`/billing/vr-settlements?highlight=${record.vr_settlement_id}`"
+              target="_blank"
+              class="invoice-link"
+              >{{ record.vr_settlement_no }}</a
+            >
             <span v-else>-</span>
           </template>
           <template #consumed_at="{ record }">{{ formatDateTime(record.consumed_at) }}</template>

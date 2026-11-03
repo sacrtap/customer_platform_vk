@@ -126,9 +126,8 @@ const rules = {
 }
 
 const handleFileChange = (fileList: { file?: File; [key: string]: unknown }[]) => {
-  if (fileList && fileList.length > 0) {
-    form.attachment = fileList[0].file
-  }
+  // 空数组（移除附件）必须清空；length>0 守卫会导致移除无效、条目残留
+  form.attachment = fileList?.[0]?.file
 }
 
 const handleCancel = () => {
@@ -154,8 +153,9 @@ const handleSubmit = async () => {
       try {
         const uploadRes = await uploadDiscountAttachment(form.attachment)
         attachmentPath = (uploadRes.data as { file_path?: string })?.file_path
-      } catch {
-        Message.error('附件上传失败')
+      } catch (error) {
+        // 透传后端真实错误（无权限/大小超限/类型不符），不吞成统一文案
+        handleError(error, '附件上传失败')
         return false
       }
     }

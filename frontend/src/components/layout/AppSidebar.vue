@@ -85,7 +85,7 @@
         </button>
 
         <div
-          v-if="can('billing:view')"
+          v-if="can('billing:view') || can('vr_settlement:view')"
           class="nav-parent"
           :class="{ active: isParentMenuActive('billing') }"
           :aria-expanded="expandedSubmenu === 'billing'"
@@ -141,6 +141,14 @@
             @click="goTo('/billing/invoices')"
           >
             结算单管理
+          </button>
+          <button
+            v-if="can('vr_settlement:view')"
+            class="nav-btn sub"
+            :class="{ active: $route.name === 'VrSettlements' }"
+            @click="goTo('/billing/vr-settlements')"
+          >
+            VR编辑费用结算
           </button>
         </div>
       </div>

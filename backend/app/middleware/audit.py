@@ -94,6 +94,21 @@ def audit_middleware(app: Sanic):
                 if any(request.path.endswith(action) for action in action_endpoints):
                     return
 
+            # VR结算单动作端点：只跳过状态变更端点（与 invoices 一致，手动审计）
+            if request.path.startswith("/api/v1/billing/vr-settlements/"):
+                action_endpoints = (
+                    "/submit",
+                    "/confirm-cs",
+                    "/confirm-sales",
+                    "/confirm-sales-supervisor",
+                    "/reject-sales-supervisor",
+                    "/confirm",
+                    "/retry-deduction",
+                    "/cancel",
+                )
+                if any(request.path.endswith(action) for action in action_endpoints):
+                    return
+
             # 跳过有手动审计日志的模块（files 路由内已自行记录）
             if request.path.startswith("/api/v1/files/"):
                 return
