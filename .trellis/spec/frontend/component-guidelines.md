@@ -449,23 +449,25 @@ service 严格校验才暴露。**新增排序列表时，即使后端会兜底�
   各自定义流程节点表（field/label/statusKey/operatorField/detailParts）与三态着色逻辑
 - 新单据类型接时间线 = 新建 wrapper + 节点表，**不要复制整条渲染链**
 
-**completed 终态判定陷阱（已修 VR 侧，Invoice 侧仍存在）**：
+**completed 终态判定陷阱（两侧均已修复）**：
+
+`isCompleted = timeValue && index !== currentRemIndex` 在 completed 终态把末节点误判为未到达。
+**2026-11-03 两侧均已修复**（VR 侧随时间线新建时修，Invoice 侧随后单独修复）：
 
 ```ts
-// 错误（InvoiceTimeline 现有逻辑，继承缺陷）
+// 错误（两侧修复前的共同缺陷）
 const isCompleted = timeValue && index !== currentRemIndex
-// completed 状态下 currentRemIndex 指向末节点（completed_at），
-// 导致「完成结算」节点 isCompleted=false → 渲染成灰色「未到达」
 
-// 正确（VR 侧已修）
+// 正确（两侧现状一致）
 const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
 const isCompleted = !!timeValue && !isCurrent
 ```
 
-`InvoiceTimeline.vue` 本次仅做渲染层抽取（computed 零改动），该缺陷**原样保留**——
-修复它属于独立改动，需先补 Invoice 侧时间线回归测试再动（当前无测试守护）。
-VR 侧修复已由 `components/vr/__tests__/VrSettlementTimeline.test.ts`
-「已完成流程：全部节点 completed 绿色」用例锁死。
+回归测试：`components/invoice/__tests__/InvoiceTimeline.test.ts`「completed 终态：全部节点
+为已完成绿色」用例（修复前 failing：pending-event=1；修复后 passing）与
+`components/vr/__tests__/VrSettlementTimeline.test.ts` 同款用例双向锁死。
+新增时间线 wrapper 必须覆盖该终态场景——旧逻辑的缺陷正是「只有中间态测试、
+缺终态断言」才得以潜伏。
 
 **测试要求**：新时间线 wrapper 必须覆盖三态——已完成全绿（终态无 current）、
 当前节点蓝色高亮、取消末位红节点；减免历史插在「创建」节点之后（后端倒序返回需反转）。

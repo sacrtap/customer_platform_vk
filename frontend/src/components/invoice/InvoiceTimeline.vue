@@ -186,8 +186,10 @@ const timelineEvents = computed(() => {
     const timeValue = props.invoice[node.field] as string | undefined
     if (!timeValue) return // 只显示已发生的节点
 
-    const isCompleted = timeValue && index !== currentRemIndex
+    // 当前节点：状态停在该节点、且流程未整体完成（completed 时无「当前」，全部为已完成）
     const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
+    // 已发生且非当前节点 → 已完成（含 completed 终态下的末节点）
+    const isCompleted = !!timeValue && !isCurrent
 
     let dotColor: string
     let textClass: string

@@ -68,6 +68,38 @@ describe('InvoiceTimeline（渲染层抽取回归守护）', () => {
     expect(current[0].text()).toContain('客户确认')
   })
 
+  it('completed 终态：全部节点为已完成绿色，无未到达灰节点', () => {
+    // 回归守护：修复前末节点「完成结算」被误判为 currentRemIndex 命中而渲染成灰色
+    const wrapper = mountTimeline(
+      makeInvoice({
+        status: 'completed',
+        approved_at: '2026-11-03T11:00:00',
+        approver_name: '李四',
+        ops_confirmed_at: '2026-11-03T12:00:00',
+        ops_confirmed_name: '王五',
+        sales_confirmed_at: '2026-11-03T13:00:00',
+        sales_confirmed_name: '赵六',
+        customer_confirmed_at: '2026-11-03T14:00:00',
+        customer_confirmed_name: '客户经理',
+        completed_at: '2026-11-03T15:00:00',
+        completed_name: '系统',
+      })
+    )
+
+    expect(nodeLabels(wrapper)).toEqual([
+      '创建结算单',
+      '提交结算单',
+      '运营经理确认',
+      '销售经理确认',
+      '客户确认',
+      '完成结算',
+    ])
+    // 终态无「当前」节点，全部已发生节点均应为绿色
+    expect(wrapper.findAll('.current-event')).toHaveLength(0)
+    expect(wrapper.findAll('.pending-event')).toHaveLength(0)
+    expect(wrapper.findAll('.completed-event')).toHaveLength(6)
+  })
+
   it('取消状态：末位红色取消节点', () => {
     const wrapper = mountTimeline(
       makeInvoice({
