@@ -105,54 +105,31 @@
             {{ formatDateTime(settlement.created_at) }}
           </a-descriptions-item>
           <a-descriptions-item label="明细文件">
-            <a
-              v-if="settlement.detail_file_path"
-              :href="settlement.detail_file_path"
-              target="_blank"
-              download
-              class="attachment-link"
-            >
-              {{ settlement.detail_file_name || '下载明细文件' }}
-            </a>
-            <span v-else class="subtle">—</span>
+            <!-- 与结算单管理详情同一交互：状态文本 + 「下载明细」按钮，样式共用 detail-drawer.css -->
+            <div class="detail-file-section">
+              <span v-if="settlement.detail_file_path" class="file-status completed"
+                >✅ 已生成</span
+              >
+              <span v-else class="file-status pending">— 无明细文件</span>
+              <button
+                v-if="can('vr_settlement:view') && settlement.detail_file_path"
+                class="btn btn-sm"
+                @click="handleDownloadDetail"
+              >
+                下载明细
+              </button>
+            </div>
           </a-descriptions-item>
           <a-descriptions-item v-if="settlement.remark" label="备注说明" :span="2">
             <span class="remark-text">{{ settlement.remark }}</span>
           </a-descriptions-item>
         </a-descriptions>
 
-        <!-- 减免修改历史 -->
-        <div
+        <!-- 减免修改历史（与结算单管理详情共用 DiscountHistoryTable，标题与外框由组件自带） -->
+        <DiscountHistoryTable
           v-if="settlement.discount_history && settlement.discount_history.length > 0"
-          class="detail-section"
-        >
-          <div class="section-header"><h3>减免修改历史</h3></div>
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th style="width: 160px">时间</th>
-                  <th style="width: 110px">金额</th>
-                  <th>原因</th>
-                  <th style="width: 100px">操作人</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="dh in settlement.discount_history" :key="dh.id">
-                  <td>{{ dh.applied_at }}</td>
-                  <td>
-                    <span :class="dh.discount_amount > 0 ? 'text-danger' : 'text-success'">
-                      {{ dh.discount_amount > 0 ? '-' : '+'
-                      }}{{ formatCurrency(Math.abs(dh.discount_amount)) }}
-                    </span>
-                  </td>
-                  <td>{{ dh.discount_reason || '—' }}</td>
-                  <td>{{ dh.applied_by_name || '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+          :histories="settlement.discount_history"
+        />
 
         <!-- 操作记录：状态流转时间线（创建→客服主管→销售→销售主管→客户确认→完成/取消） -->
         <div class="detail-section">
@@ -168,11 +145,17 @@
           >
             提交
           </button>
-          <!-- 设置/修改减免：draft / pending_cs_supervisor / pending_sales 可改 -->
+          <!-- 设置/修改减免：销售主管审批通过前的任意节点可改（含 pending_sales_supervisor）；
+               客户确认后锁定（减免已随销售主管一并审批生效） -->
           <button
             v-if="
               can('vr_settlement:edit') &&
-              ['draft', 'pending_cs_supervisor', 'pending_sales'].includes(settlement.status)
+              [
+                'draft',
+                'pending_cs_supervisor',
+                'pending_sales',
+                'pending_sales_supervisor',
+              ].includes(settlement.status)
             "
             class="btn"
             @click="emit('edit-discount', settlement.id)"
@@ -267,6 +250,7 @@ import {
 } from '@/constants/vrSettlementStatus'
 import type { VrSettlement } from '@/api/vrSettlement'
 import VrSettlementTimeline from '@/components/vr/VrSettlementTimeline.vue'
+import DiscountHistoryTable from '@/components/common/DiscountHistoryTable.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -296,6 +280,21 @@ const isVisible = computed({
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
 const currentUserId = computed(() => userStore.userInfo?.id)
+
+// ===== 明细文件下载（与结算单管理详情同一交互：按钮触发，而非裸链接） =====
+// VR 明细文件是创建时上传的静态文件（detail_file_path），无生成状态机，
+// 因此只有「已生成 / 无明细文件」两态，不涉及重新生成。
+const handleDownloadDetail = () => {
+  const s = props.settlement
+  if (!s?.detail_file_path) return
+  const link = document.createElement('a')
+  link.href = s.detail_file_path
+  link.download = s.detail_file_name || ''
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
 
 // ===== 销售身份校验：仅该客户指定的销售可点击「销售审批」=====
 const canConfirmSales = computed(() => {
@@ -338,132 +337,27 @@ const flowSettledDescription = computed(() =>
 </script>
 
 <style scoped>
-.drawer-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
+/* 抽屉级公共样式与结算单详情共用单一来源，避免两份定义漂移 */
+@import '@/styles/detail-drawer.css';
 
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* Arco steps 默认字号偏大，720px 抽屉内多步的 description（人名）会截断/换行 */
+.flow-steps :deep(.arco-steps) {
+  padding: 4px 0;
 }
-
-.detail-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.detail-title h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.detail-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.section-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
+.flow-steps :deep(.arco-steps-item-title) {
   font-size: 13px;
 }
-
-.table th,
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  text-align: left;
-}
-
-.table th {
-  color: #64748b;
-  font-weight: 600;
-}
-
-.amount-final {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.text-danger {
-  color: var(--red);
+.flow-steps :deep(.arco-steps-item-description) {
+  font-size: 12px;
+  max-width: 100px;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.text-success {
-  color: var(--green, #10b981);
-  white-space: nowrap;
-}
-
-.attachment-link {
-  color: var(--primary);
-}
-
+/* 备注说明（VR 结算单特有字段，多行文本） */
 .remark-text {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.subtle {
-  color: #94a3b8;
-}
-
-.action-section {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border, #e5e7eb);
-}
-
-/* 按钮样式（与列表页一致） */
-.btn {
-  border: 1px solid var(--line);
-  background: white;
-  color: var(--ink);
-  border-radius: 12px;
-  padding: 9px 12px;
-  cursor: pointer;
-  font-weight: 700;
-}
-.btn:hover {
-  border-color: #93c5fd;
-  background: #eff6ff;
-}
-.btn.primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
-.btn.primary:hover {
-  background: #1e40af;
-}
-.btn.btn-danger {
-  color: var(--red);
-  border-color: #fecaca;
-}
-.btn.btn-danger:hover {
-  background: #fef2f2;
-  border-color: #fca5a5;
-}
-.btn.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>
