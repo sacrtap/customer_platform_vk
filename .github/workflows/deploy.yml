@@ -125,6 +125,11 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-24.04
     needs: build-and-push
+    # 上限 20 分钟：远端部署含两次镜像拉取（各 300s 超时 ×3 次重试），
+    # 正常情况下分钟级完成；超时上限确保异常时快速失败而非占用默认 6 小时。
+    # 历史教训：2026-11-03 podman pull TCP 半开无限等待，job 无 timeout-minutes
+    # 挂起 30 分钟靠人工取消。
+    timeout-minutes: 20
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' }}
     environment:
       name: staging
@@ -226,6 +231,8 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-24.04
     needs: build-and-push
+    # 同 deploy-staging：确保异常时快速失败而非占用默认 6 小时
+    timeout-minutes: 20
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production' }}
     environment:
       name: production
@@ -332,20 +339,37 @@ jobs:
         run: |
           echo "🔍 执行健康检查..."
 
-          # 根据部署的环境选择检查 URL
+          # 只检查本次真正部署成功的环境。
+          # 修复：原实现在 staging 失败时误查 production 的 URL（else 分支），
+          # 既掩盖 staging 故障、又让 production 的抖动误伤 staging 的结论。
+          # 两个环境都成功时逐个检查；一个都没成功时本 job 已被上面的 if 跳过。
+          HEALTH_URLS=()
           if [ "${{ needs.deploy-staging.result }}" == "success" ]; then
-            HEALTH_URL="https://customer-staging.jiazoushi.com/health"
-          else
-            HEALTH_URL="https://production.jiazoushi.com/health"
+            HEALTH_URLS+=("https://customer-staging.jiazoushi.com/health")
+          fi
+          if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+            HEALTH_URLS+=("https://production.jiazoushi.com/health")
           fi
 
-          echo "检查地址: ${HEALTH_URL}"
+          if [ "${#HEALTH_URLS[@]}" -eq 0 ]; then
+            echo "⚠️ 没有部署成功的环境，跳过健康检查"
+            exit 0
+          fi
 
-          # 部署刚完成时应用可能仍在启动，允许短暂重试
-          response=$(curl -s -o /dev/null -w "%{http_code}" --retry 6 --retry-delay 5 --retry-all-errors ${HEALTH_URL})
-          if [ "$response" == "200" ]; then
-            echo "✅ 健康检查通过"
-          else
-            echo "❌ 健康检查失败 (HTTP ${response})"
+          failed=0
+          for HEALTH_URL in "${HEALTH_URLS[@]}"; do
+            echo "检查地址: ${HEALTH_URL}"
+
+            # 部署刚完成时应用可能仍在启动，允许短暂重试
+            response=$(curl -s -o /dev/null -w "%{http_code}" --retry 6 --retry-delay 5 --retry-all-errors "${HEALTH_URL}")
+            if [ "$response" == "200" ]; then
+              echo "✅ 健康检查通过: ${HEALTH_URL}"
+            else
+              echo "❌ 健康检查失败 (HTTP ${response}): ${HEALTH_URL}"
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
             exit 1
           fi

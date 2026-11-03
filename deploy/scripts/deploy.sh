@@ -339,6 +339,117 @@ build_images() {
     log_info "镜像构建完成"
 }
 
+# ============================================================
+# 带超时与重试的镜像拉取
+# ------------------------------------------------------------
+# 背景：2026-11-03 staging 部署卡死 30 分钟。日志显示 `podman pull` 在
+# "Getting image source signatures" 之后 16 个 blob 全部开始拷贝但无一完成，
+# 持续 30 分钟无进展直到被外部取消——典型 TCP 半开：连接已建立、服务端不再
+# 回数据，podman 不会因此退出，只会无限等待。
+# `podman pull --retry` 只在传输**失败返回非零退出码**后重试，无法中断挂起
+# 的传输，因此必须由外层 `timeout` 强制中断。
+# ============================================================
+PULL_TIMEOUT="${PULL_TIMEOUT:-300}"          # 单次拉取超时（秒）
+PULL_MAX_RETRIES="${PULL_MAX_RETRIES:-3}"    # 拉取失败重试次数
+PULL_RETRY_DELAY="${PULL_RETRY_DELAY:-5}"    # 重试间隔（秒）
+
+# 用 timeout 包裹命令；环境无 timeout/gtimeout 时退化为 bash 看门狗。
+# 实现要点（均来自实测踩坑）：
+#   1. 不能用「sleep N; touch 标志」判断——命令先结束、sleep 后到点时
+#      kill -0 检查与 touch 之间存在调度竞态，曾把成功/失败误判成超时。
+#   2. 改用「命令自己的退出码」判定：看门狗只负责发信号，命令被 TERM 杀死的
+#      退出码是 143（128+15）、被 KILL 是 137；命令自身正常结束则退出码保持原值。
+#      这与 timeout 的契约一致（124 仅由 timeout 包装器返回）。
+run_with_timeout() {
+    local secs=$1
+    shift
+
+    if command -v timeout >/dev/null 2>&1; then
+        timeout --signal=TERM --kill-after=30 "$secs" "$@"
+        return $?
+    fi
+
+    if command -v gtimeout >/dev/null 2>&1; then
+        gtimeout --signal=TERM --kill-after=30 "$secs" "$@"
+        return $?
+    fi
+
+    log_warn "未找到 timeout/gtimeout，改用 bash 看门狗（${secs}s）"
+
+    local cmd_pid watchdog_pid rc
+
+    # 关键实现细节（均来自实测踩坑）：
+    #   1. 命令必须在**新的进程组**里运行（set -m 使后台作业自成进程组），
+    #      否则 TERM 只发给 subshell、其子进程（如 podman pull）收不到，
+    #      曾出现「判定超时后仍白等 30s 且 podman 残留」。
+    #   2. 只 trap TERM（SIGKILL 不可捕获，shellcheck SC2173）。
+    #   3. 用「-PID」对整个进程组发信号，一次终止命令及其所有子进程。
+    set -m
+    (
+        trap 'exit 143' TERM
+        "$@"
+    ) &
+    cmd_pid=$!
+    set +m
+
+    (
+        sleep "$secs"
+        # 对整个进程组发 TERM；负数 PID 表示进程组
+        kill -TERM -- "-${cmd_pid}" 2>/dev/null || kill -TERM "$cmd_pid" 2>/dev/null || true
+    ) &
+    watchdog_pid=$!
+
+    wait "$cmd_pid" 2>/dev/null
+    rc=$?
+
+    # 收尸看门狗，避免 sleep 残留
+    pkill -P "$watchdog_pid" 2>/dev/null || true
+    kill "$watchdog_pid" 2>/dev/null || true
+    wait "$watchdog_pid" 2>/dev/null || true
+
+    # 143 = 被看门狗 TERM，即超时；其余为命令自身退出码
+    if [ "$rc" -eq 143 ] || [ "$rc" -eq 137 ]; then
+        return 124
+    fi
+
+    return "$rc"
+}
+
+# 带超时与重试地拉取镜像；成功返回 0，全部重试耗尽返回 1
+pull_image_with_retry() {
+    local image=$1
+    local attempt=1
+    local rc
+
+    while [ "$attempt" -le "$PULL_MAX_RETRIES" ]; do
+        log_info "拉取镜像（第 ${attempt}/${PULL_MAX_RETRIES} 次，超时 ${PULL_TIMEOUT}s）: ${image}"
+
+        run_with_timeout "$PULL_TIMEOUT" $CONTAINER_RUNTIME pull "$image"
+        rc=$?
+
+        if [ "$rc" -eq 0 ]; then
+            log_info "镜像拉取成功: ${image}"
+            return 0
+        fi
+
+        # 124 = timeout 命令的 TERM 退出码；137 = KILL 后退出码
+        if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+            log_warn "拉取超时（${PULL_TIMEOUT}s）: ${image}"
+        else
+            log_warn "拉取失败（exit ${rc}）: ${image}"
+        fi
+
+        attempt=$((attempt + 1))
+        if [ "$attempt" -le "$PULL_MAX_RETRIES" ]; then
+            log_info "等待 ${PULL_RETRY_DELAY}s 后重试..."
+            sleep "$PULL_RETRY_DELAY"
+        fi
+    done
+
+    log_error "镜像拉取失败（已重试 ${PULL_MAX_RETRIES} 次）: ${image}"
+    return 1
+}
+
 # 确保镜像可用：本地存在则直接复用，缺失时才拉取
 # 说明：部署服务器无法直连 Docker Hub，基础镜像由 CI 同步到 GHCR；
 #       本地优先可减少部署耗时，并在网络异常时复用缓存。
@@ -351,9 +462,7 @@ ensure_image() {
         return 0
     fi
 
-    log_info "拉取镜像: ${image}"
-    if ! $CONTAINER_RUNTIME pull --quiet "$image"; then
-        log_error "拉取镜像失败: ${image}"
+    if ! pull_image_with_retry "$image"; then
         log_error "请检查 GHCR 连通性；若基础镜像尚未同步，请先运行 Deploy workflow 的构建任务"
         return 1
     fi
@@ -369,7 +478,7 @@ pull_remote_image() {
 
     log_step "从 GHCR 拉取后端镜像: ${backend_image}"
 
-    $CONTAINER_RUNTIME pull "$backend_image" || {
+    pull_image_with_retry "$backend_image" || {
         log_error "拉取后端镜像失败: ${backend_image}"
         exit 1
     }
@@ -380,7 +489,7 @@ pull_remote_image() {
 
     log_step "从 GHCR 拉取前端镜像: ${frontend_image}"
 
-    $CONTAINER_RUNTIME pull "$frontend_image" || {
+    pull_image_with_retry "$frontend_image" || {
         log_error "拉取前端镜像失败: ${frontend_image}"
         exit 1
     }
@@ -762,14 +871,20 @@ main() {
     check_config
     load_env
     pre_deploy_check
-    stop_containers
 
+    # 镜像拉取必须放在 stop_containers 之前：
+    # 2026-11-03 staging 部署因 podman pull 停滞 30 分钟，而旧容器已 stop/down，
+    # 导致新镜像没到位、start_services 从未执行，站点 502 持续整个拉取时长。
+    # 先拉镜像可让「网络拉不动」在旧服务仍在运行时快速失败（重试耗尽后 exit 1），
+    # 把不可用窗口从「整个 pull 时长」缩短到「重启容器的十几秒」。
     if [ "$USE_REMOTE_IMAGE" = true ]; then
         pull_remote_image "${VERSION}"
     elif [ "$SKIP_BUILD" = false ]; then
         pull_images
         build_images
     fi
+
+    stop_containers
 
     if [ "$SKIP_MIGRATE" = false ]; then
         run_migrations
