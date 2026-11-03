@@ -471,3 +471,53 @@ const isCompleted = !!timeValue && !isCurrent
 
 **测试要求**：新时间线 wrapper 必须覆盖三态——已完成全绿（终态无 current）、
 当前节点蓝色高亮、取消末位红节点；减免历史插在「创建」节点之后（后端倒序返回需反转）。
+
+---
+
+## 受控 file-list 与上传错误处理契约（2026-11-03 三弹窗同款缺陷修复）
+
+**Bug 症状**：创建/编辑弹窗选择附件后，「移除」按钮点击无效（文件条目残留）；上传失败时只显示统一文案「附件上传失败」，真实原因（无权限 / 大小超限 / 类型不符）不可见。
+
+**两条契约**（`a-upload` + 手动上传模式）：
+
+1. **`@change` 必须无条件同步受控列表**——Arco 在用户点移除时回传**空数组**，
+   守卫 `if (list.length > 0)` 会把这次清空忽略掉：
+
+   ```ts
+   // 错误（三处同款缺陷）：移除无效
+   const handleFileChange = (list) => {
+     if (list && list.length > 0) form.attachment = list[0].file
+   }
+
+   // 正确：空数组自然落到 undefined，选中/移除语义统一
+   const handleFileChange = (list) => {
+     form.attachment = list?.[0]?.file
+   }
+   ```
+
+2. **上传失败的 catch 必须走 `handleError(error, fallback)`**——禁止
+   `catch { Message.error('统一文案') }`。拦截器已把后端错误归一为
+   `{ code, message }`，`getUserFriendlyMessage` 对 400 类（参数/业务错误）
+   **透传后端 message**；吞掉它等于把「文件大小超过限制 (10MB)」「不支持的文件类型」
+   「您没有执行此操作的权限」降级为无法行动的统一文案：
+
+   ```ts
+   // 正确
+   } catch (error) {
+     handleError(error, '附件上传失败') // fallback 仅在错误形状无法解析时生效
+     return false
+   }
+   ```
+
+**系统性排查结论**（break-loop）：全仓 `catch { Message.error(...) }` 模式 10 余处，
+按场景分类处理——
+
+| 场景 | 位置 | 处置 |
+|---|---|---|
+| 附件上传（3 处） | `VrSettlementCreateModal` / `DiscountEditModal` / `SubmitModal` | **已全部修复**（2026-11-03） |
+| 页面数据加载失败 | `Profile.vue` 等 | 保留 fallback（加载类无更细粒度后端文案可透传） |
+| 下载/导出失败 | `InvoiceDetailDrawer` 等 | 保留 fallback（blob 错误对用户无可读信息） |
+
+**新增上传组件检查单**：受控列表空数组同步、错误走 handleError、测试覆盖
+「移除清空 / 失败透传 / 成功路径」三态（参考
+`views/billing/components/__tests__/VrSettlementCreateModal.upload.test.ts`）。
