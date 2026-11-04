@@ -77,6 +77,19 @@
 
 `ALL_PERMISSIONS` 四元组的 `module` 决定权限在角色配置弹窗（`views/roles/permissionGroups.ts` `MODULE_NAME_MAP`/`MODULE_ORDER`）中的分组卡片，**不影响权限判定**。约定：同一业务模块的码必须归同一 module——`industry_types:manage`、`cooperation_statuses:manage`、`erp_systems:manage`、`balance_whitelist:manage`、`api_keys:manage` 历史上误挂 `system`（初始 seed 按「系统管理」归类，后批量导入导出改造新增 `:import`/`:export` 时按模块命名，造成同模块码跨卡片），已于 2026-10-31 修正，部署时 `--sync-permissions` 的 upsert 自动更新。
 
+### billing 组内二级子分区（2026-11-04）
+
+「结算管理」23 个码平铺时可读性差、且 `billing:edit` 一码跨「计费配置」与「结算单生命周期」双业务面。已做两层拆分：
+
+1. **码层**：新增 `billing:invoice_generate`（生成/试算/批量生成）、`billing:invoice_submit`（提交/批量提交/取消）、`billing:package_edit`、`billing:package_delete`；`billing:edit` 收窄为「计费规则 CRUD + 收款账户」。切换为纯切换（无过渡双码），预置角色由 seed sync 补齐，持旧码的自定义角色需管理员手动勾选（写进 PR 上线动作）。
+2. **展示层**：`permissionGroups.ts` `BILLING_SUBGROUP_RULES`（code→子区精确映射 + 兜底「其他」子区），`buildBillingSubGroups` 产出 6 个子区（通用/计费规则/包年套餐/余额管理/结算单管理/审批与减免），`Index.vue` 组卡片内渲染。module 不变、零迁移。
+
+**教训**：新增 billing 码必须同步 `BILLING_SUBGROUP_RULES`，否则落入「其他」子区（兜底保证可见，但分组失真）；纯逻辑单测 `buildBillingSubGroups` 的 drift 用例守护规则表与码清单的对应关系。
+
+## 部署流程与权限同步的关系
+
+deploy 链路（`deploy.yml` → `deploy/scripts/deploy.sh::run_migrations`）会自动执行 `migrate` → **全量 `seed.py`**（docker-compose `seed` service，`command: python scripts/seed.py`）→ `cleanup` 三个一次性容器。全量 seed 的权限部分与 `--sync-permissions` 等价（upsert + 超管关联 + 预置角色只增不删 + 缓存失效），**默认部署无需再手动跑 `--sync-permissions`**；仅当使用 `deploy.sh --skip-migrate` 时才需手动补跑。自定义角色加码永远不在自动覆盖范围（管理员页面操作）。
+
 ## 高危权限清单（授予前需确认业务必要性）
 
 `system:database_clear`、`system:database_backup`、`sync_tasks:manage`、`customers:delete`、`users:delete`、`roles:delete`、`files:delete`、`billing:delete`、`erp_systems:manage`、`api_keys:manage`。
