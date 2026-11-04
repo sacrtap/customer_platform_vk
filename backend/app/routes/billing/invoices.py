@@ -24,6 +24,7 @@ from ...constants.error_codes import ErrorCodes
 from ...middleware.auth import (
     auth_required,
     customer_scope_user_id,
+    ensure_permission,
     get_current_user,
     require_permission,
 )
@@ -859,7 +860,7 @@ async def generate_invoice(request: Request):
 
 @billing_bp.put("/invoices/<invoice_id:int>/discount")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:discount_apply")
 async def apply_discount(request: Request, invoice_id: int):
     """
     应用/修改减免
@@ -1420,6 +1421,83 @@ async def reject_discount(request: Request, invoice_id: int):
         record_type="invoice",
         changes={
             "before": {"status": status_before, "comment": comment},
+            "after": {"status": invoice_after.status if invoice_after else None},
+        },
+        operation_type="standard",
+        ip_address=request.headers.get(
+            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+        ),
+        auto_commit=True,
+    )
+
+    return json({"code": 0, "message": message})
+
+
+@billing_bp.post("/invoices/<invoice_id:int>/rollback")
+@auth_required
+async def rollback_invoice(request: Request, invoice_id: int):
+    """回退至上一步审核（理由必填）
+
+    pending_ops → draft（billing:ops_approve + 客户指定运营经理身份）；
+    pending_sales → pending_ops（billing:sales_approve + 客户指定销售经理身份）。
+
+    权限点随结算单当前状态变化，故不走 require_permission 装饰器，
+    由 ensure_permission 按当前节点动态校验（见 test_permission_drift.py 豁免登记）。
+
+    Body: { "comment": "回退理由（必填）" }
+    """
+    db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
+    data = request.json or {}
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+
+    comment = (data.get("comment") or "").strip()
+    if not comment:
+        return json({"code": 40001, "message": "回退必须填写理由"}, status=400)
+
+    invoice_before = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice_before:
+        return json({"code": ErrorCodes.NOT_FOUND, "message": "结算单不存在"}, status=404)
+
+    # 数据可见性（服务端强制）：无 customers:view_all 时仅可操作自己负责客户的结算单
+    denied = await _ensure_invoice_scope(request, invoice_before)
+    if denied is not None:
+        return denied
+
+    rollback_permission = {
+        "pending_ops": "billing:ops_approve",
+        "pending_sales": "billing:sales_approve",
+    }.get(invoice_before.status)  # pyright: ignore[reportArgumentType]
+    if rollback_permission is None:
+        return json(
+            {"code": 40001, "message": f"当前状态（{invoice_before.status}）不支持回退"},
+            status=400,
+        )
+
+    denied = await ensure_permission(request, rollback_permission)
+    if denied is not None:
+        return denied
+
+    success, message = await invoice_service.rollback_invoice(
+        invoice_id=invoice_id,
+        user_id=user["user_id"] if user else 1,
+        comment=comment,
+    )
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    invoice_after = await invoice_service.get_invoice_by_id(invoice_id)
+    await cache_service.invalidate_billing_cache()
+
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="rollback",
+        module="billing",
+        record_id=invoice_id,
+        record_type="invoice",
+        changes={
+            "before": {"status": invoice_before.status, "comment": comment},
             "after": {"status": invoice_after.status if invoice_after else None},
         },
         operation_type="standard",

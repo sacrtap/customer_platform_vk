@@ -6,8 +6,8 @@
 设计要点：PERMISSION_CODES 由 PERMISSION_ROWS 派生，使
 「插入 DB 用的行数据」与「mock 权限缓存用的 code 集合」在结构上不可能漂移。
 
-与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、67 条；
-此处为测试侧裁剪形态 3 元组、62 条）。两者的漂移由
+与 scripts/seed.py 的关系：语义一致但形态不同（seed 为 4 元组含 description、69 条；
+此处为测试侧裁剪形态 3 元组、64 条）。两者的漂移由
 tests/unit/test_test_data_consistency.py 守护。
 """
 
@@ -36,6 +36,7 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("billing:ops_approve", "运营经理确认", "billing"),
     ("billing:sales_approve", "销售经理确认", "billing"),
     ("billing:discount_approve", "减免审批", "billing"),
+    ("billing:discount_apply", "设置减免", "billing"),
     ("billing:detail_status_view", "明细生成状态查看", "billing"),
     ("billing:detail_regenerate", "明细重新生成", "billing"),
     ("vr_settlement:view", "查看VR结算", "vr_settlement"),
@@ -45,6 +46,7 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("vr_settlement:cs_approve", "客服主管审批", "vr_settlement"),
     ("vr_settlement:sales_approve", "销售审批", "vr_settlement"),
     ("vr_settlement:sales_supervisor_approve", "销售主管审批", "vr_settlement"),
+    ("vr_settlement:discount_apply", "设置减免", "vr_settlement"),
     ("vr_settlement:confirm", "客户确认VR结算单", "vr_settlement"),
     ("files:view", "查看文件", "files"),
     ("files:upload", "上传文件", "files"),

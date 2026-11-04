@@ -46,6 +46,13 @@ logger = logging.getLogger(__name__)
 # 避免数据库异常穿透成 500，同时让前端能提示用户稍后重试
 _DB_BUSY_MESSAGE = "数据库繁忙，请稍后重试"
 
+# 回退目标映射：当前节点 → 上一步。pending_discount_approval 的回退由既有
+# reject_discount 承担（其退回点即上一步，理由必填）；pending_customer 及以后不回退。
+_INVOICE_ROLLBACK_TARGETS = {
+    "pending_ops": "draft",
+    "pending_sales": "pending_ops",
+}
+
 
 class BalanceService:
     """余额服务类"""
@@ -1571,16 +1578,23 @@ class InvoiceService:
         每次修改都会更新 discount_applied_at 为当前时间（精确到秒），
         同时在 invoice_discount_histories 表中插入一条历史记录。
 
-        允许状态：draft / pending_ops / pending_sales。
-        审批通过后（pending_customer）不允许再改减免，否则会绕过减免审批；
-        审批节点本身（pending_discount_approval）也不允许修改申请。
+        允许状态：draft / pending_ops / pending_sales / pending_discount_approval。
+        客户确认后（pending_customer 及之后）不允许再改减免，否则会绕过减免审批。
+
+        在审批节点（pending_discount_approval）重新提交申请视为「重新申请」：
+        同步清空减免审批三字段（审批人/审批时间/审批意见），待审批人重新审批。
         """
         invoice = await self.get_invoice_by_id(invoice_id)
 
         if not invoice:
             return False, "结算单不存在"
 
-        if invoice.status not in ["draft", "pending_ops", "pending_sales"]:
+        if invoice.status not in [
+            "draft",
+            "pending_ops",
+            "pending_sales",
+            "pending_discount_approval",
+        ]:
             return False, f"当前状态不能修改减免：{invoice.status}"
 
         if discount_amount == 0:  # pyright: ignore[reportGeneralTypeIssues]
@@ -1595,6 +1609,10 @@ class InvoiceService:
         invoice.discount_reason = discount_reason  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_attachment = discount_attachment  # pyright: ignore[reportAttributeAccessIssue]
         invoice.discount_applied_at = now_str  # pyright: ignore[reportAttributeAccessIssue]
+        # 重新提交申请：清空历史审批痕迹（审批人/审批时间/审批意见）
+        invoice.discount_approver_id = None  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approved_at = None  # pyright: ignore[reportAttributeAccessIssue]
+        invoice.discount_approval_comment = None  # pyright: ignore[reportAttributeAccessIssue]
 
         # 写入历史记录
         history = InvoiceDiscountHistory(
@@ -1837,6 +1855,41 @@ class InvoiceService:
         await self.db.commit()
 
         return True, "销售经理确认成功"
+
+    async def rollback_invoice(
+        self, invoice_id: int, user_id: int, comment: str
+    ) -> Tuple[bool, str]:
+        """回退至上一步审核（理由由路由层校验必填后传入）
+
+        pending_ops → draft：操作人必须为该客户指定的运营经理；
+        pending_sales → pending_ops：操作人必须为该客户指定的销售经理。
+        仅改 status；ops_confirmed_*/sales_confirmed_* 等历史确认字段保留作审计轨迹。
+        """
+        invoice = await self.get_invoice_by_id(invoice_id)
+
+        if not invoice:
+            return False, "结算单不存在"
+
+        target = _INVOICE_ROLLBACK_TARGETS.get(invoice.status)  # pyright: ignore[reportArgumentType]
+        if target is None:
+            return False, f"当前状态（{invoice.status}）不支持回退"
+
+        customer = await self._get_customer(invoice.customer_id)  # pyright: ignore[reportArgumentType]
+        if not customer:
+            return False, "客户不存在"
+
+        if invoice.status == "pending_ops":  # pyright: ignore[reportGeneralTypeIssues]
+            if customer.manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
+                return False, "您不是该客户指定的运营经理，无权回退"
+        else:
+            if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
+                return False, "您不是该客户指定的销售经理，无权回退"
+
+        invoice.status = target  # pyright: ignore[reportAttributeAccessIssue]
+
+        await self.db.commit()
+
+        return True, "已回退至上一步"
 
     async def confirm_invoice(self, invoice_id: int, user_id: int) -> Tuple[bool, str]:
         """客户确认结算单（第三步，线下确认后线上录入）

@@ -251,6 +251,31 @@ def require_permission(permission_code: str):
     return decorator
 
 
+async def ensure_permission(request: Request, permission_code: str):
+    """状态依赖的权限校验（如按当前节点回退）：通过返回 None，否则返回 403 响应。
+
+    与 require_permission 装饰器同一 lookup 路径（permission_cache → get_user_permissions
+    → _check_permission），供权限点随资源当前状态变化的路由复用。
+    """
+    user = get_current_user(request)
+    if not user:
+        return json({"code": ErrorCodes.UNAUTHORIZED, "message": "未认证"}, status=401)
+
+    # Lazy import to support test mocking
+    from ..cache.permissions import permission_cache
+
+    user_id = user["user_id"]
+    user_permissions = await permission_cache.get_permissions(user_id)
+    if user_permissions is None:
+        db_session: AsyncSession = request.ctx.db_session
+        user_permissions = await get_user_permissions(db_session, user_id)
+        await permission_cache.set_permissions(user_id, user_permissions)  # pyright: ignore[reportArgumentType]
+
+    if not _check_permission(user_permissions, permission_code):  # pyright: ignore[reportArgumentType]
+        return json({"code": ErrorCodes.FORBIDDEN, "message": "权限不足"}, status=403)
+    return None
+
+
 def _check_permission(user_permissions: set, required_permission: str) -> bool:
     """检查用户是否有指定权限（支持通配符匹配）
 
