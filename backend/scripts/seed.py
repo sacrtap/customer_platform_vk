@@ -53,10 +53,10 @@ ALL_PERMISSIONS = [
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     ("customers:view_all", "查看全部客户", "不受经理可见性约束，查看全部客户", "customers"),
     # ============================================================
-    # 结算管理 (19)
+    # 结算管理 (23)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
-    ("billing:edit", "编辑结算", "修改定价规则", "billing"),
+    ("billing:edit", "编辑计费配置", "修改定价规则、收款账户", "billing"),
     ("billing:delete", "删除定价", "删除定价规则", "billing"),
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
     ("billing:balance_import", "导入余额", "批量导入充值数据", "billing"),
@@ -65,6 +65,8 @@ ALL_PERMISSIONS = [
     ("billing:pricing_export", "导出计费规则", "导出计费规则数据", "billing"),
     ("billing:package_import", "导入包年套餐", "批量导入包年套餐", "billing"),
     ("billing:package_export", "导出包年套餐", "导出包年套餐数据", "billing"),
+    ("billing:package_edit", "编辑包年套餐", "新建/修改包年套餐", "billing"),
+    ("billing:package_delete", "删除包年套餐", "删除包年套餐", "billing"),
     ("billing:invoice_import", "导入结算单", "批量导入外部结算单", "billing"),
     ("billing:invoice_export", "导出结算单", "导出结算单数据", "billing"),
     ("billing:confirm", "确认结算单", "确认客户结算单（限商务/运营经理）", "billing"),
@@ -74,6 +76,8 @@ ALL_PERMISSIONS = [
     ("billing:sales_approve", "销售经理确认", "销售经理确认结算单（第二步）", "billing"),
     ("billing:discount_approve", "减免审批", "审批结算单减免申请", "billing"),
     ("billing:discount_apply", "设置减免", "提交/修改结算单减免申请", "billing"),
+    ("billing:invoice_generate", "生成结算单", "试算/生成/批量生成结算单", "billing"),
+    ("billing:invoice_submit", "提交结算单", "提交/批量提交/取消结算单", "billing"),
     # ============================================================
     # VR编辑费用结算 (9)
     # ============================================================
@@ -219,6 +223,8 @@ PRESET_ROLES = {
             "users:view",
             "billing:view",
             "billing:edit",
+            "billing:invoice_generate",
+            "billing:invoice_submit",
             "billing:balance_export",
             "billing:pricing_export",
             "billing:package_export",

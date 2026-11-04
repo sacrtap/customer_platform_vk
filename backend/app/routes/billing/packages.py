@@ -138,7 +138,7 @@ async def get_package_plan(request: Request, plan_id: int):
 
 @billing_bp.post("/package-plans")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:package_edit")
 async def create_package_plan(request: Request):
     """
     创建包年套餐
@@ -283,7 +283,7 @@ async def create_package_plan(request: Request):
 
 @billing_bp.put("/package-plans/<plan_id:int>")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:package_edit")
 async def update_package_plan(request: Request, plan_id: int):
     """更新包年套餐"""
     db: AsyncSession = request.ctx.db_session
@@ -430,7 +430,7 @@ async def update_package_plan(request: Request, plan_id: int):
 
 @billing_bp.delete("/package-plans/<plan_id:int>")
 @auth_required
-@require_permission("billing:delete")
+@require_permission("billing:package_delete")
 async def delete_package_plan(request: Request, plan_id: int):
     """删除包年套餐（软删除）"""
     db: AsyncSession = request.ctx.db_session

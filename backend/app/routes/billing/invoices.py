@@ -399,7 +399,7 @@ async def get_invoice(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/calculate-items")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_generate")
 async def calculate_invoice_items(request: Request):
     """
     根据客户 + 结算周期，自动计算结算明细
@@ -595,7 +595,7 @@ async def preview_batch_invoices(request: Request):
 
 @billing_bp.post("/invoices/generate-batch")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_generate")
 async def generate_invoices_batch(request: Request):
     """按计费类型批量生成结算单
 
@@ -740,7 +740,7 @@ async def export_batch_generate_result(request: Request):
 
 @billing_bp.post("/invoices/generate")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_generate")
 async def generate_invoice(request: Request):
     """
     生成结算单
@@ -1061,7 +1061,7 @@ async def update_settlement_account(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/submit")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_submit")
 async def submit_invoice(request: Request, invoice_id: int):
     """提交结算单（商务确认）
 
@@ -1564,7 +1564,7 @@ async def retry_deduction(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/<invoice_id:int>/cancel")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_submit")
 async def cancel_invoice_route(request: Request, invoice_id: int):
     """取消结算单"""
     db: AsyncSession = request.ctx.db_session
@@ -2436,7 +2436,7 @@ async def download_invoice_detail(request: Request, invoice_id: int):
 
 @billing_bp.post("/invoices/batch-submit")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_submit")
 async def batch_submit_invoices(request: Request):
     """批量提交结算单（draft → 按经理配置进入对应确认阶段）"""
     db: AsyncSession = request.ctx.db_session
@@ -2491,7 +2491,7 @@ async def batch_submit_invoices(request: Request):
 
 @billing_bp.post("/invoices/batch-cancel")
 @auth_required
-@require_permission("billing:edit")
+@require_permission("billing:invoice_submit")
 async def batch_cancel_invoices(request: Request):
     """批量取消结算单（draft/pending_* → cancelled）"""
     db: AsyncSession = request.ctx.db_session
