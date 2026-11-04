@@ -217,7 +217,7 @@
 
         <div class="action-section">
           <button
-            v-if="can('billing:edit') && invoice.status === 'draft'"
+            v-if="can('billing:invoice_submit') && invoice.status === 'draft'"
             class="btn primary"
             @click="emit('submit', invoice.id)"
           >
@@ -300,7 +300,7 @@
           </button>
           <button
             v-if="
-              can('billing:edit') &&
+              can('billing:invoice_submit') &&
               ['draft', 'pending_ops', 'pending_sales', 'pending_customer'].includes(invoice.status)
             "
             class="btn btn-danger"
