@@ -7,7 +7,8 @@ import { computed } from 'vue'
 import { toDate } from '@/utils/formatters'
 import type { DiscountHistory } from '@/api/billing'
 import StatusTimeline from '@/components/common/StatusTimeline.vue'
-import type { TimelineDetailPart as DetailPart } from '@/components/common/StatusTimeline.vue'
+import type { TimelineDetailPart as DetailPart } from '@/components/common/timelineStatus'
+import { resolveTimelineNodeStyle, TIMELINE_STYLES } from '@/components/common/timelineStatus'
 
 const props = defineProps<{
   invoice: {
@@ -140,17 +141,12 @@ const timelineEvents = computed(() => {
       parts.push({ type: 'link', prefix: '附件：', label: fileName, url: dh.discount_attachment })
     }
 
-    // 减免节点的颜色：已完成=绿色
-    let dotColor = 'green'
-    let textClass = 'completed-event'
-
     return {
       label: `修改减免${discountHistories.length > 1 ? `（第 ${idx + 1} 次）` : ''}`,
       time: dh.applied_at ? formatDate(dh.applied_at) : undefined,
       detailParts: parts,
       operator: dh.applied_by_name || undefined,
-      dotColor,
-      textClass,
+      ...TIMELINE_STYLES.completed,
     }
   })
 
@@ -164,8 +160,7 @@ const timelineEvents = computed(() => {
       operator: createNode.operatorField
         ? (props.invoice[createNode.operatorField] as string | null | undefined) || undefined
         : undefined,
-      dotColor: 'green',
-      textClass: 'completed-event',
+      ...TIMELINE_STYLES.completed,
     })
   }
 
@@ -175,35 +170,9 @@ const timelineEvents = computed(() => {
   // 添加剩余流程节点（跳过已处理的 created_at）
   const remainingNodes = allNodes.slice(1)
 
-  // 计算当前流程状态对应的节点索引（在 remainingNodes 中的位置）
-  let currentRemIndex = -1
-  const allCompleted = status === 'completed'
-  if (!isCancelled) {
-    currentRemIndex = remainingNodes.findIndex((node) => node.statusKey === status)
-  }
-
-  remainingNodes.forEach((node, index) => {
+  remainingNodes.forEach((node) => {
     const timeValue = props.invoice[node.field] as string | undefined
     if (!timeValue) return // 只显示已发生的节点
-
-    // 当前节点：状态停在该节点、且流程未整体完成（completed 时无「当前」，全部为已完成）
-    const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
-    // 已发生且非当前节点 → 已完成（含 completed 终态下的末节点）
-    const isCompleted = !!timeValue && !isCurrent
-
-    let dotColor: string
-    let textClass: string
-
-    if (isCurrent) {
-      dotColor = 'blue'
-      textClass = 'current-event'
-    } else if (isCompleted) {
-      dotColor = 'green'
-      textClass = 'completed-event'
-    } else {
-      dotColor = 'gray'
-      textClass = 'pending-event'
-    }
 
     events.push({
       label: node.label,
@@ -212,8 +181,8 @@ const timelineEvents = computed(() => {
       operator: node.operatorField
         ? (props.invoice[node.operatorField] as string | null | undefined) || undefined
         : undefined,
-      dotColor,
-      textClass,
+      // 状态推导（含 completed 终态 / 当前节点）统一由共享层负责
+      ...resolveTimelineNodeStyle(node, status, !!timeValue),
     })
   })
 
@@ -223,8 +192,7 @@ const timelineEvents = computed(() => {
       label: '取消结算单',
       time: props.invoice.cancelled_at ? formatDate(props.invoice.cancelled_at) : undefined,
       operator: (props.invoice.cancelled_name as string | null | undefined) || undefined,
-      dotColor: 'red',
-      textClass: 'cancelled-event',
+      ...TIMELINE_STYLES.cancelled,
     })
   }
 

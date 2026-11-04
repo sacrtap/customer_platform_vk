@@ -438,36 +438,43 @@ service 严格校验才暴露。**新增排序列表时，即使后端会兜底�
 
 ---
 
-## 状态机时间线：共享哑渲染层 + completed 终态判定陷阱
+## 状态机时间线：共享哑渲染层 + 共享状态推导（单一 owner）
 
-**模式**（2026-11-03 VR 结算单操作记录落地）：结算类单据详情的「操作记录」时间线，
-渲染层与节点推导分离——
+**模式**（2026-11-03 落地，2026-11-04 收敛状态推导）：
 
+- `components/common/timelineStatus.ts`：**状态推导的单一 owner**。
+  `resolveTimelineNodeStyle(node, status, hasTime)` 输入节点定义（field/label/statusKey/operatorField/detailParts）
+  与单据 status，输出 `dotColor` / `textClass`；`TIMELINE_STYLES` 是四种配色
+  （current/completed/pending/cancelled）的唯一常量源。规则：
+  completed 终态全部 completed、无 current；cancelled 时流程节点按 completed 展示，取消节点由调用方
+  以 `TIMELINE_STYLES.cancelled` 追加；其余状态 `statusKey` 命中 `status` 的节点为 current，
+  已发生但未命中的为 completed，无时间戳的为 pending。
 - `components/common/StatusTimeline.vue`：**哑渲染**，props 只收 `events: TimelineEvent[]`
   （label/time/operator/detailParts/dotColor/textClass），不含任何业务判断
 - 业务 wrapper（`components/invoice/InvoiceTimeline.vue`、`components/vr/VrSettlementTimeline.vue`）：
-  各自定义流程节点表（field/label/statusKey/operatorField/detailParts）与三态着色逻辑
-- 新单据类型接时间线 = 新建 wrapper + 节点表，**不要复制整条渲染链**
+  只保留流程节点表（field/label/statusKey/operatorField/detailParts）与数据映射（时间格式化、操作人、
+  减免历史），**禁止**各自实现 `allCompleted` / `currentRemIndex` / `isCurrent` / `dotColor` 判定；
+  颜色一律取自 `TIMELINE_STYLES`
+- 新单据类型接时间线 = 新建 wrapper + 节点表，**不要复制整条渲染链，也不要复制状态判定**
 
-**completed 终态判定陷阱（两侧均已修复）**：
+**completed 终态判定陷阱（2026-11-03 一天内复发两次）**：
 
-`isCompleted = timeValue && index !== currentRemIndex` 在 completed 终态把末节点误判为未到达。
-**2026-11-03 两侧均已修复**（VR 侧随时间线新建时修，Invoice 侧随后单独修复）：
+旧判定 `isCompleted = timeValue && index !== currentRemIndex` 在 completed 终态把末节点误判为未到达灰色。
+VR 侧随时间线新建时修，Invoice 侧随后又单独修一次——根因是判定在两个消费方各存一份。
+现状唯一实现是 `resolveTimelineNodeStyle`：`status === 'completed'` 直接返回 completed，不存在 current 分支。
 
 ```ts
-// 错误（两侧修复前的共同缺陷）
-const isCompleted = timeValue && index !== currentRemIndex
-
-// 正确（两侧现状一致）
-const isCurrent = !isCancelled && index === currentRemIndex && !allCompleted
-const isCompleted = !!timeValue && !isCurrent
+// 共享层（唯一实现）
+if (!hasTime) return TIMELINE_STYLES.pending
+if (status === 'completed' || status === 'cancelled') return TIMELINE_STYLES.completed
+return node.statusKey === status ? TIMELINE_STYLES.current : TIMELINE_STYLES.completed
 ```
 
-回归测试：`components/invoice/__tests__/InvoiceTimeline.test.ts`「completed 终态：全部节点
-为已完成绿色」用例（修复前 failing：pending-event=1；修复后 passing）与
-`components/vr/__tests__/VrSettlementTimeline.test.ts` 同款用例双向锁死。
-新增时间线 wrapper 必须覆盖该终态场景——旧逻辑的缺陷正是「只有中间态测试、
-缺终态断言」才得以潜伏。
+回归测试：`components/common/__tests__/timelineAssertions.ts` 的 `expectCompletedTerminalTimeline()`
+被 `components/invoice/__tests__/InvoiceTimeline.test.ts` 与
+`components/vr/__tests__/VrSettlementTimeline.test.ts` 的 completed 用例共同复用，断言末节点为
+`completed-event` 且无 current/pending。新增时间线 wrapper 必须接入同一共享断言——
+旧缺陷正是「只有中间态测试、缺终态断言」才得以潜伏。
 
 **测试要求**：新时间线 wrapper 必须覆盖三态——已完成全绿（终态无 current）、
 当前节点蓝色高亮、取消末位红节点；减免历史插在「创建」节点之后（后端倒序返回需反转）。

@@ -463,6 +463,10 @@ class BackupService:
         判定为僵尸（服务中断/进程崩溃后终态丢失，留痕永久滞留会锁死所有
         备份入口），检测到时顺手标记 failed 并放行——与
         SyncTaskService.create_task 的卡死判定同构。
+
+        闸门契约见 .trellis/spec/backend/quality-guidelines.md
+        「活动任务闸门与互斥锁」：时间窗单源为 settings.backup_task_timeout_minutes，
+        前端 BackupManagement.vue 的同款常量必须与之同提交对齐。
         """
         timeout_threshold = cst_now() - timedelta(minutes=settings.backup_task_timeout_minutes)
         result = await self.db.execute(

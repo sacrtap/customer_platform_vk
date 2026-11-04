@@ -377,9 +377,11 @@ const fetchRecords = async () => {
   }
 }
 
-// 与后端 BackupService.has_active_task / settings.backup_task_timeout_minutes 对齐：
+// 活动任务闸门契约见 .trellis/spec/backend/quality-guidelines.md「活动任务闸门与互斥锁」：
+// 与后端 BackupService.has_active_task / settings.backup_task_timeout_minutes 对齐，
 // pending/running 启动超过该分钟数视为僵尸任务（服务中断后终态丢失，留痕永久滞留），
-// 不阻塞「立即备份」/「恢复」，由后端检测到时顺手标记 failed
+// 不阻塞「立即备份」/「恢复」，由后端检测到时顺手标记 failed。
+// 阈值单源在后端 settings，修改该配置时必须同提交修改本常量。
 const ACTIVE_TASK_TIMEOUT_MINUTES = 30
 
 const hasPendingTask = () => {
