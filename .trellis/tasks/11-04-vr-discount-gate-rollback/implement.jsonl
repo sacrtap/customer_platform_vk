@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/permission-model.md", "reason": "权限码单一事实源三层引用与新码注册要求"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "事务与 mock Forbidden Patterns（count/permissions 查询链）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ErrorCodes 常量与响应格式"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Modal 表单范式（RollbackModal 照抄）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试与质量门禁"}

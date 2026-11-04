@@ -48,6 +48,11 @@ export interface VrSettlement {
   discount_approval_comment?: string | null
   final_amount: number
   status: VrSettlementStatus
+  /**
+   * 有减免且系统存在持「减免审批」权限的用户时为 true：
+   * 销售主管审批通过必须由持 billing:discount_approve 的用户执行（后端同源门禁）
+   */
+  discount_approval_required?: boolean
   cs_supervisor_confirmed_by?: number | null
   cs_supervisor_confirmed_name?: string | null
   cs_supervisor_confirmed_at?: string | null
@@ -147,6 +152,11 @@ export function retryVrDeduction(id: number) {
 
 export function cancelVrSettlement(id: number) {
   return api.post(`/billing/vr-settlements/${id}/cancel`)
+}
+
+/** 回退至上一步审核（回退理由必填）：pending_cs_supervisor→draft / pending_sales→pending_cs_supervisor */
+export function rollbackVrSettlement(id: number, comment: string) {
+  return api.post(`/billing/vr-settlements/${id}/rollback`, { comment })
 }
 
 export function deleteVrSettlement(id: number) {

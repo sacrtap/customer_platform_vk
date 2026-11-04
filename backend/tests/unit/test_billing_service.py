@@ -2480,6 +2480,75 @@ class TestInvoiceService_ManagerFiltersAndSkip:
         assert success is True
         assert invoice.status == "pending_discount_approval"
 
+    # ===== 回退至上一步 =====
+
+    @pytest.mark.asyncio
+    async def test_rollback_pending_ops_to_draft(self, invoice_service):
+        """pending_ops → draft：指定运营经理可回退"""
+        invoice = self._invoice("pending_ops", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, message = await invoice_service.rollback_invoice(
+                invoice_id=1, user_id=1, comment="信息有误"
+            )
+
+        assert success is True
+        assert message == "已回退至上一步"
+        assert invoice.status == "draft"
+
+    @pytest.mark.asyncio
+    async def test_rollback_pending_sales_to_pending_ops(self, invoice_service):
+        """pending_sales → pending_ops：指定销售经理可回退"""
+        invoice = self._invoice("pending_sales", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, _ = await invoice_service.rollback_invoice(
+                invoice_id=1, user_id=2, comment="信息有误"
+            )
+
+        assert success is True
+        assert invoice.status == "pending_ops"
+
+    @pytest.mark.asyncio
+    async def test_rollback_rejects_non_manager(self, invoice_service):
+        """非客户指定运营经理 → 身份校验拒绝"""
+        invoice = self._invoice("pending_ops", invoice_id=1)
+        customer = self._customer(100, manager_id=1, sales_manager_id=2)
+
+        with (
+            patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)),
+            patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)),
+        ):
+            success, message = await invoice_service.rollback_invoice(
+                invoice_id=1, user_id=99, comment="信息有误"
+            )
+
+        assert success is False
+        assert message == "您不是该客户指定的运营经理，无权回退"
+        assert invoice.status == "pending_ops"
+
+    @pytest.mark.asyncio
+    async def test_rollback_rejects_unsupported_status(self, invoice_service):
+        """draft 等非审批节点 → 不支持回退"""
+        invoice = self._invoice("draft", invoice_id=1)
+
+        with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)):
+            success, message = await invoice_service.rollback_invoice(
+                invoice_id=1, user_id=1, comment="信息有误"
+            )
+
+        assert success is False
+        assert message == "当前状态（draft）不支持回退"
+        assert invoice.status == "draft"
+
     @pytest.mark.asyncio
     async def test_batch_submit_with_discount_routes_to_approval(self, invoice_service):
         """有减免 + 批量提交无经理：else 分支同样分流到 pending_discount_approval"""
@@ -2800,19 +2869,25 @@ class TestInvoiceService_DiscountApproval:
         assert invoice.discount_amount == Decimal("0.00")
 
     @pytest.mark.asyncio
-    async def test_apply_discount_rejects_approval_node(self, invoice_service):
-        """审批节点本身不允许修改减免申请"""
+    async def test_apply_discount_reapply_at_approval_node_clears_fields(self, invoice_service):
+        """审批节点重新提交申请：允许改写，并清空审批三字段（视为重新申请）"""
         invoice = self._invoice("pending_discount_approval", invoice_id=1)
+        invoice.discount_approver_id = 7
+        invoice.discount_approved_at = "2026-11-04 10:00:00"
+        invoice.discount_approval_comment = "同意"
 
         with patch.object(InvoiceService, "get_invoice_by_id", AsyncMock(return_value=invoice)):
             success, _ = await invoice_service.apply_discount(
                 invoice_id=1,
                 discount_amount=Decimal("100.00"),
-                discount_reason="改申请",
+                discount_reason="重新申请",
             )
 
-        assert success is False
-        assert invoice.discount_amount == Decimal("0.00")
+        assert success is True
+        assert invoice.discount_amount == Decimal("100.00")
+        assert invoice.discount_approver_id is None
+        assert invoice.discount_approved_at is None
+        assert invoice.discount_approval_comment is None
 
     @pytest.mark.asyncio
     async def test_apply_discount_allowed_in_pending_sales(self, invoice_service):

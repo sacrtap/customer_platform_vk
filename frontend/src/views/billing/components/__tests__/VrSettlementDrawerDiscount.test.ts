@@ -22,10 +22,11 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-const permissionState = vi.hoisted(() => ({ allowEdit: true }))
+const permissionState = vi.hoisted(() => ({ allowDiscountApply: true }))
 vi.mock('@/stores/user', () => ({
   useUserStore: vi.fn(() => ({
-    hasPermission: (p: string) => (p === 'vr_settlement:edit' ? permissionState.allowEdit : true),
+    hasPermission: (p: string) =>
+      p === 'vr_settlement:discount_apply' ? permissionState.allowDiscountApply : true,
   })),
 }))
 
@@ -84,13 +85,26 @@ describe('VR 结算单详情 - 减免提交窗口', () => {
     )
   })
 
-  it('无 vr_settlement:edit 权限时不渲染减免按钮', () => {
-    permissionState.allowEdit = false
+  it('无 vr_settlement:discount_apply 权限时不渲染减免按钮', () => {
+    permissionState.allowDiscountApply = false
     try {
       expect(hasDiscountButton(mountDrawer(baseSettlement))).toBe(false)
     } finally {
-      permissionState.allowEdit = true
+      permissionState.allowDiscountApply = true
     }
+  })
+
+  it('pending_cs_supervisor 渲染回退按钮；pending_sales_supervisor（审批中）不渲染', () => {
+    expect(
+      mountDrawer({ ...baseSettlement, status: 'pending_cs_supervisor' })
+        .findAll('button')
+        .some((b) => b.text().includes('回退'))
+    ).toBe(true)
+    expect(
+      mountDrawer(baseSettlement)
+        .findAll('button')
+        .some((b) => b.text().includes('回退'))
+    ).toBe(false)
   })
 
   it('discount_history 非空时渲染「减免修改历史」section 与行内容', () => {

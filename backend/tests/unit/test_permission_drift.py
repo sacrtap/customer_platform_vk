@@ -98,6 +98,15 @@ EXEMPT_WRITE_ENDPOINTS: dict[str, str] = {
     "/api/v1/users/password": "个人中心：本人修改密码",
     "/api/v1/users/me/preferences": "个人中心：本人偏好修改",
     "/api/v1/users/avatar": "个人中心：本人头像上传",
+    # 回退端点：权限点随结算单当前状态变化（pending_ops → billing:ops_approve /
+    # pending_sales → billing:sales_approve），静态装饰器无法表达，由 ensure_permission
+    # 按当前节点动态校验；service 层另有客户指定经理/销售的身份校验。
+    # 注：billing_bp 跨文件定义（routes/billing/__init__.py），AST 扫描拼不到前缀，
+    # 故 key 为无前缀形态。
+    "/invoices/<invoice_id:int>/rollback": "回退至上一步：权限码随当前审批节点动态解析（见路由 docstring）",
+    # VR 侧同理：pending_cs_supervisor → vr_settlement:cs_approve /
+    # pending_sales → vr_settlement:sales_approve
+    "/vr-settlements/<settlement_id:int>/rollback": "回退至上一步：权限码随当前审批节点动态解析（见路由 docstring）",
 }
 
 

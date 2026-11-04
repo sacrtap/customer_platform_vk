@@ -53,7 +53,7 @@ ALL_PERMISSIONS = [
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     ("customers:view_all", "查看全部客户", "不受经理可见性约束，查看全部客户", "customers"),
     # ============================================================
-    # 结算管理 (18)
+    # 结算管理 (19)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑结算", "修改定价规则", "billing"),
@@ -73,8 +73,9 @@ ALL_PERMISSIONS = [
     ("billing:ops_approve", "运营经理确认", "运营经理确认结算单（第一步）", "billing"),
     ("billing:sales_approve", "销售经理确认", "销售经理确认结算单（第二步）", "billing"),
     ("billing:discount_approve", "减免审批", "审批结算单减免申请", "billing"),
+    ("billing:discount_apply", "设置减免", "提交/修改结算单减免申请", "billing"),
     # ============================================================
-    # VR编辑费用结算 (8)
+    # VR编辑费用结算 (9)
     # ============================================================
     ("vr_settlement:view", "查看VR结算", "查看VR编辑费用结算单列表与详情", "vr_settlement"),
     ("vr_settlement:create", "创建VR结算单", "手动创建VR结算单并提交审批", "vr_settlement"),
@@ -91,6 +92,12 @@ ALL_PERMISSIONS = [
         "vr_settlement:sales_supervisor_approve",
         "销售主管审批",
         "销售主管审批VR结算单（第三步，含减免一并审批）",
+        "vr_settlement",
+    ),
+    (
+        "vr_settlement:discount_apply",
+        "设置减免",
+        "提交/修改VR结算单减免申请",
         "vr_settlement",
     ),
     ("vr_settlement:confirm", "客户确认VR结算单", "客户确认并自动扣款完成结算", "vr_settlement"),
@@ -238,6 +245,9 @@ PRESET_ROLES = {
             "vr_settlement:create",
             "vr_settlement:edit",
             "vr_settlement:confirm",
+            # 设置减免（减免审批走销售主管角色）
+            "billing:discount_apply",
+            "vr_settlement:discount_apply",
         ],
     ),
     "销售经理": (

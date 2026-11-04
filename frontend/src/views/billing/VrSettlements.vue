@@ -148,6 +148,17 @@
           >
             客服主管审批
           </button>
+          <button
+            v-if="
+              can('vr_settlement:cs_approve') &&
+              (record as VrSettlement).status === 'pending_cs_supervisor'
+            "
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as VrSettlement, 'rollback')"
+          >
+            回退
+          </button>
           <!-- 销售审批（需为该客户指定销售） -->
           <button
             v-if="
@@ -175,6 +186,18 @@
           >
             销售审批
           </button>
+          <button
+            v-if="
+              can('vr_settlement:sales_approve') &&
+              (record as VrSettlement).status === 'pending_sales' &&
+              canConfirmSales(record as VrSettlement)
+            "
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as VrSettlement, 'rollback')"
+          >
+            回退
+          </button>
           <!-- 销售主管审批通过 / 驳回 -->
           <button
             v-if="
@@ -183,6 +206,8 @@
             "
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            :disabled="discountApprovalBlocked(record as VrSettlement)"
+            :title="discountApprovalBlocked(record as VrSettlement) ? discountApprovalTip : ''"
             @click.stop="openApprovalModal(record as VrSettlement, 'approve')"
           >
             审批通过
@@ -260,6 +285,7 @@
       @submit="handleSingleAction(currentDetail!, 'submit')"
       @confirm-cs="handleSingleAction(currentDetail!, 'confirm-cs')"
       @confirm-sales="handleSingleAction(currentDetail!, 'confirm-sales')"
+      @rollback="handleSingleAction(currentDetail!, 'rollback')"
       @approve="openApprovalModal(currentDetail!, 'approve')"
       @reject="openApprovalModal(currentDetail!, 'reject')"
       @confirm="handleSingleAction(currentDetail!, 'confirm')"
@@ -288,6 +314,13 @@
       :discount-reason="approvalDiscountReason"
       @success="handleApprovalSuccess"
     />
+    <!-- 回退弹窗（审批节点回退至上一步，理由必填） -->
+    <RollbackModal
+      v-model:visible="rollbackModalVisible"
+      :loading="rollbackSubmitting"
+      title="回退至上一步审核"
+      @submit="handleRollbackSubmit"
+    />
   </div>
 </template>
 
@@ -311,6 +344,7 @@ import VrSettlementDetailDrawer from './components/VrSettlementDetailDrawer.vue'
 import VrSettlementCreateModal from './components/VrSettlementCreateModal.vue'
 import VrSettlementDiscountModal from './components/VrSettlementDiscountModal.vue'
 import VrSettlementApprovalModal from './components/VrSettlementApprovalModal.vue'
+import RollbackModal from './components/RollbackModal.vue'
 
 const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
@@ -326,6 +360,12 @@ const salesDisabledTip = (record: VrSettlement) =>
   !record.customer_sales_manager_id
     ? '该客户尚未指定销售，无法确认'
     : '您不是该客户指定的销售，无法确认'
+
+// ===== 减免审批门禁（与详情抽屉、后端 confirm_sales_supervisor 同源）=====
+// discount_approval_required 由列表接口按「有减免且系统存在持权用户」实时计算
+const discountApprovalBlocked = (record: VrSettlement) =>
+  record.discount_approval_required === true && !can('billing:discount_approve')
+const discountApprovalTip = '该结算单包含减免，需由具有减免审批权限的用户审批'
 
 const {
   loading,
@@ -344,6 +384,7 @@ const {
   doSubmit,
   doConfirmCs,
   doConfirmSales,
+  doRollback,
   doConfirm,
   doRetryDeduction,
   doCancel,
@@ -475,13 +516,40 @@ const handleApprovalSuccess = async () => {
   }
 }
 
-// --- 单条操作（提交/客服主管/销售/客户确认/重试扣款/取消/删除） ---
+// ===== 回退弹窗（各内部审批节点回退至上一步，理由必填） =====
+const rollbackModalVisible = ref(false)
+const rollbackTarget = ref<VrSettlement | null>(null)
+const rollbackSubmitting = ref(false)
+
+const openRollbackModal = (record: VrSettlement) => {
+  rollbackTarget.value = record
+  rollbackModalVisible.value = true
+}
+
+const handleRollbackSubmit = async (comment: string) => {
+  if (!rollbackTarget.value) return
+  rollbackSubmitting.value = true
+  try {
+    await doRollback(rollbackTarget.value.id, comment)
+    rollbackModalVisible.value = false
+    if (drawerVisible.value && rollbackTarget.value) {
+      await fetchVrDetail(rollbackTarget.value.id)
+    }
+  } catch {
+    // 错误消息已由 useVrSettlement 的 Message.error 统一处理
+  } finally {
+    rollbackSubmitting.value = false
+  }
+}
+
+// --- 单条操作（提交/客服主管/销售/回退/客户确认/重试扣款/取消/删除） ---
 const handleSingleAction = async (
   record: VrSettlement,
   action:
     | 'submit'
     | 'confirm-cs'
     | 'confirm-sales'
+    | 'rollback'
     | 'confirm'
     | 'retry-deduction'
     | 'cancel'
@@ -505,6 +573,9 @@ const handleSingleAction = async (
     'confirm-sales': async () => {
       await doConfirmSales(record.id)
       await refreshDetailIfOpen()
+    },
+    rollback: () => {
+      openRollbackModal(record)
     },
     confirm: async () => {
       await doConfirm(record.id)

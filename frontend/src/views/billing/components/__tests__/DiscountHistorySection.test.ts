@@ -22,10 +22,11 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-const permissionState = vi.hoisted(() => ({ allowEdit: true }))
+const permissionState = vi.hoisted(() => ({ allowDiscountApply: true }))
 vi.mock('@/stores/user', () => ({
   useUserStore: vi.fn(() => ({
-    hasPermission: (p: string) => (p === 'billing:edit' ? permissionState.allowEdit : true),
+    hasPermission: (p: string) =>
+      p === 'billing:discount_apply' ? permissionState.allowDiscountApply : true,
   })),
 }))
 
@@ -117,12 +118,18 @@ describe('结算单详情 - 减免展示区（与 VR 结算单详情统一）', 
     expect(hasDiscountButton(mountDrawer({ ...baseInvoice, status: 'draft' }))).toBe(true)
   })
 
-  it('无 billing:edit 权限时不渲染修改减免按钮', () => {
-    permissionState.allowEdit = false
+  it('pending_discount_approval 渲染修改减免按钮（重新申请）', () => {
+    expect(
+      hasDiscountButton(mountDrawer({ ...baseInvoice, status: 'pending_discount_approval' }))
+    ).toBe(true)
+  })
+
+  it('无 billing:discount_apply 权限时不渲染修改减免按钮', () => {
+    permissionState.allowDiscountApply = false
     try {
       expect(hasDiscountButton(mountDrawer(baseInvoice))).toBe(false)
     } finally {
-      permissionState.allowEdit = true
+      permissionState.allowDiscountApply = true
     }
   })
 })

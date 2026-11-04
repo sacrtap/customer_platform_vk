@@ -223,12 +223,15 @@
           >
             提交
           </button>
-          <!-- 修改减免：draft / pending_ops / pending_sales 可改（与后端 InvoiceService.apply_discount
-               对齐；pending_customer 起减免已进入/完成审批，不可再改，避免绕过减免审批） -->
+          <!-- 修改减免：draft / pending_ops / pending_sales / pending_discount_approval 可改
+               （与后端 InvoiceService.apply_discount 对齐；pending_customer 起减免已进入/
+               完成审批，不可再改，避免绕过减免审批；审批节点重新提交视为重新申请） -->
           <button
             v-if="
-              can('billing:edit') &&
-              ['draft', 'pending_ops', 'pending_sales'].includes(invoice.status)
+              can('billing:discount_apply') &&
+              ['draft', 'pending_ops', 'pending_sales', 'pending_discount_approval'].includes(
+                invoice.status
+              )
             "
             class="btn"
             @click="emit('edit-discount', invoice.id)"
@@ -247,6 +250,10 @@
             <a-tooltip v-else :content="opsDisabledTip" position="top">
               <span class="btn primary disabled">运营经理确认</span>
             </a-tooltip>
+            <!-- 回退至上一步：pending_ops → draft（与确认同权限 + 同身份校验） -->
+            <button v-if="canConfirmOps" class="btn" @click="emit('rollback', invoice.id)">
+              回退
+            </button>
           </template>
           <!-- 销售经理确认：非指定经理时禁用并提示 -->
           <template v-if="can('billing:sales_approve') && invoice.status === 'pending_sales'">
@@ -260,6 +267,10 @@
             <a-tooltip v-else :content="salesDisabledTip" position="top">
               <span class="btn primary disabled">销售经理确认</span>
             </a-tooltip>
+            <!-- 回退至上一步：pending_sales → pending_ops（与确认同权限 + 同身份校验） -->
+            <button v-if="canConfirmSales" class="btn" @click="emit('rollback', invoice.id)">
+              回退
+            </button>
           </template>
           <!-- 减免审批：仅 pending_discount_approval 状态可操作 -->
           <template
@@ -356,6 +367,7 @@ interface InvoiceDrawerEmits {
   (e: 'edit-discount', id: number): void
   (e: 'confirm-ops', id: number): void
   (e: 'confirm-sales', id: number): void
+  (e: 'rollback', id: number): void
   (e: 'approve-discount', id: number): void
   (e: 'reject-discount', id: number): void
   (e: 'confirm', id: number): void

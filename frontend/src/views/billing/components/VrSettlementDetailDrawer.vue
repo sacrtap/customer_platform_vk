@@ -149,7 +149,7 @@
                客户确认后锁定（减免已随销售主管一并审批生效） -->
           <button
             v-if="
-              can('vr_settlement:edit') &&
+              can('vr_settlement:discount_apply') &&
               [
                 'draft',
                 'pending_cs_supervisor',
@@ -170,6 +170,14 @@
           >
             客服主管审批
           </button>
+          <!-- 回退至上一步：pending_cs_supervisor → draft（与审批同权限，无身份校验） -->
+          <button
+            v-if="can('vr_settlement:cs_approve') && settlement.status === 'pending_cs_supervisor'"
+            class="btn"
+            @click="emit('rollback', settlement.id)"
+          >
+            回退
+          </button>
           <!-- 销售审批：非指定销售时禁用并提示 -->
           <template
             v-if="can('vr_settlement:sales_approve') && settlement.status === 'pending_sales'"
@@ -184,6 +192,10 @@
             <a-tooltip v-else :content="salesDisabledTip" position="top">
               <span class="btn primary disabled">销售审批</span>
             </a-tooltip>
+            <!-- 回退至上一步：pending_sales → pending_cs_supervisor（与审批同权限 + 同身份校验） -->
+            <button v-if="canConfirmSales" class="btn" @click="emit('rollback', settlement.id)">
+              回退
+            </button>
           </template>
           <!-- 销售主管审批（含减免一并审批） -->
           <template
@@ -192,7 +204,17 @@
               settlement.status === 'pending_sales_supervisor'
             "
           >
-            <button class="btn primary" @click="emit('approve', settlement.id)">审批通过</button>
+            <!-- 减免审批门禁：有减免且系统存在持权用户时，无减免审批权限禁用通过（驳回不受限） -->
+            <button
+              v-if="!discountApprovalBlocked"
+              class="btn primary"
+              @click="emit('approve', settlement.id)"
+            >
+              审批通过
+            </button>
+            <a-tooltip v-else :content="discountApprovalTip" position="top">
+              <span class="btn primary disabled">审批通过</span>
+            </a-tooltip>
             <button class="btn btn-danger" @click="emit('reject', settlement.id)">审批驳回</button>
           </template>
           <button
@@ -263,6 +285,7 @@ const emit = defineEmits<{
   submit: [id: number]
   'confirm-cs': [id: number]
   'confirm-sales': [id: number]
+  rollback: [id: number]
   approve: [id: number]
   reject: [id: number]
   confirm: [id: number]
@@ -309,6 +332,13 @@ const salesDisabledTip = computed(() => {
   }
   return '您不是该客户指定的销售，无法确认'
 })
+
+// ===== 减免审批门禁：后端确认有持权用户且当前结算单有减免时，
+//      无减免审批权限的用户禁用「审批通过」（与后端 confirm_sales_supervisor 同源） =====
+const discountApprovalBlocked = computed(
+  () => props.settlement?.discount_approval_required === true && !can('billing:discount_approve')
+)
+const discountApprovalTip = '该结算单包含减免，需由具有减免审批权限的用户审批'
 
 // ===== 审批流程状态条（6 步）=====
 // 注意：Arco Steps 的 current 是 1-based 步号（与 InvoiceDetailDrawer 同一约定）。

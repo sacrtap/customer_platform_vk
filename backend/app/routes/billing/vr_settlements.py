@@ -14,12 +14,14 @@ from ...constants.error_codes import ErrorCodes
 from ...middleware.auth import (
     auth_required,
     customer_scope_user_id,
+    ensure_permission,
     get_current_user,
     require_permission,
 )
 from ...models.customers import Customer
 from ...models.users import User
 from ...models.vr_settlement import VrSettlementStatus
+from ...services.permissions import count_users_with_permission
 from ...services.vr_settlement import VrSettlementService
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.timezone import local_date_range_to_utc
@@ -123,6 +125,15 @@ async def get_vr_settlements(request: Request):
         sort_order=sort_order,
     )
 
+    # 减免审批门禁提示（与详情端点同源）：任一行有减免才查一次持权用户数
+    holders_exist = (
+        any(
+            s.discount_amount and s.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
+            for s in settlements
+        )
+        and await count_users_with_permission(db, "billing:discount_approve") > 0
+    )
+
     return json(
         {
             "code": 0,
@@ -145,6 +156,10 @@ async def get_vr_settlements(request: Request):
                         "discount_amount": float(s.discount_amount) if s.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "final_amount": float(s.total_amount - (s.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                         "status": s.status,
+                        "discount_approval_required": bool(
+                            s.discount_amount and s.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
+                        )
+                        and holders_exist,
                         "detail_file_path": s.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
                         "detail_file_name": s.detail_file_name,  # pyright: ignore[reportGeneralTypeIssues]
                         "remark": s.remark,  # pyright: ignore[reportGeneralTypeIssues]
@@ -231,6 +246,12 @@ async def get_vr_settlement(request: Request, settlement_id: int):
                 "discount_attachment": settlement.discount_attachment,
                 "final_amount": float(settlement.total_amount - (settlement.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                 "status": settlement.status,
+                # 有减免且系统存在持「减免审批」权限的用户时，销售主管审批通过需持该权限
+                # （前端据此禁用「审批通过」；后端 confirm_sales_supervisor 有同源门禁）
+                "discount_approval_required": (
+                    bool(settlement.discount_amount and settlement.discount_amount != 0)
+                    and await count_users_with_permission(db, "billing:discount_approve") > 0
+                ),
                 "discount_applied_at": settlement.discount_applied_at,  # pyright: ignore[reportGeneralTypeIssues]
                 "discount_approver_id": settlement.discount_approver_id,
                 "discount_approver_name": resolve_name(settlement.discount_approver_id),
@@ -635,9 +656,83 @@ async def reject_sales_supervisor(request: Request, settlement_id: int):
     return json({"code": 0, "message": message})
 
 
+@billing_bp.post("/vr-settlements/<settlement_id:int>/rollback")
+@auth_required
+async def rollback_vr_settlement(request: Request, settlement_id: int):
+    """回退至上一步审核（理由必填）
+
+    pending_cs_supervisor → draft（vr_settlement:cs_approve）；
+    pending_sales → pending_cs_supervisor（vr_settlement:sales_approve + 客户指定销售身份）。
+
+    权限点随结算单当前状态变化，故不走 require_permission 装饰器，
+    由 ensure_permission 按当前节点动态校验（见 test_permission_drift.py 豁免登记）。
+
+    Body: { "comment": "回退理由（必填）" }
+    """
+    db: AsyncSession = request.ctx.db_session
+    user = get_current_user(request)
+    data = request.json or {}
+    service = VrSettlementService(db)
+
+    comment = (data.get("comment") or "").strip()
+    if not comment:
+        return json({"code": 40001, "message": "回退必须填写理由"}, status=400)
+
+    settlement_before = await service.get_settlement_by_id(settlement_id)
+    if not settlement_before:
+        return json({"code": ErrorCodes.NOT_FOUND, "message": "结算单不存在"}, status=404)
+
+    denied = await _ensure_settlement_scope(request, settlement_before)
+    if denied is not None:
+        return denied
+
+    rollback_permission = {
+        "pending_cs_supervisor": "vr_settlement:cs_approve",
+        "pending_sales": "vr_settlement:sales_approve",
+    }.get(settlement_before.status)  # pyright: ignore[reportArgumentType]
+    if rollback_permission is None:
+        return json(
+            {"code": 40001, "message": f"当前状态（{settlement_before.status}）不支持回退"},
+            status=400,
+        )
+
+    denied = await ensure_permission(request, rollback_permission)
+    if denied is not None:
+        return denied
+
+    success, message = await service.rollback_settlement(
+        settlement_id=settlement_id,
+        user_id=user["user_id"] if user else 1,
+        comment=comment,
+    )
+    if not success:
+        return json({"code": 40001, "message": message}, status=400)
+
+    settlement_after = await service.get_settlement_by_id(settlement_id)
+    await cache_service.invalidate_billing_cache()
+
+    await create_audit_entry(
+        db_session=db,
+        user_id=user.get("user_id") if user else None,
+        action="rollback",
+        module="billing",
+        record_id=settlement_id,
+        record_type="vr_settlement",
+        changes={
+            "before": {"status": settlement_before.status, "comment": comment},
+            "after": {"status": settlement_after.status if settlement_after else None},
+        },
+        operation_type="standard",
+        ip_address=_client_ip(request),
+        auto_commit=True,
+    )
+
+    return json({"code": 0, "message": message})
+
+
 @billing_bp.put("/vr-settlements/<settlement_id:int>/discount")
 @auth_required
-@require_permission("vr_settlement:edit")
+@require_permission("vr_settlement:discount_apply")
 async def apply_vr_discount(request: Request, settlement_id: int):
     """提交/修改减免（draft / pending_cs_supervisor / pending_sales 可改）
 

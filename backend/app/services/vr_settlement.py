@@ -16,6 +16,7 @@ from ..models.customers import Customer
 from ..models.vr_settlement import VrSettlement, VrSettlementDiscountHistory
 from ..repository import BalanceRepository
 from ..services.billing import _DB_BUSY_MESSAGE, BalanceService
+from ..services.permissions import count_users_with_permission, get_user_permissions
 from ..utils.timezone import cst_now, cst_today
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,16 @@ _DISCOUNT_EDITABLE_STATUSES = (
     "pending_sales",
     "pending_sales_supervisor",
 )
+
+# 减免审批权限码：有减免且系统存在持权用户时，销售主管审批通过必须由持该码的用户执行
+DISCOUNT_APPROVE_PERMISSION = "billing:discount_approve"
+
+# 回退目标映射：当前节点 → 上一步。pending_sales_supervisor 的回退由既有
+# reject_sales_supervisor 承担（退回 pending_sales，理由必填）；pending_customer 及以后不回退。
+_VR_ROLLBACK_TARGETS = {
+    "pending_cs_supervisor": "draft",
+    "pending_sales": "pending_cs_supervisor",
+}
 
 # 可取消的状态（非终态；customer_confirmed/completed/cancelled 不可取消）
 _CANCELLABLE_STATUSES = (
@@ -273,6 +284,8 @@ class VrSettlementService:
 
         pending_sales_supervisor → pending_customer
         若 discount_amount ≠ 0：一并写减免审批人/时间/意见（减免生效）。
+        减免审批门禁：有减免且系统存在持「减免审批」权限的用户时，
+        操作人必须持该权限（无人持权则回退原流程，见下方门禁段）。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
@@ -281,6 +294,15 @@ class VrSettlementService:
 
         if settlement.status != "pending_sales_supervisor":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态（{settlement.status}）不允许该操作"
+
+        # 减免审批门禁：有减免且系统存在持「减免审批」权限的用户时，操作人必须持该权限；
+        # 无人持权时回退原流程（销售主管一并审批，减免生效）。
+        if settlement.discount_amount and settlement.discount_amount != 0:  # pyright: ignore[reportGeneralTypeIssues]
+            holder_count = await count_users_with_permission(self.db, DISCOUNT_APPROVE_PERMISSION)
+            if holder_count > 0:
+                operator_permissions = await get_user_permissions(self.db, user_id)
+                if DISCOUNT_APPROVE_PERMISSION not in operator_permissions:
+                    return False, "该结算单包含减免，需由具有减免审批权限的用户审批"
 
         settlement.sales_supervisor_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         settlement.sales_supervisor_confirmed_at = cst_now().strftime(  # pyright: ignore[reportAttributeAccessIssue]
@@ -325,6 +347,37 @@ class VrSettlementService:
         await self.db.commit()
 
         return True, "已驳回，退回销售审批"
+
+    async def rollback_settlement(
+        self, settlement_id: int, user_id: int, comment: str
+    ) -> Tuple[bool, str]:
+        """回退至上一步审核（理由由路由层校验必填后传入）
+
+        pending_cs_supervisor → draft：仅权限校验（与 confirm_cs_supervisor 一致，无身份校验）；
+        pending_sales → pending_cs_supervisor：操作人必须为该客户指定的销售（与 confirm_sales 一致）。
+        仅改 status；cs_supervisor_confirmed_*/sales_confirmed_* 保留作审计轨迹。
+        """
+        settlement = await self.get_settlement_by_id(settlement_id)
+
+        if not settlement:
+            return False, "结算单不存在"
+
+        target = _VR_ROLLBACK_TARGETS.get(settlement.status)  # pyright: ignore[reportArgumentType]
+        if target is None:
+            return False, f"当前状态（{settlement.status}）不支持回退"
+
+        if settlement.status == "pending_sales":  # pyright: ignore[reportGeneralTypeIssues]
+            customer = await self._get_customer(settlement.customer_id)  # pyright: ignore[reportArgumentType]
+            if not customer:
+                return False, "客户不存在"
+            if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
+                return False, "您不是该客户指定的销售，无权回退"
+
+        settlement.status = target  # pyright: ignore[reportAttributeAccessIssue]
+
+        await self.db.commit()
+
+        return True, "已回退至上一步"
 
     async def apply_discount(
         self,

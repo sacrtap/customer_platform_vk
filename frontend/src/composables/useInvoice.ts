@@ -9,6 +9,7 @@ import {
   submitInvoice,
   confirmInvoice,
   cancelInvoice,
+  rollbackInvoice,
   deleteInvoice,
   confirmOps,
   confirmSales,
@@ -356,6 +357,17 @@ export function useInvoice() {
     }
   }
 
+  const doRollback = async (invoiceId: number, comment: string) => {
+    try {
+      await rollbackInvoice(invoiceId, comment)
+      Message.success('已回退至上一步')
+      loadInvoices()
+    } catch (err) {
+      Message.error(errorMessage(err, '回退失败'))
+      throw err
+    }
+  }
+
   const doRetryDeduction = async (invoiceId: number) => {
     try {
       const res = await retryDeduction(invoiceId)
@@ -479,6 +491,7 @@ export function useInvoice() {
     doConfirm,
     doConfirmOps,
     doConfirmSales,
+    doRollback,
     doRetryDeduction,
     doCancel,
     doDelete,
