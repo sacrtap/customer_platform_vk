@@ -199,6 +199,18 @@
             运营确认
           </button>
           <button
+            v-if="
+              can('billing:ops_approve') &&
+              (record as Invoice).status === 'pending_ops' &&
+              canConfirmOps(record as Invoice)
+            "
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'rollback')"
+          >
+            回退
+          </button>
+          <button
             v-if="can('billing:sales_approve') && (record as Invoice).status === 'pending_sales'"
             class="btn btn-primary-sm"
             :style="{
@@ -216,6 +228,18 @@
             "
           >
             销售确认
+          </button>
+          <button
+            v-if="
+              can('billing:sales_approve') &&
+              (record as Invoice).status === 'pending_sales' &&
+              canConfirmSales(record as Invoice)
+            "
+            class="btn"
+            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
+            @click.stop="handleSingleAction(record as Invoice, 'rollback')"
+          >
+            回退
           </button>
           <button
             v-if="
@@ -283,6 +307,7 @@
       @edit-discount="openDiscountEditModal(currentDetail!)"
       @confirm-ops="handleSingleAction(currentDetail!, 'confirm-ops')"
       @confirm-sales="handleSingleAction(currentDetail!, 'confirm-sales')"
+      @rollback="handleSingleAction(currentDetail!, 'rollback')"
       @approve-discount="handleSingleAction(currentDetail!, 'approve-discount')"
       @reject-discount="handleSingleAction(currentDetail!, 'reject-discount')"
       @confirm="handleSingleAction(currentDetail!, 'confirm')"
@@ -314,6 +339,13 @@
       :invoice-id="approvalInvoiceId"
       :mode="approvalMode"
       @success="handleApprovalSuccess"
+    />
+    <!-- 回退弹窗（审批节点回退至上一步，理由必填） -->
+    <RollbackModal
+      v-model:visible="rollbackModalVisible"
+      :loading="rollbackSubmitting"
+      title="回退至上一步审核"
+      @submit="handleRollbackSubmit"
     />
     <!-- 导入弹窗 -->
     <ImportModal
@@ -359,6 +391,7 @@ import GenerateInvoiceModal from './components/GenerateInvoiceModal.vue'
 import SubmitModal from './components/SubmitModal.vue'
 import DiscountEditModal from './components/DiscountEditModal.vue'
 import DiscountApprovalModal from './components/DiscountApprovalModal.vue'
+import RollbackModal from './components/RollbackModal.vue'
 import InvoiceStatusBadge from '@/components/invoice/InvoiceStatusBadge.vue'
 
 const router = useRouter()
@@ -407,6 +440,7 @@ const {
   doConfirm,
   doConfirmOps,
   doConfirmSales,
+  doRollback,
   doRetryDeduction,
   doCancel,
   doDelete,
@@ -670,6 +704,32 @@ const handleApprovalSuccess = async () => {
   }
 }
 
+// ===== 回退弹窗（各内部审批节点回退至上一步，理由必填） =====
+const rollbackModalVisible = ref(false)
+const rollbackTarget = ref<Invoice | null>(null)
+const rollbackSubmitting = ref(false)
+
+const openRollbackModal = (record: Invoice) => {
+  rollbackTarget.value = record
+  rollbackModalVisible.value = true
+}
+
+const handleRollbackSubmit = async (comment: string) => {
+  if (!rollbackTarget.value) return
+  rollbackSubmitting.value = true
+  try {
+    await doRollback(rollbackTarget.value.id, comment)
+    rollbackModalVisible.value = false
+    if (drawerVisible.value && rollbackTarget.value) {
+      await fetchDetail(rollbackTarget.value.id)
+    }
+  } catch {
+    // 错误消息已由 useInvoice 的 Message.error 统一处理
+  } finally {
+    rollbackSubmitting.value = false
+  }
+}
+
 const openSubmitModal = (record: Invoice) => {
   selectedInvoiceId.value = record.id
   submitModalVisible.value = true
@@ -681,6 +741,7 @@ const handleSingleAction = async (
     | 'submit'
     | 'confirm-ops'
     | 'confirm-sales'
+    | 'rollback'
     | 'approve-discount'
     | 'reject-discount'
     | 'confirm'
@@ -707,6 +768,9 @@ const handleSingleAction = async (
     'confirm-sales': async () => {
       await doConfirmSales(record.id)
       await refreshDetailIfOpen()
+    },
+    rollback: () => {
+      openRollbackModal(record)
     },
     'approve-discount': () => {
       openApprovalModal(record, 'approve')

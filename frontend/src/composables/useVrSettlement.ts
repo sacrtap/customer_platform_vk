@@ -13,6 +13,7 @@ import {
   confirmVrSettlement,
   retryVrDeduction,
   cancelVrSettlement,
+  rollbackVrSettlement,
   deleteVrSettlement,
 } from '@/api/vrSettlement'
 import type { VrSettlement } from '@/api/vrSettlement'
@@ -193,6 +194,17 @@ export function useVrSettlement() {
     }
   }
 
+  const doRollback = async (id: number, comment: string) => {
+    try {
+      await rollbackVrSettlement(id, comment)
+      Message.success('已回退至上一步')
+      loadVrSettlements()
+    } catch (err) {
+      Message.error(errorMessage(err, '回退失败'))
+      throw err
+    }
+  }
+
   const doApplyDiscount = async (
     id: number,
     data: { discount_amount: number; discount_reason: string; discount_attachment?: string | null }
@@ -303,6 +315,7 @@ export function useVrSettlement() {
     doConfirmSales,
     doConfirmSalesSupervisor,
     doRejectSalesSupervisor,
+    doRollback,
     doApplyDiscount,
     doConfirm,
     doRetryDeduction,

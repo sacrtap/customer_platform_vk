@@ -595,6 +595,11 @@ export function cancelInvoice(id: number) {
   return api.post(`/billing/invoices/${id}/cancel`)
 }
 
+/** 回退至上一步审核（回退理由必填）：pending_ops→draft / pending_sales→pending_ops */
+export function rollbackInvoice(id: number, comment: string) {
+  return api.post(`/billing/invoices/${id}/rollback`, { comment })
+}
+
 // 获取最近结算单（简化接口）
 export function getRecentInvoices(limit: number = 10) {
   return getInvoices({ page: 1, page_size: limit })
