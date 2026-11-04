@@ -176,7 +176,7 @@
 
         <template #action="{ record }">
           <button
-            v-if="(record as Invoice).status === 'draft'"
+            v-if="can('billing:invoice_submit') && (record as Invoice).status === 'draft'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px"
             @click.stop="openSubmitModal(record as Invoice)"
@@ -257,7 +257,7 @@
             审批通过
           </button>
           <button
-            v-if="(record as Invoice).status === 'pending_customer'"
+            v-if="can('billing:confirm') && (record as Invoice).status === 'pending_customer'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             @click.stop="handleSingleAction(record as Invoice, 'confirm')"
@@ -265,7 +265,7 @@
             客户确认
           </button>
           <button
-            v-if="(record as Invoice).status === 'customer_confirmed'"
+            v-if="can('billing:confirm') && (record as Invoice).status === 'customer_confirmed'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             :disabled="retryingId === (record as Invoice).id"
@@ -275,6 +275,7 @@
           </button>
           <button
             v-if="
+              can('billing:invoice_submit') &&
               [
                 'draft',
                 'pending_ops',
