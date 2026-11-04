@@ -21,7 +21,11 @@
         >
           明细生成状态
         </button>
-        <button v-if="can('billing:edit')" class="btn primary" @click="generateModalVisible = true">
+        <button
+          v-if="can('billing:invoice_generate')"
+          class="btn primary"
+          @click="generateModalVisible = true"
+        >
           生成结算单
         </button>
       </template>
@@ -37,7 +41,7 @@
         <span class="batch-info">已选择 {{ selectedInvoiceIds.length }} 项</span>
         <div class="batch-actions">
           <button
-            v-if="can('billing:edit')"
+            v-if="can('billing:invoice_submit')"
             class="btn btn-primary-sm"
             :disabled="batchLoading"
             @click="onBatchSubmit"
@@ -45,7 +49,7 @@
             批量提交
           </button>
           <button
-            v-if="can('billing:edit')"
+            v-if="can('billing:invoice_submit')"
             class="btn btn-primary-sm"
             :disabled="batchLoading"
             @click="onBatchCancel"
@@ -142,7 +146,7 @@
           <template v-else-if="(record as Invoice).detail_file_status === 'failed'">
             <span title="生成失败" class="text-danger">❌</span>
             <button
-              v-if="can('billing:edit')"
+              v-if="can('billing:detail_regenerate')"
               class="btn btn-primary-sm batch-toolbar-btn"
               @click.stop="handleRegenerateDetail((record as Invoice).id)"
             >
@@ -152,7 +156,7 @@
           <template v-else-if="(record as Invoice).detail_file_status === 'pending'">
             <span title="待生成" class="subtle">⏳</span>
             <button
-              v-if="can('billing:edit')"
+              v-if="can('billing:detail_regenerate')"
               class="btn btn-primary-sm batch-toolbar-btn"
               @click.stop="handleRegenerateDetail((record as Invoice).id)"
             >
@@ -172,7 +176,7 @@
 
         <template #action="{ record }">
           <button
-            v-if="(record as Invoice).status === 'draft'"
+            v-if="can('billing:invoice_submit') && (record as Invoice).status === 'draft'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px"
             @click.stop="openSubmitModal(record as Invoice)"
@@ -253,7 +257,7 @@
             审批通过
           </button>
           <button
-            v-if="(record as Invoice).status === 'pending_customer'"
+            v-if="can('billing:confirm') && (record as Invoice).status === 'pending_customer'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             @click.stop="handleSingleAction(record as Invoice, 'confirm')"
@@ -261,7 +265,7 @@
             客户确认
           </button>
           <button
-            v-if="(record as Invoice).status === 'customer_confirmed'"
+            v-if="can('billing:confirm') && (record as Invoice).status === 'customer_confirmed'"
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             :disabled="retryingId === (record as Invoice).id"
@@ -271,6 +275,7 @@
           </button>
           <button
             v-if="
+              can('billing:invoice_submit') &&
               [
                 'draft',
                 'pending_ops',
@@ -286,7 +291,7 @@
             取消
           </button>
           <button
-            v-if="can('billing:edit') && (record as Invoice).status === 'draft'"
+            v-if="can('billing:delete') && (record as Invoice).status === 'draft'"
             class="btn btn-danger"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             @click.stop="handleSingleAction(record as Invoice, 'delete')"

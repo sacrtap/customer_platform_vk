@@ -148,10 +148,39 @@
             </header>
 
             <a-checkbox-group v-model="selectedPermissionIds" class="permission-list">
+              <template v-if="group.subGroups">
+                <div
+                  v-for="subGroup in group.subGroups"
+                  :key="subGroup.key"
+                  class="permission-subgroup"
+                >
+                  <div class="permission-subgroup-title">{{ subGroup.title }}</div>
+                  <a-tooltip
+                    v-for="permission in subGroup.permissions"
+                    :key="permission.id"
+                    :content="permissionTooltip(subGroup.title, permission)"
+                    position="top"
+                  >
+                    <a-checkbox
+                      :value="permission.id"
+                      :class="[
+                        'permission-item',
+                        { 'permission-item--dangerous': isDangerousPermission(permission) },
+                      ]"
+                    >
+                      <div class="permission-item-content">
+                        <span class="permission-name">{{ permission.name }}</span>
+                        <span class="permission-code">{{ permission.code }}</span>
+                      </div>
+                    </a-checkbox>
+                  </a-tooltip>
+                </div>
+              </template>
               <a-tooltip
+                v-else
                 v-for="permission in group.permissions"
                 :key="permission.id"
-                :content="permissionTooltip(group, permission)"
+                :content="permissionTooltip(group.title, permission)"
                 position="top"
               >
                 <a-checkbox
@@ -335,8 +364,8 @@ const DANGEROUS_PERMISSION_CODES = [
 const isDangerousPermission = (perm: Permission) => DANGEROUS_PERMISSION_CODES.includes(perm.code)
 
 /** 权限项 hover 提示：分组路径 + 权限码 + 描述；高危权限追加警告前缀 */
-const permissionTooltip = (group: PermissionGroup, permission: Permission): string => {
-  const base = `${group.title} · ${permission.name}（${permission.code}）`
+const permissionTooltip = (groupTitle: string, permission: Permission): string => {
+  const base = `${groupTitle} · ${permission.name}（${permission.code}）`
   const desc = permission.description ? `：${permission.description}` : ''
   return isDangerousPermission(permission)
     ? `高危权限，请谨慎授予 — ${base}${desc}`
@@ -654,6 +683,26 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* billing 组内二级分区：子区标题 + 区内权限列表 */
+.permission-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.permission-subgroup + .permission-subgroup {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line, var(--border));
+}
+
+.permission-subgroup-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
 }
 
 .permission-item {

@@ -18,7 +18,7 @@
         >
           {{ exporting ? '导出中...' : '导出' }}
         </button>
-        <button v-if="can('billing:edit')" class="btn primary" @click="showCreateModal">
+        <button v-if="can('billing:package_edit')" class="btn primary" @click="showCreateModal">
           新建套餐
         </button>
       </template>
@@ -117,7 +117,7 @@
 
         <template #action="{ record }">
           <button
-            v-if="can('billing:edit')"
+            v-if="can('billing:package_edit')"
             class="btn"
             style="padding: 4px 10px; font-size: 12px"
             @click.stop="showEditModal(record as PackagePlan)"
@@ -125,7 +125,7 @@
             编辑
           </button>
           <button
-            v-if="can('billing:delete')"
+            v-if="can('billing:package_delete')"
             class="btn btn-danger"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
             @click.stop="handleDelete(record as PackagePlan)"
