@@ -56,6 +56,23 @@
 
 以上教训：豁免必须是**验证过调用方后的显式决策**；「规划文档声称的调用关系」不算证据，以代码为准。新增裸端点先查调用方再登记。
 
+## 动态权限码端点（权限随资源状态变化）
+
+**场景**：端点权限码取决于资源当前状态（如审批回退：`pending_ops` 节点要 `billing:ops_approve`、`pending_sales` 节点要 `billing:sales_approve`），静态装饰器无法表达。
+
+**模式**（2026-11-04 审批回退落地）：
+1. 路由只挂 `@auth_required`，在 handler 内按当前状态解析权限码后调用 `middleware/auth.py` 的 `ensure_permission(request, code)`（与 `require_permission` 同一 lookup 路径：`permission_cache → get_user_permissions → DB`），不足则 `json({"code": 40301, "message": "权限不足"}, status=403)`。
+2. 在 `test_permission_drift.py` 的 `EXEMPT_WRITE_ENDPOINTS` / `EXEMPT_READ_ENDPOINTS` 登记（附理由）。**注意 key 形态**：drift 测试的 AST 扫描只在蓝图定义所在文件收集 `url_prefix`；`billing_bp` 跨文件定义（`routes/billing/__init__.py`），故 `routes/billing/*.py` 的端点扫描路径**无前缀**（如 `/invoices/<invoice_id:int>/rollback`，非 `/api/v1/billing/invoices/...`）。登记时先跑一次 drift 测试，从失败信息复制扫描出的真实 path。
+3. 状态→权限码的映射表放在路由 docstring 或 service 附近，与回退目标状态机写在一起，防两处漂移。
+
+## 新权限码漏同步 _test_data.py 的症状
+
+**基线问题**（2026-11-04）：新权限码已注册 seed + 路由已切换，但 `tests/_test_data.py` 漏加对应行 → 集成测试报 `{'code': 40301, 'message': '权限不足'}`，而 `test_test_data_consistency.py` **全绿**。
+
+**根因**：consistency 测试守护的是 `_test_data ⊆ seed`（防测试引用不存在的码），**不反向守护**「seed 有而 _test_data 缺」；集成测试 mock 权限集 = `_test_data.PERMISSION_CODES`，缺码即 403。漏加哪条码，只有挂了该码的集成用例会红，且红在「与权限无关」的业务用例子集里，极易误判为业务回归。
+
+**预期改进**：切换/新增路由权限码后，若集成测试出现成片 `40301`，先 `grep -c "新码" tests/_test_data.py` 核对，再怀疑业务逻辑；「drift + consistency 双绿」不等于测试夹具已含新码。
+
 ## module 字段与前端分组
 
 `ALL_PERMISSIONS` 四元组的 `module` 决定权限在角色配置弹窗（`views/roles/permissionGroups.ts` `MODULE_NAME_MAP`/`MODULE_ORDER`）中的分组卡片，**不影响权限判定**。约定：同一业务模块的码必须归同一 module——`industry_types:manage`、`cooperation_statuses:manage`、`erp_systems:manage`、`balance_whitelist:manage`、`api_keys:manage` 历史上误挂 `system`（初始 seed 按「系统管理」归类，后批量导入导出改造新增 `:import`/`:export` 时按模块命名，造成同模块码跨卡片），已于 2026-10-31 修正，部署时 `--sync-permissions` 的 upsert 自动更新。
