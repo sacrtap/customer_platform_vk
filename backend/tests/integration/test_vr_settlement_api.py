@@ -398,6 +398,46 @@ async def test_reject_requires_comment_and_reverts(
 
 
 @pytest.mark.asyncio
+async def test_rollback_to_previous_step(test_client, auth_token, test_customer_with_balance):
+    """回退至上一步：pending_sales → pending_cs_supervisor → draft；draft/空理由 → 400"""
+    customer_id = test_customer_with_balance["id"]
+    settlement_id = await _create_settlement(test_client, auth_token, customer_id)
+
+    # 提交 → 客服主管审批 → 待销售审批
+    await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == "pending_sales"
+
+    # 待销售节点回退 → 待客服主管
+    _, response = await _post_action(
+        test_client, auth_token, f"/{settlement_id}/rollback", {"comment": "信息有误"}
+    )
+    assert response.status == 200, response.json
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+        "pending_cs_supervisor"
+    )
+
+    # 待客服主管节点回退 → 草稿
+    _, response = await _post_action(
+        test_client, auth_token, f"/{settlement_id}/rollback", {"comment": "信息有误"}
+    )
+    assert response.status == 200, response.json
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == "draft"
+
+    # 草稿不支持回退 → 400
+    _, response = await _post_action(
+        test_client, auth_token, f"/{settlement_id}/rollback", {"comment": "信息有误"}
+    )
+    assert response.status == 400
+    assert "不支持回退" in response.json["message"]
+
+    # 空理由 → 400（必填校验先于状态校验）
+    _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/rollback", {})
+    assert response.status == 400
+    assert response.json["message"] == "回退必须填写理由"
+
+
+@pytest.mark.asyncio
 async def test_invalid_state_transitions(test_client, auth_token, test_customer_with_balance):
     """AC7：非法状态流转一律 400"""
     customer_id = test_customer_with_balance["id"]

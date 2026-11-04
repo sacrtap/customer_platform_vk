@@ -1700,13 +1700,22 @@ async def test_discount_approval_workflow(test_client, auth_token, test_customer
     )
     assert detail_res.json["data"]["status"] == "pending_discount_approval"
 
-    # 4. 审批节点不允许再改减免（防止绕过审批）
+    # 4. 审批节点可重新提交申请（清空审批痕迹，视为重新申请）
     discount2_req, discount2_res = await test_client.put(
         f"/api/v1/billing/invoices/{invoice_id}/discount",
         json={"discount_amount": 50.00, "discount_reason": "改申请"},
         headers=headers,
     )
-    assert discount2_res.status == 400
+    assert discount2_res.status == 200, discount2_res.json
+
+    detail_req, detail_res = await test_client.get(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert detail_res.json["data"]["status"] == "pending_discount_approval"
+    assert detail_res.json["data"]["discount_amount"] == 50.00
+    assert detail_res.json["data"]["discount_approval_comment"] is None
+    assert detail_res.json["data"]["discount_approved_at"] is None
 
     # 5. 审批通过（超管拥有 billing:discount_approve）→ pending_customer
     approve_req, approve_res = await test_client.post(
@@ -1818,6 +1827,230 @@ async def test_discount_reject_requires_comment_and_reverts(test_client, auth_to
         headers=headers,
     )
     assert detail_res.json["data"]["status"] == "pending_discount_approval"
+
+
+@pytest.mark.asyncio
+async def test_rollback_to_previous_step(test_client, auth_token, db_session):
+    """回退至上一步：pending_ops→draft；pending_sales→pending_ops；draft/空理由 → 400"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    admin_id = db_session.execute(
+        text("SELECT id FROM users WHERE username = 'admin'")
+    ).scalar_one()
+
+    # 造「对账 + admin 兼运营/销售经理」客户：submit → pending_ops
+    customer_id = _unique_customer_id()
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type, require_reconciliation,
+                               manager_id, sales_manager_id, settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :id, :name, 'enterprise', true, :mid, :mid, 'monthly', 'prepaid',
+                NOW(), NOW())
+        """),
+        {"id": customer_id, "name": f"回退测试客户_{customer_id}", "mid": admin_id},
+    )
+    db_session.commit()
+
+    try:
+        gen_req, gen_res = await test_client.post(
+            "/api/v1/billing/invoices/generate",
+            json={
+                "customer_id": customer_id,
+                "period_start": "2026-06-01",
+                "period_end": "2026-06-30",
+                "items": [
+                    {
+                        "device_type": "X",
+                        "layer_type": "single",
+                        "quantity": 100,
+                        "unit_price": 10.00,
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert gen_res.status == 201
+        invoice_id = gen_res.json["data"]["id"]
+
+        submit_req, submit_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/submit",
+            headers=headers,
+        )
+        assert submit_res.status == 200
+
+        detail_req, detail_res = await test_client.get(
+            f"/api/v1/billing/invoices/{invoice_id}",
+            headers=headers,
+        )
+        assert detail_res.json["data"]["status"] == "pending_ops"
+
+        # pending_ops 回退 → draft
+        rollback_req, rollback_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={"comment": "信息有误"},
+            headers=headers,
+        )
+        assert rollback_res.status == 200, rollback_res.json
+
+        detail_req, detail_res = await test_client.get(
+            f"/api/v1/billing/invoices/{invoice_id}",
+            headers=headers,
+        )
+        assert detail_res.json["data"]["status"] == "draft"
+
+        # 重新提交 → pending_ops → 运营确认 → pending_sales
+        await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/submit",
+            headers=headers,
+        )
+        await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/confirm-ops",
+            headers=headers,
+        )
+        detail_req, detail_res = await test_client.get(
+            f"/api/v1/billing/invoices/{invoice_id}",
+            headers=headers,
+        )
+        assert detail_res.json["data"]["status"] == "pending_sales"
+
+        # pending_sales 回退 → pending_ops
+        rollback_req, rollback_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={"comment": "信息有误"},
+            headers=headers,
+        )
+        assert rollback_res.status == 200, rollback_res.json
+
+        detail_req, detail_res = await test_client.get(
+            f"/api/v1/billing/invoices/{invoice_id}",
+            headers=headers,
+        )
+        assert detail_res.json["data"]["status"] == "pending_ops"
+
+        # 再回退 → draft 后，draft 不支持回退 → 400
+        await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={"comment": "信息有误"},
+            headers=headers,
+        )
+        rollback_req, rollback_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={"comment": "信息有误"},
+            headers=headers,
+        )
+        assert rollback_res.status == 400
+        assert "不支持回退" in rollback_res.json["message"]
+
+        # 空理由 → 400（必填校验先于状态校验）
+        rollback_req, rollback_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={},
+            headers=headers,
+        )
+        assert rollback_res.status == 400
+        assert rollback_res.json["message"] == "回退必须填写理由"
+    finally:
+        for stmt in (
+            "DELETE FROM invoice_discount_histories WHERE invoice_id IN "
+            "(SELECT id FROM invoices WHERE customer_id = :id)",
+            "DELETE FROM invoice_items WHERE invoice_id IN "
+            "(SELECT id FROM invoices WHERE customer_id = :id)",
+            "DELETE FROM consumption_records WHERE invoice_id IN "
+            "(SELECT id FROM invoices WHERE customer_id = :id)",
+            "DELETE FROM invoices WHERE customer_id = :id",
+            "DELETE FROM customer_balances WHERE customer_id = :id",
+            "DELETE FROM customers WHERE id = :id",
+        ):
+            db_session.execute(text(stmt), {"id": customer_id})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_rollback_rejects_non_manager(test_client, auth_token, db_session):
+    """非客户指定运营经理回退 → 400 身份文案（admin 持权限但非指定经理）"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    other_username = f"rollback_other_{uuid.uuid4().hex[:8]}"
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, real_name, is_active,
+                           created_at, updated_at)
+        VALUES (:username, 'x', '其他运营', true, NOW(), NOW())
+        """),
+        {"username": other_username},
+    )
+    other_user_id = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"), {"username": other_username}
+    ).scalar_one()
+    db_session.commit()
+
+    # 造「对账 + 运营经理为其他用户」客户：admin 非指定运营经理
+    customer_id = _unique_customer_id()
+    db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": customer_id})
+    db_session.execute(
+        text("""
+        INSERT INTO customers (id, company_id, name, account_type, require_reconciliation,
+                               manager_id, settlement_cycle, settlement_type,
+                               created_at, updated_at)
+        VALUES (:id, :id, :name, 'enterprise', true, :mid, 'monthly', 'prepaid',
+                NOW(), NOW())
+        """),
+        {"id": customer_id, "name": f"回退身份客户_{customer_id}", "mid": other_user_id},
+    )
+    db_session.commit()
+
+    try:
+        gen_req, gen_res = await test_client.post(
+            "/api/v1/billing/invoices/generate",
+            json={
+                "customer_id": customer_id,
+                "period_start": "2026-07-01",
+                "period_end": "2026-07-31",
+                "items": [
+                    {
+                        "device_type": "X",
+                        "layer_type": "single",
+                        "quantity": 100,
+                        "unit_price": 10.00,
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert gen_res.status == 201
+        invoice_id = gen_res.json["data"]["id"]
+
+        await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/submit",
+            headers=headers,
+        )
+
+        # admin 有 ops_approve 权限（mock 全权限）但非指定运营经理 → service 身份校验 400
+        rollback_req, rollback_res = await test_client.post(
+            f"/api/v1/billing/invoices/{invoice_id}/rollback",
+            json={"comment": "信息有误"},
+            headers=headers,
+        )
+        assert rollback_res.status == 400
+        assert rollback_res.json["message"] == "您不是该客户指定的运营经理，无权回退"
+
+        detail_req, detail_res = await test_client.get(
+            f"/api/v1/billing/invoices/{invoice_id}",
+            headers=headers,
+        )
+        assert detail_res.json["data"]["status"] == "pending_ops"
+    finally:
+        for stmt in (
+            "DELETE FROM invoice_discount_histories WHERE invoice_id IN "
+            "(SELECT id FROM invoices WHERE customer_id = :id)",
+            "DELETE FROM invoice_items WHERE invoice_id IN "
+            "(SELECT id FROM invoices WHERE customer_id = :id)",
+            "DELETE FROM invoices WHERE customer_id = :id",
+            "DELETE FROM customers WHERE id = :id",
+            "DELETE FROM users WHERE id = :uid",
+        ):
+            db_session.execute(text(stmt), {"id": customer_id, "uid": other_user_id})
+        db_session.commit()
 
 
 @pytest.mark.asyncio

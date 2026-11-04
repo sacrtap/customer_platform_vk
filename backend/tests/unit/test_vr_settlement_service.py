@@ -207,10 +207,20 @@ class TestStateMachine:
     async def test_confirm_sales_supervisor_writes_discount_approval(
         self, service, mock_db_session
     ):
-        """有减免时一并写审批三字段"""
+        """有减免时一并写审批三字段（操作人持减免审批权限，门禁放行）"""
         settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        with (
+            patch(
+                "app.services.vr_settlement.count_users_with_permission",
+                AsyncMock(return_value=1),
+            ),
+            patch(
+                "app.services.vr_settlement.get_user_permissions",
+                AsyncMock(return_value={"billing:discount_approve"}),
+            ),
+        ):
+            ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
         assert ok is True
         assert settlement.status == "pending_customer"
         assert settlement.discount_approver_id == 9
@@ -253,6 +263,118 @@ class TestStateMachine:
         ok, msg = await service.cancel_settlement(1, user_id=1)
         assert ok is False
         assert "不允许该操作" in msg
+
+
+class TestDiscountApprovalGate:
+    """减免审批门禁：有减免且系统存在持权用户时，审批通过必须持 billing:discount_approve"""
+
+    @pytest.mark.asyncio
+    async def test_blocked_when_operator_lacks_permission(self, service, mock_db_session):
+        """有持权用户 + 操作人无减免审批权限 → 拒绝，状态与审批字段不变"""
+        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        with (
+            patch(
+                "app.services.vr_settlement.count_users_with_permission",
+                AsyncMock(return_value=1),
+            ),
+            patch(
+                "app.services.vr_settlement.get_user_permissions",
+                AsyncMock(return_value={"vr_settlement:sales_supervisor_approve"}),
+            ),
+        ):
+            ok, msg = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        assert ok is False
+        assert msg == "该结算单包含减免，需由具有减免审批权限的用户审批"
+        assert settlement.status == "pending_sales_supervisor"
+        assert settlement.discount_approver_id is None
+        assert settlement.discount_approval_comment is None
+
+    @pytest.mark.asyncio
+    async def test_allowed_when_operator_has_permission(self, service, mock_db_session):
+        """操作人持减免审批权限 → 放行，状态推进并写审批三字段"""
+        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        with (
+            patch(
+                "app.services.vr_settlement.count_users_with_permission",
+                AsyncMock(return_value=1),
+            ),
+            patch(
+                "app.services.vr_settlement.get_user_permissions",
+                AsyncMock(return_value={"billing:discount_approve"}),
+            ),
+        ):
+            ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        assert ok is True
+        assert settlement.status == "pending_customer"
+        assert settlement.discount_approver_id == 9
+
+    @pytest.mark.asyncio
+    async def test_fallback_when_no_holder_exists(self, service, mock_db_session):
+        """系统无持权用户 → 回退原流程：无减免审批权限的操作人也可通过"""
+        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        mock_perms = AsyncMock(return_value=set())
+        with patch(
+            "app.services.vr_settlement.count_users_with_permission",
+            AsyncMock(return_value=0),
+        ):
+            with patch("app.services.vr_settlement.get_user_permissions", mock_perms):
+                ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        assert ok is True
+        assert settlement.status == "pending_customer"
+        # count=0 时不再查询操作人权限集（回退原流程）
+        mock_perms.assert_not_called()
+
+
+class TestRollback:
+    """回退至上一步：pending_cs_supervisor → draft；pending_sales → pending_cs_supervisor"""
+
+    @pytest.mark.asyncio
+    async def test_rollback_cs_supervisor_to_draft(self, service, mock_db_session):
+        """客服主管节点回退 → draft（无身份校验，与 confirm_cs_supervisor 一致）"""
+        settlement = _settlement(status="pending_cs_supervisor")
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        ok, message = await service.rollback_settlement(1, user_id=9, comment="信息有误")
+        assert ok is True
+        assert message == "已回退至上一步"
+        assert settlement.status == "draft"
+
+    @pytest.mark.asyncio
+    async def test_rollback_sales_to_cs_supervisor(self, service, mock_db_session):
+        """销售节点回退 → pending_cs_supervisor（指定销售可回退）"""
+        settlement = _settlement(status="pending_sales")
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, _ = await service.rollback_settlement(1, user_id=5, comment="信息有误")
+        assert ok is True
+        assert settlement.status == "pending_cs_supervisor"
+
+    @pytest.mark.asyncio
+    async def test_rollback_sales_rejects_non_sales(self, service, mock_db_session):
+        """销售节点回退：非指定销售 → 身份校验拒绝"""
+        settlement = _settlement(status="pending_sales")
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, msg = await service.rollback_settlement(1, user_id=99, comment="信息有误")
+        assert ok is False
+        assert msg == "您不是该客户指定的销售，无权回退"
+        assert settlement.status == "pending_sales"
+
+    @pytest.mark.asyncio
+    async def test_rollback_rejects_unsupported_status(self, service, mock_db_session):
+        """draft / pending_sales_supervisor 等 → 不支持回退（后者由驳回承担）"""
+        settlement = _settlement(status="draft")
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        ok, msg = await service.rollback_settlement(1, user_id=9, comment="信息有误")
+        assert ok is False
+        assert msg == "当前状态（draft）不支持回退"
+        assert settlement.status == "draft"
 
 
 # ==================== 减免 ====================
