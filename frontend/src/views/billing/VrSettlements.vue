@@ -104,13 +104,7 @@
         </template>
 
         <template #detail_file="{ record }">
-          <a
-            v-if="(record as VrSettlement).detail_file_path"
-            :href="(record as VrSettlement).detail_file_path!"
-            target="_blank"
-            title="下载结算明细文件"
-            >📄</a
-          >
+          <span v-if="(record as VrSettlement).detail_file_path" title="明细文件已生成">📄</span>
           <span v-else class="subtle">-</span>
         </template>
 
