@@ -150,4 +150,29 @@ describe('VR 结算单详情 - 客户确认按钮身份门禁', () => {
       userState.userId = 7
     }
   })
+
+  it('重试扣款：指定销售可点击；非指定销售禁用', () => {
+    const confirmed = {
+      ...baseSettlement,
+      status: 'customer_confirmed',
+      customer_sales_manager_id: 7,
+    }
+    userState.userId = 7
+    const enabled = mountDrawer(confirmed)
+      .findAll('button')
+      .find((b) => b.text() === '重试扣款')
+    expect(enabled).toBeDefined()
+    expect(enabled!.attributes('disabled')).toBeUndefined()
+
+    userState.userId = 99
+    try {
+      const disabled = mountDrawer(confirmed)
+        .findAll('button')
+        .find((b) => b.text() === '重试扣款')
+      expect(disabled).toBeDefined()
+      expect(disabled!.attributes('disabled')).toBeDefined()
+    } finally {
+      userState.userId = 7
+    }
+  })
 })

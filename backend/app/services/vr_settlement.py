@@ -468,6 +468,8 @@ class VrSettlementService:
         """重试扣款（扣款失败后手动重试）
 
         仅当状态为 customer_confirmed 时可执行。
+        身份校验：操作人必须为该客户指定的销售经理（customer.sales_manager_id，
+        与 confirm_customer 同源——重试是客户确认闭环的延续）。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
@@ -476,6 +478,13 @@ class VrSettlementService:
 
         if settlement.status != "customer_confirmed":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态（{settlement.status}）不允许该操作"
+
+        customer = await self._get_customer(settlement.customer_id)  # pyright: ignore[reportArgumentType]
+        if not customer:
+            return False, "客户不存在"
+
+        if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
+            return False, "您不是该客户指定的销售经理，无权确认"
 
         success, message = await self._execute_deduction(settlement, user_id=user_id)
 

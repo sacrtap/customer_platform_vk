@@ -243,16 +243,32 @@
           >
             客户确认
           </button>
-          <!-- 重试扣款 -->
+          <!-- 重试扣款（需为该客户指定销售，与后端 retry_deduction 同源） -->
           <button
             v-if="
               can('vr_settlement:confirm') &&
               (record as VrSettlement).status === 'customer_confirmed'
             "
             class="btn btn-primary-sm"
-            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-            :disabled="retryingId === (record as VrSettlement).id"
-            @click.stop="handleSingleAction(record as VrSettlement, 'retry-deduction')"
+            :style="{
+              padding: '4px 10px',
+              fontSize: '12px',
+              marginLeft: '4px',
+              opacity: canConfirmSales(record as VrSettlement) ? 1 : 0.5,
+              cursor: canConfirmSales(record as VrSettlement) ? 'pointer' : 'not-allowed',
+            }"
+            :disabled="
+              retryingId === (record as VrSettlement).id || !canConfirmSales(record as VrSettlement)
+            "
+            :title="
+              canConfirmSales(record as VrSettlement)
+                ? ''
+                : salesDisabledTip(record as VrSettlement)
+            "
+            @click.stop="
+              canConfirmSales(record as VrSettlement) &&
+              handleSingleAction(record as VrSettlement, 'retry-deduction')
+            "
           >
             {{ retryingId === (record as VrSettlement).id ? '扣款中...' : '重试扣款' }}
           </button>
