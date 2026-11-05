@@ -217,14 +217,29 @@
           >
             审批驳回
           </button>
-          <!-- 客户确认（自动扣款） -->
+          <!-- 客户确认（需为该客户指定销售，与后端 confirm_customer 同源） -->
           <button
             v-if="
               can('vr_settlement:confirm') && (record as VrSettlement).status === 'pending_customer'
             "
             class="btn btn-primary-sm"
-            style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-            @click.stop="handleSingleAction(record as VrSettlement, 'confirm')"
+            :style="{
+              padding: '4px 10px',
+              fontSize: '12px',
+              marginLeft: '4px',
+              opacity: canConfirmSales(record as VrSettlement) ? 1 : 0.5,
+              cursor: canConfirmSales(record as VrSettlement) ? 'pointer' : 'not-allowed',
+            }"
+            :disabled="!canConfirmSales(record as VrSettlement)"
+            :title="
+              canConfirmSales(record as VrSettlement)
+                ? ''
+                : salesDisabledTip(record as VrSettlement)
+            "
+            @click.stop="
+              canConfirmSales(record as VrSettlement) &&
+              handleSingleAction(record as VrSettlement, 'confirm')
+            "
           >
             客户确认
           </button>
@@ -344,7 +359,7 @@ const userStore = useUserStore()
 const can = (p: string) => userStore.hasPermission(p)
 const currentUserId = computed(() => userStore.userInfo?.id)
 
-// ===== 经理身份校验：仅该客户指定的销售可点击「销售审批」=====
+// ===== 经理身份校验：仅该客户指定的销售可点击「销售审批」「客户确认」=====
 // 超级管理员若非该客户指定销售，同样不可操作（与后端校验保持一致）
 const canConfirmSales = (record: VrSettlement) =>
   currentUserId.value === record.customer_sales_manager_id

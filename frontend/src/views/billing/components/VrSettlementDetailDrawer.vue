@@ -217,13 +217,19 @@
             </a-tooltip>
             <button class="btn btn-danger" @click="emit('reject', settlement.id)">审批驳回</button>
           </template>
-          <button
-            v-if="can('vr_settlement:confirm') && settlement.status === 'pending_customer'"
-            class="btn primary"
-            @click="emit('confirm', settlement.id)"
-          >
-            客户确认
-          </button>
+          <!-- 客户确认：非指定销售时禁用并提示（与销售审批同源身份校验） -->
+          <template v-if="can('vr_settlement:confirm') && settlement.status === 'pending_customer'">
+            <button
+              v-if="canConfirmSales"
+              class="btn primary"
+              @click="emit('confirm', settlement.id)"
+            >
+              客户确认
+            </button>
+            <a-tooltip v-else :content="salesDisabledTip" position="top">
+              <span class="btn primary disabled">客户确认</span>
+            </a-tooltip>
+          </template>
           <button
             v-if="can('vr_settlement:confirm') && settlement.status === 'customer_confirmed'"
             class="btn primary"
@@ -319,7 +325,7 @@ const handleDownloadDetail = () => {
   link.remove()
 }
 
-// ===== 销售身份校验：仅该客户指定的销售可点击「销售审批」=====
+// ===== 销售身份校验：仅该客户指定的销售可点击「销售审批」「客户确认」=====
 const canConfirmSales = computed(() => {
   if (!props.settlement) return false
   return currentUserId.value === props.settlement.customer_sales_manager_id

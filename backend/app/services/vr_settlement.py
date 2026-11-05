@@ -437,6 +437,8 @@ class VrSettlementService:
 
         先落库「客户已确认」再尝试扣款：扣款失败时该状态保留，
         可由 retry_deduction 重试（与 InvoiceService.confirm_invoice 一致）。
+        身份校验：操作人必须为该客户指定的销售经理（customer.sales_manager_id，
+        与 confirm_sales 同源）。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
@@ -445,6 +447,13 @@ class VrSettlementService:
 
         if settlement.status != "pending_customer":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态（{settlement.status}）不允许该操作"
+
+        customer = await self._get_customer(settlement.customer_id)  # pyright: ignore[reportArgumentType]
+        if not customer:
+            return False, "客户不存在"
+
+        if customer.sales_manager_id != user_id:  # pyright: ignore[reportGeneralTypeIssues]
+            return False, "您不是该客户指定的销售经理，无权确认"
 
         settlement.status = "customer_confirmed"  # pyright: ignore[reportAttributeAccessIssue]
         settlement.customer_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
