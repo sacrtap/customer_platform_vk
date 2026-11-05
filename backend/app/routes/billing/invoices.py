@@ -30,6 +30,7 @@ from ...middleware.auth import (
 )
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
+from ...services.invoice_consistency import InvoiceConsistencyError
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.excel_export import excel_response
@@ -271,56 +272,84 @@ async def get_invoice(request: Request, invoice_id: int):
     def resolve_name(uid):
         return operator_names.get(uid) if uid else None
 
-    # 重新调用 calculate_items_from_rules 获取完整计费规则信息
-    # 数据库 InvoiceItem 只存储基础字段（device_type/layer_type/quantity/unit_price），
-    # pricing_type/package_type/tiers/over_limit 等需通过 PricingRule 关联获取
-    try:
-        recalculated_items, _ = await invoice_service.calculate_items_from_rules(
-            customer_id=invoice.customer_id,
-            period_start=invoice.period_start,  # pyright: ignore[reportArgumentType]
-            period_end=invoice.period_end,  # pyright: ignore[reportArgumentType]
-        )
-    except TierFormatError as e:
-        # 与 calculate-items 一致：阶梯配置非法时返回业务错误码而非 500
-        return json(
-            {"code": ErrorCodes.INVALID_FORMAT, "message": f"阶梯配置格式错误：{e}"},
-            status=400,
-        )
+    # 冻结快照组装（F4）：直接读 InvoiceItem + PricingRule，不再实时重算
+    # calculate_items_from_rules —— 详情数字必须与生成时的冻结快照一致
+    # （历史缺陷：两次打开中间插入同步，实时重算导致数字漂移）。
+    # 包年计算分量（usage_cost/over_limit_* 等，前端 formatRuleDetail 消费）经
+    # daily_consumptions 还原，公式与 calculate_items_from_rules 共用
+    # billing._build_package_limited_breakdown，避免两处漂移。
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select as sa_select
 
-    # 格式化 items（与 calculate-items 路由一致的字段结构）
-    formatted_items = [
-        {
-            "id": item.get("pricing_rule_id"),
-            "device_type": item["device_type"],
-            "layer_type": item["layer_type"],
-            "quantity": float(item["quantity"]),
-            "unit_price": float(item["unit_price"]),
-            "subtotal": float(item["subtotal"]),
-            "additional_floor_price": float(item["additional_floor_price"])
-            if item.get("additional_floor_price") is not None
+    from ...models.daily_consumption import DailyConsumption
+    from ...services.billing import _build_package_limited_breakdown
+
+    period_days = (invoice.period_end.date() - invoice.period_start.date()).days + 1
+
+    def _format_package_item(rule, total_quantity: Decimal) -> dict:
+        """包年 item 的冻结快照组装（含计算分量还原）"""
+        limits = rule.package_limits or {}
+        base_fee = Decimal(str(limits.get("base_fee", 0) or 0))
+        fields: dict = {"base_fee": float(base_fee), "period_days": period_days}
+        if not limits.get("is_unlimited"):
+            fields.update(_build_package_limited_breakdown(base_fee, limits, total_quantity))
+        else:
+            fields["package_type"] = "unlimited"
+        return fields
+
+    # 包年分量还原所需的套餐累计订单数（与 calculate_items_from_rules 同口径：
+    # 账期内全部 daily_consumptions.order_count 之和，不限设备类型）
+    package_total_quantity = Decimal("0")
+    has_package_item = any(
+        i.pricing_rule is not None and i.pricing_rule.pricing_type == "package"
+        for i in invoice.items
+    )
+    if has_package_item:
+        pkg_result = await db.execute(
+            sa_select(sa_func.coalesce(sa_func.sum(DailyConsumption.order_count), 0)).where(
+                DailyConsumption.customer_id == invoice.customer_id,
+                DailyConsumption.consumption_date >= invoice.period_start,
+                DailyConsumption.consumption_date <= invoice.period_end,
+            )
+        )
+        package_total_quantity = Decimal(str(pkg_result.scalar() or 0))
+
+    formatted_items = []
+    for item in invoice.items:
+        rule = item.pricing_rule
+        entry = {
+            "id": item.pricing_rule_id,
+            "device_type": item.device_type,
+            "layer_type": item.layer_type,
+            "quantity": float(item.quantity),
+            "unit_price": float(item.unit_price),
+            # subtotal 兜底：历史行（F3 迁移前）为 NULL，回退 quantity × unit_price
+            "subtotal": float(item.subtotal)
+            if item.subtotal is not None
+            else float(item.quantity * item.unit_price),
+            "additional_floor_price": float(rule.additional_floor_price)
+            if rule is not None and rule.additional_floor_price is not None
             else None,
-            "multi_floor_pricing_type": item.get("multi_floor_pricing_type"),
-            "order_count": float(item["order_count"])
-            if item.get("order_count") is not None
-            else None,
-            "pricing_type": item.get("pricing_type"),
-            "pricing_rule_id": item.get("pricing_rule_id"),
-            "package_type": item.get("package_type"),
-            "base_fee": float(item["base_fee"]) if item.get("base_fee") is not None else None,
-            "limit_count": item.get("limit_count"),
-            "over_limit_quantity": item.get("over_limit_quantity"),
-            "over_limit_unit_price": float(item["over_limit_unit_price"])
-            if item.get("over_limit_unit_price") is not None
-            else None,
-            "over_limit_cost": float(item["over_limit_cost"])
-            if item.get("over_limit_cost") is not None
-            else None,
-            "usage_cost": float(item["usage_cost"]) if item.get("usage_cost") is not None else None,
-            "period_days": item.get("period_days"),
-            "tiers": item.get("tiers"),
+            "multi_floor_pricing_type": rule.multi_floor_pricing_type if rule else None,
+            # order_count 兜底：历史行为 NULL，回退 quantity（前端同款兜底）
+            "order_count": float(item.order_count)
+            if item.order_count is not None
+            else float(item.quantity),
+            "pricing_type": rule.pricing_type if rule else None,
+            "pricing_rule_id": item.pricing_rule_id,
+            "package_type": None,
+            "base_fee": None,
+            "limit_count": None,
+            "over_limit_quantity": None,
+            "over_limit_unit_price": None,
+            "over_limit_cost": None,
+            "usage_cost": None,
+            "period_days": None,
+            "tiers": rule.tiers if rule else None,
         }
-        for item in recalculated_items
-    ]
+        if rule is not None and rule.pricing_type == "package":
+            entry.update(_format_package_item(rule, package_total_quantity))
+        formatted_items.append(entry)
 
     return json(
         {
@@ -633,7 +662,11 @@ async def generate_invoices_batch(request: Request):
     # 日期转换：前端本地日期 → UTC datetime 范围
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
-    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+    invoice_service = InvoiceService(
+        InvoiceRepository(db),
+        PricingRepository(db),
+        external_engine=getattr(request.app.ctx, "external_mysql_engine", None),
+    )
 
     result = await invoice_service.generate_invoices_batch(
         pricing_type=data.get("pricing_type"),
@@ -768,7 +801,11 @@ async def generate_invoice(request: Request):
             status=400,
         )
 
-    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
+    invoice_service = InvoiceService(
+        InvoiceRepository(db),
+        PricingRepository(db),
+        external_engine=getattr(request.app.ctx, "external_mysql_engine", None),
+    )
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户生成结算单
     scope_user_id = await customer_scope_user_id(request)
@@ -830,13 +867,20 @@ async def generate_invoice(request: Request):
         )
     else:
         items = data["items"]
-    invoice = await invoice_service.generate_invoice(
-        customer_id=data["customer_id"],
-        period_start=period_start,
-        period_end=period_end,
-        items=items,
-        created_by=user["user_id"] if user else 1,
-    )
+    try:
+        invoice = await invoice_service.generate_invoice(
+            customer_id=data["customer_id"],
+            period_start=period_start,
+            period_end=period_end,
+            items=items,
+            created_by=user["user_id"] if user else 1,
+        )
+    except InvoiceConsistencyError as e:
+        # F1：快照与外部实时量不一致，拒绝生成（文案含差异日期与修复动作）
+        return json({"code": ErrorCodes.BAD_REQUEST, "message": str(e)}, status=400)
+    except ValueError as e:
+        # F5：周期重叠等业务校验失败（文案含已有单号）
+        return json({"code": ErrorCodes.BAD_REQUEST, "message": str(e)}, status=400)
 
     # 结算单生成后清除相关缓存
     await cache_service.invalidate_billing_cache()

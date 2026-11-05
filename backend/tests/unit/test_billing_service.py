@@ -32,6 +32,10 @@ def mock_db_session():
     """Mock 数据库会话"""
     session = MagicMock()
     session.execute = AsyncMock()
+    # 默认查询结果：无同期结算单（F5 周期去重默认放行；需要命中的测试自行覆盖）
+    _default_result = MagicMock()
+    _default_result.first.return_value = None
+    session.execute.return_value = _default_result
     session.add = MagicMock()
     session.flush = AsyncMock()
     session.commit = AsyncMock()
@@ -1777,7 +1781,10 @@ class TestInvoiceService_SettlementAccount:
         """生成结算单：快照客户当前结算账户配置到结算单"""
         customer = self._customer(customer_id=100, settlement_account_id=200)
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=customer),
+                first=MagicMock(return_value=None),  # F5 周期去重查询默认无重叠
+            )
         )
 
         invoice = await invoice_service.generate_invoice(
@@ -1797,7 +1804,10 @@ class TestInvoiceService_SettlementAccount:
         """生成结算单：客户未配置结算账户时快照为 NULL（用自身余额）"""
         customer = self._customer(customer_id=100, settlement_account_id=None)
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=customer),
+                first=MagicMock(return_value=None),  # F5 周期去重查询默认无重叠
+            )
         )
 
         invoice = await invoice_service.generate_invoice(
