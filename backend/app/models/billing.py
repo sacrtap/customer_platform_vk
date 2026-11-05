@@ -249,11 +249,20 @@ class InvoiceItem(BaseModel):
     layer_type: Mapped[str | None] = mapped_column(String(20))  # single/multi
     quantity: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
-    # subtotal = quantity * unit_price
+    # subtotal = quantity * unit_price  # 旧口径仅对单层统一价成立；多层递增/阶梯/包年下以 subtotal 列为准
+    subtotal: Mapped[Decimal | None] = mapped_column(
+        DECIMAL(12, 2),
+        nullable=True,
+        comment="真实小计（多层递增/阶梯/包年下 ≠ quantity×unit_price）",
+    )
+    order_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="计费订单数（多层递增时 quantity 为层数，需此列还原单数）"
+    )
     pricing_rule_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("pricing_rules.id"))
 
     # 关联
     invoice = relationship("Invoice", back_populates="items")
+    pricing_rule = relationship("PricingRule")
 
 
 class ConsumptionRecord(BaseModel):
