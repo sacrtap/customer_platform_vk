@@ -26,6 +26,31 @@
 - `module:manage` 通配：包含全部细粒度动作 `view / create / edit / delete / read / write / update`。
 - 无其他隐式映射（历史上 `system:view → system:audit_read` 的死分支已删除）。
 
+## 资源归属身份校验（行级，2026-11-05 固化）
+
+**权限码是角色级门槛，不是资源级授权。** `@require_permission("vr_settlement:confirm")` 只回答「这个角色能不能做客户确认这类操作」，不回答「这个人能不能对**这个客户**的结算单做」。凡操作语义绑定到具体客户的经理人（运营经理 `Customer.manager_id` / 销售经理 `Customer.sales_manager_id`）时，service 层必须叠加行级身份校验：
+
+**范式**（以 `VrSettlementService.confirm_sales` / `InvoiceService.confirm_ops` 为准）：
+
+```python
+customer = await self._get_customer(settlement.customer_id)
+if not customer:
+    return False, "客户不存在"
+if customer.sales_manager_id != user_id:
+    return False, "您不是该客户指定的销售，无权确认"
+```
+
+**约定**：
+1. **每个审批节点先定义「操作人契约」再实现**：状态机设计（方案文档）必须逐节点写明操作人 = 权限码角色 ∩ 客户归属人 / 纯职位角色 / 无契约（线下录入语义），禁止留空让实现层自行推断。
+2. **前端同源门禁**：列表页用函数式 `canConfirmSales(record)`（样式置灰 + `title` 提示 + click 守卫三件套），详情抽屉用 computed + `a-tooltip` 禁用态；两者数据源都是接口下发的 `customer_sales_manager_id`。超管非指定销售同样禁用（与后端一致）。
+3. **正负测试成对**：集成测试必须覆盖「指定销售可确认」正值与「非指定销售 400 + 状态不变」负值（`test_vr_settlement_api.py::test_sales_identity_check` / `test_customer_confirm_identity_check`）。
+
+**反面语义（特例，勿照抄）**：`InvoiceService.confirm_invoice`（普通结算单客户确认）无身份校验——其语义是「线下与客户确认后线上录入」，任持 `billing:confirm` 权限者均可代录。VR 流程的「客户确认」语义是销售经理代表客户在线确认，故有身份契约。新节点实现前先对照本表确认语义，勿以「照抄 billing.py」代替契约定义。
+
+**教训**（2026-11-05，VR 结算单）：`confirm_customer` 初版只挂权限码未做身份校验，导致非指定销售（如销售主管兼任多角色者）可确认任意客户结算单；设计文档定义了 `confirm_sales` 的身份契约却漏定义 `confirm_customer` 的，实现照文档做即漏。修复：service 补校验 + 前端两入口（列表页/详情抽屉）补禁用门禁 + 正负测试。
+
+**已知同类缺口（待业务确认，未改）**：`VrSettlementService.retry_deduction`（重试扣款，同 `vr_settlement:confirm` 权限）尚无身份校验——扣款失败重试是否限原确认人（指定销售），需产品定义后按本范式补齐。
+
 ## 新权限码上线流程（唯一入口）
 
 1. `backend/scripts/seed.py` `ALL_PERMISSIONS` 追加条目。
