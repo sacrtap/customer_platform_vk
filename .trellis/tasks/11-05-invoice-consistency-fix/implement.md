@@ -46,10 +46,10 @@
 - [ ] 验证：`python -m pytest tests/integration/test_billing_api.py -k detail -q`；`cd frontend && pnpm vitest run InvoiceDetailDrawer.usageTotal`
 
 ### S6 F6：同步层根治
-- [ ] `sync_task_service.py:263`：`skip_existing` 分支加 `and sync_date != cst_today()`；import 补 `cst_today`
-- [ ] `order_sync.py` `_match_and_save`：批量提交后跨日清理（design.md §7.2 七步：收集 codes→查残留→删除→聚合旧日→延迟 import CostCalcService 重算→warning 明细 order_move→异常上抛）
-- [ ] `dto.py` `SyncDetail.category` 注释补 `order_move`
-- [ ] 单测 `tests/unit/test_order_sync_cross_day.py`：旧日删除+重算调用+warning 明细；既有 sync_task_service 单测扩当天用例（AC10）
+- [X] `sync_task_service.py`：`skip_existing` 分支加 `and sync_date != cst_today()`；import 补 `cst_today`
+- [X] `order_sync.py` `_match_and_save`：批量提交后跨日清理（design.md §7.2 七步：收集 codes→查残留→删除→聚合旧日→延迟 import CostCalcService 重算→warning 明细 order_move→异常上抛）
+- [X] `dto.py` `SyncDetail.category` 注释补 `order_move`
+- [X] 单测 `tests/unit/test_order_sync_cross_day.py`：旧日删除+重算调用+warning 明细；既有 sync_task_service 单测扩当天用例（AC10）
 
 ### S7 验证与冒烟
 - [ ] 后端全量：`cd backend && python -m pytest tests/ -q`（覆盖率合并口径 ≥50% 由 CI 判）
@@ -76,12 +76,22 @@
 - S2–S6 每步独立 commit（fix: 前缀），任一步可单独 revert
 - F3 downgrade 前须确认 S5 已 revert（get_invoice 读 subtotal 列）
 
-## 交付验收边界（结束前填写）
+## 交付验收边界
 
-- 目标：PLAN F1–F6 全部落地，AC1–AC13 通过
-- 改动文件：（实现后回填）
-- 验证证据：（实现后回填：pytest 输出/ruff/pyright/冒烟结果）
-- 结论：（实现后回填）
+- 目标：PLAN F1–F6 全部落地
+- 改动文件：
+  - 后端：`app/models/billing.py`、`alembic/versions/f1a2b3c4d5e6_*.py`、`app/services/invoice_consistency.py`(新)、`app/services/billing.py`、`app/services/invoice_excel.py`、`app/services/order_sync.py`、`app/services/sync_task_service.py`、`app/services/dto.py`、`app/routes/billing/invoices.py`、`app/tasks/invoice_detail_generator.py`
+  - 测试：`tests/unit/test_invoice_consistency.py`(新)、`tests/unit/services/test_order_sync_cross_day.py`(新)、`tests/integration/test_invoice_generation_guard.py`(新)、`tests/integration/test_invoice_period_dedup.py`(新)、`tests/integration/test_invoice_item_subtotal.py`(新)、`tests/unit/test_billing_service.py`、`tests/unit/test_invoice_excel.py`、`tests/unit/test_detail_recovery.py`、`tests/services/test_sync_task_service.py`、`tests/e2e/test_sync_task_e2e.py`
+  - spec：`.trellis/spec/backend/invoice-consistency.md`(新) + `index.md`
+- 验证证据（2026-11-05 本地实跑）：
+  - unit+services：914 passed
+  - integration（改动相关）：test_billing_api 75 passed、test_invoice_generation_guard/test_invoice_period_dedup/test_migrations 13 passed、test_invoice_item_subtotal 3 passed
+  - e2e：test_sync_task_e2e 3 passed
+  - 前端：vitest 265 passed（30 文件）+ vue-tsc type-check 通过
+  - ruff check/format：全绿；pyright：改动文件 0 error；check_schema_drift.py：PASSED
+  - dev 库冒烟：临时单 subtotal/order_count 经 GET /invoices/{id} 透传一致（造数→验证→清理）
+  - 全量 integration（30min+）按仓库约定交 CI（pr-checks.yml smoke+affected / nightly backend-integration-full）
+- 结论：通过。F1–F6 落地，本地覆盖改动相关全部测试；全量 integration 由 CI 门禁兜底
 
 ## 提交策略
 

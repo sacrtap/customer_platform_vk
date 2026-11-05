@@ -15,7 +15,9 @@ class SyncDetail:
 
     sync_date: date
     level: str  # info / warning / error
-    category: str  # order_fetch / order_match / order_save / cost_calc / data_check / system
+    category: (
+        str  # order_fetch / order_match / order_save / order_move / cost_calc / data_check / system
+    )
     message: str
     customer_id: Optional[int] = None
     customer_name: Optional[str] = None

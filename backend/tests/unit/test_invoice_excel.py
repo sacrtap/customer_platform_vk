@@ -124,9 +124,48 @@ class TestInvoiceExcel_SheetStructure:
         assert ws.cell(row=2, column=2).value == "多层"
         assert ws.cell(row=2, column=3).value == 3.0
         assert ws.cell(row=2, column=4).value == 5.0
-        assert ws.cell(row=2, column=5).value == 15.0  # 3 * 5 = 15
+        # 小计取 item["subtotal"]（多层递增真实小计 17 = 3×5 + 2×1 附加层口径），
+        # 不再重算 quantity × unit_price（F3：旧口径 15 与 total_amount 17 不符）
+        assert ws.cell(row=2, column=5).value == 17.0
         assert ws.cell(row=2, column=6).value == "递增"
         assert ws.cell(row=2, column=7).value == 6.0
+
+        # 「合计」sheet 数量口径：invoice_items.order_count 之和（无 order_count → 0）
+        ws1 = wb["合计"]
+        assert ws1.cell(row=3, column=2).value == 0
+        # 外部实时订单 0 笔 vs 本单计费 0 笔 → 无差异，备注为空（openpyxl 空串读回 None）
+        assert ws1.cell(row=3, column=10).value in (None, "")
+
+    def test_billing_detail_sheet_subtotal_fallback_without_key(
+        self, excel_service, cleanup_test_file
+    ):
+        """item 无 subtotal 键（历史/显式 items）→ 小计回退 quantity × unit_price"""
+        invoice_items = [
+            {
+                "device_type": "X",
+                "layer_type": "single",
+                "quantity": 10,
+                "unit_price": Decimal("5.00"),
+            },
+        ]
+        file_path = excel_service._build_and_save_excel(
+            invoice_id=99904,
+            customer_name="测试客户",
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 31),
+            total_amount=Decimal("50.00"),
+            discount_amount=Decimal("0.00"),
+            unit_price=None,
+            order_details=[],
+            balance_info=None,
+            invoice_items=invoice_items,
+        )
+        abs_path = os.path.join("./uploads", file_path)
+        cleanup_test_file.append(abs_path)
+
+        wb = load_workbook(abs_path)
+        ws = wb["计费明细"]
+        assert ws.cell(row=2, column=5).value == 50.0  # 10 × 5 回退口径
 
     def test_billing_detail_sheet_not_created_without_items(self, excel_service, cleanup_test_file):
         """invoice_items 为空时不生成"计费明细" Sheet"""

@@ -179,16 +179,23 @@ class InvoiceExcelService:
         group_type: Optional[int] = None,
         invoice_status: str = "draft",
         invoice_items: Optional[List[Dict[str, Any]]] = None,
+        order_codes: Optional[set[str]] = None,
     ) -> Optional[str]:
         """生成结算单明细 Excel 文件
+
+        Args:
+            order_codes: 本单计费周期内 daily_orders 的 order_code 集合；传入后
+                「月份明细」仅含快照内订单，与「计费明细」同源（F2）。
 
         Returns:
             文件路径（成功）或 None（失败）
         """
         logger.info(f"开始生成结算单 {invoice_id} 的明细文件")
 
-        # 1. 查询外部数据库获取订单明细
-        order_details = await self._fetch_order_details(group_type, period_start, period_end)
+        # 1. 查询外部数据库获取订单明细（order_codes 过滤后与本地快照同源）
+        order_details = await self._fetch_order_details(
+            group_type, period_start, period_end, order_codes=order_codes
+        )
 
         if order_details is None:
             logger.warning(f"结算单 {invoice_id} 查询外部数据库失败")
@@ -235,8 +242,14 @@ class InvoiceExcelService:
         group_type: Optional[int],
         period_start: datetime,
         period_end: datetime,
+        order_codes: Optional[set[str]] = None,
     ) -> Optional[List[Dict[str, Any]]]:
         """从外部 MySQL 查询订单明细
+
+        Args:
+            order_codes: 非 None 时仅保留 order_code 属于该集合的行（Python 侧过滤）。
+                用于「月份明细」与本地快照（daily_orders）同源，避免外部实时量
+                与冻结计费口径不一致（F2）。
 
         Returns:
             订单列表（成功）或 None（连接失败）
@@ -261,7 +274,10 @@ class InvoiceExcelService:
                         },
                     )
                     rows = result.fetchall()
-                    return [self._row_to_dict(row) for row in rows]
+                    details = [self._row_to_dict(row) for row in rows]
+                    if order_codes is not None:
+                        details = [d for d in details if d.get("order_code") in order_codes]
+                    return details
             except Exception as e:
                 logger.error(f"查询外部数据库失败: {e}")
                 return None
@@ -532,7 +548,11 @@ class InvoiceExcelService:
             cell.fill = header_fill
 
         # 数据行
-        model_count = len(order_details)
+        # 模型总数量/计费模型数量口径统一为 invoice_items.order_count 之和（F2）：
+        # 与「计费明细」sheet 同源（冻结快照），不再取外部实时 len(order_details)
+        model_count = sum(
+            Decimal(str(item.get("order_count") or 0)) for item in (invoice_items or [])
+        )
         final_amount = total_amount - discount_amount
         period_str = f"{utc_to_cst_date_str(period_start)} - {utc_to_cst_date_str(period_end)}"
         ws1.cell(row=3, column=1, value=period_str)
@@ -552,7 +572,20 @@ class InvoiceExcelService:
             ws1.cell(row=3, column=7, value="")
             ws1.cell(row=3, column=8, value="")
             ws1.cell(row=3, column=9, value=float(final_amount))
-        ws1.cell(row=3, column=10, value="")
+        # 备注列兜底（F2）：外部实时订单数与本单计费量不一致时显式暴露差异。
+        # 正常链路下已被生成前一致性校验（F1）拦截，此处仅防御历史单/显式 items 路径
+        external_count = len(order_details)
+        if external_count != int(model_count):
+            ws1.cell(
+                row=3,
+                column=10,
+                value=(
+                    f"外部实时订单 {external_count} 笔，本单计费 {int(model_count)} 笔，"
+                    f"差异 {external_count - int(model_count)} 笔（请核对同步完整性）"
+                ),
+            )
+        else:
+            ws1.cell(row=3, column=10, value="")
 
         # 列宽
         for col in range(1, 11):
@@ -672,7 +705,11 @@ class InvoiceExcelService:
 
                 quantity = float(item.get("quantity", 0))
                 unit_p = float(item.get("unit_price", 0))
-                subtotal = quantity * unit_p
+                # 小计口径（F3）：优先 item["subtotal"]（多层递增/阶梯/包年下的真实
+                # 小计，与 invoices.total_amount 同源）；历史/显式 items 无该键时
+                # 回退 quantity × unit_price
+                item_subtotal = item.get("subtotal")
+                subtotal = float(item_subtotal) if item_subtotal is not None else quantity * unit_p
 
                 mfp_type = item.get("multi_floor_pricing_type") or ""
                 mfp_str = {"incremental": "递增", "unified": "统一"}.get(mfp_type, mfp_type or "-")

@@ -131,7 +131,10 @@ class TestClaimGuard:
         claim_result.rowcount = 1
         rows_result = MagicMock()
         rows_result.all.return_value = []
-        session.execute = AsyncMock(side_effect=[claim_result, rows_result])
+        order_codes_result = MagicMock()
+        order_codes_result.all.return_value = []
+        # claim → invoice_items 查询 → order_codes 查询（F2 口径过滤）
+        session.execute = AsyncMock(side_effect=[claim_result, rows_result, order_codes_result])
 
         from app.services import invoice_excel
 

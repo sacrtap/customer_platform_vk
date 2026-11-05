@@ -6,6 +6,7 @@
 
 import asyncio
 import logging
+from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -93,6 +94,7 @@ async def _generate_invoice_detail_inner(
         from sqlalchemy import select
 
         from ..models.billing import PricingRule
+        from ..models.daily_order import DailyOrder
 
         result = await session.execute(
             select(InvoiceItem, PricingRule)
@@ -103,7 +105,8 @@ async def _generate_invoice_detail_inner(
         # 取第一项的单价作为代表（按设备类型+图层分别计价时取首个）
         unit_price = rows[0][0].unit_price if rows else None
 
-        # 构造 invoice_items 列表传给 Excel
+        # 构造 invoice_items 列表传给 Excel（含 F3 落库的 subtotal/order_count，
+        # 使「合计」数量口径与「计费明细」小计同源）
         invoice_items = []
         for item, rule in rows:
             invoice_items.append(
@@ -112,10 +115,25 @@ async def _generate_invoice_detail_inner(
                     "layer_type": item.layer_type,
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,
+                    "subtotal": item.subtotal,
+                    "order_count": item.order_count,
                     "multi_floor_pricing_type": rule.multi_floor_pricing_type if rule else None,
                     "additional_floor_price": rule.additional_floor_price if rule else None,
                 }
             )
+
+        # 查询本单计费周期内的订单号集合（daily_orders 快照，F2）：
+        # 「月份明细」按此集合过滤外部实时订单，与「计费明细」同源；
+        # 集合为空（周期内无同步订单）→ 月份明细为空表，与「合计 0 套」自洽
+        order_code_rows = await session.execute(
+            select(DailyOrder.order_code).where(
+                DailyOrder.customer_id == invoice.customer_id,
+                DailyOrder.sync_date >= invoice.period_start,
+                DailyOrder.sync_date < invoice.period_end + timedelta(seconds=1),
+                DailyOrder.deleted_at.is_(None),
+            )
+        )
+        order_codes = {row[0] for row in order_code_rows}
 
         # 查询完毕：提交并关闭主会话，释放 PG 连接与事务。
         # 余额查询/终态更新改用短会话（见 InvoiceExcelService.session_factory）。
@@ -152,6 +170,7 @@ async def _generate_invoice_detail_inner(
             group_type=group_type,
             invoice_status=invoice_status,
             invoice_items=invoice_items,
+            order_codes=order_codes,
         )
 
         # ===== 阶段 3：更新终态（短会话或主会话）=====
