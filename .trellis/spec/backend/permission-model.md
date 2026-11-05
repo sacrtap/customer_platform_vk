@@ -49,7 +49,7 @@ if customer.sales_manager_id != user_id:
 
 **教训**（2026-11-05，VR 结算单）：`confirm_customer` 初版只挂权限码未做身份校验，导致非指定销售（如销售主管兼任多角色者）可确认任意客户结算单；设计文档定义了 `confirm_sales` 的身份契约却漏定义 `confirm_customer` 的，实现照文档做即漏。修复：service 补校验 + 前端两入口（列表页/详情抽屉）补禁用门禁 + 正负测试。
 
-**已知同类缺口（待业务确认，未改）**：`VrSettlementService.retry_deduction`（重试扣款，同 `vr_settlement:confirm` 权限）尚无身份校验——扣款失败重试是否限原确认人（指定销售），需产品定义后按本范式补齐。
+**已知同类缺口（2026-11-05 当天闭环）**：`VrSettlementService.retry_deduction`（重试扣款，同 `vr_settlement:confirm` 权限）初版同样无身份校验——非指定销售虽不能再确认，仍可对**历史上已确认**的单子重试扣款。经业务确认后按本范式补齐：service 校验 + 前端两入口禁用门禁 + 正负测试。**教训**：同一权限码覆盖的兄弟操作（确认/重试）要成对审查，只修入口动作会留后门。
 
 ## 新权限码上线流程（唯一入口）
 
