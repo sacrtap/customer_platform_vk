@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "PG 会话时区契约 + 2.0 typed 声明 + 迁移目录 + schema drift 硬规则"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ValueError 承载业务错误、40001 映射先例"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试分层、mock 陷阱、集成测试造数据先例"}
+{"file": ".trellis/spec/backend/billing-balance-stats.md", "reason": "结算/包年字段跨层契约先例（package_limits/over_limit_* 口径）"}

@@ -369,6 +369,18 @@ class OrderSyncService:
                 record_count=agg["count"],
             )
 
+        # 跨日迁移清理（F6）：订单 upload_date 跨日后，其 daily_orders 行仍留在旧
+        # sync_date（唯一约束 (order_code, sync_date) 允许同一订单码存在于不同日期）。
+        # 本批订单码若在「非当天窗口」存在旧行，即发生了跨日迁移——删除旧行并重算
+        # 受影响旧日消耗（cost_calc 先删后建，幂等）。
+        if saved_orders:
+            await self._migrate_cross_day_orders(
+                sync_date=sync_date,
+                saved_orders=saved_orders,
+                detail_collector=detail_collector,
+                emit=_emit,
+            )
+
         # 设置结果消息
         if result.failed > 0 and result.success > 0:
             result.message = "部分同步失败"
@@ -378,6 +390,74 @@ class OrderSyncService:
             result.message = "同步完成"
 
         return result
+
+    async def _migrate_cross_day_orders(
+        self,
+        sync_date: datetime,
+        saved_orders: List[DailyOrder],
+        detail_collector: Optional[List[SyncDetail]],
+        emit,
+    ) -> None:
+        """跨日迁移清理（F6）
+
+        订单 upload_date 跨日后，同一 order_code 会出现在新日期的同步批次中，
+        而旧日期的 daily_orders 行仍在（唯一约束按 (order_code, sync_date)，
+        不禁跨日期重复）。残留行会让旧日消耗统计多计。
+
+        动作：删除本批订单码在「非当天窗口 [sync_date, sync_date+1d)」的残留行
+        → 按 (customer_id, 旧日) 聚合 → 逐旧日重算消耗（先删后建，幂等）。
+        异常上抛（sync_orders 不吞错误，execute_task 按天记 failed）。
+        """
+        from sqlalchemy import delete
+
+        day_end = sync_date + timedelta(days=1)
+        batch_codes = [o.order_code for o in saved_orders]
+        if not batch_codes:
+            return
+
+        stale_rows = (
+            (
+                await self.db.execute(
+                    select(DailyOrder).where(
+                        DailyOrder.order_code.in_(batch_codes),
+                        (DailyOrder.sync_date < sync_date) | (DailyOrder.sync_date >= day_end),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not stale_rows:
+            return
+
+        new_day_str = sync_date.astimezone(CST).date().isoformat()
+        # 按 (customer_id, 旧日 UTC datetime) 聚合受影响旧日
+        affected: Dict[Any, List[str]] = {}
+        for row in stale_rows:
+            old_day_str = row.sync_date.astimezone(CST).date().isoformat()
+            emit(
+                "warning",
+                "order_move",
+                f"订单 {row.order_code} 上传日期由 {old_day_str} 变更为 {new_day_str}，"
+                f"已迁移并重算 {old_day_str} 消耗",
+                customer_id=row.customer_id,
+                order_code=row.order_code,
+            )
+            affected.setdefault((row.customer_id, row.sync_date), []).append(row.order_code)
+
+        await self.db.execute(
+            delete(DailyOrder).where(DailyOrder.id.in_([r.id for r in stale_rows]))
+        )
+        await self.db.commit()
+        logger.info(
+            f"跨日迁移清理：删除 {len(stale_rows)} 条残留订单，待重算 {len(affected)} 个旧日"
+        )
+
+        # 重算受影响旧日消耗（幂等：清空 + 重建）
+        from app.services.cost_calc import CostCalcService
+
+        for customer_id, old_day in affected:
+            await CostCalcService(self.db).calculate_daily_cost(old_day)
 
     async def _match_customer(self, order: Dict) -> Optional[Customer]:
         """匹配内部客户（通过 external_id 或 group_type）"""

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sync_task import SyncTask
 from app.services.sync_task_service import SyncTaskService
+from app.utils.timezone import local_date_to_utc_start
 
 
 @pytest.fixture
@@ -486,6 +487,86 @@ class TestExecuteTask:
 
         assert result is True
         mock_redis.set.assert_called_once()
+
+    async def test_execute_task_today_force_resync(self, service, mock_db):
+        """skip_existing 模式下当天不被跳过（F6）：即便本地已有数据也强制重拉
+
+        当天的订单持续上传，任何快照都残缺；skip_existing 的跳过检查仅对
+        历史日期生效，当天必须走完整同步（订单 + 费用）刷新。
+        """
+        task_id = "123e4567-e89b-12d3-a456-426614174000"
+        task = SyncTask(
+            id=task_id,
+            start_date=date.today() - timedelta(days=1),
+            end_date=date.today(),
+            sync_mode="skip_existing",
+            status="pending",
+            total_days=2,
+            completed_days=0,
+            skipped_days=0,
+            success_count=0,
+            failed_count=0,
+            operator_id=1,
+        )
+        mock_db.get = AsyncMock(return_value=task)
+        mock_db.commit = AsyncMock()
+
+        with (
+            patch("app.services.sync_task_service.OrderSyncService") as MockOrderSync,
+            patch("app.services.sync_task_service.CostCalcService") as MockCostCalc,
+            # 历史日与当天都「已有完整数据」，
+            patch.object(
+                SyncTaskService,
+                "_check_data_completeness",
+                new_callable=AsyncMock,
+                return_value=(True, True),
+            ) as mock_check,
+            patch.object(SyncTaskService, "_update_redis_progress", new_callable=AsyncMock),
+            patch.object(SyncTaskService, "_update_audit_log", new_callable=AsyncMock),
+        ):
+            mock_order_service = AsyncMock()
+            mock_order_service.sync_orders = AsyncMock(
+                return_value=MagicMock(success=10, failed=0, skipped=0, unmatched=0)
+            )
+            MockOrderSync.return_value = mock_order_service
+
+            mock_cost_service = AsyncMock()
+            mock_cost_service.calculate_daily_cost = AsyncMock(return_value={})
+            MockCostCalc.return_value = mock_cost_service
+
+            await service.execute_task(task_id)
+
+        # 历史日 1 天被 skip_existing 跳过，当天强制重拉
+        assert task.status == "completed"
+        # completed_days 计「已处理天数」：跳过的历史日也计入（既有语义）
+        assert task.completed_days == 2
+        assert task.skipped_days == 1
+        assert task.success_count == 10  # 仅当天重拉的 10 条
+        # _check_data_completeness 仅对历史日调用一次（当天不检查、直接重拉）
+        assert mock_check.await_count == 1
+        assert mock_order_service.sync_orders.await_count == 1
+        assert mock_cost_service.calculate_daily_cost.await_count == 1
+        # 重拉的是当天窗口的 UTC 起点
+        call_arg = mock_order_service.sync_orders.await_args.args[0]
+        assert call_arg == local_date_to_utc_start(date.today().isoformat())
+
+    async def test_verify_completeness_covers_today(self, service, mock_db):
+        """完整性校验覆盖当天：当天参与同步（强制重拉），校验照常产生 warning"""
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        mock_db.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=0)))
+
+        details = []
+        await service._verify_data_completeness(
+            task_id="123e4567-e89b-12d3-a456-426614174000",
+            dates=[yesterday, today],
+            detail_collector=details,
+        )
+
+        # 两天各 2 次 count 查询（订单 + 消费），当天不被豁免
+        assert mock_db.execute.await_count == 4
+        warning_dates = [d.sync_date for d in details if d.level == "warning"]
+        assert warning_dates == [yesterday, yesterday, today, today]
 
     async def test_cancel_task_not_running(self, service, mock_db):
         """测试取消非运行中的任务"""
