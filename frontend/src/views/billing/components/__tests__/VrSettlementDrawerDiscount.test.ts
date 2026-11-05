@@ -23,8 +23,10 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 const permissionState = vi.hoisted(() => ({ allowDiscountApply: true }))
+const userState = vi.hoisted(() => ({ userId: 7 }))
 vi.mock('@/stores/user', () => ({
   useUserStore: vi.fn(() => ({
+    userInfo: { id: userState.userId },
     hasPermission: (p: string) =>
       p === 'vr_settlement:discount_apply' ? permissionState.allowDiscountApply : true,
   })),
@@ -119,5 +121,58 @@ describe('VR 结算单详情 - 减免提交窗口', () => {
     expect(mountDrawer({ ...baseSettlement, discount_history: [] }).text()).not.toContain(
       '减免修改历史'
     )
+  })
+})
+
+describe('VR 结算单详情 - 客户确认按钮身份门禁', () => {
+  const pendingCustomer = {
+    ...baseSettlement,
+    status: 'pending_customer',
+    customer_sales_manager_id: 7,
+  }
+
+  it('当前用户为该客户指定销售 → 渲染可点击的「客户确认」按钮', () => {
+    userState.userId = 7
+    const w = mountDrawer(pendingCustomer)
+    const btn = w.findAll('button').find((b) => b.text() === '客户确认')
+    expect(btn).toBeDefined()
+    expect(btn!.attributes('disabled')).toBeUndefined()
+  })
+
+  it('当前用户非指定销售 → 渲染禁用态（span.disabled），不渲染可点击按钮', () => {
+    userState.userId = 99
+    try {
+      const w = mountDrawer(pendingCustomer)
+      expect(w.findAll('button').some((b) => b.text() === '客户确认')).toBe(false)
+      const disabled = w.findAll('span.btn.primary.disabled').find((s) => s.text() === '客户确认')
+      expect(disabled).toBeDefined()
+    } finally {
+      userState.userId = 7
+    }
+  })
+
+  it('重试扣款：指定销售可点击；非指定销售禁用', () => {
+    const confirmed = {
+      ...baseSettlement,
+      status: 'customer_confirmed',
+      customer_sales_manager_id: 7,
+    }
+    userState.userId = 7
+    const enabled = mountDrawer(confirmed)
+      .findAll('button')
+      .find((b) => b.text() === '重试扣款')
+    expect(enabled).toBeDefined()
+    expect(enabled!.attributes('disabled')).toBeUndefined()
+
+    userState.userId = 99
+    try {
+      const disabled = mountDrawer(confirmed)
+        .findAll('button')
+        .find((b) => b.text() === '重试扣款')
+      expect(disabled).toBeDefined()
+      expect(disabled!.attributes('disabled')).toBeDefined()
+    } finally {
+      userState.userId = 7
+    }
   })
 })

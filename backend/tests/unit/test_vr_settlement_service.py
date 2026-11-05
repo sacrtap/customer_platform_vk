@@ -455,7 +455,10 @@ class TestDeduction:
     async def test_confirm_customer_deducts_and_completes(self, service, mock_db_session):
         """客户确认 → 扣款成功 → completed"""
         settlement = _settlement(status="pending_customer", total_amount=Decimal("500"))
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        customer = Customer(id=100, name="x", sales_manager_id=1)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
         with patch("app.services.vr_settlement.BalanceService") as mock_bs:
             mock_bs.return_value.consume = AsyncMock(return_value=(True, "扣款成功"))
             ok, msg = await service.confirm_customer(1, user_id=1)
@@ -473,7 +476,10 @@ class TestDeduction:
     async def test_confirm_customer_deduct_failure_keeps_status(self, service, mock_db_session):
         """扣款失败：保持 customer_confirmed，返回带前缀的失败消息"""
         settlement = _settlement(status="pending_customer")
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        customer = Customer(id=100, name="x", sales_manager_id=1)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
         with patch("app.services.vr_settlement.BalanceService") as mock_bs:
             mock_bs.return_value.consume = AsyncMock(return_value=(False, "客户余额账户不存在"))
             ok, msg = await service.confirm_customer(1, user_id=1)
@@ -485,7 +491,10 @@ class TestDeduction:
     async def test_confirm_customer_operational_error_degraded(self, service, mock_db_session):
         """OperationalError 降级为业务消息（不穿透 500）"""
         settlement = _settlement(status="pending_customer")
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        customer = Customer(id=100, name="x", sales_manager_id=1)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
         with patch("app.services.vr_settlement.BalanceService") as mock_bs:
             mock_bs.return_value.consume = AsyncMock(
                 side_effect=OperationalError("SELECT ...", {}, Exception("busy"))
@@ -496,10 +505,26 @@ class TestDeduction:
         assert settlement.status == "customer_confirmed"
 
     @pytest.mark.asyncio
+    async def test_confirm_customer_identity_check(self, service, mock_db_session):
+        """非指定销售经理 → 拒绝客户确认"""
+        settlement = _settlement(status="pending_customer")
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, msg = await service.confirm_customer(1, user_id=99)
+        assert ok is False
+        assert msg == "您不是该客户指定的销售经理，无权确认"
+        assert settlement.status == "pending_customer"
+
+    @pytest.mark.asyncio
     async def test_retry_deduction_strips_prefix_on_failure(self, service, mock_db_session):
         """重试失败消息去掉「客户确认成功」前缀"""
         settlement = _settlement(status="customer_confirmed")
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        customer = Customer(id=100, name="x", sales_manager_id=1)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
         with patch("app.services.vr_settlement.BalanceService") as mock_bs:
             mock_bs.return_value.consume = AsyncMock(return_value=(False, "客户余额账户不存在"))
             ok, msg = await service.retry_deduction(1, user_id=1)
@@ -509,13 +534,29 @@ class TestDeduction:
     @pytest.mark.asyncio
     async def test_retry_deduction_success(self, service, mock_db_session):
         settlement = _settlement(status="customer_confirmed")
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        customer = Customer(id=100, name="x", sales_manager_id=1)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
         with patch("app.services.vr_settlement.BalanceService") as mock_bs:
             mock_bs.return_value.consume = AsyncMock(return_value=(True, "扣款成功"))
             ok, msg = await service.retry_deduction(1, user_id=1)
         assert ok is True
         assert msg == "重试扣款成功"
         assert settlement.status == "completed"
+
+    @pytest.mark.asyncio
+    async def test_retry_deduction_identity_check(self, service, mock_db_session):
+        """非指定销售经理 → 拒绝重试扣款（与 confirm_customer 同源）"""
+        settlement = _settlement(status="customer_confirmed")
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, msg = await service.retry_deduction(1, user_id=99)
+        assert ok is False
+        assert msg == "您不是该客户指定的销售经理，无权确认"
+        assert settlement.status == "customer_confirmed"
 
     @pytest.mark.asyncio
     async def test_retry_deduction_wrong_status(self, service, mock_db_session):

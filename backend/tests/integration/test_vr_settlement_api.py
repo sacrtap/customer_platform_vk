@@ -504,6 +504,122 @@ async def test_sales_identity_check(test_client, auth_token, db_session):
 
 
 @pytest.mark.asyncio
+async def test_customer_confirm_identity_check(test_client, auth_token, test_customer, db_session):
+    """客户确认节点同样限该客户指定销售：更换销售后原销售 confirm → 400"""
+    customer_id = test_customer["id"]
+
+    # 推进到 pending_customer（admin 为该客户默认指定销售）
+    settlement_id = await _create_settlement(test_client, auth_token, customer_id)
+    await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
+    _, response = await _post_action(
+        test_client,
+        auth_token,
+        f"/{settlement_id}/confirm-sales-supervisor",
+        {"comment": "同意"},
+    )
+    assert response.status == 200, response.json
+
+    # 更换客户指定销售为另一用户 → admin 失去客户确认资格
+    other_username = f"vr_confirm_other_{uuid.uuid4().hex[:8]}"
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, real_name, is_active,
+                           created_at, updated_at)
+        VALUES (:username, 'x', '新任销售', true, NOW(), NOW())
+        """),
+        {"username": other_username},
+    )
+    other_user_id = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"), {"username": other_username}
+    ).scalar_one()
+    db_session.execute(
+        text("UPDATE customers SET sales_manager_id = :uid WHERE id = :id"),
+        {"uid": other_user_id, "id": customer_id},
+    )
+    db_session.commit()
+
+    try:
+        _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm")
+        assert response.status == 400
+        assert response.json["message"] == "您不是该客户指定的销售经理，无权确认"
+        # 状态不变，仍停留在 pending_customer
+        assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+            "pending_customer"
+        )
+    finally:
+        # 先解除 customers 对 other_user 的 FK 引用，再删用户（fixture teardown 随后删客户）
+        db_session.execute(
+            text("UPDATE customers SET sales_manager_id = NULL WHERE id = :id"),
+            {"id": customer_id},
+        )
+        db_session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": other_user_id})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_retry_deduction_identity_check(test_client, auth_token, test_customer, db_session):
+    """重试扣款同样限该客户指定销售：更换销售后原销售 retry-deduction → 400"""
+    customer_id = test_customer["id"]
+
+    # 推进到 customer_confirmed：test_customer 无余额记录 → 确认时扣款失败落该状态
+    settlement_id = await _create_settlement(test_client, auth_token, customer_id)
+    await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
+    await _post_action(
+        test_client,
+        auth_token,
+        f"/{settlement_id}/confirm-sales-supervisor",
+        {"comment": "同意"},
+    )
+    _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm")
+    assert response.status == 400  # 扣款失败（无余额），状态已落 customer_confirmed
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+        "customer_confirmed"
+    )
+
+    # 更换客户指定销售为另一用户 → admin 失去重试资格
+    other_username = f"vr_retry_other_{uuid.uuid4().hex[:8]}"
+    db_session.execute(
+        text("""
+        INSERT INTO users (username, password_hash, real_name, is_active,
+                           created_at, updated_at)
+        VALUES (:username, 'x', '新任销售', true, NOW(), NOW())
+        """),
+        {"username": other_username},
+    )
+    other_user_id = db_session.execute(
+        text("SELECT id FROM users WHERE username = :username"), {"username": other_username}
+    ).scalar_one()
+    db_session.execute(
+        text("UPDATE customers SET sales_manager_id = :uid WHERE id = :id"),
+        {"uid": other_user_id, "id": customer_id},
+    )
+    db_session.commit()
+
+    try:
+        _, response = await _post_action(
+            test_client, auth_token, f"/{settlement_id}/retry-deduction"
+        )
+        assert response.status == 400
+        assert response.json["message"] == "您不是该客户指定的销售经理，无权确认"
+        # 状态不变，仍停留 customer_confirmed（未被误扣款）
+        assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+            "customer_confirmed"
+        )
+    finally:
+        # 先解除 customers 对 other_user 的 FK 引用，再删用户（fixture teardown 随后删客户）
+        db_session.execute(
+            text("UPDATE customers SET sales_manager_id = NULL WHERE id = :id"),
+            {"id": customer_id},
+        )
+        db_session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": other_user_id})
+        db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_submit_requires_customer_sales_manager(test_client, auth_token, db_session):
     """AC9：客户未指定销售 → submit → 400"""
     customer_id = _unique_customer_id()
