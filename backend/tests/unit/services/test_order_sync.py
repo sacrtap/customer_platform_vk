@@ -153,6 +153,70 @@ class TestOrderSyncServiceMatchAndSave:
         assert isinstance(result, SyncResult)
         assert result.failed == 1
 
+    async def test_match_and_save_same_code_two_houses_both_saved(self):
+        """F8：同一订单号派给两个不同房源——两行都保存、各自计费
+
+        旧实现按 (order_code, sync_date) 去重，第二房源在同步入口即被丢弃，
+        导致该笔业务不计费（三表数量差 1）。识别键加入 custom_code 后，
+        同号不同房源各自成行。
+        """
+        from app.services.order_sync import OrderSyncService
+
+        svc = MagicMock(spec=OrderSyncService)
+        svc.db = AsyncMock()
+
+        orders = [
+            _mock_order_row(order_code="ORD-DUP", custom_code="HS-A"),
+            _mock_order_row(order_code="ORD-DUP", custom_code="HS-B"),
+        ]
+        mock_customer = _make_mock_customer()
+        svc._match_customer = AsyncMock(return_value=mock_customer)
+
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        svc.db.execute = AsyncMock(return_value=existing_result)
+        svc.db.add = MagicMock()
+        svc.db.commit = AsyncMock()
+
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
+
+        assert result.success == 2
+        assert result.skipped == 0
+        assert svc.db.add.call_count == 2
+
+    async def test_match_and_save_null_custom_code_deduped_by_order_code(self):
+        """F8：custom_code 为空时保持订单号语义——同号第二行仍去重
+
+        唯一索引用 COALESCE(custom_code, '') 归一空值，内存去重键同步归一，
+        避免空房源行绕过「订单号即唯一」的原语义。
+        """
+        from app.services.order_sync import OrderSyncService
+
+        svc = MagicMock(spec=OrderSyncService)
+        svc.db = AsyncMock()
+
+        orders = [
+            _mock_order_row(order_code="ORD-001", custom_code=None),
+            _mock_order_row(order_code="ORD-001", custom_code=None),
+        ]
+        mock_customer = _make_mock_customer()
+        svc._match_customer = AsyncMock(return_value=mock_customer)
+
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        svc.db.execute = AsyncMock(return_value=existing_result)
+        svc.db.add = MagicMock()
+        svc.db.commit = AsyncMock()
+
+        result = await OrderSyncService._match_and_save(
+            svc, orders=orders, sync_date=TEST_SYNC_DATE
+        )
+
+        assert result.success == 1
+        assert result.skipped == 1
+
 
 # ==================== Test sync_orders ====================
 

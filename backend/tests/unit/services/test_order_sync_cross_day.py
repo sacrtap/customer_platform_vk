@@ -162,3 +162,32 @@ class TestMigrateCrossDayOrders:
 
         svc.db.execute.assert_not_awaited()
         assert details == []
+
+    async def test_delete_key_includes_custom_code(self):
+        """F8：残留删除键为 (order_code, custom_code)，不是仅 order_code
+
+        旧实现按 order_code 一把删，会把同一订单号的其他房源行误删
+        （该笔业务不计费）。此处断言残留查询的 WHERE 条件含 custom_code。
+        """
+        svc = _make_svc()
+        svc.db.execute = AsyncMock(side_effect=[_stale_result([])])
+        svc.db.commit = AsyncMock()
+        details = []
+
+        with patch("app.services.cost_calc.CostCalcService"):
+            await OrderSyncService._migrate_cross_day_orders(
+                svc,
+                sync_date=TEST_SYNC_DATE,
+                saved_orders=[MagicMock(order_code="ORD-001", custom_code="HS-A")],
+                detail_collector=details,
+                emit=_make_emit(details),
+            )
+
+        stmt = svc.db.execute.call_args_list[0].args[0]
+        sql = str(stmt)
+        assert "custom_code" in sql
+        # 键中同时出现订单号与房源号（tuple_ + COALESCE 归一的表达式索引键）
+        assert "ORD-001" not in sql  # 参数化占位，非字面量
+        # 无残留 → 不删不重算
+        assert svc.db.execute.await_count == 1
+        assert svc.db.commit.await_count == 0

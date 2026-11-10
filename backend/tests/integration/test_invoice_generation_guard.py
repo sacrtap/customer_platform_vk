@@ -1,14 +1,17 @@
-"""F1 结算单生成前一致性校验 — 集成测试
+"""结算单生成以本地同步快照为准 — 集成测试
 
-场景（对应 dev 库实证：模型总数实时查外部 233 vs 计费明细冻结快照 228）：
-- 只同步部分日期（10-01~10-30）→ 生成被拒 40001，文案含差异日期 2026-10-31；
-- 补齐 10-31 同步后 → 生成成功；
-- 外部 MySQL 不可达 → 放行不阻塞；
-- 批量生成中不一致客户进 skipped（不阻断其它客户）。
+背景（用户决策，2026-11-09）：生成时不再做「本地快照 vs 外部实时量」逐日比对
+（原 F1 一致性校验已移除），完全以数据库中每日同步入库的
+daily_orders / daily_consumptions 快照为准，外部库改期/删除/重复派号等漂移
+不再阻塞出账（深圳中原地产 2026-10 实证：3 笔订单外部改期 + 1 个订单号
+重复派号导致逐日比对永远差 1 笔，无法出账）。
 
-外部引擎经 app.ctx.external_mysql_engine 注入 mock（conftest 未配置
-external_mysql_url，默认 None = 放行路径由 test_external_engine_unreachable_passes
-与单测覆盖）。
+场景：
+- 本地缺 10-31 同步、外部当天 17 笔 → 放行生成，金额取本地快照；
+- 本地有外部已无的订单（快照过期）→ 放行生成；
+- 外部 MySQL 不可达 / 引擎未配置 → 放行（生成路径不依赖外部库）；
+- 批量生成：外部漂移客户正常进 generated，不再进 skipped；
+- 周期去重（F5）保留，另行见 test_invoice_period_dedup.py。
 """
 
 from contextlib import asynccontextmanager
@@ -25,10 +28,12 @@ SYNCED_DAYS = [f"2026-10-{d:02d}" for d in range(1, 31)]  # 10-01 ~ 10-30
 MISSING_DAY = "2026-10-31"
 MISSING_COUNT = 17
 PER_DAY = 5
+# 快照计费口径：daily_consumptions 10-15 X/single 5 单 × 10 元 = 50
+EXPECTED_TOTAL = 50.00
 
 
 def _mock_external_engine(counts: dict[str, int]):
-    """构造返回 CST 日分桶行的外部 MySQL 引擎 mock"""
+    """构造返回 CST 日分桶行的外部 MySQL 引擎 mock（任意 SQL 均返回该结果）"""
     engine = MagicMock()
     result = MagicMock()
     result.fetchall.return_value = list(counts.items())
@@ -119,12 +124,12 @@ def auth_headers(auth_token):
 
 @pytest.fixture
 async def guard_customer(db_session):
-    """一致性门禁测试客户：自包含创建，已同步 10-01~10-30（缺 10-31）"""
+    """快照即准测试客户：自包含创建，已同步 10-01~10-30（缺 10-31）"""
     import uuid
 
     customer_id = 91000 + abs(hash(uuid.uuid4().hex[:8])) % 800
     company_id = customer_id
-    customer_name = f"门禁测试客户_{customer_id}"
+    customer_name = f"快照即准测试客户_{customer_id}"
     db_session.execute(
         text("""
         INSERT INTO customers (id, company_id, name, account_type,
@@ -160,107 +165,92 @@ async def guard_customer(db_session):
     db_session.commit()
 
 
-def _external_counts_complete() -> dict[str, int]:
-    """外部实时量：已同步日与本地一致，缺的 10-31 有 17 笔"""
+def _external_counts_missing_day() -> dict[str, int]:
+    """外部实时量：已同步日与本地一致，缺的 10-31 有 17 笔（旧逻辑会拒绝）"""
     counts = {day: PER_DAY for day in SYNCED_DAYS}
     counts[MISSING_DAY] = MISSING_COUNT
     return counts
 
 
-def _external_counts_all_synced() -> dict[str, int]:
-    """外部实时量：与补齐后的本地完全一致"""
-    counts = {day: PER_DAY for day in SYNCED_DAYS}
-    counts[MISSING_DAY] = MISSING_COUNT
-    return counts
+def _external_counts_empty() -> dict[str, int]:
+    """外部实时量：全部为 0（本地快照全部过期，旧逻辑会拒绝）"""
+    return {day: 0 for day in SYNCED_DAYS}
 
 
-_ITEMS = [
-    {
-        "device_type": "X",
-        "layer_type": "single",
-        "quantity": 100,
-        "unit_price": 10.00,
-    }
-]
+async def _generate(test_client, auth_headers, customer_id: int):
+    """调生成接口（不传 items，走计费规则 + 本地快照自动计算）"""
+    return await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": customer_id,
+            "period_start": PERIOD_START,
+            "period_end": PERIOD_END,
+        },
+        headers=auth_headers,
+    )
 
 
-class TestGenerateGuard:
-    async def test_generate_rejected_when_snapshot_incomplete(
+class TestSnapshotWins:
+    """生成以本地同步快照为准：外部漂移不再阻塞出账"""
+
+    async def test_generate_succeeds_when_external_has_unsynced_day(
         self, test_client, auth_headers, guard_customer, app
     ):
-        """部分日期未同步 → 拒绝生成，文案含差异日期与修复动作"""
-        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_complete())
+        """本地缺 10-31 同步、外部当天 17 笔 → 放行生成，金额取本地快照"""
+        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_missing_day())
 
-        request, response = await test_client.post(
-            "/api/v1/billing/invoices/generate",
-            json={
-                "customer_id": guard_customer["id"],
-                "period_start": PERIOD_START,
-                "period_end": PERIOD_END,
-                "items": _ITEMS,
-            },
-            headers=auth_headers,
-        )
-
-        assert response.status == 400
-        data = response.json
-        assert data["code"] == 40001
-        assert guard_customer["name"] in data["message"]
-        assert MISSING_DAY in data["message"]
-        assert f"缺 {MISSING_COUNT} 笔" in data["message"]
-        assert "强制覆盖" in data["message"]
-
-    async def test_generate_success_after_sync_completed(
-        self, test_client, auth_headers, guard_customer, app, db_session
-    ):
-        """补齐 10-31 同步后 → 生成成功（201）"""
-        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_all_synced())
-        _insert_daily_orders(db_session, guard_customer["id"], [MISSING_DAY], MISSING_COUNT)
-        db_session.commit()
-
-        request, response = await test_client.post(
-            "/api/v1/billing/invoices/generate",
-            json={
-                "customer_id": guard_customer["id"],
-                "period_start": PERIOD_START,
-                "period_end": PERIOD_END,
-                "items": _ITEMS,
-            },
-            headers=auth_headers,
-        )
+        _, response = await _generate(test_client, auth_headers, guard_customer["id"])
 
         assert response.status == 201
         data = response.json
         assert data["code"] == 0
-        assert data["data"]["total_amount"] == 1000.00
+        # 金额来自本地 daily_consumptions 快照（5 单 × 10 元），与外部 17 笔无关
+        assert data["data"]["total_amount"] == EXPECTED_TOTAL
 
-    async def test_external_engine_unreachable_passes(
+    async def test_generate_succeeds_when_snapshot_stale(
         self, test_client, auth_headers, guard_customer, app
     ):
-        """外部库不可达 → 放行不阻塞业务（warning 日志）"""
+        """本地有外部已无的订单（改期/删除导致快照过期）→ 放行生成"""
+        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_empty())
+
+        _, response = await _generate(test_client, auth_headers, guard_customer["id"])
+
+        assert response.status == 201
+        assert response.json["data"]["total_amount"] == EXPECTED_TOTAL
+
+    async def test_generate_succeeds_when_external_unreachable(
+        self, test_client, auth_headers, guard_customer, app
+    ):
+        """外部 MySQL 不可达 → 放行（生成路径不再查询外部库）"""
         app.ctx.external_mysql_engine = _mock_external_engine_unreachable()
 
-        request, response = await test_client.post(
-            "/api/v1/billing/invoices/generate",
-            json={
-                "customer_id": guard_customer["id"],
-                "period_start": PERIOD_START,
-                "period_end": PERIOD_END,
-                "items": _ITEMS,
-            },
-            headers=auth_headers,
-        )
+        _, response = await _generate(test_client, auth_headers, guard_customer["id"])
 
         assert response.status == 201
         assert response.json["code"] == 0
 
-    async def test_batch_skips_inconsistent_customer(
+    async def test_generate_succeeds_without_external_engine(
         self, test_client, auth_headers, guard_customer, app
     ):
-        """批量生成：不一致客户进 skipped（reason 含差异日期），不整单失败"""
-        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_complete())
+        """外部引擎未配置（None）→ 放行"""
+        app.ctx.external_mysql_engine = None
 
-        request, response = await test_client.post(
+        _, response = await _generate(test_client, auth_headers, guard_customer["id"])
+
+        assert response.status == 201
+        assert response.json["code"] == 0
+
+
+class TestBatchSnapshotWins:
+    """批量生成：外部漂移客户正常出账，不再进 skipped"""
+
+    async def test_batch_generates_customer_with_external_drift(
+        self, test_client, auth_headers, guard_customer, app
+    ):
+        """批量生成：缺同步日 + 外部漂移的客户进 generated（旧行为进 skipped）"""
+        app.ctx.external_mysql_engine = _mock_external_engine(_external_counts_missing_day())
+
+        _, response = await test_client.post(
             "/api/v1/billing/invoices/generate-batch",
             json={
                 "period_start": PERIOD_START,
@@ -271,11 +261,7 @@ class TestGenerateGuard:
 
         assert response.status == 200
         data = response.json["data"]
-        skipped = data["skipped"]
-        target = [s for s in skipped if s["customer_id"] == guard_customer["id"]]
-        assert len(target) == 1
-        assert MISSING_DAY in target[0]["reason"]
-        assert "强制覆盖" in target[0]["reason"]
-        # 不一致客户未生成结算单
         generated_ids = [g["customer_id"] for g in data["generated"]]
-        assert guard_customer["id"] not in generated_ids
+        skipped_ids = [s["customer_id"] for s in data["skipped"]]
+        assert guard_customer["id"] in generated_ids
+        assert guard_customer["id"] not in skipped_ids

@@ -7,6 +7,7 @@
 3. 终态条件 UPDATE：仅当 generating 才写终态（resolve last-writer-wins）
 """
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -102,7 +103,7 @@ class TestClaimGuard:
             invoice_excel.InvoiceExcelService, "generate_detail_file", fake_generate
         )
 
-        await generate_invoice_detail(session, None, 7001)
+        await generate_invoice_detail(session, 7001)
 
         assert not built["called"], "claim 失败后不应进入 Excel 构建"
         session.get.assert_not_awaited()
@@ -129,19 +130,60 @@ class TestClaimGuard:
         session.close = AsyncMock()
         claim_result = MagicMock()
         claim_result.rowcount = 1
+        # invoice_items 单实体查询：必须经 scalars() 解包（Row 直接属性访问会 KeyError，
+        # 端到端实测回归）；多层计费两字段读 invoice_items 冻结列（不再 JOIN PricingRule）
+        fake_item = MagicMock()
+        fake_item.device_type = "L"
+        fake_item.layer_type = "multi"
+        fake_item.quantity = Decimal("78")
+        fake_item.unit_price = Decimal("14")
+        fake_item.subtotal = Decimal("966")
+        fake_item.order_count = 36
+        fake_item.multi_floor_pricing_type = "incremental"
+        fake_item.additional_floor_price = Decimal("11")
         rows_result = MagicMock()
-        rows_result.all.return_value = []
-        order_codes_result = MagicMock()
-        order_codes_result.all.return_value = []
-        # claim → invoice_items 查询 → order_codes 查询（F2 口径过滤）
-        session.execute = AsyncMock(side_effect=[claim_result, rows_result, order_codes_result])
+        rows_result.scalars.return_value.all.return_value = [fake_item]
+        # 月份明细快照行查询（F9）：本地 daily_orders 实体，经 scalars() 解包
+        fake_order = MagicMock()
+        fake_order.project_name = "测试房源"
+        fake_order.custom_code = "C-1"
+        fake_order.city = "北京"
+        fake_order.department = "技术部"
+        fake_order.order_code = "OC-1"
+        fake_order.nest_id = "12345"
+        fake_order.creator_name = "张三"
+        fake_order.create_date = None
+        fake_order.personal_name = "李四"
+        fake_order.nest_area = "90.5"
+        fake_order.order_status = 1
+        fake_order.produce_status = 2
+        fake_order.produce_flag = 0
+        fake_order.remarks = "备注"
+        fake_order.editor_account = "zhangsan"
+        fake_order.editor_name = "张三"
+        fake_order.upload_date = None
+        fake_order.finish_date = None
+        fake_order.first_send_zb_date = None
+        fake_order.first_edit_time = None
+        fake_order.review_release_date = None
+        fake_order.floor_count = "12"
+        fake_order.device_name = "L"
+        fake_order.customer_review_result = None
+        fake_order.publisher_name = "王五"
+        fake_order.model_fix_status = None
+        orders_result = MagicMock()
+        orders_result.scalars.return_value.all.return_value = [fake_order]
+        # claim → invoice_items 查询 → 月份明细快照行查询
+        session.execute = AsyncMock(side_effect=[claim_result, rows_result, orders_result])
 
         from app.services import invoice_excel
 
         built = {"called": False}
+        captured = {}
 
         async def fake_generate(self, **kwargs):
             built["called"] = True
+            captured.update(kwargs)
             return "invoices/2026/09/invoice_7001.xlsx"
 
         monkeypatch.setattr(
@@ -156,7 +198,132 @@ class TestClaimGuard:
         factory_session.commit = AsyncMock()
         factory.__call__ = MagicMock(return_value=factory_session)
 
-        await generate_invoice_detail(session, None, 7001, session_factory=factory)
+        await generate_invoice_detail(session, 7001, session_factory=factory)
 
         assert built["called"], "claim 成功后应进入 Excel 构建"
         session.get.assert_awaited()
+        # 冻结列透传：scalars() 解包后的实体字段原样进入 invoice_items
+        assert captured["invoice_items"] == [
+            {
+                "device_type": "L",
+                "layer_type": "multi",
+                "quantity": Decimal("78"),
+                "unit_price": Decimal("14"),
+                "subtotal": Decimal("966"),
+                "order_count": 36,
+                "multi_floor_pricing_type": "incremental",
+                "additional_floor_price": Decimal("11"),
+            }
+        ]
+        # 月份明细改传本地快照行（F9）：不再有 order_codes/group_type
+        assert "order_codes" not in captured
+        assert "group_type" not in captured
+        assert captured["order_details"] == [
+            {
+                "project_name": "测试房源",
+                "custom_code": "C-1",
+                "city": "北京",
+                "department": "技术部",
+                "order_code": "OC-1",
+                "nest_id": "12345",
+                "creator_name": "张三",
+                "create_date": None,
+                "personal_name": "李四",
+                "nest_area": "90.5",
+                "order_status": 1,
+                "produce_status": 2,
+                "produce_flag": 0,
+                "remarks": "备注",
+                "editor_account": "zhangsan",
+                "editor_name": "张三",
+                "upload_date": None,
+                "finish_date": None,
+                "first_send_zb_date": None,
+                "first_edit_time": None,
+                "review_release_date": None,
+                "floor_count": "12",
+                "device_name": "L",
+                "customer_review_result": None,
+                "publisher_name": "王五",
+                "model_fix_status": None,
+            }
+        ]
+
+
+class TestOrderRowToDict:
+    """_order_row_to_dict：DailyOrder → 月份明细 dict 的键完整性（F9）
+
+    _build_and_save_excel 的「月份明细」sheet 逐列 order.get(<key>) 消费；
+    键缺失 = 该列静默变空。快照列（模型/迁移）新增时必须同步补映射，
+    此测试钉住完整键集合防漂移。
+    """
+
+    def test_maps_all_month_detail_keys(self):
+        """26 键全量映射，None 字段原样透传（不清洗，清洗在 Excel 写入侧）"""
+        from datetime import datetime
+
+        from app.tasks.invoice_detail_generator import _order_row_to_dict
+
+        order = MagicMock()
+        order.project_name = "房源\x0c名"  # 控制字符不清洗（写入侧兜底）
+        order.custom_code = "C-1"
+        order.city = "北京"
+        order.department = "技术部"
+        order.order_code = "OC-1"
+        order.nest_id = "12345"
+        order.creator_name = "张三"
+        order.create_date = datetime(2026, 9, 1, 10, 0, 0)
+        order.personal_name = "李四"
+        order.nest_area = "90.5"
+        order.order_status = 5
+        order.produce_status = 2
+        order.produce_flag = 0
+        order.remarks = "备注"
+        order.editor_account = "zhangsan"
+        order.editor_name = "张三"
+        order.upload_date = datetime(2026, 9, 2, 10, 0, 0)
+        order.finish_date = None
+        order.first_send_zb_date = None
+        order.first_edit_time = None
+        order.review_release_date = None
+        order.floor_count = "12"
+        order.device_name = "L"
+        order.customer_review_result = None
+        order.publisher_name = "王五"
+        order.model_fix_status = None
+
+        result = _order_row_to_dict(order)
+
+        assert set(result.keys()) == {
+            "project_name",
+            "custom_code",
+            "city",
+            "department",
+            "order_code",
+            "nest_id",
+            "creator_name",
+            "create_date",
+            "personal_name",
+            "nest_area",
+            "order_status",
+            "produce_status",
+            "produce_flag",
+            "remarks",
+            "editor_account",
+            "editor_name",
+            "upload_date",
+            "finish_date",
+            "first_send_zb_date",
+            "first_edit_time",
+            "review_release_date",
+            "floor_count",
+            "device_name",
+            "customer_review_result",
+            "publisher_name",
+            "model_fix_status",
+        }
+        # 原值透传（含脏字符串与 datetime），清洗交给 _build_and_save_excel
+        assert result["project_name"] == "房源\x0c名"
+        assert result["create_date"] == datetime(2026, 9, 1, 10, 0, 0)
+        assert result["finish_date"] is None
+        assert result["order_status"] == 5
