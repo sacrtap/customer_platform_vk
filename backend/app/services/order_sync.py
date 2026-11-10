@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from app.models.customers import Customer
 from app.models.daily_order import DailyOrder
 from app.services.dto import SyncDetail, SyncResult
-from app.utils.timezone import CST
+from app.utils.timezone import CST, external_naive_to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,9 @@ class OrderSyncService:
 
         # 统一 SQL（两条路径共用）
         # SELECT 字段顺序（F9：新增 19 列月份明细展示快照 + create_date/
-        # upload_date 由 DATE() 改为原值 datetime，时刻不再丢失）：
+        # upload_date 由 DATE() 改为原值 datetime，时刻不再丢失；
+        # 2026-11-10：新增 nest.created 作为「处理完成时间」数据源——
+        # 原取 D.finish_date 恒为 NULL，示例表口径为房源主表 created）：
         #   0: order_code, 1: custom_code, 2: nest_id, 3: owner_company,
         #   4: group_type, 5: create_date, 6: upload_date, 7: floor_count,
         #   8: device_type, 9: order_status,
@@ -119,8 +121,9 @@ class OrderSyncService:
         #   17: produce_flag, 18: remarks, 19: editor_account,
         #   20: editor_name, 21: finish_date, 22: first_send_zb_date,
         #   23: first_edit_time, 24: review_release_date, 25: device_name,
-        #   26: customer_review_result, 27: publisher_name, 28: model_fix_status
-        # 结算范围：order_status >= 3 AND <= 12, OR = 15
+        #   26: customer_review_result, 27: publisher_name, 28: model_fix_status,
+        #   29: nest_created
+        # 结算范围：order_status >= 3 AND order_status <= 12, OR = 15
         # 不再过滤 nest_id（空 nest_id 的订单也纳入结算）
         STATUS_COND = "((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)"
         DETAIL_SELECT = (
@@ -134,15 +137,19 @@ class OrderSyncService:
             "U_editor.username, U_editor.owner_name, D.finish_date, "
             "D.first_send_zb_date, D.first_edit_time, D.review_release_date, "
             "D.device_name, D.customer_review_result, U_publisher.owner_name, "
-            "D.model_fix_status "
+            "D.model_fix_status, "
+            "N.created AS nest_created "
         )
         # 4 个人名/账号 JOIN（与月份明细 DETAIL_SQL 同口径）：creator / personal
         # （personal 同时充当 editor，与月度明细的两个别名一致）/ publisher
+        # + nest 房源主表（2026-11-10：「处理完成时间」= nest.created 原值；
+        #   nest_id 为空或 nest 表无对应行时 LEFT JOIN 留空，属正常语义）
         USER_JOINS = (
             "LEFT JOIN nest_user U_creator ON U_creator.id = D.creator "
             "LEFT JOIN nest_user U_personal ON U_personal.id = D.personal "
             "LEFT JOIN nest_user U_editor ON U_editor.id = D.personal "
             "LEFT JOIN nest_user U_publisher ON U_publisher.id = D.publisher "
+            "LEFT JOIN nest N ON N.nest_id = D.nest_id "
         )
         SQL_ENGINE = (
             f"SELECT {DETAIL_SELECT} "
@@ -167,6 +174,18 @@ class OrderSyncService:
             f"AND {STATUS_COND}"
         )
 
+        def _as_utc(value):
+            """外部 naive datetime（UTC 墙钟）→ aware UTC（共享工具）。
+
+            外部 MySQL datetime 列实测为 UTC 墙钟（SZZY_1794137638
+            upload_date 02:10:28 naive ↔ 业务示例表 CST 10:10:28，
+            2026-11-10 对照实证）。naive 直落 timestamptz 会被 PG 服务端
+            按 Asia/Shanghai 解释，绝对时刻少 8 小时，叠加显示层未转 CST
+            共差 16 小时——读取侧显式标注 UTC。sync_date 由
+            local_date_to_utc_start 生成，本就 aware，不走此路径。
+            """
+            return external_naive_to_utc(value)
+
         def _rows_to_dicts(rows):
             return [
                 {
@@ -175,8 +194,8 @@ class OrderSyncService:
                     "nest_id": row[2],
                     "company_name": row[3],
                     "group_type": row[4],  # Keep as int for customer matching
-                    "create_date": row[5],
-                    "upload_date": row[6],
+                    "create_date": _as_utc(row[5]),
+                    "upload_date": _as_utc(row[6]),
                     "floor_count": row[7],
                     "device_type": row[8],
                     "order_status": row[9],
@@ -192,14 +211,17 @@ class OrderSyncService:
                     "remarks": row[18],
                     "editor_account": row[19],
                     "editor_name": row[20],
-                    "finish_date": row[21],
-                    "first_send_zb_date": row[22],
-                    "first_edit_time": row[23],
-                    "review_release_date": row[24],
+                    "finish_date": _as_utc(row[21]),
+                    "first_send_zb_date": _as_utc(row[22]),
+                    "first_edit_time": _as_utc(row[23]),
+                    "review_release_date": _as_utc(row[24]),
                     "device_name": row[25],
                     "customer_review_result": row[26],
                     "publisher_name": row[27],
                     "model_fix_status": row[28],
+                    # 「处理完成时间」= 房源主表 created（2026-11-10；原
+                    # finish_date 恒 NULL，示例表口径即此列）
+                    "nest_created": _as_utc(row[29]),
                 }
                 for row in rows
             ]
@@ -363,6 +385,9 @@ class OrderSyncService:
                     customer_review_result=order.get("customer_review_result"),
                     publisher_name=order.get("publisher_name"),
                     model_fix_status=order.get("model_fix_status"),
+                    # 「处理完成时间」数据源（2026-11-10）：外部 nest.created，
+                    # 原取 finish_date 恒 NULL
+                    nest_created=order.get("nest_created"),
                 )
                 seen_keys.add(dedup_key)
                 saved_orders.append(daily_order)

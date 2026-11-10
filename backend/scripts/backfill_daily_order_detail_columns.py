@@ -27,8 +27,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.config import settings
 from app.models.daily_order import DailyOrder
+from app.utils.timezone import external_naive_to_utc
 
-# 与 OrderSyncService._fetch_orders 的 SELECT 顺序严格一致（0-28）
+# 与 OrderSyncService._fetch_orders 的 SELECT 顺序严格一致（0-29，
+# 2026-11-10：29 = nest.created，「处理完成时间」数据源）
 BACKFILL_SQL = (
     "SELECT D.order_code, D.custom_code, D.nest_id, "
     "U.owner_company, D.group_type, D.create_date, "
@@ -40,7 +42,8 @@ BACKFILL_SQL = (
     "U_editor.username, U_editor.owner_name, D.finish_date, "
     "D.first_send_zb_date, D.first_edit_time, D.review_release_date, "
     "D.device_name, D.customer_review_result, U_publisher.owner_name, "
-    "D.model_fix_status "
+    "D.model_fix_status, "
+    "N.created AS nest_created "
     "FROM nest_model_order AS D "
     "INNER JOIN ("
     "  SELECT group_type, MAX(owner_company) AS owner_company "
@@ -50,6 +53,7 @@ BACKFILL_SQL = (
     "LEFT JOIN nest_user U_personal ON U_personal.id = D.personal "
     "LEFT JOIN nest_user U_editor ON U_editor.id = D.personal "
     "LEFT JOIN nest_user U_publisher ON U_publisher.id = D.publisher "
+    "LEFT JOIN nest N ON N.nest_id = D.nest_id "
     "WHERE D.upload_date >= %s AND D.upload_date < %s "
     "AND ((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)"
 )
@@ -74,8 +78,9 @@ _COLS = (
     "customer_review_result",
     "publisher_name",
     "model_fix_status",
+    "nest_created",
 )
-# BACKFILL_SQL 行索引 → daily_orders 列名（展示列 10-28）
+# BACKFILL_SQL 行索引 → daily_orders 列名（展示列 10-29）
 _ROW_IDX = {
     "project_name": 10,
     "city": 11,
@@ -96,7 +101,18 @@ _ROW_IDX = {
     "customer_review_result": 26,
     "publisher_name": 27,
     "model_fix_status": 28,
+    "nest_created": 29,
 }
+# _COLS 中的 datetime 列（naive→aware UTC 转换对象，2026-11-10）
+_DATETIME_COLS = frozenset(
+    {
+        "finish_date",
+        "first_send_zb_date",
+        "first_edit_time",
+        "review_release_date",
+        "nest_created",
+    }
+)
 
 
 async def backfill():
@@ -184,7 +200,13 @@ async def backfill():
                                 total_missed += 1
                                 continue
                             for col in _COLS:
-                                setattr(order, col, ext[_ROW_IDX[col]])
+                                # 时间列 naive→aware UTC（与同步层同口径，2026-11-10）：
+                                # 外部 MySQL naive datetime 是 UTC 墙钟，直写 timestamptz
+                                # 会被服务端按 CST 解释少 8 小时
+                                val = ext[_ROW_IDX[col]]
+                                if col in _DATETIME_COLS:
+                                    val = external_naive_to_utc(val)
+                                setattr(order, col, val)
                             day_updated += 1
                         await session.commit()
                         total_updated += day_updated

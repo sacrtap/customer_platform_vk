@@ -171,6 +171,7 @@ class TestClaimGuard:
         fake_order.customer_review_result = None
         fake_order.publisher_name = "王五"
         fake_order.model_fix_status = None
+        fake_order.nest_created = None
         orders_result = MagicMock()
         orders_result.scalars.return_value.all.return_value = [fake_order]
         # claim → invoice_items 查询 → 月份明细快照行查询
@@ -246,6 +247,7 @@ class TestClaimGuard:
                 "customer_review_result": None,
                 "publisher_name": "王五",
                 "model_fix_status": None,
+                "nest_created": None,
             }
         ]
 
@@ -259,7 +261,7 @@ class TestOrderRowToDict:
     """
 
     def test_maps_all_month_detail_keys(self):
-        """26 键全量映射，None 字段原样透传（不清洗，清洗在 Excel 写入侧）"""
+        """27 键全量映射，None 字段原样透传（不清洗，清洗在 Excel 写入侧）"""
         from datetime import datetime
 
         from app.tasks.invoice_detail_generator import _order_row_to_dict
@@ -291,6 +293,7 @@ class TestOrderRowToDict:
         order.customer_review_result = None
         order.publisher_name = "王五"
         order.model_fix_status = None
+        order.nest_created = None
 
         result = _order_row_to_dict(order)
 
@@ -321,6 +324,7 @@ class TestOrderRowToDict:
             "customer_review_result",
             "publisher_name",
             "model_fix_status",
+            "nest_created",
         }
         # 原值透传（含脏字符串与 datetime），清洗交给 _build_and_save_excel
         assert result["project_name"] == "房源\x0c名"

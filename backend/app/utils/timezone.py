@@ -21,6 +21,20 @@ CST = timezone(timedelta(hours=8))  # 中国标准时间 UTC+8
 UTC = timezone.utc
 
 
+def external_naive_to_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """外部 MySQL naive datetime（UTC 墙钟）→ aware UTC。
+
+    外部库（nest）datetime 列不带时区，实测为 UTC 墙钟：如
+    SZZY_1794137638 upload_date = 2026-11-09 02:10:28（naive），业务
+    示例表口径为 CST 10:10:28（+8h），2026-11-10 对照实证。若按 CST
+    解释落 timestamptz，绝对时刻少 8 小时（叠加显示层未转 CST 共差
+    16 小时）——必须显式标注 UTC。已是 aware 的值原样返回。
+    """
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
 def local_date_range_to_utc(start_str: str, end_str: str) -> tuple[datetime, datetime]:
     """将前端传入的日期范围转为 UTC datetime 范围。
 

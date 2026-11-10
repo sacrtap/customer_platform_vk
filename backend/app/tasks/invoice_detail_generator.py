@@ -29,7 +29,7 @@ _detail_gen_semaphore = asyncio.Semaphore(_DETAIL_GEN_CONCURRENCY)
 
 
 def _order_row_to_dict(order) -> dict:
-    """DailyOrder 实体 → 月份明细 order dict（26 键，与 _build_and_save_excel 消费口径一致）
+    """DailyOrder 实体 → 月份明细 order dict（27 键，与 _build_and_save_excel 消费口径一致）
 
     F9：月份明细 sheet 改读本地快照，本函数替代原 InvoiceExcelService._row_to_dict
     （外部 Row → dict）。字符串字段原样返回，控制字符清洗在 _build_and_save_excel
@@ -62,6 +62,9 @@ def _order_row_to_dict(order) -> dict:
         "customer_review_result": order.customer_review_result,
         "publisher_name": order.publisher_name,
         "model_fix_status": order.model_fix_status,
+        # 「处理完成时间」数据源（2026-11-10）：外部 nest.created，替代恒空的
+        # finish_date
+        "nest_created": order.nest_created,
     }
 
 

@@ -80,6 +80,39 @@ class TestOrderSyncServiceMatchAndSave:
         assert result.failed == 0
         assert result.skipped == 0
 
+    async def test_match_and_save_persists_nest_created(self):
+        """nest_created（「处理完成时间」= 外部 nest.created）透传到实体（2026-11-10）"""
+        from datetime import datetime, timezone
+
+        from app.models.daily_order import DailyOrder
+        from app.services.order_sync import OrderSyncService
+
+        svc = MagicMock(spec=OrderSyncService)
+        svc.db = AsyncMock()
+        svc._match_customer = AsyncMock(return_value=_make_mock_customer())
+
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        svc.db.execute = AsyncMock(return_value=existing_result)
+
+        added: list[DailyOrder] = []
+        svc.db.add = MagicMock(side_effect=lambda obj: added.append(obj))
+        svc.db.commit = AsyncMock()
+
+        row = _mock_order_row()
+        row["nest_created"] = datetime(2026, 11, 8, 2, 10, 28, tzinfo=timezone.utc)
+
+        result = await OrderSyncService._match_and_save(svc, orders=[row], sync_date=TEST_SYNC_DATE)
+
+        assert result.success == 1
+        assert added[0].nest_created == datetime(2026, 11, 8, 2, 10, 28, tzinfo=timezone.utc)
+        # 缺键（旧 fixtures / 外部无 nest 行）时为 None，不炸
+        result2 = await OrderSyncService._match_and_save(
+            svc, orders=[_mock_order_row()], sync_date=TEST_SYNC_DATE
+        )
+        assert result2.success == 1
+        assert added[1].nest_created is None
+
     async def test_match_and_save_unmatched_customer(self):
         """客户匹配失败（未找到客户）"""
         from app.services.order_sync import OrderSyncService

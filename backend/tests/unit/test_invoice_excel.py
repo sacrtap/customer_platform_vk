@@ -343,6 +343,24 @@ class TestInvoiceExcel_FormatHelpers:
         """测试日期格式化 - None 值"""
         assert excel_service._fmt_dt(None) == ""
 
+    def test_fmt_dt_aware_utc_converted_to_cst(self, excel_service):
+        """aware UTC → CST 渲染（2026-11-10 时区修复）
+
+        daily_orders 时间列为 timestamptz，读出为 aware UTC。此前按墙钟
+        直接渲染，展示比真实 CST 少 8 小时；修复后统一 +8h。
+        """
+        from datetime import datetime, timezone
+
+        dt = datetime(2026, 11, 9, 2, 10, 28, tzinfo=timezone.utc)
+        assert excel_service._fmt_dt(dt) == "2026-11-09 10:10:28"
+
+    def test_fmt_dt_aware_utc_crosses_day(self, excel_service):
+        """UTC 16:30 → CST 次日 00:30（跨日场景不丢日期）"""
+        from datetime import datetime, timezone
+
+        dt = datetime(2026, 11, 9, 16, 30, 0, tzinfo=timezone.utc)
+        assert excel_service._fmt_dt(dt) == "2026-11-10 00:30:00"
+
     def test_fmt_edit_status(self, excel_service):
         """测试编辑状态推断"""
         assert excel_service._fmt_edit_status("5", "1") == "待编辑"

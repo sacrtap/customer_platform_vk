@@ -80,6 +80,12 @@ class DailyOrder(BaseModel):
     customer_review_result: Mapped[int | None] = mapped_column(Integer, comment="复审状态码")
     publisher_name: Mapped[str | None] = mapped_column(String(100), comment="发布人")
     model_fix_status: Mapped[int | None] = mapped_column(Integer, comment="户型图修模状态码")
+    # 「处理完成时间」（2026-11-10）：外部房源主表 nest.created 原值
+    # （UTC 墙钟，同步层显式标注 tzinfo=UTC 后落库）。原取 finish_date
+    # 恒 NULL，示例表口径即此列
+    nest_created: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), comment="处理完成时间(外部 nest.created)"
+    )
 
     # 关系
     customer = relationship("Customer", backref="daily_orders")

@@ -15,6 +15,7 @@ from app.utils.timezone import (
     CST,
     UTC,
     cst_today,
+    external_naive_to_utc,
     naive_cst_datetime_str,
     utc_now,
     utc_to_cst_date_str,
@@ -112,3 +113,24 @@ def test_utc_to_cst_date_str_shifts_timestamptz_to_local_date():
 def test_utc_to_cst_date_str_none_returns_none():
     """None 原样返回"""
     assert utc_to_cst_date_str(None) is None
+
+
+def test_external_naive_to_utc_labels_utc_wallclock():
+    """外部 MySQL naive datetime（UTC 墙钟）→ aware UTC（2026-11-10）
+
+    外部库 upload_date 02:10:28（naive）即业务示例表 CST 10:10:28
+    （SZZY_1794137638 对照实证）。若按 CST 解释落 timestamptz，绝对
+    时刻少 8 小时，叠加显示层未转 CST 共差 16 小时。
+    """
+    dt = datetime(2026, 11, 9, 2, 10, 28)
+    result = external_naive_to_utc(dt)
+    assert result == datetime(2026, 11, 9, 2, 10, 28, tzinfo=UTC)
+    # 同一时刻的 CST 表示（+8h）
+    assert result == datetime(2026, 11, 9, 10, 10, 28, tzinfo=CST)
+
+
+def test_external_naive_to_utc_aware_passthrough():
+    """已是 aware 的值原样返回"""
+    dt = datetime(2026, 11, 9, 2, 10, 28, tzinfo=UTC)
+    assert external_naive_to_utc(dt) is dt
+    assert external_naive_to_utc(None) is None

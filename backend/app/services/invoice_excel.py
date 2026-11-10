@@ -20,7 +20,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..utils.timezone import utc_to_cst_date_str
+from ..utils.timezone import CST, utc_to_cst_date_str
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 _ILLEGAL_XML_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 # ============================================================
-# 明细 Sheet 表头（29 列，与模板完全对齐）
+# 明细 Sheet 表头（27 列：2026-11-10 移除恒空的 uv/pv 死列，
+# 与模板完全对齐）
 # ============================================================
 DETAIL_HEADERS = [
     "房源名称",
@@ -50,8 +51,6 @@ DETAIL_HEADERS = [
     "上传完成时间",
     "处理完成时间",
     "第一次分配时间",
-    "uv",
-    "pv",
     "户型图绘制时间",
     "户型图最新绘制人",
     "审核发布时间",
@@ -318,10 +317,18 @@ class InvoiceExcelService:
 
     @staticmethod
     def _fmt_dt(val: Any) -> str:
-        """将 datetime 对象格式化为字符串 'YYYY-MM-DD HH:MM:SS'"""
+        """将 datetime 对象格式化为 CST 字符串 'YYYY-MM-DD HH:MM:SS'
+
+        2026-11-10 时区修复：daily_orders 时间列为 timestamptz，读取出来是
+        aware UTC（如 02:10:28+00:00）。此前直接 strftime 按墙钟渲染，
+        未换算时区，展示比真实 CST 少 8 小时。此处统一转 CST 后渲染；
+        naive 值（历史数据/测试夹具）按原样渲染，行为不变。
+        """
         if val is None:
             return ""
         if isinstance(val, datetime):
+            if val.tzinfo is not None:
+                val = val.astimezone(CST)
             return val.strftime("%Y-%m-%d %H:%M:%S")
         return str(val)
 
@@ -492,10 +499,10 @@ class InvoiceExcelService:
                 order.get("editor_account", ""),
                 order.get("editor_name", ""),
                 self._fmt_dt(order.get("upload_date")),
-                self._fmt_dt(order.get("finish_date")),
+                # 处理完成时间 = 外部 nest.created（2026-11-10）：原取 finish_date
+                # 恒为 NULL，示例表真实口径是房源主表 created
+                self._fmt_dt(order.get("nest_created")),
                 self._fmt_dt(order.get("first_send_zb_date")),
-                0,  # uv
-                0,  # pv
                 self._fmt_dt(order.get("first_edit_time")),
                 "",  # 户型图最新绘制人（需额外关联，暂留空）
                 self._fmt_dt(order.get("review_release_date")),
