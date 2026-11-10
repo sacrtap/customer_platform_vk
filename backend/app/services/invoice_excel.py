@@ -1,7 +1,7 @@
 """结算单明细 Excel 生成服务
 
-从外部数据库（nest_model_order）查询订单明细，生成包含
-"合计"和"月份明细"两个 Sheet 的 Excel 文件。
+由调用方提供订单数据（daily_orders 本地快照，F9）与计费项快照
+（invoice_items），生成包含"合计"和"月份明细"两个 Sheet 的 Excel 文件。
 
 模板参照: 安溪如是VR房源模型消费2026年7月结算单.xlsx
 """
@@ -17,11 +17,10 @@ from typing import Any, Dict, List, Optional
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..utils.timezone import utc_to_cst_date_str
+from ..utils.timezone import CST, utc_to_cst_date_str
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,8 @@ logger = logging.getLogger(__name__)
 _ILLEGAL_XML_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 # ============================================================
-# 明细 Sheet 表头（29 列，与模板完全对齐）
+# 明细 Sheet 表头（27 列：2026-11-10 移除恒空的 uv/pv 死列，
+# 与模板完全对齐）
 # ============================================================
 DETAIL_HEADERS = [
     "房源名称",
@@ -51,8 +51,6 @@ DETAIL_HEADERS = [
     "上传完成时间",
     "处理完成时间",
     "第一次分配时间",
-    "uv",
-    "pv",
     "户型图绘制时间",
     "户型图最新绘制人",
     "审核发布时间",
@@ -106,49 +104,6 @@ MODEL_FIX_STATUS_MAP = {
     3: "修模完成",
 }
 
-# ============================================================
-# 明细数据查询 SQL
-# 直接返回 datetime 对象（不使用 DATE_FORMAT），由 openpyxl 写入
-# ============================================================
-DETAIL_SQL = """
-SELECT
-    D.project_name,
-    D.custom_code,
-    D.city,
-    D.department,
-    D.order_code,
-    D.nest_id,
-    U_creator.owner_name AS creator_name,
-    D.create_date,
-    U_personal.owner_name AS personal_name,
-    D.nest_area,
-    D.order_status,
-    D.produce_status,
-    D.produce_flag,
-    D.remarks,
-    U_editor.username AS editor_account,
-    U_editor.owner_name AS editor_name,
-    D.upload_date,
-    D.finish_date,
-    D.first_send_zb_date,
-    D.first_edit_time,
-    D.review_release_date,
-    D.floor_count,
-    D.device_name,
-    D.customer_review_result,
-    U_publisher.owner_name AS publisher_name,
-    D.model_fix_status
-FROM nest_model_order D
-LEFT JOIN nest_user U_creator ON U_creator.id = D.creator
-LEFT JOIN nest_user U_personal ON U_personal.id = D.personal
-LEFT JOIN nest_user U_editor ON U_editor.id = D.personal
-LEFT JOIN nest_user U_publisher ON U_publisher.id = D.publisher
-WHERE D.group_type = :group_type
-  AND D.upload_date >= :start_dt AND D.upload_date < :end_dt
-  AND ((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)
-ORDER BY D.create_date DESC
-"""
-
 
 class InvoiceExcelService:
     """结算单明细 Excel 生成服务"""
@@ -156,11 +111,9 @@ class InvoiceExcelService:
     def __init__(
         self,
         db: AsyncSession,
-        external_engine: Optional[AsyncEngine] = None,
         session_factory: Optional[Any] = None,
     ):
         self.db = db
-        self.external_engine = external_engine
         # 可选会话工厂：提供时余额查询改用短会话（查完即还），
         # 调用方可在构建 Excel 前提前关闭长事务会话（见
         # tasks/invoice_detail_generator.py 的事务缩短）。
@@ -176,27 +129,28 @@ class InvoiceExcelService:
         total_amount: Decimal,
         discount_amount: Decimal,
         unit_price: Optional[Decimal] = None,
-        group_type: Optional[int] = None,
         invoice_status: str = "draft",
         invoice_items: Optional[List[Dict[str, Any]]] = None,
+        order_details: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[str]:
         """生成结算单明细 Excel 文件
+
+        Args:
+            order_details: 「月份明细」订单数据（调用方从 daily_orders 本地快照
+                查询，F9）；None 视为查询失败，返回 None。
 
         Returns:
             文件路径（成功）或 None（失败）
         """
         logger.info(f"开始生成结算单 {invoice_id} 的明细文件")
 
-        # 1. 查询外部数据库获取订单明细
-        order_details = await self._fetch_order_details(group_type, period_start, period_end)
-
         if order_details is None:
-            logger.warning(f"结算单 {invoice_id} 查询外部数据库失败")
+            logger.warning(f"结算单 {invoice_id} 缺少订单明细数据")
             return None
 
-        logger.info(f"结算单 {invoice_id} 查询到 {len(order_details)} 条订单明细")
+        logger.info(f"结算单 {invoice_id} 共 {len(order_details)} 条订单明细（本地快照）")
 
-        # 2. 查询客户余额和当月充值
+        # 查询客户余额和当月充值
         balance_info = await self._fetch_balance_info(
             customer_id,
             period_start,
@@ -229,45 +183,6 @@ class InvoiceExcelService:
 
         logger.info(f"结算单 {invoice_id} 明细文件已生成: {file_path}")
         return file_path
-
-    async def _fetch_order_details(
-        self,
-        group_type: Optional[int],
-        period_start: datetime,
-        period_end: datetime,
-    ) -> Optional[List[Dict[str, Any]]]:
-        """从外部 MySQL 查询订单明细
-
-        Returns:
-            订单列表（成功）或 None（连接失败）
-        """
-        if not group_type:
-            logger.warning("group_type 未提供，无法查询外部数据库")
-            return []
-
-        # period_start/end 已经是 UTC datetime，直接使用
-        start_dt = period_start
-        end_dt = period_end + timedelta(seconds=1)  # 包含结束时刻
-
-        if self.external_engine:
-            try:
-                async with self.external_engine.connect() as conn:
-                    result = await conn.execute(
-                        text(DETAIL_SQL),
-                        {
-                            "group_type": group_type,
-                            "start_dt": start_dt,
-                            "end_dt": end_dt,
-                        },
-                    )
-                    rows = result.fetchall()
-                    return [self._row_to_dict(row) for row in rows]
-            except Exception as e:
-                logger.error(f"查询外部数据库失败: {e}")
-                return None
-        else:
-            logger.warning("外部 MySQL 引擎未配置，跳过明细查询")
-            return []
 
     async def _fetch_balance_info(
         self,
@@ -387,46 +302,6 @@ class InvoiceExcelService:
 
         return result
 
-    def _row_to_dict(self, row) -> Dict[str, Any]:
-        """将查询结果行转换为字典
-
-        所有字符串字段经 _clean_cell_text 清洗：外部 MySQL 数据可能含控制字符
-        （如项目名 "景发-怡景-12C\x0c"），openpyxl 写入时抛 IllegalCharacterError
-        导致整个明细生成失败。datetime/数值字段原样返回。
-        """
-        raw = {
-            "project_name": row[0] or "",
-            "custom_code": row[1] or "",
-            "city": row[2] or "",
-            "department": row[3] or "",
-            "order_code": row[4] or "",
-            "nest_id": row[5] or "",
-            "creator_name": row[6] or "",
-            "create_date": row[7],  # datetime 对象
-            "personal_name": row[8] or "",
-            "nest_area": row[9] or "",
-            "order_status": row[10],
-            "produce_status": row[11],
-            "produce_flag": row[12],
-            "remarks": row[13] or "",
-            "editor_account": row[14] or "",
-            "editor_name": row[15] or "",
-            "upload_date": row[16],  # datetime 对象
-            "finish_date": row[17],  # datetime 对象
-            "first_send_zb_date": row[18],  # datetime 对象
-            "first_edit_time": row[19],  # datetime 对象
-            "review_release_date": row[20],  # datetime 对象
-            "floor_count": row[21] or "",
-            "device_name": row[22] or "",
-            "customer_review_result": row[23],
-            "publisher_name": row[24] or "",
-            "model_fix_status": row[25],
-        }
-        return {
-            key: self._clean_cell_text(val) if isinstance(val, str) else val
-            for key, val in raw.items()
-        }
-
     @staticmethod
     def _clean_cell_text(val: Any) -> Any:
         """清洗单元格文本：移除 openpyxl 拒绝的控制字符（IllegalCharacterError）
@@ -434,6 +309,7 @@ class InvoiceExcelService:
         Excel 单元格合法字符为 XML 1.0 允许范围（含 \\t \\n \\r）；外部数据里的
         \\x00-\\x08 / \\x0b / \\x0c / \\x0e-\\x1f 等控制字符会让 openpyxl 在写入时
         抛 IllegalCharacterError，整个明细文件生成失败。此处统一剔除，其余原样保留。
+        F9 起亦为月份明细快照数据的唯一清洗出口（快照原值落库）。
         """
         if not isinstance(val, str):
             return val
@@ -441,10 +317,18 @@ class InvoiceExcelService:
 
     @staticmethod
     def _fmt_dt(val: Any) -> str:
-        """将 datetime 对象格式化为字符串 'YYYY-MM-DD HH:MM:SS'"""
+        """将 datetime 对象格式化为 CST 字符串 'YYYY-MM-DD HH:MM:SS'
+
+        2026-11-10 时区修复：daily_orders 时间列为 timestamptz，读取出来是
+        aware UTC（如 02:10:28+00:00）。此前直接 strftime 按墙钟渲染，
+        未换算时区，展示比真实 CST 少 8 小时。此处统一转 CST 后渲染；
+        naive 值（历史数据/测试夹具）按原样渲染，行为不变。
+        """
         if val is None:
             return ""
         if isinstance(val, datetime):
+            if val.tzinfo is not None:
+                val = val.astimezone(CST)
             return val.strftime("%Y-%m-%d %H:%M:%S")
         return str(val)
 
@@ -532,7 +416,11 @@ class InvoiceExcelService:
             cell.fill = header_fill
 
         # 数据行
-        model_count = len(order_details)
+        # 模型总数量/计费模型数量口径统一为 invoice_items.order_count 之和（F2）：
+        # 与「计费明细」sheet 同源（冻结快照），不再取外部实时 len(order_details)
+        model_count = sum(
+            Decimal(str(item.get("order_count") or 0)) for item in (invoice_items or [])
+        )
         final_amount = total_amount - discount_amount
         period_str = f"{utc_to_cst_date_str(period_start)} - {utc_to_cst_date_str(period_end)}"
         ws1.cell(row=3, column=1, value=period_str)
@@ -552,7 +440,22 @@ class InvoiceExcelService:
             ws1.cell(row=3, column=7, value="")
             ws1.cell(row=3, column=8, value="")
             ws1.cell(row=3, column=9, value=float(final_amount))
-        ws1.cell(row=3, column=10, value="")
+        # 备注列兜底（F9）：月份明细行数与本单计费量不一致时显式暴露差异。
+        # 两者现同源（daily_orders 快照 vs invoice_items 冻结快照），正常恒等；
+        # 保留为纯展示层防御：覆盖出账后订单被跨日迁移清理/周期窗口修调等
+        # 导致快照行数变化的场景，提示用户核对，不阻塞任何流程
+        external_count = len(order_details or [])
+        if external_count != int(model_count):
+            ws1.cell(
+                row=3,
+                column=10,
+                value=(
+                    f"订单明细 {external_count} 笔，本单计费 {int(model_count)} 笔，"
+                    f"差异 {external_count - int(model_count)} 笔（请核对同步完整性）"
+                ),
+            )
+        else:
+            ws1.cell(row=3, column=10, value="")
 
         # 列宽
         for col in range(1, 11):
@@ -596,10 +499,10 @@ class InvoiceExcelService:
                 order.get("editor_account", ""),
                 order.get("editor_name", ""),
                 self._fmt_dt(order.get("upload_date")),
-                self._fmt_dt(order.get("finish_date")),
+                # 处理完成时间 = 外部 nest.created（2026-11-10）：原取 finish_date
+                # 恒为 NULL，示例表真实口径是房源主表 created
+                self._fmt_dt(order.get("nest_created")),
                 self._fmt_dt(order.get("first_send_zb_date")),
-                0,  # uv
-                0,  # pv
                 self._fmt_dt(order.get("first_edit_time")),
                 "",  # 户型图最新绘制人（需额外关联，暂留空）
                 self._fmt_dt(order.get("review_release_date")),
@@ -644,11 +547,13 @@ class InvoiceExcelService:
         if invoice_items:
             ws3 = wb.create_sheet(title="计费明细")
 
-            # 计费明细表头（7 列）
+            # 计费明细表头（8 列：订单数 + 楼层数双口径——订单数与「合计」「月份
+            # 明细」一致，楼层数保留使 incremental 金额可验算）
             billing_headers = [
                 "设备类型",
                 "楼层",
-                "数量",
+                "订单数",
+                "楼层数",
                 "单价（元）",
                 "小计（元）",
                 "多层计费类型",
@@ -671,8 +576,19 @@ class InvoiceExcelService:
                 lt_str = {"single": "单层", "multi": "多层"}.get(lt, lt or "-")
 
                 quantity = float(item.get("quantity", 0))
+                # 订单数口径（与「合计」数量列、「月份明细」行数一致）：优先
+                # order_count，历史/显式 items 无该键时回退 quantity
+                # （前端 InvoiceDetailDrawer 同款 order_count ?? quantity 兜底）
+                item_order_count = item.get("order_count")
+                order_cnt_val = (
+                    float(item_order_count) if item_order_count is not None else quantity
+                )
                 unit_p = float(item.get("unit_price", 0))
-                subtotal = quantity * unit_p
+                # 小计口径（F3）：优先 item["subtotal"]（多层递增/阶梯/包年下的真实
+                # 小计，与 invoices.total_amount 同源）；历史/显式 items 无该键时
+                # 回退 quantity × unit_price
+                item_subtotal = item.get("subtotal")
+                subtotal = float(item_subtotal) if item_subtotal is not None else quantity * unit_p
 
                 mfp_type = item.get("multi_floor_pricing_type") or ""
                 mfp_str = {"incremental": "递增", "unified": "统一"}.get(mfp_type, mfp_type or "-")
@@ -680,14 +596,23 @@ class InvoiceExcelService:
                 afp = item.get("additional_floor_price")
                 afp_val = float(afp) if afp is not None else ""
 
-                row_data = [dt_str, lt_str, quantity, unit_p, subtotal, mfp_str, afp_val]
+                row_data = [
+                    dt_str,
+                    lt_str,
+                    order_cnt_val,
+                    quantity,
+                    unit_p,
+                    subtotal,
+                    mfp_str,
+                    afp_val,
+                ]
                 for col, val in enumerate(row_data, 1):
                     cell = ws3.cell(row=row_idx, column=col, value=val)
                     cell.border = thin_border
                     cell.alignment = Alignment(vertical="center")
 
             # 列宽
-            billing_widths = {1: 12, 2: 10, 3: 10, 4: 12, 5: 12, 6: 14, 7: 16}
+            billing_widths = {1: 12, 2: 10, 3: 10, 4: 10, 5: 12, 6: 12, 7: 14, 8: 16}
             for col, w in billing_widths.items():
                 ws3.column_dimensions[get_column_letter(col)].width = w
 

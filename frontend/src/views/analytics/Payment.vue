@@ -132,6 +132,7 @@ import * as echarts from 'echarts'
 import PageHeader from '@/components/PageHeader.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
+import { toLocalDateStr } from '@/utils/date'
 import type { ECharts } from 'echarts'
 import {
   getPaymentAnalysis,
@@ -274,8 +275,8 @@ const handleTimeRangeChange = () => {
       default:
         startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
     }
-    filters.start_date = startDate.toISOString().split('T')[0]
-    filters.end_date = now.toISOString().split('T')[0]
+    filters.start_date = toLocalDateStr(startDate)
+    filters.end_date = toLocalDateStr(now)
     loadData()
   }
 }

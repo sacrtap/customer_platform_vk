@@ -38,7 +38,12 @@ from ..repository import (
     PricingRepositoryProtocol,
 )
 from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
-from ..utils.timezone import cst_now, cst_today
+from ..utils.timezone import (
+    cst_now,
+    cst_today,
+    local_date_to_utc_end,
+    local_date_to_utc_start,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +57,69 @@ _INVOICE_ROLLBACK_TARGETS = {
     "pending_ops": "draft",
     "pending_sales": "pending_ops",
 }
+
+
+def _build_package_limited_breakdown(
+    base_fee: Decimal, package_limits: dict, total_quantity: Decimal
+) -> Dict[str, Any]:
+    """包年限量套餐计费分解（F4 共享纯函数）
+
+    calculate_items_from_rules 与 get_invoice 冻结快照组装共用，避免两处公式漂移。
+    输入：
+        base_fee: 年费
+        package_limits: PricingRule.package_limits JSON
+        total_quantity: 套餐内累计订单数（daily_consumptions.order_count 之和）
+    返回：
+        package_type='limited' / base_fee / limit_count / in_package_quantity /
+        over_limit_quantity / over_limit_unit_price / over_limit_cost /
+        usage_cost / unit_price / subtotal（unit_price/subtotal 为 Decimal，
+        其余与 calculate_items_from_rules 既有输出同型）
+    """
+    limit_count = Decimal(str(package_limits.get("limit_count", 0) or 0))
+    if limit_count <= 0:
+        # limit_count 为 0 时无法计算，返回 0（与 calculate_items_from_rules 零值分支一致）
+        return {
+            "package_type": "limited",
+            "base_fee": float(base_fee),
+            "limit_count": 0,
+            "in_package_quantity": 0,
+            "over_limit_quantity": 0,
+            "over_limit_unit_price": 0.0,
+            "over_limit_cost": 0.0,
+            "usage_cost": 0.0,
+            "unit_price": Decimal(0),
+            "subtotal": Decimal(0),
+        }
+
+    # 超额单价：NULL 表示自动计算（base_fee / limit_count），非 NULL 为自定义价格
+    raw_price = package_limits.get("over_limit_unit_price")
+    if raw_price is not None and float(raw_price) > 0:
+        over_limit_unit_price = Decimal(str(raw_price))
+    else:
+        over_limit_unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
+
+    # 套餐内用量费用：min(实际用量, limit_count) × (base_fee / limit_count)
+    in_package_quantity = min(total_quantity, limit_count)
+    unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
+    usage_cost = (in_package_quantity * unit_price).quantize(Decimal("0.01"))
+
+    # 超出部分用量（按订单数量判断）
+    over_limit_quantity = max(Decimal(0), total_quantity - limit_count)
+    over_limit_cost = (over_limit_quantity * over_limit_unit_price).quantize(Decimal("0.01"))
+    subtotal = usage_cost + over_limit_cost
+
+    return {
+        "package_type": "limited",
+        "base_fee": float(base_fee),
+        "limit_count": int(limit_count),
+        "in_package_quantity": int(in_package_quantity),
+        "over_limit_quantity": int(over_limit_quantity),
+        "over_limit_unit_price": float(over_limit_unit_price),
+        "over_limit_cost": float(over_limit_cost),
+        "usage_cost": float(usage_cost),
+        "unit_price": unit_price,
+        "subtotal": subtotal,
+    }
 
 
 class BalanceService:
@@ -1151,7 +1219,7 @@ class InvoiceService:
             base_fee = Decimal(str(package_limits.get("base_fee", 0)))
             is_unlimited = package_limits.get("is_unlimited", False)
 
-            total_quantity = sum(Decimal(str(r.total_quantity)) for r in usage_rows)
+            total_quantity = sum((Decimal(str(r.total_quantity)) for r in usage_rows), Decimal(0))
             total_floor_count = sum(
                 Decimal(str(r.total_floor_count or r.total_quantity)) for r in usage_rows
             )
@@ -1181,14 +1249,16 @@ class InvoiceService:
                 total_amount += period_base_cost
                 return items, total_amount
             else:
-                # 限量套餐：套餐内按量计收 + 超量另计
+                # 限量套餐：套餐内按量计收 + 超量另计（分解逻辑与 F4 详情组装共用）
                 # 套餐内费用 = min(实际用量, limit_count) × (base_fee / limit_count)
                 # 超量费用 = max(0, 总订单数 - limit_count) × over_limit_unit_price
                 limit_count = Decimal(str(package_limits.get("limit_count", 0) or 0))
+                breakdown = _build_package_limited_breakdown(
+                    base_fee, package_limits, total_quantity
+                )
 
                 if limit_count <= 0:
                     # limit_count 为 0 时无法计算，返回 0
-                    over_limit_unit_price = Decimal(0)
                     items.append(
                         {
                             "device_type": None,
@@ -1199,35 +1269,11 @@ class InvoiceService:
                             "subtotal": Decimal(0),
                             "pricing_rule_id": package_rule.id,
                             "pricing_type": "package",
-                            "package_type": "limited",
                             "base_fee": float(base_fee),
-                            "limit_count": 0,
-                            "in_package_quantity": 0,
-                            "over_limit_quantity": 0,
-                            "over_limit_unit_price": float(over_limit_unit_price),
-                            "over_limit_cost": 0.0,
+                            **breakdown,
                         }
                     )
                     return items, total_amount
-
-                # 超额单价：NULL 表示自动计算（base_fee / limit_count），非 NULL 为自定义价格
-                raw_price = package_limits.get("over_limit_unit_price")
-                if raw_price is not None and float(raw_price) > 0:
-                    over_limit_unit_price = Decimal(str(raw_price))
-                else:
-                    over_limit_unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
-
-                # 套餐内用量费用：min(实际用量, limit_count) × (base_fee / limit_count)
-                in_package_quantity = min(total_quantity, limit_count)
-                unit_price = (base_fee / limit_count).quantize(Decimal("0.01"))
-                usage_cost = (in_package_quantity * unit_price).quantize(Decimal("0.01"))
-
-                # 超出部分用量（按订单数量判断）
-                over_limit_quantity = max(Decimal(0), total_quantity - limit_count)
-                over_limit_cost = (over_limit_quantity * over_limit_unit_price).quantize(
-                    Decimal("0.01")
-                )
-                subtotal = usage_cost + over_limit_cost
 
                 items.append(
                     {
@@ -1235,21 +1281,18 @@ class InvoiceService:
                         "layer_type": None,
                         "quantity": total_quantity,
                         "order_count": total_quantity,
-                        "unit_price": unit_price,
-                        "subtotal": subtotal,
                         "pricing_rule_id": package_rule.id,
                         "pricing_type": "package",
-                        "package_type": "limited",
-                        "base_fee": float(base_fee),
-                        "limit_count": int(limit_count),
-                        "in_package_quantity": int(in_package_quantity),
-                        "over_limit_quantity": int(over_limit_quantity),
-                        "over_limit_unit_price": float(over_limit_unit_price),
-                        "over_limit_cost": float(over_limit_cost),
-                        "usage_cost": float(usage_cost),
+                        "unit_price": breakdown["unit_price"],
+                        "subtotal": breakdown["subtotal"],
+                        **{
+                            k: v
+                            for k, v in breakdown.items()
+                            if k not in ("unit_price", "subtotal")
+                        },
                     }
                 )
-                total_amount += subtotal
+                total_amount += breakdown["subtotal"]
                 return items, total_amount
 
         for row in usage_rows:
@@ -1379,6 +1422,38 @@ class InvoiceService:
 
         return total
 
+    async def _check_invoice_period_overlap(
+        self, customer_id: int, period_start: date | datetime, period_end: date | datetime
+    ) -> None:
+        """周期去重（F5）：同客户已存在周期重叠的未取消结算单 → 拒绝生成。
+
+        走既有索引 idx_invoice_customer_period (customer_id, period_start, period_end)。
+        period_* 为 date（无时刻）时归一化为 UTC 日起/止——date 与 timestamptz
+        列直接比较会按 UTC 00:00 解释，与 CST 业务日边界错位 8 小时。
+        """
+        period_start_dt = (
+            period_start
+            if isinstance(period_start, datetime)
+            else local_date_to_utc_start(period_start.isoformat())
+        )
+        period_end_dt = (
+            period_end
+            if isinstance(period_end, datetime)
+            else local_date_to_utc_end(period_end.isoformat())
+        )
+        result = await self.db.execute(
+            select(Invoice.id, Invoice.invoice_no).where(
+                Invoice.customer_id == customer_id,
+                Invoice.deleted_at.is_(None),
+                Invoice.status != "cancelled",
+                Invoice.period_start <= period_end_dt,
+                Invoice.period_end >= period_start_dt,
+            )
+        )
+        existing = result.first()
+        if existing is not None:
+            raise ValueError(f"已存在同期结算单 {existing.invoice_no}（周期重叠），请勿重复生成")
+
     async def generate_invoice(
         self,
         customer_id: int,
@@ -1402,6 +1477,9 @@ class InvoiceService:
         Returns:
             Invoice
         """
+        # 周期去重（F5）：同客户已存在周期重叠的未取消结算单 → 拒绝生成
+        await self._check_invoice_period_overlap(customer_id, period_start, period_end)
+
         # 生成结算单号：INV-生成日期-客户ID-4位随机码
         # 日期按 CST 业务日（与 routes/billing/invoices.py 的批量导入规则一致）：
         # datetime.now() 在 UTC 16:00 后带次日日期
@@ -1438,12 +1516,28 @@ class InvoiceService:
 
         # 创建结算单项
         for item in items:
+            # subtotal/order_count 落库（F3）：多层递增/阶梯/包年下 quantity×unit_price
+            # 不等于真实小计；显式传入的 items 可能无这两键 → None，展示层 COALESCE 兜底
+            item_subtotal = item.get("subtotal")
+            item_order_count = item.get("order_count")
+            # multi_floor_pricing_type/additional_floor_price 冻结落库：计费规则后续
+            # 变更不漂移已生成单的明细验算与详情公式；无该两键（unified/包年/手工）→ None
+            item_mfp_type = item.get("multi_floor_pricing_type")
+            item_afp = item.get("additional_floor_price")
+            # pricing_rule_id 冻结落库：详情页「计费类型/计费规则」两列、tiers、
+            # 包年分量均经 item.pricing_rule 关系取值；漏传则全库恒 NULL、两列显示「—」。
+            # 无此键（手工 items/导入）→ None，前端 formatRuleDetail 走「—」分支
             invoice_item = InvoiceItem(
                 invoice_id=invoice.id,
                 device_type=item["device_type"],
                 layer_type=item.get("layer_type"),
                 quantity=Decimal(str(item["quantity"])),
                 unit_price=Decimal(str(item["unit_price"])),
+                subtotal=Decimal(str(item_subtotal)) if item_subtotal is not None else None,
+                order_count=int(item_order_count) if item_order_count is not None else None,
+                multi_floor_pricing_type=item_mfp_type,
+                additional_floor_price=Decimal(str(item_afp)) if item_afp is not None else None,
+                pricing_rule_id=item.get("pricing_rule_id"),
             )
             self.db.add(invoice_item)
 
@@ -1549,11 +1643,15 @@ class InvoiceService:
         return list(invoices), total  # pyright: ignore[reportReturnType]
 
     async def get_invoice_by_id(self, invoice_id: int) -> Optional[Invoice]:
-        """获取结算单详情"""
+        """获取结算单详情
+
+        items 关联的 pricing_rule 一并预加载（F4：详情组装改读冻结快照，
+        async 下不显式加载 relationship 会触发 lazy load → MissingGreenlet）。
+        """
         result = await self.db.execute(
             select(Invoice)
             .options(
-                selectinload(Invoice.items),
+                selectinload(Invoice.items).selectinload(InvoiceItem.pricing_rule),
                 selectinload(Invoice.customer),
                 selectinload(Invoice.settlement_account),
             )
@@ -2325,14 +2423,26 @@ class InvoiceService:
                 continue
 
             # 生成结算单（状态 draft）
-            invoice = await self.generate_invoice(
-                customer_id=cust["id"],
-                period_start=period_start,  # pyright: ignore[reportArgumentType]
-                period_end=period_end,  # pyright: ignore[reportArgumentType]
-                items=items,
-                created_by=created_by,
-                is_auto_generated=True,
-            )
+            # 周期去重（F5）在 generate_invoice 内执行，抛错时转为 skipped
+            # （不阻断其它客户）
+            try:
+                invoice = await self.generate_invoice(
+                    customer_id=cust["id"],
+                    period_start=period_start,  # pyright: ignore[reportArgumentType]
+                    period_end=period_end,  # pyright: ignore[reportArgumentType]
+                    items=items,
+                    created_by=created_by,
+                    is_auto_generated=True,
+                )
+            except ValueError as e:
+                skipped.append(
+                    {
+                        "customer_id": cust["id"],
+                        "name": cust["name"],
+                        "reason": str(e),
+                    }
+                )
+                continue
 
             generated.append(
                 {

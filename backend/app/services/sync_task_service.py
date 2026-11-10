@@ -17,6 +17,7 @@ from app.services.dto import SyncDetail, SyncResult
 from app.services.order_sync import OrderSyncService
 from app.utils.timezone import (
     cst_now,
+    cst_today,
     local_date_to_utc_start,
     naive_cst_datetime_str,
     utc_to_cst_datetime_str,
@@ -259,8 +260,13 @@ class SyncTaskService:
                     try:
                         skip_order_sync = False
 
-                        # skip_existing 模式：分层检查数据完整性
-                        if task.sync_mode == "skip_existing":  # pyright: ignore[reportGeneralTypeIssues]
+                        # skip_existing 模式：分层检查数据完整性（当天除外）
+                        # 当天的数据持续上传，任何快照都残缺，skip_existing 不得
+                        # 跳过当天——必须走完整同步（订单 + 费用）重拉刷新
+                        if (
+                            task.sync_mode == "skip_existing"  # pyright: ignore[reportGeneralTypeIssues]
+                            and sync_date != cst_today()
+                        ):
                             has_orders, has_consumptions = await self._check_data_completeness(
                                 sync_date_dt
                             )

@@ -1270,3 +1270,28 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+
+## Session 51: 结算单明细一致性修复终版与多层冻结双口径
+<!-- trellis-session: v=2 fp=70d74449b8819889 -->
+
+**Date**: 2026-11-10
+**Task**: 结算单明细一致性修复终版与多层冻结双口径
+**Branch**: `fix/invoice-consistency`
+
+### Summary
+
+完成 1665 三表不一致修复全链：月份明细快照化（F9/F8/F7，19 展示列+房源级唯一键+跨日清理）、多层计费两列冻结与计费明细 8 列双口径（订单数+楼层数）、详情 API 冻结优先；移除 F1 外部实时比对（快照同源后断点不存在）；终版方案按命名规范存档 docs/specs/2026-11-05-invoice-detail-consistency-plan.md 并同步契约。验证：136 单测+5 集成 passed、迁移 head、regenerate 1665 端到端断言全过（三表 453 一致、966 验算）。含 1669 房源名回填（80→2，余 2 笔为外部改期残留）与 dev 库 staging 部署边界分析。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c811901` | feat(billing): 月份明细改本地快照，三表同源零外部依赖 |
+| `90ed047` | feat(billing): 计费明细双口径与多层计费冻结列 |
+| `88caae6` | refactor(billing): 移除 F1 生成前外部实时比对 |
+| `a7966fb` | docs: 一致性契约与终版方案文档 |
+
+### Status
+
+[OK] **Completed**

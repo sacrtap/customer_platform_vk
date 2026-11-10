@@ -2,17 +2,17 @@
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, cast
 
 import aiomysql
-from sqlalchemy import CursorResult, select
+from sqlalchemy import CursorResult, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.customers import Customer
 from app.models.daily_order import DailyOrder
 from app.services.dto import SyncDetail, SyncResult
-from app.utils.timezone import CST
+from app.utils.timezone import CST, external_naive_to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -109,39 +109,82 @@ class OrderSyncService:
         end_dt = sync_date + timedelta(days=1)  # UTC 次日开始
 
         # 统一 SQL（两条路径共用）
-        # SELECT 字段顺序：
+        # SELECT 字段顺序（F9：新增 19 列月份明细展示快照 + create_date/
+        # upload_date 由 DATE() 改为原值 datetime，时刻不再丢失；
+        # 2026-11-10：新增 nest.created 作为「处理完成时间」数据源——
+        # 原取 D.finish_date 恒为 NULL，示例表口径为房源主表 created）：
         #   0: order_code, 1: custom_code, 2: nest_id, 3: owner_company,
         #   4: group_type, 5: create_date, 6: upload_date, 7: floor_count,
-        #   8: device_type, 9: order_status
-        # 结算范围：order_status >= 3 AND <= 12, OR = 15
+        #   8: device_type, 9: order_status,
+        #   10: project_name, 11: city, 12: department, 13: creator_name,
+        #   14: personal_name, 15: nest_area, 16: produce_status,
+        #   17: produce_flag, 18: remarks, 19: editor_account,
+        #   20: editor_name, 21: finish_date, 22: first_send_zb_date,
+        #   23: first_edit_time, 24: review_release_date, 25: device_name,
+        #   26: customer_review_result, 27: publisher_name, 28: model_fix_status,
+        #   29: nest_created
+        # 结算范围：order_status >= 3 AND order_status <= 12, OR = 15
         # 不再过滤 nest_id（空 nest_id 的订单也纳入结算）
         STATUS_COND = "((D.order_status >= 3 AND D.order_status <= 12) OR D.order_status = 15)"
+        DETAIL_SELECT = (
+            "D.order_code, D.custom_code, D.nest_id, "
+            "U.owner_company, D.group_type, D.create_date, "
+            "D.upload_date, D.floor_count, LEFT(D.device_name, 1), "
+            "D.order_status, "
+            "D.project_name, D.city, D.department, "
+            "U_creator.owner_name, U_personal.owner_name, D.nest_area, "
+            "D.produce_status, D.produce_flag, D.remarks, "
+            "U_editor.username, U_editor.owner_name, D.finish_date, "
+            "D.first_send_zb_date, D.first_edit_time, D.review_release_date, "
+            "D.device_name, D.customer_review_result, U_publisher.owner_name, "
+            "D.model_fix_status, "
+            "N.created AS nest_created "
+        )
+        # 4 个人名/账号 JOIN（与月份明细 DETAIL_SQL 同口径）：creator / personal
+        # （personal 同时充当 editor，与月度明细的两个别名一致）/ publisher
+        # + nest 房源主表（2026-11-10：「处理完成时间」= nest.created 原值；
+        #   nest_id 为空或 nest 表无对应行时 LEFT JOIN 留空，属正常语义）
+        USER_JOINS = (
+            "LEFT JOIN nest_user U_creator ON U_creator.id = D.creator "
+            "LEFT JOIN nest_user U_personal ON U_personal.id = D.personal "
+            "LEFT JOIN nest_user U_editor ON U_editor.id = D.personal "
+            "LEFT JOIN nest_user U_publisher ON U_publisher.id = D.publisher "
+            "LEFT JOIN nest N ON N.nest_id = D.nest_id "
+        )
         SQL_ENGINE = (
-            "SELECT D.order_code, D.custom_code, D.nest_id, "
-            "U.owner_company, D.group_type, DATE(D.create_date), "
-            "DATE(D.upload_date), D.floor_count, LEFT(D.device_name, 1), "
-            "D.order_status "
+            f"SELECT {DETAIL_SELECT} "
             "FROM nest_model_order AS D "
             "INNER JOIN ("
             "  SELECT group_type, MAX(owner_company) AS owner_company "
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
+            f"{USER_JOINS}"
             f"WHERE D.upload_date >= :start AND D.upload_date < :end "
             f"AND {STATUS_COND}"
         )
         SQL_AIOMYSQL = (
-            "SELECT D.order_code, D.custom_code, D.nest_id, "
-            "U.owner_company, D.group_type, DATE(D.create_date), "
-            "DATE(D.upload_date), D.floor_count, LEFT(D.device_name, 1), "
-            "D.order_status "
+            f"SELECT {DETAIL_SELECT} "
             "FROM nest_model_order AS D "
             "INNER JOIN ("
             "  SELECT group_type, MAX(owner_company) AS owner_company "
             "  FROM nest_user GROUP BY group_type"
             ") AS U ON D.group_type = U.group_type "
-            "WHERE D.upload_date >= %s AND D.upload_date < %s "
+            f"{USER_JOINS}"
+            f"WHERE D.upload_date >= %s AND D.upload_date < %s "
             f"AND {STATUS_COND}"
         )
+
+        def _as_utc(value):
+            """外部 naive datetime（UTC 墙钟）→ aware UTC（共享工具）。
+
+            外部 MySQL datetime 列实测为 UTC 墙钟（SZZY_1794137638
+            upload_date 02:10:28 naive ↔ 业务示例表 CST 10:10:28，
+            2026-11-10 对照实证）。naive 直落 timestamptz 会被 PG 服务端
+            按 Asia/Shanghai 解释，绝对时刻少 8 小时，叠加显示层未转 CST
+            共差 16 小时——读取侧显式标注 UTC。sync_date 由
+            local_date_to_utc_start 生成，本就 aware，不走此路径。
+            """
+            return external_naive_to_utc(value)
 
         def _rows_to_dicts(rows):
             return [
@@ -151,11 +194,34 @@ class OrderSyncService:
                     "nest_id": row[2],
                     "company_name": row[3],
                     "group_type": row[4],  # Keep as int for customer matching
-                    "create_date": self._normalize_date(row[5]),
-                    "upload_date": self._normalize_date(row[6]),
+                    "create_date": _as_utc(row[5]),
+                    "upload_date": _as_utc(row[6]),
                     "floor_count": row[7],
                     "device_type": row[8],
                     "order_status": row[9],
+                    # F9 月份明细展示列快照（原值落库，清洗在 Excel 写入侧）
+                    "project_name": row[10],
+                    "city": row[11],
+                    "department": row[12],
+                    "creator_name": row[13],
+                    "personal_name": row[14],
+                    "nest_area": row[15],
+                    "produce_status": row[16],
+                    "produce_flag": row[17],
+                    "remarks": row[18],
+                    "editor_account": row[19],
+                    "editor_name": row[20],
+                    "finish_date": _as_utc(row[21]),
+                    "first_send_zb_date": _as_utc(row[22]),
+                    "first_edit_time": _as_utc(row[23]),
+                    "review_release_date": _as_utc(row[24]),
+                    "device_name": row[25],
+                    "customer_review_result": row[26],
+                    "publisher_name": row[27],
+                    "model_fix_status": row[28],
+                    # 「处理完成时间」= 房源主表 created（2026-11-10；原
+                    # finish_date 恒 NULL，示例表口径即此列）
+                    "nest_created": _as_utc(row[29]),
                 }
                 for row in rows
             ]
@@ -193,26 +259,6 @@ class OrderSyncService:
             finally:
                 if conn:
                     conn.close()
-
-    def _normalize_date(self, value) -> date:
-        """将各种日期类型转换为 datetime.date
-
-        外部 MySQL 的 DATE 字段可能返回 datetime.date、datetime.datetime 或 str。
-        """
-        if isinstance(value, datetime):
-            return value.date()
-        elif isinstance(value, date):
-            return value
-        elif isinstance(value, str):
-            # 尝试解析常见格式
-            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-                try:
-                    return datetime.strptime(value, fmt).date()
-                except ValueError:
-                    continue
-            raise ValueError(f"无法解析日期: {value}")
-        else:
-            raise TypeError(f"不支持的日期类型: {type(value)}")
 
     async def _clear_orders(self, sync_date: datetime) -> None:
         """清空指定日期的所有订单（按 sync_date 范围删除，与唯一约束一致）"""
@@ -260,8 +306,10 @@ class OrderSyncService:
         for order in orders:
             order_code = order.get("order_code")
             try:
-                # 检查本批次是否已处理过相同的 (order_code, sync_date)
-                dedup_key = (order_code, sync_date)
+                # 检查本批次是否已处理过相同的 (order_code, custom_code, sync_date)
+                # （F8：同一订单号派给多个房源时各自成行、各自计费；
+                # custom_code 为空时按订单号语义归一，与唯一索引 COALESCE 一致）
+                dedup_key = (order_code, order.get("custom_code") or "", sync_date)
                 if dedup_key in seen_keys:
                     result.skipped += 1
                     continue
@@ -285,10 +333,14 @@ class OrderSyncService:
                     )
                     continue
 
-                # 检查订单是否已存在（使用与唯一约束一致的字段）
+                # 检查订单是否已存在（键与唯一索引 uq_order_custom_sync_date 一致：
+                # order_code + COALESCE(custom_code, '') + 当天窗口。F8：同一订单号
+                # 的不同房源行不是重复订单，各自入库）
                 existing = await self.db.execute(
                     select(DailyOrder).where(
                         DailyOrder.order_code == order_code,
+                        func.coalesce(DailyOrder.custom_code, "")
+                        == (order.get("custom_code") or ""),
                         DailyOrder.sync_date >= sync_date,
                         DailyOrder.sync_date < sync_date + timedelta(days=1),
                     )
@@ -313,6 +365,29 @@ class OrderSyncService:
                     floor_count=order.get("floor_count"),
                     device_type=order.get("device_type"),
                     sync_date=sync_date,
+                    # F9 月份明细展示列快照（原值落库，清洗在 Excel 写入侧）
+                    project_name=order.get("project_name"),
+                    city=order.get("city"),
+                    department=order.get("department"),
+                    creator_name=order.get("creator_name"),
+                    personal_name=order.get("personal_name"),
+                    nest_area=order.get("nest_area"),
+                    produce_status=order.get("produce_status"),
+                    produce_flag=order.get("produce_flag"),
+                    remarks=order.get("remarks"),
+                    editor_account=order.get("editor_account"),
+                    editor_name=order.get("editor_name"),
+                    finish_date=order.get("finish_date"),
+                    first_send_zb_date=order.get("first_send_zb_date"),
+                    first_edit_time=order.get("first_edit_time"),
+                    review_release_date=order.get("review_release_date"),
+                    device_name=order.get("device_name"),
+                    customer_review_result=order.get("customer_review_result"),
+                    publisher_name=order.get("publisher_name"),
+                    model_fix_status=order.get("model_fix_status"),
+                    # 「处理完成时间」数据源（2026-11-10）：外部 nest.created，
+                    # 原取 finish_date 恒 NULL
+                    nest_created=order.get("nest_created"),
                 )
                 seen_keys.add(dedup_key)
                 saved_orders.append(daily_order)
@@ -369,6 +444,19 @@ class OrderSyncService:
                 record_count=agg["count"],
             )
 
+        # 跨日迁移清理（F6+F8）：订单 upload_date 跨日后，其 daily_orders 行仍留在旧
+        # sync_date（唯一索引 (order_code, custom_code, sync_date) 允许同一订单码的
+        # 不同房源行存在于不同日期）。本批订单（订单号+房源）若在「非当天窗口」
+        # 存在旧行，即发生了跨日迁移——删除旧行并重算受影响旧日消耗
+        # （cost_calc 先删后建，幂等）。
+        if saved_orders:
+            await self._migrate_cross_day_orders(
+                sync_date=sync_date,
+                saved_orders=saved_orders,
+                detail_collector=detail_collector,
+                emit=_emit,
+            )
+
         # 设置结果消息
         if result.failed > 0 and result.success > 0:
             result.message = "部分同步失败"
@@ -378,6 +466,80 @@ class OrderSyncService:
             result.message = "同步完成"
 
         return result
+
+    async def _migrate_cross_day_orders(
+        self,
+        sync_date: datetime,
+        saved_orders: List[DailyOrder],
+        detail_collector: Optional[List[SyncDetail]],
+        emit,
+    ) -> None:
+        """跨日迁移清理（F6+F8）
+
+        订单 upload_date 跨日后，同一 (order_code, custom_code) 会出现在新日期的
+        同步批次中，而旧日期的 daily_orders 行仍在（唯一索引不禁跨日期重复）。
+        残留行会让旧日消耗统计多计。
+
+        动作：删除本批订单（订单号+房源键）在「非当天窗口 [sync_date, sync_date+1d)」
+        的残留行 → 按 (customer_id, 旧日) 聚合 → 逐旧日重算消耗（先删后建，幂等）。
+        同订单号的其他房源行不属于本批订单，不删（F8）。
+        异常上抛（sync_orders 不吞错误，execute_task 按天记 failed）。
+        """
+        from sqlalchemy import delete
+
+        day_end = sync_date + timedelta(days=1)
+        # 删除键与唯一索引一致（F8）：(order_code, COALESCE(custom_code, ''))。
+        # 同订单号的其他房源行不属于本批订单，不得互删——旧实现按 order_code
+        # 一把删，会把同号第二房源行误删（该笔业务不计费，三表数量差 1）。
+        batch_keys = [(o.order_code, o.custom_code or "") for o in saved_orders]
+        if not batch_keys:
+            return
+
+        stale_rows = (
+            (
+                await self.db.execute(
+                    select(DailyOrder).where(
+                        tuple_(
+                            DailyOrder.order_code, func.coalesce(DailyOrder.custom_code, "")
+                        ).in_(batch_keys),
+                        (DailyOrder.sync_date < sync_date) | (DailyOrder.sync_date >= day_end),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not stale_rows:
+            return
+
+        new_day_str = sync_date.astimezone(CST).date().isoformat()
+        # 按 (customer_id, 旧日 UTC datetime) 聚合受影响旧日
+        affected: Dict[Any, List[str]] = {}
+        for row in stale_rows:
+            old_day_str = row.sync_date.astimezone(CST).date().isoformat()
+            emit(
+                "warning",
+                "order_move",
+                f"订单 {row.order_code} 上传日期由 {old_day_str} 变更为 {new_day_str}，"
+                f"已迁移并重算 {old_day_str} 消耗",
+                customer_id=row.customer_id,
+                order_code=row.order_code,
+            )
+            affected.setdefault((row.customer_id, row.sync_date), []).append(row.order_code)
+
+        await self.db.execute(
+            delete(DailyOrder).where(DailyOrder.id.in_([r.id for r in stale_rows]))
+        )
+        await self.db.commit()
+        logger.info(
+            f"跨日迁移清理：删除 {len(stale_rows)} 条残留订单，待重算 {len(affected)} 个旧日"
+        )
+
+        # 重算受影响旧日消耗（幂等：清空 + 重建）
+        from app.services.cost_calc import CostCalcService
+
+        for customer_id, old_day in affected:
+            await CostCalcService(self.db).calculate_daily_cost(old_day)
 
     async def _match_customer(self, order: Dict) -> Optional[Customer]:
         """匹配内部客户（通过 external_id 或 group_type）"""

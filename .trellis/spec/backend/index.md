@@ -17,6 +17,7 @@ Before writing backend code, read and follow:
 - [ ] [Analytics Consumption Filters](./analytics-consumption-filters.md) — 消耗分析页多维度筛选跨层契约（四处同步、cache_key 陷阱、ERP 口径、缓存隔离测试写法）
 - [ ] [Analytics Dashboard](./analytics-dashboard.md) — 运营工作台 stats/todos/trend 字段契约、待办口径、权限角色与 scope 规则
 - [ ] [Billing Balance Stats](./billing-balance-stats.md) — 余额统计响应字段、结算类型分组（未设置结算类型 = 预付费）口径、列表 `settlement_group` 契约、结算单列表行业/ERP 筛选契约、消耗记录接口 Invoice/VR 二选一关联契约
+- [ ] [Invoice Detail Consistency](./invoice-consistency.md) — 结算单明细一致性契约：快照即准（生成不比对外部，原 F1 已移除）/Excel 三表同源（F2）/subtotal+order_count+多层计费冻结列（F3）/详情冻结快照组装（F4）/周期去重（F5）/同步层当天重拉+跨日迁移（F6）/计费明细双口径（F7）/房源级识别键（F8）
 - [ ] [Import / Export Endpoints](./import-export.md) — 批量导入导出端点签名、模板结构、行级错误与权限码变更清单
 - [ ] [File Storage](./file-storage.md) — `FILE_STORAGE_PATH` 解析规则、相对路径语义、DB 状态与磁盘实体一致性
 - [ ] [Permission Model](./permission-model.md) — 权限码单一事实源（seed.py）、三层引用、`--sync-permissions` 上线入口、通配语义、共享端点白名单、高危清单

@@ -6,9 +6,10 @@
 
 import asyncio
 import logging
+from datetime import timedelta
 from decimal import Decimal
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.billing import Invoice, InvoiceItem
 from ..models.customers import Customer
@@ -17,25 +18,65 @@ from ..services.invoice_excel import InvoiceExcelService
 logger = logging.getLogger(__name__)
 
 # 明细生成并发上限：批量生成结算单时会为每张单 add_job 一次性并行触发（实测
-# 81 张），若不限流会同时占满外部 MySQL 连接池（pool_size=5, overflow 10）
-# 与本地 PG 池，后到的任务 30s 超时抛 QueuePool limit 错误、单置 failed。
-# 取外部池容量同级的 5：每个任务持 1 个外部连接做订单查询（最长的操作），
+# 81 张），若不限流会同时占满本地 PG 池（SQLAlchemy 默认 pool_size=5,
+# overflow=10）与后到任务 30s 超时抛 QueuePool limit 错误、单置 failed。
+# 取池容量同级的 5：每个任务持 1 条 PG 连接做数据查询（最长的操作），
 # 其余排队等待而非失败。
+# 注：月份明细已快照化（F9，读 daily_orders 本地列），不再有外部 MySQL
+# 连接占用；信号量保留是为保护本地 PG 池。
 _DETAIL_GEN_CONCURRENCY = 5
 _detail_gen_semaphore = asyncio.Semaphore(_DETAIL_GEN_CONCURRENCY)
 
 
+def _order_row_to_dict(order) -> dict:
+    """DailyOrder 实体 → 月份明细 order dict（27 键，与 _build_and_save_excel 消费口径一致）
+
+    F9：月份明细 sheet 改读本地快照，本函数替代原 InvoiceExcelService._row_to_dict
+    （外部 Row → dict）。字符串字段原样返回，控制字符清洗在 _build_and_save_excel
+    写入侧统一兜底（单一出口）；datetime/数值字段原样。
+    """
+    return {
+        "project_name": order.project_name,
+        "custom_code": order.custom_code,
+        "city": order.city,
+        "department": order.department,
+        "order_code": order.order_code,
+        "nest_id": order.nest_id,
+        "creator_name": order.creator_name,
+        "create_date": order.create_date,
+        "personal_name": order.personal_name,
+        "nest_area": order.nest_area,
+        "order_status": order.order_status,
+        "produce_status": order.produce_status,
+        "produce_flag": order.produce_flag,
+        "remarks": order.remarks,
+        "editor_account": order.editor_account,
+        "editor_name": order.editor_name,
+        "upload_date": order.upload_date,
+        "finish_date": order.finish_date,
+        "first_send_zb_date": order.first_send_zb_date,
+        "first_edit_time": order.first_edit_time,
+        "review_release_date": order.review_release_date,
+        "floor_count": order.floor_count,
+        "device_name": order.device_name,
+        "customer_review_result": order.customer_review_result,
+        "publisher_name": order.publisher_name,
+        "model_fix_status": order.model_fix_status,
+        # 「处理完成时间」数据源（2026-11-10）：外部 nest.created，替代恒空的
+        # finish_date
+        "nest_created": order.nest_created,
+    }
+
+
 async def generate_invoice_detail(
     session: AsyncSession,
-    external_engine: AsyncEngine | None,
     invoice_id: int,
     session_factory=None,
 ):
     """异步生成结算单明细 Excel 文件
 
     Args:
-        session: 数据库 session（用于前置查询与状态标记）
-        external_engine: 外部 MySQL 引擎
+        session: 主会话
         invoice_id: 结算单 ID
         session_factory: 可选会话工厂。提供后，余额查询与终态更新改用短会话，
             主 session 在计费项查询后即可关闭——避免 PG 连接+事务覆盖整个
@@ -43,12 +84,11 @@ async def generate_invoice_detail(
     """
     # 并发限流：排队等待而非耗尽连接池失败（详见 _detail_gen_semaphore 注释）
     async with _detail_gen_semaphore:
-        await _generate_invoice_detail_inner(session, external_engine, invoice_id, session_factory)
+        await _generate_invoice_detail_inner(session, invoice_id, session_factory)
 
 
 async def _generate_invoice_detail_inner(
     session: AsyncSession,
-    external_engine: AsyncEngine | None,
     invoice_id: int,
     session_factory=None,
 ):
@@ -89,33 +129,63 @@ async def _generate_invoice_detail_inner(
             await _update_final_status(session, session_factory, invoice_id, "failed", None)
             return
 
-        # 查询结算明细项（JOIN PricingRule 获取多层计费信息）
+        # 查询结算明细项（多层计费字段读 invoice_items 冻结列，不再 JOIN PricingRule：
+        # 规则后续变更不影响已生成单；历史行 NULL 由展示层兜底）
         from sqlalchemy import select
 
-        from ..models.billing import PricingRule
+        from ..models.daily_order import DailyOrder
 
         result = await session.execute(
-            select(InvoiceItem, PricingRule)
-            .outerjoin(PricingRule, InvoiceItem.pricing_rule_id == PricingRule.id)
-            .where(InvoiceItem.invoice_id == invoice_id)
+            select(InvoiceItem).where(InvoiceItem.invoice_id == invoice_id)
         )
-        rows = result.all()
+        # scalars() 解包单实体 select 的 Row（否则 rows[0] 是 Row，属性访问 KeyError）
+        rows = result.scalars().all()
         # 取第一项的单价作为代表（按设备类型+图层分别计价时取首个）
-        unit_price = rows[0][0].unit_price if rows else None
+        unit_price = rows[0].unit_price if rows else None
 
-        # 构造 invoice_items 列表传给 Excel
+        # 构造 invoice_items 列表传给 Excel（含 F3 落库的 subtotal/order_count，
+        # 使「合计」数量口径与「计费明细」小计同源）
         invoice_items = []
-        for item, rule in rows:
+        for item in rows:
             invoice_items.append(
                 {
                     "device_type": item.device_type,
                     "layer_type": item.layer_type,
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,
-                    "multi_floor_pricing_type": rule.multi_floor_pricing_type if rule else None,
-                    "additional_floor_price": rule.additional_floor_price if rule else None,
+                    "subtotal": item.subtotal,
+                    "order_count": item.order_count,
+                    "multi_floor_pricing_type": item.multi_floor_pricing_type,
+                    "additional_floor_price": item.additional_floor_price,
                 }
             )
+
+        # 查询本单计费周期内的订单快照行（daily_orders，F9）：「月份明细」
+        # sheet 直接由这些行渲染，与「计费明细」「合计」同源（此前实时查外部
+        # MySQL，外部删单/改期即行数对不上，且补生成历史单拿到「当前」状态）。
+        # 排序口径对齐原 DETAIL_SQL 的 ORDER BY create_date DESC，并列时按
+        # (order_code, custom_code)（唯一键）兜底，保证重复生成文件逐行一致。
+        order_rows = (
+            (
+                await session.execute(
+                    select(DailyOrder)
+                    .where(
+                        DailyOrder.customer_id == invoice.customer_id,
+                        DailyOrder.sync_date >= invoice.period_start,
+                        DailyOrder.sync_date < invoice.period_end + timedelta(seconds=1),
+                        DailyOrder.deleted_at.is_(None),
+                    )
+                    .order_by(
+                        DailyOrder.create_date.desc(),
+                        DailyOrder.order_code,
+                        DailyOrder.custom_code,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        order_details = [_order_row_to_dict(row) for row in order_rows]
 
         # 查询完毕：提交并关闭主会话，释放 PG 连接与事务。
         # 余额查询/终态更新改用短会话（见 InvoiceExcelService.session_factory）。
@@ -130,14 +200,13 @@ async def _generate_invoice_detail_inner(
         total_amount = invoice.total_amount
         discount_amount = invoice.discount_amount or Decimal(0)
         invoice_status = invoice.status or "draft"
-        group_type = customer.company_id
 
         # ===== 阶段 2：生成 Excel（不持 DB 连接）=====
         # InvoiceExcelService 余额查询走 session_factory 短会话；Excel 构建
-        # 在 asyncio.to_thread 中执行（见 generate_detail_file），不阻塞事件循环
+        # 在 asyncio.to_thread 中执行（见 generate_detail_file），不阻塞事件循环。
+        # order_details 为本地快照行（F9，外部引擎/group_type 已无需传入）。
         excel_service = InvoiceExcelService(
             db=session,  # 仅为兼容签名，实际 DB 访问已走 session_factory
-            external_engine=external_engine,
             session_factory=session_factory,
         )
         file_path = await excel_service.generate_detail_file(
@@ -149,9 +218,9 @@ async def _generate_invoice_detail_inner(
             total_amount=total_amount,
             discount_amount=discount_amount,
             unit_price=unit_price,
-            group_type=group_type,
             invoice_status=invoice_status,
             invoice_items=invoice_items,
+            order_details=order_details,
         )
 
         # ===== 阶段 3：更新终态（短会话或主会话）=====

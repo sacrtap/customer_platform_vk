@@ -324,6 +324,7 @@ import SyncStatusBar from '@/components/SyncStatusBar.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
 import type { ECharts } from 'echarts'
+import { toLocalDateStr } from '@/utils/date'
 import {
   getConsumptionTrend,
   getTopCustomers,
@@ -594,8 +595,8 @@ const handleTimeRangeChange = () => {
       default:
         startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
     }
-    filters.start_date = startDate.toISOString().split('T')[0]
-    filters.end_date = now.toISOString().split('T')[0]
+    filters.start_date = toLocalDateStr(startDate)
+    filters.end_date = toLocalDateStr(now)
     loadData()
   }
 }

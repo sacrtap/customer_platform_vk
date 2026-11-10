@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 50
-- **Last Active**: 2026-10-30
+- **Total Sessions**: 51
+- **Last Active**: 2026-11-10
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1272 | Active |
+| `journal-1.md` | ~1297 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 51 | 2026-11-10 | 结算单明细一致性修复终版与多层冻结双口径 | `c811901`, `90ed047`, `88caae6`, `a7966fb` | `fix/invoice-consistency` |
 | 50 | 2026-10-30 | 消耗分析页新增 ERP 系统筛选项 | `7d888f5` | `main` |
 | 49 | 2026-10-26 | 余额管理筛选项首行对齐客户管理（PR #82 已合并） | `2c20d74`, `9498244` | `main` |
 | 48 | 2026-10-24 | 减免审批节点（PR #71/#72 已合并） | `a087a81`, `4bbcac4` | `main` |

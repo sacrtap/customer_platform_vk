@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from app.models.billing import (
     CustomerBalance,
     Invoice,
+    InvoiceItem,
     PricingRule,
     RechargeRecord,
 )
@@ -32,6 +33,10 @@ def mock_db_session():
     """Mock 数据库会话"""
     session = MagicMock()
     session.execute = AsyncMock()
+    # 默认查询结果：无同期结算单（F5 周期去重默认放行；需要命中的测试自行覆盖）
+    _default_result = MagicMock()
+    _default_result.first.return_value = None
+    session.execute.return_value = _default_result
     session.add = MagicMock()
     session.flush = AsyncMock()
     session.commit = AsyncMock()
@@ -1646,8 +1651,142 @@ class TestInvoiceService_CalculateItemsIncremental:
         assert result is not None
         assert result.total_amount == Decimal("17")  # 使用 subtotal 而非 quantity × unit_price
 
+    @pytest.mark.asyncio
+    async def test_generate_invoice_freezes_multi_floor_fields(
+        self, invoice_service, mock_db_session
+    ):
+        """测试生成结算单 - 多层计费两字段冻结落库（规则后续变更不漂移）"""
+        items = [
+            {
+                "device_type": "L",
+                "layer_type": "multi",
+                "quantity": 78,
+                "unit_price": Decimal("14"),
+                "additional_floor_price": Decimal("11"),
+                "multi_floor_pricing_type": "incremental",
+                "order_count": 36,
+                "subtotal": Decimal("966"),
+                "pricing_rule_id": 1,
+            }
+        ]
 
-# ==================== Test InvoiceService - Deduction Failure Downgrade ====================
+        customer = Customer(id=100, company_id=100, name="客户100")
+        with patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)):
+            result = await invoice_service.generate_invoice(
+                customer_id=100,
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                items=items,
+                created_by=1,
+            )
+
+        assert result is not None
+        assert result.total_amount == Decimal("966")  # 36×14 + 42×11
+
+        added_items = [
+            call.args[0]
+            for call in mock_db_session.add.call_args_list
+            if isinstance(call.args[0], InvoiceItem)
+        ]
+        assert len(added_items) == 1
+        assert added_items[0].multi_floor_pricing_type == "incremental"
+        assert added_items[0].additional_floor_price == Decimal("11")
+
+        # 无该两键的 items（unified/包年/手工）→ 冻结列为 None
+        mock_db_session.add.reset_mock()
+        items_without_keys = [
+            {
+                "device_type": "X",
+                "layer_type": "single",
+                "quantity": 10,
+                "unit_price": Decimal("5"),
+                "subtotal": Decimal("50"),
+                "pricing_rule_id": 2,
+            }
+        ]
+        with patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)):
+            await invoice_service.generate_invoice(
+                customer_id=100,
+                period_start=date(2026, 2, 1),
+                period_end=date(2026, 2, 28),
+                items=items_without_keys,
+                created_by=1,
+            )
+
+        added_items = [
+            call.args[0]
+            for call in mock_db_session.add.call_args_list
+            if isinstance(call.args[0], InvoiceItem)
+        ]
+        assert len(added_items) == 1
+        assert added_items[0].multi_floor_pricing_type is None
+        assert added_items[0].additional_floor_price is None
+
+    @pytest.mark.asyncio
+    async def test_generate_invoice_freezes_pricing_rule_id(self, invoice_service, mock_db_session):
+        """测试生成结算单 - pricing_rule_id 冻结落库（详情页两列的数据来源）
+
+        回归：generate_invoice 曾漏传该键，全库 invoice_items.pricing_rule_id 恒
+        NULL，详情 API 的 pricing_type/tiers 取不到值，前端「计费类型」「计费规则」
+        两列恒显示「—」。
+        """
+        items = [
+            {
+                "device_type": "L",
+                "layer_type": "multi",
+                "quantity": 78,
+                "unit_price": Decimal("14"),
+                "subtotal": Decimal("966"),
+                "order_count": 36,
+                "pricing_rule_id": 1,
+            }
+        ]
+
+        customer = Customer(id=100, company_id=100, name="客户100")
+        with patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)):
+            await invoice_service.generate_invoice(
+                customer_id=100,
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                items=items,
+                created_by=1,
+            )
+
+        added_items = [
+            call.args[0]
+            for call in mock_db_session.add.call_args_list
+            if isinstance(call.args[0], InvoiceItem)
+        ]
+        assert len(added_items) == 1
+        assert added_items[0].pricing_rule_id == 1
+
+        # 手工 items 无该键 → None（前端 formatRuleDetail 走「—」分支）
+        mock_db_session.add.reset_mock()
+        items_without_rule = [
+            {
+                "device_type": "X",
+                "layer_type": "single",
+                "quantity": 10,
+                "unit_price": Decimal("5"),
+                "subtotal": Decimal("50"),
+            }
+        ]
+        with patch.object(InvoiceService, "_get_customer", AsyncMock(return_value=customer)):
+            await invoice_service.generate_invoice(
+                customer_id=100,
+                period_start=date(2026, 2, 1),
+                period_end=date(2026, 2, 28),
+                items=items_without_rule,
+                created_by=1,
+            )
+
+        added_items = [
+            call.args[0]
+            for call in mock_db_session.add.call_args_list
+            if isinstance(call.args[0], InvoiceItem)
+        ]
+        assert len(added_items) == 1
+        assert added_items[0].pricing_rule_id is None
 
 
 class TestInvoiceService_DeductionFailureDowngrade:
@@ -1777,7 +1916,10 @@ class TestInvoiceService_SettlementAccount:
         """生成结算单：快照客户当前结算账户配置到结算单"""
         customer = self._customer(customer_id=100, settlement_account_id=200)
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=customer),
+                first=MagicMock(return_value=None),  # F5 周期去重查询默认无重叠
+            )
         )
 
         invoice = await invoice_service.generate_invoice(
@@ -1797,7 +1939,10 @@ class TestInvoiceService_SettlementAccount:
         """生成结算单：客户未配置结算账户时快照为 NULL（用自身余额）"""
         customer = self._customer(customer_id=100, settlement_account_id=None)
         mock_db_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=customer))
+            return_value=MagicMock(
+                scalar_one_or_none=MagicMock(return_value=customer),
+                first=MagicMock(return_value=None),  # F5 周期去重查询默认无重叠
+            )
         )
 
         invoice = await invoice_service.generate_invoice(

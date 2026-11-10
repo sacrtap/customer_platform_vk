@@ -104,7 +104,7 @@ class TestDetailGeneratorThreePhase:
             invoice_excel.InvoiceExcelService, "generate_detail_file", fake_generate
         )
 
-        await generate_invoice_detail(session, None, 7001, session_factory=factory)
+        await generate_invoice_detail(session, 7001, session_factory=factory)
 
         assert built["called"], "generate_detail_file 未被调用"
         # 终态更新走工厂短会话
@@ -130,7 +130,7 @@ class TestDetailGeneratorThreePhase:
             invoice_excel.InvoiceExcelService, "generate_detail_file", fake_generate
         )
 
-        await generate_invoice_detail(session, None, 7001, session_factory=factory)
+        await generate_invoice_detail(session, 7001, session_factory=factory)
 
         # 终态更新走工厂会话：execute（条件 UPDATE）一次 + commit 一次
         assert factory_session.execute.await_count == 1
@@ -158,7 +158,7 @@ class TestDetailGeneratorThreePhase:
             invoice_excel.InvoiceExcelService, "generate_detail_file", fake_generate
         )
 
-        await generate_invoice_detail(session, None, 7001)
+        await generate_invoice_detail(session, 7001)
 
         # 回退路径：主会话条件 UPDATE 更新终态（claim 后仅一次 get）
         assert session.get.await_count >= 1  # 原子 claim 后重新加载
@@ -182,7 +182,7 @@ class TestDetailGeneratorThreePhase:
         monkeypatch.setattr(invoice_excel.InvoiceExcelService, "generate_detail_file", boom)
 
         # 不抛异常出去（内部已兜底）
-        await generate_invoice_detail(session, None, 7001, session_factory=factory)
+        await generate_invoice_detail(session, 7001, session_factory=factory)
 
         # 兜底也走工厂会话
         assert factory_session.execute.await_count >= 1

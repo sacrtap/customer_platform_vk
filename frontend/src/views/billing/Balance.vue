@@ -136,6 +136,7 @@ import { useBalance } from '@/composables/useBalance'
 import { useExportAction } from '@/composables/useExportAction'
 import { Message, Modal } from '@arco-design/web-vue'
 import { exportBalances, recalculateBalance } from '@/api/billing'
+import { toLocalDateStr } from '@/utils/date'
 import { formatCurrency } from '@/utils/formatters'
 import PageHeader from '@/components/PageHeader.vue'
 import KpiCard from '@/components/ui/KpiCard.vue'
@@ -231,10 +232,7 @@ const applyKpiFilter = (kpi: KpiKey) => {
     const now = new Date()
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    filters.recharge_date = [
-      firstDay.toISOString().split('T')[0],
-      lastDay.toISOString().split('T')[0],
-    ]
+    filters.recharge_date = [toLocalDateStr(firstDay), toLocalDateStr(lastDay)]
   } else if (kpi === 'burning') {
     // 即将耗尽：按 days_remaining 升序排列，最紧急的排最前
     handleSortChange('days_remaining', 'asc')
