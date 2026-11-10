@@ -183,8 +183,8 @@ const validateAndSetFile = (f: File) => {
     Message.error('仅支持 .xlsx 格式的 Excel 文件')
     return
   }
-  if (f.size > 10 * 1024 * 1024) {
-    Message.error('文件大小不能超过 10MB')
+  if (f.size > 20 * 1024 * 1024) {
+    Message.error('文件大小不能超过 20MB')
     return
   }
   file.value = f

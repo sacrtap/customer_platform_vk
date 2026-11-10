@@ -69,12 +69,35 @@ describe('VrSettlementCreateModal 明细文件上传', () => {
     expect(vm.fileList).toHaveLength(0)
   })
 
+  it('超过 20MB 的明细文件被前端拦截，不进入 file-list', async () => {
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => '' as never)
+
+    const wrapper = mountModal()
+    const vm = vmOf(wrapper)
+    // a-modal 渲染在 teleport + 过渡中，先等一拍再查 DOM
+    await flushPromises()
+
+    // 走真实 input[type=file] → Arco uploadFiles → beforeUpload 链路，
+    // 覆盖 @before-upload 绑定本身（而非只调内部函数），防止绑定被误删。
+    // a-modal 默认 teleport 到 body，VTU 2.4 的 wrapper.find 不覆盖 teleport 内容
+    const fileInput = document.body.querySelector('input[type="file"]')
+    expect(fileInput).not.toBeNull()
+    const bigFile = new File([new Uint8Array(20 * 1024 * 1024 + 1)], 'big.xlsx')
+    Object.defineProperty(fileInput, 'files', { value: [bigFile], configurable: true })
+    fileInput!.dispatchEvent(new Event('change', { bubbles: true }))
+    await flushPromises()
+
+    expect(vm.fileList).toHaveLength(0)
+    expect(errorSpy).toHaveBeenCalledWith('文件大小不能超过 20MB')
+    errorSpy.mockRestore()
+  })
+
   it('上传失败时展示后端真实错误 message', async () => {
     const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => '' as never)
     // 400 类（参数/业务错误）走后端 message 透传分支；拦截器 reject 形状同此
     vi.mocked(uploadDiscountAttachment).mockRejectedValue({
       code: 40001,
-      message: '文件大小超过限制 (10MB)',
+      message: '文件大小超过限制 (20MB)',
       category: 'client',
     })
 
@@ -95,7 +118,7 @@ describe('VrSettlementCreateModal 明细文件上传', () => {
     expect(ok).toBe(false)
     // 真实后端文案必须透出，而非统一「文件上传失败」（showError 走对象形式）
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ content: '文件大小超过限制 (10MB)' })
+      expect.objectContaining({ content: '文件大小超过限制 (20MB)' })
     )
     // 上传失败不得继续创建
     expect(createVrSettlement).not.toHaveBeenCalled()

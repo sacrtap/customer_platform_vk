@@ -4,7 +4,7 @@ P6-9: 文件管理 API（安全增强版）
 安全特性：
 - 扩展名白名单验证
 - MIME 类型验证（python-magic）
-- 文件大小限制（10MB）
+- 文件大小限制（20MB）
 - 随机文件名存储
 """
 
@@ -51,7 +51,7 @@ ALLOWED_MIME_TYPES = {
     "application/zip",  # .xlsx 文件可能被检测为 zip
 }
 
-# 最大文件大小 (10MB)
+# 最大文件大小 (20MB)
 MAX_FILE_SIZE = settings.max_file_size
 
 

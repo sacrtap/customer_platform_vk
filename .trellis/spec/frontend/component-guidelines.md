@@ -63,7 +63,7 @@ interface ImportResult {
 
 ### 关键行为
 
-- 文件校验：`f.type.includes('spreadsheetml') || f.name.endsWith('.xlsx')`，大小 ≤ 10MB
+- 文件校验：`f.type.includes('spreadsheetml') || f.name.endsWith('.xlsx')`，大小 ≤ 20MB
 - 结果区按 `error_count === 0` 切换 success/warning 提示，并列出 `errors`
 - **`emit('success')` 的条件必须是 `success_count > 0`（不是 `error_count === 0`）**：部分成功的场景下若依赖 `error_count === 0`，父列表不会刷新，用户看不到刚导入成功的数据
 
@@ -661,7 +661,7 @@ steps 标题 16px/13px、description `maxWidth 140px/clip` vs `100px/ellipsis`�
 2. **上传失败的 catch 必须走 `handleError(error, fallback)`**——禁止
    `catch { Message.error('统一文案') }`。拦截器已把后端错误归一为
    `{ code, message }`，`getUserFriendlyMessage` 对 400 类（参数/业务错误）
-   **透传后端 message**；吞掉它等于把「文件大小超过限制 (10MB)」「不支持的文件类型」
+   **透传后端 message**；吞掉它等于把「文件大小超过限制 (20MB)」「不支持的文件类型」
    「您没有执行此操作的权限」降级为无法行动的统一文案：
 
    ```ts
