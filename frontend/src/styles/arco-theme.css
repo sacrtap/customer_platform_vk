@@ -257,6 +257,16 @@ a:not(.nav-subitem):not(.nav-parent):not(.nav-btn):hover {
 }
 
 /* ==========================================
+   Table Stacking Context
+   隔离表格内部层叠：固定列（sticky z-index:10）与吸顶表头（sticky z-index:5）
+   只在表格内部排序，不再越过全局 Header（sticky z-index:5）。
+   ========================================== */
+
+.arco-table {
+  isolation: isolate;
+}
+
+/* ==========================================
    Table Header
    ========================================== */
 
