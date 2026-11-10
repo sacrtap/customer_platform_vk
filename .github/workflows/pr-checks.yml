@@ -52,6 +52,10 @@ jobs:
     name: Quick Checks (Lint + Format)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # 前端日期工具（如 toLocalDateStr）按生产 CST 语义钉住本地分量行为，
+    # runner 默认 UTC 会让这类时区断言直接失败，与 backend-tests 同样显式对齐。
+    env:
+      TZ: Asia/Shanghai
 
     steps:
       - name: Checkout code
