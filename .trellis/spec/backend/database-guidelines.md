@@ -669,6 +669,10 @@ python -c "import asyncio,asyncpg; ..."  # information_schema.columns where tabl
 - [ ] 迁移里的 `nullable=` 与模型注解一致（`Mapped[Any]` 必须显式写 `nullable=True`，别依赖推断）
 - [ ] 跑 `python scripts/check_schema_drift.py`，确认「可空性一致」也是 ✅
 - [ ] 测试库与生产库的行为分叉问题：优先怀疑可空性/默认值漂移
+- [ ] 写入值只含 JSON 原生类型（`str/int/float/bool/None/list/dict`）；`Decimal`/`UUID`/
+      `datetime` 先过 `utils/json_encoding.to_jsonable()`。引擎级
+      `json_serializer=dumps_json` 只是兜底（转字符串），不该当成常规路径用——
+      真要以字符串存金额，读回方要按 `Decimal(str(x))` 取
 
 ---
 

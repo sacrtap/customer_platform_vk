@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..middleware.auth import get_current_user
 from ..models.billing import AuditLog
+from ..utils.json_encoding import to_jsonable
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +201,13 @@ def build_changes(
 def serialize_record_for_audit(record) -> dict:
     """将 ORM 记录序列化为审计日志格式
 
-    排除内部字段和敏感字段（如密码哈希）
+    排除内部字段和敏感字段（如密码哈希）。
+
+    值必须归一成 JSON 原生类型：DECIMAL 列是 ``Decimal``、UUID 列是
+    ``uuid.UUID``，``json.dumps`` 默认编码器都不认，直接写进 ``changes`` 会在
+    flush 时抛 ``TypeError``——而审计写入被 ``log_write_operations`` 的 except
+    吞掉，表现为「删除成功但审计静默丢失」（2026-11-10 结算单删除事故：
+    Invoice 的 total_amount/discount_amount 等 DECIMAL 列即触发此路径）。
     """
     exclude = {"_sa_instance_state", "password_hash", "deleted_at"}
     result = {}
@@ -208,11 +215,7 @@ def serialize_record_for_audit(record) -> dict:
         key = col.name
         if key in exclude:
             continue
-        val = getattr(record, key, None)
-        # 将 datetime 等不可 JSON 序列化的类型转为字符串
-        if hasattr(val, "isoformat"):
-            val = val.isoformat()  # pyright: ignore[reportOptionalMemberAccess]
-        result[key] = val
+        result[key] = to_jsonable(getattr(record, key, None))
     return result
 
 
@@ -406,6 +409,13 @@ def extract_record_info(path: str, body: dict | None, response) -> tuple[int | N
                 return record_id, parts[2].rstrip("s")
             except ValueError:
                 logger.debug("Path segment [3] is not an integer: %s", parts[3])
+
+        # 嵌套/动作路径：/api/v1/billing/invoices/123 的 parts[3] 是资源名
+        # （invoices）而非 ID，须按层级回找，否则 record_id 落成 NULL，
+        # 审计行关联不到具体单据（2026-11-10 删除结算单时实测）
+        nested_id = extract_record_id_from_path(path)
+        if nested_id is not None:
+            return nested_id, parts[2].rstrip("s")
 
         # 如果是创建操作，从响应中获取新 ID
         if response and hasattr(response, "body"):

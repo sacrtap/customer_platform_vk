@@ -1962,9 +1962,9 @@ async def import_invoices(request: Request):
             {"code": ErrorCodes.INVALID_FORMAT, "message": "请上传 .xlsx 格式的文件"}, status=400
         )
 
-    # 服务端体积上限兜底：前端虽限 10MB，但可被绕过；.xlsx 是 zip 容器，
+    # 服务端体积上限兜底：前端虽限 20MB，但可被绕过；.xlsx 是 zip 容器，
     # 高压缩比/超大工作簿会在整体读入内存解析时造成内存耗尽（DoS）。在解析前
-    # 拦截，上限与前端 ImportModal 的 10MB 口径一致（settings.max_file_size）。
+    # 拦截，上限与前端 ImportModal 的 20MB 口径一致（settings.max_file_size）。
     if len(excel_file.body) > settings.max_file_size:
         return json(
             {

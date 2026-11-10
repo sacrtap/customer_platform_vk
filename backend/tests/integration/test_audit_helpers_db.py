@@ -9,6 +9,7 @@ from app.utils.audit_helpers import (
     build_batch_audit_summary,
     create_audit_entry,
 )
+from app.utils.json_encoding import dumps_json
 
 # 使用 xdist_group 标记，确保数据库操作测试串行执行
 pytestmark = pytest.mark.xdist_group("db_models")
@@ -34,6 +35,8 @@ async def async_engine():
         # 锁定会话时区为 CST：与生产引擎、integration conftest 一致，
         # 保证 func.now() 写的 created_at 在所有环境都是 CST 墙钟
         connect_args={"server_settings": {"TimeZone": "Asia/Shanghai"}},
+        # 与生产引擎一致：JSON 列非原生值（Decimal/UUID）转字符串而非抛 TypeError
+        json_serializer=dumps_json,
     )
 
     async with engine.begin() as conn:

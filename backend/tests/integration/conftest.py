@@ -44,6 +44,8 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
+from app.utils.json_encoding import dumps_json  # noqa: E402
+
 # Mock aiosmtplib 导入 (避免网络依赖问题)
 sys.modules["aiosmtplib"] = MagicMock()
 
@@ -402,6 +404,8 @@ async def app(sync_test_engine, mock_scheduler, mock_cache):
         pool_pre_ping=True,
         pool_reset_on_return="rollback",  # 确保连接归还时重置状态，防止泄漏
         connect_args=TEST_ENGINE_CONNECT_ARGS,  # 锁定会话时区为 CST，与生产一致
+        # 与生产引擎（app/main.py）一致：JSON 列非原生值转字符串而非抛 TypeError
+        json_serializer=dumps_json,
     )
 
     app_instance = create_app(

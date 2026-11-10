@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # 文件存储配置
     file_storage_path: str = "./uploads"
-    max_file_size: int = 10 * 1024 * 1024  # 10MB
+    max_file_size: int = 20 * 1024 * 1024  # 20MB
 
     # 邮件配置
     smtp_host: str = "smtp.company.com"

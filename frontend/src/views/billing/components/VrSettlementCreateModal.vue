@@ -49,6 +49,7 @@
             :limit="1"
             :auto-upload="false"
             accept=".xlsx,.xls"
+            @before-upload="handleBeforeUpload"
             @change="handleFileChange"
           >
             <template #upload-button>
@@ -99,6 +100,10 @@ const isVisible = computed({
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+
+// 明细文件大小上限，与后端 settings.max_file_size（20MB，见 backend/app/config.py）口径一致：
+// 前端先拦掉超大文件，避免走完整个上传请求才收到后端超限错误（同 ImportModal 处理）
+const MAX_DETAIL_FILE_SIZE = 20 * 1024 * 1024
 
 const form = reactive({
   create_mode: 'manual' as 'manual' | 'auto',
@@ -152,6 +157,16 @@ const handlePeriodChange = (dates: string[]) => {
 const handleFileChange = (list: { file?: File; [key: string]: unknown }[]) => {
   // 必须无条件同步：移除文件后 Arco 回传空数组，若守卫 length>0 则条目残留（移除无效）
   fileList.value = list || []
+}
+
+// 选中后、入列前拦截：返回 false 时 Arco 不会把文件加进 file-list，
+// 因此也不会触发 @change（upload.js uploadFiles → onBeforeUpload → initUpload）
+const handleBeforeUpload = (file: File): boolean => {
+  if (file.size > MAX_DETAIL_FILE_SIZE) {
+    Message.error('文件大小不能超过 20MB')
+    return false
+  }
+  return true
 }
 
 const handleCancel = () => {
