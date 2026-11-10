@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from tenacity import (
     AsyncRetrying,
@@ -43,11 +43,6 @@ from ..utils.timezone import (
     cst_today,
     local_date_to_utc_end,
     local_date_to_utc_start,
-)
-from .invoice_consistency import (
-    InvoiceConsistencyError,
-    diff_period,
-    period_label_of,
 )
 
 logger = logging.getLogger(__name__)
@@ -1123,13 +1118,9 @@ class InvoiceService:
         self,
         invoice_repo: InvoiceRepositoryProtocol,
         pricing_repo: PricingRepositoryProtocol,
-        external_engine: Optional[AsyncEngine] = None,
     ):
         self.invoice_repo = invoice_repo
         self.pricing_repo = pricing_repo
-        # 外部 MySQL 引擎（可选）：仅生成路径的一致性校验（F1）使用；
-        # None = 未配置，校验放行并记 warning
-        self.external_engine = external_engine
 
     @property
     def db(self) -> AsyncSession:
@@ -1463,44 +1454,6 @@ class InvoiceService:
         if existing is not None:
             raise ValueError(f"已存在同期结算单 {existing.invoice_no}（周期重叠），请勿重复生成")
 
-    async def _check_invoice_consistency(
-        self, customer_id: int, period_start: date | datetime, period_end: date | datetime
-    ) -> None:
-        """生成前一致性校验（F1）：快照与外部实时量不一致则抛 InvoiceConsistencyError。
-
-        外部库不可达（引擎未配置/查询异常）时 diff_period 返回 None，
-        记 warning 后放行，不因基础设施故障阻塞业务。
-        period_* 为 date（无时刻）时归一化为 UTC 日起/止（同 F5）。
-        """
-        if self.external_engine is None:
-            return
-        period_start_dt = (
-            period_start
-            if isinstance(period_start, datetime)
-            else local_date_to_utc_start(period_start.isoformat())
-        )
-        period_end_dt = (
-            period_end
-            if isinstance(period_end, datetime)
-            else local_date_to_utc_end(period_end.isoformat())
-        )
-        customer = await self._get_customer(customer_id)
-        diffs = await diff_period(
-            customer_id=customer_id,
-            company_id=customer.company_id if customer else None,
-            period_start=period_start_dt,
-            period_end=period_end_dt,
-            external_engine=self.external_engine,
-            db_session=self.db,
-        )
-        if diffs:
-            customer_name = customer.name if customer else str(customer_id)
-            raise InvoiceConsistencyError(
-                customer_name=customer_name,
-                diffs=diffs,
-                period_label=period_label_of(period_start_dt),
-            )
-
     async def generate_invoice(
         self,
         customer_id: int,
@@ -1525,13 +1478,7 @@ class InvoiceService:
             Invoice
         """
         # 周期去重（F5）：同客户已存在周期重叠的未取消结算单 → 拒绝生成
-        # （本地查询，先于外部一致性校验快速失败）
         await self._check_invoice_period_overlap(customer_id, period_start, period_end)
-
-        # 生成前一致性校验（F1）：本地快照与外部实时量不一致 → 拒绝生成，
-        # 文案直接给出差异日期与「强制覆盖同步后重试」动作。
-        # 外部库不可达时内部放行（warning），不阻塞业务。
-        await self._check_invoice_consistency(customer_id, period_start, period_end)
 
         # 生成结算单号：INV-生成日期-客户ID-4位随机码
         # 日期按 CST 业务日（与 routes/billing/invoices.py 的批量导入规则一致）：
@@ -1573,6 +1520,13 @@ class InvoiceService:
             # 不等于真实小计；显式传入的 items 可能无这两键 → None，展示层 COALESCE 兜底
             item_subtotal = item.get("subtotal")
             item_order_count = item.get("order_count")
+            # multi_floor_pricing_type/additional_floor_price 冻结落库：计费规则后续
+            # 变更不漂移已生成单的明细验算与详情公式；无该两键（unified/包年/手工）→ None
+            item_mfp_type = item.get("multi_floor_pricing_type")
+            item_afp = item.get("additional_floor_price")
+            # pricing_rule_id 冻结落库：详情页「计费类型/计费规则」两列、tiers、
+            # 包年分量均经 item.pricing_rule 关系取值；漏传则全库恒 NULL、两列显示「—」。
+            # 无此键（手工 items/导入）→ None，前端 formatRuleDetail 走「—」分支
             invoice_item = InvoiceItem(
                 invoice_id=invoice.id,
                 device_type=item["device_type"],
@@ -1581,6 +1535,9 @@ class InvoiceService:
                 unit_price=Decimal(str(item["unit_price"])),
                 subtotal=Decimal(str(item_subtotal)) if item_subtotal is not None else None,
                 order_count=int(item_order_count) if item_order_count is not None else None,
+                multi_floor_pricing_type=item_mfp_type,
+                additional_floor_price=Decimal(str(item_afp)) if item_afp is not None else None,
+                pricing_rule_id=item.get("pricing_rule_id"),
             )
             self.db.add(invoice_item)
 
@@ -2466,8 +2423,8 @@ class InvoiceService:
                 continue
 
             # 生成结算单（状态 draft）
-            # 一致性校验（F1）/周期去重（F5）在 generate_invoice 内执行，
-            # 抛错时转为 skipped（不阻断其它客户）
+            # 周期去重（F5）在 generate_invoice 内执行，抛错时转为 skipped
+            # （不阻断其它客户）
             try:
                 invoice = await self.generate_invoice(
                     customer_id=cust["id"],
@@ -2477,7 +2434,7 @@ class InvoiceService:
                     created_by=created_by,
                     is_auto_generated=True,
                 )
-            except (InvoiceConsistencyError, ValueError) as e:
+            except ValueError as e:
                 skipped.append(
                     {
                         "customer_id": cust["id"],

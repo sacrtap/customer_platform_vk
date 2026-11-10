@@ -258,6 +258,14 @@ class InvoiceItem(BaseModel):
     order_count: Mapped[int | None] = mapped_column(
         Integer, nullable=True, comment="计费订单数（多层递增时 quantity 为层数，需此列还原单数）"
     )
+    # 多层计费冻结快照（与 subtotal/order_count 同批语义）：计费规则后续变更不应
+    # 影响已生成结算单的可验算性（Excel「计费明细」金额验算 + 详情公式展示同源）
+    multi_floor_pricing_type: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, comment="多层计费类型冻结快照（incremental/unified）"
+    )
+    additional_floor_price: Mapped[Decimal | None] = mapped_column(
+        DECIMAL(10, 2), nullable=True, comment="附加层单价冻结快照（多层递增第二层起）"
+    )
     pricing_rule_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("pricing_rules.id"))
 
     # 关联

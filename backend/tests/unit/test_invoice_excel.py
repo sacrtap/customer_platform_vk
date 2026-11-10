@@ -19,8 +19,8 @@ from app.services.invoice_excel import InvoiceExcelService
 
 @pytest.fixture
 def excel_service():
-    """创建 InvoiceExcelService 实例（db 和 external_engine 可为 None）"""
-    return InvoiceExcelService(db=MagicMock(), external_engine=None)
+    """创建 InvoiceExcelService 实例（db 可为 None）"""
+    return InvoiceExcelService(db=MagicMock())
 
 
 @pytest.fixture
@@ -79,11 +79,12 @@ class TestInvoiceExcel_SheetStructure:
             {
                 "device_type": "L",
                 "layer_type": "multi",
-                "quantity": 3,
-                "unit_price": Decimal("5.00"),
-                "additional_floor_price": Decimal("6.00"),
+                "quantity": 78,
+                "unit_price": Decimal("14.00"),
+                "additional_floor_price": Decimal("11.00"),
                 "multi_floor_pricing_type": "incremental",
-                "subtotal": Decimal("17.00"),
+                "order_count": 36,
+                "subtotal": Decimal("966.00"),
             },
         ]
 
@@ -92,7 +93,7 @@ class TestInvoiceExcel_SheetStructure:
             customer_name="测试客户",
             period_start=date(2026, 7, 1),
             period_end=date(2026, 7, 31),
-            total_amount=Decimal("17.00"),
+            total_amount=Decimal("966.00"),
             discount_amount=Decimal("0.00"),
             unit_price=None,
             order_details=[],
@@ -107,34 +108,39 @@ class TestInvoiceExcel_SheetStructure:
         assert "计费明细" in wb.sheetnames
 
         ws = wb["计费明细"]
-        # 表头
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 8)]
+        # 表头（8 列：订单数 + 楼层数双口径）
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
         assert headers == [
             "设备类型",
             "楼层",
-            "数量",
+            "订单数",
+            "楼层数",
             "单价（元）",
             "小计（元）",
             "多层计费类型",
             "其他层单价（元）",
         ]
 
-        # 数据行
+        # 数据行：订单数列 = order_count（36，与「合计」「月份明细」同口径），
+        # 楼层数列 = quantity（78，保留 incremental 金额验算）
         assert ws.cell(row=2, column=1).value == "L"
         assert ws.cell(row=2, column=2).value == "多层"
-        assert ws.cell(row=2, column=3).value == 3.0
-        assert ws.cell(row=2, column=4).value == 5.0
-        # 小计取 item["subtotal"]（多层递增真实小计 17 = 3×5 + 2×1 附加层口径），
-        # 不再重算 quantity × unit_price（F3：旧口径 15 与 total_amount 17 不符）
-        assert ws.cell(row=2, column=5).value == 17.0
-        assert ws.cell(row=2, column=6).value == "递增"
-        assert ws.cell(row=2, column=7).value == 6.0
+        assert ws.cell(row=2, column=3).value == 36.0
+        assert ws.cell(row=2, column=4).value == 78.0
+        assert ws.cell(row=2, column=5).value == 14.0
+        # 小计取 item["subtotal"]（多层递增真实小计 966 = 36×14 + 42×11），
+        # 不再重算 quantity × unit_price（F3：旧口径 78×14=1092 与 total_amount 不符）
+        assert ws.cell(row=2, column=6).value == 966.0
+        assert ws.cell(row=2, column=7).value == "递增"
+        assert ws.cell(row=2, column=8).value == 11.0
 
-        # 「合计」sheet 数量口径：invoice_items.order_count 之和（无 order_count → 0）
+        # 「合计」sheet 数量口径：invoice_items.order_count 之和 = 36
+        # （与「计费明细」订单数列同源；旧 quantity 口径 78 会与「月份明细」36 行不一致）
         ws1 = wb["合计"]
-        assert ws1.cell(row=3, column=2).value == 0
-        # 外部实时订单 0 笔 vs 本单计费 0 笔 → 无差异，备注为空（openpyxl 空串读回 None）
-        assert ws1.cell(row=3, column=10).value in (None, "")
+        assert ws1.cell(row=3, column=2).value == 36
+        assert ws1.cell(row=3, column=3).value == 36
+        # 外部实时订单 0 笔 vs 本单计费 36 笔 → 备注显式暴露差异（防御历史单路径）
+        assert ws1.cell(row=3, column=10).value not in (None, "")
 
     def test_billing_detail_sheet_subtotal_fallback_without_key(
         self, excel_service, cleanup_test_file
@@ -165,7 +171,10 @@ class TestInvoiceExcel_SheetStructure:
 
         wb = load_workbook(abs_path)
         ws = wb["计费明细"]
-        assert ws.cell(row=2, column=5).value == 50.0  # 10 × 5 回退口径
+        # 无 order_count 键 → 订单数列回退 quantity（10），楼层数列同为 quantity
+        assert ws.cell(row=2, column=3).value == 10.0
+        assert ws.cell(row=2, column=4).value == 10.0
+        assert ws.cell(row=2, column=6).value == 50.0  # 10 × 5 回退口径
 
     def test_billing_detail_sheet_not_created_without_items(self, excel_service, cleanup_test_file):
         """invoice_items 为空时不生成"计费明细" Sheet"""
@@ -220,9 +229,69 @@ class TestInvoiceExcel_SheetStructure:
 
         wb = load_workbook(abs_path)
         ws = wb["计费明细"]
-        assert ws.cell(row=2, column=6).value == "统一"
+        assert ws.cell(row=2, column=7).value == "统一"
         # additional_floor_price 为 None 时 openpyxl 写入 None（空单元格）
-        assert ws.cell(row=2, column=7).value in (None, "")
+        assert ws.cell(row=2, column=8).value in (None, "")
+
+    def test_billing_detail_sheet_order_count_aligns_summary(
+        self, excel_service, cleanup_test_file
+    ):
+        """三表数量口径一致：「合计」数量 = Σorder_count = 「计费明细」订单数列之和"""
+        invoice_items = [
+            {
+                "device_type": "L",
+                "layer_type": "multi",
+                "quantity": 78,
+                "unit_price": Decimal("14.00"),
+                "order_count": 36,
+                "subtotal": Decimal("966.00"),
+                "multi_floor_pricing_type": "incremental",
+                "additional_floor_price": Decimal("11.00"),
+            },
+            {
+                "device_type": "L",
+                "layer_type": "single",
+                "quantity": 417,
+                "unit_price": Decimal("14.00"),
+                "order_count": 417,
+                "subtotal": Decimal("5838.00"),
+            },
+        ]
+        # 外部实时订单 453 笔 = 本单计费 Σorder_count（与「月份明细」453 行对齐）
+        order_details = [{"order_code": f"OC-{i:03d}"} for i in range(453)]
+
+        file_path = excel_service._build_and_save_excel(
+            invoice_id=99906,
+            customer_name="测试客户",
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 31),
+            total_amount=Decimal("6804.00"),
+            discount_amount=Decimal("0.00"),
+            unit_price=None,
+            order_details=order_details,
+            balance_info=None,
+            invoice_items=invoice_items,
+        )
+
+        abs_path = os.path.join("./uploads", file_path)
+        cleanup_test_file.append(abs_path)
+
+        wb = load_workbook(abs_path)
+        ws = wb["计费明细"]
+        # 订单数列之和 = 36 + 417 = 453；楼层数列之和 = 78 + 417 = 495（不参与合计口径）
+        order_sum = sum(ws.cell(row=r, column=3).value for r in (2, 3))
+        floor_sum = sum(ws.cell(row=r, column=4).value for r in (2, 3))
+        assert order_sum == 453.0
+        assert floor_sum == 495.0
+
+        # 「合计」数量口径 = Σorder_count = 「计费明细」订单数列之和 = 「月份明细」行数
+        ws1 = wb["合计"]
+        assert ws1.cell(row=3, column=2).value == 453
+        assert ws1.cell(row=3, column=3).value == 453
+        ws2 = wb["2026-07"]
+        assert ws2.max_row == 454  # 453 数据行 + 1 表头
+        # 外部实时订单 453 笔 vs 本单计费 453 笔 → 无差异，备注为空
+        assert ws1.cell(row=3, column=10).value in (None, "")
 
     def test_billing_detail_sheet_package_rule(self, excel_service, cleanup_test_file):
         """计费明细 Sheet - 包年规则"""
@@ -308,7 +377,7 @@ class TestInvoiceExcel_BalanceInfoTimezone:
         from datetime import datetime, timezone
         from unittest.mock import AsyncMock, MagicMock
 
-        service = InvoiceExcelService(db=MagicMock(), external_engine=None)
+        service = InvoiceExcelService(db=MagicMock())
 
         captured: dict = {}
 
@@ -355,7 +424,7 @@ class TestInvoiceExcel_BalanceInfoTimezone:
         """构造 mock 服务：第一次 execute 返回余额，第二次返回充值合计"""
         from unittest.mock import AsyncMock, MagicMock
 
-        service = InvoiceExcelService(db=MagicMock(), external_engine=None)
+        service = InvoiceExcelService(db=MagicMock())
         service.db = MagicMock()
 
         async def fake_execute(stmt):
@@ -427,9 +496,10 @@ class TestInvoiceExcel_BalanceInfoTimezone:
 class TestInvoiceExcel_IllegalCharacters:
     """外部数据控制字符清洗测试
 
-    外部 MySQL 的项目名等字段可能含控制字符（如 "景发-怡景-12C\x0c"），
-    openpyxl 写入时抛 IllegalCharacterError，整个明细文件生成失败、状态置
-    failed。_row_to_dict / _clean_cell_text 必须剔除这些字符。
+    月份明细快照数据（daily_orders 原值落库）的项目名等字段可能含控制字符
+    （如 "景发-怡景-12C\x0c"），openpyxl 写入时抛 IllegalCharacterError，
+    整个明细文件生成失败、状态置 failed。_clean_cell_text / _build_and_save_excel
+    的写入侧兜底必须剔除这些字符（F9：快照原值落库，清洗唯一出口在写入侧）。
     """
 
     def test_clean_cell_text_strips_control_chars(self, excel_service):
@@ -447,50 +517,6 @@ class TestInvoiceExcel_IllegalCharacters:
         assert excel_service._clean_cell_text(123) == 123
         assert excel_service._clean_cell_text(None) is None
 
-    def test_row_to_dict_cleans_string_fields(self, excel_service):
-        """_row_to_dict 对所有字符串字段清洗，datetime/数值字段原样返回"""
-        from datetime import datetime
-
-        row = (
-            "脏项目\x0c名",  # project_name
-            "C1",  # custom_code
-            "北京\x07",  # city
-            "部门",  # department
-            "OC-1",  # order_code
-            "123",  # nest_id
-            "创建人",  # creator_name
-            datetime(2026, 9, 1, 10, 0, 0),  # create_date
-            "联系人",  # personal_name
-            "90",  # nest_area
-            1,  # order_status
-            2,  # produce_status
-            0,  # produce_flag
-            "备注\x0b",  # remarks
-            "acc",  # editor_account
-            "编辑",  # editor_name
-            datetime(2026, 9, 2, 10, 0, 0),  # upload_date
-            None,  # finish_date
-            None,  # first_send_zb_date
-            None,  # first_edit_time
-            None,  # review_release_date
-            "12",  # floor_count
-            "设备",  # device_name
-            None,  # customer_review_result
-            "发布人",  # publisher_name
-            None,  # model_fix_status
-        )
-
-        result = excel_service._row_to_dict(row)
-
-        assert result["project_name"] == "脏项目名"
-        assert result["city"] == "北京"
-        assert result["remarks"] == "备注"
-        # datetime 字段不被字符串清洗影响
-        assert result["create_date"] == datetime(2026, 9, 1, 10, 0, 0)
-        assert result["finish_date"] is None
-        # 干净字符串原样
-        assert result["custom_code"] == "C1"
-
     def test_build_excel_with_dirty_project_name(self, excel_service, cleanup_test_file):
         """端到端：含控制字符的订单数据能正常生成 Excel（不抛 IllegalCharacterError）"""
         from datetime import datetime
@@ -498,7 +524,7 @@ class TestInvoiceExcel_IllegalCharacters:
         from app.config import settings
         from app.services.invoice_excel import InvoiceExcelService
 
-        service = InvoiceExcelService(db=MagicMock(), external_engine=None)
+        service = InvoiceExcelService(db=MagicMock())
 
         dirty_order = {
             "project_name": "景发-怡景-12C\x0c",
@@ -572,10 +598,9 @@ class TestInvoiceExcel_NonBlockingBuild:
         from datetime import datetime
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        service = InvoiceExcelService(db=MagicMock(), external_engine=None)
+        service = InvoiceExcelService(db=MagicMock())
 
-        # 短路两个数据查询
-        service._fetch_order_details = AsyncMock(return_value=[{"project_name": "P"}])
+        # 短路余额查询（订单明细由调用方传入，F9 起无外部查询）
         service._fetch_balance_info = AsyncMock(return_value={"opening_balance": Decimal("0")})
 
         with patch.object(
@@ -591,8 +616,8 @@ class TestInvoiceExcel_NonBlockingBuild:
                 period_end=datetime(2026, 9, 30, 15, 59, 59),
                 total_amount=Decimal("100.00"),
                 discount_amount=Decimal("0.00"),
-                group_type=100,
                 invoice_items=[{"device_type": "L"}],
+                order_details=[{"project_name": "P"}],
             )
 
         # 必须经 to_thread 分发，且透传同步构建函数

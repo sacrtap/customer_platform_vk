@@ -30,7 +30,6 @@ from ...middleware.auth import (
 )
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
-from ...services.invoice_consistency import InvoiceConsistencyError
 from ...tasks.invoice_detail_generator import generate_invoice_detail
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.excel_export import excel_response
@@ -92,13 +91,12 @@ async def _trigger_detail_generation_for_app(app: Any, invoice_id: int):
     """触发结算单明细文件异步生成（请求无关版本，供启动恢复钩子复用）"""
     from ...tasks.scheduler import get_scheduler
 
-    external_engine = getattr(app.ctx, "external_mysql_engine", None)
     session_factory = app.ctx.async_session_maker
 
     scheduler = get_scheduler()
     scheduler.add_job(
         generate_invoice_detail,
-        args=[session_factory(), external_engine, invoice_id, session_factory],
+        args=[session_factory(), invoice_id, session_factory],
         id=f"invoice_detail_{invoice_id}",
         name=f"结算单明细生成-{invoice_id}",
         replace_existing=True,
@@ -327,10 +325,17 @@ async def get_invoice(request: Request, invoice_id: int):
             "subtotal": float(item.subtotal)
             if item.subtotal is not None
             else float(item.quantity * item.unit_price),
-            "additional_floor_price": float(rule.additional_floor_price)
-            if rule is not None and rule.additional_floor_price is not None
-            else None,
-            "multi_floor_pricing_type": rule.multi_floor_pricing_type if rule else None,
+            # 多层计费两字段冻结优先：计费规则后续变更不漂移已生成单的详情公式；
+            # 历史行（迁移前）两列为 NULL，回退实时 rule（与迁移前行为一致）
+            "additional_floor_price": float(item.additional_floor_price)
+            if item.additional_floor_price is not None
+            else (
+                float(rule.additional_floor_price)
+                if rule is not None and rule.additional_floor_price is not None
+                else None
+            ),
+            "multi_floor_pricing_type": item.multi_floor_pricing_type
+            or (rule.multi_floor_pricing_type if rule else None),
             # order_count 兜底：历史行为 NULL，回退 quantity（前端同款兜底）
             "order_count": float(item.order_count)
             if item.order_count is not None
@@ -662,11 +667,7 @@ async def generate_invoices_batch(request: Request):
     # 日期转换：前端本地日期 → UTC datetime 范围
     period_start, period_end = local_date_range_to_utc(data["period_start"], data["period_end"])
 
-    invoice_service = InvoiceService(
-        InvoiceRepository(db),
-        PricingRepository(db),
-        external_engine=getattr(request.app.ctx, "external_mysql_engine", None),
-    )
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     result = await invoice_service.generate_invoices_batch(
         pricing_type=data.get("pricing_type"),
@@ -801,11 +802,7 @@ async def generate_invoice(request: Request):
             status=400,
         )
 
-    invoice_service = InvoiceService(
-        InvoiceRepository(db),
-        PricingRepository(db),
-        external_engine=getattr(request.app.ctx, "external_mysql_engine", None),
-    )
+    invoice_service = InvoiceService(InvoiceRepository(db), PricingRepository(db))
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户生成结算单
     scope_user_id = await customer_scope_user_id(request)
@@ -875,9 +872,6 @@ async def generate_invoice(request: Request):
             items=items,
             created_by=user["user_id"] if user else 1,
         )
-    except InvoiceConsistencyError as e:
-        # F1：快照与外部实时量不一致，拒绝生成（文案含差异日期与修复动作）
-        return json({"code": ErrorCodes.BAD_REQUEST, "message": str(e)}, status=400)
     except ValueError as e:
         # F5：周期重叠等业务校验失败（文案含已有单号）
         return json({"code": ErrorCodes.BAD_REQUEST, "message": str(e)}, status=400)
