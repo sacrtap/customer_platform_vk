@@ -14,6 +14,7 @@ Billing API 集成测试
 """
 
 import uuid
+from decimal import Decimal
 
 import bcrypt
 import pytest
@@ -2124,6 +2125,63 @@ async def test_delete_invoice(test_client, auth_token, test_customer):
     assert del_res.status == 200
     assert del_res.json["code"] == 0
     assert del_res.json["message"] == "删除成功"
+
+
+@pytest.mark.asyncio
+async def test_delete_invoice_writes_audit_log(test_client, auth_token, test_customer, db_session):
+    """删除结算单必须落审计日志（回归 2026-11-10 审计静默丢失事故）
+
+    Invoice 的 total_amount/discount_amount 等是 DECIMAL 列，before 快照若原样
+    带进 audit_logs.changes，flush 时 json.dumps 抛 TypeError，而中间件把异常
+    吞掉——删除返回 200，审计行却不存在。另需 record_id 正确关联到单据
+    （嵌套路径 /billing/invoices/<id> 的 parts[3] 是资源名而非 ID）。
+    """
+    from sqlalchemy import text
+
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    gen_req, gen_res = await test_client.post(
+        "/api/v1/billing/invoices/generate",
+        json={
+            "customer_id": test_customer["id"],
+            "period_start": "2026-04-01",
+            "period_end": "2026-04-30",
+            "items": [
+                {
+                    "device_type": "X",
+                    "layer_type": "single",
+                    "quantity": 10,
+                    "unit_price": 10.00,
+                }
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = gen_res.json["data"]["id"]
+
+    del_req, del_res = await test_client.delete(
+        f"/api/v1/billing/invoices/{invoice_id}",
+        headers=headers,
+    )
+    assert del_res.status == 200
+
+    audit = db_session.execute(
+        text(
+            "SELECT action, record_type, record_id, changes FROM audit_logs "
+            "WHERE record_id = :id AND action = 'delete' ORDER BY id DESC LIMIT 1"
+        ),
+        {"id": invoice_id},
+    ).first()
+    assert audit is not None, "删除结算单未写入审计日志（before 快照含 Decimal 曾致静默失败）"
+    assert audit[0] == "delete"
+    assert audit[1] == "invoice"
+    assert audit[2] == invoice_id
+    # DECIMAL 列以十进制文本入库，且能被 JSON 解析回来
+    before = audit[3]["before"]
+    assert before["invoice_no"] == gen_res.json["data"]["invoice_no"]
+    assert Decimal(str(before["total_amount"])) == Decimal(
+        str(gen_res.json["data"]["total_amount"])
+    )
 
 
 @pytest.mark.asyncio

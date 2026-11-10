@@ -18,6 +18,7 @@ from .config import settings
 from .middleware.audit import audit_middleware
 from .middleware.auth import auth_middleware
 from .middleware.correlation import correlation_middleware, install_request_id_filter
+from .utils.json_encoding import dumps_json
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,13 @@ def create_app(
         engine = create_async_engine(
             settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
             echo=settings.database_echo,
+            # JSON 列兜底序列化：ORM 的 Decimal/UUID 值写进 JSON 列时（典型如
+            # audit_logs.changes 的 before 快照——Invoice/PricingRule/
+            # RechargeRecord/CustomerBalance 都有 DECIMAL 列），默认 json.dumps
+            # 会抛 TypeError，而审计写入被中间件 except 吞掉，表现为「业务成功、
+            # 审计静默丢失」。这里统一转字符串，口径同 app/cache/base.py 的
+            # default=str。测试引擎（tests/integration/conftest.py）须保持一致。
+            json_serializer=dumps_json,
             # asyncpg 默认 pool_size=5/overflow=10（共 15）：批量生成结算单时
             # 每张单的明细任务 + 接口请求同时抢连接，超过 15 即 30s 超时报
             # QueuePool limit 错误。明细任务已有信号量限流（并发 5），这里放大

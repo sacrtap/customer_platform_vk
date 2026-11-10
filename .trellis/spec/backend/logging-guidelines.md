@@ -142,6 +142,39 @@ await create_audit_entry(
 
 **When to use manual audit**: when the route needs to capture before/after status changes that the generic middleware cannot infer, or when the middleware skip list excludes the path.
 
+### 审计写入的「静默失败」契约（2026-11-10 固化）
+
+审计写入失败**不会**中断业务请求——`log_write_operations` 与各路由的 `except`
+只记 `logger.error("Audit log failed: ...")`。因此审计链路上任何异常都表现为
+「业务成功、审计无痕」，必须靠契约 + 测试兜住，不能依赖请求报错来发现。
+
+**规则 1：`before` 快照的值必须归一成 JSON 原生类型。**
+`serialize_record_for_audit()` 统一走 `utils/json_encoding.to_jsonable()`：
+`Decimal → str`（DECIMAL(12,2) 转 str 保留精确十进制文本，转 float 会引入二进制误差）、
+`datetime/date/time → isoformat`、`uuid.UUID → str`、`Enum → value`。
+**踩坑记录**：2026-11-10 删除结算单时，Invoice 的 `total_amount`/`discount_amount`
+等 DECIMAL 列原样进入 `audit_logs.changes`，flush 时 `json.dumps` 抛
+`TypeError: Object of type Decimal is not JSON serializable`，删除接口返回 200
+但审计行根本没写进去。当前 `get_model_for_module` 映射里带 DECIMAL 列的模型：
+`Invoice`、`PricingRule`、`RechargeRecord`、`CustomerBalance`（PUT/DELETE 全中）。
+
+**规则 2：JSON 列写入有引擎级兜底。**
+`create_async_engine(..., json_serializer=dumps_json)`（`app/main.py`）对所有 JSON 列
+生效，非原生值转字符串而非抛 `TypeError`。它覆盖全部 4 处 `AuditLog` 构造点
+（中间件 + `routes/files.py` ×2 + `create_audit_entry`）以及 `pricing_rules.tiers`、
+`pricing_rules.package_limits` 等列。测试引擎（`tests/integration/conftest.py`、
+`test_audit_helpers_db.py`）必须传同一个 `json_serializer`，否则测试走的是另一条序列化路径。
+
+**规则 3：嵌套路径的 `record_id` 不能只看 `parts[3]`。**
+`/api/v1/billing/invoices/123` 的 `parts[3]` 是资源名 `invoices` 而非 ID，
+`extract_record_info()` 须回退到 `extract_record_id_from_path()` 按层级找，
+否则审计行 `record_id` 落 NULL，前端「操作对象」列空白、无法关联单据。
+
+**回归测试**：`tests/integration/test_billing_api.py::test_delete_invoice_writes_audit_log`
+（删除结算单必须落审计行 + `record_id` 正确 + DECIMAL 以十进制文本可解析）、
+`tests/unit/test_audit_middleware.py::TestSerializeRecordForAudit` /
+`::TestExtractRecordInfo`。
+
 ---
 
 ## Request Correlation (关联标识)
