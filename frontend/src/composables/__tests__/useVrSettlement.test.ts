@@ -112,12 +112,10 @@ describe('useVrSettlement - 筛选与分页', () => {
     const { filters, loadVrSettlements } = useVrSettlement()
     filters.keyword = 'VR-2026'
     filters.status = 'draft'
-    filters.customer_id = 7
     await loadVrSettlements()
     const callArgs = mockGetVrSettlements.mock.calls[0][0] as Record<string, unknown>
     expect(callArgs.keyword).toBe('VR-2026')
     expect(callArgs.status).toBe('draft')
-    expect(callArgs.customer_id).toBe(7)
   })
 
   it('handleSearch 重置分页到第一页', async () => {
@@ -136,12 +134,10 @@ describe('useVrSettlement - 筛选与分页', () => {
     const { handleReset, filters, pagination } = useVrSettlement()
     filters.keyword = 'x'
     filters.status = 'draft'
-    filters.customer_id = 7
     pagination.current = 2
     handleReset()
     expect(filters.keyword).toBe('')
     expect(filters.status).toBe('')
-    expect(filters.customer_id).toBeNull()
     expect(pagination.current).toBe(1)
   })
 

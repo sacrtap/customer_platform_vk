@@ -159,6 +159,34 @@ After implementation:
 
 ---
 
+## 列表搜索框文案 ↔ service keyword 过滤（承诺维度必须逐项落地）
+
+[来源: 2026-11-11 — VR 结算单页两个搜索合并为一个；后端 keyword 原先只认客户名称/结算单号，不认客户 ID]
+
+跨层契约（B 类）+ 隐式假设（E 类）：`CustomerSearchInput` 的 placeholder 是**对用户的检索承诺**，
+service 里 `if keyword:` 的 `or_` 分支是**实际能力**。两者不同源时，用户按文案输入却搜不到，
+页面不会报任何错——静默失配，只有真人点一次才会发现。
+
+### 检查项
+
+- [ ] placeholder 列出的每个维度，在 service 的 keyword 过滤里都有分支：
+      客户名称（`Customer.name.ilike`）、客户 ID（`cast(Customer.company_id, String).ilike`，
+      与 `services/customers.py` 同口径）、业务单号（`Xxx.no.ilike`）
+- [ ] 端到端确认：每类关键词各搜一次，断言目标记录在返回列表中
+      （集成测试 `tests/integration/test_vr_settlement_api.py::test_list_filter_by_status_and_keyword`）
+- [ ] 「参考某页面」时，对参考页的 placeholder 与它 service 的 keyword 分支做同样核对——
+      参考页自身可能已有缺口（结算单管理页当前就是：承诺客户 ID，后端只匹配名称）
+- [ ] 列表页不要并排两个搜索控件表达同一意图（自由文本 `a-input` + `CustomerAutoComplete`）；
+      客户选择器属于表单，不属于筛选栏
+
+### 为什么 keyword 过滤不能只匹配名称
+
+`Customer.company_id` 是客户对外编号，用户手上往往是编号而非全称；名称 `ilike` 还容易多命中
+（同名/前缀）。缺 ID 分支时典型用户路径是：输入编号 → 0 条 → 以为系统没数据。余额白名单
+（`balance_whitelist_service.py`）最早补上该分支，VR 结算单沿用同一口径。
+
+---
+
 ## 页面门控 ↔ API 权限码契约（权限口径必须前后端同源）
 
 [来源: 权限加固 2026-10-31 — 行业类型/合作状态/ERP 系统 GET 端点「页面隐藏但 API 登录即可读」]

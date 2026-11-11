@@ -10,6 +10,7 @@ VR编辑费用结算 API 集成测试
 """
 
 import uuid
+from urllib.parse import quote
 
 import pytest
 from sqlalchemy import text
@@ -746,7 +747,7 @@ async def test_create_with_remark(test_client, auth_token, test_customer):
 
 @pytest.mark.asyncio
 async def test_list_filter_by_status_and_keyword(test_client, auth_token, test_customer):
-    """AC12 列表筛选：status 非法值 400；keyword 可按结算单号命中"""
+    """AC12 列表筛选：status 非法值 400；keyword 可按结算单号/客户名称/客户 ID 命中"""
     headers = {"Authorization": f"Bearer {auth_token}"}
 
     # status 非法值 → 400 且消息含有效值清单
@@ -756,12 +757,17 @@ async def test_list_filter_by_status_and_keyword(test_client, auth_token, test_c
     assert response.status == 400
     assert "无效的状态值" in response.json["message"]
 
-    # 创建一单后用结算单号关键词命中
+    # 创建一单后分别用结算单号 / 客户名称 / 客户 ID（company_id）命中
     settlement_id = await _create_settlement(test_client, auth_token, test_customer["id"])
     detail = await _get_detail(test_client, auth_token, settlement_id)
-    _, response = await test_client.get(
-        f"/api/v1/billing/vr-settlements?keyword={detail['settlement_no']}", headers=headers
-    )
-    assert response.status == 200
-    ids = [item["id"] for item in response.json["data"]["list"]]
-    assert settlement_id in ids
+    for keyword in (
+        detail["settlement_no"],
+        test_customer["name"],
+        str(test_customer["id"]),  # fixture 的 company_id == id
+    ):
+        _, response = await test_client.get(
+            f"/api/v1/billing/vr-settlements?keyword={quote(keyword)}", headers=headers
+        )
+        assert response.status == 200
+        ids = [item["id"] for item in response.json["data"]["list"]]
+        assert settlement_id in ids, f"keyword={keyword} 未命中"

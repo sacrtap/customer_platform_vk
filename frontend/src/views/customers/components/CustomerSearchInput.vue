@@ -15,7 +15,7 @@
       ref="inputRef"
       v-model="localKeyword"
       type="text"
-      placeholder="搜索客户名称 / 公司 ID"
+      :placeholder="placeholder"
       @input="onInput"
       @keydown.enter="onEnter"
       @keydown.down.prevent="moveHighlight(1)"
@@ -58,9 +58,14 @@ interface Suggestion {
   company_id: number
 }
 
-const props = defineProps<{
-  modelValue: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    /** 占位文案：各页面搜索维度不同（客户名称/编号、结算单号等） */
+    placeholder?: string
+  }>(),
+  { placeholder: '搜索客户名称 / 公司 ID' }
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

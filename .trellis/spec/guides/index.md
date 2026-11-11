@@ -45,6 +45,7 @@ These guides help you **ask the right questions before coding**.
 - [ ] **You are returning a datetime field that a form will prefill & resubmit — read-out must round-trip into the write-in (UTC 存储 → CST 日期串，见「Time Field Cross-Layer Contract」）**
 - [ ] **你在接 UI 组件库回调（arco sorter 的 `ascend/descend`、分页事件）往后端参数透传——先核对两侧词表，映射只能有一个入口（见「UI 组件事件词表 ↔ 后端查询参数契约」）**
 - [ ] **你在写 SQL 排序表达式——确认它与该列的展示值计算逐分支同源，且带二级排序键**
+- [ ] **你在改列表页搜索框 placeholder 或 service 的 `keyword` 过滤——两侧承诺维度必须逐项对齐（见「列表搜索框文案 ↔ service keyword 过滤」）**
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
 

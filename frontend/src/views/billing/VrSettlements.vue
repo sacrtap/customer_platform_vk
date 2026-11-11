@@ -21,24 +21,16 @@
     <div class="card pad main-card">
       <!-- 筛选行（内联，不建 Filters 组件） -->
       <div class="filters">
-        <a-input
+        <CustomerSearchInput
           v-model="filters.keyword"
-          placeholder="结算单号 / 客户名称，回车搜索"
-          allow-clear
-          style="width: 240px"
-          @keyup.enter="handleSearch"
-          @clear="handleSearch"
+          placeholder="搜索客户名称 / 客户 ID / 结算单号"
+          @search="handleSearch"
         />
         <FilterDropdown
           v-model="filters.status"
           label="状态"
           :options="VR_SETTLEMENT_STATUS_OPTIONS"
           @apply="handleSearch"
-        />
-        <CustomerAutoComplete
-          v-model="filters.customer_id"
-          placeholder="客户（搜索选择）"
-          :width="200"
         />
         <button type="button" class="btn primary" @click="handleSearch">查询</button>
         <button type="button" class="btn" @click="handleReset">重置</button>
@@ -355,7 +347,7 @@ import { Modal } from '@arco-design/web-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import DataTable, { type DataTableColumn } from '@/components/DataTable.vue'
 import FilterDropdown from '@/components/ui/FilterDropdown.vue'
-import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import CustomerSearchInput from '@/views/customers/components/CustomerSearchInput.vue'
 import { useUserStore } from '@/stores/user'
 import { useVrSettlement } from '@/composables/useVrSettlement'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/formatters'
