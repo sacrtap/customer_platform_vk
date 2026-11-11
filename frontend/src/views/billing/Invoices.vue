@@ -85,7 +85,7 @@
         :row-key="'id'"
         :row-selection="rowSelectionConfig"
         :row-class="'row-clickable'"
-        :scroll="{ x: 1440 }"
+        :scroll="{ x: 1500 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
@@ -493,7 +493,8 @@ const columnDefs: ColumnDef[] = [
   { key: 'discount_amount', title: '减免金额', width: 76, align: 'right' },
   { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right', sortable: true },
   { key: 'detail_file', title: '文件', width: 108, align: 'center' },
-  { key: 'status', title: '状态', width: 78 },
+  // 状态列宽按最长文案「待运营经理确认」预留：tag 实测 110px + 单元格左右 padding 20px
+  { key: 'status', title: '状态', width: 136 },
   { key: 'created_at', title: '创建时间', width: 158, sortable: true },
 ]
 
