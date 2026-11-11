@@ -432,11 +432,30 @@ span 右边界越过客户列左边界——表现为「结算单号压住客户
 7. **断言定位用内容元素反查，不用列索引**：`tds[1]`、`tds[7]` 依赖列顺序与可见性，
    列设置（`storage-key` 持久化）隐藏任意列后索引即错位。改用
    `span.closest('.arco-table-td')` 从内容元素反查所属单元格。
+8. **状态列（tag 徽章）列宽 = 最长状态文案的 tag 宽 + 20px**，不能按列名或最短
+   文案估。`.tag`（`frontend/src/styles/global.css`）为
+   `inline-flex; white-space: nowrap; padding: 4px 8px; font-size: 12px; font-weight: 700`，
+   带 `.status-dot`（6px + `margin-right: 4px`）时 7 汉字 =
+   `12×7 + 6 + 4 + 16 = 110px`，列宽至少 `110 + 20 = 130px`。结算单管理页曾配 78px，
+   「待运营经理确认 / 待销售经理确认」溢出 42px 压住「创建时间」列
+   （2026-11-11 修复：`width` 78 → 136，`scroll.x` 1440 → 1500）。
+   - **td 无 `overflow: hidden`，徽章也不会走 ellipsis 分支**：列宽不足时不裁剪、
+     不省略，而是直接覆盖相邻列——表现为「两列文字重叠」，比截断更难被发现；
+     给徽章列加 `ellipsis`/`tooltip` 无效，只能给足列宽。
+   - 状态枚举文本改动（`frontend/src/constants/*Status.ts`）后必须回算列宽：
+     取该 map 里最长文案按上式核对，最长文案通常是最长的「待 XX 确认」类状态。
+   - **只在 `scroll.x` 固定宽度的表格里成立**：`a-table` 不传 `scroll.x` 时是内容自适应
+     布局，列宽会随徽章撑开（实测客户详情「结算单」tab：文案换成 7 汉字后
+     td 从 120 自动长到 142，不溢出）。风险仅存在于 `table-layout: fixed` +
+     `scroll.x` 的表格（`DataTable` + 手填列宽），排查时先看有没有 `scroll.x`。
 
 回归用例：`test_visual_regression.spec.ts` 的
 `A24: VR列表关键列宽不得重叠或截断`（真实格式 18/22/23/24 字符 + 10 汉字客户名 +
 多状态 fixture，断言单号右边界、客户名不截断、状态标签宽度、操作按钮行数、
 其余列横向溢出）。
+`A25: 结算单状态列不得压住创建时间列`（8 种状态 fixture，断言状态徽章不超出
+所属单元格、不越过「创建时间」列表头左边界、不折行；用表头文本定位列，
+不依赖 td 索引）。
 
 ### ellipsis + tooltip 对 slot 渲染内容同样生效
 

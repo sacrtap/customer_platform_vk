@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { INVOICE_STATUS_MAP } from '../../src/constants/invoiceStatus'
 import {
   apiLogin,
   apiCreateCustomer,
@@ -675,5 +676,95 @@ test.describe('视觉回归测试', () => {
 
     expect(result.rowCount, '应渲染 fixture 行').toBe(records.length)
     expect(result.issues, '列宽/折行问题').toEqual([])
+  })
+
+  // A25: 回归结算单列表「状态」列列宽契约。
+  // 状态徽章是 inline-flex + white-space:nowrap，且 td 无 overflow 裁剪，
+  // 列宽不足时 tag 直接溢出覆盖「创建时间」列（表现为两列文字重叠），不会出省略号。
+  // 最长文案「待运营经理确认 / 待销售经理确认」7 汉字，含 status-dot 与左右 padding
+  // 实测 110px，曾按 78px 定列宽导致溢出 42px。
+  test('A25: 结算单状态列不得压住创建时间列', async ({ authenticatedPage: page }) => {
+    test.setTimeout(180_000)
+    // 状态列表从常量派生：新增状态文案（可能更长）自动进入用例，不会漏测
+    const STATUSES = Object.keys(INVOICE_STATUS_MAP)
+    const records = STATUSES.map((status, index) => ({
+      id: index + 1,
+      invoice_no: `INV-20261111-9000${index}-A1B2`,
+      customer_id: 900000 + index,
+      customer_name: '某某某某某某某某某某',
+      settlement_account_id: null,
+      settlement_account_name: null,
+      customer_manager_id: null,
+      customer_sales_manager_id: null,
+      period_start: '2026-10-01T00:00:00+00:00',
+      period_end: '2026-10-31T23:59:59+00:00',
+      total_amount: 11569,
+      discount_amount: 0,
+      final_amount: 11569,
+      status,
+      discount_approver_id: null,
+      discount_approved_at: null,
+      discount_approval_comment: null,
+      is_auto_generated: false,
+      detail_file_status: 'completed',
+      created_at: '2026-11-10T17:23:55+00:00',
+    }))
+
+    await page.route(/\/api\/v1\/billing\/invoices(\?|$)/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: { list: records, total: records.length, page: 1, page_size: 20 },
+        }),
+      })
+    )
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/billing/invoices')
+    await page.waitForSelector('.main-card .arco-table .arco-table-td', { timeout: 20000 })
+    await page.waitForTimeout(1500)
+
+    const result = await page.evaluate(() => {
+      const table = document.querySelector('.main-card .arco-table') as HTMLElement
+      const rows = (Array.from(table.querySelectorAll('.arco-table-tr')) as HTMLElement[]).filter(
+        (tr) => tr.querySelector('.arco-table-td')
+      )
+      // 创建时间列左边界从表头取：列设置可能隐藏列，不能依赖 td 索引
+      const createdTh = (
+        Array.from(table.querySelectorAll('.arco-table-th')) as HTMLElement[]
+      ).find((th) => th.textContent?.trim() === '创建时间')
+      const createdLeft = createdTh ? createdTh.getBoundingClientRect().left : null
+      const issues: string[] = []
+      for (const tr of rows) {
+        // 从内容元素反查所属单元格，避免依赖列索引
+        const tag = tr.querySelector('.tag') as HTMLElement | null
+        if (!tag) continue
+        const statusTd = tag.closest('.arco-table-td') as HTMLElement | null
+        if (!statusTd) continue
+        const tagRect = tag.getBoundingClientRect()
+        const tdRect = statusTd.getBoundingClientRect()
+        if (tagRect.right > tdRect.right - 1) {
+          issues.push(
+            `状态标签溢出单元格: ${tag.textContent?.trim()} ${Math.round(tagRect.right)} > ${Math.round(tdRect.right)}`
+          )
+        }
+        if (createdLeft !== null && tagRect.right > createdLeft) {
+          issues.push(
+            `状态标签压住创建时间列: ${tag.textContent?.trim()} ${Math.round(tagRect.right)} > ${Math.round(createdLeft)}`
+          )
+        }
+        // 徽章必须单行：折行说明列宽或 padding 不足以容纳最长文案
+        if (tagRect.height > 30) {
+          issues.push(`状态标签折行: ${tag.textContent?.trim()} 高度 ${Math.round(tagRect.height)}`)
+        }
+      }
+      return { rowCount: rows.length, issues }
+    })
+
+    expect(result.rowCount, '应渲染 fixture 行').toBe(records.length)
+    expect(result.issues, '状态列列宽问题').toEqual([])
   })
 })
