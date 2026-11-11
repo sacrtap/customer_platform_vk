@@ -443,15 +443,15 @@ interface ColumnDef {
 }
 
 const columnDefs: ColumnDef[] = [
-  { key: 'settlement_no', title: '结算单号', width: 212, sortable: true },
-  { key: 'customer_name', title: '客户', width: 88, ellipsis: true, tooltip: true },
-  { key: 'period', title: '周期', width: 205 },
+  { key: 'settlement_no', title: '结算单号', width: 204, sortable: true },
+  { key: 'customer_name', title: '客户', width: 154, ellipsis: true, tooltip: true },
+  { key: 'period', title: '周期', width: 202 },
   { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
   { key: 'discount_amount', title: '减免金额', width: 88, align: 'right' },
   { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right' },
-  { key: 'detail_file', title: '文件', width: 104, align: 'center' },
-  { key: 'status', title: '状态', width: 132 },
-  { key: 'created_at', title: '创建时间', width: 172, sortable: true },
+  { key: 'detail_file', title: '文件', width: 66, align: 'center' },
+  { key: 'status', title: '状态', width: 124 },
+  { key: 'created_at', title: '创建时间', width: 168, sortable: true },
 ]
 
 const tableColumns = computed<DataTableColumn[]>(() => [
@@ -467,7 +467,7 @@ const tableColumns = computed<DataTableColumn[]>(() => [
       : undefined,
   })),
   // 操作列宽按最宽按钮组合预留：客服主管审批 + 回退 + 取消（实测按钮总宽 186px + 单元格内边距）
-  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 224 },
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 220 },
 ])
 
 // --- 分页配置：透传给 a-table 内置分页 ---
