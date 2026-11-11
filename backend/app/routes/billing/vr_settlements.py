@@ -88,7 +88,7 @@ async def get_vr_settlements(request: Request):
     service = VrSettlementService(db)
 
     customer_id = int(request.args.get("customer_id")) if request.args.get("customer_id") else None
-    keyword = request.args.get("keyword")  # 客户名称/结算单号模糊搜索
+    keyword = request.args.get("keyword")  # 客户名称/客户ID/结算单号模糊搜索
     status = request.args.get("status")
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))

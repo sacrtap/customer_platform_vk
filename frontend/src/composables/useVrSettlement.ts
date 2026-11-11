@@ -21,7 +21,6 @@ import type { VrSettlement } from '@/api/vrSettlement'
 const defaultFilters = () => ({
   keyword: '',
   status: '',
-  customer_id: null as number | null,
 })
 
 export interface SortState {
@@ -81,7 +80,6 @@ export function useVrSettlement() {
       }
       if (filters.keyword) params.keyword = filters.keyword
       if (filters.status) params.status = filters.status
-      if (filters.customer_id) params.customer_id = filters.customer_id
       const res = await getVrSettlements(params)
       settlements.value = res.data?.list || []
       total.value = res.data?.total || 0

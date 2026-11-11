@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -137,10 +137,14 @@ class VrSettlementService:
         if customer_id:
             stmt = stmt.where(VrSettlement.customer_id == customer_id)
         if keyword:
+            # 与客户列表同口径：公司 ID 按字符串模糊匹配（客户对外可读编号），
+            # 名称模糊，结算单号模糊
+            kw = keyword.strip()
             stmt = stmt.where(
                 or_(
-                    Customer.name.ilike(f"%{keyword}%"),
-                    VrSettlement.settlement_no.ilike(f"%{keyword}%"),
+                    Customer.name.ilike(f"%{kw}%"),
+                    cast(Customer.company_id, String).ilike(f"%{kw}%"),
+                    VrSettlement.settlement_no.ilike(f"%{kw}%"),
                 )
             )
         if status:
