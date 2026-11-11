@@ -1295,3 +1295,34 @@ trellis-finish-work 的 add_session.py 自动提交 journal 时被 pre-commit �
 ### Status
 
 [OK] **Completed**
+
+## Session 52: VR 列表客户列宽与列宽实测契约
+
+**Date**: 2026-11-11
+**Task**: VR 编辑费用结算页「客户」列显示 10 个汉字
+**Branch**: `fix/vr-customer-column-width`
+
+### Summary
+
+客户列 88→154（内容区 134，10 汉字 130），同步按真实字体逐列重算：结算单号
+204→224、总金额 104→112、减免金额 88→96、最终结算金额 110→118，`scroll.x`
+1440→1484（列宽由内容决定，不为保持历史总宽压缩列）。A24 用例扩展为
+「VR列表关键列宽不得重叠或截断」：改用 `closest('.arco-table-td')` 反查列、
+fixture 客户名 10 汉字、新增全列横向溢出断言。
+
+关键教训：E2E 里拦字体 CDN（`cdn.jsdelivr.net` abort）会让文本宽度偏窄 10-25%，
+24 字符单号 fallback 下 177px、真实字体 201px —— 按 fallback 定的 204 列宽在
+真实浏览器溢出 17px 压住客户列 7px。已沉淀到
+`.trellis/spec/frontend/component-guidelines.md`（规则 6、7）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9d1b4f9` | fix(frontend): VR 客户列加宽至 154，可完整显示 10 个汉字 |
+| `1951309` | fix(frontend): VR 列表列宽按真实字体实测重算，A24 扩展为全列溢出回归 |
+| `ee37a09` | docs(spec): 列宽契约补充真实字体测量与反查定位两条陷阱 |
+
+### Status
+
+[OK] **Completed**（待 PR #126 CI 通过后合并）
