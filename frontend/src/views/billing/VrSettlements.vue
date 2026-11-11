@@ -52,7 +52,7 @@
         :pagination="paginationConfig"
         :row-key="'id'"
         :row-class="'row-clickable'"
-        :scroll="{ x: 1440 }"
+        :scroll="{ x: 1484 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
@@ -443,12 +443,12 @@ interface ColumnDef {
 }
 
 const columnDefs: ColumnDef[] = [
-  { key: 'settlement_no', title: '结算单号', width: 204, sortable: true },
+  { key: 'settlement_no', title: '结算单号', width: 224, sortable: true },
   { key: 'customer_name', title: '客户', width: 154, ellipsis: true, tooltip: true },
   { key: 'period', title: '周期', width: 202 },
-  { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
-  { key: 'discount_amount', title: '减免金额', width: 88, align: 'right' },
-  { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right' },
+  { key: 'total_amount', title: '总金额', width: 112, align: 'right', sortable: true },
+  { key: 'discount_amount', title: '减免金额', width: 96, align: 'right' },
+  { key: 'final_amount', title: '最终结算金额', width: 118, align: 'right' },
   { key: 'detail_file', title: '文件', width: 66, align: 'center' },
   { key: 'status', title: '状态', width: 124 },
   { key: 'created_at', title: '创建时间', width: 168, sortable: true },

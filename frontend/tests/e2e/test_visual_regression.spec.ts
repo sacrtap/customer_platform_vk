@@ -558,10 +558,10 @@ test.describe('视觉回归测试', () => {
     await expect(modal).toBeHidden()
   })
 
-  // A24: 回归「结算单号列宽不足导致与相邻列重叠」。
-  // 真实 settlement_no 格式为 VR-{YYYYMMDD}-{客户ID}-{4位随机码}（22-24 字符），
-  // 曾按 13 字符样例定列宽，导致单号溢出并压住客户列。
-  test('A24: VR结算单号不得与相邻列重叠', async ({ authenticatedPage: page }) => {
+  // A24: 回归 VR 结算列表关键列宽契约。
+  // 真实 settlement_no 为 VR-{YYYYMMDD}-{客户ID}-{4位随机码}（22-24 字符），
+  // 曾按 13 字符样例定列宽导致单号压住客户列；客户列也须容纳 10 个汉字。
+  test('A24: VR列表关键列宽不得重叠或截断', async ({ authenticatedPage: page }) => {
     test.setTimeout(180_000)
     // 真实格式样例：18 / 22 / 23 / 24 字符（customer_id 位数递增）
     const SETTLEMENT_NOS = [
@@ -580,7 +580,8 @@ test.describe('视觉回归测试', () => {
       id: index + 1,
       settlement_no: settlementNo,
       customer_id: 900000 + index,
-      customer_name: '某某科技有限公司',
+      // 10 个汉字：客户列必须完整显示，不能被截断
+      customer_name: '某某某某某某某某某某',
       customer_manager_id: null,
       customer_sales_manager_id: null,
       period_start: '2026-11-01',
@@ -621,9 +622,13 @@ test.describe('视觉回归测试', () => {
       )
       const issues: string[] = []
       for (const tr of rows) {
-        const tds = Array.from(tr.querySelectorAll('.arco-table-td')) as HTMLElement[]
+        // 用内容元素反查所属单元格，避免依赖列索引（列设置可隐藏列、固定列顺序不同）
         const noSpan = tr.querySelector('.settlement-no') as HTMLElement | null
-        const customerTd = tds[1]
+        const customerSpan = tr.querySelector('.cust-name') as HTMLElement | null
+        const tag = tr.querySelector('.tag') as HTMLElement | null
+        const customerTd = customerSpan?.closest('.arco-table-td') as HTMLElement | null
+        const statusTd = tag?.closest('.arco-table-td') as HTMLElement | null
+
         if (noSpan && customerTd) {
           const noRight = noSpan.getBoundingClientRect().right
           const customerLeft = customerTd.getBoundingClientRect().left
@@ -633,13 +638,26 @@ test.describe('视觉回归测试', () => {
             )
           }
         }
-        const statusTd = tds[7]
-        const tag = statusTd?.querySelector('.tag') as HTMLElement | null
+        const customerContent = customerTd?.querySelector(
+          '.arco-table-td-content'
+        ) as HTMLElement | null
+        if (customerContent && customerContent.scrollWidth > customerContent.clientWidth + 1) {
+          issues.push(`客户名被截断: ${customerContent.textContent?.trim()}`)
+        }
         const statusContent = statusTd?.querySelector(
           '.arco-table-td-content'
         ) as HTMLElement | null
         if (tag && statusContent && tag.getBoundingClientRect().width > statusContent.clientWidth) {
           issues.push(`状态标签溢出: ${statusContent.textContent?.trim()}`)
+        }
+        // 其余列内容不得横向溢出（客户列已单独检查，允许长名称截断）
+        for (const td of Array.from(tr.querySelectorAll('.arco-table-td')) as HTMLElement[]) {
+          if (td === customerTd) continue
+          const content = td.querySelector('.arco-table-td-content') as HTMLElement | null
+          if (!content) continue
+          if (content.scrollWidth > content.clientWidth + 1) {
+            issues.push(`列内容溢出: ${content.textContent?.trim().slice(0, 24)}`)
+          }
         }
         const actionTd = tr.querySelector(
           '.arco-table-td.arco-table-col-fixed-right'
