@@ -557,4 +557,105 @@ test.describe('视觉回归测试', () => {
     await modal.getByRole('button', { name: '取消' }).click()
     await expect(modal).toBeHidden()
   })
+
+  // A24: 回归「结算单号列宽不足导致与相邻列重叠」。
+  // 真实 settlement_no 格式为 VR-{YYYYMMDD}-{客户ID}-{4位随机码}（22-24 字符），
+  // 曾按 13 字符样例定列宽，导致单号溢出并压住客户列。
+  test('A24: VR结算单号不得与相邻列重叠', async ({ authenticatedPage: page }) => {
+    test.setTimeout(180_000)
+    // 真实格式样例：18 / 22 / 23 / 24 字符（customer_id 位数递增）
+    const SETTLEMENT_NOS = [
+      'VR-20261111-1-A3F9',
+      'VR-20261111-12345-A3F9',
+      'VR-20261111-123456-A3F9',
+      'VR-20261111-1234567-A3F9',
+    ]
+    const STATUSES = [
+      'pending_cs_supervisor',
+      'pending_sales_supervisor',
+      'draft',
+      'customer_confirmed',
+    ]
+    const records = SETTLEMENT_NOS.map((settlementNo, index) => ({
+      id: index + 1,
+      settlement_no: settlementNo,
+      customer_id: 900000 + index,
+      customer_name: '某某科技有限公司',
+      customer_manager_id: null,
+      customer_sales_manager_id: null,
+      period_start: '2026-11-01',
+      period_end: '2026-11-30',
+      total_amount: 123456.78,
+      discount_amount: 1000,
+      discount_reason: null,
+      final_amount: 122456.78,
+      status: STATUSES[index],
+      discount_approval_required: false,
+      detail_file_path: 'uploads/vr/detail.xlsx',
+      detail_file_name: '明细.xlsx',
+      created_at: '2026-11-09 12:00:00',
+      remark: null,
+    }))
+
+    await page.route(/\/api\/v1\/billing\/vr-settlements(\?|$)/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: { list: records, total: records.length, page: 1, page_size: 20 },
+        }),
+      })
+    )
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/billing/vr-settlements')
+    await page.waitForSelector('.page .arco-table .arco-table-td', { timeout: 20000 })
+    await page.waitForTimeout(1500)
+
+    const result = await page.evaluate(() => {
+      const table = document.querySelector('.page .arco-table') as HTMLElement
+      const rows = (Array.from(table.querySelectorAll('.arco-table-tr')) as HTMLElement[]).filter(
+        (tr) => tr.querySelector('.arco-table-td')
+      )
+      const issues: string[] = []
+      for (const tr of rows) {
+        const tds = Array.from(tr.querySelectorAll('.arco-table-td')) as HTMLElement[]
+        const noSpan = tr.querySelector('.settlement-no') as HTMLElement | null
+        const customerTd = tds[1]
+        if (noSpan && customerTd) {
+          const noRight = noSpan.getBoundingClientRect().right
+          const customerLeft = customerTd.getBoundingClientRect().left
+          if (noRight > customerLeft) {
+            issues.push(
+              `单号与客户列重叠: ${noSpan.textContent?.trim()} ${Math.round(noRight)} > ${Math.round(customerLeft)}`
+            )
+          }
+        }
+        const statusTd = tds[7]
+        const tag = statusTd?.querySelector('.tag') as HTMLElement | null
+        const statusContent = statusTd?.querySelector(
+          '.arco-table-td-content'
+        ) as HTMLElement | null
+        if (tag && statusContent && tag.getBoundingClientRect().width > statusContent.clientWidth) {
+          issues.push(`状态标签溢出: ${statusContent.textContent?.trim()}`)
+        }
+        const actionTd = tr.querySelector(
+          '.arco-table-td.arco-table-col-fixed-right'
+        ) as HTMLElement | null
+        if (actionTd) {
+          const buttons = Array.from(actionTd.querySelectorAll('button')) as HTMLElement[]
+          const tops = new Set(buttons.map((b) => Math.round(b.getBoundingClientRect().top)))
+          if (tops.size > 1) {
+            issues.push(`操作按钮折行: ${buttons.map((b) => b.textContent?.trim()).join('|')}`)
+          }
+        }
+      }
+      return { rowCount: rows.length, issues }
+    })
+
+    expect(result.rowCount, '应渲染 fixture 行').toBe(records.length)
+    expect(result.issues, '列宽/折行问题').toEqual([])
+  })
 })
