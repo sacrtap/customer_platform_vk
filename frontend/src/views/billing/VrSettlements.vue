@@ -443,15 +443,15 @@ interface ColumnDef {
 }
 
 const columnDefs: ColumnDef[] = [
-  { key: 'settlement_no', title: '结算单号', width: 214, sortable: true },
-  { key: 'customer_name', title: '客户', width: 180, ellipsis: true, tooltip: true },
-  { key: 'period', title: '周期', width: 190 },
+  { key: 'settlement_no', title: '结算单号', width: 150, sortable: true },
+  { key: 'customer_name', title: '客户', width: 130, ellipsis: true, tooltip: true },
+  { key: 'period', title: '周期', width: 205 },
   { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
-  { key: 'discount_amount', title: '减免金额', width: 76, align: 'right' },
+  { key: 'discount_amount', title: '减免金额', width: 88, align: 'right' },
   { key: 'final_amount', title: '最终结算金额', width: 110, align: 'right' },
-  { key: 'detail_file', title: '文件', width: 108, align: 'center' },
-  { key: 'status', title: '状态', width: 78 },
-  { key: 'created_at', title: '创建时间', width: 158, sortable: true },
+  { key: 'detail_file', title: '文件', width: 104, align: 'center' },
+  { key: 'status', title: '状态', width: 140 },
+  { key: 'created_at', title: '创建时间', width: 175, sortable: true },
 ]
 
 const tableColumns = computed<DataTableColumn[]>(() => [
@@ -466,7 +466,8 @@ const tableColumns = computed<DataTableColumn[]>(() => [
       ? { sortDirections: ['ascend', 'descend'] as ('ascend' | 'descend')[] }
       : undefined,
   })),
-  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 174 },
+  // 操作列宽按最宽按钮组合预留：客服主管审批 + 回退 + 取消（实测按钮总宽 186px + 单元格内边距）
+  { key: 'action', title: '操作', slotName: 'action', fixed: 'right' as const, width: 230 },
 ])
 
 // --- 分页配置：透传给 a-table 内置分页 ---
@@ -699,6 +700,7 @@ onMounted(async () => {
   padding: 9px 12px;
   cursor: pointer;
   font-weight: 700;
+  white-space: nowrap;
   transition:
     background 0.2s,
     border-color 0.2s,
