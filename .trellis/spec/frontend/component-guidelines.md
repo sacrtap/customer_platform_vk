@@ -471,6 +471,49 @@ slot 渲染**的列（如客户列）同样生效——Arco `table-td.js` 在
   hover 后 `.arco-tooltip-content` 文本 = 完整值。
 - 不溢出的行不挂 tooltip（AutoTooltip 只在溢出时渲染），这是预期行为。
 
+## 列表页关键字搜索：单一入口 `CustomerSearchInput` + placeholder ↔ 后端 keyword 同源
+
+[来源: 2026-11-11 — VR 结算单页筛选栏并排两个搜索（自由文本 `a-input` + `CustomerAutoComplete`），
+与结算单管理页不一致；且后端 keyword 原先不认客户 ID]
+
+**现象**：`VrSettlements.vue` 筛选栏同时放了 `a-input`（`keyword`，占位「结算单号 / 客户名称」）
+和 `CustomerAutoComplete`（`customer_id`）。用户「搜客户」时两个框口径不同：一个按名称模糊、
+一个按 `customer_id` 精确。同类列表页（结算单管理 `InvoiceFilters.vue`、余额管理
+`BalanceFilters.vue`、计费规则、客户分析）早已统一为**一个** `CustomerSearchInput`。
+
+**约定**：
+
+1. 列表页关键字搜索**只允许一个入口**：`@/views/customers/components/CustomerSearchInput.vue`
+   （`v-model` 绑 `filters.keyword`，`@search` 触发查询）。不要同时再放 `CustomerAutoComplete`——
+   后者是**表单里的客户选择器**（新增/编辑/生成结算单），不是列表筛选项。
+2. **placeholder 逐项列出后端真实支持的字段**，不多不少。VR 结算单：`搜索客户名称 / 客户 ID / 结算单号`，
+   对应 `VrSettlementService.get_settlements` 的 `or_` 三分支（`Customer.name.ilike` /
+   `cast(Customer.company_id, String).ilike` / `VrSettlement.settlement_no.ilike`）。
+3. 文案不硬编码在组件里：`CustomerSearchInput` 提供 `placeholder` prop（默认「搜索客户名称 / 公司 ID」），
+   页面按自己的检索维度传值。复用该组件前先确认默认文案是否成立。
+4. 「客户 ID」永远指 `company_id`（对外编号），不是 DB 主键 `customer_id`（见上节
+   「列表页客户列：客户ID + 客户名称双列约定」）。
+
+**自检**（改任何列表搜索框后）：
+
+- [ ] 页面内 `grep CustomerSearchInput` 只命中一个搜索控件
+- [ ] placeholder 的每个搜索维度在 service 的 keyword 过滤里都有对应分支
+- [ ] 集成测试对每个维度各断言一次命中（VR：`test_list_filter_by_status_and_keyword`
+      覆盖结算单号 / 客户名称 / 客户 ID）
+- [ ] 数字关键词用 `cast(company_id, String).ilike`（与 `services/customers.py` 同口径），
+      不要用 `company_id == int(kw)`——名称与单号可能纯数字，转 int 会漏掉名称/单号分支
+
+**已知同类缺口（未修，勿照抄参考页的后端实现）**：
+
+- 结算单管理 `InvoiceService.get_invoices`（`backend/app/services/billing.py`）keyword 只
+  `Customer.name.ilike`，但页面搜索框承诺「客户名称 / 公司 ID」→ 直接输公司 ID 不命中
+  （只有从联想下拉选中客户名才生效）。
+- 计费规则列表（同文件 keyword 分支）同样只匹配名称。
+
+> 教训：**「参考某某页面」只能参考 UI 结构与样式，不能连带参考它的后端实现**——参考页本身
+> 可能存在「UI 文案承诺 ≠ 后端 keyword 分支」的缺口，照抄会把缺口一起继承。落地前先核对参考页
+> 的 placeholder 与它 service 的 `or_` 分支是否一一对应，再决定要不要比参考页做得更完整。
+
 ## 列表列文件图标：状态指示不可点击，同构列跨页必须对齐
 
 [来源: 2026-11-05 — VR 结算单列表「文件」列图标可点击跳转，用户反馈去除]
