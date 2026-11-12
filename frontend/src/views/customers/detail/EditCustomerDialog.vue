@@ -198,6 +198,17 @@
               </a-form-item>
             </div>
 
+            <!-- ===== CRM 客户绑定（独立接口即时保存，不随表单提交） ===== -->
+            <div class="form-col-full">
+              <CrmCustomerBinding
+                :customer-id="customerId"
+                :crm-customer-id="editForm.crm_customer_id"
+                :crm-customer-name="editForm.crm_customer_name"
+                :crm-customer-external-id="editForm.crm_customer_external_id"
+                @updated="handleCrmBindingUpdated"
+              />
+            </div>
+
             <!-- ===== 备注（横跨三列） ===== -->
             <div class="form-col-full">
               <a-form-item field="notes" label="备注">
@@ -225,6 +236,8 @@ import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import type { IndustryType, CooperationStatus, ErpSystem } from '@/types'
 import { getCustomer, updateCustomer, getIndustryTypes } from '@/api/customers'
 import CustomerAutoComplete from '@/components/CustomerAutoComplete.vue'
+import CrmCustomerBinding from '@/views/customers/components/CrmCustomerBinding.vue'
+import type { CrmBindingResult } from '@/api/crmRecharge'
 import { getCooperationStatusesList } from '@/api/cooperationStatuses'
 import { getErpSystemsList } from '@/api/erpSystems'
 import { getManagers } from '@/api/users'
@@ -301,6 +314,10 @@ interface EditForm {
   settlement_account_id: number | null | undefined
   /** 结算账户客户名称（回显用） */
   settlement_account_name: string | null
+  /** CRM 绑定回显（写入口为独立绑定接口，不参与表单提交） */
+  crm_customer_id: number | null
+  crm_customer_name: string | null
+  crm_customer_external_id: number | null
 }
 
 const createDefaultForm = (): EditForm => ({
@@ -328,6 +345,9 @@ const createDefaultForm = (): EditForm => ({
   consume_level: undefined,
   settlement_account_id: undefined,
   settlement_account_name: null,
+  crm_customer_id: null,
+  crm_customer_name: null,
+  crm_customer_external_id: null,
 })
 
 const editForm = reactive<EditForm>(createDefaultForm())
@@ -443,6 +463,9 @@ const fetchAndInitForm = async () => {
       consume_level: c.profile?.consume_level || c.consume_level || undefined,
       settlement_account_id: c.settlement_account_id ?? undefined,
       settlement_account_name: c.settlement_account_name ?? null,
+      crm_customer_id: c.crm_customer_id ?? null,
+      crm_customer_name: c.crm_customer_name ?? null,
+      crm_customer_external_id: c.crm_customer_external_id ?? null,
     })
   } catch (error) {
     handleError(error, '加载客户数据失败')
@@ -518,6 +541,12 @@ const handleSubmit = async () => {
   } finally {
     submitLoading.value = false
   }
+}
+
+const handleCrmBindingUpdated = (result: CrmBindingResult) => {
+  editForm.crm_customer_id = result.crm_customer_id
+  editForm.crm_customer_name = result.crm_customer_name
+  editForm.crm_customer_external_id = result.crm_customer_external_id
 }
 
 const handleCancel = () => {

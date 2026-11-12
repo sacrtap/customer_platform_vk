@@ -31,6 +31,7 @@ export interface PermissionSubGroup<T extends PermissionLike = PermissionLike> {
 export const MODULE_NAME_MAP: Record<string, string> = {
   customers: '客户管理',
   billing: '结算管理',
+  crm_recharge: 'CRM充值管理',
   vr_settlement: 'VR编辑费用结算',
   analytics: '客户分析',
   tags: '标签管理',
@@ -52,6 +53,7 @@ export const MODULE_NAME_MAP: Record<string, string> = {
 export const MODULE_ORDER: string[] = [
   'customers',
   'billing',
+  'crm_recharge',
   'vr_settlement',
   'analytics',
   'tags',

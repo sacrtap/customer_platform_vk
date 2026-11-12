@@ -151,6 +151,29 @@
             VR编辑费用结算
           </button>
         </div>
+
+        <button
+          v-if="can('crm_recharge:view')"
+          class="nav-btn"
+          :class="{ active: $route.path.startsWith('/crm-recharge') }"
+          :aria-current="$route.path.startsWith('/crm-recharge') ? 'page' : undefined"
+          @click="goTo('/crm-recharge')"
+        >
+          <span class="nav-icon"
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              /></svg
+          ></span>
+          <span class="nav-text">CRM充值管理</span>
+        </button>
       </div>
 
       <!-- 运营分析组 -->

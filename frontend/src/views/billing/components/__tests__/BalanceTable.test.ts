@@ -22,7 +22,7 @@ const mockBalances: Balance[] = [
     used_total: 20000,
     used_real: 15000,
     used_bonus: 5000,
-    last_recharge_at: '2026-07-15T10:00:00',
+    last_recharge_at: '2026-07-15',
     daily_avg_cost: 3200.0,
     consumption_days: 18,
     days_remaining: 15,
@@ -39,7 +39,7 @@ const mockBalances: Balance[] = [
     used_total: 30000,
     used_real: 25000,
     used_bonus: 5000,
-    last_recharge_at: '2026-07-10T10:00:00',
+    last_recharge_at: '2026-07-10',
     daily_avg_cost: 800.0,
     consumption_days: 25,
     days_remaining: 6,
@@ -131,7 +131,7 @@ describe('BalanceTable - 排序', () => {
     expect(titles).toContain('余额')
     expect(titles).toContain('余额燃尽')
     expect(titles).toContain('已消耗')
-    expect(titles).toContain('最新充值')
+    expect(titles).toContain('最近充值日期')
   })
 
   it('不可排序的列头没有 sorter 图标', () => {
@@ -203,7 +203,7 @@ describe('BalanceTable - 排序', () => {
       { title: '余额', key: 'total_amount' },
       { title: '余额燃尽', key: 'days_remaining' },
       { title: '已消耗', key: 'used_total' },
-      { title: '最新充值', key: 'last_recharge_at' },
+      { title: '最近充值日期', key: 'last_recharge_at' },
     ]
 
     for (const col of expectedColumns) {
