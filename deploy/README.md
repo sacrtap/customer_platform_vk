@@ -98,6 +98,67 @@ Podman 在 macOS 上运行在 VM 中，存在网络隔离问题：
 
 ---
 
+## 服务器部署：机密注入
+
+### 变量如何进入容器
+
+```
+GitHub Actions Secrets → deploy.yml 的 env → ssh 参数（VAR=value bash -s）
+                                              └─ 远端 shell 环境
+                                                    ↓
+服务器 .env（deploy.sh 里 `set -a; source .env`，全部 export）
+                                                    ↓
+deploy/docker-compose.yml 的 ${VAR} 插值
+                                                    ↓
+services.app.environment 白名单（只列出的变量才进容器）
+```
+
+`environment` 是**白名单**：新变量必须在 `deploy/docker-compose.yml` 里显式列一行，否则 `.env` 或 CI 里写了也进不了容器。
+
+### `.env` 与 CI Secret 的覆盖规则
+
+`source .env` 后执行，**同名变量以 `.env` 为准**。因此：
+
+- 不要把同一个变量同时维护在服务器 `.env` 和 GitHub Secrets（两边不一致时会静默用 `.env` 的旧值）；
+- 更新 `.env` 时用「先删后加」而不是直接追加，避免留下两行历史值（`source` 取最后一次赋值）；
+- 若 `.env` 是 `deploy.sh init` 自动生成的，检查是否残留 `${...}` 字面量（会把 CI 传入的真值覆盖掉）：
+  ```bash
+  grep -n '\${' .env
+  ```
+
+### CRM 凭据加密密钥 `CRM_CREDENTIAL_KEY`
+
+页面「CRM充值管理 → CRM 配置」保存的 CRM 登录密码用 Fernet 对称加密后落库，密钥只在部署环境：
+
+| 项 | 位置 | 说明 |
+|---|---|---|
+| 密文 | PG `crm_settings.password_cipher` | 单独泄露无法还原密码 |
+| 密钥 | 服务器 `.env` → 容器环境变量 | 不入库、不进镜像、不写日志 |
+
+```bash
+# 1. 生成（每个环境一个，staging 与 production 必须不同）
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# 2. 写入服务器 .env（先删旧行再追加；deploy 不会覆盖已存在的 .env）
+cd <DEPLOY_DIR>
+sed -i '/^CRM_CREDENTIAL_KEY=/d' .env
+printf 'CRM_CREDENTIAL_KEY=%s\n' '<生成的密钥>' >> .env
+chmod 600 .env
+
+# 3. 重新部署，确认容器内已注入（不打印密钥值）
+docker exec customer-platform-app python -c "import os;print('set:', bool(os.environ.get('CRM_CREDENTIAL_KEY')))"
+docker compose -f deploy/docker-compose.yml logs app | grep "CRM 运行期配置已加载"
+```
+
+注意：
+
+- 未注入时页面仍可保存开关/企业ID/手机号，但**保存密码会被拒绝**（提示未配置 `CRM_CREDENTIAL_KEY`）；
+- 更换密钥后旧密文无法解密，配置自动降级为「无密码」并告警，需在页面重新填写一次密码；
+- 密钥与数据库备份分开放置，放在同一份备份里等同于未加密；
+- 多副本/多 worker 必须使用同一密钥。
+
+---
+
 ## 服务管理
 
 ### 本地 PostgreSQL

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,10 +74,22 @@ class Customer(BaseModel):
         Integer, ForeignKey("customers.id"), nullable=True, index=True
     )
 
+    # CRM 客户绑定（一对一）：指向 CRM 客户镜像，不是中台 customers 自身。
+    # 唯一性用部分唯一索引约束（软删除行不占位），见 __table_args__。
+    crm_customer_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("crm_customers.id"), nullable=True, index=True
+    )
+
     __table_args__ = (
         Index("idx_customer_sales_manager", "sales_manager_id"),  # 新增
         Index("idx_customer_cooperation_status", "cooperation_status"),  # 新增
         Index("idx_customer_disabled", "is_disabled"),  # 新增
+        Index(
+            "uq_customer_active_crm_binding",
+            "crm_customer_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND crm_customer_id IS NOT NULL"),
+        ),
     )
 
     # 关联

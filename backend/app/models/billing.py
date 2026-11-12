@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -81,6 +82,14 @@ class RechargeRecord(BaseModel):
     operator_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"))
     payment_proof: Mapped[str | None] = mapped_column(String(255))
     remark: Mapped[str | None] = mapped_column(Text)
+    # 业务归期（实际回款日）：统计/趋势/结算明细按此日期；created_at 仍是记录创建时刻
+    recharge_date: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=text("CURRENT_DATE"), index=True
+    )
+    # CRM 来源回款（NULL=手动/Excel）。UNIQUE 覆盖软删除行：软删充值也不能再次导入同源回款。
+    crm_payment_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("crm_payments.id"), unique=True, nullable=True
+    )
 
 
 class PricingRule(BaseModel):

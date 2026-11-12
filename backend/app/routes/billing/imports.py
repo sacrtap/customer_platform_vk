@@ -18,6 +18,7 @@ from ...middleware.auth import (
 from ...repository import BalanceRepository
 from ...services.billing import BalanceService
 from ...utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ...utils.db import begin_write
 from ...utils.excel_import import read_import_dataframe
 from . import billing_bp
 
@@ -220,43 +221,48 @@ async def import_balance(request: Request):
         current_user = get_current_user(request)
         operator_id = current_user.get("user_id") if current_user else 1
 
-        service = BalanceService(BalanceRepository(db_session))
-        success_count, batch_errors = await service.batch_import_recharge(
-            rows=valid_rows,
-            operator_id=operator_id,  # pyright: ignore[reportArgumentType]
-        )
-        errors.extend(batch_errors)
+        # 结束预检查阶段的只读 autobegin（该阶段无写入），随后在显式事务内
+        # 批量记账 + 审计；每行由 batch_import_recharge 内部 savepoint 隔离
+        await db_session.rollback()
 
-        # 清除缓存
+        async with begin_write(db_session):
+            service = BalanceService(BalanceRepository(db_session))
+            success_count, batch_errors = await service.batch_import_recharge(
+                rows=valid_rows,
+                operator_id=operator_id,  # pyright: ignore[reportArgumentType]
+            )
+            errors.extend(batch_errors)
+
+            # 记录审计日志（与资金同事务）
+            summary = build_batch_audit_summary(
+                operation="balance_import",
+                total_count=len(df),
+                success_count=success_count,
+                failed_count=len(errors),
+                details=errors[:10],
+            )
+
+            await create_audit_entry(
+                db_session=db_session,
+                user_id=operator_id,
+                action="batch_recharge",
+                module="billing",
+                record_id=None,
+                record_type="recharge",
+                changes={"after": {"count": success_count}},
+                operation_type="batch",
+                extra_metadata=summary,
+                ip_address=request.headers.get(
+                    "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+                ),
+                auto_commit=False,
+            )
+
+        # 提交成功后清除缓存
         await cache_service.invalidate_analytics_cache("health")
         await cache_service.invalidate_analytics_cache("dashboard")
         # 批量充值会改变客户余额，而客户列表含 balance/usage 字段，需一并失效列表缓存
         await cache_service.invalidate_customer_cache()
-
-        # 记录审计日志
-        summary = build_batch_audit_summary(
-            operation="balance_import",
-            total_count=len(df),
-            success_count=success_count,
-            failed_count=len(errors),
-            details=errors[:10],
-        )
-
-        await create_audit_entry(
-            db_session=db_session,
-            user_id=operator_id,
-            action="batch_recharge",
-            module="billing",
-            record_id=None,
-            record_type="recharge",
-            changes={"after": {"count": success_count}},
-            operation_type="batch",
-            extra_metadata=summary,
-            ip_address=request.headers.get(
-                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-            ),
-            auto_commit=True,
-        )
 
         return json(
             {

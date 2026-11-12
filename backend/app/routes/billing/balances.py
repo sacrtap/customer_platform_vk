@@ -3,7 +3,7 @@
 import asyncio
 import json as _json
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sanic.request import Request
@@ -12,6 +12,7 @@ from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
+from ...constants.roles import SUPER_ADMIN_ROLE_NAME
 from ...middleware.auth import (
     auth_required,
     customer_scope_user_id,
@@ -20,7 +21,7 @@ from ...middleware.auth import (
 )
 from ...models.industry_type import IndustryType
 from ...repository import BalanceRepository
-from ...services.billing import BalanceService
+from ...services.billing import BalanceService, RechargeRevokeError
 from ...services.package_balance import (
     batch_query_package_info as _batch_query_package_info,
 )
@@ -28,7 +29,8 @@ from ...services.package_balance import (
     build_package_remaining_cte as _build_package_remaining_cte,
 )
 from ...utils.audit_helpers import create_audit_entry
-from ...utils.timezone import CST, cst_today, naive_cst_datetime_str
+from ...utils.db import begin_write
+from ...utils.timezone import CST, cst_today
 from . import billing_bp
 
 logger = logging.getLogger(__name__)
@@ -240,13 +242,9 @@ def _parse_balance_filters(request: Request) -> dict:
     recharge_date_to = request.args.get("recharge_date_to")
     tag_ids = request.args.get("tag_ids")
 
-    # 充值日期：解析为 datetime（畸形参数抛 ValueError，由调用方统一转 400）
-    recharge_date_from = datetime.fromisoformat(recharge_date_from) if recharge_date_from else None
-    recharge_date_to = (
-        datetime.fromisoformat(recharge_date_to).replace(hour=23, minute=59, second=59)
-        if recharge_date_to
-        else None
-    )
+    # 充值日期（业务归期 recharge_date）解析为 date；畸形参数抛 ValueError，由调用方统一转 400
+    recharge_date_from = date.fromisoformat(recharge_date_from) if recharge_date_from else None
+    recharge_date_to = date.fromisoformat(recharge_date_to) if recharge_date_to else None
     # 标签 ID：逗号分隔的整数列表（畸形参数抛 ValueError，由调用方统一转 400）
     tag_ids = [int(t.strip()) for t in tag_ids.split(",") if t.strip()] if tag_ids else None
 
@@ -520,11 +518,11 @@ async def _query_balance_rows_raw(
         # 使用 HAVING 子句过滤（聚合函数必须在 HAVING 中）
         if recharge_date_from:
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) >= recharge_date_from
+                func.max(RechargeRecord.recharge_date) >= recharge_date_from
             )
         if recharge_date_to:
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) <= recharge_date_to
+                func.max(RechargeRecord.recharge_date) <= recharge_date_to
             )
 
         base_stmt = base_stmt.where(Customer.id.in_(recharge_filter_stmt))
@@ -613,11 +611,11 @@ async def _query_balance_rows_raw(
         )
         if recharge_date_from:
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) >= recharge_date_from
+                func.max(RechargeRecord.recharge_date) >= recharge_date_from
             )
         if recharge_date_to:
             recharge_filter_stmt = recharge_filter_stmt.having(
-                func.max(RechargeRecord.created_at) <= recharge_date_to
+                func.max(RechargeRecord.recharge_date) <= recharge_date_to
             )
         count_stmt = count_stmt.where(Customer.id.in_(recharge_filter_stmt))
     if tag_ids:
@@ -643,7 +641,7 @@ async def _query_balance_rows_raw(
             last_recharge_subq = (
                 select(
                     RechargeRecord.customer_id,
-                    func.max(RechargeRecord.created_at).label("last_recharge_at"),
+                    func.max(RechargeRecord.recharge_date).label("last_recharge_at"),
                 )
                 .where(RechargeRecord.deleted_at.is_(None))
                 .group_by(RechargeRecord.customer_id)
@@ -769,7 +767,7 @@ async def _query_balance_rows_raw(
         recharge_result = await db.execute(
             select(
                 RechargeRecord.customer_id,
-                func.max(RechargeRecord.created_at).label("last_recharge_at"),
+                func.max(RechargeRecord.recharge_date).label("last_recharge_at"),
             )
             .where(
                 RechargeRecord.customer_id.in_(customer_ids), RechargeRecord.deleted_at.is_(None)
@@ -845,9 +843,9 @@ def _assemble_balance_rows(
                     else None
                 ),
                 "last_recharge_at": (
-                    # created_at 是 timestamp without time zone（CST 墙钟），
-                    # 按墙钟格式化；astimezone 会再偏 8 小时
-                    naive_cst_datetime_str(last_recharge_map[c.id])
+                    # 业务归期是 DATE（CRM 回款日期 / 手动充值的 CST 当天），
+                    # wire 字段名沿用 last_recharge_at 但值为 YYYY-MM-DD
+                    last_recharge_map[c.id].isoformat()
                     if c.id in last_recharge_map and last_recharge_map[c.id]
                     else None
                 ),
@@ -1049,7 +1047,7 @@ async def export_balances(request: Request):
                     else (r.get("package_remaining_count") if r.get("is_package") else None)
                 ),
                 "套餐到期日期": r.get("package_expiry_date") if r.get("is_package") else None,
-                "最新充值时间": r["last_recharge_at"],
+                "最近充值日期": r["last_recharge_at"],
                 "预计可支撑天数": r["days_remaining"],
                 "日均消耗（元）": r["daily_avg_cost"],
                 "消耗天数": r["consumption_days"],
@@ -1305,8 +1303,7 @@ async def get_balance_stats(request: Request):
     postpaid_receivable = -total_balance_postpaid
 
     # --- 本月充值 ---
-    now = datetime.now()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start = cst_today().replace(day=1)
     this_month_recharge_base = select(
         func.count(RechargeRecord.id).label("count"),
         func.coalesce(func.sum(RechargeRecord.real_amount + RechargeRecord.bonus_amount), 0).label(
@@ -1314,7 +1311,7 @@ async def get_balance_stats(request: Request):
         ),
         func.coalesce(func.sum(RechargeRecord.real_amount), 0).label("real_amount_sum"),
         func.coalesce(func.sum(RechargeRecord.bonus_amount), 0).label("bonus_amount_sum"),
-    ).where(RechargeRecord.created_at >= month_start)
+    ).where(RechargeRecord.recharge_date >= month_start)
     # 始终 JOIN Customer 以应用客户级别筛选条件
     this_month_recharge_base = this_month_recharge_base.join(
         Customer, RechargeRecord.customer_id == Customer.id
@@ -1653,11 +1650,16 @@ async def recharge(request: Request):
 
     # 数据可见性（服务端强制）：无 customers:view_all 时仅可为自己负责的客户充值
     scope_user_id = await customer_scope_user_id(request)
-    if scope_user_id is not None:
-        from sqlalchemy import select
 
-        from ...models.customers import Customer
+    from sqlalchemy import select
 
+    from ...models.customers import Customer
+
+    # 结束权限/预检阶段产生的只读 autobegin（该阶段无写入），随后在显式事务内
+    # 重新执行关键校验；资金、审计同一事务提交（recharge 不再自行 commit）
+    await db.rollback()
+
+    async with begin_write(db):
         cust = (
             await db.execute(
                 select(Customer).where(
@@ -1666,7 +1668,12 @@ async def recharge(request: Request):
                 )
             )
         ).scalar_one_or_none()
-        if cust is None or not (
+        if cust is None:
+            return json(
+                {"code": 40401, "message": "客户不存在", "data": None},
+                status=404,
+            )
+        if scope_user_id is not None and not (
             cust.manager_id == scope_user_id or cust.sales_manager_id == scope_user_id
         ):
             return json(
@@ -1674,57 +1681,60 @@ async def recharge(request: Request):
                 status=403,
             )
 
-    balance_service = BalanceService(BalanceRepository(db))
+        balance_service = BalanceService(BalanceRepository(db))
 
-    # 获取充值前余额
-    balance_before = await balance_service.get_balance_by_customer_id(customer_id)
+        # 获取充值前余额
+        balance_before = await balance_service.get_balance_by_customer_id(customer_id)
+        # ORM 身份映射：同一 session 里 recharge 会改写这条余额实例，
+        # 因此必须在充值前把「变更前余额」固化成普通 dict，否则审计前后值相同
+        before_snapshot = {
+            "real_amount": float(balance_before.real_amount or 0) if balance_before else 0,
+            "bonus_amount": float(balance_before.bonus_amount or 0) if balance_before else 0,
+        }
 
-    record = await balance_service.recharge(
-        customer_id=customer_id,
-        real_amount=real_amount,
-        bonus_amount=bonus_amount,
-        operator_id=user["user_id"] if user else 1,
-        payment_proof=data.get("payment_proof"),
-        remark=data.get("remark"),
-    )
+        record = await balance_service.recharge(
+            customer_id=customer_id,
+            real_amount=real_amount,
+            bonus_amount=bonus_amount,
+            operator_id=user["user_id"] if user else 1,
+            payment_proof=data.get("payment_proof"),
+            remark=data.get("remark"),
+        )
 
-    # 充值后清除相关缓存
+        # 获取充值后的余额（用于返回给前端局部更新）
+        balance_after = await balance_service.get_balance_by_customer_id(customer_id)
+
+        # 记录充值审计日志（与资金同事务）
+        await create_audit_entry(
+            db_session=db,
+            user_id=user.get("user_id") if user else None,
+            action="recharge",
+            module="billing",
+            record_id=record.id,  # pyright: ignore[reportArgumentType]
+            record_type="recharge",
+            changes={
+                "before": before_snapshot,
+                "after": {
+                    "real_amount": float(balance_after.real_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
+                    "bonus_amount": float(balance_after.bonus_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
+                    "recharge_real": float(real_amount),
+                    "recharge_bonus": float(bonus_amount),
+                },
+                "customer_id": customer_id,
+            },
+            operation_type="standard",
+            ip_address=request.headers.get(
+                "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+            ),
+            auto_commit=False,
+        )
+
+    # 提交成功后清除相关缓存
     await cache_service.invalidate_analytics_cache("health")
     await cache_service.invalidate_analytics_cache("dashboard")
     await cache_service.invalidate_customer_cache(customer_id)
     # 燃尽缓存：余额变化影响 days_remaining
     await cache_service.invalidate_pattern("cache:billing_consumption:*")
-
-    # 获取充值后的余额（用于返回给前端局部更新）
-    balance_after = await balance_service.get_balance_by_customer_id(customer_id)
-
-    # 记录充值审计日志
-    await create_audit_entry(
-        db_session=db,
-        user_id=user.get("user_id") if user else None,
-        action="recharge",
-        module="billing",
-        record_id=record.id,  # pyright: ignore[reportArgumentType]
-        record_type="recharge",
-        changes={
-            "before": {
-                "real_amount": float(balance_before.real_amount) if balance_before else 0,  # pyright: ignore[reportArgumentType]
-                "bonus_amount": float(balance_before.bonus_amount) if balance_before else 0,  # pyright: ignore[reportArgumentType]
-            },
-            "after": {
-                "real_amount": float(balance_after.real_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
-                "bonus_amount": float(balance_after.bonus_amount) if balance_after else 0,  # pyright: ignore[reportArgumentType]
-                "recharge_real": float(real_amount),
-                "recharge_bonus": float(bonus_amount),
-            },
-            "customer_id": customer_id,
-        },
-        operation_type="standard",
-        ip_address=request.headers.get(
-            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-        ),
-        auto_commit=True,
-    )
 
     return json(
         {
@@ -1807,6 +1817,17 @@ async def get_recharge_records(request: Request):
         )
         customer_name_map = {row[0]: row[1] for row in customer_result}
 
+    # CRM 来源回款：只回传外部 ID，不泄露其他 CRM 字段
+    from ...models.crm_recharge import CrmPayment
+
+    crm_payment_ids = [r.crm_payment_id for r in records if r.crm_payment_id]
+    crm_external_map: dict[int, int] = {}
+    if crm_payment_ids:
+        crm_result = await db.execute(
+            select(CrmPayment.id, CrmPayment.external_id).where(CrmPayment.id.in_(crm_payment_ids))
+        )
+        crm_external_map = {row[0]: row[1] for row in crm_result}
+
     return json(
         {
             "code": 0,
@@ -1823,6 +1844,12 @@ async def get_recharge_records(request: Request):
                         "operator_id": r.operator_id,
                         "payment_proof": r.payment_proof,
                         "remark": r.remark,
+                        # 业务归期（实际回款日）与创建时刻分开返回
+                        "recharge_date": r.recharge_date.isoformat() if r.recharge_date else None,
+                        "crm_payment_id": r.crm_payment_id,
+                        "crm_payment_external_id": crm_external_map.get(r.crm_payment_id)
+                        if r.crm_payment_id
+                        else None,
                         "created_at": r.created_at.isoformat() if r.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
                     }
                     for r in records
@@ -1833,6 +1860,62 @@ async def get_recharge_records(request: Request):
             },
         }
     )
+
+
+@billing_bp.post("/recharge-records/<record_id:int>/revoke")
+@auth_required
+@require_permission("billing:recharge_revoke")
+@require_permission("billing:view")
+async def revoke_recharge_record(request: Request, record_id: int):
+    """撤销一笔手动/Excel 充值记录（软删记录并回退余额）
+
+    余额已被消耗时仅超级管理员可 `force` 撤销，撤销结果标记
+    `needs_manual_reconciliation` 供线下核对。
+    CRM 来源充值须走 CRM 回款页撤销（那里还要释放回款绑定），此处直接拒绝。
+    """
+    db: AsyncSession = request.ctx.db_session
+    body = request.json if isinstance(request.json, dict) else {}
+
+    reason = str(body.get("reason") or "").strip()
+    if not reason:
+        return json({"code": 40001, "message": "撤销原因必填", "data": None}, status=400)
+    if len(reason) > 500:
+        return json({"code": 40001, "message": "撤销原因不能超过500字", "data": None}, status=400)
+    force = bool(body.get("force"))
+
+    user = get_current_user(request) or {}
+    operator_id = user.get("user_id") or 0
+    # force 只有超级管理员才生效，非超管的越权请求由服务层按 403 拒绝
+    is_super_admin = SUPER_ADMIN_ROLE_NAME in (user.get("roles") or [])
+    ip_address = request.headers.get(
+        "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+    )
+    scope_user_id = await customer_scope_user_id(request)
+
+    # 权限/用户读取可能已开好隐式事务，先结束再显式开写入事务
+    await db.rollback()
+    try:
+        async with begin_write(db):
+            result = await BalanceService(BalanceRepository(db)).revoke_recharge(
+                record_id=record_id,
+                reason=reason,
+                operator_id=operator_id,  # pyright: ignore[reportArgumentType]
+                is_super_admin=is_super_admin,
+                force=force,
+                scope_user_id=scope_user_id,
+                ip_address=ip_address,
+            )
+    except RechargeRevokeError as e:
+        return json({"code": 40001, "message": e.message, "data": None}, status=e.status)
+
+    await cache_service.invalidate_analytics_cache()
+    await cache_service.invalidate_customer_cache(result["customer_id"])
+    await cache_service.invalidate_pattern("cache:billing_consumption:*")
+
+    message = "已撤销充值记录"
+    if result["needs_manual_reconciliation"]:
+        message += "（余额不足，已标记线下核对）"
+    return json({"code": 0, "message": message, "data": result})
 
 
 @billing_bp.get("/consumption-records")

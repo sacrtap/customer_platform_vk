@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -37,6 +38,7 @@ from ..repository import (
     InvoiceRepositoryProtocol,
     PricingRepositoryProtocol,
 )
+from ..utils.audit_helpers import create_audit_entry
 from ..utils.tiers import normalize_tiers, validate_tiers_or_raise
 from ..utils.timezone import (
     cst_now,
@@ -50,6 +52,34 @@ logger = logging.getLogger(__name__)
 # 死锁重试耗尽后的对外提示：调用方将 OperationalError 降级为该业务错误码，
 # 避免数据库异常穿透成 500，同时让前端能提示用户稍后重试
 _DB_BUSY_MESSAGE = "数据库繁忙，请稍后重试"
+
+# NUMERIC(12,2) 可表示的最大值：充值/余额的入账上限
+NUMERIC_12_2_MAX = Decimal("9999999999.99")
+
+
+class RechargeRevokeError(Exception):
+    """充值撤销的业务拒绝，携带对外 HTTP 状态码
+
+    `403`：无权限或资金已消耗且非超管；`409`：余额不足且未确认强制撤销。
+    """
+
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def serialize_balance(balance: Any) -> Dict[str, str]:
+    """余额快照序列化（金额统一两位小数字符串）"""
+    real = Decimal(balance.real_amount or 0)
+    bonus = Decimal(balance.bonus_amount or 0)
+    total = balance.total_amount if balance.total_amount is not None else real + bonus
+    return {
+        "real_amount": f"{real:.2f}",
+        "bonus_amount": f"{bonus:.2f}",
+        "total_amount": f"{Decimal(total or 0):.2f}",
+    }
+
 
 # 回退目标映射：当前节点 → 上一步。pending_discount_approval 的回退由既有
 # reject_discount 承担（其退回点即上一步，理由必填）；pending_customer 及以后不回退。
@@ -168,22 +198,73 @@ class BalanceService:
         operator_id: int,
         payment_proof: Optional[str] = None,
         remark: Optional[str] = None,
+        *,
+        recharge_date: Optional[date] = None,
+        crm_payment_id: Optional[int] = None,
     ) -> RechargeRecord:
-        """
-        客户充值
+        """客户充值——事务内记账（不 commit / rollback）
+
+        调用方必须已在 `async with db_session.begin():` 内；本方法只负责加行锁、
+        写余额与充值记录，并 flush 让调用方能拿到自增 ID。
 
         Args:
-            customer_id: 客户 ID
-            real_amount: 实充金额
-            bonus_amount: 赠金金额
-            operator_id: 操作人 ID
-            payment_proof: 支付凭证路径
-            remark: 备注
-
-        Returns:
-            RechargeRecord
+            recharge_date: 业务归期（实际回款日）；省略时取 CST 今天
+            crm_payment_id: CRM 来源回款 ID；None 表示手动/Excel 充值
         """
-        # 创建充值记录
+        if not self.db.in_transaction():
+            raise RuntimeError("BalanceService.recharge 必须在调用方事务内执行")
+
+        # 锁序：Customer → 余额行（CRM 导入与数据库清理使用同一锁序）
+        customer_exists = await self.db.scalar(
+            select(Customer.id).where(Customer.id == customer_id).with_for_update()
+        )
+        if customer_exists is None:
+            raise ValueError("客户不存在")
+
+        real_amount = Decimal(real_amount)
+        bonus_amount = Decimal(bonus_amount)
+        for amount in (real_amount, bonus_amount):
+            if abs(amount) > NUMERIC_12_2_MAX:
+                raise ValueError("充值金额超出可入账上限")
+
+        # 无余额行时并发首次只创建一行（ON CONFLICT 兜底 get_or_create 的竞态）
+        await self.db.execute(
+            pg_insert(CustomerBalance)
+            .values(customer_id=customer_id)
+            .on_conflict_do_nothing(index_elements=["customer_id"])
+        )
+        balance = await self.db.scalar(
+            select(CustomerBalance)
+            .where(CustomerBalance.customer_id == customer_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if balance is None:  # pragma: no cover - INSERT 后必然存在
+            raise RuntimeError("客户余额行创建失败")
+
+        if balance.deleted_at is not None:
+            historical_values = (
+                balance.total_amount,
+                balance.real_amount,
+                balance.bonus_amount,
+                balance.used_total,
+                balance.used_real,
+                balance.used_bonus,
+            )
+            if any(Decimal(value or 0) != 0 for value in historical_values):
+                raise ValueError("客户余额记录已删除且存在历史余额，请先核对后再充值")
+            # 全零软删行直接恢复，保持 customer_id 单行唯一，不新建重复 FK
+            balance.deleted_at = None
+
+        new_real = Decimal(balance.real_amount or 0) + real_amount
+        new_bonus = Decimal(balance.bonus_amount or 0) + bonus_amount
+        if abs(new_real) > NUMERIC_12_2_MAX or abs(new_bonus) > NUMERIC_12_2_MAX:
+            raise ValueError("充值后余额超出可入账上限")
+        balance.real_amount = new_real
+        balance.bonus_amount = new_bonus
+        # 重算 total_amount（与扣款逻辑保持一致，避免累积误差）
+        balance.total_amount = new_real + new_bonus
+
         record = RechargeRecord(
             customer_id=customer_id,
             real_amount=real_amount,
@@ -191,41 +272,175 @@ class BalanceService:
             operator_id=operator_id,
             payment_proof=payment_proof,
             remark=remark,
+            recharge_date=recharge_date or cst_today(),
+            crm_payment_id=crm_payment_id,
         )
         self.db.add(record)
+        await self.db.flush()
+        await self.db.refresh(record)
+        return record
 
-        # 更新余额
-        balance = await self.get_or_create_balance(customer_id)
-        balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
-        balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
-        # 重算 total_amount（与扣款逻辑保持一致，避免累积误差）
-        balance.total_amount = (balance.real_amount or 0) + (  # pyright: ignore[reportAttributeAccessIssue]
-            balance.bonus_amount or 0
+    async def revoke_recharge(
+        self,
+        *,
+        record_id: int,
+        reason: str,
+        operator_id: int,
+        is_super_admin: bool,
+        force: bool = False,
+        scope_user_id: Optional[int] = None,
+        ip_address: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """撤销一笔手动/Excel 充值——事务内记账（不 commit / rollback）
+
+        余额是池化的：消费流水与充值记录之间没有关联列，无法判定某笔充值是否已被
+        消耗，只能以「当前余额是否够扣」为准。手动充值的 `crm_payment_id` 为空，
+        不受 `crm_payment_id` 覆盖软删的唯一键约束，因此撤销采用**软删**：原始金额、
+        备注、凭证保留，资金留痕由审计的 before 快照承担。
+
+        锁序与 `recharge` 一致：客户 → 余额行 → 充值记录（记录需先无锁读取以取得
+        customer_id）。
+
+        余额不足（资金已被消耗）时仅超级管理员可 `force` 撤销，撤销后余额可为负
+        （表示客户欠款），并标记 `needs_manual_reconciliation` 供线下核对。
+
+        Raises:
+            RechargeRevokeError: 记录不存在/CMS 来源/已撤销/无权/余额不足等业务拒绝
+        """
+        if not self.db.in_transaction():
+            raise RuntimeError("BalanceService.revoke_recharge 必须在调用方事务内执行")
+
+        # 先无锁读取定位客户（锁序要求客户行最先加锁）
+        target = await self.db.scalar(select(RechargeRecord).where(RechargeRecord.id == record_id))
+        if target is None:
+            raise RechargeRevokeError("充值记录不存在", 404)
+        if target.deleted_at is not None:
+            raise RechargeRevokeError("该充值记录已撤销", 400)
+        if target.crm_payment_id is not None:
+            raise RechargeRevokeError("CRM 来源充值请在 CRM 回款页撤销", 400)
+        customer_id = target.customer_id
+
+        customer = await self.db.scalar(
+            select(Customer)
+            .where(Customer.id == customer_id, Customer.deleted_at.is_(None))
+            .with_for_update()
+        )
+        if customer is None:
+            raise RechargeRevokeError("客户不存在", 404)
+        if scope_user_id is not None and not (
+            customer.manager_id == scope_user_id or customer.sales_manager_id == scope_user_id
+        ):
+            raise RechargeRevokeError("无权操作该客户", 403)
+
+        await self.db.execute(
+            pg_insert(CustomerBalance)
+            .values(customer_id=customer_id)
+            .on_conflict_do_nothing(index_elements=["customer_id"])
+        )
+        balance = await self.db.scalar(
+            select(CustomerBalance)
+            .where(CustomerBalance.customer_id == customer_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if balance is None:  # pragma: no cover - INSERT 后必然存在
+            raise RechargeRevokeError("客户余额行不存在", 400)
+        if balance.deleted_at is not None:
+            raise RechargeRevokeError("客户余额记录已删除，请先核对后再撤销", 400)
+
+        # 加锁后复核：并发重复点击只有一笔能通过
+        record = await self.db.scalar(
+            select(RechargeRecord)
+            .where(RechargeRecord.id == record_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if record is None:
+            raise RechargeRevokeError("充值记录不存在", 404)
+        if record.deleted_at is not None:
+            raise RechargeRevokeError("该充值记录已撤销", 400)
+
+        real_amount = Decimal(record.real_amount or 0)
+        bonus_amount = Decimal(record.bonus_amount or 0)
+        current_real = Decimal(balance.real_amount or 0)
+        current_bonus = Decimal(balance.bonus_amount or 0)
+        shortfall_real = max(Decimal("0"), real_amount - current_real)
+        shortfall_bonus = max(Decimal("0"), bonus_amount - current_bonus)
+        needs_manual = shortfall_real > 0 or shortfall_bonus > 0
+
+        if needs_manual and not is_super_admin:
+            raise RechargeRevokeError(
+                "该笔资金已被消耗，只有超级管理员可强制撤销（需线下核对）", 403
+            )
+        if needs_manual and not force:
+            raise RechargeRevokeError("余额不足以回退，请确认强制撤销并线下核对欠款", 409)
+
+        new_real = current_real - real_amount
+        new_bonus = current_bonus - bonus_amount
+        if abs(new_real) > NUMERIC_12_2_MAX or abs(new_bonus) > NUMERIC_12_2_MAX:
+            raise RechargeRevokeError("撤销后余额超出可入账范围", 400)
+
+        before_balance = serialize_balance(balance)
+        balance.real_amount = new_real
+        balance.bonus_amount = new_bonus
+        balance.total_amount = new_real + new_bonus
+
+        recharge_date = record.recharge_date.isoformat() if record.recharge_date else None
+        await create_audit_entry(
+            self.db,
+            operator_id,
+            "billing_recharge_revoke",
+            "billing",
+            record.id,
+            "recharge_record",
+            changes={
+                "reason": reason,
+                "customer_id": customer_id,
+                "real_amount": f"{real_amount:.2f}",
+                "bonus_amount": f"{bonus_amount:.2f}",
+                "recharge_date": recharge_date,
+                # 软删后原始凭据只在审计快照中可查
+                "record_snapshot": {
+                    "payment_proof": record.payment_proof,
+                    "remark": record.remark,
+                    "record_operator_id": record.operator_id,
+                    "created_at": record.created_at.isoformat() if record.created_at else None,  # pyright: ignore[reportGeneralTypeIssues]
+                },
+                "forced": needs_manual,
+                "needs_manual_reconciliation": needs_manual,
+                "shortfall_real": f"{shortfall_real:.2f}",
+                "shortfall_bonus": f"{shortfall_bonus:.2f}",
+                "balance_before": before_balance,
+                "balance_after": serialize_balance(balance),
+            },
+            ip_address=ip_address,
         )
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(record)
-        except Exception as e:
-            logger.error(
-                "充值失败 customer_id=%s real_amount=%s bonus_amount=%s operator_id=%s error=%s",
-                customer_id,
-                real_amount,
-                bonus_amount,
-                operator_id,
-                e,
-            )
-            raise
+        # deleted_at 是 naive 列，按项目约定写入 CST 墙钟（直接写 aware 会被 asyncpg 拒绝）
+        record.deleted_at = cst_now().replace(tzinfo=None)
+        await self.db.flush()
 
-        return record
+        return {
+            "recharge_record_id": record.id,
+            "customer_id": customer_id,
+            "real_amount": f"{real_amount:.2f}",
+            "bonus_amount": f"{bonus_amount:.2f}",
+            "recharge_date": recharge_date,
+            "needs_manual_reconciliation": needs_manual,
+            "shortfall_real": f"{shortfall_real:.2f}",
+            "shortfall_bonus": f"{shortfall_bonus:.2f}",
+            "balance": serialize_balance(balance),
+        }
 
     async def batch_import_recharge(
         self,
         rows: List[Dict[str, Any]],
         operator_id: int,
     ) -> Tuple[int, List[str]]:
-        """
-        批量导入充值
+        """批量导入充值
+
+        每行用 savepoint 隔离错误：单行失败只回滚该行，不影响其他行；
+        实际记账统一走 `recharge`，不重复实现余额累加。
 
         Args:
             rows: 校验通过的数据行列表，每行包含 customer_id, real_amount, bonus_amount, remark
@@ -234,6 +449,9 @@ class BalanceService:
         Returns:
             (success_count, errors)
         """
+        if not self.db.in_transaction():
+            raise RuntimeError("BalanceService.batch_import_recharge 必须在调用方事务内执行")
+
         success_count = 0
         errors: List[str] = []
 
@@ -244,27 +462,15 @@ class BalanceService:
             remark = row.get("remark")
 
             try:
-                # 创建充值记录
-                record = RechargeRecord(
-                    customer_id=customer_id,
-                    real_amount=real_amount,
-                    bonus_amount=bonus_amount,
-                    operator_id=operator_id,
-                    payment_proof="批量导入",
-                    remark=remark,
-                )
-                self.db.add(record)
-
-                # 更新余额
-                balance = await self.get_or_create_balance(customer_id)
-                balance.real_amount = (balance.real_amount or 0) + real_amount  # pyright: ignore[reportAttributeAccessIssue]
-                balance.bonus_amount = (balance.bonus_amount or 0) + bonus_amount  # pyright: ignore[reportAttributeAccessIssue]
-                # 重算 total_amount（与扣款逻辑保持一致）
-                balance.total_amount = (balance.real_amount or 0) + (  # pyright: ignore[reportAttributeAccessIssue]
-                    balance.bonus_amount or 0
-                )
-
-                await self.db.flush()
+                async with self.db.begin_nested():
+                    await self.recharge(
+                        customer_id=customer_id,
+                        real_amount=real_amount,
+                        bonus_amount=bonus_amount,
+                        operator_id=operator_id,
+                        payment_proof="批量导入",
+                        remark=remark,
+                    )
                 success_count += 1
             except Exception as e:
                 logger.error(
@@ -277,20 +483,6 @@ class BalanceService:
                     e,
                 )
                 errors.append(f"第 {idx} 行：充值失败 - {str(e)}")
-
-        # 统一提交
-        try:
-            await self.db.commit()
-        except Exception as e:
-            logger.error(
-                "批量充值统一提交失败 total_rows=%s success_rows=%s operator_id=%s error=%s",
-                len(rows),
-                success_count,
-                operator_id,
-                e,
-            )
-            await self.db.rollback()
-            raise e
 
         return success_count, errors
 
@@ -451,7 +643,9 @@ class BalanceService:
         total = (await self.db.execute(count_stmt)).scalar()
 
         # 分页
-        stmt = stmt.order_by(RechargeRecord.created_at.desc())
+        # 列表维持按创建时刻倒序（操作追溯顺序），同值再按 id 倒序；
+        # 财务归期另由 recharge_date 表达，不参与此处排序
+        stmt = stmt.order_by(RechargeRecord.created_at.desc(), RechargeRecord.id.desc())
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         result = await self.db.execute(stmt)

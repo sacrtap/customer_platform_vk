@@ -14,6 +14,7 @@ from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission
 from ..models.industry_type import IndustryType
 from ..services.industry_type_service import IndustryTypeService
+from ..utils.db import begin_write
 from ..utils.excel_export import excel_response
 from ..utils.excel_import import read_import_dataframe
 from ..utils.excel_template import template_response
@@ -370,7 +371,7 @@ async def import_industry_types(request: Request):
         # 否则下方 begin() 抛 InvalidRequestError（SQLAlchemy 2.0 autobegin）
         await db_session.commit()
 
-        async with db_session.begin():
+        async with begin_write(db_session):
             for rec in valid_rows:
                 db_session.add(IndustryType(name=rec["name"], sort_order=rec["sort_order"]))
 

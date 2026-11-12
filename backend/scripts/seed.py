@@ -52,13 +52,33 @@ ALL_PERMISSIONS = [
     ("customers:export", "导出客户", "导出 Excel 数据", "customers"),
     ("customers:import", "导入客户", "批量导入数据", "customers"),
     ("customers:view_all", "查看全部客户", "不受经理可见性约束，查看全部客户", "customers"),
+    ("customers:crm_bind", "绑定CRM客户", "绑定/解绑中台客户的CRM客户", "customers"),
     # ============================================================
-    # 结算管理 (23)
+    # CRM 充值管理 (5)
+    # ============================================================
+    ("crm_recharge:view", "查看CRM回款", "查看CRM回款镜像列表与详情", "crm_recharge"),
+    ("crm_recharge:sync", "同步CRM回款", "手动触发CRM回款同步", "crm_recharge"),
+    ("crm_recharge:import", "导入CRM充值", "将CRM回款人工导入为客户充值", "crm_recharge"),
+    (
+        "crm_recharge:revoke",
+        "撤销CRM充值导入",
+        "回滚已导入的CRM回款充值，释放该回款以便重新导入",
+        "crm_recharge",
+    ),
+    ("crm_recharge:config", "配置CRM凭据", "配置/更换CRM开关与登录凭据(含验证)", "crm_recharge"),
+    # ============================================================
+    # 结算管理 (24)
     # ============================================================
     ("billing:view", "查看结算", "查看余额和定价规则", "billing"),
     ("billing:edit", "编辑计费配置", "修改定价规则、收款账户", "billing"),
     ("billing:delete", "删除定价", "删除定价规则", "billing"),
     ("billing:recharge", "充值操作", "执行客户充值", "billing"),
+    (
+        "billing:recharge_revoke",
+        "撤销充值记录",
+        "撤销手动/导入充值并回退余额（余额已消耗时仅超管可强制撤销）",
+        "billing",
+    ),
     ("billing:balance_import", "导入余额", "批量导入充值数据", "billing"),
     ("billing:balance_export", "导出余额", "导出客户余额数据", "billing"),
     ("billing:pricing_import", "导入计费规则", "批量导入计费规则", "billing"),
@@ -211,7 +231,7 @@ ALL_PERMISSIONS = [
 ]
 
 # 超级管理员角色名称
-SUPER_ADMIN_ROLE_NAME = "超级管理员"
+from app.constants.roles import SUPER_ADMIN_ROLE_NAME  # noqa: E402
 
 # 预置业务角色定义：角色名 → (描述, 权限 code 列表)
 PRESET_ROLES = {

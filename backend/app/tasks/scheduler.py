@@ -259,6 +259,14 @@ def init_scheduler(app):
             next_run_time=cst_now() + timedelta(days=settings.backup_cleanup_interval_days),
         )
 
+        # CRM 回款同步：每天 22:00 开始拉取当月（仅启用且凭据完整时注册）。
+        # 业务月份在触发时用 cst_today 确定，不在应用启动时冻结；跨 worker 互斥
+        # 依赖 crm_sync_runs 的活跃唯一索引，而非 max_instances。
+        # 页面保存 CRM 配置后走 apply_crm_sync_job() 即时重注册。
+        from ..services.crm_client import is_crm_enabled
+
+        apply_crm_sync_job(session_factory, is_crm_enabled())
+
         # 启动调度器
         scheduler.start()
         logger.info("📅 任务调度器已启动")
@@ -334,6 +342,65 @@ def init_scheduler(app):
         )
 
     return scheduler
+
+
+def _build_crm_sync_job(session_factory):
+    """构造 CRM 回款同步协程（每天 22:00 拉取当月）"""
+    from sqlalchemy.exc import IntegrityError
+
+    from ..services.crm_config import get_crm_config
+    from ..services.crm_recharge import CrmRechargeService
+
+    @monitored_task("crm_payment_sync", "CRM回款同步")
+    async def _sync_crm_payments():
+        async with session_factory() as session:  # pyright: ignore[reportOptionalCall]
+            async with session.begin():
+                service = CrmRechargeService(session)
+                month = cst_today().replace(day=1)
+                try:
+                    async with session.begin_nested():
+                        run = await service.create_sync_run(
+                            month=month,
+                            trigger="scheduled",
+                            operator_id=None,
+                            corp_id=get_crm_config().corp_id,
+                        )
+                        run_id = run.id
+                except IntegrityError:
+                    logger.info("CRM 同步已有活跃任务，本次调度跳过")
+                    return None
+        await CrmRechargeService.execute_sync_run(
+            run_id,
+            session_factory,  # pyright: ignore[reportArgumentType]
+        )
+        return run_id
+
+    return _sync_crm_payments
+
+
+def apply_crm_sync_job(session_factory, enabled: bool) -> None:
+    """按运行期配置注册/移除 CRM 回款同步 job（幂等，页面保存配置后即时生效）"""
+    from apscheduler.jobstores.base import JobLookupError
+
+    job_id = "crm_payment_sync"
+    if not enabled:
+        try:
+            scheduler.remove_job(job_id)
+        except JobLookupError:
+            pass
+        logger.info("📅 CRM 回款同步未启用（页面未开启或凭据不完整），已移除定时任务")
+        return
+
+    scheduler.add_job(
+        _build_crm_sync_job(session_factory),
+        trigger=CronTrigger(hour=22, minute=0, timezone=CST),
+        id=job_id,
+        name="CRM回款同步",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    logger.info("📅 已注册 CRM 回款同步任务（每天 22:00）")
 
 
 def register_sync_daily_auto(
