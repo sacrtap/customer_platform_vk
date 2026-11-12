@@ -1148,3 +1148,186 @@ service 三处加载点、序列化补 `operator_name`、前端渲染姓名）�
   可排序列必须带二级键（`Customer.id.asc()`）——`total_amount=0` 的客户占比极高
   （实测 1280 行中 1171 行），该场景必然触发。既有 `last_recharge_at` 分支已有
   二级键并注释了原因，其余分支照抄即可。
+
+
+## 通用错误文案 ↔ 后端真实异常（前端兜底文案会吞掉根因）
+
+[来源: 2026-11-11 CRM 同步「系统繁忙，请稍后重试」；`frontend/src/utils/errorHandler.ts`]
+
+前端把未知 5xx 统一映射成「系统繁忙，请稍后重试」——**这是对的**（不泄露内部细节），
+但它把排查起点彻底搬到了后端。看到这句话时，唯一有效动作是**拿后端 traceback**：
+
+```bash
+# 复现 → 看日志里该 request_id 的 traceback（Sanic 打印完整栈）
+curl -s -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:8000/api/v1/... -H "Authorization: Bearer $T" -d '...'
+```
+
+本次真实根因是 `InvalidRequestError: A transaction is already begun on this Session`，
+与「业务忙/上游超时/限流」毫无关系。见
+[`../backend/database-guidelines.md`](../backend/database-guidelines.md) 的
+「写事务必须用 `begin_write`」。
+
+### 排查顺序（不要跳过）
+
+1. **先确认前端拿到的是哪一类错误**：`errorHandler.ts` 的分类决定了文案，
+   「系统繁忙」== 后端返回 500/50000+ **或** 未捕获异常（Sanic 默认 500 体）。
+2. **要后端原始响应体**：500 时 Sanic 返回 `{"status":500,"message":"The server encountered
+   an internal error..."}`，说明异常**未**被业务 handler 捕获 → 一定有完整 traceback。
+3. **只看后端日志**，不要在代码里猜；traceback 的首个项目帧就是根因行。
+4. 修复后**用同一请求复现验证**（HTTP 状态变化），而不是只看代码 diff。
+
+### 假设检查表
+
+- [ ] 前端文案是通用兜底，还是业务 handler 返回的明确 message？（决定去不去搜后端代码）
+- [ ] 500 是否来自未捕获异常（Sanic 默认错误体）？（是 → 一定有 traceback，别猜）
+- [ ] 修复后是否用原始请求复现过？（HTTP 200/202 才算验证）
+- [ ] 该路径是否在**冷缓存**下也会执行（权限缓存、静态缓存）？——冷/热差异是此类
+      缺陷"开发偶发、上线必炸"的常见成因
+
+
+## 第三方 JSON 解析：不要按「已知键名白名单」下钻
+
+[来源: 2026-11-12 CRM 同步 failed「回款字段缺少『行业分类』」；`backend/app/services/crm_recharge.py::_walk_dicts`]
+
+### 缺陷模式
+
+解析外部系统的嵌套 JSON 时，最容易写成「只沿着我记得的那几个键往下走」：
+
+```python
+# ✗ 白名单下钻：上游换个键名，整段数据静默消失
+for key in ("children", "options", "sub_fields", "values", "items", "list"):
+    child = value.get(key)
+    if child is not None:
+        walk(child)
+```
+
+真实响应是 `custom_field_groups[].custom_fields[]`（`custom_fields` 不在白名单里），
+于是**一个字段节点都没被收集到**，业务层报出「字段缺失」，看起来像上游契约变了，
+实际上是我们自己的遍历器看不见它。
+
+```python
+# ✓ 全量遍历 + 精确匹配（读取元数据无副作用，命中与否由 label/name 精确条件决定）
+stack = [node]
+while stack:
+    cur = stack.pop()
+    if isinstance(cur, dict):
+        out.append(cur)
+        stack.extend(v for v in cur.values() if isinstance(v, (dict, list)))
+    elif isinstance(cur, list):
+        stack.extend(cur)
+```
+
+### 为什么单测没抓到（本次真正的教训）
+
+`resolve_industry_paths` 的既有单测用的是**本地虚构结构**（`{"items": [...]}` + `children`），
+恰好命中白名单 —— 单测把「我以为的结构」写成了断言，**让错误的解析器看起来是对的**。
+调研阶段明明实测过真实响应并记录在方案文档里，但没有把实测响应当成 fixture。
+
+### 规则
+
+- [ ] **外部 JSON 的解析测试必须用实测响应（脱敏后）做 fixture**，不能自己编结构；
+      fixture 里保留无关字段，用于证明「不会误收」。
+- [ ] 递归遍历不要按业务键名设白名单；只读元数据用全量遍历，靠 `label`/`name`/`id`
+      等**精确条件**筛出目标，条件不满足时**显式报错**（而不是返回空集合让上层猜）。
+- [ ] 每次上游接口结构核对后，把「键路径」写进解析器 docstring 与测试文件顶部注释，
+      并标注实测日期。
+- [ ] 解析失败的错误信息要能区分「上游没给」与「解析器看不见」：打印实际命中的
+      顶层键名/节点数（本项目的 `_extract_page` 已按此实现）。
+
+## 第三方字段名：结构对了，字段名也可能错
+
+[来源: 2026-11-12 「绑定 CRM 客户」页负责人全部显示「-」；`crm_recharge.py::_extract_owner_name`]
+
+### 缺陷模式
+
+修完「结构下钻」（上一节）之后，仍按直觉猜字段名：
+
+```python
+# ✗ 两个兜底都是猜的，上游两个都没有
+owner_name = customer.get("owner_name")
+if not owner_name and isinstance(customer.get("owner"), dict):
+    owner_name = customer["owner"].get("name")
+```
+
+`GET /api/v2/customers` 实测字段是 **`user_name`**（另有 `user_id`、`assist_users[]`）。
+结果：5032 个客户负责人全部 NULL，**同步 `succeeded`、页面显示「-」、无任何报错**。
+
+### 为什么这类 bug 特别难发现
+
+- 字段缺失在 Python 里是 `None`，不抛异常；落库列可空；前端有 `|| '-'` 兜底 →
+  四层全部「正常」，只有用户看得见。
+- 单测同样会骗人：`_FakeClient` 返回自己编的 `{"owner_name": ...}`，测试全绿。
+
+### 规则
+
+- [ ] 新接入的外部字段，第一次同步后**必须查填充率**，不能只看 `run=succeeded`：
+      `SELECT count(*), count(*) FILTER (WHERE col IS NOT NULL) FROM <table>;`
+- [ ] 关键字段填充率为 0 时同步应 `logger.warning`（示例：
+      `if customer_count and owner_count == 0: logger.warning("...核对上游字段名...")`），
+      让「映射错了」和「上游真的没数据」在日志里可区分。
+- [ ] 实测字段映射写进 `backend/crm-upstream-quirks.md` 第 9 节的表，不凭直觉命名
+      （`user_name` ≠ `owner_name`；`company_name` 可能为空，`name` 才是展示名）。
+- [ ] 前端列长期全是「-」或全空，本身就是契约映射缺陷的信号，不是展示问题。
+- [ ] 兜底不要写多个「猜的」字段名；一个都不中时要显式记录（日志/诊断字段），
+      而不是安静返回 None。
+
+## 外部数值的「字符串形态」不等于数值相等
+
+[来源: 2026-11-12 CRM 导入**必现** 409「CRM回款已变更，请同步并重新确认」;
+`crm_recharge.py::_business_snapshot`]
+
+### 缺陷模式
+
+把「源快照」和「库内镜像」用 `str()` 直接比较,以为比较的是同一个数:
+
+```python
+# x 上游详情给 "50000.0";镜像列 NUMERIC(12,2) 读回 "50000.00"
+live_snapshot  = {"amount": str(Decimal("50000.0"))}   # "50000.0"
+stored_snapshot = {"amount": str(row.amount)}           # "50000.00"
+live_snapshot != stored_snapshot   # True —— 永远不相等
+```
+
+两边都是同一个 5 万,但**每一次**导入都会被拒绝;更隐蔽的是,即便导入成功,
+下一次同步也会把该行标成 `source_changed=true`,变成永久「已变更」误报。
+
+### 规则
+
+- [ ] 需要比较外部数值与库内数值时,**先归一化到列精度**(本项目金额=`Decimal(x).quantize(0.01)`),
+  再比较;`str(Decimal)` 会原样保留 `"50000.0"` / `"50000.00"` 的差异。
+- [ ] 归一化只写一处:`_business_snapshot()` 生成 + `_snapshots_differ()` 比较,
+  **禁止在业务代码里裸写 `a != b` 比较快照**;历史未归一化快照由比较侧兼容,避免「升级即误报」。
+- [ ] 测试 fixture 必须用**上游真实格式**(`"50000.0"`),不要用 `Decimal("100.00")` 这种
+  恰好与列精度一致的假数据 —— 它会让错误的比较逻辑看起来是对的。
+- [ ] 幂等/变更检测这类「字符串相等」实现,先问一句:两个来源的格式化规则一致吗?
+  (浮点、补零、科学计数法、时区后缀、UUID 大小写)
+
+## 轮询型异步任务:由「创建动作」驱动轮询,而不是由「已有状态」驱动
+
+[来源: 2026-11-12 点击「同步CRM回款」后页面无任何进度;`crm-recharge/Index.vue::pollSync`]
+
+### 缺陷模式
+
+```python
+# x 轮询函数自己判断「有没有在跑的任务」,没有就直接 return
+const pollSync = async () => {
+  if (!activeRun.value) return
+  ...
+}
+// 创建任务后只是「排一次轮询」,并没有把刚创建的任务放进 activeRun
+await createSyncRun(month)
+schedulePoll()   // 3 秒后 pollSync 发现 activeRun 仍是 null -> 直接退出,再也不轮询
+```
+
+用户看到的是「点了按钮,什么都没发生」;后端其实每 200 条在更新进度字段。
+**状态存在 ≠ 状态可见**,缺口往往在前端的状态流转,而不是后端。
+
+### 规则
+
+- [ ] 创建异步任务后,**先把返回的 run/id 写进前端状态**(或立即回读一次列表),
+  再启动轮询;不能让轮询自己去「猜」是否存在任务。
+- [ ] 轮询的终止条件应是「本次查询没有 active 状态」,而不是「本地变量为空」;
+  否则首次进入、刷新页面、切换筛选都会永久停摆。
+- [ ] 轮询查询不要强绑当前筛选条件(月份/tab),否则用户切一下筛选,进行中的任务就从视野里消失。
+- [ ] 失败要允许继续轮询但设上限(本项目 5 次),避免后端不可用时无限重试。
+- [ ] 验收标准写成「**采样到 ≥2 个不同进度值**」,而不是「有进度字段」;
+  只断言字段存在,测不出轮询没跑。
