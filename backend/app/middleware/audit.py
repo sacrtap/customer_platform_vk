@@ -88,6 +88,17 @@ def audit_middleware(app: Sanic):
             if request.path in skip_paths:
                 return
 
+            # 路由内已写业务审计、中间件再记一次只会得到「action=create + 请求体」噪声
+            # 且与业务审计重复的端点：余额充值撤销、CRM 回款导入/撤销导入
+            if request.path.startswith("/api/v1/billing/recharge-records/") and (
+                request.path.endswith("/revoke")
+            ):
+                return
+            if request.path.startswith("/api/v1/crm-recharge/payments/") and (
+                request.path.endswith("/import") or request.path.endswith("/import/revoke")
+            ):
+                return
+
             # Billing 发票动作端点：只跳过状态变更端点
             # 生成/减免/删除保持中间件自动审计
             if request.path.startswith("/api/v1/billing/invoices/"):
