@@ -158,6 +158,13 @@ export interface RechargeRecord {
   operator_id: number
   payment_proof?: string
   remark?: string
+  /** 业务归期（实际回款日 / 手动充值当天），YYYY-MM-DD */
+  recharge_date?: string | null
+  /** CRM 来源回款（本地镜像 ID），手动/Excel 充值为 null */
+  crm_payment_id?: number | null
+  /** CRM 回款外部 ID，仅展示用 */
+  crm_payment_external_id?: number | null
+  /** 入账操作时刻（与业务归期分开） */
   created_at: string
 }
 
@@ -167,6 +174,30 @@ export function getRechargeRecords(params?: {
   page_size?: number
 }) {
   return api.get('/billing/recharge-records', { params })
+}
+
+export interface RevokeRechargePayload {
+  /** 撤销原因（必填，≤500 字） */
+  reason: string
+  /** 余额不足以回退时由超级管理员确认强制撤销（线下核对欠款） */
+  force?: boolean
+}
+
+export interface RevokeRechargeResult {
+  recharge_record_id: number
+  customer_id: number
+  real_amount: string
+  bonus_amount: string
+  recharge_date: string | null
+  needs_manual_reconciliation: boolean
+  shortfall_real: string
+  shortfall_bonus: string
+  balance: { real_amount: string; bonus_amount: string; total_amount: string }
+}
+
+/** 撤销一笔手动/Excel 充值：软删记录并回退余额（CRM 来源须走 CRM 回款页撤销） */
+export function revokeRechargeRecord(recordId: number, payload: RevokeRechargePayload) {
+  return api.post(`/billing/recharge-records/${recordId}/revoke`, payload)
 }
 
 // ==================== 消费记录 ====================

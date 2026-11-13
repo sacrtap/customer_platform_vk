@@ -41,6 +41,7 @@ def mock_db_session():
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
+    session.scalar = AsyncMock()
     # 默认无残留事务（调用方已自行提交的常规路径）；
     # consume 对残留事务的收敛行为由 TestBalanceService_ConsumeFailureRecovery 锁定
     session.in_transaction = MagicMock(return_value=False)
@@ -90,7 +91,9 @@ class TestBalanceService_Recharge:
             bonus_amount=Decimal("200.00"),
             total_amount=Decimal("1200.00"),
         )
-        balance_service.balance_repo.get_or_create.return_value = existing_balance
+        mock_db_session.in_transaction = MagicMock(return_value=True)
+        # 锁序 Customer → 余额行：第一次 scalar 取客户行锁，第二次取余额行锁
+        mock_db_session.scalar.side_effect = [100, existing_balance]
 
         # 执行充值
         result = await balance_service.recharge(
@@ -107,14 +110,18 @@ class TestBalanceService_Recharge:
         assert isinstance(result, RechargeRecord)
         assert result.real_amount == Decimal("500.00")
         assert result.bonus_amount == Decimal("100.00")
+        # 业务归期默认取 CST 今天
+        assert result.recharge_date is not None
+        assert result.crm_payment_id is None
 
         # 验证余额更新
         assert existing_balance.real_amount == Decimal("1500.00")
         assert existing_balance.bonus_amount == Decimal("300.00")
         assert existing_balance.total_amount == Decimal("1800.00")
 
-        # 验证数据库操作
-        mock_db_session.commit.assert_called()
+        # 事务由调用方持有：recharge 只 flush，不提交
+        mock_db_session.flush.assert_awaited()
+        mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_recharge_recalculates_total_amount(self, balance_service, mock_db_session):
@@ -127,7 +134,8 @@ class TestBalanceService_Recharge:
             bonus_amount=Decimal("200.00"),
             total_amount=Decimal("9999.00"),  # 脏数据：不等于 1000+200=1200
         )
-        balance_service.balance_repo.get_or_create.return_value = existing_balance
+        mock_db_session.in_transaction = MagicMock(return_value=True)
+        mock_db_session.scalar.side_effect = [100, existing_balance]
 
         # 充值 500 实充 + 100 赠金
         result = await balance_service.recharge(
@@ -151,12 +159,13 @@ class TestBalanceService_Recharge:
         # Mock 返回新创建的余额
         new_balance = CustomerBalance(
             id=1,
-            customer_id=100,
+            customer_id=200,
             real_amount=Decimal("0.00"),
             bonus_amount=Decimal("0.00"),
             total_amount=Decimal("0.00"),
         )
-        balance_service.balance_repo.get_or_create.return_value = new_balance
+        mock_db_session.in_transaction = MagicMock(return_value=True)
+        mock_db_session.scalar.side_effect = [200, new_balance]
 
         # 执行充值
         result = await balance_service.recharge(
@@ -169,10 +178,10 @@ class TestBalanceService_Recharge:
         # 验证结果
         assert result is not None
         assert result.real_amount == Decimal("1000.00")
-
-        # 验证调用了 get_or_create 获取余额
-        balance_service.balance_repo.get_or_create.assert_called_once_with(200)
-        mock_db_session.commit.assert_called()
+        # 余额行不存在时先做 ON CONFLICT 兜底插入，再对余额行加锁
+        assert mock_db_session.execute.await_count == 1
+        assert new_balance.total_amount == Decimal("1000.00")
+        mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_recharge_zero_real_with_bonus(self, balance_service, mock_db_session):
@@ -184,7 +193,8 @@ class TestBalanceService_Recharge:
             bonus_amount=Decimal("100.00"),
             total_amount=Decimal("600.00"),
         )
-        balance_service.balance_repo.get_or_create.return_value = existing_balance
+        mock_db_session.in_transaction = MagicMock(return_value=True)
+        mock_db_session.scalar.side_effect = [100, existing_balance]
 
         result = await balance_service.recharge(
             customer_id=100,

@@ -15,6 +15,7 @@ from ..cache.base import cache_service
 from ..middleware.auth import auth_required, require_permission
 from ..models.customers import Customer
 from ..utils.audit_helpers import create_audit_entry
+from ..utils.db import begin_write
 
 logger = logging.getLogger(__name__)
 
@@ -333,70 +334,96 @@ async def clear_balance_data(request: Request):
     # 统计即将删除的数据量
     from ..models.billing import ConsumptionRecord, CustomerBalance, RechargeRecord
 
-    balance_count_result = await db_session.execute(select(func.count(CustomerBalance.id)))
-    balance_count = balance_count_result.scalar() or 0
-
-    recharge_count_result = await db_session.execute(select(func.count(RechargeRecord.id)))
-    recharge_count = recharge_count_result.scalar() or 0
-
-    consumption_records_result = await db_session.execute(select(func.count(ConsumptionRecord.id)))
-    consumption_records_count = consumption_records_result.scalar() or 0
-
-    total_count = balance_count + recharge_count + consumption_records_count
-
-    # 快捷返回：如果无数据则直接返回
-    if total_count == 0:
-        return json({"code": 0, "message": "无余额数据可清空", "data": {"deleted_count": 0}})
-
-    # 创建审计日志条目（在事务中，不自动提交）
-    user_id = user["user_id"]
-    await create_audit_entry(
-        db_session=db_session,
-        user_id=user_id,
-        action="database_clear_balance",
-        module="system",
-        record_id=None,
-        record_type="database",
-        changes={
-            "before": {
-                "customer_balances_count": balance_count,
-                "recharge_records_count": recharge_count,
-                "consumption_records_count": consumption_records_count,
-            },
-            "after": {
-                "customer_balances_count": 0,
-                "recharge_records_count": 0,
-                "consumption_records_count": 0,
-            },
-            "tables_affected": [
-                "customer_balances",
-                "recharge_records",
-                "consumption_records",
-            ],
-        },
-        operation_type="sensitive",
-        auto_commit=False,
-        ip_address=request.headers.get(
-            "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
-        ),
-    )
+    # 结束权限校验阶段的只读 autobegin；随后在同一显式事务内完成「表锁 → 统计 →
+    # CRM 凭据保护 → 审计 → 删除」，避免与充值的 Customer 行锁交错导致凭据丢失
+    await db_session.rollback()
 
     try:
-        # 按依赖顺序删除
-        # 1. 消费流水（引用 customer_balances 和 invoices）
-        await db_session.execute(text("DELETE FROM consumption_records"))
+        async with begin_write(db_session):
+            # 与所有充值（BalanceService.recharge 先锁 Customer 行）及新客户 INSERT 互斥
+            await db_session.execute(text("LOCK TABLE customers IN EXCLUSIVE MODE"))
 
-        # 2. 充值记录（引用 customer_balances）
-        await db_session.execute(text("DELETE FROM recharge_records"))
+            # CRM 导入凭据保护：存在任何 CRM 来源充值（含软删行）时拒绝整次清空。
+            # 删除记录后同源回款会再次入账，资金凭据不可部分删除。
+            crm_imported = await db_session.scalar(
+                select(func.count())
+                .select_from(RechargeRecord)
+                .where(RechargeRecord.crm_payment_id.is_not(None))
+            )
+            if crm_imported:
+                return json(
+                    {
+                        "code": 40001,
+                        "message": "存在CRM导入记录，不能清除入账凭据",
+                        "data": None,
+                    },
+                    status=409,
+                )
 
-        # 3. 客户余额
-        await db_session.execute(text("DELETE FROM customer_balances"))
+            balance_count_result = await db_session.execute(select(func.count(CustomerBalance.id)))
+            balance_count = balance_count_result.scalar() or 0
 
-        # 清除余额相关 Redis 缓存
+            recharge_count_result = await db_session.execute(select(func.count(RechargeRecord.id)))
+            recharge_count = recharge_count_result.scalar() or 0
+
+            consumption_records_result = await db_session.execute(
+                select(func.count(ConsumptionRecord.id))
+            )
+            consumption_records_count = consumption_records_result.scalar() or 0
+
+            total_count = balance_count + recharge_count + consumption_records_count
+
+            # 快捷返回：如果无数据则直接返回
+            if total_count == 0:
+                return json(
+                    {"code": 0, "message": "无余额数据可清空", "data": {"deleted_count": 0}}
+                )
+
+            # 创建审计日志条目（与 DELETE 同事务）
+            user_id = user["user_id"]
+            await create_audit_entry(
+                db_session=db_session,
+                user_id=user_id,
+                action="database_clear_balance",
+                module="system",
+                record_id=None,
+                record_type="database",
+                changes={
+                    "before": {
+                        "customer_balances_count": balance_count,
+                        "recharge_records_count": recharge_count,
+                        "consumption_records_count": consumption_records_count,
+                    },
+                    "after": {
+                        "customer_balances_count": 0,
+                        "recharge_records_count": 0,
+                        "consumption_records_count": 0,
+                    },
+                    "tables_affected": [
+                        "customer_balances",
+                        "recharge_records",
+                        "consumption_records",
+                    ],
+                },
+                operation_type="sensitive",
+                auto_commit=False,
+                ip_address=request.headers.get(
+                    "x-real-ip", request.headers.get("x-forwarded-for", request.ip)
+                ),
+            )
+
+            # 按依赖顺序删除
+            # 1. 消费流水（引用 customer_balances 和 invoices）
+            await db_session.execute(text("DELETE FROM consumption_records"))
+
+            # 2. 充值记录（引用 customer_balances）
+            await db_session.execute(text("DELETE FROM recharge_records"))
+
+            # 3. 客户余额
+            await db_session.execute(text("DELETE FROM customer_balances"))
+
+        # 提交成功后清除余额相关 Redis 缓存
         await cache_service.invalidate_customer_cache()
-
-        # 提交事务
-        await db_session.commit()
 
         return json(
             {

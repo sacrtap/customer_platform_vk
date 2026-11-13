@@ -49,6 +49,7 @@ class CacheService:
             "analytics_prediction_forecast": 1800,  # 30 分钟（消费预测，基于单价矩阵）
             "billing_consumption": 300,  # 5 分钟（每客户每日消费聚合）
             "system_updates": 600,  # 10 分钟（GitHub 部署更新摘要，匿名 60/h 限流兜底）
+            "crm_token": 1800,  # 30 分钟（CRM 开放 API token 的本地缓存寿命，非上游有效期）
             "default": 300,  # 5 分钟
         }
 

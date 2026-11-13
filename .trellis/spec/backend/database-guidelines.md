@@ -34,6 +34,50 @@ db_session: AsyncSession = request.ctx.db_session
 service = CustomerService(db_session)
 ```
 
+### 写事务必须用 `begin_write`，不要裸写 `db.begin()`
+
+[来源: 2026-11-11 CRM 同步 500「系统繁忙」；`backend/app/utils/db.py`]
+
+SQLAlchemy 2.0 是 **autobegin** 语义：session 上第一次 `execute`/`get` 就会开启隐式事务。
+一个 Sanic 请求在进入路由体之前往往已经查过库 —— `@auth_required` 读当前用户、
+`@require_permission` 校验权限（缓存 miss 时查 DB）、预检/dry-run 查询、共享的
+`customer_scope_user_id(request)` 等，任意一步都会留下一个活动事务。此时路由体里再写：
+
+```python
+async with db.begin():          # ✗ InvalidRequestError: A transaction is already begun
+    ...
+```
+
+异常逃出路由 → 500 → 前端只能显示 `系统繁忙，请稍后重试`，日志里才是真话。
+
+```python
+from ..utils.db import begin_write
+
+async with begin_write(db):     # ✓ 内部先结束请求级隐式事务，再开显式写事务
+    ...
+```
+
+两条边界规则：
+
+| 场景 | 正确写法 | 反例 |
+|---|---|---|
+| 多步写入需要原子提交 | `async with begin_write(db):` | `async with db.begin():` |
+| 前面已经 `add()`/改了 ORM 对象，想提交这些改动 | `await db.commit()` | `async with db.begin(): pass` |
+
+**为什么这个 bug 会「开发时偶发、上线必炸」**：权限/用户缓存命中时前面不查库，
+`db.begin()` 侥幸不冲突；缓存冷启动、换账号、进程重启后立刻 500。所以**不能靠跑一次
+就判断没问题**，必须结构化规避。
+
+**回归锚点**（改事务相关代码必须跑）：
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/integration/test_crm_sync_routes.py -q   # 含 begin_write 语义用例
+```
+
+排查同类 500 的唯一有效路径是后端 traceback（`InvalidRequestError: A transaction is
+already begun` 会出现 `sqlalchemy/orm/session.py` 帧），不是前端文案。
+
 ---
 
 ## PG 会话时区契约（naive 时间列的墙钟基准）

@@ -297,6 +297,7 @@ def create_app(
     from .routes.balance_whitelist_routes import balance_whitelist_bp
     from .routes.billing import billing_bp
     from .routes.cooperation_status_routes import cooperation_status_bp
+    from .routes.crm_recharge import crm_recharge_bp
     from .routes.customers import customers_bp
     from .routes.database_management import database_bp
     from .routes.dict_routes import dict_bp
@@ -318,6 +319,7 @@ def create_app(
     app.blueprint(users_bp)
     app.blueprint(customers_bp)
     app.blueprint(billing_bp)
+    app.blueprint(crm_recharge_bp)
     app.blueprint(tags_bp)
     app.blueprint(customer_tags_bp)
     app.blueprint(profile_tags_bp)
@@ -351,6 +353,28 @@ def create_app(
             echo=settings.database_echo,
         )
         app.ctx.external_mysql_engine = external_engine
+
+    # 加载页面维护的 CRM 配置到进程内缓存。
+    # 必须先于 init_scheduler：CRM 回款同步 job 的注册依赖生效配置（开关 + 凭据）。
+    @app.before_server_start
+    async def load_crm_runtime_config(app, loop):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            from .services.crm_config import load_crm_config
+
+            async with app.ctx.async_session_maker() as session:
+                cfg = await load_crm_config(session)
+            logger.info(
+                "🔧 CRM 运行期配置已加载：来源=%s，启用=%s，凭据完整=%s",
+                cfg.source,
+                cfg.enabled,
+                cfg.credentials_complete,
+            )
+        except Exception as e:
+            # 迁移未应用等情况下不阻塞启动，回退环境变量
+            logger.warning("CRM 运行期配置加载失败，本次回退环境变量: %s", e)
 
     # 初始化任务调度器
     from .tasks.scheduler import init_scheduler
@@ -432,6 +456,19 @@ def create_app(
                     )
             except Exception as e:
                 logger.error(f"恢复明细文件任务失败: {e}")
+
+        # 恢复心跳中断的 CRM 同步任务（只处理超过 2 分钟的旧任务）
+        if is_async:
+            try:
+                from app.services.crm_recharge import CrmRechargeService
+
+                recovered = await CrmRechargeService.recover_stale_sync_runs(
+                    async_session_maker  # pyright: ignore[reportPossiblyUnboundVariable]
+                )
+                if recovered:
+                    logger.info(f"✓ 已恢复 {recovered} 个中断的 CRM 同步任务")
+            except Exception as e:
+                logger.error(f"恢复 CRM 同步任务失败: {e}")
 
     # 应用关闭事件
     @app.after_server_stop

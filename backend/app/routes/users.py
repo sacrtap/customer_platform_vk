@@ -21,6 +21,7 @@ from ..middleware.auth import auth_required, get_current_user, require_permissio
 from ..models.users import Role, User
 from ..services.users import UserService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ..utils.db import begin_write
 from ..utils.excel_export import excel_response
 from ..utils.excel_import import read_import_dataframe
 from ..utils.excel_template import template_response
@@ -576,7 +577,7 @@ async def import_users(request: Request):
         await db_session.commit()
 
         # 正式落库：create_user/assign_roles 内部仅 flush，由事务统一提交
-        async with db_session.begin():
+        async with begin_write(db_session):
             for row in valid_rows:
                 user = await service.create_user(
                     username=row["username"],

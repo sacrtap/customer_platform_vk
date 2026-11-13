@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "routes → services → repositories → models 分层与蓝图模式"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "软删除、会话时区契约、schema drift 校验"}
+{"file": ".trellis/spec/backend/permission-model.md", "reason": "新增权限码上线流程与 drift 测试"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ErrorCodes 与响应格式"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试分层与禁止模式"}
+{"file": "docs/specs/2026-11-11-crm-recharge-management-plan.md", "reason": "完整调研与实施设计（权威）"}

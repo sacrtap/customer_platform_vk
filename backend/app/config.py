@@ -87,6 +87,20 @@ class Settings(BaseSettings):
     external_mysql_pool_size: int = 5
     external_mysql_pool_recycle: int = 3600
 
+    # CRM（weiwenjia 开放 API）只读集成
+    # 仅读取客户/合同/回款，不向 CRM 写入任何业务数据。
+    # 环境变量提供的是「出厂默认值」：页面保存过的配置（crm_settings 表）优先，
+    # 因此部署后可由管理员在「CRM充值管理 → CRM 配置」直接维护与更换凭据。
+    crm_enabled: bool = False
+    crm_base_url: str = "https://lxcrm.weiwenjia.com"
+    crm_corp_id: str = ""
+    crm_phone: str = ""
+    crm_password: str = ""
+    # 页面保存的 CRM 登录密码用 Fernet 对称加密后落库，密钥必须由部署密钥注入：
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # 未配置时仍可读取/保存非密码字段，但保存密码会被拒绝。
+    crm_credential_key: str = ""
+
     # 消费预测单价矩阵（元/套）
     consumption_forecast_unit_prices: dict = {
         "L": 14.5,

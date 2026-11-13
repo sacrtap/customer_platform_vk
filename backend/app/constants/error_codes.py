@@ -38,6 +38,10 @@ class ErrorCodes:
     # 404xx - 资源不存在
     NOT_FOUND = 40401  # 通用资源不存在
 
+    # 422xx - 业务校验错误
+    CRM_CREDENTIAL_VERIFY_FAILED = 42201  # CRM 账号密码验证失败（可强制保存）
+    CRM_UPSTREAM_UNAVAILABLE = 42202  # CRM 接口暂时不可用（可强制保存）
+
     # 500xx - 服务器内部错误
     INTERNAL_ERROR = 50000  # 通用服务器错误
     SERVICE_ERROR = 50001  # 服务处理失败

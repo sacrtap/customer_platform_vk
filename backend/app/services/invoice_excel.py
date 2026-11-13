@@ -10,7 +10,7 @@ import asyncio
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -258,22 +258,28 @@ class InvoiceExcelService:
             current_balance = bal.total_amount if bal and bal.total_amount else Decimal(0)
             final_amount = total_amount - discount_amount
 
-            # 查询当月充值记录总额
-            # recharge_records.created_at 是 timestamp WITHOUT TIME ZONE（naive），
-            # 而 period_start/end 来自 timestamptz 列的 aware UTC datetime。直接比较
-            # asyncpg 抛 DataError（can't subtract offset-naive and offset-aware），
-            # 该异常曾被 except 吞掉仅记 error，导致「当月充值」恒为 0。
-            # 此处显式剥离 tzinfo（UTC 墙钟值不变）以匹配 naive 列语义。
-            start_dt = period_start.replace(tzinfo=None)
-            end_dt = (period_end + timedelta(seconds=1)).replace(tzinfo=None)  # 包含结束时刻
+            # 查询当月充值记录总额：按业务归期 recharge_date（实际回款日）与
+            # CST 业务日窗口统计。period_start/end 来自 timestamptz 列（aware UTC
+            # datetime），先转 CST 再取自然日；结束为 end 的 CST 日期 +1 天，
+            # 使用半开区间（包含结束日、不偏移 8 小时）。
+            def _cst_date(value: datetime) -> date:
+                if value.tzinfo is not None:
+                    return value.astimezone(CST).date()
+                # naive 列按既有 CST 墙钟约定取日期，不直接剥 tzinfo 当 UTC
+                return value.date()
+
+            start_date = _cst_date(period_start)
+            end_date_exclusive = _cst_date(period_end) + timedelta(days=1)
             recharge_result = await db.execute(
                 select(
                     func.coalesce(func.sum(RechargeRecord.real_amount), 0),
                     func.coalesce(func.sum(RechargeRecord.bonus_amount), 0),
                 ).where(
                     RechargeRecord.customer_id == customer_id,
-                    RechargeRecord.created_at >= start_dt,
-                    RechargeRecord.created_at < end_dt,
+                    # 已撤销（软删）充值不计入结算期充值额，否则与余额口径矛盾
+                    RechargeRecord.deleted_at.is_(None),
+                    RechargeRecord.recharge_date >= start_date,
+                    RechargeRecord.recharge_date < end_date_exclusive,
                 )
             )
             recharge_row = recharge_result.fetchone()

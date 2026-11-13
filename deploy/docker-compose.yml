@@ -87,6 +87,9 @@ services:
       EXTERNAL_MYSQL_URL: ${EXTERNAL_MYSQL_URL:-}
       APP_ENV: ${APP_ENV:-development}
       DEBUG: ${DEBUG:-false}
+      # CRM 页面保存的登录密码用它加密落库（未设置时只能保存非密码字段）。
+      # 取值来源：CI 传入的 shell 环境或服务器 .env（deploy.sh 会 set -a; source .env）。
+      CRM_CREDENTIAL_KEY: ${CRM_CREDENTIAL_KEY:-}
     volumes:
       - app_uploads:/app/uploads
     # 后端不再对外暴露端口，只通过 Nginx 反向代理访问

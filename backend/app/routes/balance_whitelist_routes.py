@@ -16,6 +16,7 @@ from ..middleware.auth import auth_required, require_permission
 from ..models.balance_whitelist import BalanceWhitelist
 from ..models.customers import Customer
 from ..services.balance_whitelist_service import BalanceWhitelistService
+from ..utils.db import begin_write
 from ..utils.excel_export import excel_response
 from ..utils.excel_import import read_import_dataframe
 from ..utils.excel_template import template_response
@@ -310,7 +311,7 @@ async def import_balance_whitelist(request: Request):
 
         # 落库：路由层直接 db.add（不调 service.add，其内部自带 commit 会与
         # db_session.begin() 嵌套冲突）；逐行 begin_nested 隔离，单行 DB 错误只回滚该行
-        async with db_session.begin():
+        async with begin_write(db_session):
             for customer_id, static_balance, remark in valid_rows:
                 async with db_session.begin_nested():
                     db_session.add(

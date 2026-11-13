@@ -15,6 +15,7 @@ from ..middleware.auth import auth_required, get_current_user, require_permissio
 from ..models.users import Role, role_permissions
 from ..services.roles import RoleService
 from ..utils.audit_helpers import build_batch_audit_summary, create_audit_entry
+from ..utils.db import begin_write
 from ..utils.excel_export import excel_response
 from ..utils.excel_import import read_import_dataframe
 from ..utils.excel_template import template_response
@@ -464,7 +465,7 @@ async def import_roles(request: Request):
 
         # 正式落库：RoleService.create_role 内部会 commit，不可用于批量事务；
         # 在 db_session.begin() 内手动创建 Role + role_permissions 关联，统一提交
-        async with db_session.begin():
+        async with begin_write(db_session):
             for row in valid_rows:
                 role = Role(name=row["name"], description=row["description"], is_system=False)
                 db_session.add(role)

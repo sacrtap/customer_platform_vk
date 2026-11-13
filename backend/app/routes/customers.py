@@ -474,6 +474,15 @@ async def get_customer(request: Request, customer_id: int):
     ):
         return json({"code": ErrorCodes.FORBIDDEN, "message": "无权访问该客户"}, status=403)
 
+    # CRM 绑定只读信息（写入口仅 /crm-recharge/customers/<id>/binding）
+    crm_customer = None
+    if customer.crm_customer_id:
+        from ..models.crm_recharge import CrmCustomer
+
+        crm_customer = await db_session.scalar(
+            select(CrmCustomer).where(CrmCustomer.id == customer.crm_customer_id)
+        )
+
     data = {
         "id": customer.id,
         "company_id": customer.company_id,
@@ -509,6 +518,9 @@ async def get_customer(request: Request, customer_id: int):
         "settlement_account_name": (
             customer.settlement_account.name if customer.settlement_account else None
         ),
+        "crm_customer_id": customer.crm_customer_id,
+        "crm_customer_external_id": crm_customer.external_id if crm_customer else None,
+        "crm_customer_name": crm_customer.name if crm_customer else None,
     }
 
     # 添加画像信息
@@ -1839,8 +1851,9 @@ async def create_follow_up(request: Request, customer_id: int):
         changes={"type": follow_up_type, "note": note},
     )
 
-    async with db.begin():
-        pass  # audit entry already created
+    # 审计条目已 add 到当前（隐式）事务，直接提交；不要再 begin()，
+    # 否则抛 InvalidRequestError: A transaction is already begun
+    await db.commit()
 
     return json(
         {

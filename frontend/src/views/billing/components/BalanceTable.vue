@@ -204,7 +204,7 @@ const columnDefs: ColumnDef[] = [
   { key: 'total_amount', title: '余额', sortable: true, width: 138 },
   { key: 'burn_down', title: '余额燃尽', sortable: true, width: 118 },
   { key: 'used_total', title: '已消耗', sortable: true, width: 138 },
-  { key: 'last_recharge_at', title: '最新充值', sortable: true, width: 102 },
+  { key: 'last_recharge_at', title: '最近充值日期', sortable: true, width: 116 },
 ]
 
 // 列设置持久化 key
@@ -348,7 +348,10 @@ const getBurnTooltip = (record: Balance): string => {
   if (record.days_remaining == null) {
     const parts = ['近 30 天无消费记录']
     if (record.last_recharge_at) {
-      const lastDate = new Date(record.last_recharge_at)
+      // 业务归期是 DATE（YYYY-MM-DD）；new Date(str) 按 UTC 解析会在本地差 8 小时，
+      // 天数可能多算 1 天，故按本地日期分量构造
+      const [year, month, day] = record.last_recharge_at.split('-').map(Number)
+      const lastDate = new Date(year, month - 1, day)
       const now = new Date()
       const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
       parts.push(`距上次充值 ${daysSince} 天`)

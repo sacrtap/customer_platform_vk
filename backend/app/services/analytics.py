@@ -2409,20 +2409,22 @@ class AnalyticsService:
 
         # 查询趋势窗口内的充值记录（按月聚合）
         recharge_stmt = select(
-            extract("year", RechargeRecord.created_at).label("year"),
-            extract("month", RechargeRecord.created_at).label("month"),
+            extract("year", RechargeRecord.recharge_date).label("year"),
+            extract("month", RechargeRecord.recharge_date).label("month"),
             func.sum(RechargeRecord.real_amount).label("real_amount"),
             func.sum(RechargeRecord.bonus_amount).label("bonus_amount"),
         ).where(
             and_(
                 RechargeRecord.customer_id == customer_id,
-                RechargeRecord.created_at >= datetime.combine(start_of_period, datetime.min.time()),
-                RechargeRecord.created_at <= datetime.combine(end_date, datetime.max.time()),
+                # 已撤销（软删）充值不计入趋势，否则余额与趋势口径矛盾
+                RechargeRecord.deleted_at.is_(None),
+                RechargeRecord.recharge_date >= start_of_period,
+                RechargeRecord.recharge_date <= end_date,
             )
         )
         recharge_stmt = recharge_stmt.group_by(
-            extract("year", RechargeRecord.created_at),
-            extract("month", RechargeRecord.created_at),
+            extract("year", RechargeRecord.recharge_date),
+            extract("month", RechargeRecord.recharge_date),
         )
         recharge_result = (await self.db.execute(recharge_stmt)).all()
 
@@ -2466,7 +2468,9 @@ class AnalyticsService:
         ).where(
             and_(
                 RechargeRecord.customer_id == customer_id,
-                RechargeRecord.created_at < datetime.combine(start_of_period, datetime.min.time()),
+                # 已撤销（软删）充值不计入历史累计
+                RechargeRecord.deleted_at.is_(None),
+                RechargeRecord.recharge_date < start_of_period,
             )
         )
         await self.db.execute(historical_recharge_stmt)

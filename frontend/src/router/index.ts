@@ -96,6 +96,12 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: 'crm-recharge',
+        name: 'CrmRecharge',
+        component: () => import('@/views/crm-recharge/Index.vue'),
+        meta: { requiresPermission: 'crm_recharge:view' },
+      },
+      {
         path: 'analytics',
         name: 'Analytics',
         children: [

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..middleware.auth import auth_required, require_permission
 from ..models.billing import AuditLog
 from ..models.users import User
+from ..services.audit_describe import describe_audit
 
 audit_logs_bp = Blueprint("audit_logs", url_prefix="/api/v1/audit-logs")
 
@@ -90,6 +91,15 @@ async def list_audit_logs(request: Request):
             "record_id": row.AuditLog.record_id,
             "record_type": row.AuditLog.record_type,
             "changes": row.AuditLog.changes,
+            "description": describe_audit(
+                action=row.AuditLog.action,
+                module=row.AuditLog.module,
+                record_type=row.AuditLog.record_type,
+                record_id=row.AuditLog.record_id,
+                changes=row.AuditLog.changes,  # pyright: ignore[reportArgumentType]
+                extra_metadata=row.AuditLog.extra_metadata,  # pyright: ignore[reportArgumentType]
+                operation_type=row.AuditLog.operation_type,
+            ),
             "ip_address": row.AuditLog.ip_address,
             "operation_type": row.AuditLog.operation_type,
             "extra_metadata": row.AuditLog.extra_metadata,

@@ -3711,3 +3711,35 @@ async def test_import_customers_settlement_account_intra_batch_reference(
             {"a": main_cid, "b": dangling_cid},
         )
         db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_follow_up_persists_audit(
+    test_client, db_session, auth_headers, customer_data
+):
+    """POST /customers/{id}/follow-up 曾必然 500
+
+    回归点：路由先 `db.get(Customer)` + `create_audit_entry`（autobegin 已开事务），
+    再 `async with db.begin(): pass` → InvalidRequestError → 前端「系统繁忙」。
+    修复后必须 200，且审计条目真的落库（不是假成功）。
+    """
+    customer_id = customer_data["customer_id"]
+    _, response = await test_client.post(
+        f"/api/v1/customers/{customer_id}/follow-up",
+        json={"type": "general", "note": "集成测试跟进"},
+        headers=auth_headers,
+    )
+    assert response.status == 200, response.json
+    assert response.json["data"]["customer_id"] == customer_id
+
+    row = db_session.execute(
+        text(
+            """
+            SELECT changes FROM audit_logs
+            WHERE action = 'customer_follow_up' AND record_id = :cid
+            ORDER BY id DESC LIMIT 1
+            """
+        ),
+        {"cid": customer_id},
+    ).scalar_one()
+    assert row["note"] == "集成测试跟进"

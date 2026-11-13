@@ -74,6 +74,11 @@ vi.mock('@/api/users', () => ({
   getManagers: () => getManagersMock(),
 }))
 
+// CRM 绑定区块依赖用户权限；本测试聚焦经理字段载荷，权限一律按无绑定权限处理
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => ({ hasPermission: () => false, userInfo: { id: 1 } }),
+}))
+
 // CustomerAutoComplete 是复杂组件，mock 成存根
 vi.mock('@/components/CustomerAutoComplete.vue', () => ({
   default: {

@@ -14,6 +14,7 @@ Billing API 集成测试
 """
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 import bcrypt
@@ -3844,3 +3845,169 @@ async def test_generate_batch_triggers_detail_generation(
         db_session.execute(text("DELETE FROM invoices WHERE customer_id = :id"), {"id": cid})
         db_session.execute(text("DELETE FROM customers WHERE id = :id"), {"id": cid})
         db_session.commit()
+
+
+# ==================== 充值记录撤销 ====================
+
+
+@pytest.mark.asyncio
+async def test_recharge_revoke_soft_deletes_and_rolls_back_balance(
+    test_client, auth_token, test_customer, db_session
+):
+    """撤销手动充值：余额回退、记录软删（列表消失）、审计留痕、原始凭据保留"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    _, charged = await test_client.post(
+        "/api/v1/billing/recharge",
+        json={
+            "customer_id": customer_id,
+            "real_amount": 10000.00,
+            "bonus_amount": 2000.00,
+            "remark": "误充测试",
+            "payment_proof": "/uploads/mistake.png",
+        },
+        headers=headers,
+    )
+    assert charged.status == 201, charged.json
+
+    record_id = db_session.execute(
+        text("SELECT id FROM recharge_records WHERE customer_id = :cid ORDER BY id DESC LIMIT 1"),
+        {"cid": customer_id},
+    ).scalar_one()
+
+    _, revoked = await test_client.post(
+        f"/api/v1/billing/recharge-records/{record_id}/revoke",
+        json={"reason": "填错客户"},
+        headers=headers,
+    )
+    assert revoked.status == 200, revoked.json
+    data = revoked.json["data"]
+    assert data["needs_manual_reconciliation"] is False
+    assert Decimal(data["balance"]["real_amount"]) == 0
+    assert Decimal(data["balance"]["bonus_amount"]) == 0
+
+    # 软删：记录仍在库中，原始凭据可追溯
+    row = db_session.execute(
+        text("SELECT deleted_at, payment_proof, remark FROM recharge_records WHERE id = :rid"),
+        {"rid": record_id},
+    ).one()
+    assert row[0] is not None
+    assert row[1] == "/uploads/mistake.png"
+    assert row[2] == "误充测试"
+
+    # 列表不再返回
+    _, listed = await test_client.get(
+        f"/api/v1/billing/recharge-records?customer_id={customer_id}", headers=headers
+    )
+    assert listed.status == 200, listed.json
+    assert record_id not in [r["id"] for r in listed.json["data"]["list"]]
+
+    # 客户余额已回退
+    _, balance = await test_client.get(
+        f"/api/v1/billing/customers/{customer_id}/balance", headers=headers
+    )
+    assert balance.status == 200, balance.json
+    assert Decimal(str(balance.json["data"]["real_amount"])) == 0
+    assert Decimal(str(balance.json["data"]["bonus_amount"])) == 0
+
+    audits = db_session.execute(
+        text("SELECT count(*) FROM audit_logs WHERE action = 'billing_recharge_revoke'")
+    ).scalar_one()
+    assert audits >= 1
+
+
+@pytest.mark.asyncio
+async def test_recharge_revoke_requires_reason_and_rejects_repeat(
+    test_client, auth_token, test_customer, db_session
+):
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    _, charged = await test_client.post(
+        "/api/v1/billing/recharge",
+        json={"customer_id": customer_id, "real_amount": 500.00, "bonus_amount": 0},
+        headers=headers,
+    )
+    assert charged.status == 201, charged.json
+    record_id = db_session.execute(
+        text("SELECT id FROM recharge_records WHERE customer_id = :cid ORDER BY id DESC LIMIT 1"),
+        {"cid": customer_id},
+    ).scalar_one()
+
+    _, no_reason = await test_client.post(
+        f"/api/v1/billing/recharge-records/{record_id}/revoke", json={}, headers=headers
+    )
+    assert no_reason.status == 400
+    assert "原因必填" in no_reason.json["message"]
+
+    _, first = await test_client.post(
+        f"/api/v1/billing/recharge-records/{record_id}/revoke",
+        json={"reason": "重复点击测试"},
+        headers=headers,
+    )
+    assert first.status == 200, first.json
+
+    _, again = await test_client.post(
+        f"/api/v1/billing/recharge-records/{record_id}/revoke",
+        json={"reason": "重复点击测试"},
+        headers=headers,
+    )
+    assert again.status == 400
+    assert "已撤销" in again.json["message"]
+
+
+@pytest.mark.asyncio
+async def test_revoke_removes_recharge_from_balance_trend(
+    test_client, auth_token, test_customer, db_session, test_user
+):
+    """余额趋势口径：已撤销的历史充值不得再抬高对应月份余额"""
+    from dateutil.relativedelta import relativedelta
+
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    customer_id = test_customer["id"]
+
+    operator_id = db_session.execute(
+        text("SELECT id FROM users WHERE username = :u"), {"u": test_user["username"]}
+    ).scalar_one()
+    history_date = date.today().replace(day=1) - relativedelta(months=3)
+
+    db_session.execute(
+        text(
+            "INSERT INTO customer_balances (customer_id, real_amount, bonus_amount, "
+            "total_amount, used_total, used_real, used_bonus, created_at, updated_at) "
+            "VALUES (:cid, 10000, 0, 10000, 0, 0, 0, NOW(), NOW())"
+        ),
+        {"cid": customer_id},
+    )
+    record_id = db_session.execute(
+        text(
+            "INSERT INTO recharge_records (customer_id, real_amount, bonus_amount, operator_id, "
+            "recharge_date, created_at, updated_at) "
+            "VALUES (:cid, 10000, 0, :op, :rdate, NOW(), NOW()) RETURNING id"
+        ),
+        {"cid": customer_id, "op": operator_id, "rdate": history_date},
+    ).scalar_one()
+    db_session.commit()
+
+    month_key = history_date.strftime("%Y-%m")
+    _, before = await test_client.get(
+        f"/api/v1/billing/customers/{customer_id}/balance-trend?months=6", headers=headers
+    )
+    assert before.status == 200, before.json
+    before_month = next(r for r in before.json["data"] if r["month"] == month_key)
+    assert Decimal(str(before_month["real_amount"])) == 10000
+
+    _, revoked = await test_client.post(
+        f"/api/v1/billing/recharge-records/{record_id}/revoke",
+        json={"reason": "口径验证"},
+        headers=headers,
+    )
+    assert revoked.status == 200, revoked.json
+
+    _, after = await test_client.get(
+        f"/api/v1/billing/customers/{customer_id}/balance-trend?months=6", headers=headers
+    )
+    assert after.status == 200, after.json
+    after_month = next(r for r in after.json["data"] if r["month"] == month_key)
+    assert Decimal(str(after_month["real_amount"])) == 0

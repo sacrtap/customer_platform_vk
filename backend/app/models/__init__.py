@@ -30,6 +30,8 @@ from . import api_key  # noqa: E402
 from . import forecast_config  # noqa: E402
 from . import balance_whitelist  # noqa: E402
 from . import backup  # noqa: E402
+from . import crm_recharge  # noqa: E402
+from . import crm_setting  # noqa: E402
 
 # isort: on
 
@@ -55,4 +57,6 @@ __all__ = [
     "forecast_config",
     "balance_whitelist",
     "backup",
+    "crm_recharge",
+    "crm_setting",
 ]

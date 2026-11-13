@@ -122,6 +122,9 @@
     <RechargeRecordModal
       v-model:visible="recordModalVisible"
       :customer-id="currentRecordCustomerId"
+      :can="can"
+      :is-super-admin="userStore.isSuperAdmin"
+      @revoked="handleRechargeSuccess"
     />
 
     <!-- 导入弹窗 -->
