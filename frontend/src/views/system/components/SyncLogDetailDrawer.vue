@@ -130,14 +130,15 @@
           </a-tooltip>
         </template>
         <template #customer="{ record }">
-          <span v-if="record.company_id ?? record.external_customer_id ?? record.customer_name">
-            {{ record.company_id ?? record.external_customer_id ?? '-' }}
-            <template v-if="record.customer_name"> · {{ record.customer_name }}</template>
+          <span v-if="record.company_id ?? record.external_customer_id">
+            {{ record.company_id ?? record.external_customer_id }}
           </span>
           <span v-else>-</span>
         </template>
         <template #company="{ record }">
-          <span v-if="record.company_name">{{ record.company_name }}</span>
+          <span v-if="record.customer_name || record.company_name">
+            {{ record.customer_name || record.company_name }}
+          </span>
           <span v-else>-</span>
         </template>
         <template #order_code="{ record }">
@@ -242,8 +243,8 @@ const columns = [
   { title: '级别', slotName: 'level', width: 80 },
   { title: '日期', slotName: 'sync_date', width: 140 },
   { title: '类别', slotName: 'category', width: 90 },
-  { title: '公司ID · 名称', slotName: 'customer', width: 180 },
-  { title: '公司名', slotName: 'company', width: 140 },
+  { title: '公司ID', slotName: 'customer', width: 110 },
+  { title: '公司名', slotName: 'company', width: 160 },
   { title: '订单号', slotName: 'order_code', width: 140 },
   { title: '是否结算', slotName: 'is_settled', width: 90 },
   { title: '账号类型', slotName: 'account_type', width: 110 },

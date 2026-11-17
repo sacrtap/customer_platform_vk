@@ -371,6 +371,26 @@ loading 图标不在弹窗内居中——因为 a-spin 根元素高度塌陷。
 - `customer_name` 为空时显示 `-`（`.subtle`），**不要**拼「客户123」这类
   含 DB 主键的兜底文案（客户ID 已独立成列，再拼一次是冗余且误导）。
 
+#### 适用范围与双名称字段优先级
+
+[来源: 2026-11-17 — 同步日志「执行信息」抽屉把公司ID与客户名拼进同一列
+（`公司ID · 名称`），独立的「公司名」列又只渲染外部 `company_name`，
+导致占多数的内部客户行（费用计算/订单保存明细）名称无处展示]
+
+- 双列约定**不限于列表页**：抽屉（`a-drawer`）、弹窗（`a-modal`）内的
+  `a-table` 同样适用。新建表格前先查本节，不要自造「ID · 名称」合并列。
+- **一个单元格只放一个语义字段**：ID 列不得拼接名称，名称列不得拼接 ID，
+  列名与内容保持一致（叫「公司ID」的列就不出现名称）。
+- 明细类接口可能同时带回两个名称字段——内部 `customer_name` 与外部
+  `company_name`（语义见 `frontend/src/api/syncTasks.ts` 的 `SyncLogDetail`
+  字段注释）。「公司名」列取 `customer_name || company_name`：内部客户名优先，
+  外部公司名仅在前者为空（订单未匹配/保存失败）时兜底；「公司ID」列同理取
+  `company_id || external_customer_id`。上述 `-` 规则仅在两个字段都为空时生效。
+- 回归测试：
+  `frontend/src/views/system/components/__tests__/SyncLogDetailDrawer.companyColumn.test.ts`
+  覆盖四类明细形态（费用计算/订单未匹配/保存失败/任务级）的列拆分断言，
+  旧代码（拼接渲染）下该测试失败。
+
 ### DataTable 列宽陷阱：`scroll.x` 要略大于容器宽度
 
 `DataTable` 底层 `a-table` 用 `table-layout: fixed`，当 `scroll.x` **小于**表格容器

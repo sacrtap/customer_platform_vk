@@ -37,14 +37,19 @@ export interface SyncLogDetail {
   level: 'info' | 'warning' | 'error'
   category: string
   message: string
+  /** 内部客户 DB 主键（customers.id，非对外编号） */
   customer_id: number | null
+  /** 内部客户名称（Customer.name；费用计算/订单保存明细，喂「公司名」列） */
   customer_name: string | null
+  /** 外部客户ID（MySQL group_type；仅订单未匹配明细，无内部客户时喂「公司ID」列） */
   external_customer_id: string | null
+  /** 外部公司名（MySQL company_name；仅订单未匹配/保存失败明细，customer_name 为空时兜底「公司名」列） */
   company_name: string | null
   order_code: string | null
   record_count: number
   is_settlement_enabled: boolean | null
   account_type: string | null
+  /** 内部客户公司编号（customers.company_id，对外可读编号，随 customer_id 左连带入，喂「公司ID」列） */
   company_id: number | null
   created_at: string | null
 }
