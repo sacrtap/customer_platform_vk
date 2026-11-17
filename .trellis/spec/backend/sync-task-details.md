@@ -40,7 +40,7 @@ INNER JOIN (
 |---|---|---|---|---|---|---|
 | `cost_calc` | info/warning/error | ✅ | ✅ | — | — | `cost_calc.py::_emit` |
 | `order_save`（成功，按客户聚合） | info | ✅ | ✅ | — | — | `order_sync.py` 成功聚合循环 |
-| `order_save`（单条处理失败） | error | — | — | ⚠️ 缺 | ✅ | `order_sync.py` 异常分支（未传 `external_customer_id`，外部ID丢失；建议补 `str(order["group_type"])`） |
+| `order_save`（单条处理失败） | error | — | — | ✅ | ✅ | `order_sync.py` 异常分支（2026-11-17 补传，与 order_match 同口径；group_type 缺失时为 None） |
 | `order_save`（批量提交失败） | error | — | — | — | — | `order_sync.py` 提交异常分支 |
 | `order_match`（未匹配内部客户） | warning | — | — | ✅ | ✅ | `order_sync.py` 未匹配分支 |
 | `order_move`（跨日迁移） | warning | ✅ | — | — | — | `order_sync.py::_migrate_cross_day_orders` |
@@ -71,6 +71,9 @@ INNER JOIN (
 **客户建档时间差**：该客户建于 2026-10-31，晚于同步日期，重同步不会再产生。
 即：按当前客户表，新同步基本不会出现 `order_match`，「外部」列多数行为 `-` 属
 预期；若上游出现全新 group_type 且未建档，才会重新看到该列有值。
+
+回归测试：`backend/tests/unit/services/test_order_sync.py::test_match_and_save_single_failure_carries_external_customer_id`
+（覆盖单条失败带外部ID、group_type 缺失为 None 两种形态）。
 
 ## 3. 前端展示口径（与后端契约的对应）
 

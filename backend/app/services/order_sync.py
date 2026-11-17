@@ -411,6 +411,11 @@ class OrderSyncService:
                     "order_save",
                     f"订单处理失败: {type(e).__name__}: {e}",
                     company_name=order.get("company_name"),
+                    # 与 order_match 分支同口径带上外部客户ID（group_type），
+                    # 否则执行信息「外部」列只有公司名、缺 ID（2026-11-17 修复）
+                    external_customer_id=str(order.get("group_type"))
+                    if order.get("group_type") is not None
+                    else None,
                     order_code=order_code,
                 )
 
