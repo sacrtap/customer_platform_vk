@@ -43,7 +43,7 @@ INNER JOIN (
 | `order_save`（单条处理失败） | error | — | — | ✅ | ✅ | `order_sync.py` 异常分支（2026-11-17 补传，与 order_match 同口径；group_type 缺失时为 None） |
 | `order_save`（批量提交失败） | error | — | — | — | — | `order_sync.py` 提交异常分支 |
 | `order_match`（未匹配内部客户） | warning | — | — | ✅ | ✅ | `order_sync.py` 未匹配分支 |
-| `order_move`（跨日迁移） | warning | ✅ | — | — | — | `order_sync.py::_migrate_cross_day_orders` |
+| `order_move`（跨日迁移） | warning | ✅ | ✅ | — | — | `order_sync.py::_migrate_cross_day_orders`（2026-11-17 补传：名称按客户批量预取，`customer_id` 为空时跳过查询且名称为 None） |
 | `order_fetch`（外部拉取失败） | error | — | — | — | — | `order_sync.py::sync_orders` |
 | `data_check`（跳过/无订单/无消费） | info/warning | — | — | — | — | `sync_task_service.py` |
 | `system`（任务级） | * | — | — | — | — | `sync_task_service.py` |
@@ -73,7 +73,14 @@ INNER JOIN (
 预期；若上游出现全新 group_type 且未建档，才会重新看到该列有值。
 
 回归测试：`backend/tests/unit/services/test_order_sync.py::test_match_and_save_single_failure_carries_external_customer_id`
-（覆盖单条失败带外部ID、group_type 缺失为 None 两种形态）。
+（覆盖单条失败带外部ID、group_type 缺失为 None 两种形态）、
+`backend/tests/unit/services/test_order_sync_cross_day.py` 的 order_move 客户名断言
+（含多客户单次批量预取、`customer_id` 为空跳过查询两种边界）。
+
+**不变量（2026-11-17 两起同类缺口后确立）**：凡发射点传了 `customer_id`，必须**同时**
+传 `customer_name`。接口返回的 `company_id` 由左连 customers 补出，而 `customer_name`
+**没有任何兜底**——漏传即「公司ID 列只有 ID、没有名称」（用户实测样例：order_move
+1617/OPPD_E6Nl1794157803）。新增/改动明细发射点后对照本矩阵逐列核对。
 
 ## 3. 前端展示口径（与后端契约的对应）
 

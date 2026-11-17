@@ -518,6 +518,15 @@ class OrderSyncService:
             return
 
         new_day_str = sync_date.astimezone(CST).date().isoformat()
+        # 预取客户名称映射：DailyOrder 实体不带客户名，order_move 明细需补
+        # customer_name，否则执行信息「公司ID」列只有 ID（与 cost_calc 同模式，避免 N+1）
+        customer_names: Dict[int, str] = {}
+        customer_ids = {row.customer_id for row in stale_rows if row.customer_id is not None}
+        if customer_ids:
+            name_result = await self.db.execute(
+                select(Customer.id, Customer.name).where(Customer.id.in_(customer_ids))
+            )
+            customer_names = {r[0]: r[1] for r in name_result.all()}
         # 按 (customer_id, 旧日 UTC datetime) 聚合受影响旧日
         affected: Dict[Any, List[str]] = {}
         for row in stale_rows:
@@ -528,6 +537,9 @@ class OrderSyncService:
                 f"订单 {row.order_code} 上传日期由 {old_day_str} 变更为 {new_day_str}，"
                 f"已迁移并重算 {old_day_str} 消耗",
                 customer_id=row.customer_id,
+                customer_name=(
+                    customer_names.get(row.customer_id) if row.customer_id is not None else None
+                ),
                 order_code=row.order_code,
             )
             affected.setdefault((row.customer_id, row.sync_date), []).append(row.order_code)
