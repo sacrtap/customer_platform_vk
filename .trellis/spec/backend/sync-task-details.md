@@ -59,12 +59,17 @@ INNER JOIN (
 
 ## 3. 前端展示口径（与后端契约的对应）
 
-执行信息抽屉两列（`.trellis/spec/frontend/component-guidelines.md`「列表页客户列」节）：
+执行信息抽屉两列（`.trellis/spec/frontend/component-guidelines.md`
+「明细类接口的内部/外部分列」）：
 
-- 「公司ID」列 = `company_id ?? external_customer_id`（`company_id` 来自
-  `customers.company_id`，随 `customer_id` 左连带入，匹配时恒非空）
-- 「公司名」列 = `customer_name || company_name`（内部客户名优先，外部公司名
-  仅在前者为空时兜底）；两者都空才显示 `-`
+- 「公司ID」列 = 内部维度：`company_id · customer_name`（同格，` · ` 分隔，
+  缺失一方省略）。`company_id` 来自 `customers.company_id`，随 `customer_id`
+  左连带入，匹配时恒非空
+- 「外部」列 = 外部维度：`external_customer_id · company_name`（同格）
+- 两列**互不兜底**：内部名称不进「外部」列，外部名称不进「公司ID」列；
+  同一明细通常只有一列有值，全空才显示 `-`
+- 四种形态（`ID · 名称` / 仅 ID / 仅名称 / `-`）由共用函数
+  `formatIdName(id, name)` 统一产出
 
 ## 4. 排查用 SQL（dbx，只读）
 

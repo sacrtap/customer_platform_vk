@@ -120,8 +120,8 @@ function mountDrawer() {
   })
 }
 
-describe('执行信息抽屉 公司ID/公司名列拆分', () => {
-  it('公司ID列只展示ID，公司名列展示名称', async () => {
+describe('执行信息抽屉 内部/外部分列', () => {
+  it('公司ID列展示内部ID+内部客户名，外部列展示外部ID+外部公司名', async () => {
     const wrapper = mountDrawer()
     await wrapper.setProps({ visible: true })
     await flushPromises()
@@ -129,27 +129,26 @@ describe('执行信息抽屉 公司ID/公司名列拆分', () => {
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(4)
 
-    // 列序：级别/日期/类别/公司ID(3)/公司名(4)
+    // 列序：级别/日期/类别/公司ID(3)/外部(4)
     const cells = rows.map((r) => r.findAll('td').map((td) => td.text().trim()))
 
-    // 费用计算：内部客户 ID 与名称分列展示
-    expect(cells[0][3]).toBe('507')
-    expect(cells[0][4]).toBe('广州某某装饰')
-    // 未匹配订单：外部 ID 与外部公司名分列展示
-    expect(cells[1][3]).toBe('999888')
-    expect(cells[1][4]).toBe('外部未匹配公司')
-    // 保存失败：无 ID 显示 -，公司名列回落外部公司名
+    // 费用计算：内部客户 ID 与名称同格；无外部信息
+    expect(cells[0][3]).toBe('507 · 广州某某装饰')
+    expect(cells[0][4]).toBe('-')
+    // 未匹配订单：内部列为 -，外部 ID 与外部公司名同格
+    expect(cells[1][3]).toBe('-')
+    expect(cells[1][4]).toBe('999888 · 外部未匹配公司')
+    // 保存失败：无外部 ID，外部列只显示外部公司名
     expect(cells[2][3]).toBe('-')
     expect(cells[2][4]).toBe('保存失败公司')
     // 任务级：两列均无值
     expect(cells[3][3]).toBe('-')
     expect(cells[3][4]).toBe('-')
 
-    // ID 列不得再拼接名称
+    // 内部名称不得落到外部列，外部名称不得落到公司ID列
     for (const cell of cells) {
-      expect(cell[3]).not.toContain('·')
-      expect(cell[3]).not.toContain('广州某某装饰')
       expect(cell[3]).not.toContain('外部未匹配公司')
+      expect(cell[4]).not.toContain('广州某某装饰')
     }
   })
 })
