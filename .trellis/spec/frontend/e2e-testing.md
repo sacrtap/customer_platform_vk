@@ -163,6 +163,44 @@ origins: [] } })` 自建 context 登录，**不吃** global-setup 的 storageSta
 
 ---
 
+## 组件库 DOM 契约漂移：表格重构后全量与 smoke 的盲区
+
+[来源: 2026-11-18 — 定时 Full E2E 自 11-01 起连续 3 次红在同 5 个用例（PR #131）]
+
+**症状**：PR Checks 全绿，但每周定时 `Full E2E Suite` 稳定失败：
+`test_customer_batch_edit` 4 条 `locator.click: Test timeout of 60000ms exceeded`
+（`element is not visible`），`test_customer_management` › 分页功能
+`locator.textContent: Timeout 15000ms exceeded`。
+
+**根因**：#84「统一列表表格组件」（`5b5ea9c`，10-27）把客户列表从自建
+`src/components/ui/Pagination.vue` 迁到 Arco `a-table` 内建选择列与分页，spec 仍在断言旧 DOM：
+
+- 行勾选点 `input.arco-checkbox-target`：Arco 把它压成
+  `width/height: 0; opacity: 0`（`@arco-design/web-vue/es/checkbox/style/index.css`），
+  Playwright 判定 not visible → 点击永远超时。
+- 分页查 `.page-btn.active` / `.page-size-select`：这两个类只存在于自建
+  `Pagination.vue`；Arco 内建分页是 `.arco-pagination-item-active` /
+  `.arco-pagination-options`。
+
+**规则**：
+
+1. 操作 Arco 复选框一律点可见的 `label.arco-checkbox`（helper：
+   `clickRowCheckbox()`，见 `tests/e2e/test-helpers.ts`）；读取勾选状态可继续用内部
+   `input[type="checkbox"]` 的 `isChecked()`（不需要可见性）。
+2. 分页/表格断言必须对应「当前实际渲染的组件」：
+   - Arco 内建分页：`.arco-pagination-item-active` / `.arco-pagination-options`
+   - 自建分页：`.page-btn.active` / `.page-size-select`
+3. 替换或统一列表组件时，先全仓排查 spec 的 DOM 假设：
+   `rg "input\[type=\"?checkbox|\.page-btn|page-size-select|table-section" tests/e2e`
+4. 文本等待用 `await expect(locator).toHaveText(...)`（自带重试），不要
+   `textContent()` + `waitForTimeout` 拼时序。
+
+**为什么漏过 PR 门禁**：这两个文件不在 `@smoke` 子集，扩展集只由定时 Full E2E 覆盖。
+改动列表页 DOM 结构后，应手动对分支触发一次全量任务：
+`gh workflow run e2e-full.yml --ref <branch>`（约 9 分钟），否则漂移要等到下个周日才暴露。
+
+---
+
 ## See Also
 
 - [Component Guidelines](./component-guidelines.md) — Arco modal Teleport 行为、
