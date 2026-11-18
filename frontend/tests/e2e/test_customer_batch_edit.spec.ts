@@ -9,6 +9,7 @@ import {
   apiCreateCustomer,
   apiDeleteCustomer,
   searchCustomer,
+  clickRowCheckbox,
 } from './test-helpers'
 
 /**
@@ -78,13 +79,8 @@ test.describe('客户批量编辑', () => {
     // 搜索创建的测试客户
     await searchCustomer(page, String(companyId1))
 
-    // 勾选第一行客户
-    const firstRowCheckbox = page
-      .locator('.table-section tbody tr')
-      .first()
-      .locator('input[type="checkbox"]')
-      .first()
-    await firstRowCheckbox.click()
+    // 勾选第一行客户（点 label，Arco 的原生 input 是 0×0 不可点击）
+    await clickRowCheckbox(page)
     await page.waitForTimeout(500)
 
     // 验证批量工具栏可见
@@ -136,12 +132,15 @@ test.describe('客户批量编辑', () => {
   })
 
   test('2. 不选择客户时批量编辑按钮隐藏', async ({ page }) => {
-    // 确保没有勾选任何行
-    // 全选 checkbox 应该是未勾选状态（重构后使用原生 checkbox）
-    const allCheckbox = page.locator('.table-section thead input[type="checkbox"]').first()
-    const isChecked = await allCheckbox.isChecked().catch(() => false)
+    // 确保没有勾选任何行。Arco 的 input 是 0×0（不可点击），
+    // 读取状态用内部 input，点击用可见的 label 容器。
+    const selectAll = page.locator('.table-section thead label.arco-checkbox').first()
+    const isChecked = await selectAll
+      .locator('input[type="checkbox"]')
+      .isChecked()
+      .catch(() => false)
     if (isChecked) {
-      await allCheckbox.click()
+      await selectAll.click()
       await page.waitForTimeout(300)
     }
 
@@ -173,13 +172,8 @@ test.describe('客户批量编辑', () => {
     // 搜索创建的测试客户
     await searchCustomer(page, String(companyId))
 
-    // 勾选一行
-    const firstRowCheckbox = page
-      .locator('.table-section tbody tr')
-      .first()
-      .locator('input[type="checkbox"]')
-      .first()
-    await firstRowCheckbox.click()
+    // 勾选第一行客户（点 label，Arco 的原生 input 是 0×0 不可点击）
+    await clickRowCheckbox(page)
     await page.waitForTimeout(500)
 
     // 点击批量编辑
@@ -228,13 +222,8 @@ test.describe('客户批量编辑', () => {
     // 搜索创建的测试客户
     await searchCustomer(page, String(companyId))
 
-    // 勾选一行
-    const firstRowCheckbox = page
-      .locator('.table-section tbody tr')
-      .first()
-      .locator('input[type="checkbox"]')
-      .first()
-    await firstRowCheckbox.click()
+    // 勾选第一行客户（点 label，Arco 的原生 input 是 0×0 不可点击）
+    await clickRowCheckbox(page)
     await page.waitForTimeout(500)
 
     // 点击批量编辑
@@ -298,13 +287,8 @@ test.describe('客户批量编辑', () => {
     // 搜索创建的测试客户
     await searchCustomer(page, String(companyId))
 
-    // 勾选一行
-    const firstRowCheckbox = page
-      .locator('.table-section tbody tr')
-      .first()
-      .locator('input[type="checkbox"]')
-      .first()
-    await firstRowCheckbox.click()
+    // 勾选第一行客户（点 label，Arco 的原生 input 是 0×0 不可点击）
+    await clickRowCheckbox(page)
     await page.waitForTimeout(500)
 
     // 点击批量编辑

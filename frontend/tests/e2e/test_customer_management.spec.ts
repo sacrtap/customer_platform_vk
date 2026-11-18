@@ -222,46 +222,29 @@ test.describe('客户管理', () => {
 
   test('分页功能', async ({ authenticatedPage }) => {
     await authenticatedPage.goto('/customers', { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await authenticatedPage.waitForTimeout(2000)
+    await waitForTableLoaded(authenticatedPage)
 
-    // 检查分页组件存在（重构后使用自定义分页，非 Arco 分页）
-    const pagination = authenticatedPage.locator('.arco-pagination')
-    await expect(pagination.first()).toBeVisible()
+    // 客户列表使用 Arco a-table 内建分页（DataTable 透传 pagination 配置）
+    const pagination = authenticatedPage.locator('.arco-pagination').first()
+    await expect(pagination).toBeVisible()
 
-    // 获取当前页码（重构后使用 .page-btn.active）
-    const currentPageItem = pagination.locator('.page-btn.active')
-    const currentPageText = await currentPageItem.first().textContent()
-    expect(currentPageText?.trim()).toBe('1')
+    // 当前页：Arco 用 .arco-pagination-item-active
+    const activePage = pagination.locator('.arco-pagination-item-active').first()
+    await expect(activePage).toHaveText('1')
 
-    // 尝试点击页码 2（如果存在）
-    const page2 = pagination.locator('.page-btn:has-text("2")')
-    const page2Count = await page2.count()
+    // 存在第 2 页时切换并校验（客户数不足一页则跳过）
+    const page2 = pagination.locator('.arco-pagination-item').filter({ hasText: /^2$/ }).first()
+    if ((await page2.count()) > 0) {
+      await page2.click()
+      await expect(activePage).toHaveText('2')
 
-    if (page2Count > 0) {
-      // 点击第二页
-      await page2.first().click()
-      await authenticatedPage.waitForTimeout(1500)
-
-      // 验证页码变化
-      const newActivePage = pagination.locator('.page-btn.active')
-      const newPageText = await newActivePage.first().textContent()
-
-      // 验证页码已改变
-      expect(newPageText?.trim()).not.toBe('1')
-
-      // 点击第一页回去
-      const page1 = pagination.locator('.page-btn:has-text("1")')
-      await page1.first().click()
-      await authenticatedPage.waitForTimeout(1500)
-
-      const backToFirst = pagination.locator('.page-btn.active')
-      const backToFirstText = await backToFirst.first().textContent()
-      expect(backToFirstText?.trim()).toBe('1')
+      const page1 = pagination.locator('.arco-pagination-item').filter({ hasText: /^1$/ }).first()
+      await page1.click()
+      await expect(activePage).toHaveText('1')
     }
-    // 如果只有一页，测试也通过（分页组件存在且显示正确）
 
-    // 检查 pageSize 切换器存在（重构后使用 select 元素）
-    await expect(pagination.locator('.page-size-select').first()).toBeVisible()
+    // 每页条数切换器（pagination.showPageSize）
+    await expect(pagination.locator('.arco-pagination-options')).toBeVisible()
   })
 
   test('编辑弹框 ERP 系统下拉选项来源为房产ERP客户', async ({ authenticatedPage }) => {

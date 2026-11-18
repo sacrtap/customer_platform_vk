@@ -45,6 +45,17 @@ ALLOWED_SORT_FIELDS = {
 }
 VALID_SORT_ORDERS = {"asc", "desc"}
 
+# customers.name 列类型 VARCHAR(200)。超长若不前置拦截，会由 DB 抛 DataError，
+# 路由层 except Exception 把原始英文 SQL 错误透给用户（E2E 实测 CI 日志出现该错误）。
+CUSTOMER_NAME_MAX_LENGTH = 200
+
+
+def validate_customer_name(name: Any) -> None:
+    """客户名称长度校验（与 customers.name 列定长保持一致）。"""
+    if isinstance(name, str) and len(name) > CUSTOMER_NAME_MAX_LENGTH:
+        raise ValueError(f"客户名称不能超过 {CUSTOMER_NAME_MAX_LENGTH} 个字符")
+
+
 # 账号类型映射：Excel 值 → 数据库存储值
 ACCOUNT_TYPE_MAP = {
     "正式": "正式账号",
@@ -628,6 +639,8 @@ class CustomerService:
 
     async def create_customer(self, data: dict) -> Customer:
         """创建客户"""
+        validate_customer_name(data.get("name"))
+
         # company_id 唯一性校验（与 update_customer 保持一致）
         company_id = data["company_id"]
         existing = await self.db.execute(  # pyright: ignore[reportGeneralTypeIssues]
@@ -704,6 +717,10 @@ class CustomerService:
         customer = await self.get_customer_by_id(customer_id)
         if not customer:
             return None
+
+        # 名称长度前置校验：避免超长值在 commit 时触发 DB DataError（原始 SQL 错误透传）
+        if "name" in data:
+            validate_customer_name(data["name"])
 
         # company_id 唯一性校验（如果修改了 company_id）
         new_company_id = data.get("company_id")
@@ -882,6 +899,10 @@ class CustomerService:
         invalid_fields = [f for f in fields if f not in updatable_fields]
         if invalid_fields:
             raise ValueError(f"包含不在白名单内的字段: {', '.join(invalid_fields)}")
+
+        # 名称长度：fields 对整批客户生效，超长直接拒绝整批（与批量创建的行级报错区分）
+        if "name" in fields:
+            validate_customer_name(fields["name"])
 
         # 上限校验
         if len(customer_ids) > 100:
@@ -1286,6 +1307,13 @@ class CustomerService:
 
                 if not name:
                     errors.append(f"行{row_num}: 缺少 name")
+                    continue
+
+                # 名称长度：与 customers.name 列定长一致，避免 DB DataError 落到整批
+                if isinstance(name, str) and len(name) > CUSTOMER_NAME_MAX_LENGTH:
+                    errors.append(
+                        f"行{row_num}: 客户名称不能超过 {CUSTOMER_NAME_MAX_LENGTH} 个字符"
+                    )
                     continue
 
                 email = data.get("email")
