@@ -250,6 +250,48 @@ class TestOrderSyncServiceMatchAndSave:
         assert result.success == 1
         assert result.skipped == 1
 
+    async def test_match_and_save_single_failure_carries_external_customer_id(self):
+        """单条订单处理失败：明细须带 external_customer_id（2026-11-17 修复缺口）
+
+        旧实现失败分支只传 company_name，执行信息「外部」列因此缺 ID、只剩公司名。
+        与 order_match 分支保持同口径：group_type 转字符串落入明细；
+        group_type 缺失时为 None（不抛错）。
+        """
+        from app.services.dto import SyncDetail
+        from app.services.order_sync import OrderSyncService
+
+        svc = MagicMock(spec=OrderSyncService)
+        svc.db = AsyncMock()
+        # 匹配阶段抛错 → 走单条失败分支
+        svc._match_customer = AsyncMock(side_effect=RuntimeError("boom"))
+
+        collector: list[SyncDetail] = []
+        result = await OrderSyncService._match_and_save(
+            svc,
+            orders=[_mock_order_row(group_type="G001", company_name="测试公司")],
+            sync_date=TEST_SYNC_DATE,
+            detail_collector=collector,
+        )
+
+        assert result.failed == 1
+        assert len(collector) == 1
+        detail = collector[0]
+        assert detail.level == "error"
+        assert detail.category == "order_save"
+        assert detail.external_customer_id == "G001"
+        assert detail.company_name == "测试公司"
+        assert detail.order_code == "ORD-001"
+
+        # group_type 缺失时为 None，不抛错
+        collector2: list[SyncDetail] = []
+        await OrderSyncService._match_and_save(
+            svc,
+            orders=[_mock_order_row(group_type=None)],
+            sync_date=TEST_SYNC_DATE,
+            detail_collector=collector2,
+        )
+        assert collector2[0].external_customer_id is None
+
 
 # ==================== Test sync_orders ====================
 

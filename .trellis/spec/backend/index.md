@@ -26,6 +26,7 @@ Before writing backend code, read and follow:
 - [ ] [CRM Recharge Revoke](./crm-recharge-revoke.md) — CRM 充值导入的撤销契约：唯一键覆盖软删导致只能物理删除、余额不足需超管 force、改绑硬阻断、撤销→改绑→重导入顺序
 - [ ] [Recharge Revoke](./recharge-revoke.md) — 余额充值记录撤销：余额池化只能按当前余额判定、手动充值不受唯一键约束故软删保凭据、锁序与 recharge 一致并加锁复核、余额不足超管 force + 线下核对、软删必须被所有 RechargeRecord 聚合口径遵守
 - [ ] [Audit Log Description](./audit-log-description.md) — 审计详情可读化契约：描述器 `audit_describe.py` 产出 `description`、changes 结构兼容矩阵、变更前快照必须先固化、路由内已写业务审计的端点须在中间件跳过
+- [ ] [Sync Task Details](./sync-task-details.md) — 同步执行明细节字段契约：外部公司名来自 `nest_user.owner_company` 聚合 JOIN（非订单表列）、INNER JOIN 会滤掉无 `nest_user` 行的订单、各 category 携带哪些客户维度字段（「为什么没有外部公司名」先查 category）
 
 ---
 

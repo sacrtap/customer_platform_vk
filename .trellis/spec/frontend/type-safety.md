@@ -72,6 +72,8 @@ export interface RechargeParams {
 
 **What goes here**: API request param interfaces (`RechargeParams`, `GenerateInvoiceParams`), API response shapes with backend-specific fields, and function param types.
 
+**语义相近的字段必须写注释**：同一接口带回多个近义字段时（如 `SyncLogDetail` 的内部客户名 `customer_name` 与外部公司名 `company_name`、DB 主键 `customer_id` 与对外编号 `company_id`），在字段上用 `/** ... */` 注明来源（表/列）与用途。缺少这层契约，消费方（表格列、筛选、导出）无从判断该用哪个，只能凭猜测拼接或错配——2026-11-17 同步日志「执行信息」抽屉把公司ID与名称挤进同一列，根因之一即是 `SyncLogDetail` 无字段注释。展示侧约定见 [Component Guidelines](./component-guidelines.md)「列表页客户列」节。
+
 ### 3. Component-Local Types
 
 Types used only within a single component or composable are defined inline.

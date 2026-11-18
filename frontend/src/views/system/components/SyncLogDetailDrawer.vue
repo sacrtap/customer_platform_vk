@@ -130,15 +130,10 @@
           </a-tooltip>
         </template>
         <template #customer="{ record }">
-          <span v-if="record.company_id ?? record.external_customer_id ?? record.customer_name">
-            {{ record.company_id ?? record.external_customer_id ?? '-' }}
-            <template v-if="record.customer_name"> · {{ record.customer_name }}</template>
-          </span>
-          <span v-else>-</span>
+          {{ formatIdName(record.company_id, record.customer_name) }}
         </template>
         <template #company="{ record }">
-          <span v-if="record.company_name">{{ record.company_name }}</span>
-          <span v-else>-</span>
+          {{ formatIdName(record.external_customer_id, record.company_name) }}
         </template>
         <template #order_code="{ record }">
           <span v-if="record.order_code">{{ record.order_code }}</span>
@@ -238,12 +233,22 @@ const displayDetails = computed<DisplayDetail[]>(() => {
   })
 })
 
+/** 内部/外部两列共用：ID 与名称同格展示（`ID · 名称`），缺失一方自动省略，全空显示 `-` */
+const formatIdName = (
+  id: string | number | null | undefined,
+  name: string | null | undefined
+): string => {
+  if (id != null && name) return `${id} · ${name}`
+  if (id != null) return String(id)
+  return name ?? '-'
+}
+
 const columns = [
   { title: '级别', slotName: 'level', width: 80 },
   { title: '日期', slotName: 'sync_date', width: 140 },
   { title: '类别', slotName: 'category', width: 90 },
-  { title: '公司ID · 名称', slotName: 'customer', width: 180 },
-  { title: '公司名', slotName: 'company', width: 140 },
+  { title: '公司ID', slotName: 'customer', width: 200 },
+  { title: '外部', slotName: 'company', width: 200 },
   { title: '订单号', slotName: 'order_code', width: 140 },
   { title: '是否结算', slotName: 'is_settled', width: 90 },
   { title: '账号类型', slotName: 'account_type', width: 110 },
