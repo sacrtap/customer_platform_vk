@@ -220,6 +220,39 @@ class TestCustomerService_CreateCustomer:
         mock_db_session.add.assert_not_called()
         mock_db_session.commit.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_create_customer_name_too_long(self, customer_service, mock_db_session):
+        """测试创建客户：名称超过列长（VARCHAR(200)）时前置拒绝，不触库"""
+        customer_data = {
+            "company_id": 1005,
+            "name": "A" * 201,
+        }
+
+        with pytest.raises(ValueError, match="客户名称不能超过 200 个字符"):
+            await customer_service.create_customer(customer_data)
+
+        # 校验发生在任何数据库操作之前
+        mock_db_session.execute.assert_not_called()
+        mock_db_session.add.assert_not_called()
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_customer_name_at_limit(self, customer_service, mock_db_session):
+        """测试创建客户：名称恰好 200 字符应放行（边界不误伤）"""
+        customer_data = {
+            "company_id": 1006,
+            "name": "A" * 200,
+        }
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_db_session.execute = AsyncMock(return_value=mock_result)
+
+        customer = await customer_service.create_customer(customer_data)
+
+        assert customer.name == "A" * 200
+        mock_db_session.commit.assert_called()
+
 
 # ==================== Test Update Customer ====================
 
@@ -291,6 +324,28 @@ class TestCustomerService_UpdateCustomer:
         # 验证结果
         assert result is None
         # 验证没有调用 commit
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_customer_name_too_long(self, customer_service, mock_db_session):
+        """测试更新客户：名称超过列长时前置拒绝，客户对象与事务均不受影响"""
+        customer_id = 1
+        existing_customer = Customer(
+            id=customer_id,
+            company_id=1001,
+            name="原名称",
+            deleted_at=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_customer
+        mock_db_session.execute.return_value = mock_result
+
+        with pytest.raises(ValueError, match="客户名称不能超过 200 个字符"):
+            await customer_service.update_customer(customer_id, {"name": "B" * 201})
+
+        # 未赋值、未提交（避免脏对象被后续请求 flush 落库）
+        assert existing_customer.name == "原名称"
         mock_db_session.commit.assert_not_called()
 
     @pytest.mark.asyncio
@@ -688,6 +743,33 @@ class TestCustomerService_BatchCreateCustomers:
         assert success_count == 1
         assert len(errors) == 1
         assert "缺少 company_id" in errors[0]
+
+    @pytest.mark.asyncio
+    async def test_batch_create_customers_name_too_long(self, customer_service, mock_db_session):
+        """测试批量创建客户 - 名称超长按行报错，不拖累整批"""
+        customers_data = [
+            {"company_id": 101, "name": "D" * 201},  # 超长
+            {"company_id": 102, "name": "正常公司"},
+        ]
+
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db_session.execute.return_value = mock_result
+
+        async def mock_flush():
+            mock_db_session.new.add(
+                Customer(id=1, company_id=102, name="正常公司", deleted_at=None)
+            )
+
+        mock_db_session.flush = mock_flush
+
+        success_count, errors = await customer_service.batch_create_customers(customers_data)
+
+        # 超长行被拒绝，正常行仍入库
+        assert success_count == 1
+        assert len(errors) == 1
+        assert "行1" in errors[0]
+        assert "客户名称不能超过 200 个字符" in errors[0]
 
 
 # ==================== Test Get Customer By ID ====================

@@ -133,6 +133,20 @@ class TestCustomerService_BatchUpdateCustomers:
             )
 
     @pytest.mark.asyncio
+    async def test_batch_update_name_too_long(self, customer_service, mock_db_session):
+        """测试名称超过列长时整批拒绝（fields 对整批生效）"""
+        with pytest.raises(ValueError, match="客户名称不能超过 200 个字符"):
+            await customer_service.batch_update_customers(
+                customer_ids=[1, 2],
+                fields={"name": "C" * 201},
+                current_user={"user_id": 1},
+            )
+
+        # 未触达任何客户更新
+        mock_db_session.execute.assert_not_called()
+        mock_db_session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_batch_update_empty_ids(self, customer_service, mock_db_session):
         """测试空 IDs 抛出 ValueError"""
         fields = {"name": "新名称"}

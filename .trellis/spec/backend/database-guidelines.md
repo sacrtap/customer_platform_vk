@@ -754,6 +754,36 @@ inspector 给 `TIMESTAMP`/`NUMERIC`；连 `compile(dialect=...)` 都统一不了
 
 ---
 
+## 用户输入必须前置长度校验（与列宽对齐）
+
+[来源: 2026-11-18 — 客户名称 `VARCHAR(200)` 超长把 DB 错误原文透给用户（PR #131）]
+
+**症状**：E2E 提交 201 字符客户名称后，服务端日志出现
+`ERROR: value too long for type character varying(200)`，前端 toast 显示
+`{"code":40003,"message":"value too long for type character varying(200)"}` ——
+英文 SQL 类型错误直接暴露给最终用户。
+
+**根因**：`customers.name` 是 `String(200)`，但请求体没有对应长度校验；
+`CustomerService.create_customer` 直接落库，commit 时 asyncpg 抛
+`StringDataRightTruncationError`，路由 `except Exception` 把原文当 400 消息返回。
+
+**规则**：
+
+- 任何映射到 `String(N)` 的用户可见文本字段（名称/备注/单号/公司名…），在 **service
+  层入口**校验长度，错误消息用中文业务口径（例：`客户名称不能超过 200 个字符`）。
+- 批量路径按粒度区分：整批共用字段（batch update 的 `fields`）→ 直接 `ValueError`
+  拒绝整批；逐行数据（Excel 导入）→ 行级 `errors`，不拖累同批其它行。
+- 校验必须发生在任何 `execute`/`setattr` 之前：避免脏对象被后续请求 flush 落库
+  （与「开启对账必须指定经理」的前置校验同理）。
+- 单测覆盖两个边界：**超长拒绝且未触库** + **恰好 N 字符放行**。MagicMock 不校验
+  列宽，只有前置校验本身能被断言。
+
+**参照实现**：`backend/app/services/customers.py` 的 `CUSTOMER_NAME_MAX_LENGTH` /
+`validate_customer_name()`，接入点 `create_customer` / `update_customer` /
+`batch_update_customers` / `batch_create_customers`。
+
+---
+
 ## Forbidden Patterns
 
 - ❌ **Raw `DELETE` statements in production** — use soft delete (`deleted_at = datetime.now()`)

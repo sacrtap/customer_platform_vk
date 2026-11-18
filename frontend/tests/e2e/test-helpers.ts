@@ -449,6 +449,22 @@ export async function getTableRowCount(page: Page): Promise<number> {
   return page.locator('.arco-table tbody tr').count()
 }
 
+/**
+ * 勾选表格行（默认第一行）。
+ *
+ * Arco 的 input.arco-checkbox-target 被样式压成 0×0（`width/height: 0; opacity: 0`），
+ * Playwright 判定为「not visible」而 click 必然超时；必须点可见的 label 容器
+ * `.arco-checkbox`，由它代理触发内部 input。
+ */
+export async function clickRowCheckbox(page: Page, rowIndex: number = 0): Promise<void> {
+  await page
+    .locator('.table-section tbody tr')
+    .nth(rowIndex)
+    .locator('label.arco-checkbox')
+    .first()
+    .click()
+}
+
 // ===================== 通用断言 =====================
 
 /** 断言表格中至少有一行包含指定文本（支持 Arco 表格和自定义表格） */
