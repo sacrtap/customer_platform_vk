@@ -3,7 +3,7 @@
 **文档版本**: 1.0
 **创建日期**: 2026-04-09
 **测试范围**: 客户管理模块（Index.vue + Detail.vue）
-**参考文档**: [系统设计文档](../superpowers/specs/2026-04-01-customer-platform-design.md)
+**参考文档**: [系统设计文档](../specs/2026-04-01-customer-platform-design.md)
 
 ---
 
@@ -1191,7 +1191,7 @@ const testCustomers = [
 
 ### 8.2 参考文档
 
-- [系统设计文档](../superpowers/specs/2026-04-01-customer-platform-design.md)
+- [系统设计文档](../specs/2026-04-01-customer-platform-design.md)
 - [测试数据库配置](./test-database-setup.md)
 - [Playwright E2E 测试指南](./e2e-testing-guide.md)
 - [QA Test Planner Skill](../../.agents/skills/qa-test-planner/README.md)

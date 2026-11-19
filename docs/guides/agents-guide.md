@@ -286,8 +286,7 @@ feature/xxx (功能开发) → 完成后 PR 到 develop
 | 测试计划 | `docs/testing/plans/`     | 功能测试计划、集成测试计划   |
 | 测试报告 | `docs/testing/reports/`   | 单元测试报告、修复报告       |
 | 测试环境 | `docs/testing/setup/`     | 测试数据库配置               |
-| 设计规格 | `docs/superpowers/specs/` | AI 工作流产出的功能规格      |
-| 实现计划 | `docs/superpowers/plans/` | AI 工作流产出的实现计划      |
+| 方案归档 | `docs/specs/` | 设计规格与实现计划（2026-04 起，含原 Superpowers 工作流归档） |
 | 原型文件 | `docs/prototypes/`        | HTML 原型                    |
 | 用户文档 | `docs/` (根目录)          | user-manual.md               |
 
