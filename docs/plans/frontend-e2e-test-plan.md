@@ -1,6 +1,6 @@
 # 前端 E2E 测试与功能验证计划
 
-> **依据**: `docs/superpowers/plans/2026-07-11-frontend-refactoring-plan.md` Phase 10 验证清单
+> **依据**: `docs/specs/2026-07-11-frontend-refactoring-plan.md` Phase 10 验证清单
 > **测试框架**: Playwright 1.59.1（已配置）
 > **目标**: 22 个页面全覆盖 — 视觉规范 + 功能完整性 + 响应式 + 无障碍
 

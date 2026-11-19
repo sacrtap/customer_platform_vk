@@ -11,12 +11,12 @@
 | **用户手册**   | [user-manual.md](user-manual.md)        | 面向最终用户的使用指南   |
 | **开发指南**   | [guides/](guides/)                      | 本地环境搭建、数据库迁移等 |
 | **设计文档**   | [design/](design/)                      | 设计规范、样式规范       |
+| **方案与计划归档** | [specs/](specs/)                    | 按日期的功能方案、bug 根因、执行计划（含原 Superpowers 历史归档 48 篇） |
 | **数据库文档** | [database/](database/)                  | 数据库变更日志           |
 | **性能优化**   | [performance/](performance/)            | 查询优化、缓存、监控     |
 | **测试文档**   | [testing/](testing/)                    | 测试计划、报告、环境配置 |
 | **前端组件**   | [frontend/components.md](frontend/components.md) | Vue 组件清单与复用指南 |
 | **技术债务**   | [technical_debt/](technical_debt/)              | 技术债跟踪             |
-| **Superpowers** | [superpowers/](superpowers/)            | AI 工作流产出的规格与计划 |
 | **原型**       | [prototypes/](prototypes/)              | HTML 原型文件            |
 
 ---
@@ -80,66 +80,15 @@
 ### 测试优化
 - [测试优化指南](guides/test-optimization-guide.md) - 测试并行化、增量测试、fixture 优化
 
-## Superpowers 工作流
+## 历史归档说明
 
-### 设计规格 (specs)
-
-| 文件 | 日期 | 说明 | 状态 |
-| ---- | ---- | ---- | ---- |
-| [2026-04-01-customer-platform-design.md](superpowers/specs/2026-04-01-customer-platform-design.md) | 04-01 | 客户运营中台系统设计 | ✅ 完成 |
-| [2026-04-01-customer-platform-implementation-plan.md](superpowers/specs/2026-04-01-customer-platform-implementation-plan.md) | 04-01 | 实现计划 | ✅ 完成 |
-| [2026-04-03-customer-groups-design.md](superpowers/specs/2026-04-03-customer-groups-design.md) | 04-03 | 客户分组设计 | ✅ 完成 |
-| [2026-04-06-frontend-redesign.md](superpowers/specs/2026-04-06-frontend-redesign.md) | 04-06 | 前端重设计规格 | ✅ 完成 |
-| [2026-04-12-customer-detail-redesign.md](superpowers/specs/2026-04-12-customer-detail-redesign.md) | 04-12 | 客户详情重设计规格 | ✅ 完成 |
-| [2026-04-14-business-type-to-industry-type-design.md](superpowers/specs/2026-04-14-business-type-to-industry-type-design.md) | 04-14 | 业务类型→行业类型转换 | ✅ 完成 |
-| [2026-04-14-customer-detail-fields-design.md](superpowers/specs/2026-04-14-customer-detail-fields-design.md) | 04-14 | 客户详情字段扩展 | ✅ 完成 |
-| [2026-04-14-fine-grained-permissions-design.md](superpowers/specs/2026-04-14-fine-grained-permissions-design.md) | 04-14 | 细粒度权限设计 | ✅ 完成 |
-| [2026-04-15-customer-detail-optimization-design.md](superpowers/specs/2026-04-15-customer-detail-optimization-design.md) | 04-15 | 客户详情优化 | ✅ 完成 |
-| [2026-04-15-customer-edit-dialog-optimization-design.md](superpowers/specs/2026-04-15-customer-edit-dialog-optimization-design.md) | 04-15 | 客户编辑弹窗优化 | ✅ 完成 |
-| [2026-04-15-customer-import-template-fix-design.md](superpowers/specs/2026-04-15-customer-import-template-fix-design.md) | 04-15 | 客户导入模板修复 | ✅ 完成 |
-| [2026-04-15-delete-business-type-use-profile-industry-design.md](superpowers/specs/2026-04-15-delete-business-type-use-profile-industry-design.md) | 04-15 | 删除业务类型使用行业类型 | ✅ 完成 |
-| [2026-04-17-customer-data-import-type-migration-design.md](superpowers/specs/2026-04-17-customer-data-import-type-migration-design.md) | 04-17 | 客户导入类型迁移 | ✅ 完成 |
-| [2026-04-20-customer-import-extension-design.md](superpowers/specs/2026-04-20-customer-import-extension-design.md) | 04-20 | 客户导入扩展 | ✅ 完成 |
-| [2026-04-21-customer-detail-layout-unify-design.md](superpowers/specs/2026-04-21-customer-detail-layout-unify-design.md) | 04-21 | 客户详情布局统一 | ✅ 完成 |
-| [2026-04-21-customer-list-sorting-design.md](superpowers/specs/2026-04-21-customer-list-sorting-design.md) | 04-21 | 客户列表排序 | ✅ 完成 |
-| [2026-04-22-customer-filter-settlement-type-design.md](superpowers/specs/2026-04-22-customer-filter-settlement-type-design.md) | 04-22 | 客户筛选结算方式 | ✅ 完成 |
-| [2026-04-22-profile-dashboard-design.md](superpowers/specs/2026-04-22-profile-dashboard-design.md) | 04-22 | 画像仪表盘设计 | ✅ 完成 |
-| [2026-04-22-profile-pages-merge-design.md](superpowers/specs/2026-04-22-profile-pages-merge-design.md) | 04-22 | 画像页面合并 | ✅ 完成 |
-| [2026-04-23-customer-search-filter-design.md](superpowers/specs/2026-04-23-customer-search-filter-design.md) | 04-23 | 客户筛选器输入检索 | ✅ 完成 |
-
-### 实现计划 (plans)
-
-| 文件 | 日期 | 说明 | 状态 |
-| ---- | ---- | ---- | ---- |
-| [2026-04-01-phase0-backend-initialization.md](superpowers/plans/2026-04-01-phase0-backend-initialization.md) | 04-01 | Phase 0 后端初始化 | ✅ 完成 |
-| [2026-04-02-permission-checker-implementation.md](superpowers/plans/2026-04-02-permission-checker-implementation.md) | 04-02 | 权限检查器实现 | ✅ 完成 |
-| [2026-04-03-customer-groups-implementation.md](superpowers/plans/2026-04-03-customer-groups-implementation.md) | 04-03 | 客户分组实现 | ✅ 完成 |
-| [2026-04-07-ux-ui-improvements.md](superpowers/plans/2026-04-07-ux-ui-improvements.md) | 04-07 | UX/UI 改进 | ✅ 完成 |
-| [2026-04-09-customer-management-optimization.md](superpowers/plans/2026-04-09-customer-management-optimization.md) | 04-09 | 客户管理优化 | ✅ 完成 |
-| [2026-04-12-customer-detail-redesign.md](superpowers/plans/2026-04-12-customer-detail-redesign.md) | 04-12 | 客户详情重设计 | ✅ 完成 |
-| [2026-04-14-business-type-to-industry-type-plan.md](superpowers/plans/2026-04-14-business-type-to-industry-type-plan.md) | 04-14 | 业务类型→行业类型转换 | ✅ 完成 |
-| [2026-04-14-customer-detail-fields.md](superpowers/plans/2026-04-14-customer-detail-fields.md) | 04-14 | 客户详情字段 | ✅ 完成 |
-| [2026-04-14-fine-grained-permissions-plan.md](superpowers/plans/2026-04-14-fine-grained-permissions-plan.md) | 04-14 | 细粒度权限 | ✅ 完成 |
-| [2026-04-15-customer-detail-optimization-plan.md](superpowers/plans/2026-04-15-customer-detail-optimization-plan.md) | 04-15 | 客户详情优化 | ✅ 完成 |
-| [2026-04-15-customer-edit-dialog-optimization.md](superpowers/plans/2026-04-15-customer-edit-dialog-optimization.md) | 04-15 | 客户编辑弹窗优化 | ✅ 完成 |
-| [2026-04-15-customer-import-template-fix-plan.md](superpowers/plans/2026-04-15-customer-import-template-fix-plan.md) | 04-15 | 客户导入模板修复 | ✅ 完成 |
-| [2026-04-15-delete-business-type-use-profile-industry-plan.md](superpowers/plans/2026-04-15-delete-business-type-use-profile-industry-plan.md) | 04-15 | 删除业务类型使用行业类型 | ✅ 完成 |
-| [2026-04-17-customer-data-import-type-migration-plan.md](superpowers/plans/2026-04-17-customer-data-import-type-migration-plan.md) | 04-17 | 客户导入类型迁移 | ✅ 完成 |
-| [2026-04-20-customer-import-extension-plan.md](superpowers/plans/2026-04-20-customer-import-extension-plan.md) | 04-20 | 客户导入扩展 | ✅ 完成 |
-| [2026-04-21-customer-detail-layout-unify-plan.md](superpowers/plans/2026-04-21-customer-detail-layout-unify-plan.md) | 04-21 | 客户详情布局统一 | ✅ 完成 |
-| [2026-04-21-customer-list-sorting-plan.md](superpowers/plans/2026-04-21-customer-list-sorting-plan.md) | 04-21 | 客户列表排序 | ✅ 完成 |
-| [2026-04-22-customer-filter-settlement-type-plan.md](superpowers/plans/2026-04-22-customer-filter-settlement-type-plan.md) | 04-22 | 客户筛选结算方式 | ✅ 完成 |
-| [2026-04-22-profile-dashboard-plan.md](superpowers/plans/2026-04-22-profile-dashboard-plan.md) | 04-22 | 画像仪表盘 | ✅ 完成 |
-| [2026-04-22-profile-pages-merge-plan.md](superpowers/plans/2026-04-22-profile-pages-merge-plan.md) | 04-22 | 画像页面合并 | ✅ 完成 |
-| [2026-04-23-customer-search-filter-implementation.md](superpowers/plans/2026-04-23-customer-search-filter-implementation.md) | 04-23 | 客户筛选器输入检索 | ✅ 完成 |
-| [2026-10-23-unify-balance-whitelist-search-plan.md](superpowers/plans/2026-10-23-unify-balance-whitelist-search-plan.md) | 10-23 | 统一余额白名单搜索组件样式 | ✅ 完成 |
+原 Superpowers 工作流产出的设计规格与实现计划已于 2026-11-19 整体并入 [specs/](specs/)（48 篇：平台总设计、各功能设计、重构设计与执行计划；含 2 个已随功能移除而删除的文件的历史登记）。
 
 ---
 
 ## 文档规范
 
-- **设计规格** → `superpowers/specs/`
-- **实现计划** → `superpowers/plans/`
+- **功能方案 / bug 根因 / 执行计划 / 历史设计归档** → `specs/`（命名 `YYYY-MM-DD-<slug>.md`，按 Context / Approach / Critical files & anchors / Verification 组织；2026-11-19 起含原 Superpowers 工作流迁移的 48 篇历史设计，样板 `2026-10-21-customer-usage-30d-cache-key.md`）
 - **测试计划** → `testing/plans/`
 - **测试报告** → `testing/reports/`
 - **性能/优化** → `performance/`

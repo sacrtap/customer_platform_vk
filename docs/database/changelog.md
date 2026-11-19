@@ -10,18 +10,18 @@
 | 序号 | 迁移文件 | 变更内容 | 日期 | 关联文档 |
 |------|----------|----------|------|----------|
 | 0 | `001_initial.py` | 初始表结构：users, roles, permissions, user_roles, role_permissions, customers, customer_profiles, tags, customer_tags, profile_tags, customer_balances, recharge_records, pricing_rules, invoices, invoice_items, consumption_records, daily_usage, sync_logs, audit_logs | 2026-04-01 | Phase 0 后端初始化 |
-| 1 | `002_add_customer_groups.py` | 新增客户分组表 `customer_groups` 及关联字段 | 2026-04-03 | [客户分组设计](../superpowers/specs/2026-04-03-customer-groups-design.md) |
+| 1 | `002_add_customer_groups.py` | 新增客户分组表 `customer_groups` 及关联字段 | 2026-04-03 | 客户分组设计（已随分群功能移除而删除） |
 | 2 | `734bdc29cc5e_add_token_blacklist_table.py` | 新增 JWT Token 黑名单表 `token_blacklist` | 2026-04-01 | - |
 | 3 | `a5d21c5761aa_add_all_missing_tables.py` | 补充缺失表：groups 关联、余额相关表扩展 | 2026-04-03 | - |
 | 4 | `dc8859579c78_merge_heads.py` | 合并多个迁移头（解决并行迁移冲突） | 2026-04-03 | - |
-| 5 | `003_add_customer_detail_fields.py` | 客户详情字段扩展：新增 manager_name, region, contact_person, phone 等 | 2026-04-14 | [客户详情字段设计](../superpowers/specs/2026-04-14-customer-detail-fields-design.md) |
+| 5 | `003_add_customer_detail_fields.py` | 客户详情字段扩展：新增 manager_name, region, contact_person, phone 等 | 2026-04-14 | [客户详情字段设计](../specs/2026-04-14-customer-detail-fields-design.md) |
 | 6 | `003_add_files_table.py` | 新增附件表 `files`（支持支付凭证、减免证明上传） | 2026-04-14 | - |
-| 7 | `004_drop_business_type.py` | 删除 `customers.business_type` 列（迁移至行业类型） | 2026-04-15 | [删除业务类型计划](../superpowers/plans/2026-04-15-delete-business-type-use-profile-industry-plan.md) |
-| 8 | `fd0d4d39cef3_add_industry_types_table.py` | 新增行业类型表 `industry_types` 及 `customer_industries` 关联表 | 2026-04-15 | [行业类型设计](../superpowers/specs/2026-04-14-business-type-to-industry-type-design.md) |
-| 9 | `005_convert_price_policy_to_english.py` | `customers.price_policy` 值迁移：中文→英文（定价→fixed, 阶梯→tiered, 包年→yearly） | 2026-04-17 | [price_policy 迁移设计](../superpowers/specs/2026-04-17-customer-data-import-type-migration-design.md) |
+| 7 | `004_drop_business_type.py` | 删除 `customers.business_type` 列（迁移至行业类型） | 2026-04-15 | [删除业务类型设计](../specs/2026-04-15-delete-business-type-use-profile-industry-design.md) |
+| 8 | `fd0d4d39cef3_add_industry_types_table.py` | 新增行业类型表 `industry_types` 及 `customer_industries` 关联表 | 2026-04-15 | [行业类型设计](../specs/2026-04-14-business-type-to-industry-type-design.md) |
+| 9 | `005_convert_price_policy_to_english.py` | `customers.price_policy` 值迁移：中文→英文（定价→fixed, 阶梯→tiered, 包年→yearly） | 2026-04-17 | [price_policy 迁移设计](../specs/2026-04-17-customer-data-import-type-migration-design.md) |
 | 10 | `288fbca5e3ed_restore_token_blacklist_table.py` | 恢复 Token 黑名单表（之前迁移丢失后重建） | 2026-04-01 | - |
-| 11 | `b0ec7f3a8b31_alter_company_id_to_integer.py` | `customers.company_id` 类型变更：VARCHAR(50) → INTEGER（外键关联） | 2026-04-17 | [导入类型迁移](../superpowers/specs/2026-04-17-customer-data-import-type-migration-design.md) |
-| 12 | `dd4170648c62_remove_customer_level_column_from_.py` | 删除 `customers.customer_level` 列（等级体系迁移至画像表） | 2026-04-15 | [客户详情优化](../superpowers/specs/2026-04-15-customer-detail-optimization-design.md) |
+| 11 | `b0ec7f3a8b31_alter_company_id_to_integer.py` | `customers.company_id` 类型变更：VARCHAR(50) → INTEGER（外键关联） | 2026-04-17 | [导入类型迁移](../specs/2026-04-17-customer-data-import-type-migration-design.md) |
+| 12 | `dd4170648c62_remove_customer_level_column_from_.py` | 删除 `customers.customer_level` 列（等级体系迁移至画像表） | 2026-04-15 | [客户详情优化](../specs/2026-04-15-customer-detail-optimization-design.md) |
 
 ---
 

@@ -664,7 +664,7 @@ REDIS_URL=redis://localhost:6379/0
 | **文档导航**        | `docs/README.md` (完整索引)                                     |
 | **开放平台文档站**  | `openapi-docs/` (VitePress 开发者文档，构建与访问见下文)           |
 | **Agent 开发指南**  | `docs/guides/agents-guide.md` (完整命令/env/git/工作流)         |
-| **系统设计**        | `docs/superpowers/specs/2026-04-01-customer-platform-design.md` |
+| **系统设计**        | `docs/specs/2026-04-01-customer-platform-design.md` |
 | **部署指南**        | `deploy/README.md`                                              |
 | **Podman 部署**     | `deploy/PODMAN_MACOS.md`                                        |
 | **数据库迁移**      | `docs/guides/database-migration-guide.md`                       |
