@@ -1,5 +1,12 @@
 # VR编辑费用结算模块实施计划
 
+## 2026-11-20 更新
+
+本文是 2026-11-03 的归档实施计划，正文保留原方案表述。筛选栏与 keyword 覆盖范围落地后与下文不同，以 PR #128（`68cf1a8`，2026-11-11）为准：
+
+- **筛选栏**：`frontend/src/views/billing/VrSettlements.vue` 实际只有一个关键词输入框（placeholder「搜索客户名称 / 客户 ID / 结算单号」）+ `FilterDropdown` 状态筛选，没有 `CustomerAutoComplete`。
+- **keyword 覆盖**：`backend/app/services/vr_settlement.py` 的 `get_settlements` 对 `Customer.name`、`CAST(Customer.company_id AS String)`（客户 ID）、`VrSettlement.settlement_no` 三列做 `ilike`，不止客户名称与结算单号。
+
 ## Context
 
 在「结算管理」菜单下新增 **VR编辑费用结算** 模块（位于「结算单管理」下方），复用现有结算单（Invoice）模块的工程模式（Sanic + SQLAlchemy 异步 + RBAC 权限 + Alembic 迁移 + Arco 前端），实现独立的 VR 编辑费用结算单全流程：
@@ -216,7 +223,7 @@ class VrSettlementDiscountHistory(BaseModel):
 | 方法 | 允许状态 | 行为与校验 |
 |---|---|---|
 | `create_settlement(customer_id, period_start, period_end, total_amount, detail_file_path, detail_file_name, created_by) -> VrSettlement` | — | 生成 `settlement_no = f"VR-{cst_today().strftime('%Y%m%d')}-{customer_id}-{random_code}"`（`random_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))`，照抄 `billing.py:1389-1394` 的 Invoice 编号规则）；`status="draft"`、`discount_amount=Decimal(0)`、`is_auto_generated=False`；`await self.db.commit()` 后返回 |
-| `get_settlements(keyword=None, status=None, customer_id=None, mine_user_id=None, page=1, page_size=20, sort_by="created_at", sort_order="desc") -> tuple[list[VrSettlement], int]` | — | JOIN Customer；`keyword` 对 `Customer.name`/`settlement_no` 做 `ilike`；`mine_user_id` 非空时追加 `or_(Customer.manager_id == uid, Customer.sales_manager_id == uid)`（照抄 `billing.py:1487-1492`）；`sort_by ∈ {created_at, total_amount, settlement_no}`，非法值静默回退 `created_at` |
+| `get_settlements(keyword=None, status=None, customer_id=None, mine_user_id=None, page=1, page_size=20, sort_by="created_at", sort_order="desc") -> tuple[list[VrSettlement], int]` | — | JOIN Customer；`keyword` 对 `Customer.name`/`settlement_no` 做 `ilike`（2026-11-20：已扩为 `Customer.name` / `CAST(Customer.company_id AS String)` / `settlement_no`，见 PR #128）；`mine_user_id` 非空时追加 `or_(Customer.manager_id == uid, Customer.sales_manager_id == uid)`（照抄 `billing.py:1487-1492`）；`sort_by ∈ {created_at, total_amount, settlement_no}`，非法值静默回退 `created_at` |
 | `get_settlement_by_id(settlement_id) -> VrSettlement \| None` | — | `selectinload(customer)`，过滤 `deleted_at.is_(None)` |
 | `get_discount_histories(settlement_id) -> list[VrSettlementDiscountHistory]` | — | 按 `applied_at` 升序 |
 | `submit_settlement(settlement_id, user_id)` | `{draft}` | 校验 `customer.sales_manager_id` 非空，否则 `(False, "该客户未指定销售经理，无法提交审批")`；置 `pending_cs_supervisor` |
@@ -333,7 +340,7 @@ export interface CreateVrSettlementParams {
   total_amount: number; detail_file_path: string; detail_file_name: string
 }
 
-export function getVrSettlements(params?: { keyword?: string; status?: string; customer_id?: number; page?: number; page_size?: number; sort_by?: string; sort_order?: string })
+export function getVrSettlements(params?: { keyword?: string; status?: string; customer_id?: number; page?: number; page_size?: number; sort_by?: string; sort_order?: string })  // 2026-11-20：keyword 覆盖客户名称/客户ID/结算单号（PR #128）
 export function getVrSettlement(id: number)
 export function createVrSettlement(data: CreateVrSettlementParams)          // POST /billing/vr-settlements
 export function submitVrSettlement(id: number)                             // POST .../submit
@@ -377,7 +384,7 @@ export const VR_SETTLEMENT_STATUS_OPTIONS  // Object.entries 映射 {label, valu
 
 **步骤 5.4 新建 `frontend/src/views/billing/VrSettlements.vue`**（照抄 `Invoices.vue` 结构，约 900 行同构）：
 - `PageHeader`（eyebrow="Billing" title="VR编辑费用结算"），右上「创建结算单」primary 按钮 `v-if="can('vr_settlement:create')"` → 打开 `VrSettlementCreateModal`。
-- 筛选行内联在页面（不建 Filters 组件）：`a-input` 关键词（结算单号/客户名，回车触发）+ `FilterDropdown`（`@/components/ui/FilterDropdown.vue`）状态筛选（`VR_SETTLEMENT_STATUS_OPTIONS`）+ `CustomerAutoComplete`（`@/components/CustomerAutoComplete.vue`，v-model number|undefined）+ 查询/重置按钮。
+- 筛选行内联在页面（不建 Filters 组件）：`a-input` 关键词（结算单号/客户名，回车触发）+ `FilterDropdown`（`@/components/ui/FilterDropdown.vue`）状态筛选（`VR_SETTLEMENT_STATUS_OPTIONS`）+ `CustomerAutoComplete`（`@/components/CustomerAutoComplete.vue`，v-model number|undefined）+ 查询/重置按钮。（2026-11-20：已改为单一 keyword 输入框，placeholder「搜索客户名称 / 客户 ID / 结算单号」，覆盖客户名称/客户ID/结算单号，无 `CustomerAutoComplete`，见 PR #128）
 - `DataTable`（`@/components/DataTable.vue`，`type DataTableColumn`）：列 `settlement_no`(214, sortable) / `customer_name`(180, ellipsis+tooltip) / `period`(190) / `total_amount`(104, right) / `discount_amount`(76, right) / `final_amount`(110, right) / `detail_file`(108, center) / `status`(78) / `created_at`(158, sortable) + 操作列(174, fixed right)；`:scroll="{ x: 1442 }"`（= 40 选择列 + 1218 数据列 + 174 操作列 + 10 列×1px 边框，与现有结算单页实测口径一致）；`:storage-key="'vr_settlements_table_columns'"`；`row-key="id"`；分页配置同 Invoices.vue。`discount_amount` 展示规则照抄（>0 红 `-¥x`、<0 绿 `+¥x`、0 显示 `-`）。`detail_file` 列：`detail_file_path` 非空渲染 `<a :href="record.detail_file_path" target="_blank">📄</a>`（上传文件走静态 `/uploads/` 路由，与现有附件下载方式一致），否则 `-`。`status` 列用常量渲染 `<span class="tag">`（内联，不建 Badge 组件）。
 - 操作列按钮规则（`#action` slot，照抄 Invoices.vue:192-251 与 334-348 的身份校验）：
 
