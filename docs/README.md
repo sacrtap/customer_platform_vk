@@ -1,6 +1,6 @@
 # 客户运营中台 - 文档导航
 
-> 最后更新: 2026-09-16
+> 最后更新: 2026-11-20
 
 ---
 
@@ -17,7 +17,10 @@
 | **测试文档**   | [testing/](testing/)                    | 测试计划、报告、环境配置 |
 | **前端组件**   | [frontend/components.md](frontend/components.md) | Vue 组件清单与复用指南 |
 | **技术债务**   | [technical_debt/](technical_debt/)              | 技术债跟踪             |
+| **代码审查**   | [code-review/](code-review/)                    | 模块/分支代码审查记录   |
+| **计划文档**   | [plans/](plans/)                                | 审计日志、E2E 等专题计划 |
 | **原型**       | [prototypes/](prototypes/)              | HTML 原型文件            |
+| **项目路线图** | [roadmap规划.md](roadmap规划.md)        | 项目周期、里程碑与排期   |
 
 ---
 
@@ -49,7 +52,7 @@
 | [redis-cache-analysis.md](performance/redis-cache-analysis.md) | Redis 缓存分析   | ✅ 完成 |
 | [structured-logging-config.md](performance/structured-logging-config.md) | 结构化日志配置   | ✅ 完成 |
 | [sentry-integration-plan.md](performance/sentry-integration-plan.md) | Sentry 集成计划  | 📋 计划中 |
-| [test-optimization-guide.md](../guides/test-optimization-guide.md) | 测试优化指南     | ✅ 完成 |
+| [test-optimization-guide.md](guides/test-optimization-guide.md) | 测试优化指南     | ✅ 完成 |
 
 ## 测试文档
 
