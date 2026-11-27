@@ -99,7 +99,7 @@ ALL_PERMISSIONS = [
     ("billing:invoice_generate", "生成结算单", "试算/生成/批量生成结算单", "billing"),
     ("billing:invoice_submit", "提交结算单", "提交/批量提交/取消结算单", "billing"),
     # ============================================================
-    # VR编辑费用结算 (9)
+    # VR编辑费用结算 (8)
     # ============================================================
     ("vr_settlement:view", "查看VR结算", "查看VR编辑费用结算单列表与详情", "vr_settlement"),
     ("vr_settlement:create", "创建VR结算单", "手动创建VR结算单并提交审批", "vr_settlement"),
@@ -110,12 +110,6 @@ ALL_PERMISSIONS = [
         "vr_settlement:sales_approve",
         "销售审批",
         "客户指定销售审批VR结算单（第二步）",
-        "vr_settlement",
-    ),
-    (
-        "vr_settlement:sales_supervisor_approve",
-        "销售主管审批",
-        "销售主管审批VR结算单（第三步，含减免一并审批）",
         "vr_settlement",
     ),
     (
@@ -306,10 +300,9 @@ PRESET_ROLES = {
         ],
     ),
     "销售主管": (
-        "负责销售团队，可审批VR编辑费用结算单（第三步，含减免一并审批）",
+        "负责销售团队，可查看VR编辑费用结算单",
         [
             "vr_settlement:view",
-            "vr_settlement:sales_supervisor_approve",
         ],
     ),
 }
@@ -543,6 +536,10 @@ def seed(reset: bool = False):
             # billing:pay 随 paid 旧流程整体废弃（pay/complete 路由已删、存量数据
             # 已迁移为 completed），无等价新码：仅清理绑定与记录，不做等价授予
             "billing:pay": [],
+            # vr_settlement:sales_supervisor_approve 随「销售主管审批」节点下线废弃：
+            # 减免审批改由独立节点（billing:discount_approve）承担，无等价新码，
+            # 仅解除角色绑定并删除权限记录
+            "vr_settlement:sales_supervisor_approve": [],
         }
         migrated_count = 0
         all_roles = session.execute(select(Role)).scalars().all()

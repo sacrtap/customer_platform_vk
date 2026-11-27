@@ -3,9 +3,9 @@ VR编辑费用结算 API 集成测试
 
 测试覆盖：
 1. POST /api/v1/billing/vr-settlements - 手动创建（草稿）
-2. 全流程：submit → confirm-cs → confirm-sales → confirm-sales-supervisor → confirm
+2. 全流程：submit → confirm-cs → confirm-sales →（有减免）approve-discount → confirm
 3. 客户确认自动扣款：余额扣减 + consumption_records 关联 vr_settlement_id
-4. 减免：编辑窗口、销售主管一并审批、驳回回流
+4. 减免：编辑窗口、独立减免审批节点、驳回回流、审批权限 403
 5. 非法状态流转 / 销售身份校验 / 提交前置校验 / 取消 / 删除
 """
 
@@ -157,7 +157,7 @@ async def _post_action(test_client, auth_token, path: str, json: dict | None = N
 async def test_create_and_full_approval_flow(
     test_client, auth_token, test_customer_with_balance, db_session
 ):
-    """AC1/AC2/AC3：创建 → 六级审批 → 客户确认自动扣款，余额与消耗记录正确"""
+    """AC1/AC2/AC3：创建 → 四级审批 → 客户确认自动扣款，余额与消耗记录正确"""
     customer_id = test_customer_with_balance["id"]
 
     # 1. 创建
@@ -179,26 +179,14 @@ async def test_create_and_full_approval_flow(
     assert response.status == 200, response.json
     assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == "pending_sales"
 
-    # 4. 销售审批（admin 为该客户指定销售）→ 待销售主管审批
+    # 4. 销售审批（admin 为该客户指定销售）→ 无减免直达待客户确认
     _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
-    assert response.status == 200, response.json
-    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
-        "pending_sales_supervisor"
-    )
-
-    # 5. 销售主管审批通过（带意见）→ 待客户确认
-    _, response = await _post_action(
-        test_client,
-        auth_token,
-        f"/{settlement_id}/confirm-sales-supervisor",
-        {"comment": "同意"},
-    )
     assert response.status == 200, response.json
     assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
         "pending_customer"
     )
 
-    # 6. 客户确认 → 自动扣款 → completed
+    # 5. 客户确认 → 自动扣款 → completed
     _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm")
     assert response.status == 200, response.json
     detail = await _get_detail(test_client, auth_token, settlement_id)
@@ -243,10 +231,10 @@ async def test_create_and_full_approval_flow(
 
 
 @pytest.mark.asyncio
-async def test_discount_approved_together_at_sales_supervisor(
+async def test_discount_approved_at_independent_node(
     test_client, auth_token, test_customer_with_balance, db_session
 ):
-    """AC4：待销售节点设置减免 100，销售主管一并审批通过后扣款 900"""
+    """AC4：待销售节点设置减免 100，销售确认进入独立减免审批节点，审批通过后扣款 900"""
     customer_id = test_customer_with_balance["id"]
     settlement_id = await _create_settlement(
         test_client, auth_token, customer_id, total_amount=1000.0
@@ -271,20 +259,24 @@ async def test_discount_approved_together_at_sales_supervisor(
     ).scalar()
     assert history_count == 1
 
-    # 走完审批流
+    # 走完审批流：销售确认后进入独立减免审批节点
     await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+        "pending_discount_approval"
+    )
     _, response = await _post_action(
         test_client,
         auth_token,
-        f"/{settlement_id}/confirm-sales-supervisor",
+        f"/{settlement_id}/approve-discount",
         {"comment": "同意减免"},
     )
     assert response.status == 200, response.json
 
-    # 断言减免一并审批字段落库
+    # 断言减免审批字段落库
     detail = await _get_detail(test_client, auth_token, settlement_id)
+    assert detail["status"] == "pending_customer"
     assert detail["discount_approver_id"] is not None
     assert detail["discount_approved_at"] is not None
     assert detail["discount_approval_comment"] == "同意减免"
@@ -316,7 +308,7 @@ async def test_discount_approved_together_at_sales_supervisor(
 
 @pytest.mark.asyncio
 async def test_discount_edit_window(test_client, auth_token, test_customer_with_balance):
-    """AC5：销售主管审批通过前（含 pending_sales_supervisor）可改减免；pending_customer 起锁定；金额 0 拒绝"""
+    """AC5：减免审批节点前（draft/cs/sales）可改减免；pending_discount_approval 起锁定；金额 0 拒绝"""
     customer_id = test_customer_with_balance["id"]
     settlement_id = await _create_settlement(test_client, auth_token, customer_id)
     headers = {"Authorization": f"Bearer {auth_token}"}
@@ -348,34 +340,75 @@ async def test_discount_edit_window(test_client, auth_token, test_customer_with_
     _, response = await put_discount(70)
     assert response.status == 200, response.json
 
-    # 销售审批 → 待销售主管（审批通过前最后节点），仍可改
+    # 销售审批 → 有减免进入待减免审批，锁定不可改
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
     _, response = await put_discount(80)
-    assert response.status == 200, response.json
-
-    # 销售主管审批通过 → 待客户确认，锁定不可改
-    await _post_action(
-        test_client, auth_token, f"/{settlement_id}/confirm-sales-supervisor", {"comment": "同意"}
-    )
-    _, response = await put_discount(90)
     assert response.status == 400
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+        "pending_discount_approval"
+    )
+
+
+@pytest.mark.asyncio
+async def test_approve_discount_requires_permission(
+    test_client, auth_token, test_customer_with_balance, mock_cache
+):
+    """无 billing:discount_approve 权限的用户调 approve-discount → 403，状态不变"""
+    from unittest.mock import AsyncMock, patch
+
+    from app.cache import permissions as permissions_module
+
+    customer_id = test_customer_with_balance["id"]
+    settlement_id = await _create_settlement(test_client, auth_token, customer_id)
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    await test_client.put(
+        f"/api/v1/billing/vr-settlements/{settlement_id}/discount",
+        json={"discount_amount": 50, "discount_reason": "测试"},
+        headers=headers,
+    )
+    await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
+    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
+
+    # 该用户仅有查看权限（缺失 billing:discount_approve）
+    with patch.object(
+        permissions_module.permission_cache,
+        "get_permissions",
+        AsyncMock(return_value={"vr_settlement:view"}),
+    ):
+        _, response = await _post_action(
+            test_client,
+            auth_token,
+            f"/{settlement_id}/approve-discount",
+            {"comment": "同意减免"},
+        )
+    assert response.status == 403
+    assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
+        "pending_discount_approval"
+    )
 
 
 @pytest.mark.asyncio
 async def test_reject_requires_comment_and_reverts(
     test_client, auth_token, test_customer_with_balance
 ):
-    """AC6：驳回必须填理由；带理由驳回到待销售；销售可重新确认再次进入主管审批"""
+    """AC6：驳回必须填理由；带理由驳回到待销售；销售可重新确认再次进入减免审批"""
     customer_id = test_customer_with_balance["id"]
     settlement_id = await _create_settlement(test_client, auth_token, customer_id)
 
+    # 先设减免，销售确认后才会进入减免审批节点
+    await test_client.put(
+        f"/api/v1/billing/vr-settlements/{settlement_id}/discount",
+        json={"discount_amount": 50, "discount_reason": "测试"},
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
     await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
 
     # 无 comment 驳回 → 400
     _, response = await _post_action(
-        test_client, auth_token, f"/{settlement_id}/reject-sales-supervisor", {}
+        test_client, auth_token, f"/{settlement_id}/reject-discount", {}
     )
     assert response.status == 400
     assert response.json["message"] == "驳回必须填写理由"
@@ -384,17 +417,17 @@ async def test_reject_requires_comment_and_reverts(
     _, response = await _post_action(
         test_client,
         auth_token,
-        f"/{settlement_id}/reject-sales-supervisor",
+        f"/{settlement_id}/reject-discount",
         {"comment": "金额有误"},
     )
     assert response.status == 200, response.json
     assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == "pending_sales"
 
-    # 销售重新确认 → 再次进入待销售主管审批
+    # 销售重新确认 → 再次进入待减免审批
     _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
     assert response.status == 200, response.json
     assert (await _get_detail(test_client, auth_token, settlement_id))["status"] == (
-        "pending_sales_supervisor"
+        "pending_discount_approval"
     )
 
 
@@ -448,13 +481,10 @@ async def test_invalid_state_transitions(test_client, auth_token, test_customer_
     _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
     assert response.status == 400
 
-    # 走到 completed
+    # 走到 completed（无减免：销售确认后直达客户确认）
     await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
-    await _post_action(
-        test_client, auth_token, f"/{settlement_id}/confirm-sales-supervisor", {"comment": "同意"}
-    )
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm")
 
     # completed 后 cancel → 400
@@ -509,17 +539,11 @@ async def test_customer_confirm_identity_check(test_client, auth_token, test_cus
     """客户确认节点同样限该客户指定销售：更换销售后原销售 confirm → 400"""
     customer_id = test_customer["id"]
 
-    # 推进到 pending_customer（admin 为该客户默认指定销售）
+    # 推进到 pending_customer（admin 为该客户默认指定销售；无减免直达）
     settlement_id = await _create_settlement(test_client, auth_token, customer_id)
     await _post_action(test_client, auth_token, f"/{settlement_id}/submit")
     await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-cs")
-    await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
-    _, response = await _post_action(
-        test_client,
-        auth_token,
-        f"/{settlement_id}/confirm-sales-supervisor",
-        {"comment": "同意"},
-    )
+    _, response = await _post_action(test_client, auth_token, f"/{settlement_id}/confirm-sales")
     assert response.status == 200, response.json
 
     # 更换客户指定销售为另一用户 → admin 失去客户确认资格

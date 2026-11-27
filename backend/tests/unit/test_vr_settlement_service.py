@@ -204,47 +204,53 @@ class TestStateMachine:
         assert msg == "您不是该客户指定的销售，无权确认"
 
     @pytest.mark.asyncio
-    async def test_confirm_sales_supervisor_writes_discount_approval(
+    async def test_confirm_sales_routes_to_discount_approval(self, service, mock_db_session):
+        """有减免 → 销售确认后进入独立减免审批节点"""
+        settlement = _settlement(status="pending_sales", discount_amount=Decimal("100"))
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, msg = await service.confirm_sales(1, user_id=5)
+        assert ok is True and msg == "销售审批成功"
+        assert settlement.sales_confirmed_by == 5
+        assert settlement.status == "pending_discount_approval"
+
+    @pytest.mark.asyncio
+    async def test_confirm_sales_routes_to_customer_without_discount(
         self, service, mock_db_session
     ):
-        """有减免时一并写审批三字段（操作人持减免审批权限，门禁放行）"""
-        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        with (
-            patch(
-                "app.services.vr_settlement.count_users_with_permission",
-                AsyncMock(return_value=1),
-            ),
-            patch(
-                "app.services.vr_settlement.get_user_permissions",
-                AsyncMock(return_value={"billing:discount_approve"}),
-            ),
-        ):
-            ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        """无减免 → 销售确认后直接待客户确认"""
+        settlement = _settlement(status="pending_sales", discount_amount=Decimal("0"))
+        customer = Customer(id=100, name="x", sales_manager_id=5)
+        mock_db_session.execute = AsyncMock(
+            side_effect=[_result(scalar_one=settlement), _result(scalar_one=customer)]
+        )
+        ok, _ = await service.confirm_sales(1, user_id=5)
         assert ok is True
+        assert settlement.status == "pending_customer"
+
+    @pytest.mark.asyncio
+    async def test_approve_discount_writes_approval_fields(self, service, mock_db_session):
+        """减免审批通过：写审批三字段 → pending_customer"""
+        settlement = _settlement(status="pending_discount_approval", discount_amount=Decimal("100"))
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        ok, msg = await service.approve_discount(1, user_id=9, comment="同意减免")
+        assert ok is True and msg == "减免审批通过"
         assert settlement.status == "pending_customer"
         assert settlement.discount_approver_id == 9
         assert settlement.discount_approved_at is not None
         assert settlement.discount_approval_comment == "同意减免"
 
     @pytest.mark.asyncio
-    async def test_confirm_sales_supervisor_without_discount(self, service, mock_db_session):
-        """无减免时不写审批字段"""
-        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("0"))
+    async def test_reject_discount_reverts_to_pending_sales(self, service, mock_db_session):
+        """减免驳回：退回待销售，理由落库"""
+        settlement = _settlement(status="pending_discount_approval", discount_amount=Decimal("100"))
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        ok, _ = await service.confirm_sales_supervisor(1, user_id=9)
-        assert ok is True
-        assert settlement.discount_approver_id is None
-        assert settlement.status == "pending_customer"
-
-    @pytest.mark.asyncio
-    async def test_reject_reverts_to_pending_sales(self, service, mock_db_session):
-        """驳回到待销售，理由落库"""
-        settlement = _settlement(status="pending_sales_supervisor")
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        ok, _ = await service.reject_sales_supervisor(1, user_id=9, comment="金额有误")
-        assert ok is True
+        ok, msg = await service.reject_discount(1, user_id=9, comment="金额有误")
+        assert ok is True and msg == "已驳回，退回销售审批"
         assert settlement.status == "pending_sales"
+        assert settlement.discount_approver_id == 9
         assert settlement.discount_approval_comment == "金额有误"
 
     @pytest.mark.asyncio
@@ -265,67 +271,29 @@ class TestStateMachine:
         assert "不允许该操作" in msg
 
 
-class TestDiscountApprovalGate:
-    """减免审批门禁：有减免且系统存在持权用户时，审批通过必须持 billing:discount_approve"""
+class TestDiscountApproval:
+    """减免审批节点：仅 pending_discount_approval 可审批/驳回（权限由路由层 require_permission 强制）"""
 
     @pytest.mark.asyncio
-    async def test_blocked_when_operator_lacks_permission(self, service, mock_db_session):
-        """有持权用户 + 操作人无减免审批权限 → 拒绝，状态与审批字段不变"""
-        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
+    async def test_approve_wrong_status_rejected(self, service, mock_db_session):
+        """非减免审批节点 → 拒绝且不改状态"""
+        settlement = _settlement(status="pending_sales", discount_amount=Decimal("100"))
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        with (
-            patch(
-                "app.services.vr_settlement.count_users_with_permission",
-                AsyncMock(return_value=1),
-            ),
-            patch(
-                "app.services.vr_settlement.get_user_permissions",
-                AsyncMock(return_value={"vr_settlement:sales_supervisor_approve"}),
-            ),
-        ):
-            ok, msg = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
+        ok, msg = await service.approve_discount(1, user_id=9)
         assert ok is False
-        assert msg == "该结算单包含减免，需由具有减免审批权限的用户审批"
-        assert settlement.status == "pending_sales_supervisor"
+        assert msg == "当前状态（pending_sales）不允许该操作"
+        assert settlement.status == "pending_sales"
         assert settlement.discount_approver_id is None
-        assert settlement.discount_approval_comment is None
 
     @pytest.mark.asyncio
-    async def test_allowed_when_operator_has_permission(self, service, mock_db_session):
-        """操作人持减免审批权限 → 放行，状态推进并写审批三字段"""
-        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
+    async def test_reject_wrong_status_rejected(self, service, mock_db_session):
+        """非减免审批节点驳回 → 拒绝且不改状态"""
+        settlement = _settlement(status="pending_customer", discount_amount=Decimal("100"))
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        with (
-            patch(
-                "app.services.vr_settlement.count_users_with_permission",
-                AsyncMock(return_value=1),
-            ),
-            patch(
-                "app.services.vr_settlement.get_user_permissions",
-                AsyncMock(return_value={"billing:discount_approve"}),
-            ),
-        ):
-            ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
-        assert ok is True
+        ok, msg = await service.reject_discount(1, user_id=9, comment="不同意")
+        assert ok is False
+        assert msg == "当前状态（pending_customer）不允许该操作"
         assert settlement.status == "pending_customer"
-        assert settlement.discount_approver_id == 9
-
-    @pytest.mark.asyncio
-    async def test_fallback_when_no_holder_exists(self, service, mock_db_session):
-        """系统无持权用户 → 回退原流程：无减免审批权限的操作人也可通过"""
-        settlement = _settlement(status="pending_sales_supervisor", discount_amount=Decimal("100"))
-        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
-        mock_perms = AsyncMock(return_value=set())
-        with patch(
-            "app.services.vr_settlement.count_users_with_permission",
-            AsyncMock(return_value=0),
-        ):
-            with patch("app.services.vr_settlement.get_user_permissions", mock_perms):
-                ok, _ = await service.confirm_sales_supervisor(1, user_id=9, comment="同意减免")
-        assert ok is True
-        assert settlement.status == "pending_customer"
-        # count=0 时不再查询操作人权限集（回退原流程）
-        mock_perms.assert_not_called()
 
 
 class TestRollback:
@@ -368,7 +336,7 @@ class TestRollback:
 
     @pytest.mark.asyncio
     async def test_rollback_rejects_unsupported_status(self, service, mock_db_session):
-        """draft / pending_sales_supervisor 等 → 不支持回退（后者由驳回承担）"""
+        """draft / pending_discount_approval 等 → 不支持回退（后者由驳回承担）"""
         settlement = _settlement(status="draft")
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
         ok, msg = await service.rollback_settlement(1, user_id=9, comment="信息有误")
@@ -396,9 +364,9 @@ class TestDiscount:
         assert msg == "减免金额不能为 0"
 
     @pytest.mark.asyncio
-    async def test_apply_discount_allowed_at_sales_supervisor(self, service, mock_db_session):
-        """销售主管审批通过前（pending_sales_supervisor）仍可提交/修改减免"""
-        settlement = _settlement(status="pending_sales_supervisor")
+    async def test_apply_discount_allowed_at_sales(self, service, mock_db_session):
+        """进入减免审批节点前（pending_sales）仍可提交/修改减免"""
+        settlement = _settlement(status="pending_sales")
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
         ok, _ = await service.apply_discount(
             1,
@@ -411,8 +379,23 @@ class TestDiscount:
         assert settlement.discount_amount == Decimal("100")
 
     @pytest.mark.asyncio
+    async def test_apply_discount_locked_at_discount_approval(self, service, mock_db_session):
+        """进入减免审批节点（pending_discount_approval）即锁定，防止绕过已提交的审批"""
+        settlement = _settlement(status="pending_discount_approval")
+        mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
+        ok, msg = await service.apply_discount(
+            1,
+            discount_amount=Decimal("100"),
+            discount_reason="x",
+            discount_attachment=None,
+            user_id=1,
+        )
+        assert ok is False
+        assert "不允许该操作" in msg
+
+    @pytest.mark.asyncio
     async def test_apply_discount_locked_after_customer(self, service, mock_db_session):
-        """销售主管审批通过（pending_customer）起锁定，防止绕过已生效的减免审批"""
+        """客户确认（pending_customer）起锁定，防止绕过已生效的减免审批"""
         settlement = _settlement(status="pending_customer")
         mock_db_session.execute = AsyncMock(return_value=_result(scalar_one=settlement))
         ok, msg = await service.apply_discount(

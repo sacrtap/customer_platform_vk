@@ -16,25 +16,21 @@ from ..models.customers import Customer
 from ..models.vr_settlement import VrSettlement, VrSettlementDiscountHistory
 from ..repository import BalanceRepository
 from ..services.billing import _DB_BUSY_MESSAGE, BalanceService
-from ..services.permissions import count_users_with_permission, get_user_permissions
 from ..utils.timezone import cst_now, cst_today
 
 logger = logging.getLogger(__name__)
 
-# 减免允许提交/修改的状态：销售主管审批通过前的任意节点（含 pending_sales_supervisor）；
-# pending_customer 起锁定（减免已随销售主管一并审批生效，不可再改，防止绕过审批）
+# 减免允许提交/修改的状态：审批节点开启前（draft / pending_cs_supervisor / pending_sales）；
+# pending_discount_approval 起锁定（进入减免审批即不允许再改，防止绕过审批），
+# 与普通结算单 Invoice 的窗口口径一致。
 _DISCOUNT_EDITABLE_STATUSES = (
     "draft",
     "pending_cs_supervisor",
     "pending_sales",
-    "pending_sales_supervisor",
 )
 
-# 减免审批权限码：有减免且系统存在持权用户时，销售主管审批通过必须由持该码的用户执行
-DISCOUNT_APPROVE_PERMISSION = "billing:discount_approve"
-
-# 回退目标映射：当前节点 → 上一步。pending_sales_supervisor 的回退由既有
-# reject_sales_supervisor 承担（退回 pending_sales，理由必填）；pending_customer 及以后不回退。
+# 回退目标映射：当前节点 → 上一步。pending_discount_approval 的回退由
+# reject_discount 承担（退回 pending_sales，理由必填）；pending_customer 及以后不回退。
 _VR_ROLLBACK_TARGETS = {
     "pending_cs_supervisor": "draft",
     "pending_sales": "pending_cs_supervisor",
@@ -45,7 +41,7 @@ _CANCELLABLE_STATUSES = (
     "draft",
     "pending_cs_supervisor",
     "pending_sales",
-    "pending_sales_supervisor",
+    "pending_discount_approval",
     "pending_customer",
 )
 
@@ -61,7 +57,8 @@ class VrSettlementService:
     """VR编辑费用结算单服务类
 
     状态机：
-        draft → pending_cs_supervisor → pending_sales → pending_sales_supervisor
+        draft → pending_cs_supervisor → pending_sales
+            → (有减免 ? pending_discount_approval : pending_customer)
             → pending_customer → customer_confirmed → completed
         任意非终态可 → cancelled
 
@@ -254,9 +251,10 @@ class VrSettlementService:
         return True, "客服主管审批成功"
 
     async def confirm_sales(self, settlement_id: int, user_id: int) -> Tuple[bool, str]:
-        """销售审批（第二步）：pending_sales → pending_sales_supervisor
+        """销售审批（第二步）：pending_sales → pending_discount_approval / pending_customer
 
         身份校验：操作人必须为该客户指定的销售（customer.sales_manager_id）。
+        分流：有减免（discount_amount ≠ 0）→ 待减免审批；无减免 → 直接待客户确认。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
@@ -275,74 +273,61 @@ class VrSettlementService:
 
         settlement.sales_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
         settlement.sales_confirmed_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
-        settlement.status = "pending_sales_supervisor"  # pyright: ignore[reportAttributeAccessIssue]
+        settlement.status = (  # pyright: ignore[reportAttributeAccessIssue]
+            "pending_discount_approval"
+            if settlement.discount_amount and settlement.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
+            else "pending_customer"
+        )
 
         await self.db.commit()
 
         return True, "销售审批成功"
 
-    async def confirm_sales_supervisor(
+    async def approve_discount(
         self, settlement_id: int, user_id: int, comment: Optional[str] = None
     ) -> Tuple[bool, str]:
-        """销售主管审批通过（第三步，含减免一并审批）
+        """减免审批通过：pending_discount_approval → pending_customer
 
-        pending_sales_supervisor → pending_customer
-        若 discount_amount ≠ 0：一并写减免审批人/时间/意见（减免生效）。
-        减免审批门禁：有减免且系统存在持「减免审批」权限的用户时，
-        操作人必须持该权限（无人持权则回退原流程，见下方门禁段）。
+        审批意见可选。通过后写减免审批人/时间/意见，减免生效；
+        此后 apply_discount 拒绝修改（_DISCOUNT_EDITABLE_STATUSES 不含该节点之后的任何状态）。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
         if not settlement:
             return False, "结算单不存在"
 
-        if settlement.status != "pending_sales_supervisor":  # pyright: ignore[reportGeneralTypeIssues]
+        if settlement.status != "pending_discount_approval":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态（{settlement.status}）不允许该操作"
 
-        # 减免审批门禁：有减免且系统存在持「减免审批」权限的用户时，操作人必须持该权限；
-        # 无人持权时回退原流程（销售主管一并审批，减免生效）。
-        if settlement.discount_amount and settlement.discount_amount != 0:  # pyright: ignore[reportGeneralTypeIssues]
-            holder_count = await count_users_with_permission(self.db, DISCOUNT_APPROVE_PERMISSION)
-            if holder_count > 0:
-                operator_permissions = await get_user_permissions(self.db, user_id)
-                if DISCOUNT_APPROVE_PERMISSION not in operator_permissions:
-                    return False, "该结算单包含减免，需由具有减免审批权限的用户审批"
-
-        settlement.sales_supervisor_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        settlement.sales_supervisor_confirmed_at = cst_now().strftime(  # pyright: ignore[reportAttributeAccessIssue]
+        settlement.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        settlement.discount_approved_at = cst_now().strftime(  # pyright: ignore[reportAttributeAccessIssue]
             "%Y-%m-%d %H:%M:%S"
         )
-
-        # 减免一并审批：通过=减免生效（记录审批人/时间/意见）
-        if settlement.discount_amount and settlement.discount_amount != 0:  # pyright: ignore[reportGeneralTypeIssues]
-            settlement.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
-            settlement.discount_approved_at = cst_now().strftime("%Y-%m-%d %H:%M:%S")  # pyright: ignore[reportAttributeAccessIssue]
-            settlement.discount_approval_comment = comment  # pyright: ignore[reportAttributeAccessIssue]
-
+        settlement.discount_approval_comment = comment  # pyright: ignore[reportAttributeAccessIssue]
         settlement.status = "pending_customer"  # pyright: ignore[reportAttributeAccessIssue]
 
         await self.db.commit()
 
-        return True, "销售主管审批通过"
+        return True, "减免审批通过"
 
-    async def reject_sales_supervisor(
+    async def reject_discount(
         self, settlement_id: int, user_id: int, comment: str
     ) -> Tuple[bool, str]:
-        """销售主管审批驳回：pending_sales_supervisor → pending_sales
+        """减免审批驳回：pending_discount_approval → pending_sales
 
-        整单退回销售节点（销售重新确认后可再次提交审批）；
-        减免信息保留，待重新一并审批。
+        驳回理由必填（由路由层先校验后传入）。整单退回销售节点：
+        销售重新确认后可再次提交减免审批；减免信息保留。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
 
         if not settlement:
             return False, "结算单不存在"
 
-        if settlement.status != "pending_sales_supervisor":  # pyright: ignore[reportGeneralTypeIssues]
+        if settlement.status != "pending_discount_approval":  # pyright: ignore[reportGeneralTypeIssues]
             return False, f"当前状态（{settlement.status}）不允许该操作"
 
-        settlement.sales_supervisor_confirmed_by = user_id  # pyright: ignore[reportAttributeAccessIssue]
-        settlement.sales_supervisor_confirmed_at = cst_now().strftime(  # pyright: ignore[reportAttributeAccessIssue]
+        settlement.discount_approver_id = user_id  # pyright: ignore[reportAttributeAccessIssue]
+        settlement.discount_approved_at = cst_now().strftime(  # pyright: ignore[reportAttributeAccessIssue]
             "%Y-%m-%d %H:%M:%S"
         )
         settlement.discount_approval_comment = comment  # pyright: ignore[reportAttributeAccessIssue]
@@ -393,9 +378,9 @@ class VrSettlementService:
     ) -> Tuple[bool, str]:
         """提交/修改减免
 
-        允许状态：draft / pending_cs_supervisor / pending_sales / pending_sales_supervisor
-        （销售主管审批通过前任意节点可提交/修改；pending_customer 起锁定，
-        防止绕过已生效的减免审批）。
+        允许状态：draft / pending_cs_supervisor / pending_sales
+        （进入减免审批节点即锁定：pending_discount_approval 及以后不可改，
+        防止绕过已提交的减免审批，与普通结算单 Invoice 同口径）。
         每次修改插入一条 VrSettlementDiscountHistory。
         """
         settlement = await self.get_settlement_by_id(settlement_id)
