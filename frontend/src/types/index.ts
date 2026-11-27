@@ -133,16 +133,23 @@ export interface Customer {
   usage_30d?: number | null
   usage_30d_amount?: number | null
   health?: string | null
-  consumption_history?: ConsumptionHistoryItem[]
   // 可选关联对象（详情接口返回）
   profile?: CustomerProfile
 }
 
-export interface ConsumptionHistoryItem {
-  id: number
-  description: string
-  amount: number
-  created_at: string
+/** 客户详情接口返回的余额明细（注意：与列表接口的数值型 balance 形状不同） */
+export interface CustomerBalanceDetail {
+  total_amount: number
+  real_amount: number
+  bonus_amount: number
+  used_total: number
+  used_real: number
+  used_bonus: number
+}
+
+/** 客户详情接口返回的客户对象：balance 是余额明细，不是列表的数值 */
+export interface CustomerDetail extends Omit<Customer, 'balance'> {
+  balance: CustomerBalanceDetail | null
 }
 
 /** 客户画像 */

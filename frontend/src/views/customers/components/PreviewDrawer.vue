@@ -52,25 +52,85 @@
           </div>
         </div>
 
-        <!-- 最近操作时间轴 -->
+        <!-- 基础信息 -->
         <div class="drawer-section">
-          <h5>最近操作</h5>
-          <div class="drawer-timeline">
-            <div
-              v-for="item in (customer.consumption_history || []).slice(0, 5)"
-              :key="item.id"
-              class="drawer-event"
-            >
-              <span>{{ formatDate(item.created_at) }}</span>
-              <b>{{ item.description }}</b>
+          <h5>基础信息</h5>
+          <div class="drawer-info-grid">
+            <div class="drawer-info">
+              <span>客户编号</span>
+              <b>{{ customer.company_id }}</b>
             </div>
-            <div
-              v-if="!customer.consumption_history || customer.consumption_history.length === 0"
-              class="drawer-empty"
-            >
-              暂无操作记录，<a class="drawer-link" @click="emit('viewDetail', customer!.id)"
-                >查看详情</a
-              >
+            <div class="drawer-info">
+              <span>账号类型</span>
+              <b>{{ text(customer.account_type) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>运营经理</span>
+              <b>{{ managerName(customer.manager_id) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>销售经理</span>
+              <b>{{ managerName(customer.sales_manager_id) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>结算方式</span>
+              <b>{{ settlementTypeText(customer.settlement_type) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>结算周期</span>
+              <b>{{ settlementCycleText(customer.settlement_cycle) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>结算账户</span>
+              <b>{{ text(customer.settlement_account_name) || '自身' }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>合作状态</span>
+              <b>{{ cooperationStatusText(customer.cooperation_status) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>重点客户</span>
+              <b>{{ yesNo(customer.is_key_customer) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>房产客户</span>
+              <b>{{ yesNo(customer.is_real_estate) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>是否结算</span>
+              <b>{{ yesNo(customer.is_settlement_enabled) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>是否对账</span>
+              <b>{{ yesNo(customer.require_reconciliation) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>是否停用</span>
+              <b>{{ yesNo(customer.is_disabled) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>所属 ERP</span>
+              <b>{{ erpName(customer.erp_system) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>接入时间</span>
+              <b>{{ formatDateOnly(customer.onboarding_date) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>首次回款</span>
+              <b>{{ formatDateOnly(customer.first_payment_date) }}</b>
+            </div>
+            <div class="drawer-info">
+              <span>创建时间</span>
+              <b>{{ formatDateTime(customer.created_at) }}</b>
+            </div>
+            <div class="drawer-info wide">
+              <span>邮箱</span>
+              <b>{{ text(customer.email) }}</b>
+            </div>
+            <div v-if="customer.notes" class="drawer-info wide">
+              <span>备注</span>
+              <b>{{ customer.notes }}</b>
             </div>
           </div>
         </div>
@@ -78,8 +138,6 @@
         <!-- 操作按钮 -->
         <div class="drawer-actions">
           <button class="btn primary" @click="emit('viewDetail', customer.id)">查看详情</button>
-          <button class="btn">生成结算单</button>
-          <button class="btn">提醒充值</button>
         </div>
       </div>
     </div>
@@ -87,19 +145,32 @@
 </template>
 
 <script setup lang="ts">
-import type { Customer } from '@/types'
-import { formatCurrency, toDate } from '@/utils/formatters'
+import type { CooperationStatus, Customer, ErpSystem } from '@/types'
+import { formatCurrency, formatDate as formatDateOnly, formatDateTime } from '@/utils/formatters'
 
-defineProps<{
-  visible: boolean
-  customer: Customer | null
-}>()
+interface ManagerOption {
+  id: number
+  real_name: string | null
+}
+
+const props = withDefaults(
+  defineProps<{
+    visible: boolean
+    customer: Customer | null
+    managers?: ManagerOption[]
+    cooperationStatuses?: CooperationStatus[]
+    erpSystems?: ErpSystem[]
+  }>(),
+  {
+    managers: () => [],
+    cooperationStatuses: () => [],
+    erpSystems: () => [],
+  }
+)
 
 const emit = defineEmits<{
   close: []
   viewDetail: [id: number]
-  edit: [record: Customer]
-  addTag: [record: Customer]
 }>()
 
 const getInitials = (name: string) => {
@@ -107,20 +178,57 @@ const getInitials = (name: string) => {
   return name.charAt(0).toUpperCase()
 }
 
-const formatDate = (date: string | null) => {
-  if (!date) return ''
-  const d = toDate(date)
-  if (!d) return ''
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
-  const diffDay = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDay === 0) {
-    return `今天 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+const text = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined) return '-'
+  const str = String(value).trim()
+  return str || '-'
+}
+
+const yesNo = (value: boolean | null | undefined) => {
+  if (value === true) return '是'
+  if (value === false) return '否'
+  return '-'
+}
+
+const managerName = (id: number | null | undefined) => {
+  if (!id) return '-'
+  const manager = props.managers.find((m) => m.id === id)
+  return manager?.real_name || `#${id}`
+}
+
+const settlementTypeText = (type: string | null | undefined) => {
+  const map: Record<string, string> = { prepaid: '预付费', postpaid: '后付费' }
+  return (type && map[type]) || text(type)
+}
+
+const settlementCycleText = (cycle: string | null | undefined) => {
+  const map: Record<string, string> = {
+    daily: '日结',
+    weekly: '周结',
+    monthly: '月结',
+    quarterly: '季结',
+    yearly: '年结',
   }
-  if (diffDay === 1) {
-    return `昨天 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return (cycle && map[cycle]) || text(cycle)
+}
+
+const cooperationStatusText = (status: string | null | undefined) => {
+  if (!status) return '-'
+  const found = props.cooperationStatuses.find((s) => s.value === status)
+  if (found) return found.name
+  const map: Record<string, string> = {
+    active: '合作中',
+    suspended: '暂停',
+    terminated: '终止',
+    noused: '近一年未使用',
   }
-  return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')}`
+  return map[status] || status
+}
+
+const erpName = (erp: string | null | undefined) => {
+  if (!erp) return '-'
+  const found = props.erpSystems.find((e) => e.value === erp)
+  return found?.name || erp
 }
 
 const getHealthLabel = (health: string | null | undefined) => {
@@ -281,7 +389,7 @@ const getDaysUntilDepleted = (customer: Customer) => {
   color: var(--red);
 }
 
-/* 时间轴 */
+/* 基础信息 */
 .drawer-section {
   margin-bottom: 18px;
 }
@@ -290,39 +398,33 @@ const getDaysUntilDepleted = (customer: Customer) => {
   font-size: 14px;
   font-weight: 700;
 }
-.drawer-timeline {
+.drawer-info-grid {
   display: grid;
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 12px;
 }
-.drawer-event {
+.drawer-info {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #edf2f7;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.drawer-event > span {
-  color: var(--muted);
+.drawer-info.wide {
+  grid-column: 1 / -1;
+}
+.drawer-info > span {
   font-size: 12px;
-  white-space: nowrap;
-  min-width: 80px;
+  color: var(--muted);
 }
-.drawer-event > b {
+.drawer-info > b {
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink);
-}
-.drawer-empty {
-  text-align: center;
-  padding: 20px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.drawer-link {
-  color: var(--primary);
-  cursor: pointer;
-  text-decoration: underline;
+  overflow-wrap: anywhere;
 }
 
 /* 操作按钮 */

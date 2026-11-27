@@ -336,7 +336,7 @@ const DEFAULT_INDUSTRY = '房产经纪,房产ERP,房产平台'
 
 ---
 
-### OPT-14: 预览抽屉时间轴数据未填充 🟡
+### OPT-14: 预览抽屉时间轴数据未填充 ✅ 已解决
 
 **现状**:
 `PreviewDrawer.vue` 显示 `customer.consumption_history`，但列表 API 返回的客户对象中从未包含此字段。`Customer` 类型定义中有 `consumption_history?: ConsumptionHistoryItem[]`，但后端 `list_customers` 路由未填充。
@@ -348,8 +348,10 @@ const DEFAULT_INDUSTRY = '房产经纪,房产ERP,房产平台'
 2. 或前端在打开预览抽屉时单独请求 `/customers/:id/summary` 获取
 3. 如果短期无法实现，隐藏该区域或显示 loading 占位
 
+**解决方式（2026-11-27）**: 采用方案 3 —— 删除恒为空的「最近操作」时间轴，抽屉改为在打开时调用客户详情接口补全字段，展示完整基础信息网格（客户编号/经理/结算配置/合作状态/ERP/关键日期等），同时下线无实现的「生成结算单」「提醒充值」按钮。相关文件：`frontend/src/views/customers/components/PreviewDrawer.vue`、`frontend/src/views/customers/Index.vue`。
+
 **涉及文件**:
-- `backend/app/routes/customers.py` — 填充 consumption_history 或优化 summary 接口
+- `backend/app/routes/customers.py` — 填充 consumption_history 或优化 summary 接口（未改动）
 - `frontend/src/views/customers/components/PreviewDrawer.vue` — 按需加载
 
 ---
