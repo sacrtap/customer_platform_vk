@@ -1,7 +1,7 @@
 <template>
   <a-modal
     v-model:visible="isVisible"
-    :title="mode === 'approve' ? '销售主管审批通过' : '销售主管审批驳回'"
+    :title="mode === 'approve' ? '减免审批通过' : '减免审批驳回'"
     width="480px"
     :confirm-loading="loading"
     @before-ok="handleSubmit"
@@ -36,7 +36,7 @@ import { ref, reactive, computed, watch, nextTick } from 'vue'
 import type { FormInstance } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 import { formatCurrency } from '@/utils/formatters'
-import { confirmSalesSupervisor, rejectSalesSupervisor } from '@/api/vrSettlement'
+import { approveDiscount, rejectDiscount } from '@/api/vrSettlement'
 
 const props = defineProps<{
   visible: boolean
@@ -106,9 +106,9 @@ const handleSubmit = async () => {
   loading.value = true
   try {
     if (props.mode === 'approve') {
-      await confirmSalesSupervisor(props.settlementId, form.comment || undefined)
+      await approveDiscount(props.settlementId, form.comment || undefined)
     } else {
-      await rejectSalesSupervisor(props.settlementId, form.comment)
+      await rejectDiscount(props.settlementId, form.comment)
     }
     emit('success')
     return true

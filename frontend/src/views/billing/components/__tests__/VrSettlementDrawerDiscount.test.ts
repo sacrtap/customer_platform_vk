@@ -35,7 +35,7 @@ vi.mock('@/stores/user', () => ({
 const baseSettlement = {
   id: 1,
   settlement_no: 'VR-TEST',
-  status: 'pending_sales_supervisor',
+  status: 'pending_sales',
   customer_id: 1,
   customer_name: '测试客户',
   period_start: '2026-11-01',
@@ -77,11 +77,17 @@ function hasDiscountButton(wrapper: VueWrapper): boolean {
 }
 
 describe('VR 结算单详情 - 减免提交窗口', () => {
-  it('pending_sales_supervisor（销售主管审批通过前）渲染设置减免按钮', () => {
+  it('pending_sales（进入减免审批前）渲染设置减免按钮', () => {
     expect(hasDiscountButton(mountDrawer(baseSettlement))).toBe(true)
   })
 
-  it('pending_customer（销售主管审批通过后）不渲染减免按钮', () => {
+  it('pending_discount_approval（减免审批中）不渲染减免按钮', () => {
+    expect(
+      hasDiscountButton(mountDrawer({ ...baseSettlement, status: 'pending_discount_approval' }))
+    ).toBe(false)
+  })
+
+  it('pending_customer（减免审批通过后）不渲染减免按钮', () => {
     expect(hasDiscountButton(mountDrawer({ ...baseSettlement, status: 'pending_customer' }))).toBe(
       false
     )
@@ -96,14 +102,14 @@ describe('VR 结算单详情 - 减免提交窗口', () => {
     }
   })
 
-  it('pending_cs_supervisor 渲染回退按钮；pending_sales_supervisor（审批中）不渲染', () => {
+  it('pending_cs_supervisor 渲染回退按钮；pending_discount_approval（无回退节点）不渲染', () => {
     expect(
       mountDrawer({ ...baseSettlement, status: 'pending_cs_supervisor' })
         .findAll('button')
         .some((b) => b.text().includes('回退'))
     ).toBe(true)
     expect(
-      mountDrawer(baseSettlement)
+      mountDrawer({ ...baseSettlement, status: 'pending_discount_approval' })
         .findAll('button')
         .some((b) => b.text().includes('回退'))
     ).toBe(false)

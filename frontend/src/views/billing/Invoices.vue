@@ -85,7 +85,7 @@
         :row-key="'id'"
         :row-selection="rowSelectionConfig"
         :row-class="'row-clickable'"
-        :scroll="{ x: 1500 }"
+        :scroll="{ x: 1590 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
@@ -102,6 +102,10 @@
           <span class="cust-name">{{
             (record as Invoice).customer_name || `#${(record as Invoice).customer_id}`
           }}</span>
+        </template>
+
+        <template #customer_sales_manager_name="{ record }">
+          <span>{{ (record as Invoice).customer_sales_manager_name || '-' }}</span>
         </template>
 
         <template #period="{ record }">
@@ -488,6 +492,13 @@ interface ColumnDef {
 const columnDefs: ColumnDef[] = [
   { key: 'invoice_no', title: '结算单号', width: 214, sortable: true },
   { key: 'customer', title: '客户', width: 180, ellipsis: true, tooltip: true },
+  {
+    key: 'customer_sales_manager_name',
+    title: '销售经理',
+    width: 90,
+    ellipsis: true,
+    tooltip: true,
+  },
   { key: 'period', title: '周期', width: 190 },
   { key: 'total_amount', title: '总金额', width: 104, align: 'right', sortable: true },
   { key: 'discount_amount', title: '减免金额', width: 76, align: 'right' },

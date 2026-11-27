@@ -13,7 +13,8 @@ from .base import BaseModel
 class VrSettlementStatus(str, Enum):
     """VR结算单状态枚举
 
-    draft → pending_cs_supervisor → pending_sales → pending_sales_supervisor
+    draft → pending_cs_supervisor → pending_sales
+        → (有减免 ? pending_discount_approval : pending_customer)
         → pending_customer → customer_confirmed → completed
 
     任意非终态均可 → cancelled
@@ -22,7 +23,7 @@ class VrSettlementStatus(str, Enum):
     DRAFT = "draft"  # 草稿（待提交）
     PENDING_CS_SUPERVISOR = "pending_cs_supervisor"  # 待客服主管审批
     PENDING_SALES = "pending_sales"  # 待销售审批
-    PENDING_SALES_SUPERVISOR = "pending_sales_supervisor"  # 待销售主管审批
+    PENDING_DISCOUNT_APPROVAL = "pending_discount_approval"  # 待减免审批
     PENDING_CUSTOMER = "pending_customer"  # 待客户确认
     CUSTOMER_CONFIRMED = "customer_confirmed"  # 客户已确认（扣款失败可重试）
     COMPLETED = "completed"  # 已完成（扣款成功）
@@ -48,7 +49,7 @@ class VrSettlement(BaseModel):
     discount_attachment: Mapped[str | None] = mapped_column(String(255))
     # final_amount = total_amount - discount_amount（计算字段，不落库）
     status: Mapped[str | None] = mapped_column(String(30), default="draft", index=True)
-    # 减免提交/审批（减免审批由销售主管在审批节点一并完成）
+    # 减免提交/审批（减免审批为独立节点 pending_discount_approval）
     discount_applied_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
     discount_approver_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
@@ -65,7 +66,8 @@ class VrSettlement(BaseModel):
         Integer, ForeignKey("users.id"), nullable=True
     )
     sales_confirmed_at: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # 销售主管审批（含减免一并审批）
+    # 销售主管审批（历史数据列：销售主管节点已下线，此后不再读写；
+    # 保留以渲染旧单据/旧审计）
     sales_supervisor_confirmed_by: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )

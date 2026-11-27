@@ -44,7 +44,7 @@
         :pagination="paginationConfig"
         :row-key="'id'"
         :row-class="'row-clickable'"
-        :scroll="{ x: 1484 }"
+        :scroll="{ x: 1574 }"
         :storage-key="STORAGE_KEY"
         @page-change="onPageChange"
         @page-size-change="onPageSizeChange"
@@ -59,6 +59,10 @@
           <span class="cust-name">{{
             (record as VrSettlement).customer_name || `#${(record as VrSettlement).customer_id}`
           }}</span>
+        </template>
+
+        <template #customer_sales_manager_name="{ record }">
+          <span>{{ (record as VrSettlement).customer_sales_manager_name || '-' }}</span>
         </template>
 
         <template #period="{ record }">
@@ -184,24 +188,22 @@
           >
             回退
           </button>
-          <!-- 销售主管审批通过 / 驳回 -->
+          <!-- 减免审批通过 / 驳回 -->
           <button
             v-if="
-              can('vr_settlement:sales_supervisor_approve') &&
-              (record as VrSettlement).status === 'pending_sales_supervisor'
+              can('billing:discount_approve') &&
+              (record as VrSettlement).status === 'pending_discount_approval'
             "
             class="btn btn-primary-sm"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
-            :disabled="discountApprovalBlocked(record as VrSettlement)"
-            :title="discountApprovalBlocked(record as VrSettlement) ? discountApprovalTip : ''"
             @click.stop="openApprovalModal(record as VrSettlement, 'approve')"
           >
             审批通过
           </button>
           <button
             v-if="
-              can('vr_settlement:sales_supervisor_approve') &&
-              (record as VrSettlement).status === 'pending_sales_supervisor'
+              can('billing:discount_approve') &&
+              (record as VrSettlement).status === 'pending_discount_approval'
             "
             class="btn"
             style="padding: 4px 10px; font-size: 12px; margin-left: 4px"
@@ -272,7 +274,7 @@
                 'draft',
                 'pending_cs_supervisor',
                 'pending_sales',
-                'pending_sales_supervisor',
+                'pending_discount_approval',
                 'pending_customer',
               ].includes((record as VrSettlement).status)
             "
@@ -322,7 +324,7 @@
       :current-attachment="currentDetail?.discount_attachment"
       @success="handleDiscountSuccess"
     />
-    <!-- 销售主管审批弹窗（通过可选理由 / 驳回必填理由） -->
+    <!-- 减免审批弹窗（通过可选理由 / 驳回必填理由） -->
     <VrSettlementApprovalModal
       v-model:visible="approvalModalVisible"
       :settlement-id="approvalSettlementId"
@@ -378,11 +380,7 @@ const salesDisabledTip = (record: VrSettlement) =>
     ? '该客户尚未指定销售，无法确认'
     : '您不是该客户指定的销售，无法确认'
 
-// ===== 减免审批门禁（与详情抽屉、后端 confirm_sales_supervisor 同源）=====
-// discount_approval_required 由列表接口按「有减免且系统存在持权用户」实时计算
-const discountApprovalBlocked = (record: VrSettlement) =>
-  record.discount_approval_required === true && !can('billing:discount_approve')
-const discountApprovalTip = '该结算单包含减免，需由具有减免审批权限的用户审批'
+// ===== 减免审批（独立节点）：仅持 billing:discount_approve 的用户可审批 =====
 
 const {
   loading,
@@ -414,7 +412,7 @@ const discountModalVisible = ref(false)
 const selectedSettlementId = ref<number>(0)
 const retryingId = ref<number | null>(null)
 
-// ===== 销售主管审批弹窗 =====
+// ===== 减免审批弹窗 =====
 const approvalModalVisible = ref(false)
 const approvalMode = ref<'approve' | 'reject'>('approve')
 const approvalSettlementId = ref<number>(0)
@@ -437,6 +435,13 @@ interface ColumnDef {
 const columnDefs: ColumnDef[] = [
   { key: 'settlement_no', title: '结算单号', width: 224, sortable: true },
   { key: 'customer_name', title: '客户', width: 154, ellipsis: true, tooltip: true },
+  {
+    key: 'customer_sales_manager_name',
+    title: '销售经理',
+    width: 90,
+    ellipsis: true,
+    tooltip: true,
+  },
   { key: 'period', title: '周期', width: 202 },
   { key: 'total_amount', title: '总金额', width: 112, align: 'right', sortable: true },
   { key: 'discount_amount', title: '减免金额', width: 96, align: 'right' },

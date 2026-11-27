@@ -335,6 +335,8 @@ export interface Invoice {
   customer_manager_id?: number | null
   /** 客户指定的销售经理 ID（用于前端判断确认按钮是否可点击） */
   customer_sales_manager_id?: number | null
+  /** 客户指定的销售经理姓名（列表「销售经理」列展示） */
+  customer_sales_manager_name?: string | null
   period_start: string
   period_end: string
   total_amount: number

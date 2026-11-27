@@ -56,7 +56,6 @@ PERMISSION_ROWS: list[tuple[str, str, str]] = [
     ("vr_settlement:delete", "删除VR结算单", "vr_settlement"),
     ("vr_settlement:cs_approve", "客服主管审批", "vr_settlement"),
     ("vr_settlement:sales_approve", "销售审批", "vr_settlement"),
-    ("vr_settlement:sales_supervisor_approve", "销售主管审批", "vr_settlement"),
     ("vr_settlement:discount_apply", "设置减免", "vr_settlement"),
     ("vr_settlement:confirm", "客户确认VR结算单", "vr_settlement"),
     ("files:view", "查看文件", "files"),

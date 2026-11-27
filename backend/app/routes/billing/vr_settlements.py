@@ -21,7 +21,6 @@ from ...middleware.auth import (
 from ...models.customers import Customer
 from ...models.users import User
 from ...models.vr_settlement import VrSettlementStatus
-from ...services.permissions import count_users_with_permission
 from ...services.vr_settlement import VrSettlementService
 from ...utils.audit_helpers import create_audit_entry
 from ...utils.timezone import local_date_range_to_utc
@@ -125,13 +124,9 @@ async def get_vr_settlements(request: Request):
         sort_order=sort_order,
     )
 
-    # 减免审批门禁提示（与详情端点同源）：任一行有减免才查一次持权用户数
-    holders_exist = (
-        any(
-            s.discount_amount and s.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
-            for s in settlements
-        )
-        and await count_users_with_permission(db, "billing:discount_approve") > 0
+    # 销售经理姓名（列表列展示）：一次批量解析，避免 N+1
+    sales_manager_names = await _resolve_operator_names(
+        db, {s.customer.sales_manager_id if s.customer else None for s in settlements}
     )
 
     return json(
@@ -150,16 +145,17 @@ async def get_vr_settlements(request: Request):
                         "customer_sales_manager_id": s.customer.sales_manager_id
                         if s.customer
                         else None,
+                        "customer_sales_manager_name": sales_manager_names.get(
+                            s.customer.sales_manager_id  # pyright: ignore[reportArgumentType]
+                        )
+                        if s.customer and s.customer.sales_manager_id
+                        else None,
                         "period_start": s.period_start.isoformat() if s.period_start else None,  # pyright: ignore[reportGeneralTypeIssues]
                         "period_end": s.period_end.isoformat() if s.period_end else None,  # pyright: ignore[reportGeneralTypeIssues]
                         "total_amount": float(s.total_amount),  # pyright: ignore[reportArgumentType]
                         "discount_amount": float(s.discount_amount) if s.discount_amount else 0,  # pyright: ignore[reportArgumentType, reportGeneralTypeIssues]
                         "final_amount": float(s.total_amount - (s.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                         "status": s.status,
-                        "discount_approval_required": bool(
-                            s.discount_amount and s.discount_amount != 0  # pyright: ignore[reportGeneralTypeIssues]
-                        )
-                        and holders_exist,
                         "detail_file_path": s.detail_file_path,  # pyright: ignore[reportGeneralTypeIssues]
                         "detail_file_name": s.detail_file_name,  # pyright: ignore[reportGeneralTypeIssues]
                         "remark": s.remark,  # pyright: ignore[reportGeneralTypeIssues]
@@ -198,7 +194,6 @@ async def get_vr_settlement(request: Request, settlement_id: int):
         settlement.discount_approver_id,
         settlement.cs_supervisor_confirmed_by,
         settlement.sales_confirmed_by,
-        settlement.sales_supervisor_confirmed_by,
         settlement.customer_confirmed_by,
         settlement.completed_by,
         settlement.cancelled_by,
@@ -246,12 +241,6 @@ async def get_vr_settlement(request: Request, settlement_id: int):
                 "discount_attachment": settlement.discount_attachment,
                 "final_amount": float(settlement.total_amount - (settlement.discount_amount or 0)),  # pyright: ignore[reportArgumentType]
                 "status": settlement.status,
-                # 有减免且系统存在持「减免审批」权限的用户时，销售主管审批通过需持该权限
-                # （前端据此禁用「审批通过」；后端 confirm_sales_supervisor 有同源门禁）
-                "discount_approval_required": (
-                    bool(settlement.discount_amount and settlement.discount_amount != 0)
-                    and await count_users_with_permission(db, "billing:discount_approve") > 0
-                ),
                 "discount_applied_at": settlement.discount_applied_at,  # pyright: ignore[reportGeneralTypeIssues]
                 "discount_approver_id": settlement.discount_approver_id,
                 "discount_approver_name": resolve_name(settlement.discount_approver_id),
@@ -263,11 +252,6 @@ async def get_vr_settlement(request: Request, settlement_id: int):
                 "sales_confirmed_by": settlement.sales_confirmed_by,
                 "sales_confirmed_name": resolve_name(settlement.sales_confirmed_by),
                 "sales_confirmed_at": settlement.sales_confirmed_at,  # pyright: ignore[reportGeneralTypeIssues]
-                "sales_supervisor_confirmed_by": settlement.sales_supervisor_confirmed_by,
-                "sales_supervisor_confirmed_name": resolve_name(
-                    settlement.sales_supervisor_confirmed_by
-                ),
-                "sales_supervisor_confirmed_at": settlement.sales_supervisor_confirmed_at,  # pyright: ignore[reportGeneralTypeIssues]
                 "customer_confirmed_at": settlement.customer_confirmed_at,  # pyright: ignore[reportGeneralTypeIssues]
                 "customer_confirmed_by": settlement.customer_confirmed_by,
                 "customer_confirmed_name": resolve_name(settlement.customer_confirmed_by),
@@ -501,7 +485,7 @@ async def confirm_cs_supervisor(request: Request, settlement_id: int):
 @auth_required
 @require_permission("vr_settlement:sales_approve")
 async def confirm_vr_sales(request: Request, settlement_id: int):
-    """销售审批（第二步）：pending_sales → pending_sales_supervisor"""
+    """销售审批（第二步）：pending_sales → pending_discount_approval（有减免）/ pending_customer（无减免）"""
     db: AsyncSession = request.ctx.db_session
     user = get_current_user(request)
     service = VrSettlementService(db)
@@ -546,11 +530,11 @@ async def confirm_vr_sales(request: Request, settlement_id: int):
     return json({"code": 0, "message": message})
 
 
-@billing_bp.post("/vr-settlements/<settlement_id:int>/confirm-sales-supervisor")
+@billing_bp.post("/vr-settlements/<settlement_id:int>/approve-discount")
 @auth_required
-@require_permission("vr_settlement:sales_supervisor_approve")
-async def confirm_sales_supervisor(request: Request, settlement_id: int):
-    """销售主管审批通过（第三步，含减免一并审批）
+@require_permission("billing:discount_approve")
+async def approve_vr_discount(request: Request, settlement_id: int):
+    """减免审批通过：pending_discount_approval → pending_customer
 
     Body: { "comment": "审批意见（选填）" }
     """
@@ -569,7 +553,7 @@ async def confirm_sales_supervisor(request: Request, settlement_id: int):
 
     status_before = settlement_before.status
 
-    success, message = await service.confirm_sales_supervisor(
+    success, message = await service.approve_discount(
         settlement_id=settlement_id,
         user_id=user["user_id"] if user else 1,
         comment=data.get("comment"),
@@ -584,7 +568,7 @@ async def confirm_sales_supervisor(request: Request, settlement_id: int):
     await create_audit_entry(
         db_session=db,
         user_id=user.get("user_id") if user else None,
-        action="confirm_sales_supervisor",
+        action="approve_discount",
         module="billing",
         record_id=settlement_id,
         record_type="vr_settlement",
@@ -600,11 +584,11 @@ async def confirm_sales_supervisor(request: Request, settlement_id: int):
     return json({"code": 0, "message": message})
 
 
-@billing_bp.post("/vr-settlements/<settlement_id:int>/reject-sales-supervisor")
+@billing_bp.post("/vr-settlements/<settlement_id:int>/reject-discount")
 @auth_required
-@require_permission("vr_settlement:sales_supervisor_approve")
-async def reject_sales_supervisor(request: Request, settlement_id: int):
-    """销售主管审批驳回：退回销售审批节点（comment 必填）"""
+@require_permission("billing:discount_approve")
+async def reject_vr_discount(request: Request, settlement_id: int):
+    """减免审批驳回：退回销售审批节点（comment 必填）"""
     db: AsyncSession = request.ctx.db_session
     data = request.json or {}
     user = get_current_user(request)
@@ -624,7 +608,7 @@ async def reject_sales_supervisor(request: Request, settlement_id: int):
 
     status_before = settlement_before.status
 
-    success, message = await service.reject_sales_supervisor(
+    success, message = await service.reject_discount(
         settlement_id=settlement_id,
         user_id=user["user_id"] if user else 1,
         comment=comment,
@@ -639,7 +623,7 @@ async def reject_sales_supervisor(request: Request, settlement_id: int):
     await create_audit_entry(
         db_session=db,
         user_id=user.get("user_id") if user else None,
-        action="reject_sales_supervisor",
+        action="reject_discount",
         module="billing",
         record_id=settlement_id,
         record_type="vr_settlement",

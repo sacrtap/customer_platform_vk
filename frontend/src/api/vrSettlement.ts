@@ -10,7 +10,7 @@ export type VrSettlementStatus =
   | 'draft'
   | 'pending_cs_supervisor'
   | 'pending_sales'
-  | 'pending_sales_supervisor'
+  | 'pending_discount_approval'
   | 'pending_customer'
   | 'customer_confirmed'
   | 'completed'
@@ -35,6 +35,8 @@ export interface VrSettlement {
   customer_manager_id?: number | null
   /** 客户指定的销售 ID（用于前端判断按钮是否可点击） */
   customer_sales_manager_id?: number | null
+  /** 客户指定的销售经理姓名（列表「销售经理」列展示） */
+  customer_sales_manager_name?: string | null
   period_start: string
   period_end: string
   total_amount: number
@@ -48,20 +50,12 @@ export interface VrSettlement {
   discount_approval_comment?: string | null
   final_amount: number
   status: VrSettlementStatus
-  /**
-   * 有减免且系统存在持「减免审批」权限的用户时为 true：
-   * 销售主管审批通过必须由持 billing:discount_approve 的用户执行（后端同源门禁）
-   */
-  discount_approval_required?: boolean
   cs_supervisor_confirmed_by?: number | null
   cs_supervisor_confirmed_name?: string | null
   cs_supervisor_confirmed_at?: string | null
   sales_confirmed_by?: number | null
   sales_confirmed_name?: string | null
   sales_confirmed_at?: string | null
-  sales_supervisor_confirmed_by?: number | null
-  sales_supervisor_confirmed_name?: string | null
-  sales_supervisor_confirmed_at?: string | null
   customer_confirmed_at?: string | null
   customer_confirmed_by?: number | null
   customer_confirmed_name?: string | null
@@ -127,12 +121,12 @@ export function confirmSales(id: number) {
   return api.post(`/billing/vr-settlements/${id}/confirm-sales`)
 }
 
-export function confirmSalesSupervisor(id: number, comment?: string) {
-  return api.post(`/billing/vr-settlements/${id}/confirm-sales-supervisor`, { comment })
+export function approveDiscount(id: number, comment?: string) {
+  return api.post(`/billing/vr-settlements/${id}/approve-discount`, { comment })
 }
 
-export function rejectSalesSupervisor(id: number, comment: string) {
-  return api.post(`/billing/vr-settlements/${id}/reject-sales-supervisor`, { comment })
+export function rejectDiscount(id: number, comment: string) {
+  return api.post(`/billing/vr-settlements/${id}/reject-discount`, { comment })
 }
 
 export function applyVrDiscount(

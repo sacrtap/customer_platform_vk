@@ -6,8 +6,8 @@ const mockGetVrSettlements = vi.fn()
 const mockSubmitVrSettlement = vi.fn()
 const mockConfirmCsSupervisor = vi.fn()
 const mockConfirmSales = vi.fn()
-const mockConfirmSalesSupervisor = vi.fn()
-const mockRejectSalesSupervisor = vi.fn()
+const mockApproveDiscount = vi.fn()
+const mockRejectDiscount = vi.fn()
 const mockApplyVrDiscount = vi.fn()
 const mockConfirmVrSettlement = vi.fn()
 const mockRetryVrDeduction = vi.fn()
@@ -23,8 +23,8 @@ vi.mock('@/api/vrSettlement', () => ({
   submitVrSettlement: (...args: unknown[]) => mockSubmitVrSettlement(...args),
   confirmCsSupervisor: (...args: unknown[]) => mockConfirmCsSupervisor(...args),
   confirmSales: (...args: unknown[]) => mockConfirmSales(...args),
-  confirmSalesSupervisor: (...args: unknown[]) => mockConfirmSalesSupervisor(...args),
-  rejectSalesSupervisor: (...args: unknown[]) => mockRejectSalesSupervisor(...args),
+  approveDiscount: (...args: unknown[]) => mockApproveDiscount(...args),
+  rejectDiscount: (...args: unknown[]) => mockRejectDiscount(...args),
   applyVrDiscount: (...args: unknown[]) => mockApplyVrDiscount(...args),
   confirmVrSettlement: (...args: unknown[]) => mockConfirmVrSettlement(...args),
   retryVrDeduction: (...args: unknown[]) => mockRetryVrDeduction(...args),
@@ -179,18 +179,18 @@ describe('useVrSettlement - 动作方法', () => {
     expect(mockConfirmSales).toHaveBeenCalledWith(13)
   })
 
-  it('doConfirmSalesSupervisor 透传 comment', async () => {
-    mockConfirmSalesSupervisor.mockResolvedValue({ data: {} })
-    const { doConfirmSalesSupervisor } = useVrSettlement()
-    await doConfirmSalesSupervisor(14, '同意')
-    expect(mockConfirmSalesSupervisor).toHaveBeenCalledWith(14, '同意')
+  it('doApproveDiscount 透传 comment', async () => {
+    mockApproveDiscount.mockResolvedValue({ data: {} })
+    const { doApproveDiscount } = useVrSettlement()
+    await doApproveDiscount(14, '同意')
+    expect(mockApproveDiscount).toHaveBeenCalledWith(14, '同意')
   })
 
-  it('doRejectSalesSupervisor 透传驳回理由', async () => {
-    mockRejectSalesSupervisor.mockResolvedValue({ data: {} })
-    const { doRejectSalesSupervisor } = useVrSettlement()
-    await doRejectSalesSupervisor(15, '金额有误')
-    expect(mockRejectSalesSupervisor).toHaveBeenCalledWith(15, '金额有误')
+  it('doRejectDiscount 透传驳回理由', async () => {
+    mockRejectDiscount.mockResolvedValue({ data: {} })
+    const { doRejectDiscount } = useVrSettlement()
+    await doRejectDiscount(15, '金额有误')
+    expect(mockRejectDiscount).toHaveBeenCalledWith(15, '金额有误')
   })
 
   it('doApplyDiscount 透传减免数据', async () => {

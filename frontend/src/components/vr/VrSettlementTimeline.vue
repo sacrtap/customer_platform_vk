@@ -19,20 +19,20 @@ const timelineEvents = computed(() => {
   const isCancelled = status === 'cancelled'
 
   // VR 流程节点（状态机：draft → pending_cs_supervisor → pending_sales
-  //   → pending_sales_supervisor → pending_customer → customer_confirmed → completed）
+  //   → (有减免 ? pending_discount_approval) → pending_customer → customer_confirmed → completed）
   // statusKey = 该节点完成后进入的状态；created_at 无「前一状态」，占位 draft
   type TimeField =
     | 'created_at'
     | 'cs_supervisor_confirmed_at'
     | 'sales_confirmed_at'
-    | 'sales_supervisor_confirmed_at'
+    | 'discount_approved_at'
     | 'customer_confirmed_at'
     | 'completed_at'
   type OperatorField =
     | 'created_by_name'
     | 'cs_supervisor_confirmed_name'
     | 'sales_confirmed_name'
-    | 'sales_supervisor_confirmed_name'
+    | 'discount_approver_name'
     | 'customer_confirmed_name'
     | 'completed_name'
 
@@ -58,15 +58,14 @@ const timelineEvents = computed(() => {
     {
       field: 'sales_confirmed_at',
       label: '销售审批',
-      statusKey: 'pending_sales_supervisor',
+      statusKey: 'pending_discount_approval',
       operatorField: 'sales_confirmed_name',
     },
     {
-      field: 'sales_supervisor_confirmed_at',
-      label: '销售主管审批',
+      field: 'discount_approved_at',
+      label: '减免审批',
       statusKey: 'pending_customer',
-      operatorField: 'sales_supervisor_confirmed_name',
-      // 减免审批由销售主管在审批节点一并完成，意见随该节点展示
+      operatorField: 'discount_approver_name',
       detailParts: () =>
         props.settlement.discount_approval_comment
           ? [

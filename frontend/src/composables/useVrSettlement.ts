@@ -7,8 +7,8 @@ import {
   submitVrSettlement,
   confirmCsSupervisor,
   confirmSales,
-  confirmSalesSupervisor,
-  rejectSalesSupervisor,
+  approveDiscount,
+  rejectDiscount,
   applyVrDiscount,
   confirmVrSettlement,
   retryVrDeduction,
@@ -170,10 +170,10 @@ export function useVrSettlement() {
     }
   }
 
-  const doConfirmSalesSupervisor = async (id: number, comment?: string) => {
+  const doApproveDiscount = async (id: number, comment?: string) => {
     try {
-      await confirmSalesSupervisor(id, comment)
-      Message.success('审批通过')
+      await approveDiscount(id, comment)
+      Message.success('减免审批通过')
       loadVrSettlements()
     } catch (err) {
       Message.error(errorMessage(err, '审批失败'))
@@ -181,9 +181,9 @@ export function useVrSettlement() {
     }
   }
 
-  const doRejectSalesSupervisor = async (id: number, comment: string) => {
+  const doRejectDiscount = async (id: number, comment: string) => {
     try {
-      await rejectSalesSupervisor(id, comment)
+      await rejectDiscount(id, comment)
       Message.success('已驳回，退回销售审批')
       loadVrSettlements()
     } catch (err) {
@@ -311,8 +311,8 @@ export function useVrSettlement() {
     doSubmit,
     doConfirmCs,
     doConfirmSales,
-    doConfirmSalesSupervisor,
-    doRejectSalesSupervisor,
+    doApproveDiscount,
+    doRejectDiscount,
     doRollback,
     doApplyDiscount,
     doConfirm,

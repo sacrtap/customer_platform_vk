@@ -17,7 +17,7 @@
           </div>
         </div>
 
-        <!-- 审批流程状态条（6 步） -->
+        <!-- 审批流程状态条（5 步） -->
         <div v-if="settlement.status !== 'cancelled'" class="flow-steps">
           <a-steps :current="flowStepIndex" size="small" :status="flowStepsStatus">
             <a-step title="创建" :description="settlement.created_by_name || undefined" />
@@ -27,15 +27,12 @@
             />
             <a-step title="销售审批" :description="settlement.sales_confirmed_name || undefined" />
             <a-step
-              title="销售主管审批"
-              :description="settlement.sales_supervisor_confirmed_name || undefined"
-            />
-            <a-step
               title="客户确认"
               :description="settlement.customer_confirmed_name || undefined"
             />
             <!-- 客户确认后由后端自动扣款（confirm_customer → _execute_deduction），
-                 成功即 completed，故「客户确认」与「结算」合并为末步「已完成」 -->
+                 成功即 completed，故「客户确认」与「结算」合并为末步「已完成」；
+                 减免审批节点无独立步骤，与 Invoice 同口径（同落「客户确认」前一步） -->
             <a-step title="已完成" :description="flowSettledDescription || undefined" />
           </a-steps>
         </div>
@@ -83,7 +80,7 @@
               >查看附件</a
             >
           </a-descriptions-item>
-          <!-- 减免审批结果（销售主管一并审批） -->
+          <!-- 减免审批结果（独立减免审批节点写入） -->
           <template v-if="settlement.discount_amount && settlement.discount_amount !== 0">
             <a-descriptions-item label="减免审批人">
               {{ settlement.discount_approver_name || '—' }}
@@ -131,7 +128,7 @@
           :histories="settlement.discount_history"
         />
 
-        <!-- 操作记录：状态流转时间线（创建→客服主管→销售→销售主管→客户确认→完成/取消） -->
+        <!-- 操作记录：状态流转时间线（创建→客服主管→销售→减免审批→客户确认→完成/取消） -->
         <div class="detail-section">
           <div class="section-header"><h3>操作记录</h3></div>
           <VrSettlementTimeline :settlement="settlement" />
@@ -145,17 +142,12 @@
           >
             提交
           </button>
-          <!-- 设置/修改减免：销售主管审批通过前的任意节点可改（含 pending_sales_supervisor）；
-               客户确认后锁定（减免已随销售主管一并审批生效） -->
+          <!-- 设置/修改减免：进入减免审批节点前可改（draft / pending_cs_supervisor / pending_sales）；
+               减免审批节点起锁定（防止绕过已提交的减免审批） -->
           <button
             v-if="
               can('vr_settlement:discount_apply') &&
-              [
-                'draft',
-                'pending_cs_supervisor',
-                'pending_sales',
-                'pending_sales_supervisor',
-              ].includes(settlement.status)
+              ['draft', 'pending_cs_supervisor', 'pending_sales'].includes(settlement.status)
             "
             class="btn"
             @click="emit('edit-discount', settlement.id)"
@@ -197,24 +189,13 @@
               回退
             </button>
           </template>
-          <!-- 销售主管审批（含减免一并审批） -->
+          <!-- 减免审批（独立节点，需 billing:discount_approve） -->
           <template
             v-if="
-              can('vr_settlement:sales_supervisor_approve') &&
-              settlement.status === 'pending_sales_supervisor'
+              can('billing:discount_approve') && settlement.status === 'pending_discount_approval'
             "
           >
-            <!-- 减免审批门禁：有减免且系统存在持权用户时，无减免审批权限禁用通过（驳回不受限） -->
-            <button
-              v-if="!discountApprovalBlocked"
-              class="btn primary"
-              @click="emit('approve', settlement.id)"
-            >
-              审批通过
-            </button>
-            <a-tooltip v-else :content="discountApprovalTip" position="top">
-              <span class="btn primary disabled">审批通过</span>
-            </a-tooltip>
+            <button class="btn primary" @click="emit('approve', settlement.id)">审批通过</button>
             <button class="btn btn-danger" @click="emit('reject', settlement.id)">审批驳回</button>
           </template>
           <!-- 客户确认：非指定销售时禁用并提示（与销售审批同源身份校验） -->
@@ -247,7 +228,7 @@
                 'draft',
                 'pending_cs_supervisor',
                 'pending_sales',
-                'pending_sales_supervisor',
+                'pending_discount_approval',
                 'pending_customer',
               ].includes(settlement.status)
             "
@@ -341,24 +322,18 @@ const salesDisabledTip = computed(() => {
   return '您不是该客户指定的销售，无法确认'
 })
 
-// ===== 减免审批门禁：后端确认有持权用户且当前结算单有减免时，
-//      无减免审批权限的用户禁用「审批通过」（与后端 confirm_sales_supervisor 同源） =====
-const discountApprovalBlocked = computed(
-  () => props.settlement?.discount_approval_required === true && !can('billing:discount_approve')
-)
-const discountApprovalTip = '该结算单包含减免，需由具有减免审批权限的用户审批'
-
-// ===== 审批流程状态条（6 步）=====
+// ===== 审批流程状态条（5 步）=====
 // 注意：Arco Steps 的 current 是 1-based 步号（与 InvoiceDetailDrawer 同一约定）。
+// 减免审批节点无独立步骤，pending_discount_approval 与 pending_customer 同落第 4 步；
 // customer_confirmed = 客户已确认但自动扣款失败/进行中：末步标红提示需重试扣款。
 const STATUS_TO_STEP: Record<string, number> = {
   draft: 1,
   pending_cs_supervisor: 2,
   pending_sales: 3,
-  pending_sales_supervisor: 4,
-  pending_customer: 5,
-  customer_confirmed: 6,
-  completed: 6,
+  pending_discount_approval: 4,
+  pending_customer: 4,
+  customer_confirmed: 5,
+  completed: 5,
   cancelled: 1,
 }
 const flowStepIndex = computed(() => {

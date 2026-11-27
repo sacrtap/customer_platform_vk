@@ -63,8 +63,8 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
         cs_supervisor_confirmed_name: '李四',
         sales_confirmed_at: '2026-11-03T12:00:00',
         sales_confirmed_name: '王五',
-        sales_supervisor_confirmed_at: '2026-11-03T13:00:00',
-        sales_supervisor_confirmed_name: '赵六',
+        discount_approved_at: '2026-11-03T13:00:00',
+        discount_approver_name: '赵六',
         customer_confirmed_at: '2026-11-03T14:00:00',
         customer_confirmed_name: '客户经理',
         completed_at: '2026-11-03T15:00:00',
@@ -77,7 +77,7 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
       '创建结算单',
       '客服主管审批',
       '销售审批',
-      '销售主管审批',
+      '减免审批',
       '客户确认',
       '完成结算',
     ])
@@ -86,7 +86,7 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
     expect(texts[5]).toContain('系统')
   })
 
-  it('当前所处节点高亮（pending_customer：销售主管已批、客户未确认）', () => {
+  it('当前所处节点高亮（pending_customer：减免已批、客户未确认）', () => {
     const wrapper = mountTimeline(
       makeSettlement({
         status: 'pending_customer',
@@ -94,17 +94,17 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
         cs_supervisor_confirmed_name: '李四',
         sales_confirmed_at: '2026-11-03T12:00:00',
         sales_confirmed_name: '王五',
-        sales_supervisor_confirmed_at: '2026-11-03T13:00:00',
-        sales_supervisor_confirmed_name: '赵六',
+        discount_approved_at: '2026-11-03T13:00:00',
+        discount_approver_name: '赵六',
       })
     )
 
-    // 已发生 4 节点：创建 + 三级审批
+    // 已发生 4 节点：创建 + 客服主管 + 销售 + 减免审批
     expect(wrapper.findAll('.timeline-content')).toHaveLength(4)
-    // 当前节点 = 销售主管审批（pending_customer 是其后置状态），蓝色高亮
+    // 当前节点 = 减免审批（pending_customer 是其后置状态），蓝色高亮
     const current = wrapper.findAll('.current-event')
     expect(current).toHaveLength(1)
-    expect(current[0].text()).toContain('销售主管审批')
+    expect(current[0].text()).toContain('减免审批')
     // 其余 3 个为已完成绿色
     expect(wrapper.findAll('.completed-event')).toHaveLength(3)
   })
@@ -127,21 +127,21 @@ describe('VrSettlementTimeline 操作记录时间线', () => {
     expect(cancelled[0].text()).toContain('张三')
   })
 
-  it('销售主管节点展示减免审批意见', () => {
+  it('减免审批节点展示审批意见', () => {
     const wrapper = mountTimeline(
       makeSettlement({
         status: 'pending_customer',
         cs_supervisor_confirmed_at: '2026-11-03T11:00:00',
         sales_confirmed_at: '2026-11-03T12:00:00',
-        sales_supervisor_confirmed_at: '2026-11-03T13:00:00',
+        discount_approved_at: '2026-11-03T13:00:00',
         discount_approval_comment: '同意减免，年末优惠',
       })
     )
 
-    const supervisorNode = wrapper
+    const discountNode = wrapper
       .findAll('.timeline-content')
-      .find((n) => n.text().includes('销售主管审批'))
-    expect(supervisorNode?.text()).toContain('减免审批意见：同意减免，年末优惠')
+      .find((n) => n.text().includes('减免审批'))
+    expect(discountNode?.text()).toContain('减免审批意见：同意减免，年末优惠')
   })
 
   it('减免历史插在创建节点之后（正序，多次标注第 N 次）', () => {

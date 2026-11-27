@@ -573,7 +573,7 @@ test.describe('视觉回归测试', () => {
     ]
     const STATUSES = [
       'pending_cs_supervisor',
-      'pending_sales_supervisor',
+      'pending_discount_approval',
       'draft',
       'customer_confirmed',
     ]
@@ -585,6 +585,7 @@ test.describe('视觉回归测试', () => {
       customer_name: '某某某某某某某某某某',
       customer_manager_id: null,
       customer_sales_manager_id: null,
+      customer_sales_manager_name: null,
       period_start: '2026-11-01',
       period_end: '2026-11-30',
       total_amount: 123456.78,
@@ -592,7 +593,6 @@ test.describe('视觉回归测试', () => {
       discount_reason: null,
       final_amount: 122456.78,
       status: STATUSES[index],
-      discount_approval_required: false,
       detail_file_path: 'uploads/vr/detail.xlsx',
       detail_file_name: '明细.xlsx',
       created_at: '2026-11-09 12:00:00',
@@ -696,6 +696,7 @@ test.describe('视觉回归测试', () => {
       settlement_account_name: null,
       customer_manager_id: null,
       customer_sales_manager_id: null,
+      customer_sales_manager_name: null,
       period_start: '2026-10-01T00:00:00+00:00',
       period_end: '2026-10-31T23:59:59+00:00',
       total_amount: 11569,

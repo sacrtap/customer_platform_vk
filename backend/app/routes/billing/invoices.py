@@ -15,7 +15,7 @@ from openpyxl.utils import get_column_letter
 from sanic.request import Request
 from sanic.response import file as response_file
 from sanic.response import json, raw
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...cache.base import cache_service
@@ -28,6 +28,7 @@ from ...middleware.auth import (
     get_current_user,
     require_permission,
 )
+from ...models.users import User
 from ...repository import InvoiceRepository, PricingRepository
 from ...services.billing import InvoiceService
 from ...tasks.invoice_detail_generator import generate_invoice_detail
@@ -158,6 +159,19 @@ async def get_invoices(request: Request):
         mine_user_id=scope_user_id,
     )
 
+    # 销售经理姓名（列表列展示）：一次批量解析，避免 N+1
+    sales_manager_ids = {
+        i.customer.sales_manager_id for i in invoices if i.customer and i.customer.sales_manager_id
+    }
+    sales_manager_names: dict[int, str] = {}
+    if sales_manager_ids:
+        rows = await db.execute(
+            select(User.id, User.real_name, User.username).where(
+                User.id.in_(sales_manager_ids)  # pyright: ignore[reportArgumentType]
+            )
+        )
+        sales_manager_names = {row.id: row.real_name or row.username for row in rows}
+
     return json(
         {
             "code": 0,
@@ -177,6 +191,11 @@ async def get_invoices(request: Request):
                         "customer_manager_id": i.customer.manager_id if i.customer else None,
                         "customer_sales_manager_id": i.customer.sales_manager_id
                         if i.customer
+                        else None,
+                        "customer_sales_manager_name": sales_manager_names.get(
+                            i.customer.sales_manager_id  # pyright: ignore[reportArgumentType]
+                        )
+                        if i.customer and i.customer.sales_manager_id
                         else None,
                         "period_start": i.period_start.isoformat() if i.period_start else None,  # pyright: ignore[reportGeneralTypeIssues]
                         "period_end": i.period_end.isoformat() if i.period_end else None,  # pyright: ignore[reportGeneralTypeIssues]
@@ -229,7 +248,6 @@ async def get_invoice(request: Request, invoice_id: int):
     from sqlalchemy import select as sa_select
 
     from ...models.billing import InvoiceDiscountHistory
-    from ...models.users import User
 
     operator_ids = {
         invoice.created_by,
