@@ -14,7 +14,6 @@
 | [ChartCard.vue](../../frontend/src/components/ChartCard.vue) | 0.8K | 图表卡片容器：标题 + `actions` 插槽 | `views/Home.vue` 经营趋势、异常与待办 |
 | [ConsumeLevelProgress.vue](../../frontend/src/components/ConsumeLevelProgress.vue) | 6.2K | 消费等级（C1–C6）分段进度条，组件内按等级算游标位置 | 暂无引用；客户详情画像 Tab 用的是 `components/charts/ConsumeLevelProgress.vue` |
 | [CustomerAutoComplete.vue](../../frontend/src/components/CustomerAutoComplete.vue) | 3.0K | 客户远程搜索（300ms 防抖，`v-model` 绑定 customer id） | 结算/充值/定价规则/VR 创建弹窗、结算单详情抽屉、客户新建与编辑、余额白名单（9 处） |
-| [CustomerPreviewDrawer.vue](../../frontend/src/components/CustomerPreviewDrawer.vue) | 4.3K | 客户 360 右侧抽屉预览（余额、30 天消耗、健康度） | 暂无引用（客户列表用 `views/customers/components/PreviewDrawer.vue`） |
 | [DataTable.vue](../../frontend/src/components/DataTable.vue) | 10.7K | 通用表格：列设置（`storageKey` 存 localStorage）、分页、行选择、横向滚动、插槽透传 | 18 处列表页/表格组件（结算、定价、套餐、客户、角色、用户、系统管理等） |
 | [EmptyState.vue](../../frontend/src/components/EmptyState.vue) | 1.4K | 空状态占位（`title` + `description`） | 9 个列表页的无数据提示 |
 | [FilterSection.vue](../../frontend/src/components/FilterSection.vue) | 0.4K | 筛选区白底圆角容器（纯插槽） | 仅 `components/__tests__/FilterSection.test.ts` 引用 |

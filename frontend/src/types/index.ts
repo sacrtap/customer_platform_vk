@@ -133,16 +133,8 @@ export interface Customer {
   usage_30d?: number | null
   usage_30d_amount?: number | null
   health?: string | null
-  consumption_history?: ConsumptionHistoryItem[]
   // 可选关联对象（详情接口返回）
   profile?: CustomerProfile
-}
-
-export interface ConsumptionHistoryItem {
-  id: number
-  description: string
-  amount: number
-  created_at: string
 }
 
 /** 客户画像 */

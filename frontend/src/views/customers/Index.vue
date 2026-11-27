@@ -87,10 +87,11 @@
     <PreviewDrawer
       :visible="previewDrawerVisible"
       :customer="previewCustomer"
+      :managers="managers as Array<{ id: number; real_name: string | null }>"
+      :cooperation-statuses="cooperationStatuses"
+      :erp-systems="erpSystems"
       @close="previewDrawerVisible = false"
       @view-detail="handleViewDetail"
-      @edit="openEditModal"
-      @add-tag="openTagModal"
     />
 
     <!-- 新增客户弹窗 -->
@@ -175,7 +176,7 @@ import { useRouter } from 'vue-router'
 import { useCustomerList } from '@/composables/useCustomerList'
 import type { Customer, Tag } from '@/types'
 import { batchAddCustomerTags } from '@/api/tags'
-import { batchUpdateCustomers, getKpiStats } from '@/api/customers'
+import { batchUpdateCustomers, getCustomer, getKpiStats } from '@/api/customers'
 import { Message } from '@arco-design/web-vue'
 import { handleError } from '@/utils/errorHandler'
 
@@ -327,9 +328,25 @@ watch(
 // 预览抽屉
 const previewDrawerVisible = ref(false)
 const previewCustomer = ref<Customer | null>(null)
-const openPreview = (id: number) => {
-  previewCustomer.value = customers.value.find((c) => c.id === id) || null
+// 详情请求序号：快速切换客户时丢弃过期响应，避免旧客户详情覆盖新客户
+let previewRequestSeq = 0
+const openPreview = async (id: number) => {
+  const row = customers.value.find((c) => c.id === id) || null
+  previewCustomer.value = row
   previewDrawerVisible.value = true
+
+  const seq = ++previewRequestSeq
+  try {
+    // 列表接口不返回 ERP/合作状态/关键日期/停用/备注等字段，打开抽屉时用详情接口补全
+    const res = await getCustomer(id)
+    const detail = res.data as Customer | undefined
+    if (seq !== previewRequestSeq || !detail) return
+    // 详情返回完整基础字段（覆盖列表同名字段）；列表独有的余额/30天消耗/健康度等保留
+    previewCustomer.value = { ...row, ...detail } as Customer
+  } catch (error) {
+    // 补全失败不阻塞预览：保留列表行数据即可
+    console.warn('[customer-preview] 加载客户详情失败', error)
+  }
 }
 
 // 从 360 预览抽屉点击「查看详情」时，在新标签页打开客户详情页

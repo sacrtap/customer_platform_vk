@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "FAAE frontend conventions"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Vue component props/emits style"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "TypeScript strict / no any"}
